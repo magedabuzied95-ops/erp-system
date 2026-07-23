@@ -81,7 +81,8 @@ export const generateAutonomousAiMarketingVideosWeekly = async (body = {}) => ap
 export const generateAutonomousAiMarketingVideosMonthly = async (body = {}) => api.post("/marketing/ai-center/videos/generate/monthly", body);
 export const syncAutonomousAiMarketingInsights = async () => unwrapItem(await api.post("/marketing/ai-center/insights/sync", {}));
 export const approveAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/approve`, {}));
-export const generateAutonomousAiMarketingQueueStoryAsset = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/generate-story-asset`, {}));
+export const generateAutonomousAiMarketingQueueStoryAsset = async (id) =>
+  api.post(`/marketing/ai-center/queue/${id}/generate-story-asset`, {});
 export const publishAutonomousAiMarketingQueueItemNow = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/publish-now`, {}));
 export const archiveAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/archive`, {}));
 export const restoreAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/restore`, {}));

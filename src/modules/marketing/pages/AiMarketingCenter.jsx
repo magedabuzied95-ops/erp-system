@@ -44,6 +44,11 @@ import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
 import PostEditorModal, { StoryCreativePreview, buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
 import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem } from "../lib/queueStatus";
+import {
+  hasValidStoryAssetSnapshot,
+  mergeStoryAssetResponse,
+  normalizeStoryAssetSnapshot,
+} from "../lib/storyAssetSnapshot";
 
 const EMPTY_SETTINGS = {
   stories_per_day: 12,
@@ -96,6 +101,7 @@ const formatApiError = (error, fallback) => {
 };
 
 const isStaleQueueError = (error) => [404, 410].includes(Number(error?.status));
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const uniqueMediaUrls = (item = {}) =>
   Array.from(
@@ -373,6 +379,7 @@ function AiMarketingCenter() {
   const [historyTarget, setHistoryTarget] = useState(null);
   const [historyRows, setHistoryRows] = useState([]);
   const loadInFlightRef = useRef(null);
+  const storyAssetRequestsRef = useRef(new Map());
   const queueRef = useRef(queue);
   queueRef.current = queue;
   const canCreateMarketing = hasPermission("marketing.create");
@@ -556,6 +563,17 @@ function AiMarketingCenter() {
       await load({ logQueueCount: true });
       return;
     }
+    const targetFlags = getPreviewContentFlags(targetItem || {});
+    if (action === "publish" && targetFlags.isStoryContent && !targetFlags.isFeedContent) {
+      if (storyAssetRequestsRef.current.has(String(id)) || generatingStoryAssetIds.has(String(id))) {
+        toast.error("انتظر حتى يكتمل إنشاء أصل القصة أولًا.");
+        return;
+      }
+      if (!hasValidStoryAssetSnapshot(targetItem || {})) {
+        toast.error("أنشئ أصل القصة أولًا من زر المعاينة، ثم أعد محاولة النشر.");
+        return;
+      }
+    }
     if (action === "publish" && !canPublishQueueItem(targetItem)) {
       toast(isPublishedQueueItem(targetItem) ? "هذا العنصر منشور بالفعل." : "وافق على هذا العنصر قبل النشر.");
       const nextQueue = await load();
@@ -625,71 +643,69 @@ function AiMarketingCenter() {
       }
     }
   };
-
-  const generateStoryAsset = async (item) => {
+  const generateStoryAsset = (item, { openPreview = false } = {}) => {
     const id = item?.id;
     if (!id) {
       toast.error("Queue item is missing an id.");
+      return Promise.resolve(null);
+    }
+    const key = String(id);
+    const existingRequest = storyAssetRequestsRef.current.get(key);
+    if (existingRequest) return existingRequest;
+    const request = (async () => {
+      try {
+        setGeneratingStoryAssetIds((current) => new Set(current).add(key));
+        const payload = await generateAutonomousAiMarketingQueueStoryAsset(id);
+        let updatedItem = mergeStoryAssetResponse(item, payload);
+        if (!hasValidStoryAssetSnapshot(updatedItem)) {
+          for (let attempt = 0; attempt < 180; attempt += 1) {
+            await wait(1000);
+            const rows = await getAutonomousAiMarketingQueue({ include_archived: true });
+            const latest = rows.find((row) => String(row.id) === key);
+            if (!latest) throw new Error("لم يعد عنصر القصة موجودًا في قائمة الانتظار.");
+            if (String(latest.metadata?.story_asset_error || "").trim() || getQueueStatusInfo(latest).normalizedStatus === "failed") {
+              throw new Error(latest.metadata?.story_asset_error || "فشل إنشاء أصل القصة.");
+            }
+            updatedItem = mergeStoryAssetResponse(item, latest);
+            if (hasValidStoryAssetSnapshot(updatedItem)) break;
+          }
+        }
+        if (!hasValidStoryAssetSnapshot(updatedItem)) throw new Error("انتهت مهلة إنشاء أصل القصة. حاول مرة أخرى.");
+        if (normalizeStoryAssetSnapshot(updatedItem).storyId !== key) throw new Error("تم تجاهل استجابة أصل قصة لا تخص هذا الصف.");
+        setQueue((current) => current.map((row) => (String(row.id) === key ? updatedItem : row)));
+        if (openPreview) setPreview(updatedItem);
+        else setPreview((current) => (current && String(current.id) === key ? updatedItem : current));
+        toast.success("تم إنشاء أصل القصة وحفظه.");
+        return updatedItem;
+      } catch (error) {
+        const message = formatApiError(error, "فشل إنشاء أصل القصة.");
+        setPreview((current) =>
+          current && String(current.id) === key
+            ? { ...current, metadata: { ...(current.metadata || {}), story_asset_error: message } }
+            : current
+        );
+        toast.error(message);
+        return null;
+      } finally {
+        setGeneratingStoryAssetIds((current) => {
+          const next = new Set(current);
+          next.delete(key);
+          return next;
+        });
+        storyAssetRequestsRef.current.delete(key);
+      }
+    })();
+    storyAssetRequestsRef.current.set(key, request);
+    return request;
+  };
+
+  const previewQueueItem = async (item) => {
+    const flags = getPreviewContentFlags(item);
+    if (!flags.isStoryContent || flags.isFeedContent || hasValidStoryAssetSnapshot(item)) {
+      setPreview(item);
       return;
     }
-    try {
-      setGeneratingStoryAssetIds((current) => new Set(current).add(String(id)));
-      const payload = await generateAutonomousAiMarketingQueueStoryAsset(id);
-      const assetUrl = firstText(payload?.final_asset_url, payload?.selectedPublishUrl, payload?.story_image_url, payload?.rendered_image_url);
-      const updatedItem = payload?.item?.id
-        ? payload.item
-        : assetUrl
-          ? {
-              ...item,
-              rendered_image_url: firstText(payload?.rendered_image_url, assetUrl),
-              story_image_url: firstText(payload?.story_image_url, assetUrl),
-              final_asset_url: assetUrl,
-              selectedPublishUrl: firstText(payload?.selectedPublishUrl, assetUrl),
-              final_asset_url_raw: firstText(payload?.final_asset_url_raw, assetUrl),
-              selectedPublishUrl_raw: firstText(payload?.selectedPublishUrl_raw, payload?.selectedPublishUrl, assetUrl),
-              metadata: {
-                ...(item.metadata || {}),
-                story_asset_error: "",
-              },
-            }
-          : null;
-      if (!updatedItem?.id) throw new Error("لم تُرجع عملية إنشاء عنصر القصة أي عنصر قائمة أو رابط أصل.");
-      const itemWithTopLevelUrls = assetUrl
-        ? {
-            ...updatedItem,
-            rendered_image_url: firstText(payload?.rendered_image_url, updatedItem.rendered_image_url, assetUrl),
-            story_image_url: firstText(payload?.story_image_url, updatedItem.story_image_url, assetUrl),
-            final_asset_url: firstText(payload?.final_asset_url, updatedItem.final_asset_url, assetUrl),
-            selectedPublishUrl: firstText(payload?.selectedPublishUrl, updatedItem.selectedPublishUrl, payload?.final_asset_url, assetUrl),
-            final_asset_url_raw: firstText(payload?.final_asset_url_raw, updatedItem.final_asset_url_raw, payload?.final_asset_url, assetUrl),
-            selectedPublishUrl_raw: firstText(payload?.selectedPublishUrl_raw, updatedItem.selectedPublishUrl_raw, payload?.selectedPublishUrl, assetUrl),
-          }
-        : updatedItem;
-      setQueue((current) => current.map((row) => (String(row.id) === String(id) ? itemWithTopLevelUrls : row)));
-      setPreview((current) => (current && String(current.id) === String(id) ? itemWithTopLevelUrls : current));
-      toast.success(payload?.queued ? "تمت إضافة أصل القصة إلى الطابور" : "تم إنشاء أصل القصة");
-    } catch (error) {
-      const message = formatApiError(error, "فشل إنشاء أصل القصة");
-      setPreview((current) =>
-        current && String(current.id) === String(id)
-          ? {
-              ...current,
-              metadata: {
-                ...(current.metadata || {}),
-                story_asset_error: message,
-              },
-            }
-          : current
-      );
-      toast.error(message);
-      await load();
-    } finally {
-      setGeneratingStoryAssetIds((current) => {
-        const next = new Set(current);
-        next.delete(String(id));
-        return next;
-      });
-    }
+    await generateStoryAsset(item, { openPreview: true });
   };
 
   const confirmDeleteContent = async () => {
@@ -718,6 +734,17 @@ function AiMarketingCenter() {
     if (action === "delete") {
       setDeleteTarget({ bulk: true, ids, id: ids[0], title: `${ids.length} selected items` });
       return;
+    }
+    if (action === "publish") {
+      const missingStoryAssets = queue.filter((item) => {
+        if (!ids.includes(String(item.id)) && !ids.includes(item.id)) return false;
+        const flags = getPreviewContentFlags(item);
+        return flags.isStoryContent && !flags.isFeedContent && !hasValidStoryAssetSnapshot(item);
+      });
+      if (missingStoryAssets.length) {
+        toast.error("أنشئ أصول القصص المحددة أولًا قبل النشر الجماعي.");
+        return;
+      }
     }
     try {
       const result = await bulkAutonomousAiMarketingQueueAction({ action, ids });
@@ -880,8 +907,8 @@ function AiMarketingCenter() {
 
         <main className="space-y-4">
           <RecommendationsPanel overview={overview} />
-          <QueueSection title="القصص" icon={<Image className="h-4 w-4" />} items={stories} empty="لا توجد عناصر قصة في الطابور." statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={setPreview} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
-          <QueueSection title="المنشورات" icon={<Send className="h-4 w-4" />} items={posts} empty="لا توجد منشورات ذكاء اصطناعي في الطابور." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={setPreview} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
+          <QueueSection title="القصص" icon={<Image className="h-4 w-4" />} items={stories} empty="لا توجد عناصر قصة في الطابور." statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
+          <QueueSection title="المنشورات" icon={<Send className="h-4 w-4" />} items={posts} empty="لا توجد منشورات ذكاء اصطناعي في الطابور." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
         </main>
       </div>
 
@@ -1043,7 +1070,7 @@ function InsightCard({ insights, syncing = false, onSync }) {
   );
 }
 
-function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatusFilter, selectedIds, onToggleSelected, onBulkAction, onPreview, onHistory, onAction, publishingIds, actionDisabled = false }) {
+function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatusFilter, selectedIds, onToggleSelected, onBulkAction, onPreview, onHistory, onAction, publishingIds, generatingStoryAssetIds, actionDisabled = false }) {
   const groups = groupedBySchedule(items);
   const queueType = title.toLowerCase();
   const selectedCount = items.filter((item) => selectedIds?.has(String(item.id))).length;
@@ -1072,7 +1099,7 @@ function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatu
               <Badge>{group.items.length}</Badge>
             </div>
             {group.items.map((item) => (
-              <QueueItem key={item.id} item={item} queueType={queueType} selected={selectedIds?.has(String(item.id))} onToggleSelected={() => onToggleSelected?.(item.id)} publishing={publishingIds?.has(String(item.id))} actionDisabled={actionDisabled} onPreview={() => onPreview(item)} onHistory={() => onHistory?.(item)} onApprove={() => onAction(item, "approve")} onPublish={() => onAction(item, "publish")} onArchive={() => onAction(item, "archive")} onRestore={() => onAction(item, "restore")} onDuplicate={() => onAction(item, "duplicate")} onDelete={() => onAction(item, "delete")} />
+              <QueueItem key={item.id} item={item} queueType={queueType} selected={selectedIds?.has(String(item.id))} onToggleSelected={() => onToggleSelected?.(item.id)} publishing={publishingIds?.has(String(item.id))} generatingStoryAsset={generatingStoryAssetIds?.has(String(item.id))} actionDisabled={actionDisabled} onPreview={() => onPreview(item)} onHistory={() => onHistory?.(item)} onApprove={() => onAction(item, "approve")} onPublish={() => onAction(item, "publish")} onArchive={() => onAction(item, "archive")} onRestore={() => onAction(item, "restore")} onDuplicate={() => onAction(item, "duplicate")} onDelete={() => onAction(item, "delete")} />
             ))}
           </div>
         )) : (
@@ -1092,7 +1119,7 @@ function ScheduleBadge({ item }) {
   return <Badge tone="cyan">{formatSchedule(item)}</Badge>;
 }
 
-function QueueItem({ item, queueType = "queue", selected = false, onToggleSelected, publishing, actionDisabled = false, onPreview, onHistory, onApprove, onPublish, onArchive, onRestore, onDuplicate, onDelete }) {
+function QueueItem({ item, queueType = "queue", selected = false, onToggleSelected, publishing, generatingStoryAsset = false, actionDisabled = false, onPreview, onHistory, onApprove, onPublish, onArchive, onRestore, onDuplicate, onDelete }) {
   const design = item.design_json || {};
   const isLastPiece = item.strategy_type === "last_size";
   const { isStoryContent, isFeedContent } = getPreviewContentFlags(item);
@@ -1157,7 +1184,7 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
           <ScheduleBadge item={item} />
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
-          <button type="button" onClick={onPreview} disabled={isGenerating} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white disabled:opacity-50`}>Preview</button>
+          <button type="button" onClick={onPreview} disabled={isGenerating || generatingStoryAsset} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white disabled:opacity-50`}>{generatingStoryAsset ? "جارٍ إنشاء القصة..." : "Preview"}</button>
           <button type="button" onClick={onHistory} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
             <History className="h-4 w-4" />
             History
@@ -1165,7 +1192,7 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
           {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
           {isArchived ? <button type="button" onClick={onRestore} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>استعادة</button> : null}
           {!isArchived && showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>موافقة</button> : null}
-          {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "جارٍ النشر..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "إعادة محاولة النشر" : "نشر"}</button> : null}
+          {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || generatingStoryAsset || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "جارٍ النشر..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "إعادة محاولة النشر" : "نشر"}</button> : null}
           {!isArchived ? <button type="button" onClick={onArchive} disabled={actionDisabled} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة</button> : null}
           <button type="button" title="Duplicate" onClick={onDuplicate} disabled={actionDisabled} className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
             <Copy className="h-4 w-4" />

@@ -13,7 +13,7 @@ test("AiMarketingCenter exposes required status filters", () => {
 
 test("queued/generating/uploading rows disable Preview until ready or published", () => {
   assert.match(source, /const isGenerating = \["queued", "generating_copy", "generating_image", "uploading"\]/);
-  assert.match(source, /disabled=\{isGenerating\}/);
+  assert.match(source, /disabled=\{isGenerating \|\| generatingStoryAsset\}/);
   assert.match(queueStatus, /ready/);
   assert.match(queueStatus, /published/);
 });
