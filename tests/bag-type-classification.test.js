@@ -26,3 +26,19 @@ test("storefront renders active bag type classification options", () => {
   assert.match(source, /normalizeStorefrontProductTypeValue\(selectedType\)\s*===\s*"bags"/);
   assert.match(source, /product\.bag_type/);
 });
+
+test("bag type schema seeds the requested options without overwriting later admin changes", () => {
+  const source = readFileSync(new URL("../server/services/productClassificationsService.js", import.meta.url), "utf8");
+  const expectedValues = [
+    "handbag",
+    "shoulder-bag",
+    "crossbody-bag",
+    "tote-bag",
+    "waist-bag",
+    "school-bag",
+    "clutch",
+    "bucket-bag",
+  ];
+  expectedValues.forEach((value) => assert.match(source, new RegExp(`'${value}'`)));
+  assert.match(source, /ON CONFLICT \(group_id, value\) DO NOTHING/);
+});
