@@ -2490,8 +2490,10 @@ const uniqueClassificationOptions = (options = []) => {
 // Men's category motion clip (Pexels video 33294342, free to use).
 // Product/category media from the API still takes priority when configured.
 const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/33294342/14180878_640_360_24fps.mp4";
-// Women's category motion clip (Pexels video 7877138, free to use).
-const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7877138/7877138-sd_640_338_25fps.mp4";
+// Women's slippers motion clip (Pexels video 6919220, free to use).
+// The 720px rendition is ~1.42 MB versus ~9.21 MB for the original UHD file.
+const WOMEN_SLIPPERS_VIDEO_URL = "https://videos.pexels.com/video-files/6919220/6919220-hd_720_1366_30fps.mp4";
+const WOMEN_SLIPPERS_POSTER_URL = "https://images.pexels.com/videos/6919220/pexels-photo-6919220.jpeg?auto=compress&cs=tinysrgb&w=480";
 const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/8456205/8456205-sd_640_360_25fps.mp4";
 const SALE_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/5889624/5889624-sd_426_240_25fps.mp4";
 
@@ -2510,17 +2512,17 @@ const mainHomeCategoryCards = [
     poster: "/storefront/category-posters/men.webp",
   },
   {
-    id: "women",
-    titleAr: "حريمي",
-    titleEn: "Women",
-    subtitleAr: "راحة وأناقة لكل يوم",
-    subtitleEn: "Comfort and style for every day",
-    href: "/products?gender=women",
-    test: (product) => isExclusiveCategoryAudience(product, "women"),
+    id: "women-slippers",
+    titleAr: "سليبر حريمي",
+    titleEn: "Women's Slippers",
+    subtitleAr: "راحة وأناقة خفيفة لكل يوم",
+    subtitleEn: "Light comfort and style for every day",
+    href: "/products?gender=women&type=slippers",
+    test: (product) => isExclusiveCategoryAudience(product, "women") && resolveProductTypeKey(product.product_type || product.productType) === "slippers",
     icon: Users,
     overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
-    video: WOMEN_CATEGORY_TRIAL_VIDEO_URL,
-    poster: "/storefront/category-posters/women.webp",
+    video: WOMEN_SLIPPERS_VIDEO_URL,
+    poster: WOMEN_SLIPPERS_POSTER_URL,
     preferDefinitionVideo: true,
   },
   {
