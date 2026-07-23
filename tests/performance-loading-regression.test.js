@@ -43,3 +43,13 @@ test("storefront list payload does not duplicate full image collections", () => 
   assert.doesNotMatch(slimSource, /\bimage_urls:/);
   assert.match(slimSource, /gallery_images:\s*\[\]/);
 });
+
+test("storefront product responses use a short shared cache", () => {
+  const source = readFileSync(new URL("../server/controllers/storefrontController.js", import.meta.url), "utf8");
+  const listStart = source.indexOf("export const listProducts");
+  const listEnd = source.indexOf("\nexport const visualSearchProducts", listStart);
+  const listSource = source.slice(listStart, listEnd);
+
+  assert.match(listSource, /getOrSetCache\(storefrontCacheKey\(tenantId,\s*"products"/);
+  assert.match(listSource, /public,\s*max-age=15,\s*stale-while-revalidate=30/);
+});

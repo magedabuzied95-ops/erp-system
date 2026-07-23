@@ -2814,14 +2814,12 @@ export const listProducts = async (req, res) => {
   const startedAt = Date.now();
   try {
     console.log("[storefront-products-hit]", req.originalUrl || req.url || "", req.query || {});
-    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.set("Pragma", "no-cache");
-    res.set("Expires", "0");
+    res.set("Cache-Control", "public, max-age=15, stale-while-revalidate=30");
     await ensureStorefrontSchema();
     await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
-    const payload = await (async () => {
+    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "products", req.query || {}), 20, async () => {
       const normalizedQuery = normalizeStorefrontProductsQuery(req.query || {});
       const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch } = normalizedQuery;
       const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);
@@ -2995,7 +2993,7 @@ export const listProducts = async (req, res) => {
         grouping_mode: groupingMode,
         random_seed: randomSeed || undefined,
       };
-    })();
+    });
     if (ERP_PERF_DEBUG) console.log("[erp-perf] storefront.products", { total_ms: Date.now() - startedAt, rows: payload.products?.length || 0, limit: payload.limit });
     res.json(payload);
   } catch (error) {
