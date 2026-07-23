@@ -2511,8 +2511,20 @@ const productHomeCard = async (tenantId, product = {}) => ({
   gender: product.gender || "",
   audiences: product.audiences || product.product_audiences || [],
   product_type: product.product_type || product.productType || "",
+  grade: product.grade || "",
+  grade_name: product.grade_name || product.gradeName || "",
+  grade_slug: product.grade_slug || product.gradeSlug || "",
+  is_mirror: product.is_mirror === true || String(product.is_mirror || "").toLowerCase() === "true",
   link: await productHomeLink(tenantId, product),
 });
+
+const isHomeMirrorProduct = (product = {}) => {
+  if (product.is_mirror === true || String(product.is_mirror || "").toLowerCase() === "true") return true;
+  const aliases = new Set(["mirror", "mirror_original", "mirror original", "original_mirror", "original mirror"]);
+  return [product.grade, product.grade_slug, product.grade_name]
+    .map((value) => toText(value).toLowerCase().replace(/[-\s]+/g, "_"))
+    .some((value) => aliases.has(value) || aliases.has(value.replace(/_/g, " ")));
+};
 
 const isHomeSaleProduct = (product = {}) => {
   const salePrice = roundMoney(product.sale_price);
@@ -2584,12 +2596,14 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   }
 
   const latest = products;
+  const mirrorProducts = products.filter(isHomeMirrorProduct).slice(0, 12);
   const featured = [...products].sort((a, b) => toNumber(b.total_stock) - toNumber(a.total_stock) || homeNewestScore(b) - homeNewestScore(a));
   const sale = products.filter(isHomeSaleProduct);
-  const heroProduct = sale[0] || latest[0];
-  const hero = await productHomeCard(tenantId, heroProduct);
+  const heroProduct = mirrorProducts[0] || null;
+  const hero = heroProduct ? await productHomeCard(tenantId, heroProduct) : null;
+  const mirrorCards = await Promise.all(mirrorProducts.map((product) => productHomeCard(tenantId, product)));
   const usage = new Map();
-  markHomeProductUsage(usage, [heroProduct]);
+  markHomeProductUsage(usage, heroProduct ? [heroProduct] : []);
   const saleProducts = capHomeProductUsage(usage, sale, 8, 1);
   markHomeProductUsage(usage, saleProducts);
   const latestProducts = capHomeProductUsage(usage, latest, 8, 1);
@@ -2609,6 +2623,7 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
 
   return {
     hero,
+    mirror_products: mirrorCards,
     featured_collections: sections.filter((section) => section.products.length),
     source: "products",
     product_count: products.length,

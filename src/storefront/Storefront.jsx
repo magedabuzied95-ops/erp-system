@@ -665,27 +665,31 @@ const normalizeStorefrontBrand = (brand = {}) => {
 
 const storefrontHomeStateFromResponse = (response, { loading = false } = {}) => {
   const home = getStorefrontHomeFromResponse(response);
-  const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
+  const normalizedHero = home.hero ? normalizeHomeProduct(home.hero) : null;
+  const hero = normalizedHero && isMirrorProduct(normalizedHero) ? normalizedHero : null;
+  const mirrorProducts = (Array.isArray(home.mirror_products) ? home.mirror_products : [])
+    .map(normalizeHomeProduct)
+    .filter((product) => product.id && product.name && isMirrorProduct(product));
   const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
     .map(normalizeHomeCollection)
     .filter((collection) => collection.products.length);
-  return { loading, error: "", hero: hero?.id ? hero : null, collections };
+  return { loading, error: "", hero: hero?.id ? hero : null, mirrorProducts, collections };
 };
 
 const useStorefrontHome = () => {
   const [initialHome] = useState(() => {
-    const memoryHome = getCachedStorefrontGetData("/storefront/home", { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS });
+    const memoryHome = getCachedStorefrontGetData(STOREFRONT_HOME_REQUEST_URL, { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS });
     return memoryHome || readPersistedStorefrontHome();
   });
   const [state, setState] = useState(() => (
     initialHome
       ? storefrontHomeStateFromResponse(initialHome)
-      : { loading: true, error: "", hero: null, collections: [] }
+      : { loading: true, error: "", hero: null, mirrorProducts: [], collections: [] }
   ));
 
   useEffect(() => {
     let cancelled = false;
-    cachedStorefrontGet("/storefront/home", {
+    cachedStorefrontGet(STOREFRONT_HOME_REQUEST_URL, {
       ttlMs: STOREFRONT_HOME_CACHE_TTL_MS,
       forceRefresh: Boolean(initialHome),
       persist: true,
@@ -695,7 +699,7 @@ const useStorefrontHome = () => {
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          if (!initialHome) setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, collections: [] });
+          if (!initialHome) setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, mirrorProducts: [], collections: [] });
         }
       });
     return () => {
@@ -1656,7 +1660,8 @@ const storefrontPrefetchedDetails = new Set();
 const STOREFRONT_GET_CACHE_TTL_MS = 60 * 1000;
 const STOREFRONT_PRODUCTS_CACHE_TTL_MS = 30 * 1000;
 const STOREFRONT_HOME_CACHE_TTL_MS = 60 * 1000;
-const STOREFRONT_HOME_PERSISTED_CACHE_KEY = "storefront.home.bootstrap.v1";
+const STOREFRONT_HOME_REQUEST_URL = "/storefront/home?catalog=mirror-v2";
+const STOREFRONT_HOME_PERSISTED_CACHE_KEY = "storefront.home.bootstrap.v2";
 const STOREFRONT_HOME_PERSISTED_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const STOREFRONT_BRANDS_CACHE_TTL_MS = 10 * 60 * 1000;
 const STOREFRONT_GENDER_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -2599,7 +2604,10 @@ function PremiumHomePage(props) {
   const products = storefrontHomeProducts;
   const loading = storefrontHome.loading;
   const saleProducts = useMemo(() => products.filter(isOfferStory), [products]);
-  const mirrorProducts = useMemo(() => products.filter(isMirrorProduct), [products]);
+  const mirrorProducts = useMemo(
+    () => uniqueProductsByIdentity(storefrontHome.mirrorProducts || []).filter(isMirrorProduct),
+    [storefrontHome.mirrorProducts]
+  );
   const mirrorLoading = storefrontHome.loading;
   const womenCategoryProducts = useMemo(
     () => products.filter((product) => productAudienceValues(product).includes("women")),
@@ -2647,9 +2655,9 @@ function PremiumHomePage(props) {
   }, [homepageProductPool, mirrorProducts]);
   const heroSlide = useMemo(() => {
     if (mirrorHeroSlides.length) return mirrorHeroSlides[0];
-    const candidate = storefrontHome.hero || homepageProductsWithImages[0] || homepageProductPool[0] || null;
+    const candidate = storefrontHome.hero && isMirrorProduct(storefrontHome.hero) ? storefrontHome.hero : null;
     return candidate ? featuredSlideProduct(candidate) : null;
-  }, [homepageProductPool, homepageProductsWithImages, mirrorHeroSlides, storefrontHome.hero]);
+  }, [mirrorHeroSlides, storefrontHome.hero]);
   const heroCollection = storefrontHome.collections[0] || null;
   const homeCategoryCards = useMemo(() => {
     const sourceProducts = uniqueProductsByIdentity([...womenCategoryProducts, ...homepageProductPool]).filter((product) => product?.id && product?.name && isAvailableProduct(product));
@@ -2825,39 +2833,27 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
     setActiveHeroIndex(0);
   }, [availableHeroSlides.length]);
   useEffect(() => {
+    availableHeroSlides
+      .slice(0, 6)
+      .forEach((slide) => preloadStorefrontImage(slide?.image || "", "hero"));
+  }, [availableHeroSlides]);
+  useEffect(() => {
     if (availableHeroSlides.length < 2) return undefined;
     let cancelled = false;
-    let displayTimer = null;
-    let fallbackTimer = null;
-    let displayTimeReached = false;
-    let nextImageReady = false;
     const nextIndex = (activeHeroIndex + 1) % availableHeroSlides.length;
     const nextImage = availableHeroSlides[nextIndex]?.image || "";
-    const showNextWhenReady = () => {
-      if (!cancelled && displayTimeReached && nextImageReady) setActiveHeroIndex(nextIndex);
-    };
-
-    preloadStorefrontImage(nextImage, "hero").then((loaded) => {
-      if (cancelled) return;
-      nextImageReady = loaded;
-      if (!loaded) {
-        fallbackTimer = window.setTimeout(() => {
-          nextImageReady = true;
-          showNextWhenReady();
-        }, 3000);
-      }
-      showNextWhenReady();
-    });
-
-    displayTimer = window.setTimeout(() => {
-      displayTimeReached = true;
-      showNextWhenReady();
-    }, 5200);
+    const displayTimer = window.setTimeout(() => {
+      Promise.race([
+        preloadStorefrontImage(nextImage, "hero"),
+        new Promise((resolve) => window.setTimeout(() => resolve(false), 900)),
+      ]).finally(() => {
+        if (!cancelled) setActiveHeroIndex(nextIndex);
+      });
+    }, 2800);
 
     return () => {
       cancelled = true;
-      if (displayTimer) window.clearTimeout(displayTimer);
-      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      window.clearTimeout(displayTimer);
     };
   }, [activeHeroIndex, availableHeroSlides]);
   const activeHeroSlide = availableHeroSlides[activeHeroIndex] || heroSlide;
