@@ -1428,6 +1428,12 @@ const fetchProductLinkForQueueItem = async (tenantId, item = {}) => {
 
 const withStoryLinks = (item = {}, link = null) => {
   const design = item.design_json || {};
+  const {
+    cta_text: _legacyCtaText,
+    availability_text: _legacyAvailabilityText,
+    headline: _legacyHeadline,
+    ...canonicalDesign
+  } = design;
   const productId = item.product_id || design.product_id || link?.product_id || null;
   const productSlugValue = cleanText(item.product_slug || design.product_slug || link?.product_slug || "");
   const productUrlValue = cleanText(item.product_url || design.product_url || link?.product_url || "");
@@ -1439,9 +1445,7 @@ const withStoryLinks = (item = {}, link = null) => {
     product_url: productUrlValue,
     cta_url: ctaUrlValue,
     design_json: {
-      ...design,
-      cta_text: "View details",
-      availability_text: "Available now",
+      ...canonicalDesign,
       ...(productId ? { product_id: productId } : {}),
       ...(productSlugValue ? { product_slug: productSlugValue } : {}),
       ...(productUrlValue ? { product_url: productUrlValue } : {}),
@@ -3145,7 +3149,7 @@ const expandProductCreatives = ({ product, contentType, quota, settings, strateg
   const selected = forceAllVariants && hasVariantColors ? variants : variants.slice(0, Math.max(remaining, 1));
   return selected.map((variant, index) => {
     const phrase = STRATEGY_TEXT[strategy]?.[index % (STRATEGY_TEXT[strategy]?.length || 1)] || "متوفر الآن";
-    const cta = contentType === "story" ? "View details" : CTA_TEXT[(product.id + index) % CTA_TEXT.length];
+    const cta = contentType === "story" ? "" : CTA_TEXT[(product.id + index) % CTA_TEXT.length];
     const imageUrl = getProductImage(product, variant || {});
     const price = getProductPrice(product, variant || {});
     const storyProductSlug = productSlug(product);
@@ -3184,8 +3188,7 @@ const expandProductCreatives = ({ product, contentType, quota, settings, strateg
       product_url: storyProductUrl,
       design_json: withAvailableSizes({
         layout_type: layoutType,
-        cta_text: contentType === "story" ? "View details" : cta,
-        availability_text: contentType === "story" ? "Available now" : undefined,
+        ...(contentType === "post" ? { cta_text: cta } : {}),
         product_id: product.id,
         product_slug: storyProductSlug,
         product_name: product.name,
@@ -4067,8 +4070,8 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
       contentType,
     })
     : null;
-  const headline = contentType === "story" ? "NEW COLLECTION" : strategy === "new_arrivals" ? "New arrival" : "AI product post";
-  const cta = contentType === "story" ? "View details" : FOCUSED_CTA_TEXT[(Number(product.id || 0) + index) % FOCUSED_CTA_TEXT.length];
+  const headline = contentType === "story" ? "" : strategy === "new_arrivals" ? "New arrival" : "AI product post";
+  const cta = contentType === "story" ? "" : FOCUSED_CTA_TEXT[(Number(product.id || 0) + index) % FOCUSED_CTA_TEXT.length];
   const caption = [
     headline,
     contentType === "story" ? product.name : [product.name, [colorName, sizeName].filter(Boolean).join(" / ")].filter(Boolean).join(" - "),
@@ -4098,8 +4101,7 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
     product_url: storyProductUrl,
     design_json: withAvailableSizes({
       layout_type: layoutType,
-      cta_text: contentType === "story" ? "View details" : cta,
-      availability_text: contentType === "story" ? "Available now" : undefined,
+      ...(contentType === "post" ? { cta_text: cta } : {}),
       product_id: product.id,
       product_slug: storyProductSlug,
       product_name: product.name,
@@ -4122,8 +4124,7 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
         const slideAvailableSizes = contentType === "story" ? availableSizesForVariantGroup(product, slideVariant) : [];
         return {
           image_url: url,
-          cta_text: "View details",
-          availability_text: "Available now",
+          ...(contentType === "post" ? { cta_text: cta } : {}),
           product_id: product.id,
           product_slug: storyProductSlug,
           product_url: storyProductUrl,

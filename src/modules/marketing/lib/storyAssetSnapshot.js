@@ -1,5 +1,7 @@
 const text = (value) => String(value || "").trim();
 export const CURRENT_STORY_RENDERER_BUILD = "m1-story-clean-product-v2-2026-07-23";
+export const CURRENT_STORY_TEMPLATE_KEY = "m1_story_current";
+export const CURRENT_STORY_TEMPLATE_VERSION = "v1";
 
 const objectValue = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
 
@@ -36,8 +38,8 @@ export const hasValidStoryAssetSnapshot = (input = {}) => {
     snapshot.storyId &&
     snapshot.assetId &&
     snapshot.assetUrl &&
-    snapshot.templateKey &&
-    snapshot.templateVersion &&
+    snapshot.templateKey === CURRENT_STORY_TEMPLATE_KEY &&
+    snapshot.templateVersion === CURRENT_STORY_TEMPLATE_VERSION &&
     snapshot.rendererBuild === CURRENT_STORY_RENDERER_BUILD &&
     snapshot.generationId &&
     snapshot.checksum &&

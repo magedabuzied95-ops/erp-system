@@ -42,13 +42,19 @@ test("old rows and another story's snapshot are invalid", () => {
   assert.equal(hasValidStoryAssetSnapshot({ id: 42, metadata: { story_asset_snapshot: oldBuildSnapshot } }), false);
 });
 
-test("Preview generates first, deduplicates requests, and opens only a saved asset", () => {
+test("Preview generates missing assets, deduplicates requests, and opens only a saved asset", () => {
   assert.match(pageSource, /onPreview=\{previewQueueItem\}/);
   assert.match(pageSource, /generateStoryAsset\(item, \{ openPreview: true \}\)/);
   assert.match(pageSource, /storyAssetRequestsRef\.current\.get\(key\)/);
   assert.match(pageSource, /if \(existingRequest\) return existingRequest/);
   assert.match(pageSource, /if \(openPreview\) setPreview\(updatedItem\)/);
   assert.match(pageSource, /if \(!hasValidStoryAssetSnapshot\(updatedItem\)\) throw new Error/);
+});
+
+test("Preview selects the immutable snapshot URL and has no browser-rendered story fallback", () => {
+  assert.match(pageSource, /if \(hasValidStoryAssetSnapshot\(item\)\) return \[snapshot\.assetUrl\]/);
+  assert.doesNotMatch(pageSource, /<StoryCreativePreview\s+slides=\{storySlides\}/);
+  assert.doesNotMatch(pageSource, /import PostEditorModal, \{ StoryCreativePreview/);
 });
 
 test("Publish is blocked client-side without a snapshot and during generation", () => {

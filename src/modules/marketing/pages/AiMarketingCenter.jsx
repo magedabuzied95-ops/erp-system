@@ -42,7 +42,7 @@ import {
 } from "../services/marketingApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
-import PostEditorModal, { StoryCreativePreview, buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
+import PostEditorModal, { buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
 import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem } from "../lib/queueStatus";
 import {
   hasValidStoryAssetSnapshot,
@@ -185,6 +185,8 @@ const storyProductImageUrl = (item = {}) =>
   uniqueMediaUrls(item).find((url) => !isGeneratedStoryAssetUrl(url)) || "";
 
 const generatedStoryAssetUrls = (item = {}) => {
+  const snapshot = normalizeStoryAssetSnapshot(item);
+  if (hasValidStoryAssetSnapshot(item)) return [snapshot.assetUrl];
   const design = item.design_json || {};
   const metadata = item.metadata || {};
   const explicitGeneratedUrls = normalizeUrlList(
@@ -1458,7 +1460,15 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
           </div>
         ) : (
-          <StoryCreativePreview slides={storySlides} title="شرائح القصة" />
+          <div className="grid min-h-[70vh] place-items-center rounded-3xl border border-amber-300/20 bg-amber-300/[0.04] p-8 text-center">
+            <div className="max-w-sm">
+              <Image className="mx-auto h-10 w-10 text-amber-200" />
+              <h3 className="mt-4 text-lg font-black text-white">لا يوجد أصل قصة نهائي محفوظ</h3>
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-400">
+                أنشئ أصل القصة بالقالب الحالي أولًا. المعاينة لا تستخدم قالبًا بديلًا ولا تعيد بناء التصميم داخل المتصفح.
+              </p>
+            </div>
+          </div>
         )}
         <div>
           <div className="flex items-start justify-between gap-3">
