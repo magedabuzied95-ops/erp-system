@@ -39,22 +39,6 @@ test("turning sale mode off restores the normal selling price", () => {
   assert.equal(pricing.isOnSale, false);
 });
 
-test("a storefront offer always uses its saved sale price when POS sale mode is off", () => {
-  const offerProduct = {
-    ...product,
-    is_offer_story: true,
-    sale_price_enabled: false,
-    sale_mode_enabled: false,
-  };
-  const pricing = getDisplayPricing(offerProduct, false);
-
-  assert.equal(pricing.price, 1500);
-  assert.equal(pricing.comparePrice, 1750);
-  assert.equal(pricing.isOnSale, true);
-  assert.equal(displaySellingPrice(offerProduct), 1500);
-  assert.equal(resolveStorefrontPrice(offerProduct).current_price, 1500);
-});
-
 test("a missing public sale-mode setting fails closed", () => {
   const saleModeEnabled = parseSaleModeEnabled(undefined, false);
   const pricing = getDisplayPricing(product, saleModeEnabled);

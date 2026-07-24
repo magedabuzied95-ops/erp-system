@@ -2840,6 +2840,7 @@ function PremiumHomePage(props) {
         }}
       />
       <HomeCategoryCards cards={homeCategoryCards} lang={lang} themeTokens={themeTokens} loading={loading || womenCategoryLoading || storefrontHome.loading} />
+      <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
       <SimpleHomeProductGrid
         title={isRtl ? "الأكثر طلبًا" : "Most Wanted"}
         subtitle={isRtl ? "مختارات قوية من القطع الأكثر جذبًا." : "The strongest edits and the most wanted picks."}
@@ -2858,7 +2859,6 @@ function PremiumHomePage(props) {
         themeTokens={themeTokens}
         lang={lang}
       />
-      <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
       <HomeWhySection lang={lang} themeTokens={themeTokens} />
       <HomeSimpleFooter lang={lang} themeTokens={themeTokens} />
     </div>
@@ -3225,47 +3225,132 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
   const isRtl = normalizeLanguage(lang) === "ar";
   const visibleBrands = Array.isArray(brands) ? brands.filter((brand) => brand?.id && brand?.name && brand?.logo_url) : [];
   const brandItems = loading && !visibleBrands.length ? Array.from({ length: 6 }) : visibleBrands;
+  const groups = brandItems.length > 1 ? [brandItems, brandItems] : [brandItems];
+  const brandTrackRef = useRef(null);
+  const brandResetFrameRef = useRef(null);
+  const [brandSlideIndex, setBrandSlideIndex] = useState(0);
+  const [brandStepPx, setBrandStepPx] = useState(0);
+  const [brandTransitionEnabled, setBrandTransitionEnabled] = useState(true);
+
+  useLayoutEffect(() => {
+    const track = brandTrackRef.current;
+    if (!track || brandItems.length < 2) {
+      setBrandStepPx(0);
+      return undefined;
+    }
+
+    const updateBrandStep = () => {
+      const firstItem = track.querySelector(".sf-brand-marquee__item");
+      const firstGroup = track.querySelector(".sf-brand-marquee__group");
+      if (!firstItem || !firstGroup) return;
+      const groupStyles = window.getComputedStyle(firstGroup);
+      const gap = Number.parseFloat(groupStyles.columnGap || groupStyles.gap || "0") || 0;
+      setBrandStepPx(firstItem.getBoundingClientRect().width + gap);
+    };
+
+    updateBrandStep();
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateBrandStep) : null;
+    resizeObserver?.observe(track);
+    window.addEventListener("resize", updateBrandStep);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateBrandStep);
+    };
+  }, [brandItems.length]);
+
+  useEffect(() => {
+    setBrandSlideIndex(0);
+    setBrandTransitionEnabled(false);
+    if (loading || brandItems.length < 2 || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+
+    const enableFrame = window.requestAnimationFrame(() => {
+      brandResetFrameRef.current = window.requestAnimationFrame(() => setBrandTransitionEnabled(true));
+    });
+    const moveTimer = window.setInterval(() => {
+      setBrandSlideIndex((currentIndex) => (currentIndex < brandItems.length ? currentIndex + 1 : currentIndex));
+    }, 4000);
+
+    return () => {
+      window.cancelAnimationFrame(enableFrame);
+      if (brandResetFrameRef.current) window.cancelAnimationFrame(brandResetFrameRef.current);
+      window.clearInterval(moveTimer);
+    };
+  }, [brandItems.length, loading]);
+
+  const handleBrandTransitionEnd = () => {
+    if (brandItems.length < 2 || brandSlideIndex < brandItems.length) return;
+    setBrandTransitionEnabled(false);
+    setBrandSlideIndex(0);
+    brandResetFrameRef.current = window.requestAnimationFrame(() => {
+      brandResetFrameRef.current = window.requestAnimationFrame(() => setBrandTransitionEnabled(true));
+    });
+  };
 
   if (!loading && !visibleBrands.length) return null;
 
   return (
-    <section className="sf-home-motion mt-8 border-y md:mt-12" dir={isRtl ? "rtl" : "ltr"} style={{ background: themeTokens.surface, borderColor: themeTokens.border }}>
-      <div className="mx-auto max-w-[1400px] px-5 py-9 md:px-8 md:py-14">
-        <div className="border-b pb-5 md:pb-6" style={{ borderColor: themeTokens.border }}>
-          <h2 className="text-xl font-black md:text-2xl" style={{ color: themeTokens.textPrimary }}>
+    <section className="sf-home-motion mx-auto max-w-[1400px] px-4 py-5 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
+      <div
+        className="overflow-hidden rounded-[2rem] border"
+        style={{
+          background: themeTokens.surface,
+          borderColor: themeTokens.border,
+          boxShadow: themeTokens.shadowSoft,
+        }}
+      >
+        <div className="border-b px-4 py-5 md:px-6" style={{ borderColor: themeTokens.border }}>
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>
+            {isRtl ? "تسوّق حسب الماركة" : "Shop by brand"}
+          </div>
+          <h2 className="text-[1.9rem] font-black tracking-tight md:text-[3.15rem]" style={{ color: themeTokens.textPrimary }}>
             {isRtl ? "العلامات التجارية" : "Brands"}
           </h2>
+          <p className="mt-1.5 text-xs font-bold md:text-sm" style={{ color: themeTokens.textSecondary }}>
+            {isRtl ? "اختار البراند المفضل وشاهد كل موديلاته المتاحة." : "Choose your favorite brand and browse every available model."}
+          </p>
         </div>
 
-        <div className="-mx-5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:overflow-visible md:px-0" dir="ltr">
-          <div className="flex min-w-max items-center gap-4 py-8 md:grid md:min-w-0 md:grid-cols-4 md:gap-x-10 md:gap-y-8 md:py-12 lg:grid-cols-5">
-            {brandItems.map((brand, index) => (
-              brand ? (
-                <Link
-                  key={brand.id || index}
-                  to={`/products?brand=${encodeURIComponent(brand.name)}`}
-                  className="group flex h-28 w-44 shrink-0 items-center justify-center px-5 md:h-32 md:w-auto"
-                  aria-label={brand.name || (isRtl ? "عرض العلامة التجارية" : "View brand")}
-                >
-                  <img
-                    src={imageFor(brand.logo_url)}
-                    alt={brand.name || ""}
-                    loading="lazy"
-                    decoding="async"
-                    className="max-h-20 w-full max-w-[190px] object-contain opacity-90 transition duration-300 group-hover:scale-105 group-hover:opacity-100 dark:brightness-0 dark:invert"
-                    width="240"
-                    height="140"
+        <div className="sf-brand-marquee" dir="ltr">
+        <div
+          ref={brandTrackRef}
+          className={`sf-brand-marquee__track ${brandTransitionEnabled ? "sf-brand-marquee__track--stepping" : ""}`}
+          style={{ transform: `translate3d(-${brandSlideIndex * brandStepPx}px, 0, 0)` }}
+          onTransitionEnd={handleBrandTransitionEnd}
+        >
+          {groups.map((group, groupIndex) => (
+            <div key={groupIndex} className="sf-brand-marquee__group" aria-hidden={groupIndex > 0 ? "true" : undefined}>
+              {group.map((brand, index) => (
+                brand ? (
+                  <Link
+                    key={`${groupIndex}-${brand.id || index}`}
+                    to={`/products?brand=${encodeURIComponent(brand.name)}`}
+                    className="sf-brand-marquee__item group"
+                    aria-label={brand.name || (isRtl ? "عرض العلامة التجارية" : "View brand")}
+                    tabIndex={groupIndex > 0 ? -1 : undefined}
+                  >
+                    <span className="sf-brand-marquee__logo-frame">
+                      <img
+                        src={imageFor(brand.logo_url)}
+                        alt={groupIndex === 0 ? brand.name || "" : ""}
+                        loading="lazy"
+                        decoding="async"
+                        className="sf-brand-marquee__logo"
+                        width="240"
+                        height="140"
+                      />
+                    </span>
+                  </Link>
+                ) : (
+                  <div
+                    key={`${groupIndex}-skeleton-${index}`}
+                    className="sf-brand-marquee__item animate-pulse"
+                    style={{ background: themeTokens.cardSoft }}
                   />
-                </Link>
-              ) : (
-                <div
-                  key={`brand-skeleton-${index}`}
-                  className="h-28 w-44 shrink-0 animate-pulse rounded-xl md:h-32 md:w-auto"
-                  style={{ background: themeTokens.cardSoft }}
-                />
-              )
-            ))}
-          </div>
+                )
+              ))}
+            </div>
+          ))}
+        </div>
         </div>
       </div>
     </section>
@@ -5756,7 +5841,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   );
   const sellingPrice = pricing.price;
   const comparePrice = pricing.comparePrice && pricing.comparePrice > sellingPrice ? pricing.comparePrice : 0;
-  const discountPercent = pricing.isOnSale ? pricing.discountPercent || 0 : 0;
+  const discountPercent = parsedSaleModeEnabled ? pricing.discountPercent || 0 : 0;
   const activeSizes = useMemo(
     () => providedAvailableSizes || getSizesForColorGroup(activeColorGroup),
     [activeColorGroup, providedAvailableSizes]
