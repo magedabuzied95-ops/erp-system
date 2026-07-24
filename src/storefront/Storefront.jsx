@@ -2821,6 +2821,7 @@ function PremiumHomePage(props) {
         color: themeTokens.textPrimary,
       }}
     >
+      <HomeM1VideoExperimentCard lang={lang} themeTokens={themeTokens} />
       <HomePremiumHero
         lang={lang}
         brandName={brandName}
@@ -2862,6 +2863,62 @@ function PremiumHomePage(props) {
       <HomeWhySection lang={lang} themeTokens={themeTokens} />
       <HomeSimpleFooter lang={lang} themeTokens={themeTokens} />
     </div>
+  );
+}
+
+function HomeM1VideoExperimentCard({ lang = "ar", themeTokens = {} }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+
+  return (
+    <section className="sf-home-motion mx-auto max-w-[1400px] px-3 pt-3 sm:px-4 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
+      <div
+        className="relative overflow-hidden rounded-[1.7rem] border md:rounded-[2.4rem]"
+        style={{ background: themeTokens.surface, borderColor: themeTokens.border, boxShadow: themeTokens.shadow }}
+      >
+        <div className="relative aspect-[16/9] min-h-[320px] overflow-hidden bg-[#050505] sm:min-h-[420px]">
+          <video
+            className="absolute inset-0 h-full w-full object-cover"
+            src="https://www.pexels.com/download/video/36334240/"
+            poster="https://images.pexels.com/videos/36334240/free-video-36334240.jpg?auto=compress&cs=tinysrgb&w=1600"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-label={isRtl ? "تجربة واجهة متجر M1" : "M1 storefront concept video"}
+          />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),transparent_48%,rgba(0,0,0,0.68))]" />
+
+          <div className="pointer-events-none absolute left-1/2 top-[17%] flex -translate-x-1/2 items-center justify-center rounded-[0.9rem] border border-white/15 bg-black/85 px-5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.5)] backdrop-blur-[2px] sm:px-7 sm:py-3">
+            <img
+              src="/branding/m-one-wordmark-white.png"
+              alt="M1 Store"
+              className="h-9 w-auto object-contain drop-shadow-[0_2px_7px_rgba(255,255,255,0.25)] sm:h-12"
+              width="260"
+              height="80"
+              decoding="async"
+            />
+          </div>
+
+          <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-4 sm:inset-x-7 sm:bottom-7">
+            <div className="max-w-xl text-white">
+              <span className="inline-flex rounded-full border border-[#f3d77a]/35 bg-black/50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#f3d77a] backdrop-blur">
+                {isRtl ? "تجربة كارت M1" : "M1 card experiment"}
+              </span>
+              <h2 className="mt-2 text-xl font-black sm:text-3xl">
+                {isRtl ? "تجربة واجهة متجر M1" : "M1 Storefront Concept"}
+              </h2>
+              <p className="mt-1 text-xs font-bold text-white/70 sm:text-sm">
+                {isRtl ? "نسخة تجريبية للمراجعة قبل استبدال كارت الميرور." : "Preview before replacing the Mirror card."}
+              </p>
+            </div>
+            <span className="hidden rounded-full border border-white/15 bg-black/55 px-4 py-2 text-xs font-black text-white/75 backdrop-blur sm:inline-flex">
+              Pexels preview
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
