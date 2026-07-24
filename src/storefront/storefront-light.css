@@ -406,6 +406,129 @@ body.storefront-shell:not(.storefront-dark) .sf-account-page {
   --sf-account-muted: var(--sf-light-text-secondary);
 }
 
+body.storefront-shell:not(.storefront-dark) .sf-account-hero {
+  border-color: rgba(164, 122, 18, 0.22);
+  background:
+    radial-gradient(circle at 12% -20%, rgba(212, 175, 55, 0.2), transparent 38%),
+    linear-gradient(135deg, #fffdf7 0%, #f4efe3 100%);
+  box-shadow: 0 24px 60px rgba(56, 45, 18, 0.13);
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-hero::before {
+  opacity: 0.32;
+  background-image:
+    linear-gradient(rgba(164, 122, 18, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(164, 122, 18, 0.08) 1px, transparent 1px);
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-hero [class*="text-white"] {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-hero [class*="text-white/"] {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-avatar {
+  border-color: rgba(164, 122, 18, 0.28);
+  background: linear-gradient(145deg, #fff9e8, #eee3c5);
+  color: #8a660d;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-hero-button {
+  border-color: rgba(37, 35, 31, 0.14);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--sf-light-text);
+  box-shadow: 0 8px 20px rgba(37, 35, 31, 0.06);
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-hero-button:hover {
+  border-color: rgba(164, 122, 18, 0.42);
+  background: #fff;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-stat {
+  border-color: rgba(37, 35, 31, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 24px rgba(37, 35, 31, 0.055);
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section {
+  border-color: var(--sf-light-border);
+  background: var(--sf-light-surface);
+  color: var(--sf-light-text);
+  box-shadow: 0 18px 44px rgba(31, 29, 25, 0.09);
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section h2,
+body.storefront-shell:not(.storefront-dark) .sf-account-section h3,
+body.storefront-shell:not(.storefront-dark) .sf-account-section [class*="text-white"] {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section [class*="text-white/"] {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section-icon {
+  border-color: rgba(164, 122, 18, 0.2);
+  background: #f7efd8;
+  color: #8a660d;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-count {
+  border-color: rgba(164, 122, 18, 0.2);
+  background: #f7efd8;
+  color: #79580b;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-empty {
+  border-color: var(--sf-light-border);
+  background: var(--sf-light-soft);
+  color: var(--sf-light-text-secondary);
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-address-row,
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-account-order-row,
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-order-item-row {
+  border-color: var(--sf-light-border);
+  background: var(--sf-light-soft) !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-soft-pill {
+  border-color: var(--sf-light-border-strong) !important;
+  background: #fff !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-primary-text,
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-order-item-name,
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-order-item-price {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-muted-text,
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-order-item-meta,
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-muted-empty,
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-secondary-text {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-loyalty-card {
+  border-color: rgba(164, 122, 18, 0.24) !important;
+  background: linear-gradient(145deg, #fffaf0, #f4ead0) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-loyalty-progress {
+  background: rgba(164, 122, 18, 0.14) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-small-product-card,
+body.storefront-shell:not(.storefront-dark) .sf-account-section a[class*="rounded"] {
+  border-color: var(--sf-light-border) !important;
+}
+
 body.storefront-shell:not(.storefront-dark) .sf-account-page .sf-panel {
   border-color: var(--sf-light-border) !important;
   background: var(--sf-light-surface) !important;

@@ -17,7 +17,6 @@ import {
   RefreshCcw,
   ShieldCheck,
   ShoppingBag,
-  Sparkles,
   UserRound,
 } from "lucide-react";
 import {
@@ -793,11 +792,7 @@ function StorefrontAccountPageContent({
                 <div className="sf-account-hero-orb" aria-hidden="true" />
                 <div className="relative z-[1] flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
                   <div className="max-w-2xl">
-                    <span className="sf-account-eyebrow inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black tracking-[0.22em]">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      M1 MEMBERS CLUB
-                    </span>
-                    <div className="mt-5 flex items-center gap-4">
+                    <div className="flex items-center gap-4">
                       <span className="sf-account-avatar grid h-16 w-16 shrink-0 place-items-center rounded-full sm:h-20 sm:w-20">
                         <UserRound className="h-7 w-7 sm:h-9 sm:w-9" />
                       </span>
@@ -824,7 +819,7 @@ function StorefrontAccountPageContent({
                     [PackageCheck, orders.length, "الطلبات"],
                     [Heart, wishlistItems.length, "المفضلة"],
                     [MapPin, addresses.length, "العناوين"],
-                    [Gem, Number(account?.loyalty?.points ?? account?.loyalty?.available_points ?? 0).toLocaleString(i18n.language || "en"), "نقاط M1"],
+                    [Gem, Number(account?.loyalty?.points ?? account?.loyalty?.available_points ?? 0).toLocaleString(i18n.language || "en"), "نقاطك"],
                   ].map(([Icon, value, label]) => (
                     <div key={label} className="sf-account-stat rounded-[1.25rem] border p-4">
                       <div className="flex items-center justify-between gap-3">
