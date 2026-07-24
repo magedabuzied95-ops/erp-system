@@ -570,7 +570,10 @@
     min-height: 0;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
     border-radius: 1.25rem;
+    box-sizing: border-box;
+    padding: clamp(0.85rem, 1.4vw, 1.25rem);
     transition: background-color 300ms ease, box-shadow 300ms ease;
   }
 
@@ -582,12 +585,12 @@
     max-height: 100%;
     object-fit: contain;
     object-position: center;
-    transform: scale(1.18);
+    transform: scale(1);
     transition: transform 300ms ease;
   }
 
   .sf-brand-marquee__item:hover .sf-brand-marquee__logo {
-    transform: scale(1.24);
+    transform: scale(1.05);
   }
 
   .storefront-shell:not(.storefront-dark) .sf-brand-marquee__logo {
@@ -617,18 +620,24 @@
     }
 
     .sf-brand-marquee__item {
-      width: 10rem;
-      height: 7rem;
+      width: calc(100vw - 5.25rem);
+      max-width: 26rem;
+      height: clamp(10rem, 42vw, 12rem);
       border-radius: 0;
-      padding: 0.75rem;
+      padding: 0.75rem 1rem;
+    }
+
+    .sf-brand-marquee__logo-frame {
+      border-radius: 1.4rem;
+      padding: 1.15rem 1.35rem;
     }
 
     .sf-brand-marquee__logo {
-      transform: scale(1.24);
+      transform: scale(1);
     }
 
     .sf-brand-marquee__item:hover .sf-brand-marquee__logo {
-      transform: scale(1.28);
+      transform: scale(1.04);
     }
   }
 
