@@ -20,7 +20,7 @@ const rendererSource = fs.readFileSync(
 
 test("story renderer uses one new collection implementation for every strategy", () => {
   assert.equal(STORY_RENDERER_NAME, "m1_story_new_collection");
-  assert.equal(STORY_RENDERER_BUILD, "m1-story-new-collection-v3-2026-07-24");
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-new-collection-v4-sans-2026-07-24");
   for (const strategy of ["new_arrivals", "last_size", "special_offer", "featured"]) {
     assert.equal(resolveDesignedStoryTheme({ strategy_type: strategy }).id, "m1-new-collection-v3");
   }
@@ -63,7 +63,7 @@ test("renderer source permanently excludes the removed white clean-product templ
   assert.doesNotMatch(rendererSource, /m1_story_clean_product|m1-clean-product-v2|#0f766e/i);
 });
 
-test("production story text is rasterized with the bundled font file", async () => {
+test("production story text is rasterized with the canonical sans font", async () => {
   const composites = await createDesignedStoryTextComposites({
     title: "Adidas Terrex حذاء جديد",
     price: "1750 EGP",

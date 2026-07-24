@@ -22,7 +22,7 @@ const STORY_FONT_PATH = fileURLToPath(new URL("../../src/assets/fonts/customer-s
 const STORY_FONT_BASE64 = readFileSync(STORY_FONT_PATH).toString("base64");
 const STORY_FONT_FAMILY = "M1Story";
 export const STORY_RENDERER_NAME = "m1_story_new_collection";
-export const STORY_RENDERER_BUILD = "m1-story-new-collection-v3-2026-07-24";
+export const STORY_RENDERER_BUILD = "m1-story-new-collection-v4-sans-2026-07-24";
 const storyFontFaceSvg = () => `<style>@font-face{font-family:'${STORY_FONT_FAMILY}';src:url(data:font/ttf;base64,${STORY_FONT_BASE64}) format('truetype');font-style:normal;font-weight:100 1000;}text{font-family:'${STORY_FONT_FAMILY}','DejaVu Sans',sans-serif;}</style>`;
 sharp.cache(false);
 sharp.concurrency(1);
@@ -310,8 +310,7 @@ const createStoryTextComposite = async ({ text, left, top, width, height, size, 
   const input = await sharp({
     text: {
       text: `<span foreground="${color}" weight="${weight}" size="${size}pt">${escapePangoMarkup(text)}</span>`,
-      font: "Candara",
-      fontfile: STORY_FONT_PATH,
+      font: "Arial, DejaVu Sans, sans-serif",
       width,
       height,
       align,
@@ -503,7 +502,7 @@ export const createDesignedStoryTextComposites = async ({ badge, title, price, s
     createStoryTextComposite({ text: titleText, left: 72, top: 1190, width: 936, height: 190, size: 68, color: "#ffffff", weight: "bold" }),
     createStoryTextComposite({ text: price || "Available now", left: 72, top: 1404, width: 560, height: 100, size: 70, color: "#ffffff", weight: "bold" }),
     createStoryTextComposite({ text: cta || "View details", left: 666, top: 1426, width: 322, height: 58, size: 25, color: theme.accentDark, align: "center", weight: "bold" }),
-    createStoryTextComposite({ text: sizesText, left: 120, top: 1558, width: 840, height: 58, size: 27, color: "#475569", weight: "bold" }),
+    createStoryTextComposite({ text: sizesText, left: 112, top: 1560, width: 872, height: 54, size: 18, color: "#475569", weight: "bold" }),
   ]);
   return composites.filter(Boolean);
 };

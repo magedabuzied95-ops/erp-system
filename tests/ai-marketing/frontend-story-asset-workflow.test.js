@@ -16,7 +16,7 @@ const snapshot = {
   assetUrl: "https://cdn.example.com/erp/stories/story-42-abc.png",
   templateKey: "m1_story_current",
   templateVersion: "v1",
-  rendererBuild: "m1-story-new-collection-v3-2026-07-24",
+  rendererBuild: "m1-story-new-collection-v4-sans-2026-07-24",
   generationId: "generation-42",
   checksum: "a".repeat(64),
   generatedAt: "2026-07-23T10:00:00.000Z",
