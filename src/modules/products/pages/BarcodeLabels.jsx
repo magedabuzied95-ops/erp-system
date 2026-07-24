@@ -44,6 +44,8 @@ import {
   resolveLabelArticleCode,
 } from "../lib/barcodeLabels";
 import { generateBarcodeLabelsPdf } from "../lib/barcodePdfGenerator";
+import { generateProductLabelJobPdf } from "../lib/productLabelJobsPdf";
+import { buildProductLabelPrintPlan, groupProductLabelPdfJobs } from "../../../../shared/productLabelPrintPlan.js";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { BARCODE_PRINT_DEFAULTS, barcodePrintSettingsFromValues, normalizeBarcodePrintSettings, paginateBarcodeLabels, resolveBarcodePrintPaper } from "../../../../shared/barcodePrintSettings.js";
@@ -813,6 +815,15 @@ function BarcodeLabels() {
     }),
     [qrReadyItems, expandedLabels]
   );
+  const printPlanProducts = useMemo(() => {
+    if (routeLocked && routeActiveProduct) return [routeActiveProduct];
+    return visibleCatalog.flatMap((product) => {
+      const variants = (product.variants || []).filter((variant) => selectedQuantities[getLabelIdentity(product, variant)] > 0);
+      return variants.length ? [{ ...product, variants }] : [];
+    });
+  }, [routeLocked, routeActiveProduct, visibleCatalog, selectedQuantities]);
+  const productPrintPlan = useMemo(() => buildProductLabelPrintPlan(printPlanProducts), [printPlanProducts]);
+  const productPdfJobs = useMemo(() => groupProductLabelPdfJobs(productPrintPlan), [productPrintPlan]);
 
   const updateQuantity = (key, nextValue) => {
     const quantity = getLabelQuantity(nextValue);
@@ -873,6 +884,23 @@ function BarcodeLabels() {
 
   const handlePreviewFallback = () => {
     void handlePrint();
+  };
+
+  const handleProductJob = async (job) => {
+    try {
+      const result = await generateProductLabelJobPdf(job);
+      const url = URL.createObjectURL(result.blob);
+      const popup = window.open(url, "_blank", "noopener,noreferrer");
+      if (!popup) {
+        URL.revokeObjectURL(url);
+        toast.error(t("products.barcodeLabels.popupBlocked"));
+        return;
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (jobError) {
+      console.warn("[product-label-job] generation failed", jobError);
+      toast.error(t("products.barcodeLabels.popupBlocked"));
+    }
   };
 
   if (isBarcodeShopMode) {
@@ -1002,24 +1030,9 @@ function BarcodeLabels() {
           title={t("products.barcodeLabels.labelSheetTitle")}
           description={t("products.barcodeLabels.labelSheetDescription")}
           actions={
-            <>
-              <button
-                type="button"
-                onClick={handlePreviewFallback}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
-              >
-                <Download size={18} />
-                {t("products.barcodeLabels.downloadPrintFallback")}
-              </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white transition hover:bg-emerald-400"
-              >
-                <Printer size={18} />
-                {t("products.barcodeLabels.printLabels")}
-              </button>
-            </>
+            <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-zinc-200">
+              {language === "ar" ? "باركود المنتج" : "Product barcode"}
+            </span>
           }
         >
           <div className="rounded-[32px] border border-white/10 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
@@ -1080,6 +1093,44 @@ function BarcodeLabels() {
               <Metric label={t("products.barcodeLabels.selectedProducts")} value={totals.products} />
               <Metric label={t("products.barcodeLabels.selectedVariants")} value={totals.variants} />
               <Metric label={t("products.barcodeLabels.labelCopies")} value={totals.labels} />
+            </div>
+            <div className="mt-4 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+              <div className="grid gap-2 text-sm font-bold text-zinc-100 sm:grid-cols-2 xl:grid-cols-5">
+                <span>Box 100×50: {productPrintPlan.counts.box}</span>
+                <span>Display 40×55: {productPrintPlan.counts.display}</span>
+                <span>Bags 40×55: {productPrintPlan.counts.bag}</span>
+                <span>Crocs 25×35: {productPrintPlan.counts.crocs}</span>
+                <span>Total: {productPrintPlan.counts.total}</span>
+              </div>
+              {productPrintPlan.warnings.length ? (
+                <ul className="mt-3 space-y-1 text-xs font-semibold text-amber-200">
+                  {productPrintPlan.warnings.map((warning, index) => <li key={`${warning}:${index}`}>• {warning}</li>)}
+                </ul>
+              ) : null}
+              {productPdfJobs.length ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {productPdfJobs.map((job) => (
+                    <button key={job.key} type="button" onClick={() => void handleProductJob(job)} className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-black text-black hover:bg-emerald-400">
+                      <Download size={16} />
+                      {job.key === "box" ? "Box PDF 100×50" : job.key === "display" ? "Display / Bags PDF 40×55" : "Crocs PDF 25×35"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {productPrintPlan.labels.length ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {productPrintPlan.labels.slice(0, 8).map((label) => (
+                    <div key={label.id} className="rounded-2xl border border-white/10 bg-white p-3 text-center text-zinc-950">
+                      <div className="truncate text-sm font-black">{label.productName}</div>
+                      <div className="mt-1 text-xs font-bold">{Number(label.price || 0).toFixed(2)} EGP</div>
+                      <div className="mt-1 text-xs font-bold">{label.fieldLabel}: {label.fieldValue || "-"}</div>
+                      <div className="mt-3 h-8 bg-[repeating-linear-gradient(90deg,#111_0,#111_2px,transparent_2px,transparent_4px)]" aria-label="Code 128 preview" />
+                      <div className="mt-1 truncate font-mono text-[10px]">{label.barcodeValue}</div>
+                      <div className="mt-2 text-[10px] font-black uppercase text-zinc-500">{label.type} · {label.widthMm}×{label.heightMm} mm</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
 

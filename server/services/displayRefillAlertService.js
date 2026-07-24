@@ -2,6 +2,7 @@
 import { createEmployeePortalNotification } from "./employeePayrollPortalService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { createNotification } from "./notificationsService.js";
+import { buildAvailableSizeOptions, normalizeSizeComparable, normalizeStockValue, parseSizeNumber, sortVariantsBySize } from "../../shared/displayRefillSizing.js";
 
 
 const clean = (value = "") => String(value ?? "").trim();
@@ -26,7 +27,7 @@ const stockNumberOrNull = (value) => {
 };
 const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== "") ?? null;
 const normalizeTextComparable = (value = "") => clean(value).toLowerCase().replace(/\s+/g, " ").replace(/^eu\s+/i, "").replace(/^size\s+/i, "");
-const normalizeSizeComparable = (value = "") => {
+const legacyNormalizeSizeComparable = (value = "") => {
   const raw = clean(value);
   if (!raw) return "";
   const numeric = raw.match(/\d+(?:\.\d+)?/)?.[0];
@@ -35,7 +36,7 @@ const normalizeSizeComparable = (value = "") => {
 };
 const normalizeColorComparable = (value = "") => normalizeTextComparable(value);
 const normalizeComparable = (value = "") => normalizeTextComparable(value);
-const normalizeStockValue = (row = {}) =>
+const legacyNormalizeStockValue = (row = {}) =>
   stockNumber(firstDefined(row.stock, row.quantity, row.stock_quantity, row.available_quantity, row.available_stock, row.current_stock, row.remaining_stock));
 const normalizeSoldQuantity = (row = {}) => {
   const value = firstDefined(row.quantity, row.qty, row.sold_quantity, row.item_quantity, row.item_qty, row.count, row.amount);
@@ -208,7 +209,7 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
   return schemaReadyPromise;
 };
 
-const parseSizeNumber = (value = "") => {
+const legacyParseSizeNumber = (value = "") => {
   const normalized = clean(value).replace(/[^0-9.]+/g, " ");
   const parsed = Number(normalized.match(/\d+(?:\.\d+)?/)?.[0] || NaN);
   return Number.isFinite(parsed) ? parsed : null;
@@ -516,7 +517,7 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName, branchId 
   return result.rows;
 };
 
-const sortVariantsBySize = (variants = []) =>
+const legacySortVariantsBySize = (variants = []) =>
   [...variants]
     .map((row) => ({
       ...row,
@@ -874,18 +875,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     const providedDisplayAfter = stockNumberOrNull(firstDefined(item.display_quantity_after, item.displayQuantityAfter, item.stock_after, item.stockAfter));
     const soldVariantStockAfter = providedDisplayAfter ?? (soldVariant ? stockNumber(soldVariant.stock) : null);
     const stockBefore = providedDisplayBefore ?? (soldVariantStockAfter !== null ? soldVariantStockAfter + soldQuantity : null);
-    const availableSizeOptions = [];
-    const seenAvailableSizes = new Set();
-    for (const row of sortedVariants) {
-      if (normalizeStockValue(row) <= 0) continue;
-      const size = clean(row.size);
-      const normalized = parseSizeNumber(size);
-      if (!size || normalized === null) continue;
-      const key = String(normalized);
-      if (seenAvailableSizes.has(key)) continue;
-      seenAvailableSizes.add(key);
-      availableSizeOptions.push({ size, normalized });
-    }
+    const availableSizeOptions = buildAvailableSizeOptions(sortedVariants);
     const availableAfterSale = availableSizeOptions.map((entry) => entry.size);
     const soldSizeNormalized = parseSizeNumber(soldSize);
     const soldSizeComparable = normalizeSizeComparable(soldSize);

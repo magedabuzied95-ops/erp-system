@@ -1933,7 +1933,7 @@ function ProductsList() {
       {
         key: "barcode-shop",
         icon: Barcode,
-        label: t("products.actionsMenu.barcodeShop", "باركود المتجر"),
+        label: t("products.actionsMenu.barcodeShop", "باركود المنتج"),
         placement: "dropdown",
         href: `/products/labels?mode=barcode-shop&productId=${encodeURIComponent(row.id)}`,
         onClick: () => handleOpenBarcodeShop(row),
