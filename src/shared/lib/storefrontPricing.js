@@ -135,10 +135,9 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = false, variant
   const enabled = parseSaleModeEnabled(saleModeEnabled, false);
   const forceSaleForOffer = storefrontForceSaleForOffer(product, resolvedVariant || {});
   const legacySaleEnabled = storefrontSaleModeOn(product, resolvedVariant || {});
-  const legacySaleValid = legacySaleEnabled && salePrice > 0 && storedSellingPrice > 0 && salePrice < storedSellingPrice;
+  const legacySaleValid = (forceSaleForOffer || legacySaleEnabled) && salePrice > 0 && storedSellingPrice > 0 && salePrice < storedSellingPrice;
   const sellingPrice = legacySaleValid ? salePrice : storedSellingPrice;
-  const originalPrice = storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > sellingPrice) ||
-    (legacySaleValid ? storedSellingPrice : 0);
+  const originalPrice = legacySaleValid ? storedSellingPrice : 0;
   let price = sellingPrice;
   const comparePrice = originalPrice > sellingPrice ? originalPrice : null;
   const isOnSale = Boolean(comparePrice);

@@ -2840,7 +2840,6 @@ function PremiumHomePage(props) {
         }}
       />
       <HomeCategoryCards cards={homeCategoryCards} lang={lang} themeTokens={themeTokens} loading={loading || womenCategoryLoading || storefrontHome.loading} />
-      <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
       <SimpleHomeProductGrid
         title={isRtl ? "الأكثر طلبًا" : "Most Wanted"}
         subtitle={isRtl ? "مختارات قوية من القطع الأكثر جذبًا." : "The strongest edits and the most wanted picks."}
@@ -2859,6 +2858,7 @@ function PremiumHomePage(props) {
         themeTokens={themeTokens}
         lang={lang}
       />
+      <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
       <HomeWhySection lang={lang} themeTokens={themeTokens} />
       <HomeSimpleFooter lang={lang} themeTokens={themeTokens} />
     </div>
@@ -3289,25 +3289,14 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
   if (!loading && !visibleBrands.length) return null;
 
   return (
-    <section className="sf-home-motion mx-auto max-w-[1400px] px-4 py-5 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="sf-home-motion mt-8 border-y border-stone-200 bg-white md:mt-12" dir={isRtl ? "rtl" : "ltr"}>
       <div
-        className="overflow-hidden rounded-[2rem] border"
-        style={{
-          background: themeTokens.surface,
-          borderColor: themeTokens.border,
-          boxShadow: themeTokens.shadowSoft,
-        }}
+        className="mx-auto max-w-[1400px] overflow-hidden px-5 py-9 md:px-8 md:py-14"
       >
-        <div className="border-b px-4 py-5 md:px-6" style={{ borderColor: themeTokens.border }}>
-          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>
-            {isRtl ? "تسوّق حسب الماركة" : "Shop by brand"}
-          </div>
-          <h2 className="text-[1.9rem] font-black tracking-tight md:text-[3.15rem]" style={{ color: themeTokens.textPrimary }}>
+        <div className="border-b border-stone-200 pb-5 md:pb-6">
+          <h2 className="text-xl font-black text-[#2f687f] md:text-2xl">
             {isRtl ? "العلامات التجارية" : "Brands"}
           </h2>
-          <p className="mt-1.5 text-xs font-bold md:text-sm" style={{ color: themeTokens.textSecondary }}>
-            {isRtl ? "اختار البراند المفضل وشاهد كل موديلاته المتاحة." : "Choose your favorite brand and browse every available model."}
-          </p>
         </div>
 
         <div className="sf-brand-marquee" dir="ltr">
@@ -5841,7 +5830,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   );
   const sellingPrice = pricing.price;
   const comparePrice = pricing.comparePrice && pricing.comparePrice > sellingPrice ? pricing.comparePrice : 0;
-  const discountPercent = parsedSaleModeEnabled ? pricing.discountPercent || 0 : 0;
+  const discountPercent = pricing.isOnSale ? pricing.discountPercent || 0 : 0;
   const activeSizes = useMemo(
     () => providedAvailableSizes || getSizesForColorGroup(activeColorGroup),
     [activeColorGroup, providedAvailableSizes]
