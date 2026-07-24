@@ -391,7 +391,7 @@ function StorefrontAccountPageContent({
       );
       setCustomerAuth({ token, phone: requestPhone || storedPhone || "" });
       return data;
-    } catch {
+    } catch (error) {
       const status = Number(error?.status || error?.response?.status || 0);
       if (status === 401 || status === 403) {
         invalidateCustomerIdentity();
@@ -773,7 +773,7 @@ function StorefrontAccountPageContent({
   const ltrInputClassName = "text-left [direction:ltr]";
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-5 pb-28 md:py-8 md:pb-12" dir="rtl" lang="ar">
+    <section className="sf-account-page mx-auto max-w-6xl px-4 py-5 pb-28 md:py-8 md:pb-12" dir="rtl" lang="ar">
       <div className="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
         <div className="space-y-5">
           {hasCustomerToken ? (
@@ -803,16 +803,16 @@ function StorefrontAccountPageContent({
           ) : (
             <Panel title="حسابك محفوظ">
               <div className="space-y-4">
-                <div className="rounded-2xl bg-stone-50 p-4">
+                <div className="sf-account-intro rounded-2xl border p-4">
                   <div className="flex items-start gap-3">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-stone-950 text-[#d4af37]">
+                    <span className="sf-account-intro-icon grid h-11 w-11 shrink-0 place-items-center rounded-full">
                       <ShieldCheck className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
-                      <div className="text-lg font-black text-stone-950">
+                      <div className="sf-account-intro-title text-lg font-black">
                         {showResetView ? "استعادة الوصول" : "حسابك في M1 Store"}
                       </div>
-                      <p className="mt-1 text-sm font-bold leading-6 text-stone-600">
+                      <p className="sf-account-intro-copy mt-1 text-sm font-bold leading-6">
                         {showResetView
                           ? "أدخل كلمة المرور الجديدة ثم عد لتسجيل الدخول."
                           : "سجل دخولك لمتابعة طلباتك وعناوينك ونقاطك، أو أنشئ حسابًا جديدًا خلال ثوانٍ."}
@@ -821,11 +821,11 @@ function StorefrontAccountPageContent({
                   </div>
                 </div>
                 {showEmailAuth ? (
-                  <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,15,15,0.04)]">
+                  <div className="sf-account-auth-card rounded-2xl border p-4">
                     {!showForgotView && !showResetView ? (
-                      <div className="grid grid-cols-2 gap-2 rounded-full border border-stone-200 bg-stone-100/80 p-1">
-                        <button type="button" onClick={() => setAuthMode("login")} className={`min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "bg-stone-950 text-white shadow-sm" : "text-stone-600"}`}>تسجيل الدخول</button>
-                        <button type="button" onClick={() => setAuthMode("register")} className={`min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "register" ? "bg-stone-950 text-white shadow-sm" : "text-stone-600"}`}>إنشاء حساب</button>
+                      <div className="sf-account-tabs grid grid-cols-2 gap-2 rounded-full border p-1">
+                        <button type="button" onClick={() => setAuthMode("login")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "is-active shadow-sm" : ""}`}>تسجيل الدخول</button>
+                        <button type="button" onClick={() => setAuthMode("register")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "register" ? "is-active shadow-sm" : ""}`}>إنشاء حساب</button>
                       </div>
                     ) : null}
                     <div className="mt-5 space-y-4">
@@ -838,7 +838,7 @@ function StorefrontAccountPageContent({
                               <button type="button" onClick={() => setAuthMode("forgot")} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">نسيت كلمة المرور؟</button>
                             </div>
                           </div>
-                          <button onClick={submitEmailAuthLogin} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300">
+                          <button onClick={submitEmailAuthLogin} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
                             {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري تسجيل الدخول...</span> : "تسجيل الدخول"}
                           </button>
                           {showOtpLogin ? (
@@ -849,9 +849,9 @@ function StorefrontAccountPageContent({
                                 <div className="h-px flex-1 bg-stone-200" />
                               </div>
                               {!otpPanelOpen ? (
-                                <button type="button" onClick={() => setOtpPanelOpen(true)} className="min-h-12 w-full rounded-full border border-[#d4af37]/35 bg-[#d4af37]/8 px-5 py-3 font-black text-[#a17805] transition hover:border-[#d4af37] hover:bg-[#d4af37]/12">الدخول برقم الموبايل / واتساب</button>
+                                <button type="button" onClick={() => setOtpPanelOpen(true)} className="sf-account-secondary-button min-h-12 w-full rounded-full border px-5 py-3 font-black transition">الدخول برقم الموبايل / واتساب</button>
                               ) : (
-                                <div className="rounded-[1.25rem] border border-[#d4af37]/20 bg-[#fbf7ea] p-4">
+                                <div className="sf-account-otp-card rounded-[1.25rem] border p-4">
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <div className="text-sm font-black text-stone-950">الدخول برقم الموبايل</div>
@@ -862,13 +862,13 @@ function StorefrontAccountPageContent({
                                   <div className="mt-4 space-y-3">
                                     <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
                                     {!otpRequestedAt ? (
-                                      <button onClick={requestOtp} disabled={requestingOtp || !normalizedLoginPhone} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300">
+                                      <button onClick={requestOtp} disabled={requestingOtp || !normalizedLoginPhone} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
                                         {requestingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري إرسال الكود...</span> : "إرسال كود واتساب"}
                                       </button>
                                     ) : (
                                       <>
                                         <Field label="كود OTP" value={otpCode} onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))} inputMode="numeric" inputClassName={ltrInputClassName} />
-                                        <button onClick={verifyOtp} disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300">
+                                        <button onClick={verifyOtp} disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
                                           {verifyingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري التحقق...</span> : "تأكيد الدخول"}
                                         </button>
                                         <button onClick={requestOtp} disabled={requestingOtp || resendCountdown > 0} className="min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60">
@@ -891,7 +891,7 @@ function StorefrontAccountPageContent({
                           <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
                           <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
                           <Field label="تأكيد كلمة المرور" value={authConfirmPassword} onChange={setAuthConfirmPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                          <button onClick={submitEmailAuthRegister} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300">
+                          <button onClick={submitEmailAuthRegister} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
                             {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري إنشاء الحساب...</span> : "إنشاء حساب"}
                           </button>
                         </>
@@ -903,7 +903,7 @@ function StorefrontAccountPageContent({
                             <p className="mt-1 text-sm font-bold leading-6 text-stone-500">أدخل بريدك الإلكتروني وسنرسل لك رابط الاستعادة حسب نفس المنطق الحالي.</p>
                           </div>
                           <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
-                          <button onClick={requestPasswordReset} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300">
+                          <button onClick={requestPasswordReset} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
                             {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري الإرسال...</span> : "إرسال رابط الاستعادة"}
                           </button>
                           <button type="button" onClick={() => setAuthMode("login")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">رجوع إلى تسجيل الدخول</button>
@@ -914,7 +914,7 @@ function StorefrontAccountPageContent({
                           {!hasResetToken ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">رابط إعادة التعيين غير مكتمل. تأكد من فتح الرابط الكامل من البريد الإلكتروني أو اطلب رابطًا جديدًا.</div> : null}
                           <Field label="كلمة المرور الجديدة" value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
                           <Field label="تأكيد كلمة المرور الجديدة" value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                          <button onClick={submitPasswordReset} disabled={authSubmitting || !hasResetToken} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300">
+                          <button onClick={submitPasswordReset} disabled={authSubmitting || !hasResetToken} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
                             {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري التحديث...</span> : "تحديث كلمة المرور"}
                           </button>
                           {!hasResetToken ? <button type="button" onClick={() => setAuthMode("forgot")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">طلب رابط جديد</button> : null}

@@ -9,6 +9,7 @@ import { sendSmtpMail } from "./staffTaskEmailNotificationService.js";
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const PASSWORD_MIN_LENGTH = 8;
+const STOREFRONT_CUSTOMER_AUTH_TTL = String(process.env.STOREFRONT_CUSTOMER_AUTH_TTL || "730d").trim() || "730d";
 
 const text = (value = "") => String(value ?? "").trim();
 const normalizeEmail = (value = "") => text(value).toLowerCase();
@@ -76,7 +77,7 @@ const buildCustomerAuthToken = (customer = {}, authMethod = "email_password") =>
       auth_method: authMethod,
     },
     process.env.JWT_SECRET || "SECRET_KEY",
-    { expiresIn: "30d" }
+    { expiresIn: STOREFRONT_CUSTOMER_AUTH_TTL }
   );
 
 const resolveCustomerByEmail = async (clientOrPool, { tenantId, email }) => {

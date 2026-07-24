@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import db from "../database/db.js";
+
+const STOREFRONT_CUSTOMER_AUTH_TTL = String(process.env.STOREFRONT_CUSTOMER_AUTH_TTL || "730d").trim() || "730d";
 import { normalizePhone as normalizeInputPhone } from "../utils/phoneSearch.js";
 import { normalizeEgyptianMobile } from "./storefrontCustomerSessionService.js";
 import { normalizeEgyptPhone } from "./whatsappGatewayService.js";
@@ -363,7 +365,7 @@ export const verifyCustomerOtp = async ({ tenantId = null, phone = "", otp = "" 
         phone: normalizedPhone,
       },
       process.env.JWT_SECRET || "SECRET_KEY",
-      { expiresIn: "30d" }
+      { expiresIn: STOREFRONT_CUSTOMER_AUTH_TTL }
     );
     otpLog("verify-success", {
       tenant_id: safeTenantId,
