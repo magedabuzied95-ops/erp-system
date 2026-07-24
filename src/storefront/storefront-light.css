@@ -120,6 +120,37 @@ body.storefront-shell:not(.storefront-dark) {
   box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12) !important;
 }
 
+body.storefront-dark .sf-account-page input.sf-field-input,
+body.storefront-dark .sf-account-page input.sf-field-input:hover,
+body.storefront-dark .sf-account-page input.sf-field-input:focus,
+body.storefront-dark .sf-account-page input.sf-field-input:active {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: #0c0c0c !important;
+  background-color: #0c0c0c !important;
+  background-image: none !important;
+  color: #f7f7f5 !important;
+  caret-color: #f0ce63 !important;
+  -webkit-text-fill-color: #f7f7f5 !important;
+}
+
+body.storefront-dark .sf-account-page input.sf-field-input:focus {
+  border-color: rgba(212, 175, 55, 0.72) !important;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12) !important;
+}
+
+body.storefront-dark .sf-account-page input.sf-field-input:-webkit-autofill,
+body.storefront-dark .sf-account-page input.sf-field-input:-webkit-autofill:hover,
+body.storefront-dark .sf-account-page input.sf-field-input:-webkit-autofill:focus,
+body.storefront-dark .sf-account-page input.sf-field-input:-webkit-autofill:active {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background-color: #0c0c0c !important;
+  caret-color: #f0ce63 !important;
+  -webkit-text-fill-color: #f7f7f5 !important;
+  -webkit-box-shadow: 0 0 0 1000px #0c0c0c inset !important;
+  box-shadow: 0 0 0 1000px #0c0c0c inset !important;
+  transition: background-color 999999s ease-in-out 0s !important;
+}
+
 body.storefront-shell:not(.storefront-dark) .sf-account-page {
   --sf-account-gold: #a47a12;
   --sf-account-gold-strong: #8a660d;
@@ -164,6 +195,15 @@ body.storefront-shell:not(.storefront-dark) .sf-account-page .sf-field-input {
   background: var(--sf-light-surface) !important;
   color: var(--sf-light-text) !important;
   box-shadow: 0 8px 22px rgba(31, 29, 25, 0.06) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-input:-webkit-autofill,
+body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-input:-webkit-autofill:hover,
+body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-input:-webkit-autofill:focus,
+body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--sf-light-text) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--sf-light-surface) inset !important;
+  box-shadow: 0 0 0 1000px var(--sf-light-surface) inset !important;
 }
 
 /* Catalog heading must stay readable while the light palette is active. */
