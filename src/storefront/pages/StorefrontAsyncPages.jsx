@@ -31,16 +31,25 @@ function OrderItemsSummaryLocal({ items = [], helpers }) {
   return (
     <div className="sf-order-items mt-5 space-y-3">
       <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "ظ…ظ„ط®طµ ط§ظ„ظ…ظ†طھط¬ط§طھ")}</h3>
-      {items.map((item) => (
+      {items.map((item) => {
+        const selectedVariantImage = item.variant_image
+          || item.variant_image_url
+          || item.color_image
+          || item.color_image_url
+          || item.image_url
+          || item.product_image
+          || item.product_image_url;
+        return (
         <div key={item.id || `${item.product_id}-${item.variant_id}`} className="sf-order-item-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
-          <img src={imageFor(item.product_image || item.image_url)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
+          <img src={imageFor(selectedVariantImage)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
           <div className="min-w-0 flex-1">
             <div className="sf-order-item-name truncate font-black">{item.product_name || item.name}</div>
             <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "ط§ظ„ظ„ظˆظ†")} / {item.size || sfText("storefront.products.size", "ط§ظ„ظ…ظ‚ط§ط³")} أ— {item.quantity}</div>
           </div>
           <div className="sf-order-item-price shrink-0 font-black">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
