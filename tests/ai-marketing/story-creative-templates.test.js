@@ -18,11 +18,11 @@ const rendererSource = fs.readFileSync(
   "utf8"
 );
 
-test("story renderer uses one clean current implementation for every strategy", () => {
-  assert.equal(STORY_RENDERER_NAME, "m1_story_clean_product");
-  assert.equal(STORY_RENDERER_BUILD, "m1-story-clean-product-v2-2026-07-23");
+test("story renderer uses one new collection implementation for every strategy", () => {
+  assert.equal(STORY_RENDERER_NAME, "m1_story_new_collection");
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-new-collection-v3-2026-07-24");
   for (const strategy of ["new_arrivals", "last_size", "special_offer", "featured"]) {
-    assert.equal(resolveDesignedStoryTheme({ strategy_type: strategy }).id, "m1-clean-product-v2");
+    assert.equal(resolveDesignedStoryTheme({ strategy_type: strategy }).id, "m1-new-collection-v3");
   }
 });
 
@@ -41,7 +41,7 @@ test("story source selection excludes the product cover from old and new queues"
   }), [variantOne, variantTwo]);
 });
 
-test("rendered 9:16 markup is the clean current product layout", () => {
+test("rendered 9:16 markup is the new collection product layout", () => {
   const svg = designedStoryBackgroundSvg({
     title: "Nike Air Max 97",
     price: "1750 EGP",
@@ -52,12 +52,15 @@ test("rendered 9:16 markup is the clean current product layout", () => {
   assert.match(svg, /@font-face/);
   assert.match(svg, /Nike Air Max 97/);
   assert.match(svg, /1750 EGP/);
-  assert.match(svg, /#0f766e/i);
-  assert.doesNotMatch(svg, /LAST SIZE|Available now|View details|NEW COLLECTION|#ef4444|#dc2626/i);
+  assert.match(svg, /NEW COLLECTION/);
+  assert.match(svg, /View details/);
+  assert.match(svg, /#ef4444|#dc2626/i);
+  assert.doesNotMatch(svg, /m1-clean-product-v2|#0f766e/i);
 });
 
-test("renderer source permanently excludes old visual markers", () => {
-  assert.doesNotMatch(rendererSource, /LAST SIZE|Available now|View details|NEW COLLECTION|#ef4444|#dc2626/i);
+test("renderer source permanently excludes the removed white clean-product template", () => {
+  assert.match(rendererSource, /NEW COLLECTION/);
+  assert.doesNotMatch(rendererSource, /m1_story_clean_product|m1-clean-product-v2|#0f766e/i);
 });
 
 test("production story text is rasterized with the bundled font file", async () => {
@@ -67,7 +70,7 @@ test("production story text is rasterized with the bundled font file", async () 
     sizes: "41, 42, 43",
     theme: resolveDesignedStoryTheme(),
   });
-  assert.equal(composites.length, 3);
+  assert.equal(composites.length, 6);
   for (const composite of composites) {
     assert.ok(Buffer.isBuffer(composite.input) && composite.input.length > 100);
   }
