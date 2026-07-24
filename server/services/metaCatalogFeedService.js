@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
+import { resolveMetaProductCategories } from "./metaProductCategoryResolver.js";
 
 const FEED_URL = "https://api.m1store-egy.com/feeds/meta.xml";
 const DEFAULT_STOREFRONT_URL = "https://m1store-egy.com";
@@ -107,13 +108,26 @@ const queryMetaCatalogRows = async () => {
       p.image_url AS product_image_url,
       p.gallery_images,
       p.selling_price AS product_selling_price,
-      p.purchase_selling_price AS product_purchase_selling_price,
-      p.manual_selling_price AS product_manual_selling_price,
-      p.manual_price_override_active AS product_manual_price_override_active,
+      to_jsonb(p)->>'purchase_selling_price' AS product_purchase_selling_price,
+      to_jsonb(p)->>'manual_selling_price' AS product_manual_selling_price,
+      to_jsonb(p)->>'manual_price_override_active' AS product_manual_price_override_active,
       p.regular_price AS product_regular_price,
       p.price AS product_price,
       p.use_custom_compare_price,
       p.custom_compare_price,
+      p.category_id,
+      p.product_type,
+      c.name AS category_name,
+      COALESCE(
+        NULLIF(TRIM(to_jsonb(pv)->>'google_product_category'), ''),
+        NULLIF(TRIM(to_jsonb(p)->>'google_product_category'), '')
+      ) AS google_product_category,
+      COALESCE(
+        NULLIF(TRIM(to_jsonb(pv)->>'facebook_product_category'), ''),
+        NULLIF(TRIM(to_jsonb(pv)->>'fb_product_category'), ''),
+        NULLIF(TRIM(to_jsonb(p)->>'facebook_product_category'), ''),
+        NULLIF(TRIM(to_jsonb(p)->>'fb_product_category'), '')
+      ) AS facebook_product_category,
       p.brand_id,
       b.name AS brand_name,
       pv.id AS variant_id,
@@ -124,15 +138,16 @@ const queryMetaCatalogRows = async () => {
       pv.image_url AS variant_image_url,
       pv.stock AS variant_stock,
       pv.selling_price AS variant_selling_price,
-      pv.purchase_selling_price AS variant_purchase_selling_price,
-      pv.manual_selling_price AS variant_manual_selling_price,
-      pv.manual_price_override_active AS variant_manual_price_override_active,
+      to_jsonb(pv)->>'purchase_selling_price' AS variant_purchase_selling_price,
+      to_jsonb(pv)->>'manual_selling_price' AS variant_manual_selling_price,
+      to_jsonb(pv)->>'manual_price_override_active' AS variant_manual_price_override_active,
       pv.regular_price AS variant_regular_price,
       pv.price AS variant_price,
       ci.primary_color_image,
       ci.color_gallery
     FROM products p
     JOIN product_variants pv ON pv.product_id = p.id
+    LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN variant_sku_counts vsc ON vsc.sku_key = LOWER(TRIM(pv.sku))
     LEFT JOIN color_images ci ON ci.product_id = p.id AND ci.color_key = LOWER(TRIM(pv.color))
@@ -197,6 +212,7 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
   const titleParts = [row.product_name, color, size].map(text).filter(Boolean);
   const sellingPrice = resolveMetaCatalogCurrentPrice(row);
   const comparePrice = resolveMetaCatalogComparePrice(row, sellingPrice);
+  const categories = resolveMetaProductCategories(row);
   const fallbackImage = absoluteUrl(DEFAULT_PRODUCT_IMAGE_PATH, storefrontUrl);
   const productImage = absoluteUrl(row.product_image_url, backendUrl);
   const image = absoluteUrl(row.primary_color_image || row.variant_image_url || row.product_image_url, backendUrl) || fallbackImage;
@@ -221,6 +237,7 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
     brand,
     color,
     size,
+    google_product_category: categories.googleProductCategory,
   };
   if (comparePrice > sellingPrice && sellingPrice > 0) {
     item.sale_price = formatPrice(sellingPrice);
@@ -242,7 +259,7 @@ export const metaCatalogItemXml = (item) => {
 ${additionalImages ? `${additionalImages}\n` : ""}      <g:availability>${xml(item.availability)}</g:availability>
       <g:price>${xml(item.price)}</g:price>
 ${item.sale_price ? `      <g:sale_price>${xml(item.sale_price)}</g:sale_price>\n` : ""}      <g:brand>${xml(item.brand)}</g:brand>
-      <g:currency>${xml(item.currency)}</g:currency>
+${item.google_product_category ? `      <g:google_product_category>${xml(item.google_product_category)}</g:google_product_category>\n` : ""}      <g:currency>${xml(item.currency)}</g:currency>
       <g:color>${xml(item.color)}</g:color>
       <g:size>${xml(item.size)}</g:size>
       <g:condition>new</g:condition>
