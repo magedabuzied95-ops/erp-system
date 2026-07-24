@@ -586,6 +586,123 @@ body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-inpu
   box-shadow: 0 0 0 1000px var(--sf-light-surface) inset !important;
 }
 
+/* Order tracking: warm light palette, strictly scoped away from dark mode. */
+body.storefront-shell:not(.storefront-dark) .sf-track-hero {
+  border-color: rgba(164, 122, 18, 0.2) !important;
+  background:
+    radial-gradient(circle at 10% -20%, rgba(212, 175, 55, 0.18), transparent 42%),
+    linear-gradient(135deg, #fffdf8 0%, #f3ecdc 100%) !important;
+  color: #25231f !important;
+  box-shadow: 0 24px 58px rgba(61, 48, 19, 0.13) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-hero [class*="text-white"] {
+  color: #25231f !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-hero [class*="text-stone-3"],
+body.storefront-shell:not(.storefront-dark) .sf-track-hero [class*="text-stone-4"] {
+  color: #625d54 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-hero [class*="text-emerald"] {
+  color: #08745b !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-hero-support {
+  border-color: rgba(37, 35, 31, 0.15) !important;
+  background: rgba(255, 255, 255, 0.76) !important;
+  color: #25231f !important;
+  box-shadow: 0 8px 22px rgba(37, 35, 31, 0.07);
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-hero-support:hover {
+  border-color: rgba(164, 122, 18, 0.4) !important;
+  background: #fff !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-search-form {
+  border-color: var(--sf-light-border) !important;
+  background: #fff !important;
+  box-shadow: 0 18px 44px rgba(31, 29, 25, 0.09) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-search-form .sf-field-label {
+  color: #5d5952 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-search-form .sf-field-input {
+  border-color: #d8d3c8 !important;
+  background: #faf9f6 !important;
+  color: #25231f !important;
+  -webkit-text-fill-color: #25231f !important;
+  box-shadow: inset 0 1px 0 rgba(37, 35, 31, 0.025) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-search-form .sf-field-input:focus {
+  border-color: rgba(164, 122, 18, 0.62) !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 4px rgba(164, 122, 18, 0.1) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-track-search-form > button {
+  border-color: #9b7310 !important;
+  background: linear-gradient(135deg, #e2bd50, #bd8e19) !important;
+  color: #211a08 !important;
+  box-shadow: 0 14px 30px rgba(164, 122, 18, 0.2) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result {
+  border-color: var(--sf-light-border) !important;
+  background: #fff !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 22px 56px rgba(31, 29, 25, 0.1) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-card-section {
+  border-color: #ece8df !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-info-box,
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-item-row {
+  border: 1px solid #ece8df;
+  background: #faf9f6 !important;
+  color: #25231f !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-info-label,
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-muted-text,
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-item-meta {
+  color: #716c63 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-info-value,
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-section-heading,
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-item-name,
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-item-price {
+  color: #25231f !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-step {
+  border-color: #e5e0d6 !important;
+  background: #faf9f6 !important;
+  color: #38342d !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-step--done {
+  border-color: rgba(5, 150, 105, 0.28) !important;
+  background: #ecfdf5 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-step--active {
+  border-color: rgba(164, 122, 18, 0.3) !important;
+  background: #fff8e6 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-step-label {
+  color: #4f4a42 !important;
+}
+
 /* Catalog heading must stay readable while the light palette is active. */
 body.storefront-shell:not(.storefront-dark) .sf-product-listing-page .sf-catalog-title {
   color: var(--sf-light-text) !important;

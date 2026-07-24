@@ -158,7 +158,7 @@ export function TrackOrderPage({ helpers, components }) {
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-5 md:py-8">
-      <div className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_24px_64px_rgba(0,0,0,0.32)] md:p-8">
+      <div className="sf-track-hero rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_24px_64px_rgba(0,0,0,0.32)] md:p-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="mb-3 flex items-center gap-3">
@@ -178,7 +178,7 @@ export function TrackOrderPage({ helpers, components }) {
             <h1 className="mt-2 text-3xl font-black md:text-5xl">{sfText("storefront.tracking.title", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</h1>
             <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-stone-300">{sfText("storefront.tracking.subtitle", "Enter your order number and mobile number, or open the direct tracking link from your confirmation message.")}</p>
           </div>
-          <a href={supportHref(form.order_number)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-black text-white">
+          <a href={supportHref(form.order_number)} className="sf-track-hero-support inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-black text-white">
             <MessageCircle className="h-5 w-5" />
             {sfText("storefront.support.needHelpWhatsapp", "طھط­طھط§ط¬ ظ…ط³ط§ط¹ط¯ط©طں طھظˆط§طµظ„ ظ…ط¹ظ†ط§ ط¹ظ„ظ‰ ظˆط§طھط³ط§ط¨")}
           </a>
