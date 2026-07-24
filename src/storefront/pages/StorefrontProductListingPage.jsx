@@ -511,13 +511,14 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const backendFilterState = useMemo(
     () => ({
       q: backendSearchTerm,
+      brand,
       gender: gender || "",
       product_type: productType || "",
       offer_story: saleView ? 1 : "",
       sort: sort || "newest",
       limit: 80,
     }),
-    [backendSearchTerm, gender, productType, saleView, sort]
+    [backendSearchTerm, brand, gender, productType, saleView, sort]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error } = useProducts(productsApiParams);
