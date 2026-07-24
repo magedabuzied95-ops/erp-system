@@ -750,14 +750,10 @@ function PurchaseOrder() {
       setProductsLoading(true);
       setError("");
 
-      const [suppliersRes, warehousesRes, branchesRes, productsRes, reorderRes, financialAccountsRes, paymentMappingsRes] = await Promise.allSettled([
+      const [suppliersRes, warehousesRes, branchesRes] = await Promise.allSettled([
         api.get("/suppliers?limit=200&page=1"),
         api.get("/warehouses"),
         api.get("/branches"),
-        api.get("/products/with-variants"),
-        api.get("/purchases/reorder-suggestions"),
-        accountingApi.getFinancialAccounts({ include_inactive: true }),
-        accountingApi.getPaymentMethodMappings(),
       ]);
 
       if (suppliersRes.status === "fulfilled") {
@@ -785,6 +781,31 @@ function PurchaseOrder() {
       } else {
         setBranches([]);
       }
+
+      // Make the purchase form interactive as soon as its essential selectors
+      // are ready. The full product/variant catalog is the largest request on
+      // this page and should not block the initial render.
+      if (!isEditMode) {
+        setLoading(false);
+        await new Promise((resolve) => {
+          if (typeof window === "undefined") {
+            resolve();
+            return;
+          }
+          if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(resolve, { timeout: 1200 });
+            return;
+          }
+          window.setTimeout(resolve, 150);
+        });
+      }
+
+      const [productsRes, reorderRes, financialAccountsRes, paymentMappingsRes] = await Promise.allSettled([
+        api.get("/products/with-variants"),
+        api.get("/purchases/reorder-suggestions"),
+        accountingApi.getFinancialAccounts({ include_inactive: true }),
+        accountingApi.getPaymentMethodMappings(),
+      ]);
 
       const rows = productsRes.status === "fulfilled" ? normalizeProductsResponse(productsRes.value) : [];
       const reorderRows = reorderRes.status === "fulfilled" ? normalizeReorderResponse(reorderRes.value) : [];
