@@ -44,11 +44,30 @@ const getBackendAssetBaseUrl = () => {
   return current.origin.replace(/\/+$/g, "");
 };
 
+const FRONTEND_PUBLIC_ASSET_PREFIXES = [
+  "/storefront/category-posters/",
+];
+
+const isFrontendPublicAsset = (value = "") => {
+  const path = String(value || "").trim();
+  return FRONTEND_PUBLIC_ASSET_PREFIXES.some((prefix) => path.startsWith(prefix));
+};
+
+const resolveFrontendPublicAsset = (value = "") => {
+  const path = String(value || "").trim();
+  const current = currentWindowUrl();
+  return current?.origin ? `${current.origin}${path}` : path;
+};
+
 export const resolveProductImageUrl = (value) => {
   const imageUrl = String(value || "").trim();
   if (!imageUrl) return "";
   if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
   if (/^https?:\/\//i.test(imageUrl)) return normalizeReachableUrl(imageUrl);
+  // Files shipped from Vite's public directory belong to the storefront
+  // origin. Sending these paths to the API returns a non-image response,
+  // which browsers correctly block through OpaqueResponseBlocking.
+  if (isFrontendPublicAsset(imageUrl)) return resolveFrontendPublicAsset(imageUrl);
   if (/^\/\/(?!\/*uploads(?:\/|$))/i.test(imageUrl) && typeof window !== "undefined") {
     return normalizeReachableUrl(`${window.location.protocol}${imageUrl}`);
   }
