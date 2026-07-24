@@ -2133,8 +2133,8 @@
     --sf-dark-text: #f8fafc;
     --sf-dark-secondary: #cbd5e1;
     --sf-dark-muted: #94a3b8;
-    --sf-dark-input: rgba(15, 23, 42, 0.9);
-    --sf-dark-input-border: rgba(148, 163, 184, 0.22);
+    --sf-dark-input: #0c0c0c;
+    --sf-dark-input-border: rgba(255, 255, 255, 0.12);
   }
 
   .storefront-shell--checkout {
