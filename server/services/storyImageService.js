@@ -22,7 +22,7 @@ const STORY_FONT_PATH = fileURLToPath(new URL("../../src/assets/fonts/customer-s
 const STORY_FONT_BASE64 = readFileSync(STORY_FONT_PATH).toString("base64");
 const STORY_FONT_FAMILY = "M1Story";
 export const STORY_RENDERER_NAME = "m1_story_new_collection";
-export const STORY_RENDERER_BUILD = "m1-story-new-collection-v4-sans-2026-07-24";
+export const STORY_RENDERER_BUILD = "m1-story-new-collection-v5-english-sans-2026-07-24";
 const storyFontFaceSvg = () => `<style>@font-face{font-family:'${STORY_FONT_FAMILY}';src:url(data:font/ttf;base64,${STORY_FONT_BASE64}) format('truetype');font-style:normal;font-weight:100 1000;}text{font-family:'${STORY_FONT_FAMILY}','DejaVu Sans',sans-serif;}</style>`;
 sharp.cache(false);
 sharp.concurrency(1);
@@ -305,6 +305,23 @@ const escapePangoMarkup = (value) => trimString(value)
   .replace(/</g, "&lt;")
   .replace(/>/g, "&gt;");
 
+const hasArabicText = (value) => /[\u0600-\u06ff]/u.test(trimString(value));
+
+const normalizeStoryDigits = (value) => trimString(value).replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+
+const englishStoryText = (value, fallback) => {
+  const normalized = trimString(value);
+  return normalized && !hasArabicText(normalized) ? normalized : fallback;
+};
+
+const englishStoryPrice = (value) => {
+  const normalized = normalizeStoryDigits(value);
+  if (!normalized) return "Available now";
+  if (!hasArabicText(normalized)) return normalized;
+  const amount = normalized.match(/\d+(?:[.,]\d+)?/)?.[0];
+  return amount ? `${amount} EGP` : "Available now";
+};
+
 const createStoryTextComposite = async ({ text, left, top, width, height, size, color, align = "left", weight = "bold" }) => {
   if (!trimString(text)) return null;
   const input = await sharp({
@@ -495,13 +512,16 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, th
 export const createDesignedStoryTextComposites = async ({ badge, title, price, sizes, cta, theme = DESIGNED_STORY_THEMES.current }) => {
   const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*â€¢\s*/g, " \u2022 ");
   const sizesText = cleanSizes ? `AVAILABLE SIZES: ${cleanSizes}` : "AVAILABLE NOW";
-  const titleText = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 }).join("\n");
+  const badgeText = englishStoryText(badge, "NEW COLLECTION");
+  const titleText = storyAssetTextLines(englishStoryText(title, "Sneakers"), { maxChars: 24, maxLines: 2 }).join("\n");
+  const priceText = englishStoryPrice(price);
+  const ctaText = englishStoryText(cta, "View details");
   const composites = await Promise.all([
     createStoryTextComposite({ text: theme.label, left: 784, top: 100, width: 192, height: 32, size: 14, color: "#ffffff", align: "center", weight: "semibold" }),
-    createStoryTextComposite({ text: badge || "NEW COLLECTION", left: 112, top: 1118, width: 360, height: 42, size: 20, color: "#ffffff", weight: "bold" }),
+    createStoryTextComposite({ text: badgeText, left: 112, top: 1118, width: 360, height: 42, size: 20, color: "#ffffff", weight: "bold" }),
     createStoryTextComposite({ text: titleText, left: 72, top: 1190, width: 936, height: 190, size: 68, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: price || "Available now", left: 72, top: 1404, width: 560, height: 100, size: 70, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: cta || "View details", left: 666, top: 1426, width: 322, height: 58, size: 25, color: theme.accentDark, align: "center", weight: "bold" }),
+    createStoryTextComposite({ text: priceText, left: 72, top: 1404, width: 560, height: 100, size: 70, color: "#ffffff", weight: "bold" }),
+    createStoryTextComposite({ text: ctaText, left: 666, top: 1426, width: 322, height: 58, size: 25, color: theme.accentDark, align: "center", weight: "bold" }),
     createStoryTextComposite({ text: sizesText, left: 112, top: 1560, width: 872, height: 54, size: 18, color: "#475569", weight: "bold" }),
   ]);
   return composites.filter(Boolean);

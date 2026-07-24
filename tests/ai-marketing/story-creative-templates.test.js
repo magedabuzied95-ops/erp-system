@@ -20,7 +20,7 @@ const rendererSource = fs.readFileSync(
 
 test("story renderer uses one new collection implementation for every strategy", () => {
   assert.equal(STORY_RENDERER_NAME, "m1_story_new_collection");
-  assert.equal(STORY_RENDERER_BUILD, "m1-story-new-collection-v4-sans-2026-07-24");
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-new-collection-v5-english-sans-2026-07-24");
   for (const strategy of ["new_arrivals", "last_size", "special_offer", "featured"]) {
     assert.equal(resolveDesignedStoryTheme({ strategy_type: strategy }).id, "m1-new-collection-v3");
   }
@@ -74,6 +74,22 @@ test("production story text is rasterized with the canonical sans font", async (
   for (const composite of composites) {
     assert.ok(Buffer.isBuffer(composite.input) && composite.input.length > 100);
   }
+  assert.match(rendererSource, /font: "Arial, DejaVu Sans, sans-serif"/);
+});
+
+test("canonical story converts Arabic AI copy to the required English labels", async () => {
+  const composites = await createDesignedStoryTextComposites({
+    badge: "\u0645\u062c\u0645\u0648\u0639\u0629 \u062c\u062f\u064a\u062f\u0629",
+    title: "\u0646\u064a\u0648 \u0628\u0627\u0644\u0627\u0646\u0633 \u062d\u0630\u0627\u0621 \u0631\u064a\u0627\u0636\u064a",
+    price: "\u0627\u0644\u0633\u0639\u0631 1750 \u062c\u0646\u064a\u0647",
+    sizes: "37, 38, 39, 40",
+    cta: "\u0639\u0631\u0636 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644",
+    theme: resolveDesignedStoryTheme(),
+  });
+  assert.equal(composites.length, 6);
+  assert.match(rendererSource, /englishStoryText\(badge, "NEW COLLECTION"\)/);
+  assert.match(rendererSource, /englishStoryText\(title, "Sneakers"\)/);
+  assert.match(rendererSource, /englishStoryText\(cta, "View details"\)/);
 });
 
 test("current renderer produces real 1080x1920 pixels and content-sensitive checksums", async () => {
