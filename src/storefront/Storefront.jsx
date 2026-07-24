@@ -3289,12 +3289,12 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
   if (!loading && !visibleBrands.length) return null;
 
   return (
-    <section className="sf-home-motion mt-8 border-y border-stone-200 bg-white md:mt-12" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="sf-home-brands sf-home-motion mt-8 border-y border-stone-200 bg-[#faf9f7] transition-colors duration-300 dark:border-white/[0.08] dark:bg-[#080808] md:mt-12" dir={isRtl ? "rtl" : "ltr"}>
       <div
         className="mx-auto max-w-[1400px] overflow-hidden px-5 py-9 md:px-8 md:py-14"
       >
-        <div className="border-b border-stone-200 pb-5 md:pb-6">
-          <h2 className="text-xl font-black text-[#2f687f] md:text-2xl">
+        <div className="border-b border-stone-200 pb-5 transition-colors duration-300 dark:border-white/10 md:pb-6">
+          <h2 className="text-xl font-black text-[#2f687f] transition-colors duration-300 dark:text-[#f3d77a] md:text-2xl">
             {isRtl ? "العلامات التجارية" : "Brands"}
           </h2>
         </div>
