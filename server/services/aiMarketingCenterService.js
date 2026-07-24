@@ -2992,6 +2992,7 @@ const loadProducts = async (tenantId) => {
       p.sale_start_at,
       p.sale_end_at,
       p.sale_reason,
+      COALESCE(p.is_offer_story, FALSE) AS is_offer_story,
       p.id AS product_freshness_rank,
       p.gender,
       p.product_type,
@@ -3070,6 +3071,7 @@ const loadProducts = async (tenantId) => {
       sale_start_at: row.sale_start_at,
       sale_end_at: row.sale_end_at,
       sale_reason: row.sale_reason,
+      is_offer_story: row.is_offer_story === true || String(row.is_offer_story || "").toLowerCase() === "true",
       sale_mode_settings: saleModeSettings,
       freshness_rank: numberValue(row.product_freshness_rank, row.id),
       gender: row.gender || "",
@@ -4050,6 +4052,24 @@ const markCooldown = (state, item, nowMs = Date.now()) => {
 
 const itemKey = (item) => `${item.content_type}:${item.product_id}:${item.variant_id || 0}`;
 
+export const productStoryAudience = (product = {}) => {
+  const text = normalizedSearchText(
+    product.gender,
+    product.audience,
+    product.category_name,
+    product.category,
+    product.product_type,
+    product.style
+  );
+  if (/\b(women|woman|female|ladies|lady)\b|حريمي|نسائي|نساء/u.test(text)) return "women";
+  if (/\b(kids|kid|children|child|boys|girls)\b|أطفال|اطفال|طفل/u.test(text)) return "kids";
+  if (/\b(men|man|male|mens)\b|رجالي|رجال/u.test(text)) return "men";
+  return "men";
+};
+
+export const productStoryTemplateVariant = (product = {}) =>
+  product.is_offer_story === true ? "offers" : productStoryAudience(product);
+
 const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutType, quota, index = 0 }) => {
   const media = resolveAiContentMedia({ product, variant, strategy, contentType });
   const imageUrl = media.primary_image_url || getProductImage(product, variant || {});
@@ -4072,6 +4092,8 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
     : null;
   const headline = contentType === "story" ? "" : strategy === "new_arrivals" ? "New arrival" : "AI product post";
   const cta = contentType === "story" ? "" : FOCUSED_CTA_TEXT[(Number(product.id || 0) + index) % FOCUSED_CTA_TEXT.length];
+  const storyAudience = productStoryAudience(product);
+  const storyTemplateVariant = productStoryTemplateVariant(product);
   const caption = [
     headline,
     contentType === "story" ? product.name : [product.name, [colorName, sizeName].filter(Boolean).join(" / ")].filter(Boolean).join(" - "),
@@ -4105,6 +4127,11 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
       product_id: product.id,
       product_slug: storyProductSlug,
       product_name: product.name,
+      category_name: product.category_name || "",
+      gender: product.gender || "",
+      story_audience: storyAudience,
+      story_template_variant: storyTemplateVariant,
+      is_offer_story: product.is_offer_story === true,
       image_url: imageUrl,
       media_urls: media.media_urls.length ? media.media_urls : uniqueImageUrls([imageUrl]),
       primary_image_url: imageUrl,
@@ -4126,6 +4153,9 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
           image_url: url,
           ...(contentType === "post" ? { cta_text: cta } : {}),
           product_id: product.id,
+          story_audience: storyAudience,
+          story_template_variant: storyTemplateVariant,
+          is_offer_story: product.is_offer_story === true,
           product_slug: storyProductSlug,
           product_url: storyProductUrl,
           cta_url: storyProductUrl,
@@ -4153,6 +4183,9 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
     metadata: {
       quota_id: quota?.id || "premium-engine",
       source: "ai_marketing_engine",
+      story_audience: storyAudience,
+      story_template_variant: storyTemplateVariant,
+      is_offer_story: product.is_offer_story === true,
       engine_version: "focused-2026-05",
     },
   };
@@ -4161,6 +4194,7 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
 const buildLastPieceStories = (products, quota, limit) => {
   const candidates = [];
   for (const product of products) {
+    if (product.is_offer_story === true) continue;
     for (const variant of product.variants || []) {
       const resolvedStock = numberValue(variant.stock, 0);
       const baseLog = {
@@ -4200,13 +4234,44 @@ const buildLastPieceStories = (products, quota, limit) => {
 
 const buildNewArrivalStories = (products, quota, limit) =>
   products
-    .filter((product) => usableVariants(product).some((variant) => hasUsableImage(product, variant)))
+    .filter((product) => product.is_offer_story !== true && usableVariants(product).some((variant) => hasUsableImage(product, variant)))
     .sort((a, b) => numberValue(b.freshness_rank, b.id) - numberValue(a.freshness_rank, a.id))
     .slice(0, limit)
     .map((product, index) => {
       const variant = usableVariants(product).find((row) => hasUsableImage(product, row)) || null;
       return makeFocusedCreative({ product, variant, contentType: "story", strategy: "new_arrivals", layoutType: "new_arrival_story", quota, index });
     });
+
+const buildOfferStories = (products, quota, limit) =>
+  products
+    .filter((product) => product.is_offer_story === true && usableVariants(product).some((variant) => hasUsableImage(product, variant)))
+    .sort((a, b) => numberValue(b.freshness_rank, b.id) - numberValue(a.freshness_rank, a.id))
+    .slice(0, limit)
+    .map((product, index) => {
+      const variant = usableVariants(product).find((row) => hasUsableImage(product, row)) || null;
+      return makeFocusedCreative({ product, variant, contentType: "story", strategy: "offers", layoutType: "offer_story", quota, index });
+    });
+
+export const interleaveStoryTemplateVariants = (items = []) => {
+  const groups = new Map();
+  for (const item of items) {
+    const variant = cleanText(item.design_json?.story_template_variant || "men").toLowerCase();
+    groups.set(variant, [...(groups.get(variant) || []), item]);
+  }
+  const preferredOrder = ["men", "women", "kids", "offers"];
+  const orderedGroups = [
+    ...preferredOrder.filter((key) => groups.has(key)).map((key) => groups.get(key)),
+    ...Array.from(groups.entries()).filter(([key]) => !preferredOrder.includes(key)).map(([, group]) => group),
+  ];
+  const output = [];
+  while (orderedGroups.some((group) => group.length)) {
+    for (const group of orderedGroups) {
+      const next = group.shift();
+      if (next) output.push(next);
+    }
+  }
+  return output;
+};
 
 const buildAiPosts = (products, quota, limit) =>
   products
@@ -4249,9 +4314,13 @@ const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
   const storyLimit = Math.max(1, Math.min(positiveInt(settings.stories_per_day, 12) * runMultiplier, 360));
   const postLimit = Math.max(0, Math.min(positiveInt(settings.posts_per_day, 3) * runMultiplier, 90));
   const activeStrategies = normalizeFocusedStrategies(settings.active_strategies || {});
-  const candidates = [
+  const storyCandidates = interleaveStoryTemplateVariants([
+    ...buildOfferStories(products, quota, storyLimit),
     ...(activeStrategies.last_size ? buildLastPieceStories(products, quota, storyLimit) : []),
     ...(activeStrategies.new_arrivals ? buildNewArrivalStories(products, quota, storyLimit) : []),
+  ]);
+  const candidates = [
+    ...storyCandidates,
     ...(activeStrategies.ai_posts ? buildAiPosts(products, quota, postLimit) : []),
   ];
   const plan = [];

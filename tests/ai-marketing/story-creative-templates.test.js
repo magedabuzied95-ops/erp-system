@@ -20,10 +20,11 @@ const rendererSource = fs.readFileSync(
 
 test("story renderer uses one new collection implementation for every strategy", () => {
   assert.equal(STORY_RENDERER_NAME, "m1_story_new_collection");
-  assert.equal(STORY_RENDERER_BUILD, "m1-story-new-collection-v5-english-sans-2026-07-24");
-  for (const strategy of ["new_arrivals", "last_size", "special_offer", "featured"]) {
-    assert.equal(resolveDesignedStoryTheme({ strategy_type: strategy }).id, "m1-new-collection-v3");
-  }
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-audience-collection-v1-2026-07-24");
+  assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "men" }).id, "m1-men-story-v1");
+  assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "women" }).id, "m1-women-story-v1");
+  assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "kids" }).id, "m1-kids-story-v1");
+  assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "offers" }).id, "m1-offers-story-v1");
 });
 
 test("story source selection excludes the product cover from old and new queues", () => {
@@ -88,7 +89,7 @@ test("canonical story converts Arabic AI copy to the required English labels", a
   });
   assert.equal(composites.length, 6);
   assert.match(rendererSource, /englishStoryText\(badge, "NEW COLLECTION"\)/);
-  assert.match(rendererSource, /englishStoryText\(title, "Sneakers"\)/);
+  assert.match(rendererSource, /englishStoryText\(title, theme\.fallbackTitle \|\| "Sneakers"\)/);
   assert.match(rendererSource, /englishStoryText\(cta, "View details"\)/);
 });
 

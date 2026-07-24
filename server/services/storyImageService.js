@@ -22,7 +22,7 @@ const STORY_FONT_PATH = fileURLToPath(new URL("../../src/assets/fonts/customer-s
 const STORY_FONT_BASE64 = readFileSync(STORY_FONT_PATH).toString("base64");
 const STORY_FONT_FAMILY = "M1Story";
 export const STORY_RENDERER_NAME = "m1_story_new_collection";
-export const STORY_RENDERER_BUILD = "m1-story-new-collection-v5-english-sans-2026-07-24";
+export const STORY_RENDERER_BUILD = "m1-story-audience-collection-v1-2026-07-24";
 const storyFontFaceSvg = () => `<style>@font-face{font-family:'${STORY_FONT_FAMILY}';src:url(data:font/ttf;base64,${STORY_FONT_BASE64}) format('truetype');font-style:normal;font-weight:100 1000;}text{font-family:'${STORY_FONT_FAMILY}','DejaVu Sans',sans-serif;}</style>`;
 sharp.cache(false);
 sharp.concurrency(1);
@@ -359,9 +359,67 @@ const storyAssetSizes = (story = {}, design = {}) => {
 };
 
 const DESIGNED_STORY_THEMES = {
+  men: {
+    id: "m1-men-story-v1",
+    label: "MEN'S EDIT",
+    badge: "NEW FOR MEN",
+    fallbackTitle: "Men's Sneakers",
+    baseStart: "#f5f8ff",
+    baseMiddle: "#dbeafe",
+    baseEnd: "#071426",
+    glowPrimary: "#2563eb",
+    glowSecondary: "#06b6d4",
+    accent: "#2563eb",
+    accentSoft: "#dbeafe",
+    accentDark: "#071a3d",
+  },
+  women: {
+    id: "m1-women-story-v1",
+    label: "WOMEN'S EDIT",
+    badge: "NEW FOR WOMEN",
+    fallbackTitle: "Women's Sneakers",
+    baseStart: "#fff7fb",
+    baseMiddle: "#fce7f3",
+    baseEnd: "#2b0a20",
+    glowPrimary: "#ec4899",
+    glowSecondary: "#a855f7",
+    accent: "#ec4899",
+    accentSoft: "#fce7f3",
+    accentDark: "#500724",
+  },
+  kids: {
+    id: "m1-kids-story-v1",
+    label: "KIDS' PICKS",
+    badge: "NEW FOR KIDS",
+    fallbackTitle: "Kids' Sneakers",
+    baseStart: "#f7fee7",
+    baseMiddle: "#ecfccb",
+    baseEnd: "#16320b",
+    glowPrimary: "#84cc16",
+    glowSecondary: "#facc15",
+    accent: "#84cc16",
+    accentSoft: "#ecfccb",
+    accentDark: "#1a2e05",
+  },
+  offers: {
+    id: "m1-offers-story-v1",
+    label: "LIMITED OFFER",
+    badge: "SPECIAL OFFER",
+    fallbackTitle: "Sale Pick",
+    baseStart: "#fff8f7",
+    baseMiddle: "#fee2e2",
+    baseEnd: "#240606",
+    glowPrimary: "#ef4444",
+    glowSecondary: "#f97316",
+    accent: "#ef4444",
+    accentSoft: "#fee2e2",
+    accentDark: "#450a0a",
+  },
   current: {
-    id: "m1-new-collection-v3",
+    id: "m1-general-story-v1",
     label: "FRESH DROP",
+    badge: "NEW COLLECTION",
+    fallbackTitle: "Sneakers",
     baseStart: "#fff8f7",
     baseMiddle: "#f1e5e3",
     baseEnd: "#170909",
@@ -373,14 +431,40 @@ const DESIGNED_STORY_THEMES = {
   },
 };
 
-// Every AI Marketing story uses the approved M1 visual template. The campaign
-// strategy controls selling copy, but never swaps the black/crimson art style.
-export const resolveDesignedStoryTheme = () => DESIGNED_STORY_THEMES.current;
+const normalizedThemeText = (...values) => values.map((value) => trimString(value).toLowerCase()).filter(Boolean).join(" ");
+
+export const resolveDesignedStoryTheme = (story = {}, design = {}) => {
+  const explicitVariant = normalizedThemeText(
+    design.story_template_variant,
+    story.story_template_variant,
+    design.template_variant,
+    story.template_variant
+  );
+  if (explicitVariant === "offers") return DESIGNED_STORY_THEMES.offers;
+  if (explicitVariant === "men") return DESIGNED_STORY_THEMES.men;
+  if (explicitVariant === "women") return DESIGNED_STORY_THEMES.women;
+  if (explicitVariant === "kids") return DESIGNED_STORY_THEMES.kids;
+
+  const audience = normalizedThemeText(
+    design.story_audience,
+    story.story_audience,
+    design.gender,
+    story.gender,
+    design.audience,
+    story.audience,
+    design.category_name,
+    story.category_name
+  );
+  if (/\b(women|woman|female|ladies|lady)\b|حريمي|نسائي|نساء/u.test(audience)) return DESIGNED_STORY_THEMES.women;
+  if (/\b(kids|kid|children|child|boys|girls)\b|أطفال|اطفال|طفل/u.test(audience)) return DESIGNED_STORY_THEMES.kids;
+  if (/\b(men|man|male|mens)\b|رجالي|رجال/u.test(audience)) return DESIGNED_STORY_THEMES.men;
+  return DESIGNED_STORY_THEMES.current;
+};
 
 const storyAssetTitle = (story = {}, design = {}) =>
   trimString(story.product_name || story.title || design.product_name || design.title || "New product");
 
-const storyAssetBadge = () => "NEW COLLECTION";
+const storyAssetBadge = (_story = {}, _design = {}, theme = DESIGNED_STORY_THEMES.current) => theme.badge || "NEW COLLECTION";
 const storyAssetCta = () => "View details";
 
 const storyPreviewSlideImages = (design = {}) => [
@@ -513,7 +597,7 @@ export const createDesignedStoryTextComposites = async ({ badge, title, price, s
   const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*â€¢\s*/g, " \u2022 ");
   const sizesText = cleanSizes ? `AVAILABLE SIZES: ${cleanSizes}` : "AVAILABLE NOW";
   const badgeText = englishStoryText(badge, "NEW COLLECTION");
-  const titleText = storyAssetTextLines(englishStoryText(title, "Sneakers"), { maxChars: 24, maxLines: 2 }).join("\n");
+  const titleText = storyAssetTextLines(englishStoryText(title, theme.fallbackTitle || "Sneakers"), { maxChars: 24, maxLines: 2 }).join("\n");
   const priceText = englishStoryPrice(price);
   const ctaText = englishStoryText(cta, "View details");
   const composites = await Promise.all([
@@ -691,7 +775,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       };
       const storyTheme = resolveDesignedStoryTheme(slideStory, slideDesign);
       const storyText = {
-        badge: storyAssetBadge(slideStory, slideDesign),
+        badge: storyAssetBadge(slideStory, slideDesign, storyTheme),
         title: storyAssetTitle(slideStory, slideDesign),
         price: storyAssetPrice(slideStory, slideDesign),
         sizes: storyAssetSizes(slideStory, slideDesign),
