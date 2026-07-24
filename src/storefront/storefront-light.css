@@ -32,6 +32,177 @@ body.storefront-shell:not(.storefront-dark) {
   color: var(--sf-account-text);
 }
 
+.storefront-shell .sf-account-layout.is-auth {
+  margin-inline: auto;
+  max-width: 34rem;
+}
+
+.storefront-shell .sf-account-hero {
+  position: relative;
+  isolation: isolate;
+  border-color: rgba(212, 175, 55, 0.2);
+  background:
+    linear-gradient(120deg, rgba(212, 175, 55, 0.08), transparent 42%),
+    radial-gradient(circle at 82% -25%, rgba(212, 175, 55, 0.2), transparent 38%),
+    linear-gradient(145deg, #191919 0%, #090909 72%);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+
+.storefront-shell .sf-account-hero::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  opacity: 0.16;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(90deg, transparent, #000 45%, #000);
+}
+
+.storefront-shell .sf-account-hero-orb {
+  position: absolute;
+  top: -7rem;
+  left: -4rem;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.12);
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.storefront-shell .sf-account-eyebrow,
+.storefront-shell .sf-account-count {
+  border: 1px solid rgba(212, 175, 55, 0.24);
+  background: rgba(212, 175, 55, 0.1);
+  color: var(--sf-account-gold-strong);
+}
+
+.storefront-shell .sf-account-avatar {
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  background: linear-gradient(145deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.04));
+  color: var(--sf-account-gold-strong);
+  box-shadow: inset 0 0 24px rgba(212, 175, 55, 0.08);
+}
+
+.storefront-shell .sf-account-hero-button {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  backdrop-filter: blur(12px);
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.storefront-shell .sf-account-hero-button:hover {
+  border-color: rgba(212, 175, 55, 0.45);
+  background: rgba(212, 175, 55, 0.1);
+  transform: translateY(-1px);
+}
+
+.storefront-shell .sf-account-hero-button.is-danger:hover {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: rgba(248, 113, 113, 0.09);
+}
+
+.storefront-shell .sf-account-stat {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(10px);
+}
+
+.storefront-shell .sf-account-section {
+  border-color: var(--sf-account-border);
+  background: linear-gradient(155deg, rgba(26, 26, 26, 0.96), rgba(13, 13, 13, 0.98));
+  color: var(--sf-account-text);
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.24);
+}
+
+.storefront-shell .sf-account-section-icon {
+  border: 1px solid rgba(212, 175, 55, 0.19);
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--sf-account-gold-strong);
+}
+
+.storefront-shell .sf-account-empty {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--sf-account-muted);
+}
+
+.storefront-shell .sf-account-empty > div > span {
+  background: rgba(212, 175, 55, 0.09);
+  color: var(--sf-account-gold-strong);
+}
+
+.storefront-shell .sf-account-address-row {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: var(--sf-account-text) !important;
+}
+
+.storefront-shell .sf-account-address-row + .sf-account-address-row {
+  margin-top: 0.65rem;
+}
+
+.storefront-shell .sf-account-section .sf-account-order-row,
+.storefront-shell .sf-account-section .sf-order-item-row {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.storefront-shell .sf-account-section .sf-account-order-row + .sf-account-order-row {
+  margin-top: 0.75rem;
+}
+
+.storefront-shell .sf-account-section .sf-soft-pill {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--sf-account-text) !important;
+}
+
+.storefront-shell .sf-account-section .sf-primary-text,
+.storefront-shell .sf-account-section .sf-order-item-name,
+.storefront-shell .sf-account-section .sf-order-item-price {
+  color: var(--sf-account-text) !important;
+}
+
+.storefront-shell .sf-account-section .sf-muted-text,
+.storefront-shell .sf-account-section .sf-order-item-meta,
+.storefront-shell .sf-account-section .sf-muted-empty {
+  color: var(--sf-account-muted) !important;
+}
+
+.storefront-shell .sf-account-section .sf-loyalty-card {
+  border-color: rgba(212, 175, 55, 0.18) !important;
+  background: linear-gradient(145deg, rgba(212, 175, 55, 0.1), rgba(255, 255, 255, 0.025)) !important;
+  box-shadow: none !important;
+}
+
+.storefront-shell .sf-account-section .sf-loyalty-icon {
+  background: rgba(212, 175, 55, 0.12) !important;
+}
+
+.storefront-shell .sf-account-section .sf-loyalty-progress {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.storefront-shell .sf-account-section .sf-secondary-text {
+  color: var(--sf-account-muted) !important;
+}
+
+@media (max-width: 639px) {
+  .storefront-shell .sf-account-hero {
+    border-radius: 1.5rem;
+  }
+
+  .storefront-shell .sf-account-hero-button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
 .storefront-shell .sf-account-page .sf-panel {
   border-color: var(--sf-account-border) !important;
   background: linear-gradient(180deg, #171717 0%, #101010 100%) !important;
@@ -43,7 +214,81 @@ body.storefront-shell:not(.storefront-dark) {
   color: var(--sf-account-text) !important;
 }
 
-.storefront-shell .sf-account-intro,
+.storefront-shell .sf-account-guest-shell {
+  border-color: var(--sf-account-border);
+  background: linear-gradient(180deg, #171717 0%, #101010 100%);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.3);
+}
+
+.storefront-shell .sf-account-guest-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 1.4rem 1.25rem 1.25rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(212, 175, 55, 0.13), transparent 40%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 58%);
+}
+
+.storefront-shell .sf-account-guest-hero::after {
+  position: absolute;
+  inset-inline-start: 1.25rem;
+  bottom: 0;
+  width: 3.25rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--sf-premium-gold-gradient, linear-gradient(135deg, #b68a2c, #d8b75f));
+  content: "";
+}
+
+.storefront-shell .sf-account-guest-hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.storefront-shell .sf-account-guest-eyebrow {
+  display: inline-flex;
+  color: var(--sf-account-gold-strong);
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  direction: ltr;
+}
+
+.storefront-shell .sf-account-guest-title {
+  margin-top: 0.45rem;
+  color: var(--sf-account-text);
+  font-size: clamp(1.3rem, 5vw, 1.65rem);
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.storefront-shell .sf-account-guest-copy {
+  max-width: 31rem;
+  margin-top: 0.45rem;
+  color: var(--sf-account-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.85;
+}
+
+.storefront-shell .sf-account-guest-security {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: center;
+  gap: 0.4rem;
+}
+
+.storefront-shell .sf-account-security-label {
+  color: var(--sf-account-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .storefront-shell .sf-account-auth-card,
 .storefront-shell .sf-account-otp-card {
   border-color: var(--sf-account-border);
@@ -51,7 +296,7 @@ body.storefront-shell:not(.storefront-dark) {
 }
 
 .storefront-shell .sf-account-auth-card {
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }
 
 .storefront-shell .sf-account-intro-icon {
@@ -168,8 +413,20 @@ body.storefront-shell:not(.storefront-dark) .sf-account-page .sf-panel {
   box-shadow: 0 18px 42px rgba(31, 29, 25, 0.1) !important;
 }
 
+body.storefront-shell:not(.storefront-dark) .sf-account-guest-shell {
+  border-color: var(--sf-light-border);
+  background: var(--sf-light-surface);
+  box-shadow: 0 18px 42px rgba(31, 29, 25, 0.1);
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-account-guest-hero {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(164, 122, 18, 0.11), transparent 42%),
+    linear-gradient(145deg, #ffffff, #f7f7f5);
+}
+
 body.storefront-shell:not(.storefront-dark) .sf-account-auth-card {
-  box-shadow: 0 10px 28px rgba(31, 29, 25, 0.07);
+  box-shadow: none;
 }
 
 body.storefront-shell:not(.storefront-dark) .sf-account-otp-card {

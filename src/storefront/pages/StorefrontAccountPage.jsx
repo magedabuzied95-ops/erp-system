@@ -5,12 +5,20 @@ import i18n from "../../i18n/i18n";
 import { api } from "../../shared/api/api";
 import { VirtualList } from "../../shared/components/VirtualList";
 import {
+  ChevronLeft,
   Crown,
   Gem,
+  Heart,
+  History,
   Loader2,
   LogOut,
+  MapPin,
+  PackageCheck,
   RefreshCcw,
   ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  UserRound,
 } from "lucide-react";
 import {
   clearStorefrontCustomerAuth,
@@ -771,57 +779,173 @@ function StorefrontAccountPageContent({
   const showForgotView = authMode === "forgot";
   const activePrimaryTab = authMode === "register" ? "register" : "login";
   const ltrInputClassName = "text-left [direction:ltr]";
+  const wishlistItems = backendWishlist.length ? backendWishlist : wishlist;
+  const recentItems = backendRecent.length ? backendRecent : recent;
+  const customerPhone = customerAuth.phone || phone;
 
   return (
-    <section className="sf-account-page mx-auto max-w-6xl px-4 py-5 pb-28 md:py-8 md:pb-12" dir="rtl" lang="ar">
-      <div className="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
+    <section className="sf-account-page mx-auto max-w-[1440px] px-4 py-6 pb-28 sm:px-6 md:py-10 md:pb-14 lg:px-8" dir="rtl" lang="ar">
+      <div className={`sf-account-layout ${hasCustomerToken ? "is-dashboard" : "is-auth"}`}>
         <div className="space-y-5">
           {hasCustomerToken ? (
-            <>
-              <Panel title={sfText("storefront.account.myOrders", "My orders")}>
-                {orders.length ? (
-                  <VirtualList
-                    items={orders}
-                    estimateSize={152}
-                    className="max-h-[28rem] overflow-auto pr-1"
-                    itemKey={(order) => order.id || displayOrderNumber(order)}
-                    renderItem={(order) => <AccountOrderRow order={order} phone={customerAuth.phone || phone} onOpen={openOrder} onReorder={reorder} helpers={helpers} components={components} />}
-                  />
-                ) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.noOrders", "No orders yet")}</p>}
-              </Panel>
-              {selectedOrder ? <CustomerOrderDetails data={selectedOrder} phone={customerAuth.phone || phone} onReorder={reorder} helpers={helpers} components={components} /> : null}
-              <Panel title={sfText("storefront.account.myAddresses", "عناويني")}>
-                {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl bg-stone-50 p-3 font-bold text-stone-700">{address}</div>) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.addressesEmpty", "ستظهر العناوين المستخدمة في الطلبات هنا")}</p>}
-              </Panel>
-              <Panel title={sfText("storefront.header.wishlist", "المفضلة")}>
-                <SmallProductList items={backendWishlist.length ? backendWishlist : wishlist} empty={sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")} />
-              </Panel>
-              <Panel title={sfText("storefront.account.recentlyViewed", "شوهد مؤخرًا")}>
-                <SmallProductList items={backendRecent.length ? backendRecent : recent} empty={sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")} />
-              </Panel>
-            </>
-          ) : (
-            <Panel title="حسابك محفوظ">
-              <div className="space-y-4">
-                <div className="sf-account-intro rounded-2xl border p-4">
-                  <div className="flex items-start gap-3">
-                    <span className="sf-account-intro-icon grid h-11 w-11 shrink-0 place-items-center rounded-full">
-                      <ShieldCheck className="h-5 w-5" />
+            <div className="sf-account-dashboard space-y-6">
+              <header className="sf-account-hero overflow-hidden rounded-[2rem] border p-5 sm:p-7 lg:p-9">
+                <div className="sf-account-hero-orb" aria-hidden="true" />
+                <div className="relative z-[1] flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
+                  <div className="max-w-2xl">
+                    <span className="sf-account-eyebrow inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black tracking-[0.22em]">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      M1 MEMBERS CLUB
                     </span>
-                    <div className="min-w-0">
-                      <div className="sf-account-intro-title text-lg font-black">
-                        {showResetView ? "استعادة الوصول" : "حسابك في M1 Store"}
+                    <div className="mt-5 flex items-center gap-4">
+                      <span className="sf-account-avatar grid h-16 w-16 shrink-0 place-items-center rounded-full sm:h-20 sm:w-20">
+                        <UserRound className="h-7 w-7 sm:h-9 sm:w-9" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white/55">{sfText("storefront.account.welcomeBack", "أهلًا بعودتك")}</p>
+                        <h1 className="mt-1 truncate text-3xl font-black text-white sm:text-4xl">{authSummary}</h1>
+                        {customerPhone ? <p className="mt-2 font-bold tracking-wide text-white/55" dir="ltr">{customerPhone}</p> : null}
                       </div>
-                      <p className="sf-account-intro-copy mt-1 text-sm font-bold leading-6">
-                        {showResetView
-                          ? "أدخل كلمة المرور الجديدة ثم عد لتسجيل الدخول."
-                          : "سجل دخولك لمتابعة طلباتك وعناوينك ونقاطك، أو أنشئ حسابًا جديدًا خلال ثوانٍ."}
-                      </p>
                     </div>
                   </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button type="button" onClick={() => load()} disabled={loading} className="sf-account-hero-button inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
+                      <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                      تحديث البيانات
+                    </button>
+                    <button type="button" onClick={clearCustomerIdentity} className="sf-account-hero-button is-danger inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
+                      <LogOut className="h-4 w-4" />
+                      تسجيل الخروج
+                    </button>
+                  </div>
                 </div>
-                {showEmailAuth ? (
-                  <div className="sf-account-auth-card rounded-2xl border p-4">
+                <div className="relative z-[1] mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {[
+                    [PackageCheck, orders.length, "الطلبات"],
+                    [Heart, wishlistItems.length, "المفضلة"],
+                    [MapPin, addresses.length, "العناوين"],
+                    [Gem, Number(account?.loyalty?.points ?? account?.loyalty?.available_points ?? 0).toLocaleString(i18n.language || "en"), "نقاط M1"],
+                  ].map(([Icon, value, label]) => (
+                    <div key={label} className="sf-account-stat rounded-[1.25rem] border p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-2xl font-black text-white">{value}</span>
+                        <Icon className="h-5 w-5 text-[#e6c65d]" />
+                      </div>
+                      <div className="mt-1 text-xs font-black text-white/50">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </header>
+
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.85fr)]">
+                <div className="space-y-6">
+                  <section className="sf-account-section rounded-[1.75rem] border p-4 sm:p-6">
+                    <div className="mb-5 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><ShoppingBag className="h-5 w-5" /></span>
+                        <div>
+                          <h2 className="text-xl font-black">{sfText("storefront.account.myOrders", "طلباتي")}</h2>
+                          <p className="mt-0.5 text-xs font-bold text-white/45">تابع طلباتك أو أعد طلب منتجاتك المفضلة</p>
+                        </div>
+                      </div>
+                      <span className="sf-account-count rounded-full px-3 py-1 text-xs font-black">{orders.length}</span>
+                    </div>
+                    {orders.length ? (
+                      <VirtualList
+                        items={orders}
+                        estimateSize={152}
+                        className="max-h-[35rem] overflow-auto pr-1"
+                        itemKey={(order) => order.id || displayOrderNumber(order)}
+                        renderItem={(order) => <AccountOrderRow order={order} phone={customerPhone} onOpen={openOrder} onReorder={reorder} helpers={helpers} components={components} />}
+                      />
+                    ) : (
+                      <div className="sf-account-empty grid min-h-64 place-items-center rounded-[1.5rem] border border-dashed p-8 text-center">
+                        <div>
+                          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full"><ShoppingBag className="h-6 w-6" /></span>
+                          <h3 className="mt-4 text-lg font-black">{sfText("storefront.account.noOrders", "لا توجد طلبات حتى الآن")}</h3>
+                          <p className="mx-auto mt-2 max-w-sm text-sm font-bold leading-6">ابدأ جولتك واكتشف أحدث اختيارات M1 المختارة لك.</p>
+                          <Link to="/products" className="sf-account-primary-button mt-5 inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
+                            تسوق الآن <ChevronLeft className="h-4 w-4" />
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                  {selectedOrder ? <CustomerOrderDetails data={selectedOrder} phone={customerPhone} onReorder={reorder} helpers={helpers} components={components} /> : null}
+                </div>
+
+                <aside className="space-y-6">
+                  <section className="sf-account-section rounded-[1.75rem] border p-5">
+                    <div className="flex items-center gap-3">
+                      <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><Crown className="h-5 w-5" /></span>
+                      <div>
+                        <h2 className="text-lg font-black">عضوية M1</h2>
+                        <p className="text-xs font-bold text-white/45">رصيدك ومستوى عضويتك</p>
+                      </div>
+                    </div>
+                    <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} />
+                  </section>
+                  <section className="sf-account-section rounded-[1.75rem] border p-5">
+                    <div className="mb-4 flex items-center gap-3">
+                      <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><MapPin className="h-5 w-5" /></span>
+                      <div>
+                        <h2 className="text-lg font-black">{sfText("storefront.account.myAddresses", "عناويني")}</h2>
+                        <p className="text-xs font-bold text-white/45">عناوين التوصيل المحفوظة</p>
+                      </div>
+                    </div>
+                    {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl p-4 font-bold">{address}</div>) : (
+                      <div className="sf-account-empty rounded-[1.25rem] border border-dashed p-6 text-center">
+                        <MapPin className="mx-auto h-6 w-6" />
+                        <p className="mt-3 text-sm font-bold leading-6">{sfText("storefront.account.addressesEmpty", "ستظهر العناوين المستخدمة في الطلبات هنا")}</p>
+                      </div>
+                    )}
+                  </section>
+                </aside>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-2">
+                {[
+                  [Heart, sfText("storefront.header.wishlist", "المفضلة"), "كل ما أحببته في مكان واحد", wishlistItems, sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")],
+                  [History, sfText("storefront.account.recentlyViewed", "شوهد مؤخرًا"), "ارجع بسرعة إلى اختياراتك الأخيرة", recentItems, sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")],
+                ].map(([Icon, title, subtitle, items, empty]) => (
+                  <section key={title} className="sf-account-section rounded-[1.75rem] border p-5 sm:p-6">
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><Icon className="h-5 w-5" /></span>
+                      <div>
+                        <h2 className="text-lg font-black">{title}</h2>
+                        <p className="text-xs font-bold text-white/45">{subtitle}</p>
+                      </div>
+                    </div>
+                    <SmallProductList items={items} empty={empty} />
+                  </section>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="sf-account-guest-shell overflow-hidden rounded-[1.75rem] border">
+              <div className="sf-account-guest-hero">
+                <div className="sf-account-guest-hero-content">
+                  <div className="min-w-0 flex-1">
+                    <span className="sf-account-guest-eyebrow">M1 MEMBERS</span>
+                    <h1 className="sf-account-guest-title">
+                      {showResetView ? "استعادة حسابك" : "أهلاً بك في M1 Store"}
+                    </h1>
+                    <p className="sf-account-guest-copy">
+                      {showResetView
+                        ? "أنشئ كلمة مرور جديدة للعودة إلى حسابك بأمان."
+                        : "تابع طلباتك، احفظ عناوينك واستفد من نقاطك في مكان واحد."}
+                    </p>
+                  </div>
+                  <div className="sf-account-guest-security">
+                    <span className="sf-account-intro-icon grid h-12 w-12 shrink-0 place-items-center rounded-2xl">
+                      <ShieldCheck className="h-5 w-5" />
+                    </span>
+                    <span className="sf-account-security-label">دخول آمن</span>
+                  </div>
+                </div>
+              </div>
+              {showEmailAuth ? (
+                  <div className="sf-account-auth-card border-t p-4 sm:p-5">
                     {!showForgotView && !showResetView ? (
                       <div className="sf-account-tabs grid grid-cols-2 gap-2 rounded-full border p-1">
                         <button type="button" onClick={() => setAuthMode("login")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "is-active shadow-sm" : ""}`}>تسجيل الدخول</button>
@@ -922,9 +1046,8 @@ function StorefrontAccountPageContent({
                       ) : null}
                     </div>
                   </div>
-                ) : null}
-              </div>
-            </Panel>
+              ) : null}
+            </div>
           )}
         </div>
       </div>
