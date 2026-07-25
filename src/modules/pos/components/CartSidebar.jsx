@@ -465,10 +465,10 @@ function CartSidebar({
         ? normalizedPaymentMode
         : "cash";
   const paymentMethods = [
-    { key: "cash", label: "CASH", fullLabel: "CASH", tone: "green", icon: <Banknote className="h-4 w-4" />, setter: setCashAmount },
-    { key: "card", label: "VISA", fullLabel: "VISA", tone: "blue", icon: <CreditCard className="h-4 w-4" />, setter: setCardAmount },
-    { key: "wallet", paymentMode: "instapay", label: "INSTAPAY", fullLabel: "INSTAPAY", tone: "purple", icon: <Wallet className="h-4 w-4" />, setter: setWalletAmount },
-    { key: "vodafone_cash", label: "V.CASH", fullLabel: "V.CASH", tone: "red", icon: <Smartphone className="h-4 w-4" />, setter: setVodafoneCashAmount },
+    { key: "cash", label: editActive ? "كاش" : "CASH", fullLabel: editActive ? "كاش" : "CASH", tone: "green", icon: <Banknote className="h-4 w-4" />, setter: setCashAmount },
+    { key: "card", label: editActive ? "فيزا" : "VISA", fullLabel: editActive ? "فيزا" : "VISA", tone: "blue", icon: <CreditCard className="h-4 w-4" />, setter: setCardAmount },
+    { key: "wallet", paymentMode: "instapay", label: editActive ? "إنستاباي" : "INSTAPAY", fullLabel: editActive ? "إنستاباي" : "INSTAPAY", tone: "purple", icon: <Wallet className="h-4 w-4" />, setter: setWalletAmount },
+    { key: "vodafone_cash", label: editActive ? "فودافون كاش" : "V.CASH", fullLabel: editActive ? "فودافون كاش" : "V.CASH", tone: "red", icon: <Smartphone className="h-4 w-4" />, setter: setVodafoneCashAmount },
     ...(canUsePersonalTransaction
       ? [{ key: "personal", label: "PERSONAL", fullLabel: "PERSONAL", tone: "amber", icon: <BadgePercent className="h-4 w-4" /> }]
       : []),
@@ -481,7 +481,9 @@ function CartSidebar({
   const walletPaymentUsed = methodAmounts.wallet > 0.009;
   const showOrderSummary = personalPaymentActive || creditSaleActive || appliedCredit > 0.009 || activeMethodCount > 1 || walletPaymentUsed || remainingAmount > 0.009 || paymentMismatch;
   const hasAccountWarning = Number(paymentAccountStatus?.shortage_amount || 0) > 0 || paymentAccountStatus?.allow_negative_balance === true;
-  const shouldShowPaymentDetails = paymentDetailsOpen || personalPaymentActive || creditSaleActive || activePaymentMethodCount > 1 || (hasPaymentBreakdown && remainingAmount > 0.009) || (hasPaymentBreakdown && paymentMismatch) || hasAccountWarning;
+  const shouldShowPaymentDetails = editActive
+    ? paymentDetailsOpen || activePaymentMethodCount > 1 || paymentMismatch
+    : paymentDetailsOpen || personalPaymentActive || creditSaleActive || activePaymentMethodCount > 1 || (hasPaymentBreakdown && remainingAmount > 0.009) || (hasPaymentBreakdown && paymentMismatch) || hasAccountWarning;
   const clearMethod = (method) => {
     if (method === "cash") setCashAmount(0);
     if (method === "card") setCardAmount(0);
@@ -752,20 +754,6 @@ function CartSidebar({
           </div>
         </div>
 
-        {editActive ? (
-          <EditPaymentDifferenceCard
-            alreadyPaid={editPaymentSummary.originalPaidAmount}
-            originalPaymentBreakdown={editPaymentSummary.originalPaymentBreakdown}
-            newTotal={editPaymentSummary.newTotal}
-            amountDue={editPaymentSummary.amountDueNow}
-            refundOrCreditDue={editRefundOrCreditDue}
-            refundMethod={editRefundMethod}
-            onRefundMethodChange={setEditRefundMethod}
-            showRefundSelectionError={editRefundSelectionMissing}
-            invoiceNumber={editPaymentSummary.originalInvoiceNumber}
-          />
-        ) : null}
-
         {showOrderSummary ? (
           <OrderSummaryCard
             appliedCredit={appliedCredit}
@@ -874,7 +862,9 @@ function CartSidebar({
           ) : null}
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("cart.paymentMethods", "Payment Methods")}</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                {editActive ? "اختر طريقة تحصيل المبلغ المتبقي" : posLabel("cart.paymentMethods", "Payment Methods")}
+              </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 {cartHasItems ? (
                   <button
@@ -917,7 +907,7 @@ function CartSidebar({
                 active={splitPaymentOpen || String(paymentMode || "").toLowerCase() === "split"}
                 onClick={openSplitPayment}
                 icon={<ReceiptText className="h-4 w-4" />}
-                label="SPLIT"
+                label={editActive ? "تقسيم" : "SPLIT"}
                 tone="gold"
               />
             </div>
@@ -2460,24 +2450,20 @@ function EditPaymentDifferenceCard({
 }) {
   const noExtraPayment = Number(amountDue || 0) <= 0.009 && Number(refundOrCreditDue || 0) <= 0.009;
   return (
-    <div className={`rounded-xl border border-cyan-300/20 bg-cyan-400/10 ${compact ? "p-2" : "mt-2 p-3"}`}>
+    <div className={`rounded-xl border border-cyan-300/25 bg-cyan-400/10 ${compact ? "p-2.5" : "mt-2 p-3"}`} dir="rtl">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
-          {posLabel("cart.invoiceEditSummary", "Invoice Edit Summary")}
-        </div>
+        <div className="text-xs font-black text-cyan-50">تعديل الفاتورة</div>
         {invoiceNumber ? <div className="truncate text-[10px] font-black text-cyan-100">{invoiceNumber}</div> : null}
       </div>
       <div className="space-y-1">
-        <BreakdownTotalRow label={posLabel("cart.alreadyPaid", "Already paid")} value={alreadyPaid} tone="emerald" />
+        <BreakdownTotalRow label="المدفوع سابقًا" value={alreadyPaid} tone="emerald" />
         {Array.isArray(originalPaymentBreakdown) && originalPaymentBreakdown.length ? (
           <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
-            <div className="mb-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">
-              {posLabel("cart.originalPaymentBreakdown", "Original payment breakdown")}
-            </div>
+            <div className="mb-1 text-[9px] font-black text-zinc-500">تفاصيل الدفع السابق</div>
             {originalPaymentBreakdown.map((payment, index) => (
               <div key={payment?.id || `${payment?.method || payment?.payment_method || "payment"}-${index}`} className="flex items-center justify-between gap-2 py-0.5 text-[10px]">
                 <span className="font-black text-zinc-300">
-                  {String(payment?.method || payment?.payment_method || "payment").replaceAll("_", " ").toUpperCase()}
+                  {paymentMethodDisplayLabel(payment?.method || payment?.payment_method)}
                 </span>
                 <span className="font-black tabular-nums text-emerald-200">
                   {formatCurrency(payment?.amount ?? payment?.paid_amount ?? 0)}
@@ -2486,11 +2472,14 @@ function EditPaymentDifferenceCard({
             ))}
           </div>
         ) : null}
-        <BreakdownTotalRow label={posLabel("cart.newInvoiceTotal", "New invoice total")} value={newTotal} />
-        <BreakdownTotalRow label={posLabel("cart.customerPaysNow", "Customer pays now")} value={amountDue} tone={amountDue > 0 ? "amber" : "emerald"} />
+        <BreakdownTotalRow label="إجمالي الفاتورة" value={newTotal} />
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-300/25 bg-amber-400/10 px-3 py-2">
+          <span className="text-xs font-black text-amber-50">المطلوب تحصيله الآن</span>
+          <span className="text-base font-black tabular-nums text-amber-200">{formatCurrency(amountDue)}</span>
+        </div>
         {amountDue > 0 ? (
           <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 px-2 py-1.5 text-[10px] font-black text-cyan-100">
-            {posLabel("cart.selectPaymentMethodBelow", "Choose the payment method below to collect the extra amount.")}
+            اختر طريقة التحصيل بالأسفل. لو المبلغ كله كاش اضغط «كاش»، ولو أكثر من طريقة اضغط «تقسيم».
           </div>
         ) : null}
         {noExtraPayment ? (
@@ -2539,6 +2528,15 @@ function EditPaymentDifferenceCard({
       </div>
     </div>
   );
+}
+
+function paymentMethodDisplayLabel(value = "") {
+  const method = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (method === "cash") return "كاش";
+  if (method === "card" || method === "visa") return "فيزا";
+  if (method === "instapay" || method === "wallet") return "إنستاباي";
+  if (method === "vodafone_cash" || method === "vodafone") return "فودافون كاش";
+  return method ? method.replaceAll("_", " ").toUpperCase() : "دفع";
 }
 
 function ExchangeCreditModal({ currentTotal, onClose, onLookup, onApply }) {

@@ -34,6 +34,9 @@ test("POS invoice edit treats an outstanding balance as an extra payment even wh
 
 test("POS invoice edit exposes the original payment methods and their amounts", () => {
   assert.match(posSource, /originalPaymentBreakdown: parsePaymentBreakdownRows/);
-  assert.match(cartSource, /cart\.originalPaymentBreakdown/);
+  assert.match(cartSource, /originalPaymentBreakdown=\{editPaymentSummary\.originalPaymentBreakdown\}/);
   assert.match(cartSource, /originalPaymentBreakdown\.map/);
+  assert.match(cartSource, /المطلوب تحصيله الآن/);
+  assert.match(cartSource, /لو المبلغ كله كاش/);
+  assert.equal((cartSource.match(/<EditPaymentDifferenceCard/g) || []).length, 1);
 });
