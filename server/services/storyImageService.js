@@ -518,8 +518,12 @@ export const resolveDesignedStoryTheme = (story = {}, design = {}) => {
   return DESIGNED_STORY_THEMES.current;
 };
 
-const storyAssetTitle = (story = {}, design = {}) =>
-  trimString(story.product_name || story.title || design.product_name || design.title || "New product");
+const storyAssetTitle = (story = {}, design = {}) => {
+  const title = trimString(story.product_name || story.title || design.product_name || design.title || "New product");
+  const color = trimString(story.color_name || story.color || design.color_name || design.color);
+  if (!color || title.toLowerCase().includes(color.toLowerCase())) return title;
+  return `${title} - ${color}`;
+};
 
 const storyAssetBadge = (_story = {}, _design = {}, theme = DESIGNED_STORY_THEMES.current) => theme.badge || "NEW COLLECTION";
 const storyAssetCta = () => "View details";

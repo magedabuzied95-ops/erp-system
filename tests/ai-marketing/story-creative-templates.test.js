@@ -130,6 +130,22 @@ test("story preview merges campaign, story and product pricing sources", () => {
   assert.match(previewSource, /\.\.\.\(story \|\| \{\}\)/);
 });
 
+test("AI center hydrates every story slide with storefront compare pricing and color title", () => {
+  const centerSource = fs.readFileSync(
+    new URL("../../server/services/aiMarketingCenterService.js", import.meta.url),
+    "utf8"
+  );
+  const editorSource = fs.readFileSync(
+    new URL("../../src/modules/marketing/components/PostEditorModal.jsx", import.meta.url),
+    "utf8"
+  );
+  assert.match(centerSource, /p\.use_custom_compare_price/);
+  assert.match(centerSource, /p\.custom_compare_price/);
+  assert.match(centerSource, /old_crossed_price: originalPrice/);
+  assert.match(editorSource, /slide\.color_name \|\| slide\.color/);
+  assert.match(editorSource, /line-through decoration-2 decoration-red-500/);
+});
+
 test("canonical story converts Arabic AI copy to the required English labels", async () => {
   const composites = await createDesignedStoryTextComposites({
     badge: "\u0645\u062c\u0645\u0648\u0639\u0629 \u062c\u062f\u064a\u062f\u0629",

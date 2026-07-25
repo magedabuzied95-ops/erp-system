@@ -313,6 +313,8 @@ const normalizeStorySlides = ({ form = {}, design = {}, mediaUrls = [] } = {}) =
     product_id: form.product_id || design.product_id || "",
     title: form.title || design.title || form.product_name || design.product_name || "",
     price: form.price || design.price || "",
+    current_price: form.current_price || design.current_price || form.price || design.price || "",
+    old_crossed_price: form.old_crossed_price || form.original_price || design.old_crossed_price || design.original_price || "",
     currency: storyCurrency(form.currency || design.currency),
     color_name: form.color_name || design.color_name || "",
     size_name: form.size_name || design.size_name || "",
@@ -337,6 +339,8 @@ const normalizeStorySlides = ({ form = {}, design = {}, mediaUrls = [] } = {}) =
     product_id: slide.product_id || base.product_id,
     title: slide.title || slide.product_name || base.title,
     price: slide.price || base.price,
+    current_price: slide.current_price || slide.price || base.current_price,
+    old_crossed_price: slide.old_crossed_price || slide.original_price || slide.compare_at_price || base.old_crossed_price,
     currency: storyCurrency(slide.currency || base.currency),
     color_name: slide.color_name || slide.color || base.color_name,
     size_name: slide.size_name || slide.size || base.size_name,
@@ -388,6 +392,8 @@ export const buildStoryCreativeSlides = ({ item = {}, form = {}, mediaUrls = [] 
       product_name: item.product_name || form.product_name || design.product_name,
       title: item.title || form.title || design.title,
       price: item.price || form.price || design.price,
+      current_price: item.current_price || form.current_price || design.current_price || item.price || form.price || design.price,
+      old_crossed_price: item.old_crossed_price || item.original_price || form.old_crossed_price || form.original_price || design.old_crossed_price || design.original_price,
       currency: item.currency || form.currency || design.currency,
       color_name: item.color_name || item.color || form.color_name || design.color_name,
       size_name: item.size_name || item.size || form.size_name || design.size_name,
@@ -752,9 +758,15 @@ const EmptyMedia = ({ t }) => (
 );
 
 export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = false }) {
-  const title = cleanStoryText(slide.product_name || slide.title, "Featured product");
+  const baseTitle = cleanStoryText(slide.product_name || slide.title, "Featured product");
+  const colorName = cleanStoryText(slide.color_name || slide.color);
+  const title = colorName && !baseTitle.toLowerCase().includes(colorName.toLowerCase()) ? `${baseTitle} - ${colorName}` : baseTitle;
   const cta = "View details";
-  const price = formatPrice(slide.price, slide.currency);
+  const price = formatPrice(slide.current_price || slide.price, slide.currency);
+  const currentPriceNumber = Number(String(slide.current_price || slide.price || "").replace(/,/g, "").replace(/[^\d.]/g, "")) || 0;
+  const originalPriceRaw = slide.old_crossed_price || slide.original_price || slide.compare_at_price || "";
+  const originalPriceNumber = Number(String(originalPriceRaw).replace(/,/g, "").replace(/[^\d.]/g, "")) || 0;
+  const originalPrice = originalPriceNumber > currentPriceNumber ? formatPrice(originalPriceRaw, slide.currency) : "";
   const urgency = "Available now";
   const theme = storyCreativeTheme(slide);
   const badge = theme.badge;
@@ -808,6 +820,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
         <div className={`mt-3.5 line-clamp-2 min-h-[2.7rem] max-w-full break-words font-extrabold leading-[1.08] tracking-[-0.02em] [overflow-wrap:anywhere] ${productTitleClass}`}>{title}</div>
         <div className="mt-3 flex items-end justify-between gap-3 border-t border-white/12 pt-3">
           <div className="min-w-0">
+            {originalPrice ? <div className="mb-1 text-sm font-bold text-slate-300 line-through decoration-2 decoration-red-500">{originalPrice}</div> : null}
             {price ? <div className={`${priceClass} font-black leading-none tracking-[-0.035em] text-white drop-shadow-[0_8px_18px_rgba(0,0,0,.3)]`}>{price}</div> : null}
             <div className="mt-1.5 line-clamp-2 text-[13px] font-bold leading-5 text-red-100">{urgency}</div>
           </div>

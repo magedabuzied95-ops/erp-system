@@ -1459,20 +1459,37 @@ const hydrateQueueStoryMetadata = async (tenantId, item = {}) => {
   const design = item.design_json || {};
   const isStory = item.content_type === "story" || cleanText(design.layout_type).toLowerCase().includes("story");
   if (!isStory) return item;
-  const [availableSizes, link, currentPrice] = await Promise.all([
+  const [availableSizes, link, pricing] = await Promise.all([
     fetchAvailableSizesForQueueItem(tenantId, item),
     (!item.product_url || !design.product_url || !design.cta_url || !design.product_slug)
       ? fetchProductLinkForQueueItem(tenantId, item)
       : Promise.resolve(null),
-    fetchCurrentPriceForQueueItem(tenantId, item),
+    fetchPricingForQueueItem(tenantId, item),
   ]);
+  const currentPrice = numberValue(pricing?.current_price, 0);
+  const originalPrice = numberValue(pricing?.old_crossed_price, 0);
   const nextDesign = availableSizes.length ? withAvailableSizes(design, availableSizes) : design;
   const pricedDesign = currentPrice > 0 ? {
     ...nextDesign,
     price: currentPrice,
+    current_price: currentPrice,
     product_price: currentPrice,
+    ...(originalPrice > currentPrice ? {
+      old_crossed_price: originalPrice,
+      original_price: originalPrice,
+      compare_at_price: originalPrice,
+    } : {}),
     slides: Array.isArray(nextDesign.slides)
-      ? nextDesign.slides.map((slide) => ({ ...slide, price: currentPrice }))
+      ? nextDesign.slides.map((slide) => ({
+          ...slide,
+          price: currentPrice,
+          current_price: currentPrice,
+          ...(originalPrice > currentPrice ? {
+            old_crossed_price: originalPrice,
+            original_price: originalPrice,
+            compare_at_price: originalPrice,
+          } : {}),
+        }))
       : nextDesign.slides,
   } : nextDesign;
   const hydrated = {
@@ -1537,11 +1554,15 @@ const getProductPrice = (product = {}, variant = {}) => {
   return numberValue(resolved.final_price, 0) || regularPrice;
 };
 
-const fetchCurrentPriceForQueueItem = async (tenantId, item = {}) => {
+const fetchPricingForQueueItem = async (tenantId, item = {}) => {
   const design = item.design_json || {};
   const productId = Number(item.product_id || design.product_id || 0);
   const variantId = Number(item.variant_id || design.variant_id || 0);
-  if (!Number.isInteger(productId) || productId <= 0) return numberValue(item.price || design.price, 0);
+  if (!Number.isInteger(productId) || productId <= 0) {
+    const currentPrice = numberValue(item.current_price || item.price || design.current_price || design.price, 0);
+    const originalPrice = numberValue(item.old_crossed_price || item.original_price || design.old_crossed_price || design.original_price, 0);
+    return { current_price: currentPrice, old_crossed_price: originalPrice > currentPrice ? originalPrice : 0 };
+  }
   const [result, saleModeSettings] = await Promise.all([
     db.query(
       `
@@ -1555,6 +1576,8 @@ const fetchCurrentPriceForQueueItem = async (tenantId, item = {}) => {
         p.sale_start_at,
         p.sale_end_at,
         p.sale_reason,
+        p.use_custom_compare_price,
+        p.custom_compare_price,
         pv.id AS variant_id,
         pv.price AS variant_price,
         pv.selling_price AS variant_selling_price,
@@ -1578,8 +1601,12 @@ const fetchCurrentPriceForQueueItem = async (tenantId, item = {}) => {
     getWebsiteSettings({ tenantId }),
   ]);
   const row = result.rows[0];
-  if (!row) return numberValue(item.price || design.price, 0);
-  return getProductPrice(
+  if (!row) {
+    const currentPrice = numberValue(item.current_price || item.price || design.current_price || design.price, 0);
+    const originalPrice = numberValue(item.old_crossed_price || item.original_price || design.old_crossed_price || design.original_price, 0);
+    return { current_price: currentPrice, old_crossed_price: originalPrice > currentPrice ? originalPrice : 0 };
+  }
+  const currentPrice = getProductPrice(
     {
       id: row.id,
       price: row.price,
@@ -1604,7 +1631,20 @@ const fetchCurrentPriceForQueueItem = async (tenantId, item = {}) => {
       sale_reason: row.variant_sale_reason,
     } : {}
   );
+  const useCustomComparePrice = row.use_custom_compare_price === true || String(row.use_custom_compare_price || "").toLowerCase() === "true";
+  const compareCandidates = [
+    useCustomComparePrice ? row.custom_compare_price : 0,
+    row.variant_regular_price,
+    row.regular_price,
+  ].map((value) => numberValue(value, 0)).filter((value) => value > currentPrice);
+  return {
+    current_price: currentPrice,
+    old_crossed_price: compareCandidates.length ? Math.max(...compareCandidates) : 0,
+  };
 };
+
+const fetchCurrentPriceForQueueItem = async (tenantId, item = {}) =>
+  numberValue((await fetchPricingForQueueItem(tenantId, item)).current_price, 0);
 
 const getCurrentVariantStock = async (tenantId, variantId) => {
   const normalizedVariantId = Number(variantId);
