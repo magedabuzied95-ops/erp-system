@@ -511,14 +511,19 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const backendFilterState = useMemo(
     () => ({
       q: backendSearchTerm,
+      category,
       brand,
       gender: gender || "",
       product_type: productType || "",
+      grade: grade || "",
+      quality: quality || "",
+      size: selectedSizes.length === 1 ? selectedSizes[0] : "",
+      inStock: truthyFlag(inStock) ? 1 : "",
       offer_story: saleView ? 1 : "",
       sort: sort || "newest",
       limit: 80,
     }),
-    [backendSearchTerm, brand, gender, productType, saleView, sort]
+    [backendSearchTerm, brand, category, gender, grade, inStock, productType, quality, saleView, selectedSizes, sort]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error } = useProducts(productsApiParams);
