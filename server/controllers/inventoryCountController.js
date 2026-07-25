@@ -207,6 +207,7 @@ export const lookupVariants = async (req, res) => {
       resolvedVariantId: result?.resolvedVariantId ?? null,
       matchedBy: result?.matchedBy || "",
       resolutionType: result?.resolutionType || "",
+      expandedProduct: Boolean(result?.expandedProduct),
       queryText: result?.queryText || "",
     });
   } catch (error) {

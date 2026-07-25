@@ -1309,12 +1309,20 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
     });
   }
 
+  const items = exactRow?.product_id
+    ? await fetchInventoryCountProductVariants(dbClient, {
+        tenantId,
+        productId: exactRow.product_id,
+      })
+    : await hydrateInventoryCountVariants(dbClient, rows);
+
   return {
-    items: await hydrateInventoryCountVariants(dbClient, rows),
+    items,
     resolvedProductId: exactRow?.product_id ?? null,
     resolvedVariantId: exactRow?.product_variant_id ?? exactRow?.id ?? null,
     matchedBy,
     resolutionType: exactRow ? (String(matchedBy).startsWith("product.") ? "product" : "variant") : "",
+    expandedProduct: Boolean(exactRow?.product_id),
     queryText,
   };
 };
