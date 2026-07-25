@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Camera,
   CheckCircle2,
+  ChevronLeft,
   ClipboardList,
   Filter,
   Loader2,
