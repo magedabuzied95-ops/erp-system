@@ -30,6 +30,9 @@ test("POS invoice edit treats an outstanding balance as an extra payment even wh
     ordersControllerSource,
     /const settlementType = difference > 0 \? "extra_payment"/
   );
+  assert.match(ordersControllerSource, /const refundAmount = refundOrCreditDue/);
+  assert.doesNotMatch(ordersControllerSource, /settlementMethod,\s*difference,/);
+  assert.doesNotMatch(ordersControllerSource, /Math\.abs\(difference\)/);
 });
 
 test("POS invoice edit exposes the original payment methods and their amounts", () => {

@@ -5711,7 +5711,7 @@ export const editOrder = async (req, res) => {
       additional_payment_breakdown: additionalPaymentBreakdown,
       edit_audit_id: editAuditId,
     };
-    logEditFlowStep("settlement:before", { settlementType, settlementMethod, difference, amountDueNow, refundOrCreditDue });
+    logEditFlowStep("settlement:before", { settlementType, settlementMethod, amountDueNow, refundOrCreditDue });
 
     if (settlementType === "refund") {
       if (!EDIT_REFUND_METHODS.has(settlementMethod)) {
@@ -5722,7 +5722,7 @@ export const editOrder = async (req, res) => {
         });
       }
 
-      const refundAmount = Math.abs(difference);
+      const refundAmount = refundOrCreditDue;
       const refundFunding = await ensureReturnRefundFunding(client, {
         routeName: editRouteName,
         orderId: loaded.order.id,
