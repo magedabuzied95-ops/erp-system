@@ -20,7 +20,7 @@ const rendererSource = fs.readFileSync(
 
 test("story renderer uses one new collection implementation for every strategy", () => {
   assert.equal(STORY_RENDERER_NAME, "m1_story_new_collection");
-  assert.equal(STORY_RENDERER_BUILD, "m1-story-font-audience-v3-2026-07-25");
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-sale-price-v4-2026-07-26");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "men" }).id, "m1-men-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "women" }).id, "m1-women-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "kids" }).id, "m1-kids-story-v1");
@@ -84,6 +84,23 @@ test("production story text is rasterized with the bundled canonical font", asyn
   }
   assert.match(rendererSource, /font: STORY_FONT_FAMILY/);
   assert.match(rendererSource, /fontfile: STORY_FONT_PATH/);
+});
+
+test("sale story renders a crossed original price and keeps the red badge behind the full text", async () => {
+  const input = {
+    badge: "NEW FOR WOMEN",
+    title: "New Balance Running",
+    price: "850 EGP",
+    originalPrice: "1,100 EGP",
+    sizes: "41, 42, 43",
+    theme: resolveDesignedStoryTheme({}, { story_template_variant: "women" }),
+  };
+  const svg = designedStoryBackgroundSvg(input);
+  assert.match(svg, /1,100 EGP/);
+  assert.match(svg, /stroke="#ef4444" stroke-width="7"/);
+  assert.match(svg, /width="384" height="62"/);
+  const composites = await createDesignedStoryTextComposites(input);
+  assert.equal(composites.length, 8);
 });
 
 test("canonical story converts Arabic AI copy to the required English labels", async () => {
