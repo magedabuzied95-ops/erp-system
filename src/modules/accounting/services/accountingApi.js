@@ -6,6 +6,10 @@ const buildParams = (params = {}) =>
   );
 
 export const accountingApi = {
+  getAnalyticsEmbed: () =>
+    api.get("/accounting/analytics/embed", {
+      timeoutMs: 15000,
+    }),
   getAccounts: (params = {}) =>
     api.get("/accounting/accounts", {
       params: buildParams(params),

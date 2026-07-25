@@ -56,6 +56,7 @@ import {
   getBackfillPreview,
   listFoundationAccounts,
 } from "../services/accountingJournalService.js";
+import { getAccountingAnalyticsEmbed } from "../services/accountingAnalyticsService.js";
 
 const isAdminUser = (user = {}) => {
   if (isSuperAdminUser(user)) return true;
@@ -104,6 +105,21 @@ export const getAccountingSummary = async (req, res) => {
       success: false,
       message: "Failed To Fetch Accounting Summary",
       error: error.message,
+    });
+  }
+};
+
+export const getAccountingAnalyticsEmbedController = async (req, res) => {
+  try {
+    const tenantId = treasuryTenantId(req, req.query);
+    const result = getAccountingAnalyticsEmbed({ tenantId, user: req.user });
+    return res.json(result);
+  } catch (error) {
+    console.error("[accounting-analytics] failed to create embed session:", error);
+    return res.status(500).json({
+      enabled: false,
+      reason: "embed_failed",
+      message: "Unable to open accounting analytics",
     });
   }
 };

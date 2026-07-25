@@ -116,6 +116,7 @@ const Accounts = lazy(() => import("./modules/accounting/pages/Accounts"));
 const GeneralLedger = lazy(() => import("./modules/accounting/pages/GeneralLedger"));
 const TrialBalance = lazy(() => import("./modules/accounting/pages/TrialBalance"));
 const FinancialReports = lazy(() => import("./modules/accounting/pages/FinancialReports"));
+const AccountingAnalytics = lazy(() => import("./modules/accounting/pages/AccountingAnalytics"));
 const ProfitAndLoss = lazy(() => import("./modules/accounting/pages/ProfitAndLoss"));
 const Taxes = lazy(() => import("./modules/accounting/pages/Taxes"));
 const CostFixCenter = lazy(() => import("./modules/accounting/pages/CostFixCenter"));
@@ -1159,6 +1160,11 @@ function App() {
         <Route
           path="accounting/reports"
           element={<FinancialReports />}
+        />
+
+        <Route
+          path="accounting/analytics"
+          element={<AccountingAnalytics />}
         />
 
         <Route

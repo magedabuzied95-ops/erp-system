@@ -18,6 +18,7 @@ import {
   createPaymentMethodMappingController,
   deletePaymentMethodMappingController,
   getAccountingDashboardController,
+  getAccountingAnalyticsEmbedController,
   getAccountingAuditLogsController,
   getAccountingSummary,
   getBalanceSheetReportController,
@@ -76,6 +77,13 @@ router.get(
   protect,
   permit("accounting", "view"),
   getAccountingDashboardController
+);
+
+router.get(
+  "/analytics/embed",
+  protect,
+  permit("accounting", "view"),
+  getAccountingAnalyticsEmbedController
 );
 
 router.get(

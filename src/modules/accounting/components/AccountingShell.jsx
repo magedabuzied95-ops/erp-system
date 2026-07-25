@@ -2,7 +2,11 @@ import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 export default function AccountingShell({ title, subtitle, actions, tabs = [], children }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const effectiveTabs = tabs.some((tab) => tab.to === "/accounting/analytics")
+    ? tabs
+    : [...tabs, { to: "/accounting/analytics", label: isArabic ? "التحليلات المتقدمة" : "Advanced analytics" }];
 
   return (
     <div className="space-y-6">
@@ -16,7 +20,7 @@ export default function AccountingShell({ title, subtitle, actions, tabs = [], c
       </div>
 
       <div className="flex flex-wrap gap-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl shadow-[var(--shadow)]">
-        {tabs.map((tab) => (
+        {effectiveTabs.map((tab) => (
           <NavLink
             key={tab.to}
             to={tab.to}

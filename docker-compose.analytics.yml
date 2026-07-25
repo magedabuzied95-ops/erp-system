@@ -1,0 +1,38 @@
+services:
+  metabase-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${METABASE_APP_DB_NAME:-metabase}
+      POSTGRES_USER: ${METABASE_APP_DB_USER:-metabase}
+      POSTGRES_PASSWORD: ${METABASE_APP_DB_PASSWORD:?Set METABASE_APP_DB_PASSWORD}
+    volumes:
+      - metabase_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${METABASE_APP_DB_USER:-metabase} -d ${METABASE_APP_DB_NAME:-metabase}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  metabase:
+    image: metabase/metabase:${METABASE_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      metabase-db:
+        condition: service_healthy
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: ${METABASE_APP_DB_NAME:-metabase}
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${METABASE_APP_DB_USER:-metabase}
+      MB_DB_PASS: ${METABASE_APP_DB_PASSWORD:?Set METABASE_APP_DB_PASSWORD}
+      MB_DB_HOST: metabase-db
+      MB_SITE_URL: ${METABASE_SITE_URL:-http://localhost:3000}
+      MB_EMBEDDING_SECRET_KEY: ${METABASE_EMBEDDING_SECRET:?Set METABASE_EMBEDDING_SECRET}
+      MB_ENABLE_EMBEDDING: "true"
+      JAVA_TIMEZONE: Africa/Cairo
+    ports:
+      - "127.0.0.1:${METABASE_PORT:-3000}:3000"
+
+volumes:
+  metabase_pgdata:
