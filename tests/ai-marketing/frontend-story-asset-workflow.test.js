@@ -42,19 +42,19 @@ test("old rows and another story's snapshot are invalid", () => {
   assert.equal(hasValidStoryAssetSnapshot({ id: 42, metadata: { story_asset_snapshot: oldBuildSnapshot } }), false);
 });
 
-test("Preview generates missing assets, deduplicates requests, and opens only a saved asset", () => {
+test("Preview opens immediately while final asset generation stays deduplicated", () => {
   assert.match(pageSource, /onPreview=\{previewQueueItem\}/);
-  assert.match(pageSource, /generateStoryAsset\(item, \{ openPreview: true \}\)/);
+  assert.match(pageSource, /const previewQueueItem = \(item\) => \{\s*setPreview\(item\)/);
   assert.match(pageSource, /storyAssetRequestsRef\.current\.get\(key\)/);
   assert.match(pageSource, /if \(existingRequest\) return existingRequest/);
-  assert.match(pageSource, /if \(openPreview\) setPreview\(updatedItem\)/);
   assert.match(pageSource, /if \(!hasValidStoryAssetSnapshot\(updatedItem\)\) throw new Error/);
 });
 
-test("Preview selects the immutable snapshot URL and has no browser-rendered story fallback", () => {
+test("Preview selects the immutable snapshot URL and offers an instant unpublished fallback", () => {
   assert.match(pageSource, /if \(hasValidStoryAssetSnapshot\(item\)\) return \[snapshot\.assetUrl\]/);
-  assert.doesNotMatch(pageSource, /<StoryCreativePreview\s+slides=\{storySlides\}/);
-  assert.doesNotMatch(pageSource, /import PostEditorModal, \{ StoryCreativePreview/);
+  assert.match(pageSource, /<StoryCreativePreview\s+slides=\{storySlides\}/);
+  assert.match(pageSource, /import PostEditorModal, \{ StoryCreativePreview/);
+  assert.match(pageSource, /معاينة فورية/);
 });
 
 test("Publish is blocked client-side without a snapshot and during generation", () => {

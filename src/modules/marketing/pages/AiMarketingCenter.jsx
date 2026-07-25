@@ -42,7 +42,7 @@ import {
 } from "../services/marketingApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
-import PostEditorModal, { buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
+import PostEditorModal, { StoryCreativePreview, buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
 import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem } from "../lib/queueStatus";
 import {
   hasValidStoryAssetSnapshot,
@@ -645,7 +645,7 @@ function AiMarketingCenter() {
       }
     }
   };
-  const generateStoryAsset = (item, { openPreview = false } = {}) => {
+  const generateStoryAsset = (item) => {
     const id = item?.id;
     if (!id) {
       toast.error("Queue item is missing an id.");
@@ -660,9 +660,9 @@ function AiMarketingCenter() {
         const payload = await generateAutonomousAiMarketingQueueStoryAsset(id);
         let updatedItem = mergeStoryAssetResponse(item, payload);
         if (!hasValidStoryAssetSnapshot(updatedItem)) {
-          for (let attempt = 0; attempt < 180; attempt += 1) {
-            await wait(1000);
-            const rows = await getAutonomousAiMarketingQueue({ include_archived: true });
+          for (let attempt = 0; attempt < 48; attempt += 1) {
+            await wait(2500);
+            const rows = await load({ silent: true });
             const latest = rows.find((row) => String(row.id) === key);
             if (!latest) throw new Error("لم يعد عنصر القصة موجودًا في قائمة الانتظار.");
             if (String(latest.metadata?.story_asset_error || "").trim() || getQueueStatusInfo(latest).normalizedStatus === "failed") {
@@ -675,8 +675,7 @@ function AiMarketingCenter() {
         if (!hasValidStoryAssetSnapshot(updatedItem)) throw new Error("انتهت مهلة إنشاء أصل القصة. حاول مرة أخرى.");
         if (normalizeStoryAssetSnapshot(updatedItem).storyId !== key) throw new Error("تم تجاهل استجابة أصل قصة لا تخص هذا الصف.");
         setQueue((current) => current.map((row) => (String(row.id) === key ? updatedItem : row)));
-        if (openPreview) setPreview(updatedItem);
-        else setPreview((current) => (current && String(current.id) === key ? updatedItem : current));
+        setPreview((current) => (current && String(current.id) === key ? updatedItem : current));
         toast.success("تم إنشاء أصل القصة وحفظه.");
         return updatedItem;
       } catch (error) {
@@ -701,13 +700,8 @@ function AiMarketingCenter() {
     return request;
   };
 
-  const previewQueueItem = async (item) => {
-    const flags = getPreviewContentFlags(item);
-    if (!flags.isStoryContent || flags.isFeedContent || hasValidStoryAssetSnapshot(item)) {
-      setPreview(item);
-      return;
-    }
-    await generateStoryAsset(item, { openPreview: true });
+  const previewQueueItem = (item) => {
+    setPreview(item);
   };
 
   const confirmDeleteContent = async () => {
@@ -1135,7 +1129,6 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
   const statusInfo = getQueueStatusInfo(item, { source: "card", queueType, publishing });
   const normalizedStatus = statusInfo.normalizedStatus;
   const displayStatus = statusInfo.displayStatus;
-  const isGenerating = ["queued", "generating_copy", "generating_image", "uploading"].includes(normalizedStatus);
   const isArchived = normalizedStatus === "archived";
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
@@ -1186,7 +1179,7 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
           <ScheduleBadge item={item} />
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
-          <button type="button" onClick={onPreview} disabled={isGenerating || generatingStoryAsset} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white disabled:opacity-50`}>{generatingStoryAsset ? "جارٍ إنشاء القصة..." : "Preview"}</button>
+          <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
           <button type="button" onClick={onHistory} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
             <History className="h-4 w-4" />
             History
@@ -1460,14 +1453,15 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
           </div>
         ) : (
-          <div className="grid min-h-[70vh] place-items-center rounded-3xl border border-amber-300/20 bg-amber-300/[0.04] p-8 text-center">
-            <div className="max-w-sm">
-              <Image className="mx-auto h-10 w-10 text-amber-200" />
-              <h3 className="mt-4 text-lg font-black text-white">لا يوجد أصل قصة نهائي محفوظ</h3>
-              <p className="mt-2 text-sm font-semibold leading-6 text-slate-400">
-                أنشئ أصل القصة بالقالب الحالي أولًا. المعاينة لا تستخدم قالبًا بديلًا ولا تعيد بناء التصميم داخل المتصفح.
-              </p>
+          <div className="rounded-3xl border border-amber-300/20 bg-amber-300/[0.04] p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">معاينة سريعة</h3>
+              <Badge tone={generatingStoryAsset ? "amber" : "slate"}>{generatingStoryAsset ? "جارٍ تجهيز الملف النهائي" : "غير منشورة"}</Badge>
             </div>
+            <StoryCreativePreview slides={storySlides} title="معاينة الاستوري" />
+            <p className="mt-3 text-center text-xs font-bold leading-5 text-slate-400">
+              هذه معاينة فورية. استخدم زر إنشاء أصل القصة لحفظ النسخة النهائية الجاهزة للنشر.
+            </p>
           </div>
         )}
         <div>
