@@ -14,7 +14,13 @@ const formatCurrency = (value) => {
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 const numericPrice = (...values) => {
   for (const value of values) {
-    const number = Number(value || 0);
+    const normalized = String(value ?? "")
+      .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+      .replace(/[,\u066C\s]/g, "")
+      .replace(/\u066B/g, ".")
+      .replace(/[^\d.-]/g, "");
+    const number = Number(normalized || 0);
     if (Number.isFinite(number) && number > 0) return number;
   }
   return 0;
@@ -53,6 +59,13 @@ const saleActive = (source = {}) => {
 };
 
 const activeSellingPrice = (product = {}) => {
+  const explicitlyResolved = numericPrice(
+    product.current_price,
+    product.currentPrice,
+    product.active_price,
+    product.activePrice
+  );
+  if (explicitlyResolved > 0) return explicitlyResolved;
   if (saleActive(product)) return numericPrice(product.sale_price, product.offer_price);
   const saleLikePrice = numericPrice(product.sale_price, product.offer_price, product.discount_price);
   const regular = numericPrice(product.regular_price, product.compare_at_price, product.old_price, product.price);
@@ -80,6 +93,8 @@ const comparePrice = (product = {}) => {
     : numericPrice(
       product.storefront_compare_price,
       product.storefrontComparePrice,
+      product.old_crossed_price,
+      product.oldCrossedPrice,
       product.compare_at_price,
       product.compareAtPrice,
       product.old_price,
@@ -416,7 +431,12 @@ export function StoryFooterLink({ product, campaign, template }) {
 }
 
 export function StoryRenderer({ campaign, story, template, activeKey, product: productProp }) {
-  const product = productProp || {};
+  const product = {
+    ...(campaign?.design_json || {}),
+    ...(campaign || {}),
+    ...(story || {}),
+    ...(productProp || {}),
+  };
   const animationName = normalizeAnimation(story?.animation_hint, template.animations.default);
   const variants = animationVariants[animationName] || animationVariants.fade_in;
   const light = isLightTemplate(template);

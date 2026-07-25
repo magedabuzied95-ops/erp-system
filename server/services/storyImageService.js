@@ -350,8 +350,25 @@ const createStoryPriceStrikeComposite = async ({ text, left = 68, top = 1416 } =
   return { input, left, top };
 };
 
-const storyAssetPrice = (story = {}, design = {}) => {
-  const rawPrice = trimString(story.price || story.product_price || design.price || design.product_price);
+export const storyAssetPrice = (story = {}, design = {}) => {
+  const rawPrice = trimString(
+    story.current_price ||
+    story.active_price ||
+    story.sale_price ||
+    story.storefront_price ||
+    story.final_price ||
+    story.selling_price ||
+    story.price ||
+    story.product_price ||
+    design.current_price ||
+    design.active_price ||
+    design.sale_price ||
+    design.storefront_price ||
+    design.final_price ||
+    design.selling_price ||
+    design.price ||
+    design.product_price
+  );
   if (!rawPrice) return "";
   const currency = trimString(story.currency || design.currency || "EGP");
   return rawPrice.toLowerCase().includes(currency.toLowerCase()) ? rawPrice : `${rawPrice} ${currency}`;
@@ -363,7 +380,7 @@ const storyPriceNumber = (value = "") => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const storyAssetOriginalPrice = (story = {}, design = {}, currentPrice = "") => {
+export const storyAssetOriginalPrice = (story = {}, design = {}, currentPrice = "") => {
   const rawOriginalPrice = trimString(
     story.old_crossed_price ||
     story.old_price ||

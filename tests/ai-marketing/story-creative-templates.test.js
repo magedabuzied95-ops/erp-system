@@ -10,6 +10,8 @@ import {
   resolveDesignedStoryTheme,
   STORY_RENDERER_BUILD,
   STORY_RENDERER_NAME,
+  storyAssetOriginalPrice,
+  storyAssetPrice,
   storyAssetImageSources,
 } from "../../server/services/storyImageService.js";
 
@@ -101,6 +103,31 @@ test("sale story renders a crossed original price and keeps the red badge behind
   assert.match(svg, /width="384" height="62"/);
   const composites = await createDesignedStoryTextComposites(input);
   assert.equal(composites.length, 8);
+});
+
+test("every story resolves the storefront selling price and the same crossed price shown on site", () => {
+  const product = {
+    price: 1100,
+    sale_price: 850,
+    current_price: 850,
+    old_crossed_price: 1100,
+    currency: "EGP",
+  };
+  const currentPrice = storyAssetPrice(product);
+  assert.equal(currentPrice, "850 EGP");
+  assert.equal(storyAssetOriginalPrice(product, {}, currentPrice), "1100 EGP");
+  assert.equal(storyAssetOriginalPrice({ ...product, old_crossed_price: 850 }, {}, currentPrice), "");
+});
+
+test("story preview merges campaign, story and product pricing sources", () => {
+  const previewSource = fs.readFileSync(
+    new URL("../../src/modules/marketing/components/StoryPreview.jsx", import.meta.url),
+    "utf8"
+  );
+  assert.match(previewSource, /product\.current_price/);
+  assert.match(previewSource, /product\.old_crossed_price/);
+  assert.match(previewSource, /\.\.\.\(campaign\?\.design_json \|\| \{\}\)/);
+  assert.match(previewSource, /\.\.\.\(story \|\| \{\}\)/);
 });
 
 test("canonical story converts Arabic AI copy to the required English labels", async () => {
