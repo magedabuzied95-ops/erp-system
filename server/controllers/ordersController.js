@@ -3034,6 +3034,45 @@ export const createOrder = async (req, res) => {
       : exchangeMode
       ? Math.max(0, Number.isFinite(Number(paid_amount)) ? Number(paid_amount) : amountDueNow)
       : Number.isFinite(Number(paid_amount)) && Number(paid_amount) > 0 ? Number(paid_amount) : computedTotal;
+    const submittedPaymentBreakdown = normalizeSubmittedPaymentBreakdown(payment_breakdown || payments);
+    const submittedCollectedAmount = normalizeInvoiceMoney(
+      submittedPaymentBreakdown
+        .filter((payment) => !["exchange_credit", "return_credit"].includes(normalizeMoneyPaymentMethod(payment.method || payment.payment_method)))
+        .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+    );
+    const requestedPaymentStatus = String(payment_status || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (
+      submittedPaymentBreakdown.length &&
+      Math.abs(submittedCollectedAmount - normalizeInvoiceMoney(receivedAmount)) > 0.009
+    ) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json({
+        success: false,
+        message: "Payment breakdown total must equal the paid amount.",
+        payment: {
+          paid_amount: normalizeInvoiceMoney(receivedAmount),
+          payment_breakdown_total: submittedCollectedAmount,
+        },
+      });
+    }
+    if (
+      submittedPaymentBreakdown.length &&
+      ["paid", "completed", "complete", "settled"].includes(requestedPaymentStatus) &&
+      receivedAmount + 0.009 < amountDueNow
+    ) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json({
+        success: false,
+        message: "A partially paid invoice cannot be saved as paid. Complete the split payment first.",
+        payment: {
+          total: amountDueNow,
+          paid_amount: normalizeInvoiceMoney(receivedAmount),
+          remaining_amount: normalizeInvoiceMoney(amountDueNow - receivedAmount),
+        },
+      });
+    }
     if (exchangeMode && Math.abs(receivedAmount - amountDueNow) > 0.009) {
       await client.query("ROLLBACK");
       transactionStarted = false;
@@ -3355,7 +3394,6 @@ export const createOrder = async (req, res) => {
       );
       order = exchangeOrderResult.rows[0] || order;
     }
-    const submittedPaymentBreakdown = normalizeSubmittedPaymentBreakdown(payment_breakdown || payments);
     const paymentBreakdown = isPersonalTransaction
       ? [{
           method: "personal",
@@ -5644,9 +5682,11 @@ export const editOrder = async (req, res) => {
     );
     const editAuditId = editAuditResult.rows[0]?.id || loaded.order.id;
 
-    const originalOrderTotal = Number(loaded.order.total_amount || loaded.order.total || 0);
-    const difference = normalizeInvoiceMoney(totalValue - originalOrderTotal);
-    const settlementType = difference > 0 ? "extra_payment" : difference < 0 ? "refund" : "none";
+    const settlementType = amountDueNow > 0.009
+      ? "extra_payment"
+      : refundOrCreditDue > 0.009
+        ? "refund"
+        : "none";
     const settlementBranchId = loaded.order.branch_id || req.body.branch_id || null;
     const settlementMethodInput = String(
       req.body.edit_refund_method ||

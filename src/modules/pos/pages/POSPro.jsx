@@ -3569,6 +3569,13 @@ function POSPro() {
         originalInvoiceNumber: editingOrder.invoice_number || editingOrder.invoiceNumber || "",
         originalTotal: resolveEditOrderTotal(editingOrder),
         originalPaidAmount: originalEditPaidAmount,
+        originalPaymentBreakdown: parsePaymentBreakdownRows(
+          editingOrder.original_payment_breakdown ??
+          editingOrder.originalPaymentBreakdown ??
+          editingOrder.payment_breakdown ??
+          editingOrder.paymentBreakdown ??
+          editingOrder.payments
+        ),
         originalPaymentStatus: editingOrder.original_payment_status || editingOrder.originalPaymentStatus || editingOrder.payment_status || editingOrder.paymentStatus || "",
         originalItems: editingOrder.original_items || editingOrder.originalItems || editingOrder.items || [],
         newTotal: Number(cartTotals.total || 0),

@@ -755,6 +755,7 @@ function CartSidebar({
         {editActive ? (
           <EditPaymentDifferenceCard
             alreadyPaid={editPaymentSummary.originalPaidAmount}
+            originalPaymentBreakdown={editPaymentSummary.originalPaymentBreakdown}
             newTotal={editPaymentSummary.newTotal}
             amountDue={editPaymentSummary.amountDueNow}
             refundOrCreditDue={editRefundOrCreditDue}
@@ -861,6 +862,7 @@ function CartSidebar({
             <EditPaymentDifferenceCard
               compact
               alreadyPaid={editPaymentSummary.originalPaidAmount}
+              originalPaymentBreakdown={editPaymentSummary.originalPaymentBreakdown}
               newTotal={editPaymentSummary.newTotal}
               amountDue={editPaymentSummary.amountDueNow}
               refundOrCreditDue={editRefundOrCreditDue}
@@ -2446,6 +2448,7 @@ function ExchangeSummaryCard({ oldCredit, newTotal, amountDue, remainingCredit =
 
 function EditPaymentDifferenceCard({
   alreadyPaid,
+  originalPaymentBreakdown = [],
   newTotal,
   amountDue,
   refundOrCreditDue = 0,
@@ -2466,6 +2469,23 @@ function EditPaymentDifferenceCard({
       </div>
       <div className="space-y-1">
         <BreakdownTotalRow label={posLabel("cart.alreadyPaid", "Already paid")} value={alreadyPaid} tone="emerald" />
+        {Array.isArray(originalPaymentBreakdown) && originalPaymentBreakdown.length ? (
+          <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+            <div className="mb-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-500">
+              {posLabel("cart.originalPaymentBreakdown", "Original payment breakdown")}
+            </div>
+            {originalPaymentBreakdown.map((payment, index) => (
+              <div key={payment?.id || `${payment?.method || payment?.payment_method || "payment"}-${index}`} className="flex items-center justify-between gap-2 py-0.5 text-[10px]">
+                <span className="font-black text-zinc-300">
+                  {String(payment?.method || payment?.payment_method || "payment").replaceAll("_", " ").toUpperCase()}
+                </span>
+                <span className="font-black tabular-nums text-emerald-200">
+                  {formatCurrency(payment?.amount ?? payment?.paid_amount ?? 0)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <BreakdownTotalRow label={posLabel("cart.newInvoiceTotal", "New invoice total")} value={newTotal} />
         <BreakdownTotalRow label={posLabel("cart.customerPaysNow", "Customer pays now")} value={amountDue} tone={amountDue > 0 ? "amber" : "emerald"} />
         {amountDue > 0 ? (
