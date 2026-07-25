@@ -482,7 +482,6 @@ const matchesInventoryFilters = (group = {}, filters = {}, selectedSize = "all")
     (filters.category === "all" || !selectedCategory || normalize(group.category) === selectedCategory) &&
     (filters.brand === "all" || !selectedBrand || normalize(group.brand) === selectedBrand) &&
     (filters.manufacturer === "all" || !selectedManufacturer || normalize(group.manufacturer_name) === selectedManufacturer) &&
-    (!filters.inStockOnly || toNumber(group.system_total, 0) > 0) &&
     matchesSize
   );
 };
@@ -562,7 +561,7 @@ function InventoryCountPage() {
     category: "all",
     brand: "all",
     manufacturer: "all",
-    inStockOnly: true,
+    inStockOnly: false,
   });
   const [branches, setBranches] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -647,7 +646,6 @@ function InventoryCountPage() {
         filters.category !== "all",
         filters.brand !== "all",
         filters.manufacturer !== "all",
-        !filters.inStockOnly,
         selectedFilterSize !== "all",
       ].filter(Boolean).length,
     [filters, selectedFilterSize]
@@ -1273,7 +1271,7 @@ function InventoryCountPage() {
       category: "all",
       brand: "all",
       manufacturer: "all",
-      inStockOnly: true,
+      inStockOnly: false,
     });
     setSelectedFilterSize("all");
   }, []);
