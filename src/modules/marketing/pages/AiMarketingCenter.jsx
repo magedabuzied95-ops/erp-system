@@ -721,6 +721,20 @@ function AiMarketingCenter() {
     });
   };
 
+  const toggleAllSelected = (items = []) => {
+    const visibleIds = items.map((item) => String(item.id)).filter(Boolean);
+    if (!visibleIds.length) return;
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      const allSelected = visibleIds.every((id) => next.has(id));
+      visibleIds.forEach((id) => {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  };
+
   const runBulkAction = async (action) => {
     const ids = Array.from(selectedIds);
     if (!ids.length) {
@@ -903,8 +917,8 @@ function AiMarketingCenter() {
 
         <main className="space-y-4">
           <RecommendationsPanel overview={overview} />
-          <QueueSection title="القصص" icon={<Image className="h-4 w-4" />} items={stories} empty="لا توجد عناصر قصة في الطابور." statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
-          <QueueSection title="المنشورات" icon={<Send className="h-4 w-4" />} items={posts} empty="لا توجد منشورات ذكاء اصطناعي في الطابور." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
+          <QueueSection title="القصص" icon={<Image className="h-4 w-4" />} items={stories} empty="لا توجد عناصر قصة في الطابور." statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onToggleAll={toggleAllSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
+          <QueueSection title="المنشورات" icon={<Send className="h-4 w-4" />} items={posts} empty="لا توجد منشورات ذكاء اصطناعي في الطابور." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onToggleAll={toggleAllSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
         </main>
       </div>
 
@@ -1066,10 +1080,11 @@ function InsightCard({ insights, syncing = false, onSync }) {
   );
 }
 
-function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatusFilter, selectedIds, onToggleSelected, onBulkAction, onPreview, onHistory, onAction, publishingIds, generatingStoryAssetIds, actionDisabled = false }) {
+function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatusFilter, selectedIds, onToggleSelected, onToggleAll, onBulkAction, onPreview, onHistory, onAction, publishingIds, generatingStoryAssetIds, actionDisabled = false }) {
   const groups = groupedBySchedule(items);
   const queueType = title.toLowerCase();
   const selectedCount = items.filter((item) => selectedIds?.has(String(item.id))).length;
+  const allSelected = items.length > 0 && selectedCount === items.length;
   return (
     <section className={`${cardClass} p-5`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1083,6 +1098,9 @@ function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatu
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-black/20 p-2">
         <Badge>{selectedCount} selected</Badge>
+        <button type="button" disabled={!items.length} onClick={() => onToggleAll?.(items)} className={`${buttonClass} border border-white/15 bg-white/[0.06] text-white`}>
+          {allSelected ? "إلغاء تحديد الكل" : "تحديد الكل"}
+        </button>
         <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("archive")} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة المحدد</button>
         <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("delete")} className={`${buttonClass} border border-rose-300/20 bg-rose-400/10 text-rose-100`}>Delete Selected</button>
         <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("publish")} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>نشر المحدد</button>
