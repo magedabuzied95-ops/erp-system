@@ -1,6 +1,13 @@
 const text = (value = "") => String(value ?? "").trim();
+const normalizeNumericText = (value = "") =>
+  text(value)
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[,\u066C\s]/g, "")
+    .replace(/\u066B/g, ".")
+    .replace(/[^\d.-]/g, "");
 const numberValue = (value = 0) => {
-  const parsed = Number(value);
+  const parsed = Number(typeof value === "number" ? value : normalizeNumericText(value));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 const quantityValue = (value = 1) => Math.max(1, Math.floor(Number(value || 1) || 1));
@@ -67,4 +74,15 @@ export const metaLineContent = (item = {}) => {
   const id = metaCatalogContentId(product, variant);
   if (!id) return null;
   return { id, quantity: quantityValue(item.quantity || item.qty), item_price: metaCurrentSellingPrice({ product, variant, line: item }) };
+};
+
+export const metaPurchaseValue = ({ value = 0, items = [] } = {}) => {
+  const explicitValue = numberValue(value);
+  if (explicitValue > 0) return explicitValue;
+  return (Array.isArray(items) ? items : []).reduce((total, item) => {
+    const quantity = quantityValue(item?.quantity || item?.qty);
+    const lineTotal = numberValue(item?.total_amount || item?.line_total || item?.total);
+    if (lineTotal > 0) return total + lineTotal;
+    return total + (metaCurrentSellingPrice({ product: item?.product || item, variant: item?.variant || item?.selected_variant || item, line: item }) * quantity);
+  }, 0);
 };

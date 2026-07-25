@@ -7,6 +7,7 @@ import {
   metaCatalogContentId,
   metaCurrentSellingPrice,
   metaLineContent,
+  metaPurchaseValue,
   purchaseEventId,
 } from "./metaPixelEventPayload";
 
@@ -95,11 +96,13 @@ export const trackMetaPurchase = ({ items = [], value = 0, customer = {}, order 
   const storageKey = `${PURCHASE_STORAGE_PREFIX}${orderId}`;
   if (typeof window !== "undefined" && window.sessionStorage?.getItem(storageKey)) return null;
   const contents = (Array.isArray(items) ? items : []).map(metaLineContent).filter(Boolean);
+  const purchaseValue = metaPurchaseValue({ value, items });
+  if (purchaseValue <= 0) return null;
   const payload = track("Purchase", {
     contentIds: contents.map((item) => item.id),
     contents,
     numItems: contents.reduce((total, item) => total + Number(item.quantity || 0), 0),
-    value,
+    value: purchaseValue,
     eventId: purchaseEventId(order),
     customer: { ...customer, external_id: customer.customer_id || customer.id || order.customer_id },
   });

@@ -2,8 +2,15 @@ const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 const text = (value = "") => String(value ?? "").trim();
+const normalizeNumericText = (value = "") =>
+  text(value)
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[,\u066C\s]/g, "")
+    .replace(/\u066B/g, ".")
+    .replace(/[^\d.-]/g, "");
 const numberValue = (value = 0) => {
-  const parsed = Number(value);
+  const parsed = Number(typeof value === "number" ? value : normalizeNumericText(value));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
@@ -33,8 +40,12 @@ export const sendStorefrontMetaEvent = async ({ req, event = {} } = {}) => {
   const pixelOrDatasetId = datasetId();
   const eventName = text(event.event_name);
   const contentIds = Array.isArray(event.content_ids) ? event.content_ids.map(text).filter(Boolean) : [];
+  const eventValue = numberValue(event.value);
   if (!token || !pixelOrDatasetId || !eventName || !contentIds.length) {
     return { sent: false, reason: "missing_config_or_content_ids" };
+  }
+  if (eventName === "Purchase" && eventValue <= 0) {
+    return { sent: false, reason: "invalid_purchase_value" };
   }
 
   const userData = {
@@ -70,7 +81,7 @@ export const sendStorefrontMetaEvent = async ({ req, event = {} } = {}) => {
           ...(Array.isArray(event.contents) && event.contents.length ? { contents: event.contents } : {}),
           ...(numberValue(event.num_items) ? { num_items: Math.floor(numberValue(event.num_items)) } : {}),
           currency: text(event.currency) || "EGP",
-          value: numberValue(event.value),
+          value: eventValue,
         },
       },
     ],

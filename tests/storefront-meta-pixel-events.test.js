@@ -9,6 +9,7 @@ import {
   metaCatalogContentId,
   metaCurrentSellingPrice,
   metaLineContent,
+  metaPurchaseValue,
   purchaseEventId,
 } from "../src/storefront/lib/metaPixelEventPayload.js";
 
@@ -91,4 +92,16 @@ test("Cancelled or failed orders never qualify for Purchase", () => {
     assert.equal(isMetaPurchaseEligible({ id: 1, status }), false);
     assert.equal(canTrackMetaPurchase({ id: 1, status }), false);
   }
+});
+
+test("Meta purchase value accepts formatted totals and falls back to cart lines", () => {
+  assert.equal(metaPurchaseValue({ value: "1,695.00" }), 1695);
+  assert.equal(metaPurchaseValue({ value: "١٬٦٩٥٫٥٠" }), 1695.5);
+  assert.equal(metaPurchaseValue({
+    value: 0,
+    items: [
+      { price: 650, quantity: 2 },
+      { total_amount: "٣٠٠", quantity: 1 },
+    ],
+  }), 1600);
 });
