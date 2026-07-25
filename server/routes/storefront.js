@@ -564,7 +564,7 @@ router.post("/meta/events", async (req, res) => {
     return res.status(400).json({ success: false, message: "Unsupported Meta event" });
   }
   try {
-    const result = await sendStorefrontMetaEvent({ req, event: req.body || {} });
+    const result = await sendStorefrontMetaEvent({ req, event: req.body || {}, tenantId: publicTenantId(req) });
     return res.status(202).json({ success: true, capi_sent: Boolean(result.sent), reason: result.reason || "" });
   } catch {
     // Browser Pixel is already sent; avoid exposing Meta details or customer data.

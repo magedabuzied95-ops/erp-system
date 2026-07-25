@@ -1,5 +1,9 @@
+import crypto from "node:crypto";
+import db from "../database/db.js";
+
 const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+const DEFAULT_META_DATASET_ID = "2459469681170451";
 
 const text = (value = "") => String(value ?? "").trim();
 const normalizeNumericText = (value = "") =>
@@ -22,8 +26,43 @@ const sha256 = async (value = "") => {
   return Array.from(new Uint8Array(hash)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
-const accessToken = () => text(process.env.M1_META_CAPI_ACCESS_TOKEN || process.env.META_CAPI_ACCESS_TOKEN);
-const datasetId = () => text(process.env.M1_META_DATASET_ID || process.env.META_DATASET_ID || process.env.M1_META_PIXEL_ID || process.env.META_PIXEL_ID);
+const configuredAccessToken = () => text(process.env.M1_META_CAPI_ACCESS_TOKEN || process.env.META_CAPI_ACCESS_TOKEN);
+const datasetId = () => text(process.env.M1_META_DATASET_ID || process.env.META_DATASET_ID || process.env.M1_META_PIXEL_ID || process.env.META_PIXEL_ID || DEFAULT_META_DATASET_ID);
+const secretKey = () =>
+  crypto.createHash("sha256").update(text(process.env.SECRET_ENCRYPTION_KEY || process.env.JWT_SECRET || "SECRET_KEY")).digest();
+const decryptStoredToken = (value = "") => {
+  const raw = text(value);
+  if (!raw || !raw.startsWith("enc:v1:")) return raw;
+  const [, , ivRaw, tagRaw, encryptedRaw] = raw.split(":");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", secretKey(), Buffer.from(ivRaw, "base64"));
+  decipher.setAuthTag(Buffer.from(tagRaw, "base64"));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedRaw, "base64")), decipher.final()]).toString("utf8");
+};
+const storedMetaAccessToken = async (tenantId = 1) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT token
+      FROM (
+        SELECT COALESCE(page_access_token, access_token_encrypted, '') AS token, updated_at
+        FROM marketing_settings
+        WHERE tenant_id = $1::integer
+        UNION ALL
+        SELECT COALESCE(page_access_token_encrypted, '') AS token, updated_at
+        FROM meta_integration_configs
+        WHERE tenant_id = $1::integer
+      ) candidates
+      WHERE COALESCE(token, '') <> ''
+      ORDER BY updated_at DESC NULLS LAST
+      LIMIT 1
+      `,
+      [Number(tenantId) || 1]
+    );
+    return decryptStoredToken(result.rows?.[0]?.token || "");
+  } catch {
+    return "";
+  }
+};
 const cookieValue = (req, name) => {
   const direct = req?.cookies?.[name];
   if (direct) return direct;
@@ -35,8 +74,8 @@ const cookieValue = (req, name) => {
     ?.slice(name.length + 1) || "";
 };
 
-export const sendStorefrontMetaEvent = async ({ req, event = {} } = {}) => {
-  const token = accessToken();
+export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } = {}) => {
+  const token = configuredAccessToken() || await storedMetaAccessToken(tenantId);
   const pixelOrDatasetId = datasetId();
   const eventName = text(event.event_name);
   const contentIds = Array.isArray(event.content_ids) ? event.content_ids.map(text).filter(Boolean) : [];

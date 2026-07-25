@@ -62,7 +62,7 @@ export const buildMetaEventPayload = ({ contentIds = [], contents = [], contentN
   };
 };
 
-export const isMetaPurchaseEligible = (order = {}) => !["cancelled", "canceled", "failed", "payment_failed", "awaiting_verification"].includes(text(order.status || order.payment_status).toLowerCase());
+export const isMetaPurchaseEligible = (order = {}) => !["cancelled", "canceled", "failed", "payment_failed"].includes(text(order.status || order.payment_status).toLowerCase());
 export const purchaseEventId = (order = {}) => `m1_purchase_order_${text(order.id || order.order_id || order.invoice_number || order.order_number)}`;
 export const canTrackMetaPurchase = (order = {}, sentOrderIds = new Set()) => {
   const orderId = text(order.id || order.order_id || order.invoice_number || order.order_number);

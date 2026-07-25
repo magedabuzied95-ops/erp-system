@@ -88,10 +88,17 @@ test("Purchase is once per order ID and includes stable event ID, quantities and
 });
 
 test("Cancelled or failed orders never qualify for Purchase", () => {
-  for (const status of ["cancelled", "canceled", "failed", "payment_failed", "awaiting_verification"]) {
+  for (const status of ["cancelled", "canceled", "failed", "payment_failed"]) {
     assert.equal(isMetaPurchaseEligible({ id: 1, status }), false);
     assert.equal(canTrackMetaPurchase({ id: 1, status }), false);
   }
+});
+
+test("A submitted shipping-confirmation order qualifies for Purchase", () => {
+  const order = { id: 9002, status: "awaiting_verification", payment_method: "shipping_confirmation" };
+  assert.equal(isMetaPurchaseEligible(order), true);
+  assert.equal(canTrackMetaPurchase(order), true);
+  assert.equal(purchaseEventId(order), "m1_purchase_order_9002");
 });
 
 test("Meta purchase value accepts formatted totals and falls back to cart lines", () => {

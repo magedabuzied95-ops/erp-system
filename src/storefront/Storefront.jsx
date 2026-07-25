@@ -8159,7 +8159,7 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
     order.payment_status === "awaiting_verification" ||
     order.status === "awaiting_verification";
   useEffect(() => {
-    if (!order?.id || !Array.isArray(items) || !items.length || isShippingAwaitingVerification || !isMetaPurchaseEligible(order)) return;
+    if (!order?.id || !Array.isArray(items) || !items.length || !isMetaPurchaseEligible(order)) return;
     trackMetaPurchase({
       order,
       items,
