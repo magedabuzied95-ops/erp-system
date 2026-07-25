@@ -6,6 +6,7 @@ import process from "node:process";
 import { Buffer } from "node:buffer";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import { classifyStoryAudience } from "./storyAudienceClassifier.js";
 
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1920;
@@ -22,7 +23,7 @@ const STORY_FONT_PATH = fileURLToPath(new URL("../../src/assets/fonts/customer-s
 const STORY_FONT_BASE64 = readFileSync(STORY_FONT_PATH).toString("base64");
 const STORY_FONT_FAMILY = "M1Story";
 export const STORY_RENDERER_NAME = "m1_story_new_collection";
-export const STORY_RENDERER_BUILD = "m1-story-audience-collection-v1-2026-07-24";
+export const STORY_RENDERER_BUILD = "m1-story-font-audience-v3-2026-07-25";
 const storyFontFaceSvg = () => `<style>@font-face{font-family:'${STORY_FONT_FAMILY}';src:url(data:font/ttf;base64,${STORY_FONT_BASE64}) format('truetype');font-style:normal;font-weight:100 1000;}text{font-family:'${STORY_FONT_FAMILY}','DejaVu Sans',sans-serif;}</style>`;
 sharp.cache(false);
 sharp.concurrency(1);
@@ -327,7 +328,8 @@ const createStoryTextComposite = async ({ text, left, top, width, height, size, 
   const input = await sharp({
     text: {
       text: `<span foreground="${color}" weight="${weight}" size="${size}pt">${escapePangoMarkup(text)}</span>`,
-      font: "Arial, DejaVu Sans, sans-serif",
+      font: STORY_FONT_FAMILY,
+      fontfile: STORY_FONT_PATH,
       width,
       height,
       align,
@@ -431,33 +433,36 @@ const DESIGNED_STORY_THEMES = {
   },
 };
 
-const normalizedThemeText = (...values) => values.map((value) => trimString(value).toLowerCase()).filter(Boolean).join(" ");
-
 export const resolveDesignedStoryTheme = (story = {}, design = {}) => {
-  const explicitVariant = normalizedThemeText(
+  const explicitVariant = classifyStoryAudience(
     design.story_template_variant,
     story.story_template_variant,
     design.template_variant,
     story.template_variant
   );
-  if (explicitVariant === "offers") return DESIGNED_STORY_THEMES.offers;
-  if (explicitVariant === "men") return DESIGNED_STORY_THEMES.men;
-  if (explicitVariant === "women") return DESIGNED_STORY_THEMES.women;
-  if (explicitVariant === "kids") return DESIGNED_STORY_THEMES.kids;
+  if (explicitVariant) return DESIGNED_STORY_THEMES[explicitVariant];
 
-  const audience = normalizedThemeText(
+  const audience = classifyStoryAudience(
     design.story_audience,
     story.story_audience,
     design.gender,
     story.gender,
+    design.product_gender,
+    story.product_gender,
+    design.target_gender,
+    story.target_gender,
+    design.audience_gender,
+    story.audience_gender,
     design.audience,
     story.audience,
     design.category_name,
-    story.category_name
+    story.category_name,
+    design.department_name,
+    story.department_name,
+    design.segment_name,
+    story.segment_name
   );
-  if (/\b(women|woman|female|ladies|lady)\b|حريمي|نسائي|نساء/u.test(audience)) return DESIGNED_STORY_THEMES.women;
-  if (/\b(kids|kid|children|child|boys|girls)\b|أطفال|اطفال|طفل/u.test(audience)) return DESIGNED_STORY_THEMES.kids;
-  if (/\b(men|man|male|mens)\b|رجالي|رجال/u.test(audience)) return DESIGNED_STORY_THEMES.men;
+  if (audience) return DESIGNED_STORY_THEMES[audience];
   return DESIGNED_STORY_THEMES.current;
 };
 

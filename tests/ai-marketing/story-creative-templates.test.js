@@ -20,11 +20,18 @@ const rendererSource = fs.readFileSync(
 
 test("story renderer uses one new collection implementation for every strategy", () => {
   assert.equal(STORY_RENDERER_NAME, "m1_story_new_collection");
-  assert.equal(STORY_RENDERER_BUILD, "m1-story-audience-collection-v1-2026-07-24");
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-font-audience-v3-2026-07-25");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "men" }).id, "m1-men-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "women" }).id, "m1-women-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "kids" }).id, "m1-kids-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "offers" }).id, "m1-offers-story-v1");
+  assert.equal(resolveDesignedStoryTheme({}, { story_audience: "\u0631\u062c\u0627\u0644\u064a" }).id, "m1-men-story-v1");
+  assert.equal(resolveDesignedStoryTheme({}, { story_audience: "\u062d\u0631\u064a\u0645\u064a" }).id, "m1-women-story-v1");
+  assert.equal(resolveDesignedStoryTheme({}, { story_audience: "\u0623\u0637\u0641\u0627\u0644" }).id, "m1-kids-story-v1");
+  const audienceAccents = ["men", "women", "kids"].map(
+    (audience) => resolveDesignedStoryTheme({}, { story_audience: audience }).accent
+  );
+  assert.equal(new Set(audienceAccents).size, 3);
 });
 
 test("story source selection excludes the product cover from old and new queues", () => {
@@ -64,7 +71,7 @@ test("renderer source permanently excludes the removed white clean-product templ
   assert.doesNotMatch(rendererSource, /m1_story_clean_product|m1-clean-product-v2|#0f766e/i);
 });
 
-test("production story text is rasterized with the canonical sans font", async () => {
+test("production story text is rasterized with the bundled canonical font", async () => {
   const composites = await createDesignedStoryTextComposites({
     title: "Adidas Terrex حذاء جديد",
     price: "1750 EGP",
@@ -75,7 +82,8 @@ test("production story text is rasterized with the canonical sans font", async (
   for (const composite of composites) {
     assert.ok(Buffer.isBuffer(composite.input) && composite.input.length > 100);
   }
-  assert.match(rendererSource, /font: "Arial, DejaVu Sans, sans-serif"/);
+  assert.match(rendererSource, /font: STORY_FONT_FAMILY/);
+  assert.match(rendererSource, /fontfile: STORY_FONT_PATH/);
 });
 
 test("canonical story converts Arabic AI copy to the required English labels", async () => {

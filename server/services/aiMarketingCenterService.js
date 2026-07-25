@@ -7,6 +7,7 @@ import {
   STORY_RENDERER_BUILD,
   STORY_RENDERER_NAME,
 } from "./storyImageService.js";
+import { classifyStoryAudience } from "./storyAudienceClassifier.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
@@ -4053,18 +4054,19 @@ const markCooldown = (state, item, nowMs = Date.now()) => {
 const itemKey = (item) => `${item.content_type}:${item.product_id}:${item.variant_id || 0}`;
 
 export const productStoryAudience = (product = {}) => {
-  const text = normalizedSearchText(
+  return classifyStoryAudience(
     product.gender,
     product.audience,
+    product.product_gender,
+    product.target_gender,
+    product.audience_gender,
     product.category_name,
     product.category,
+    product.department_name,
+    product.segment_name,
     product.product_type,
     product.style
-  );
-  if (/\b(women|woman|female|ladies|lady)\b|حريمي|نسائي|نساء/u.test(text)) return "women";
-  if (/\b(kids|kid|children|child|boys|girls)\b|أطفال|اطفال|طفل/u.test(text)) return "kids";
-  if (/\b(men|man|male|mens)\b|رجالي|رجال/u.test(text)) return "men";
-  return "men";
+  ) || "men";
 };
 
 export const productStoryTemplateVariant = (product = {}) =>

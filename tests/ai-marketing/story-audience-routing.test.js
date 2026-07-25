@@ -15,7 +15,9 @@ const serviceSource = fs.readFileSync(
 
 test("story audience routing recognizes men, women, and kids product classifications", () => {
   assert.equal(productStoryAudience({ gender: "men" }), "men");
-  assert.equal(productStoryAudience({ gender: "حريمي" }), "women");
+  assert.equal(productStoryAudience({ gender: "\u0631\u062c\u0627\u0644\u064a" }), "men");
+  assert.equal(productStoryAudience({ gender: "\u062d\u0631\u064a\u0645\u064a" }), "women");
+  assert.equal(productStoryAudience({ gender: "\u0623\u0637\u0641\u0627\u0644" }), "kids");
   assert.equal(productStoryAudience({ category_name: "Kids Sneakers" }), "kids");
 });
 
