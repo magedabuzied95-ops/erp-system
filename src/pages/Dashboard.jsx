@@ -278,6 +278,7 @@ function Dashboard() {
   const [filters, setFilters] = React.useState({ range: "today", date_from: "", date_to: "", branch_id: "all" });
   const [focusMode, setFocusMode] = React.useState(() => localStorage.getItem("erp.dashboard.mode") === "focus");
   const [activeSection, setActiveSection] = React.useState("sales");
+  const dashboardRequestRef = React.useRef(0);
 
   React.useEffect(() => {
     document.body.classList.add("dashboard-shopify-route");
@@ -336,25 +337,21 @@ function Dashboard() {
   }, [filters]);
 
   const loadDashboard = React.useCallback(async ({ silent = false } = {}) => {
+    const requestId = dashboardRequestRef.current + 1;
+    dashboardRequestRef.current = requestId;
+    const isCurrentRequest = () => dashboardRequestRef.current === requestId;
     if (!silent) setLoading(true);
     try {
-      const [
-        overview,
-        salesTrend,
-        topProducts,
-        lowStock,
-        liveActivity,
-        branchPerformance,
-        paymentAnalytics,
-        hourlySales,
-        marketing,
-        posLive,
-        inventory,
-        aiInsights,
-        websiteSettings,
-        productFeed,
-      ] = await Promise.all([
-        api.get(`/dashboard/overview${queryString}`),
+      const overview = await api.get(`/dashboard/overview${queryString}`);
+      if (!isCurrentRequest()) return;
+      setData((current) => ({
+        ...current,
+        overview: normalizeObject(overview, null),
+      }));
+      setLastUpdated(new Date());
+      setLoading(false);
+
+      const analyticsRequest = Promise.all([
         api.get(`/dashboard/sales-trend${queryString}`),
         api.get(`/dashboard/top-products${queryString}`),
         api.get("/dashboard/low-stock"),
@@ -366,9 +363,45 @@ function Dashboard() {
         api.get("/dashboard/pos-live"),
         api.get("/dashboard/inventory"),
         api.get("/dashboard/ai-insights"),
+      ]);
+      const saleModeRequest = Promise.all([
         api.get("/website/settings").catch(() => ({ settings: {} })),
         api.get("/products/with-variants").catch(() => ({ products: [] })),
       ]);
+
+      const [
+        salesTrend,
+        topProducts,
+        lowStock,
+        liveActivity,
+        branchPerformance,
+        paymentAnalytics,
+        hourlySales,
+        marketing,
+        posLive,
+        inventory,
+        aiInsights,
+      ] = await analyticsRequest;
+      if (!isCurrentRequest()) return;
+      setData((current) => ({
+        ...current,
+        overview: normalizeObject(overview, null),
+        salesTrend: normalizeArray(salesTrend).map((row) => ({ ...row, label: dayLabel(row.day, locale), revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })),
+        topProducts: normalizeArray(topProducts).map((row) => ({ ...row, quantity: Number(row.quantity || 0), revenue: Number(row.revenue || 0) })),
+        lowStock: normalizeArray(lowStock),
+        liveActivity: normalizeArray(liveActivity),
+        branchPerformance: normalizeArray(branchPerformance).map((row) => ({ ...row, sales: Number(row.sales || 0), orders: Number(row.orders || 0) })),
+        paymentAnalytics: normalizeArray(paymentAnalytics).map((row) => ({ ...row, amount: Number(row.amount || 0), orders: Number(row.orders || 0) })),
+        hourlySales: normalizeArray(hourlySales).map((row) => ({ ...row, hourLabel: `${String(row.hour).padStart(2, "0")}:00`, sales: Number(row.sales || 0), orders: Number(row.orders || 0) })),
+        marketing: normalizeObject(marketing, { channels: [], attributedSales: 0 }),
+        posLive: normalizeObject(posLive, null),
+        inventory: normalizeObject(inventory, null),
+        aiInsights: normalizeArray(aiInsights),
+      }));
+      setLastUpdated(new Date());
+
+      const [websiteSettings, productFeed] = await saleModeRequest;
+      if (!isCurrentRequest()) return;
       const saleMode = normalizeSaleModeSettings(websiteSettings?.settings || {});
       const products = normalizeArray(productFeed?.products ? productFeed.products : productFeed);
       const saleModeAnalytics = products.reduce((acc, product) => {
@@ -394,28 +427,17 @@ function Dashboard() {
         return acc;
       }, { affectedProducts: new Set(), estimatedDiscountImpact: 0 });
 
-      setData({
-        overview: normalizeObject(overview, null),
-        salesTrend: normalizeArray(salesTrend).map((row) => ({ ...row, label: dayLabel(row.day, locale), revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })),
-        topProducts: normalizeArray(topProducts).map((row) => ({ ...row, quantity: Number(row.quantity || 0), revenue: Number(row.revenue || 0) })),
-        lowStock: normalizeArray(lowStock),
-        liveActivity: normalizeArray(liveActivity),
-        branchPerformance: normalizeArray(branchPerformance).map((row) => ({ ...row, sales: Number(row.sales || 0), orders: Number(row.orders || 0) })),
-        paymentAnalytics: normalizeArray(paymentAnalytics).map((row) => ({ ...row, amount: Number(row.amount || 0), orders: Number(row.orders || 0) })),
-        hourlySales: normalizeArray(hourlySales).map((row) => ({ ...row, hourLabel: `${String(row.hour).padStart(2, "0")}:00`, sales: Number(row.sales || 0), orders: Number(row.orders || 0) })),
-        marketing: normalizeObject(marketing, { channels: [], attributedSales: 0 }),
-        posLive: normalizeObject(posLive, null),
-        inventory: normalizeObject(inventory, null),
-        aiInsights: normalizeArray(aiInsights),
+      setData((current) => ({
+        ...current,
         saleMode,
         saleModeAnalytics: {
           affectedProductsCount: saleModeAnalytics.affectedProducts.size,
           estimatedDiscountImpact: saleModeAnalytics.estimatedDiscountImpact,
         },
-      });
+      }));
       setLastUpdated(new Date());
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, [queryString, locale]);
 
