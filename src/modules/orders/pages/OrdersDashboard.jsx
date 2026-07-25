@@ -911,7 +911,7 @@ function OrdersDashboard() {
 
       <WorkspaceTabs t={t} value={workspace} onChange={(value) => { setWorkspace(value); setPage(1); }} counts={{ table: orders.length, verification: verificationOrders.length, fulfillment: fulfillmentOrders.length, returns: returnsOrders.length }} />
 
-      <div className={`grid gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_24rem]" : ""}`}>
+      <div className={`grid min-w-0 gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : ""}`}>
         <main className="min-w-0 rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
           <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -1115,10 +1115,10 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
 
   if (!orders.length) return empty;
   return (
-    <div className="mt-3 max-h-[calc(100vh-23rem)] overflow-auto pb-1">
-      <div className="min-w-[1630px] overflow-visible">
+    <div className="mt-3 w-full min-w-0 overflow-x-auto overflow-y-visible pb-2">
+      <div className="min-w-[1480px] overflow-visible">
         <div
-          className="sticky top-0 z-20 grid grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_10rem_7rem_7rem_7rem_8rem_6.5rem_6.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl"
           dir={tableDir}
         >
           <div className="flex items-center justify-center py-1 text-center">{t("orders.table.actions")}</div>
@@ -1148,7 +1148,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") openOrder(order);
                 }}
-                className={`relative z-0 grid cursor-pointer grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_10rem_7rem_7rem_7rem_8rem_6.5rem_6.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-cyan-400/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-cyan-950/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-cyan-400/35" : ""}`}
+                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-cyan-400/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-cyan-950/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-cyan-400/35" : ""}`}
                 dir={tableDir}
               >
                 <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />

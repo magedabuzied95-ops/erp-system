@@ -5,9 +5,10 @@ import { ClipboardList } from "lucide-react";
 
 function OrdersShell({ title, subtitle, actions, header, children }) {
   const { t } = useTranslation();
+  const embeddedWorkspace = header === null;
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_12%,transparent),transparent_34%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-[var(--text)]">
-      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4 lg:px-6">
+    <div className={`${embeddedWorkspace ? "min-h-0" : "min-h-screen"} bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_12%,transparent),transparent_34%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-[var(--text)]`}>
+      <div className={`mx-auto flex w-full flex-col ${embeddedWorkspace ? "max-w-none gap-3 p-0" : "max-w-[1800px] gap-4 px-4 py-4 lg:px-6"}`}>
         {header !== undefined ? header : (
         <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
