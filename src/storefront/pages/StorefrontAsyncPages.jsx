@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/api";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
+import { trackGa4ViewCart } from "../lib/ga4Events";
 import {
   Bell,
   MessageCircle,
@@ -412,7 +413,9 @@ function PremiumCartContent({ cart, updateCart, removeFromCart, helpers, compone
 }
 
 export function CartPageRoute({ cart, updateCart, removeFromCart, helpers, components }) {
-  const { sfText } = helpers;
+  useEffect(() => {
+    if (cart.length) trackGa4ViewCart(cart);
+  }, [cart]);
   return (
     <section dir="rtl" className="sf-cart-page mx-auto max-w-6xl px-4 py-6 text-white md:py-8">
       <h1 className="text-3xl font-black text-white">السلة</h1>

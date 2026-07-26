@@ -38,6 +38,7 @@ import { Check, Heart, Ruler, Share2, ShoppingCart } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
+import { trackGa4ViewItem } from "../lib/ga4Events";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
 
 const variantColorIdentity = (variant = {}) => {
@@ -280,6 +281,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             if (contentId && metaViewSentRef.current(viewKey)) {
               trackMetaViewContent({ product, variant: first || {}, value: pricing.price });
             }
+            trackGa4ViewItem({ product, variant: first || {}, price: pricing.price });
             try {
               rememberProduct(product);
               const { token } = readStorefrontCustomerAuth();

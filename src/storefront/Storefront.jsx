@@ -104,6 +104,15 @@ import {
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
 import { getDisplayPricing, parseSaleModeEnabled as importedParseSaleModeEnabled } from "../shared/lib/storefrontPricing";
 import { isMetaPurchaseEligible, trackMetaAddToCart, trackMetaPurchase } from "./lib/metaPixelEvents";
+import {
+  trackGa4AddToCart,
+  trackGa4BeginCheckout,
+  trackGa4PageView,
+  trackGa4PaymentInfo,
+  trackGa4Purchase,
+  trackGa4ShippingInfo,
+  trackGa4ViewCart,
+} from "./lib/ga4Events";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
@@ -6748,6 +6757,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   }), []);
 
   useEffect(() => {
+    if (pricedCart.length) trackGa4BeginCheckout(pricedCart, { value: subtotal });
+  }, [pricedCart, subtotal]);
+
+  useEffect(() => {
     if (typeof document === "undefined") return undefined;
     document.documentElement.style.setProperty("--checkout-sticky-actions-height", "88px");
     return () => {
@@ -7608,7 +7621,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const submit = async (event) => {
     event.preventDefault();
     if (!isFinalCheckoutStep) {
-      if (validateStep(checkoutStep)) goToCheckoutStep(Math.min(3, checkoutStep + 1));
+      if (validateStep(checkoutStep)) {
+        if (checkoutStep === 2) {
+          trackGa4ShippingInfo(pricedCart, {
+            value: total,
+            coupon: couponValidation?.valid ? couponCode : "",
+            shipping: deliveryFee,
+            shipping_tier: shippingQuote.provider || shippingQuote.provider_id || "standard",
+          });
+        }
+        goToCheckoutStep(Math.min(3, checkoutStep + 1));
+      }
       return;
     }
     if (submitting || !validate()) {
@@ -7684,6 +7707,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         coupon_code: couponCodeToSend,
         coupon_discount_amount: couponDiscountToSend,
       };
+      trackGa4PaymentInfo(pricedCart, {
+        value: total,
+        coupon: couponCodeToSend,
+        payment_type: paymentMethod,
+      });
       const requestBody = shippingPaymentFile
         ? (() => {
             const formData = new FormData();
@@ -7707,6 +7735,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         customer: { full_name: form.full_name, phone: cleanPhone },
         checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod, coupon_code: couponCodeToSend, coupon_discount_amount: couponDiscountToSend },
       };
+      trackGa4Purchase({
+        order: data.order,
+        items: data.items || pricedCart,
+        checkout: successPayload.checkout,
+        value: data.order?.total_amount ?? data.order?.total ?? total,
+      });
       const publicNumber = displayPublicOrderNumber(data.order);
       const receiptPayload = compactStorefrontReceipt(successPayload, {
         id: data.order?.id,
@@ -8167,7 +8201,13 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
       value: total,
       customer: loaded?.customer || { full_name: customerName, phone },
     });
-  }, [customerName, isShippingAwaitingVerification, items, loaded?.customer, order, phone, total]);
+    trackGa4Purchase({
+      order,
+      items,
+      checkout: loaded?.checkout || {},
+      value: total,
+    });
+  }, [customerName, isShippingAwaitingVerification, items, loaded?.checkout, loaded?.customer, order, phone, total]);
   const successTitle = isShippingAwaitingVerification ? t("storefront.success.awaitingVerificationTitle") : t("storefront.success.confirmedTitle");
   const successSubtitle = isShippingAwaitingVerification
     ? t("storefront.success.awaitingVerificationSubtitle")
@@ -9226,6 +9266,9 @@ function EmptyState({ title, text, actionTo = "/products", actionLabel }) {
 
 function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   useBodyScrollLock(open);
+  useEffect(() => {
+    if (open && cart.length) trackGa4ViewCart(cart);
+  }, [cart, open]);
   if (!open) return null;
   const subtotal = cart.reduce((sum, item) => sum + displayCartItemPrice(item) * item.quantity, 0);
   const total = subtotal;
@@ -9718,6 +9761,8 @@ const normalizeCartLine = (product = {}, variant = {}, quantity = 1) => {
     // Keep the exact catalog identifier with the order/cart line for Meta matching.
     sku: variant.sku || variant.SKU || variant.variant_sku || product.sku || "",
     name: cleanDisplayText(mirrorProductTitle(product, variant) || product.name || product.title || ""),
+    brand: product.brand?.name || product.brand_name || product.brand || variant.brand_name || "",
+    category: product.category?.name || product.category_name || product.product_type || "",
     slug: product.slug || "",
     image_url: image,
     product_image: image,
@@ -9807,6 +9852,12 @@ function Storefront() {
   useEffect(() => {
     setStorefrontSalePricesEnabled(publicStoreSettings);
   }, [publicStoreSettings]);
+
+  useEffect(() => {
+    trackGa4PageView({
+      path: `${location.pathname || "/"}${location.search || ""}`,
+    });
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     setRouteReady(true);
@@ -9983,6 +10034,7 @@ function Storefront() {
       return [...prev, nextLine];
     });
     trackMetaAddToCart({ product, variant, line: nextLine, quantity, customer: profile });
+    trackGa4AddToCart({ product, variant, line: nextLine, quantity });
     setCartDrawerOpen(true);
     return "added";
   }, [profile]);
