@@ -415,13 +415,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));
 
   useEffect(() => {
-    if (!product) {
-      clearProductSeo();
-      return undefined;
-    }
+    if (!product) return undefined;
     applyProductSeo(product);
-    return clearProductSeo;
+    return undefined;
   }, [product]);
+  useEffect(() => () => clearProductSeo(), []);
   const selectVariant = (candidate, options = {}) => {
     if (!candidate) return;
     const candidateColorKey = variantColorIdentity(candidate);

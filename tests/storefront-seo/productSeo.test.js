@@ -56,7 +56,7 @@ test("discounted product uses the current visible final price", () => {
   assert.equal(seo.productJsonLd.offers.price, "550.00");
 });
 
-test("multiple colors, sizes and prices emit a valid AggregateOffer", () => {
+test("multiple colors, sizes and prices retain a merchant-listing Offer", () => {
   const seo = buildProductSeo({
     ...baseProduct,
     variants: [
@@ -66,10 +66,8 @@ test("multiple colors, sizes and prices emit a valid AggregateOffer", () => {
     ],
   });
   assert.equal(seo.productJsonLd.color, "White, Black");
-  assert.equal(seo.productJsonLd.offers["@type"], "AggregateOffer");
-  assert.equal(seo.productJsonLd.offers.lowPrice, "650.00");
-  assert.equal(seo.productJsonLd.offers.highPrice, "700.00");
-  assert.equal(seo.productJsonLd.offers.offerCount, 3);
+  assert.equal(seo.productJsonLd.offers["@type"], "Offer");
+  assert.equal(seo.productJsonLd.offers.price, "650.00");
 });
 
 test("server HTML contains one Product and one Breadcrumb JSON-LD with safe escaping", () => {
@@ -85,4 +83,3 @@ test("server HTML contains one Product and one Breadcrumb JSON-LD with safe esca
   assert.doesNotMatch(html, /"review"/);
   assert.doesNotMatch(html, /"aggregateRating"/);
 });
-

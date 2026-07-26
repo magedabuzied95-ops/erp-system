@@ -81,6 +81,7 @@ export const clearProductSeo = () => {
 
 export const applyProductSeo = (product = {}) => {
   if (typeof document === "undefined") return null;
+  if (!productHasCompleteMerchantPolicies(product)) return null;
   const seo = buildProductSeo(product);
   document.title = seo.title;
   setMetaTag('meta[name="description"]', { name: "description", content: seo.description });
@@ -106,4 +107,4 @@ export const productToSocialMeta = (product = {}) => ({
   image: product?.social_meta?.image || product?.og_image_url || "",
   url: product?.social_meta?.url || "",
 });
-import { buildProductSeo } from "./productSeo";
+import { buildProductSeo, productHasCompleteMerchantPolicies } from "./productSeo.js";

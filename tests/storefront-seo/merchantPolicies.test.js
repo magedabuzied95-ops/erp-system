@@ -105,3 +105,50 @@ test("changing the settings is reflected on the next JSON-LD build", () => {
   assert.equal(changed[0].shippingRate.value, 125);
   assert.equal(changed[0].deliveryTime.transitTime.maxValue, 6);
 });
+
+test("hydration cannot replace complete initial schema with an incomplete product payload", async () => {
+  const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+  const existingProduct = {
+    textContent: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Product",
+      offers: {
+        "@type": "Offer",
+        shippingDetails: [{ "@type": "OfferShippingDetails" }],
+        hasMerchantReturnPolicy: { "@type": "MerchantReturnPolicy" },
+      },
+    }),
+    setAttribute() {},
+    remove() {},
+  };
+  const existingBreadcrumb = { textContent: "{}", setAttribute() {}, remove() {} };
+  const querySelector = (selector) => {
+    if (selector.includes('data-m1-product-seo="product"')) return existingProduct;
+    if (selector.includes('data-m1-product-seo="breadcrumb"')) return existingBreadcrumb;
+    return null;
+  };
+  globalThis.document = {
+    title: "",
+    head: {
+      querySelector,
+      querySelectorAll: (selector) => {
+        const match = querySelector(selector);
+        return match ? [match] : [];
+      },
+      appendChild() {},
+    },
+    createElement: () => ({ setAttribute() {}, dataset: {} }),
+  };
+  globalThis.window = { location: { href: "https://m1store-egy.com/product/nike-air-force-1-sneakers" } };
+  try {
+    const { applyProductSeo } = await import(`../../src/shared/lib/socialMeta.js?regression=${Date.now()}`);
+    assert.equal(applyProductSeo({ name: "Incomplete API product", final_price: 650 }), null);
+    const parsed = JSON.parse(existingProduct.textContent);
+    assert.ok(parsed.offers.shippingDetails);
+    assert.ok(parsed.offers.hasMerchantReturnPolicy);
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.window = originalWindow;
+  }
+});

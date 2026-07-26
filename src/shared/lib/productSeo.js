@@ -12,6 +12,13 @@ export const productCanonicalUrl = (product = {}) => {
   return slug ? `${STOREFRONT_ORIGIN}/product/${encodeURIComponent(slug)}` : STOREFRONT_ORIGIN;
 };
 
+export const productHasCompleteMerchantPolicies = (product = {}) => {
+  const policies = product.merchant_policies || product.merchantPolicies || {};
+  return Array.isArray(policies.shippingDetails)
+    && policies.shippingDetails.length > 0
+    && Boolean(policies.returnPolicy);
+};
+
 const liveVariantPrice = (variant = {}, product = {}) =>
   number(variant.final_price) ||
   number(variant.current_selling_price) ||
@@ -62,19 +69,14 @@ export const buildProductSeo = (product = {}) => {
     itemCondition: "https://schema.org/NewCondition",
     url,
   };
-  const offers = prices.length > 1
-    ? {
-        "@type": "AggregateOffer",
-        ...offerBase,
-        lowPrice: Math.min(...prices).toFixed(2),
-        highPrice: Math.max(...prices).toFixed(2),
-        offerCount: sellableVariants.length || prices.length,
-      }
-    : {
-        "@type": "Offer",
-        ...offerBase,
-        price: Number(prices[0] || fallbackPrice || 0).toFixed(2),
-      };
+  // Google merchant listings require Offer. AggregateOffer is supported only
+  // for product snippets, so keep the schema price aligned with the initial
+  // price displayed on this product page.
+  const offers = {
+    "@type": "Offer",
+    ...offerBase,
+    price: Number(fallbackPrice || prices[0] || 0).toFixed(2),
+  };
   const merchantPolicies = product.merchant_policies || product.merchantPolicies || {};
   const shippingDetails = Array.isArray(merchantPolicies.shippingDetails) ? merchantPolicies.shippingDetails : [];
   if (shippingDetails.length) offers.shippingDetails = shippingDetails;
