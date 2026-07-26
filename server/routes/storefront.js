@@ -38,6 +38,7 @@ import {
 } from "../services/storefrontCustomerEmailAuthService.js";
 import paymentProofUpload from "../config/paymentProofUpload.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
+import { getSetting } from "../services/settingsService.js";
 import {
   createOrRestoreStorefrontCustomerSession,
   getStorefrontCustomerSession,
@@ -243,7 +244,35 @@ const setPublicStorefrontHomeCacheHeaders = (res) => {
 const getPublicStorefrontSettings = async (req, res) => {
   try {
     const tenantId = publicTenantId(req);
-    const settings = await getWebsiteSettings({ tenantId });
+    const [
+      websiteSettings,
+      returnExchangeWindowDays,
+      returnPolicyEnabled,
+      returnMethod,
+      customerRemorseReturnFees,
+      defectReturnFees,
+      returnPolicyUrl,
+      returnPolicyConditions,
+    ] = await Promise.all([
+      getWebsiteSettings({ tenantId }),
+      getSetting("orders.return_exchange_window_days"),
+      getSetting("storefront.return_policy_enabled"),
+      getSetting("storefront.return_method"),
+      getSetting("storefront.customer_remorse_return_fees"),
+      getSetting("storefront.defect_return_fees"),
+      getSetting("storefront.return_policy_url"),
+      getSetting("storefront.return_policy_conditions"),
+    ]);
+    const settings = {
+      ...websiteSettings,
+      return_exchange_window_days: returnExchangeWindowDays,
+      return_policy_enabled: returnPolicyEnabled,
+      return_method: returnMethod,
+      customer_remorse_return_fees: customerRemorseReturnFees,
+      defect_return_fees: defectReturnFees,
+      return_policy_url: returnPolicyUrl,
+      return_policy_conditions: returnPolicyConditions,
+    };
     const home = await resolveStorefrontHome({ tenantId, settings });
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");

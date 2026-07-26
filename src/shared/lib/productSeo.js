@@ -75,6 +75,10 @@ export const buildProductSeo = (product = {}) => {
         ...offerBase,
         price: Number(prices[0] || fallbackPrice || 0).toFixed(2),
       };
+  const merchantPolicies = product.merchant_policies || product.merchantPolicies || {};
+  const shippingDetails = Array.isArray(merchantPolicies.shippingDetails) ? merchantPolicies.shippingDetails : [];
+  if (shippingDetails.length) offers.shippingDetails = shippingDetails;
+  if (merchantPolicies.returnPolicy) offers.hasMerchantReturnPolicy = merchantPolicies.returnPolicy;
   const colors = unique(variants.map((variant) => text(variant.color || variant.color_name)));
   const sku = text(product.sku || product.product_code || product.id);
 

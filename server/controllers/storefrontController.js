@@ -37,6 +37,7 @@ import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
+import { loadStorefrontMerchantPolicyData } from "../services/storefrontMerchantPolicyService.js";
 import {
   attachPublicOrderNumber,
   displayPublicOrderNumber,
@@ -1287,7 +1288,12 @@ const productSeoTitle = (product = {}) => firstText(product.meta_title, product.
 const productSeoDescription = (product = {}) => firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name);
 
 const attachSocialMetadata = async (product = {}, req = null) => {
-  const ogImage = await generateProductOgImage({ product, req });
+  const [ogImage, merchantPolicies] = await Promise.all([
+    generateProductOgImage({ product, req }),
+    loadStorefrontMerchantPolicyData({
+      productPrice: product.final_price || product.current_selling_price || product.selling_price || product.price || 0,
+    }),
+  ]);
   const pageSlug = product.slug || product.canonical_slug || slugifyProductName(product.name) || product.id;
   return {
     ...product,
@@ -1295,6 +1301,7 @@ const attachSocialMetadata = async (product = {}, req = null) => {
     og_image_width: OG_IMAGE_WIDTH,
     og_image_height: OG_IMAGE_HEIGHT,
     og_image_cache_key: ogImage.cacheKey,
+    merchant_policies: merchantPolicies,
     social_meta: {
       title: productSeoTitle(product),
       description: productSeoDescription(product),

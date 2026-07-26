@@ -75,6 +75,7 @@ import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
 import useDismissableLayer from "../shared/hooks/useDismissableLayer";
 import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct";
 import { productToSocialMeta } from "../shared/lib/socialMeta";
+import { normalizeMerchantReturnPolicy } from "../shared/lib/merchantPolicies";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualList } from "../shared/components/VirtualList";
@@ -8524,8 +8525,8 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
 }
 
 
-function ReturnsPolicy() {
-  const sections = [
+function ReturnsPolicy({ publicStoreSettings = {} }) {
+  let sections = [
     {
       title: "الاستبدال والاسترجاع",
       items: [
@@ -8592,6 +8593,26 @@ function ReturnsPolicy() {
       ],
     },
   ];
+  const configuredPolicy = normalizeMerchantReturnPolicy(publicStoreSettings);
+  if (configuredPolicy) {
+    const conditions = configuredPolicy.conditions && typeof configuredPolicy.conditions === "object"
+      ? configuredPolicy.conditions
+      : {};
+    sections = [
+      {
+        title: "مدة الاستبدال والاسترجاع",
+        items: [`يمكن طلب الاستبدال أو الاسترجاع خلال ${configuredPolicy.days} يومًا من تاريخ الاستلام.`],
+      },
+      {
+        title: "شروط قبول المنتج",
+        items: [conditions.unused_original_condition, conditions.invoice_required].filter(Boolean),
+      },
+      {
+        title: "تكلفة الشحن",
+        items: [conditions.customer_choice_shipping, conditions.defect_shipping].filter(Boolean),
+      },
+    ].filter((section) => section.items.length);
+  }
   return (
     <section className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-[0_18px_54px_rgba(15,23,42,0.08)] sm:p-6 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.96),rgba(7,11,22,0.88))]">
@@ -10378,7 +10399,7 @@ function Storefront() {
     }
 
     if (currentStorefrontPath === ROOT_PATHS.sizeGuide) return <LazyStorefrontSizeGuidePage />;
-    if (currentStorefrontPath === ROOT_PATHS.returns) return <ReturnsPolicy />;
+    if (currentStorefrontPath === ROOT_PATHS.returns) return <ReturnsPolicy publicStoreSettings={publicStoreSettings} />;
 
     return (
       <PremiumHomePage

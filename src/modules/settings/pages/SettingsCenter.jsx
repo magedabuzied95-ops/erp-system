@@ -2586,6 +2586,12 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   cod_allowed: zone.cod_allowed !== false,
   requires_shipping_proof: zone.requires_shipping_proof !== false,
   estimated_delivery_text: String(zone.estimated_delivery_text || zone.estimatedDeliveryText || "").trim(),
+  delivery_min_days: zone.delivery_min_days === "" || zone.delivery_min_days === null || zone.delivery_min_days === undefined ? "" : Number(zone.delivery_min_days),
+  delivery_max_days: zone.delivery_max_days === "" || zone.delivery_max_days === null || zone.delivery_max_days === undefined ? "" : Number(zone.delivery_max_days),
+  handling_min_days: zone.handling_min_days === "" || zone.handling_min_days === null || zone.handling_min_days === undefined ? "" : Number(zone.handling_min_days),
+  handling_max_days: zone.handling_max_days === "" || zone.handling_max_days === null || zone.handling_max_days === undefined ? "" : Number(zone.handling_max_days),
+  transit_min_days: zone.transit_min_days === "" || zone.transit_min_days === null || zone.transit_min_days === undefined ? "" : Number(zone.transit_min_days),
+  transit_max_days: zone.transit_max_days === "" || zone.transit_max_days === null || zone.transit_max_days === undefined ? "" : Number(zone.transit_max_days),
   provider: normalizeProviderKey(zone.provider || zone.shipping_provider || zone.provider_id || zone.shipping_provider_id),
   provider_id: normalizeProviderKey(zone.provider_id || zone.shipping_provider_id || zone.provider || zone.shipping_provider),
   free_shipping_threshold: Number.isFinite(Number(zone.free_shipping_threshold ?? zone.freeShippingThreshold)) ? Number(zone.free_shipping_threshold ?? zone.freeShippingThreshold) : 0,
@@ -3433,6 +3439,12 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
       <div className="grid gap-2 sm:grid-cols-2">
         <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Free over" />
         <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Min COD" />
+        <input type="number" min="0" value={zone.delivery_min_days} onChange={(event) => onPatch({ delivery_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Delivery min days" />
+        <input type="number" min="0" value={zone.delivery_max_days} onChange={(event) => onPatch({ delivery_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Delivery max days" />
+        <input type="number" min="0" value={zone.handling_min_days} onChange={(event) => onPatch({ handling_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Handling min days" />
+        <input type="number" min="0" value={zone.handling_max_days} onChange={(event) => onPatch({ handling_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Handling max days" />
+        <input type="number" min="0" value={zone.transit_min_days} onChange={(event) => onPatch({ transit_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Transit min days" />
+        <input type="number" min="0" value={zone.transit_max_days} onChange={(event) => onPatch({ transit_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Transit max days" />
         <input type="hidden" value={zone.provider_city_id || ""} readOnly />
         <input type="hidden" value={zone.provider_district_id || ""} readOnly />
         <input type="hidden" value={zone.provider_zone_id || ""} readOnly />

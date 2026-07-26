@@ -1,0 +1,107 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  buildMerchantReturnPolicy,
+  buildOfferShippingDetails,
+  parseLegacyDeliveryRange,
+} from "../../src/shared/lib/merchantPolicies.js";
+import { buildProductSeo } from "../../src/shared/lib/productSeo.js";
+import { injectProductSeoIntoHtml } from "../../server/services/storefrontProductSeoPageService.js";
+
+const baseZones = [
+  { id: "cairo", governorate: "Cairo", price: 90, delivery_min_days: 2, delivery_max_days: 4, active: true },
+  { id: "new-damietta", governorate: "Damietta", city: "New Damietta", price: 40, delivery_min_days: 1, delivery_max_days: 2, active: true },
+  { id: "blocked", governorate: "Unsupported", price: 500, delivery_min_days: 8, delivery_max_days: 10, active: false },
+];
+
+const returnSettings = {
+  "orders.return_exchange_window_days": 14,
+  "storefront.return_policy_enabled": true,
+  "storefront.return_method": "mail",
+  "storefront.customer_remorse_return_fees": "customer_responsibility",
+  "storefront.defect_return_fees": "merchant_responsibility",
+  "storefront.return_policy_url": "https://m1store-egy.com/returns",
+};
+
+test("normal and area-specific shipping rules emit separate EGP details", () => {
+  const details = buildOfferShippingDetails({ zones: baseZones, currency: "EGP", productPrice: 650 });
+  assert.equal(details.length, 2);
+  assert.equal(details[0].shippingDestination.addressRegion, "Cairo");
+  assert.equal(details[0].shippingRate.value, 90);
+  assert.equal(details[1].shippingDestination.addressRegion, "New Damietta");
+  assert.equal(details[1].shippingRate.value, 40);
+  assert.equal(details.some((item) => item.shippingDestination.addressRegion === "Unsupported"), false);
+});
+
+test("configured free-shipping threshold changes the emitted rate without a duplicate source", () => {
+  const zone = { ...baseZones[0], free_shipping_threshold: 600 };
+  assert.equal(buildOfferShippingDetails({ zones: [zone], currency: "EGP", productPrice: 650 })[0].shippingRate.value, 0);
+  assert.equal(buildOfferShippingDetails({ zones: [zone], currency: "EGP", productPrice: 550 })[0].shippingRate.value, 90);
+});
+
+test("legacy delivery text is parsed only as a compatibility fallback", () => {
+  assert.deepEqual(parseLegacyDeliveryRange("من ٢ إلى ٥ أيام"), { minValue: 2, maxValue: 5 });
+  const [detail] = buildOfferShippingDetails({
+    zones: [{ governorate: "Alexandria", price: 75, estimated_delivery_text: "2-5 business days", active: true }],
+    currency: "EGP",
+  });
+  assert.equal(detail.deliveryTime.transitTime.minValue, 2);
+  assert.equal(detail.deliveryTime.transitTime.maxValue, 5);
+});
+
+test("shipping schema has no invented fallback when settings are incomplete", () => {
+  assert.deepEqual(buildOfferShippingDetails({ zones: [], currency: "EGP" }), []);
+  assert.deepEqual(buildOfferShippingDetails({ zones: baseZones, currency: "" }), []);
+  assert.deepEqual(buildOfferShippingDetails({
+    zones: [{ governorate: "Cairo", price: 90, active: true }],
+    currency: "EGP",
+  }), []);
+});
+
+test("return policy uses the configured 14-day window and accurate general fees", () => {
+  const policy = buildMerchantReturnPolicy(returnSettings);
+  assert.equal(policy.merchantReturnDays, 14);
+  assert.equal(policy.returnMethod, "https://schema.org/ReturnByMail");
+  assert.equal(policy.returnFees, "https://schema.org/ReturnFeesCustomerResponsibility");
+  assert.equal(policy.merchantReturnLink, "https://m1store-egy.com/returns");
+});
+
+test("Product Offer carries shipping and return policy in both React data and initial HTML", () => {
+  const shippingDetails = buildOfferShippingDetails({ zones: baseZones, currency: "EGP", productPrice: 650 });
+  const returnPolicy = buildMerchantReturnPolicy(returnSettings);
+  const product = {
+    id: 25,
+    slug: "nike-air-force-1-sneakers",
+    name: "Nike Air Force 1 Sneakers",
+    brand: "Nike",
+    category: "Sneakers",
+    sku: "NK-AF-M-LOC",
+    description: "Classic Nike Air Force 1 sneakers.",
+    image_url: "https://images.example/nike.webp",
+    final_price: 650,
+    variants: [{ color: "White", size: "41", stock: 3, final_price: 650 }],
+    merchant_policies: { shippingDetails, returnPolicy },
+  };
+  const seo = buildProductSeo(product);
+  assert.deepEqual(seo.productJsonLd.offers.shippingDetails, shippingDetails);
+  assert.deepEqual(seo.productJsonLd.offers.hasMerchantReturnPolicy, returnPolicy);
+  const html = injectProductSeoIntoHtml("<html><head></head><body><div id=\"root\"></div></body></html>", seo);
+  const match = html.match(/data-m1-product-seo="product">([\s\S]*?)<\/script>/);
+  assert.ok(match);
+  const initialProduct = JSON.parse(match[1]);
+  assert.deepEqual(initialProduct.offers.shippingDetails, seo.productJsonLd.offers.shippingDetails);
+  assert.deepEqual(initialProduct.offers.hasMerchantReturnPolicy, seo.productJsonLd.offers.hasMerchantReturnPolicy);
+  assert.equal((html.match(/data-m1-product-seo="product"/g) || []).length, 1);
+  assert.equal((html.match(/data-m1-product-seo="breadcrumb"/g) || []).length, 1);
+});
+
+test("changing the settings is reflected on the next JSON-LD build", () => {
+  const first = buildOfferShippingDetails({ zones: baseZones, currency: "EGP" });
+  const changed = buildOfferShippingDetails({
+    zones: baseZones.map((zone) => zone.id === "cairo" ? { ...zone, price: 125, delivery_max_days: 6 } : zone),
+    currency: "EGP",
+  });
+  assert.equal(first[0].shippingRate.value, 90);
+  assert.equal(changed[0].shippingRate.value, 125);
+  assert.equal(changed[0].deliveryTime.transitTime.maxValue, 6);
+});

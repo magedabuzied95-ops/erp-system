@@ -85,6 +85,11 @@ const number = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };
+const optionalNumber = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
 
 const bool = (value, fallback = false) => {
   if (value === undefined || value === null || value === "") return fallback;
@@ -112,6 +117,12 @@ export const normalizeShippingZone = (zone = {}, index = 0) => ({
   cod_allowed: bool(zone.cod_allowed ?? zone.codAllowed, true),
   requires_shipping_proof: bool(zone.requires_shipping_proof ?? zone.requiresShippingProof, true),
   estimated_delivery_text: text(zone.estimated_delivery_text || zone.estimatedDeliveryText || zone.eta),
+  delivery_min_days: optionalNumber(zone.delivery_min_days ?? zone.deliveryMinDays),
+  delivery_max_days: optionalNumber(zone.delivery_max_days ?? zone.deliveryMaxDays),
+  handling_min_days: optionalNumber(zone.handling_min_days ?? zone.handlingMinDays),
+  handling_max_days: optionalNumber(zone.handling_max_days ?? zone.handlingMaxDays),
+  transit_min_days: optionalNumber(zone.transit_min_days ?? zone.transitMinDays),
+  transit_max_days: optionalNumber(zone.transit_max_days ?? zone.transitMaxDays),
   provider: normalizeShippingProviderKey(zone.provider || zone.shipping_provider || "in_store_delivery"),
   provider_id: normalizeShippingProviderKey(zone.provider_id || zone.shipping_provider_id || zone.provider || zone.shipping_provider || "in_store_delivery"),
   free_shipping_threshold: number(zone.free_shipping_threshold ?? zone.freeShippingThreshold, 0),
