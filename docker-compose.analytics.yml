@@ -31,8 +31,13 @@ services:
       MB_EMBEDDING_SECRET_KEY: ${METABASE_EMBEDDING_SECRET:?Set METABASE_EMBEDDING_SECRET}
       MB_ENABLE_EMBEDDING: "true"
       JAVA_TIMEZONE: Africa/Cairo
+      JAVA_OPTS: ${METABASE_JAVA_OPTS:--Xms256m -Xmx768m}
     ports:
       - "127.0.0.1:${METABASE_PORT:-3000}:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
 volumes:
   metabase_pgdata:
