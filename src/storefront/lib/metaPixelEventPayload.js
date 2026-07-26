@@ -58,7 +58,7 @@ export const buildMetaEventPayload = ({ contentIds = [], contents = [], contentN
     phone: customer.phone || customer.primary_phone,
     first_name: names.first_name,
     last_name: names.last_name,
-    external_id: customer.customer_id || customer.id,
+    external_id: customer.external_id || customer.customer_id || customer.id,
   };
 };
 

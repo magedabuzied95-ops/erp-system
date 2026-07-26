@@ -23,10 +23,11 @@ export const requireStorefrontCustomerAuth = async (req, res, next) => {
     let tenantId = decoded.tenant_id ?? null;
     let phone = decoded.phone ?? "";
     let email = decoded.email ?? "";
-    if ((!phone || !String(phone).trim()) && customerId) {
+    let name = decoded.name ?? decoded.customer_name ?? "";
+    if (customerId) {
       const result = await db.query(
         `
-        SELECT phone, email, tenant_id
+        SELECT name, phone, email, tenant_id
         FROM customers
         WHERE id = $1
         LIMIT 1
@@ -35,7 +36,8 @@ export const requireStorefrontCustomerAuth = async (req, res, next) => {
       );
       const customer = result.rows?.[0] || null;
       if (customer) {
-        phone = customer.phone ?? "";
+        name = customer.name ?? name ?? "";
+        phone = customer.phone ?? phone ?? "";
         email = customer.email ?? email ?? "";
         tenantId = tenantId ?? customer.tenant_id ?? null;
       }
@@ -45,6 +47,7 @@ export const requireStorefrontCustomerAuth = async (req, res, next) => {
       tenant_id: tenantId,
       phone,
       email,
+      name,
       customer_id: customerId,
       auth_method: decoded.auth_method || "",
     };

@@ -558,13 +558,26 @@ router.get("/product/by-token/:token", getProductByToken);
 router.get("/products/resolve/:slugOrId", resolveProductLink);
 router.get("/products/:identifier", getProduct);
 router.get("/shipping/quote", getShippingQuote);
-router.post("/meta/events", async (req, res) => {
+router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) => {
   const eventName = toText(req.body?.event_name);
   if (!["ViewContent", "AddToCart", "Purchase"].includes(eventName)) {
     return res.status(400).json({ success: false, message: "Unsupported Meta event" });
   }
   try {
-    const result = await sendStorefrontMetaEvent({ req, event: req.body || {}, tenantId: publicTenantId(req) });
+    const authenticatedCustomer = req.storefrontCustomer || {};
+    const authenticatedNameParts = toText(authenticatedCustomer.name).split(/\s+/).filter(Boolean);
+    const result = await sendStorefrontMetaEvent({
+      req,
+      event: {
+        ...(req.body || {}),
+        email: authenticatedCustomer.email || req.body?.email,
+        phone: authenticatedCustomer.phone || req.body?.phone,
+        first_name: authenticatedNameParts[0] || req.body?.first_name,
+        last_name: authenticatedNameParts.slice(1).join(" ") || req.body?.last_name,
+        external_id: authenticatedCustomer.customer_id || req.body?.external_id,
+      },
+      tenantId: publicTenantId(req),
+    });
     return res.status(202).json({ success: true, capi_sent: Boolean(result.sent), reason: result.reason || "" });
   } catch {
     // Browser Pixel is already sent; avoid exposing Meta details or customer data.

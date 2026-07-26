@@ -1,4 +1,4 @@
-import { api } from "../../shared/api/api";
+import { storefrontCustomerRequest } from "./storefrontCustomerAuth";
 import {
   buildMetaEventPayload,
   canTrackMetaPurchase,
@@ -25,6 +25,7 @@ const env = import.meta.env || {};
 const PIXEL_ID = String(env.VITE_M1_META_PIXEL_ID || env.VITE_META_PIXEL_ID || "2459469681170451").trim();
 const TEST_EVENT_CODE = String(env.VITE_META_TEST_EVENT_CODE || "").trim();
 const PURCHASE_STORAGE_PREFIX = "m1.meta.purchase.";
+const META_VISITOR_ID_KEY = "m1.meta.visitor_id";
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -51,14 +52,60 @@ const ensurePixel = () => {
 };
 
 const sendCapi = (eventName, payload) =>
-  api.post("/storefront/meta/events", { event_name: eventName, test_event_code: TEST_EVENT_CODE || undefined, ...payload }).catch(() => undefined);
+  storefrontCustomerRequest("/storefront/meta/events", {
+    method: "POST",
+    body: { event_name: eventName, test_event_code: TEST_EVENT_CODE || undefined, ...payload },
+  }).catch(() => undefined);
 
 const eventIdFor = (eventName = "") => eventId(eventName);
 
+const cookieValue = (name = "") => {
+  if (typeof document === "undefined") return "";
+  return document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1) || "";
+};
+
+const metaVisitorId = () => {
+  if (typeof window === "undefined") return "";
+  try {
+    const stored = String(window.localStorage.getItem(META_VISITOR_ID_KEY) || "").trim();
+    if (stored) return stored;
+    const created = globalThis.crypto?.randomUUID?.() || `visitor_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
+    window.localStorage.setItem(META_VISITOR_ID_KEY, created);
+    return created;
+  } catch {
+    return "";
+  }
+};
+
+const metaBrowserIdentity = () => {
+  if (typeof window === "undefined") return {};
+  const fbclid = new URLSearchParams(window.location.search).get("fbclid") || "";
+  let fbc = cookieValue("_fbc");
+  if (!fbc && fbclid) {
+    fbc = `fb.1.${Date.now()}.${fbclid}`;
+    document.cookie = `_fbc=${encodeURIComponent(fbc)}; Max-Age=7776000; Path=/; SameSite=Lax; Secure`;
+  }
+  return {
+    fbp: decodeURIComponent(cookieValue("_fbp") || ""),
+    fbc: decodeURIComponent(fbc || ""),
+    external_id: metaVisitorId(),
+  };
+};
+
 const track = (eventName, payload = {}) => {
-  const eventPayload = buildMetaEventPayload({ ...payload, eventId: payload.eventId || eventIdFor(eventName) });
+  const browserIdentity = metaBrowserIdentity();
+  const eventPayload = buildMetaEventPayload({
+    ...payload,
+    eventId: payload.eventId || eventIdFor(eventName),
+    customer: {
+      ...(payload.customer || {}),
+      external_id: payload.customer?.external_id || browserIdentity.external_id,
+    },
+  });
   if (!eventPayload) return null;
-  const { event_id: id, email, phone, first_name, last_name, external_id, ...browserPayload } = eventPayload;
+  eventPayload.fbp = browserIdentity.fbp;
+  eventPayload.fbc = browserIdentity.fbc;
+  const { event_id: id, email, phone, first_name, last_name, external_id, fbp, fbc, ...browserPayload } = eventPayload;
   if (ensurePixel()) window.fbq("track", eventName, browserPayload, { eventID: id });
   if (typeof window !== "undefined") {
     void sendCapi(eventName, { ...eventPayload, event_source_url: window.location.href });

@@ -90,8 +90,8 @@ export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } 
   const userData = {
     client_ip_address: req?.headers?.["x-forwarded-for"]?.split(",")?.[0]?.trim() || req?.socket?.remoteAddress || "",
     client_user_agent: req?.headers?.["user-agent"] || "",
-    fbp: cookieValue(req, "_fbp"),
-    fbc: cookieValue(req, "_fbc"),
+    fbp: text(event.fbp) || cookieValue(req, "_fbp"),
+    fbc: text(event.fbc) || cookieValue(req, "_fbc"),
   };
   const emailHash = await sha256(event.email);
   const phoneHash = await sha256(event.phone);
