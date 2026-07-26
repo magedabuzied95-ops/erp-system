@@ -18,12 +18,10 @@ import {
   firstVariantImage,
   getSessionId,
   imageFor,
-  isMirrorProduct,
   mirrorProductTitle,
   money,
   productFromDetailsResponse,
   productShareUrl,
-  productToSocialMeta,
   sfText,
   storefrontApi,
   variantColorKey,
@@ -32,7 +30,7 @@ import {
   variantImage,
 } from "../Storefront";
 import { api } from "../../shared/api/api";
-import { applyProductSocialMeta } from "../../shared/lib/socialMeta";
+import { applyProductSeo, clearProductSeo } from "../../shared/lib/socialMeta";
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
@@ -407,7 +405,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const activeGalleryEntry = galleryEntries[activeImageIndex] || galleryEntries[0] || null;
   const activeImage = activeGalleryEntry?.image || selected.image || variantImage(safeActiveVariant) || selectedColorGroup?.primaryImage?.image || firstVariantImage(variants) || product?.image_url || "";
   const galleryItems = galleryEntries;
-  const mirrorProduct = product ? isMirrorProduct(product) : false;
   const displayTitle = cleanDisplayText(product ? mirrorProductTitle(product, safeActiveVariant) || product.name : "");
   const selectedPrice = getDisplayPricing(product, saleModeEnabled, safeActiveVariant);
   const selectedSellingPrice = selectedPrice.price || displaySellingPrice(product, safeActiveVariant);
@@ -418,10 +415,13 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));
 
   useEffect(() => {
-    if (!product) return;
-    document.title = mirrorProduct ? displayTitle : cleanDisplayText(product.name) || document.title;
-    applyProductSocialMeta(productToSocialMeta(product));
-  }, [product, mirrorProduct, displayTitle]);
+    if (!product) {
+      clearProductSeo();
+      return undefined;
+    }
+    applyProductSeo(product);
+    return clearProductSeo;
+  }, [product]);
   const selectVariant = (candidate, options = {}) => {
     if (!candidate) return;
     const candidateColorKey = variantColorIdentity(candidate);

@@ -9,6 +9,10 @@
       "destination": "https://api.m1store-egy.com/api/storefront/seo/robots.txt"
     },
     {
+      "source": "/product/:identifier",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/product/:identifier"
+    },
+    {
       "source": "/c/(.*)",
       "destination": "/index.html"
     },

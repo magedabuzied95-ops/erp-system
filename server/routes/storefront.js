@@ -52,6 +52,7 @@ import {
   storefrontRobotsHandler,
   storefrontSitemapHandler,
 } from "../services/storefrontSeoService.js";
+import { storefrontProductSeoPageHandler } from "../services/storefrontProductSeoPageService.js";
 
 const router = express.Router();
 const publicStorefrontHomeCache = new Map();
@@ -554,6 +555,7 @@ router.get("/home", getPublicStorefrontHome);
 router.get("/brands", getPublicStorefrontBrands);
 router.get("/seo/sitemap.xml", storefrontSitemapHandler);
 router.get("/seo/robots.txt", storefrontRobotsHandler);
+router.get("/seo/product/:identifier", storefrontProductSeoPageHandler);
 router.get("/products", listProducts);
 router.get("/classifications/gender", listGenderClassifications);
 router.get("/last-piece", listLastPieceProducts);

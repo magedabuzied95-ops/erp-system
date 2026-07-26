@@ -29,6 +29,7 @@
     "test:coupons": "node --test tests/coupons/*.test.js",
     "test:messenger-shopping": "node --test tests/messenger-guided-shopping/*.test.js",
     "test:meta-catalog": "node --test tests/meta-catalog/*.test.js",
+    "test:storefront-seo": "node --test tests/storefront-seo/*.test.js",
     "start": "npm --prefix \"./server\" run start"
   },
   "dependencies": {
