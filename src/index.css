@@ -3049,7 +3049,7 @@
   }
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-eyebrow {
-    color: #7c3aed !important;
+    color: #9a7108 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-title,
@@ -3098,7 +3098,7 @@
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-trust-pill-icon,
   .storefront-shell:not(.storefront-dark) .sf-checkout-trust-pill-icon svg {
-    color: #6d28d9 !important;
+    color: #a47a12 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-trust-pill-text,
@@ -3123,22 +3123,24 @@
   }
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-progress-step--done {
-    background: rgba(124, 58, 237, 0.1) !important;
-    color: #5b21b6 !important;
+    border-color: rgba(184, 135, 8, 0.24) !important;
+    background: rgba(212, 175, 55, 0.11) !important;
+    color: #8a6508 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-progress-step--active {
-    background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(109, 40, 217, 0.95)) !important;
-    color: #ffffff !important;
+    border-color: rgba(154, 113, 8, 0.38) !important;
+    background: linear-gradient(135deg, #c99a19, #e5c158) !important;
+    color: #211b0c !important;
     box-shadow:
-      0 14px 34px rgba(124, 58, 237, 0.18),
-      inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+      0 14px 34px rgba(180, 138, 28, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-step-badge {
-    border-color: rgba(124, 58, 237, 0.24) !important;
-    background: rgba(124, 58, 237, 0.12) !important;
-    color: #6d28d9 !important;
+    border-color: rgba(184, 135, 8, 0.28) !important;
+    background: rgba(212, 175, 55, 0.13) !important;
+    color: #8a6508 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-note {
@@ -3165,7 +3167,7 @@
   .storefront-shell:not(.storefront-dark) .sf-checkout-summary,
   .storefront-shell:not(.storefront-dark) .sf-cart-drawer {
     background:
-      radial-gradient(circle at 18% 0%, rgba(124, 58, 237, 0.06), transparent 32%),
+      radial-gradient(circle at 18% 0%, rgba(212, 175, 55, 0.065), transparent 32%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.98)) !important;
     box-shadow:
       0 18px 52px rgba(15, 23, 42, 0.08),
