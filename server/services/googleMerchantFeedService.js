@@ -113,29 +113,23 @@ const currentSellingPrice = (row = {}) => resolveCurrentSellingPrice({
   },
 }).value;
 
-export const resolveGoogleFeedPricing = (row = {}) => {
-  const storedSellingPrice = currentSellingPrice(row);
-  const storedSalePrice = positive(row.variant_sale_price) || positive(row.product_sale_price);
-  const saleEnabled =
-    enabled(row.variant_sale_price_enabled) ||
-    enabled(row.product_sale_price_enabled) ||
-    enabled(row.is_offer_story);
-  const activePrice =
-    saleEnabled && storedSalePrice > 0 && storedSalePrice < storedSellingPrice
-      ? storedSalePrice
-      : storedSellingPrice;
-  if (!(activePrice > 0)) return { price: 0, sale_price: 0, active_price: 0 };
+const purchaseSellingPrice = (row = {}) =>
+  positive(row.variant_purchase_selling_price) ||
+  positive(row.product_purchase_selling_price) ||
+  currentSellingPrice(row);
 
-  const compareCandidates = [
-    enabled(row.use_custom_compare_price) ? row.custom_compare_price : 0,
-    saleEnabled ? storedSellingPrice : 0,
-    saleEnabled ? row.variant_regular_price : 0,
-    saleEnabled ? row.product_regular_price : 0,
-  ].map(positive);
-  const comparePrice = compareCandidates.find((value) => value > activePrice) || 0;
-  return comparePrice
-    ? { price: comparePrice, sale_price: activePrice, active_price: activePrice }
-    : { price: activePrice, sale_price: 0, active_price: activePrice };
+export const resolveGoogleFeedPricing = (row = {}) => {
+  // Google Merchant intentionally receives the purchase-invoice selling price,
+  // never the real sale/promo price stored in sale_price.
+  const normalSellingPrice = purchaseSellingPrice(row);
+  if (!(normalSellingPrice > 0)) return { price: 0, sale_price: 0, active_price: 0 };
+
+  const crossedPrice = enabled(row.use_custom_compare_price)
+    ? positive(row.custom_compare_price)
+    : 0;
+  return crossedPrice > normalSellingPrice
+    ? { price: crossedPrice, sale_price: normalSellingPrice, active_price: normalSellingPrice }
+    : { price: normalSellingPrice, sale_price: 0, active_price: normalSellingPrice };
 };
 
 const isBag = (row = {}) => resolveMetaProductCategories(row).matchedBy === "bags";
@@ -258,9 +252,6 @@ const googleRowsSql = `
     to_jsonb(p)->>'manual_price_override_active' AS product_manual_price_override_active,
     p.regular_price AS product_regular_price,
     p.price AS product_price,
-    p.sale_price AS product_sale_price,
-    p.sale_price_enabled AS product_sale_price_enabled,
-    p.is_offer_story,
     p.use_custom_compare_price,
     p.custom_compare_price,
     p.product_type,
@@ -282,8 +273,6 @@ const googleRowsSql = `
     to_jsonb(pv)->>'manual_price_override_active' AS variant_manual_price_override_active,
     pv.regular_price AS variant_regular_price,
     pv.price AS variant_price,
-    pv.sale_price AS variant_sale_price,
-    to_jsonb(pv)->>'sale_price_enabled' AS variant_sale_price_enabled,
     ci.primary_color_image,
     ci.color_gallery
   FROM products p

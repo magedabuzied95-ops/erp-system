@@ -56,29 +56,57 @@ test("shoe color × size variants have unique ids and one item_group_id", () => 
   assert.deepEqual(items.map((item) => [item.color, item.size]), [["Black", "42"], ["Black", "43"], ["White", "42"]]);
 });
 
-test("discounted item emits compare price plus sale_price; regular item emits price only", () => {
+test("Google price uses crossed price and purchase-invoice selling price while ignoring the real sale price", () => {
   const discounted = variant({
-    product_selling_price: 1000,
-    product_sale_price: 850,
+    use_custom_compare_price: true,
+    custom_compare_price: 800,
+    variant_purchase_selling_price: 650,
+    product_sale_price: 500,
+    variant_sale_price: 500,
     product_sale_price_enabled: true,
+    variant_sale_price_enabled: true,
   });
   assert.deepEqual(resolveGoogleFeedPricing(discounted), {
-    price: 1000,
-    sale_price: 850,
-    active_price: 850,
+    price: 800,
+    sale_price: 650,
+    active_price: 650,
   });
   const discountedItem = buildGoogleMerchantItem(discounted);
-  assert.equal(discountedItem.price, "1000.00 EGP");
-  assert.equal(discountedItem.sale_price, "850.00 EGP");
+  assert.equal(discountedItem.price, "800.00 EGP");
+  assert.equal(discountedItem.sale_price, "650.00 EGP");
+  assert.doesNotMatch(googleMerchantItemXml(discountedItem), /500\.00 EGP/);
 
-  const regularItem = buildGoogleMerchantItem(variant({
-    product_regular_price: 1500,
-    variant_regular_price: 1500,
-    product_sale_price_enabled: false,
-    variant_sale_price_enabled: false,
+  const missingCrossedPrice = buildGoogleMerchantItem(variant({
+    use_custom_compare_price: false,
+    custom_compare_price: 800,
+    variant_purchase_selling_price: 650,
+    variant_sale_price: 500,
   }));
-  assert.equal(regularItem.price, "1000.00 EGP");
-  assert.equal(regularItem.sale_price, "");
+  assert.equal(missingCrossedPrice.price, "650.00 EGP");
+  assert.equal(missingCrossedPrice.sale_price, "");
+
+  const invalidCrossedPrice = buildGoogleMerchantItem(variant({
+    use_custom_compare_price: true,
+    custom_compare_price: 650,
+    variant_purchase_selling_price: 650,
+    variant_sale_price: 500,
+  }));
+  assert.equal(invalidCrossedPrice.price, "650.00 EGP");
+  assert.equal(invalidCrossedPrice.sale_price, "");
+});
+
+test("Google feed pricing falls back safely when purchase-invoice selling price is unavailable", () => {
+  const regularItem = buildGoogleMerchantItem(variant({
+    use_custom_compare_price: true,
+    custom_compare_price: 900,
+    variant_purchase_selling_price: 0,
+    product_purchase_selling_price: 0,
+    variant_selling_price: 700,
+    product_sale_price: 500,
+    variant_sale_price: 500,
+  }));
+  assert.equal(regularItem.price, "900.00 EGP");
+  assert.equal(regularItem.sale_price, "700.00 EGP");
 });
 
 test("availability is variant-specific for available and unavailable sizes", () => {
