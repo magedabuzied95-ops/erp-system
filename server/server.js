@@ -495,6 +495,7 @@ const { default: publicProductsRoutes } = await import("./routes/publicProducts.
 const { default: metaCatalogFeedRoutes } = await import("./routes/metaCatalogFeed.js");
 const { getPublicAvailableOgDebugSvg, getPublicAvailableOgImage, getPublicAvailableOgImagePng, getPublicAvailableSharePage, getPublicProductOgImage, getPublicProductShareMetadata, getPublicProductSharePage } = await import("./controllers/publicProductsController.js");
 const { default: storefrontRoutes } = await import("./routes/storefront.js");
+const { default: googleMerchantFeedRoutes } = await import("./routes/googleMerchantFeed.js");
 const { default: shippingRoutes } = await import("./modules/shipping/shipping.routes.js");
 const { default: liveActivityRoutes } = await import("./routes/liveActivity.js");
 const { default: productClassificationsRoutes } = await import("./routes/productClassifications.js");
@@ -1634,6 +1635,7 @@ app.use("/api/paymob", paymobRoutes);
 app.use("/api/public/invoices", publicInvoiceRoutes);
 app.use("/api/public/order-confirmation", publicOrderConfirmationRoutes);
 app.use("/api/public/products", publicProductsRoutes);
+app.use("/feeds", googleMerchantFeedRoutes);
 app.use("/feeds", metaCatalogFeedRoutes);
 app.use("/api/storefront", storefrontRoutes);
 app.use("/api/shipping", shippingRoutes);
