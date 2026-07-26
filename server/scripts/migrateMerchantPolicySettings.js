@@ -2,6 +2,8 @@ import { getSetting, setSetting } from "../services/settingsService.js";
 import { parseLegacyDeliveryRange } from "../../src/shared/lib/merchantPolicies.js";
 
 const policyKeys = [
+  "storefront.shipping_handling_min_days",
+  "storefront.shipping_handling_max_days",
   "orders.return_exchange_window_days",
   "storefront.return_policy_enabled",
   "storefront.return_method",

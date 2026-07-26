@@ -51,6 +51,8 @@ export const buildOfferShippingDetails = ({
   zones = [],
   currency = "",
   productPrice = 0,
+  handlingMinDays = null,
+  handlingMaxDays = null,
 } = {}) => {
   const normalizedCurrency = text(currency).toUpperCase();
   if (!normalizedCurrency) return [];
@@ -60,7 +62,8 @@ export const buildOfferShippingDetails = ({
   .map((zone) => {
     const region = text(zone.area || zone.district || zone.zone || zone.city || zone.governorate);
     const freeForProduct = zone.free_shipping_threshold > 0 && Number(productPrice || 0) >= zone.free_shipping_threshold;
-    const handlingTime = duration(zone.handling_min_days, zone.handling_max_days);
+    const resolvedHandling = resolveZoneHandlingTime(zone, handlingMinDays, handlingMaxDays);
+    const handlingTime = resolvedHandling ? duration(resolvedHandling.minDays, resolvedHandling.maxDays) : null;
     const configuredTransit = duration(zone.transit_min_days, zone.transit_max_days);
     const legacyTotalTransit = duration(zone.delivery_min_days, zone.delivery_max_days);
     const transitTime = configuredTransit || legacyTotalTransit;
@@ -124,3 +127,4 @@ export const buildMerchantReturnPolicy = (settings = {}) => {
     ...(policy.policyUrl ? { merchantReturnLink: policy.policyUrl } : {}),
   };
 };
+import { resolveZoneHandlingTime } from "./shippingHandlingSettings.js";

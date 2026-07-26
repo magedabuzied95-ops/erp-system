@@ -110,6 +110,7 @@ const coerceValue = (definition, value) => {
     const numberValue = Number(value);
     if (!Number.isFinite(numberValue)) throw new Error(`${definition.key} must be a number`);
     const { min, max } = definition.validation || {};
+    if (definition.validation?.integer && !Number.isInteger(numberValue)) throw new Error(`${definition.key} must be a whole number`);
     if (min !== undefined && numberValue < min) throw new Error(`${definition.key} must be at least ${min}`);
     if (max !== undefined && numberValue > max) throw new Error(`${definition.key} must be at most ${max}`);
     return numberValue;

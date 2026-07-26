@@ -52,6 +52,11 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser, setCurrentTenant } from "../../../shared/auth/authStorage";
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
+import {
+  SHIPPING_HANDLING_MAX_KEY,
+  SHIPPING_HANDLING_MIN_KEY,
+  validateGlobalHandlingTime,
+} from "../../../shared/lib/shippingHandlingSettings.js";
 import { normalizeSettingsCategory, settingsCategories, settingsByCategory, settingsByKey } from "../../../../shared/settingsRegistry.js";
 import { defaultEgyptShippingLocations } from "../../../../shared/egyptShippingLocations.js";
 import {
@@ -730,6 +735,17 @@ function SettingsCenterContent({ debugMode = false }) {
   };
 
   const save = async () => {
+    if (activeCategory === "shipping") {
+      const handlingError = validateGlobalHandlingTime(
+        values[SHIPPING_HANDLING_MIN_KEY],
+        values[SHIPPING_HANDLING_MAX_KEY],
+        language
+      );
+      if (handlingError) {
+        toast.error(handlingError);
+        return;
+      }
+    }
     if (activeCategory === "storefront") {
       const paymentUrlValue = String(values["storefront.payment_methods.instapay.payment_url"] || "").trim();
       const legacyHandleValue = String(values["storefront.payment_methods.instapay_handle"] || "").trim();
@@ -1685,6 +1701,9 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
   const proofZones = zones.filter((zone) => zone.requires_shipping_proof).length;
   const freeShippingRules = zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0).length;
   const copy = { ...shippingUi.en, ...(shippingUi[language] || {}) };
+  const handlingMinDays = value(SHIPPING_HANDLING_MIN_KEY);
+  const handlingMaxDays = value(SHIPPING_HANDLING_MAX_KEY);
+  const handlingError = validateGlobalHandlingTime(handlingMinDays, handlingMaxDays, language);
   const tabs = [
     ["overview", copy.tabOverview, Truck],
     ["locations", copy.tabLocations, MapPin],
@@ -1722,6 +1741,67 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
 
       {activeTab === "overview" ? (
         <div className="grid gap-5">
+          <section
+            data-testid="shipping-handling-settings"
+            className={`rounded-[1.75rem] border border-amber-300/40 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm dark:border-amber-300/20 dark:from-amber-400/10 dark:to-slate-950 sm:p-6`}
+          >
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-400/20 text-amber-700 dark:text-amber-300">
+                <Clock3 className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className={`text-lg font-black ${headingText}`}>
+                  {language === "ar" ? "مدة تجهيز الطلب قبل التسليم لشركة الشحن" : "Order handling time before carrier handoff"}
+                </h2>
+                <p className={`mt-1 text-sm font-bold leading-6 ${bodyText}`}>
+                  {language === "ar"
+                    ? "المدة من تسجيل الطلب حتى تسليمه لشركة الشحن، ولا تشمل مدة النقل للعميل."
+                    : "The time from order registration until handoff to the shipping company; it does not include transit time to the customer."}
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className={`grid gap-2 rounded-2xl p-4 ${fieldSurface}`}>
+                <span className={`text-sm font-black ${headingText}`}>
+                  {language === "ar" ? "الحد الأدنى لمدة التجهيز بالأيام" : "Minimum handling days"}
+                </span>
+                <input
+                  data-testid="shipping-handling-min-days"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={handlingMinDays}
+                  onChange={(event) => updateValue(SHIPPING_HANDLING_MIN_KEY, event.target.value)}
+                  className={`${inputClass} h-12 rounded-2xl text-center text-base font-black`}
+                />
+              </label>
+              <label className={`grid gap-2 rounded-2xl p-4 ${fieldSurface}`}>
+                <span className={`text-sm font-black ${headingText}`}>
+                  {language === "ar" ? "الحد الأقصى لمدة التجهيز بالأيام" : "Maximum handling days"}
+                </span>
+                <input
+                  data-testid="shipping-handling-max-days"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={handlingMaxDays}
+                  onChange={(event) => updateValue(SHIPPING_HANDLING_MAX_KEY, event.target.value)}
+                  className={`${inputClass} h-12 rounded-2xl text-center text-base font-black`}
+                />
+              </label>
+            </div>
+            {handlingError ? (
+              <p role="alert" className="mt-3 rounded-2xl border border-rose-300/50 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-200">
+                {handlingError}
+              </p>
+            ) : (
+              <p className="mt-3 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                {language === "ar" ? "تُطبّق هذه القيمة تلقائيًا على كل مناطق الشحن الفعالة ما لم يتم تفعيل مدة خاصة لمنطقة محددة." : "Applied automatically to every active shipping zone unless a zone override is enabled."}
+              </p>
+            )}
+          </section>
           <VisualSection icon={Truck} title={copy.overviewTitle} description={copy.overviewDescription}>
             <div className="grid gap-4 xl:grid-cols-2">
               {renderField(setting("storefront.default_shipping_price"), true)}
@@ -2590,6 +2670,7 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   delivery_max_days: zone.delivery_max_days === "" || zone.delivery_max_days === null || zone.delivery_max_days === undefined ? "" : Number(zone.delivery_max_days),
   handling_min_days: zone.handling_min_days === "" || zone.handling_min_days === null || zone.handling_min_days === undefined ? "" : Number(zone.handling_min_days),
   handling_max_days: zone.handling_max_days === "" || zone.handling_max_days === null || zone.handling_max_days === undefined ? "" : Number(zone.handling_max_days),
+  handling_time_override_enabled: zone.handling_time_override_enabled === true || zone.handlingTimeOverrideEnabled === true,
   transit_min_days: zone.transit_min_days === "" || zone.transit_min_days === null || zone.transit_min_days === undefined ? "" : Number(zone.transit_min_days),
   transit_max_days: zone.transit_max_days === "" || zone.transit_max_days === null || zone.transit_max_days === undefined ? "" : Number(zone.transit_max_days),
   provider: normalizeProviderKey(zone.provider || zone.shipping_provider || zone.provider_id || zone.shipping_provider_id),
@@ -3441,8 +3522,21 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Min COD" />
         <input type="number" min="0" value={zone.delivery_min_days} onChange={(event) => onPatch({ delivery_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Delivery min days" />
         <input type="number" min="0" value={zone.delivery_max_days} onChange={(event) => onPatch({ delivery_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Delivery max days" />
-        <input type="number" min="0" value={zone.handling_min_days} onChange={(event) => onPatch({ handling_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Handling min days" />
-        <input type="number" min="0" value={zone.handling_max_days} onChange={(event) => onPatch({ handling_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Handling max days" />
+        <label className={`sm:col-span-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black dark:border-white/10 ${bodyText}`}>
+          <span>{language === "ar" ? "استخدام مدة تجهيز خاصة لهذه المنطقة" : "Use a custom handling time for this zone"}</span>
+          <input
+            type="checkbox"
+            checked={zone.handling_time_override_enabled}
+            onChange={(event) => onPatch({ handling_time_override_enabled: event.target.checked })}
+            className="h-5 w-5 accent-amber-500"
+          />
+        </label>
+        {zone.handling_time_override_enabled ? (
+          <>
+            <input type="number" min="0" step="1" value={zone.handling_min_days} onChange={(event) => onPatch({ handling_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder={language === "ar" ? "أقل مدة تجهيز" : "Handling min days"} />
+            <input type="number" min="0" step="1" value={zone.handling_max_days} onChange={(event) => onPatch({ handling_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder={language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"} />
+          </>
+        ) : null}
         <input type="number" min="0" value={zone.transit_min_days} onChange={(event) => onPatch({ transit_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Transit min days" />
         <input type="number" min="0" value={zone.transit_max_days} onChange={(event) => onPatch({ transit_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Transit max days" />
         <input type="hidden" value={zone.provider_city_id || ""} readOnly />

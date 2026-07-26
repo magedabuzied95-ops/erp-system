@@ -24,13 +24,65 @@ const returnSettings = {
 };
 
 test("normal and area-specific shipping rules emit separate EGP details", () => {
-  const details = buildOfferShippingDetails({ zones: baseZones, currency: "EGP", productPrice: 650 });
+  const details = buildOfferShippingDetails({ zones: baseZones, currency: "EGP", productPrice: 650, handlingMinDays: 0, handlingMaxDays: 1 });
   assert.equal(details.length, 2);
   assert.equal(details[0].shippingDestination.addressRegion, "Cairo");
   assert.equal(details[0].shippingRate.value, 90);
   assert.equal(details[1].shippingDestination.addressRegion, "New Damietta");
   assert.equal(details[1].shippingRate.value, 40);
+  assert.deepEqual(details[0].deliveryTime.handlingTime, {
+    "@type": "QuantitativeValue",
+    minValue: 0,
+    maxValue: 1,
+    unitCode: "DAY",
+  });
   assert.equal(details.some((item) => item.shippingDestination.addressRegion === "Unsupported"), false);
+});
+
+test("global handling time applies to all 28 active zones without changing rates or transit", () => {
+  const zones = Array.from({ length: 28 }, (_, index) => ({
+    id: `zone-${index + 1}`,
+    governorate: `Region ${index + 1}`,
+    price: 40 + index,
+    transit_min_days: 2,
+    transit_max_days: 5,
+    active: true,
+  }));
+  const details = buildOfferShippingDetails({
+    zones,
+    currency: "EGP",
+    handlingMinDays: 0,
+    handlingMaxDays: 1,
+  });
+  assert.equal(details.length, 28);
+  assert.ok(details.every((item) => item.deliveryTime.handlingTime.minValue === 0));
+  assert.ok(details.every((item) => item.deliveryTime.handlingTime.maxValue === 1));
+  assert.ok(details.every((item) => item.deliveryTime.transitTime.minValue === 2));
+  assert.ok(details.every((item) => item.deliveryTime.transitTime.maxValue === 5));
+  assert.equal(details[0].shippingRate.value, 40);
+  assert.equal(details[27].shippingRate.value, 67);
+});
+
+test("zone handling override is opt-in and falls back to the global value", () => {
+  const zones = [
+    { ...baseZones[0], handling_min_days: 3, handling_max_days: 4 },
+    {
+      ...baseZones[1],
+      handling_time_override_enabled: true,
+      handling_min_days: 2,
+      handling_max_days: 3,
+    },
+  ];
+  const details = buildOfferShippingDetails({
+    zones,
+    currency: "EGP",
+    handlingMinDays: 0,
+    handlingMaxDays: 1,
+  });
+  assert.equal(details[0].deliveryTime.handlingTime.minValue, 0);
+  assert.equal(details[0].deliveryTime.handlingTime.maxValue, 1);
+  assert.equal(details[1].deliveryTime.handlingTime.minValue, 2);
+  assert.equal(details[1].deliveryTime.handlingTime.maxValue, 3);
 });
 
 test("configured free-shipping threshold changes the emitted rate without a duplicate source", () => {

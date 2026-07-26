@@ -17,6 +17,8 @@ export const loadStorefrontMerchantPolicyData = async ({ productPrice = 0 } = {}
     defectFees,
     returnPolicyUrl,
     returnConditions,
+    handlingMinDays,
+    handlingMaxDays,
   ] = await Promise.all([
     loadShippingZones(),
     getSetting("general.default_currency"),
@@ -27,6 +29,8 @@ export const loadStorefrontMerchantPolicyData = async ({ productPrice = 0 } = {}
     getSetting("storefront.defect_return_fees"),
     getSetting("storefront.return_policy_url"),
     getSetting("storefront.return_policy_conditions"),
+    getSetting("storefront.shipping_handling_min_days"),
+    getSetting("storefront.shipping_handling_max_days"),
   ]);
   const returnSettings = {
     "orders.return_exchange_window_days": returnDays,
@@ -42,6 +46,8 @@ export const loadStorefrontMerchantPolicyData = async ({ productPrice = 0 } = {}
       zones: shipping.zones,
       currency,
       productPrice,
+      handlingMinDays,
+      handlingMaxDays,
     }),
     returnPolicy: buildMerchantReturnPolicy(returnSettings),
     publicReturnPolicy: normalizeMerchantReturnPolicy(returnSettings),

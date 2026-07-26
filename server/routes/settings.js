@@ -117,6 +117,18 @@ router.put("/:category", protect, permit("settings", "edit"), async (req, res) =
     if (!entries.length) {
       return res.status(400).json({ success: false, message: "No valid settings were provided" });
     }
+    if (category === "shipping") {
+      const currentSettings = await getSettingsByCategory(category);
+      const currentByKey = new Map(currentSettings.map((item) => [item.key, item.value]));
+      const handlingMin = Number(incoming["storefront.shipping_handling_min_days"] ?? currentByKey.get("storefront.shipping_handling_min_days"));
+      const handlingMax = Number(incoming["storefront.shipping_handling_max_days"] ?? currentByKey.get("storefront.shipping_handling_max_days"));
+      if (!Number.isInteger(handlingMin) || !Number.isInteger(handlingMax) || handlingMin < 0 || handlingMax < 0) {
+        return res.status(400).json({ success: false, message: "مدة التجهيز يجب أن تكون رقمًا صحيحًا يبدأ من صفر." });
+      }
+      if (handlingMax < handlingMin) {
+        return res.status(400).json({ success: false, message: "الحد الأقصى لمدة التجهيز لا يمكن أن يقل عن الحد الأدنى." });
+      }
+    }
 
     for (const [key, value] of entries) {
       await setSetting(key, value, category, req.user?.id || null);
