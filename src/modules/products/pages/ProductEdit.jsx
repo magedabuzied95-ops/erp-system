@@ -65,6 +65,7 @@ import {
   getMissingRequiredProductFields,
 } from "../lib/requiredProductFields";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
+import normalizeColorName, { STANDARD_COLOR_NAMES } from "../../../shared/utils/colorNameNormalization";
 import {
   generateProductDescription,
   generateAiProductData,
@@ -1978,7 +1979,7 @@ function ProductEdit() {
         label: debug.label,
       });
       const result = await colorNameFromImage(source);
-      const label = String(result?.label || result?.name || "").trim();
+      const label = normalizeColorName(result?.label || result?.name || "");
       if (!label) return;
       setColorGroups((prev) =>
         prev.map((group) => {
@@ -1999,7 +2000,7 @@ function ProductEdit() {
     setColorDetectingState(groupId, true);
     try {
       const result = await colorNameFromImagePoint(source, point);
-      const label = String(result?.label || result?.name || "").trim();
+      const label = normalizeColorName(result?.label || result?.name || "");
       if (label) updateColorGroup(groupId, "color", label);
     } catch (detectError) {
       console.warn("[products:edit] color point detection failed:", detectError);
@@ -4399,9 +4400,14 @@ function ProductEdit() {
                               <input
                                 value={group.color}
                                 onChange={(e) => updateColorGroup(group.id, "color", e.target.value)}
+                                onBlur={(e) => updateColorGroup(group.id, "color", normalizeColorName(e.target.value))}
+                                list="m1-standard-color-names"
                                 placeholder={t("products.placeholders.colorExample")}
                                 className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                               />
+                              <datalist id="m1-standard-color-names">
+                                {STANDARD_COLOR_NAMES.map((name) => <option key={name} value={name} />)}
+                              </datalist>
                             <p className="mt-1 text-xs text-zinc-500">{t("products.editor.pickColorHelp")}</p>
                             {colorDetecting[group.id] ? (
                               <p className="mt-1 text-xs font-semibold text-cyan-200">{t("products.editor.detectingColor")}</p>

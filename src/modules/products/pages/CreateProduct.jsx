@@ -67,6 +67,7 @@ import {
   getMissingRequiredProductFields,
 } from "../lib/requiredProductFields";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
+import normalizeColorName, { STANDARD_COLOR_NAMES } from "../../../shared/utils/colorNameNormalization";
 import {
   createProduct,
   generateAiProductData,
@@ -1308,7 +1309,7 @@ function CreateProduct() {
         label: debug.label,
       });
       const result = await colorNameFromImage(source);
-      const label = String(result?.label || result?.name || "").trim();
+      const label = normalizeColorName(result?.label || result?.name || "");
       if (!label) return;
       setColorGroups((prev) =>
         prev.map((group) => {
@@ -1329,7 +1330,7 @@ function CreateProduct() {
     setColorDetectingState(colorGroupId, true);
     try {
       const result = await colorNameFromImagePoint(source, point);
-      const label = String(result?.label || result?.name || "").trim();
+      const label = normalizeColorName(result?.label || result?.name || "");
       if (label) updateColorGroup(colorGroupId, "color", label);
     } catch (error) {
       console.warn("[products:add] color point detection failed:", error);
@@ -3623,6 +3624,8 @@ function CreateProduct() {
                                   <input
                                     value={group.color}
                                     onChange={(e) => updateColorGroup(group.id, "color", e.target.value)}
+                                    onBlur={(e) => updateColorGroup(group.id, "color", normalizeColorName(e.target.value))}
+                                    list="m1-standard-color-names"
                                     placeholder={t("products.placeholders.colorExample")}
                                     className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                   />
@@ -3736,6 +3739,9 @@ function CreateProduct() {
                                     placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                                     isMulti
                                   />
+                                  <datalist id="m1-standard-color-names">
+                                    {STANDARD_COLOR_NAMES.map((name) => <option key={name} value={name} />)}
+                                  </datalist>
                                 </div>
                                 <div>
                                   <label className="text-sm font-semibold text-zinc-300">الجمهور لهذا اللون</label>
