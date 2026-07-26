@@ -206,7 +206,7 @@ import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
 import Forbidden from "./pages/Forbidden";
 
 import { TenantProvider } from "./modules/saas/context/TenantContext";
-import { legacyShopToRootPath } from "./storefront/lib/paths";
+import { SEO_CATEGORY_PATHS, legacyShopToRootPath } from "./storefront/lib/paths";
 
 const RegisterCompany = lazy(() => import("./modules/saas/pages/RegisterCompany"));
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
@@ -550,6 +550,9 @@ function App() {
         <>
           <Route path="/" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/products" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          {Array.from(SEO_CATEGORY_PATHS).map((path) => (
+            <Route key={`storefront-category-${path}`} path={path} element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          ))}
           <Route path="/product/:identifier" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/account" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/account/reset-password" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
@@ -558,7 +561,6 @@ function App() {
           <Route path="/track" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/wishlist" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/recently-viewed" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-          <Route path="/offers" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/sale" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/contact" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/size-guide" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
