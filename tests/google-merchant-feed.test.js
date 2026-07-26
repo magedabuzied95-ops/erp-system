@@ -71,7 +71,12 @@ test("discounted item emits compare price plus sale_price; regular item emits pr
   assert.equal(discountedItem.price, "1000.00 EGP");
   assert.equal(discountedItem.sale_price, "850.00 EGP");
 
-  const regularItem = buildGoogleMerchantItem(variant());
+  const regularItem = buildGoogleMerchantItem(variant({
+    product_regular_price: 1500,
+    variant_regular_price: 1500,
+    product_sale_price_enabled: false,
+    variant_sale_price_enabled: false,
+  }));
   assert.equal(regularItem.price, "1000.00 EGP");
   assert.equal(regularItem.sale_price, "");
 });

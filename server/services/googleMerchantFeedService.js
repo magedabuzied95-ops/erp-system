@@ -124,8 +124,8 @@ export const resolveGoogleFeedPricing = (row = {}) => {
   const compareCandidates = [
     enabled(row.use_custom_compare_price) ? row.custom_compare_price : 0,
     saleEnabled ? storedSellingPrice : 0,
-    row.variant_regular_price,
-    row.product_regular_price,
+    saleEnabled ? row.variant_regular_price : 0,
+    saleEnabled ? row.product_regular_price : 0,
   ].map(positive);
   const comparePrice = compareCandidates.find((value) => value > activePrice) || 0;
   return comparePrice
