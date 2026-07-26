@@ -2940,14 +2940,16 @@ function ProductEdit() {
         return;
       }
 
-      const invalidRow = normalizedGroups.find((group) =>
-        group.sizes.some((row) => {
-          const rowHasContent = [row.sku, row.barcode, row.price, row.variantId].some((value) =>
-            String(value || "").trim()
-          );
-          return rowHasContent && !String(row.size || "").trim();
-        })
-      );
+      const invalidRow = isFullVariationMode
+        ? normalizedGroups.find((group) =>
+            group.sizes.some((row) => {
+              const rowHasContent = [row.sku, row.barcode, row.price, row.variantId].some((value) =>
+                String(value || "").trim()
+              );
+              return rowHasContent && !String(row.size || "").trim();
+            })
+          )
+        : null;
 
       if (invalidRow) {
         toast.error(`Each size row for "${invalidRow.color}" needs a size value`);
