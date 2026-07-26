@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/robots.txt"
+    },
+    {
       "source": "/c/(.*)",
       "destination": "/index.html"
     },

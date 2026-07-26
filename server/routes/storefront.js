@@ -48,6 +48,10 @@ import {
 import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAuthService.js";
 import { hasStorefrontCustomerToken, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 import { sendStorefrontMetaEvent } from "../services/metaConversionsApiService.js";
+import {
+  storefrontRobotsHandler,
+  storefrontSitemapHandler,
+} from "../services/storefrontSeoService.js";
 
 const router = express.Router();
 const publicStorefrontHomeCache = new Map();
@@ -548,6 +552,8 @@ router.post("/auth/verify-otp", async (req, res) => {
 router.get("/settings", getPublicStorefrontSettings);
 router.get("/home", getPublicStorefrontHome);
 router.get("/brands", getPublicStorefrontBrands);
+router.get("/seo/sitemap.xml", storefrontSitemapHandler);
+router.get("/seo/robots.txt", storefrontRobotsHandler);
 router.get("/products", listProducts);
 router.get("/classifications/gender", listGenderClassifications);
 router.get("/last-piece", listLastPieceProducts);
