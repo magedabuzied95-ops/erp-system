@@ -538,7 +538,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
   const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs: effectiveTtlMs });
   const [state, setState] = useState(() => {
     const initialProducts = extractStorefrontProductsFromResponse(cachedProductsData);
-    return cachedProductsData ? { loading: false, error: "", products: initialProducts } : { loading: true, error: "", products: [] };
+    return cachedProductsData ? { loading: false, error: "", products: initialProducts, total: Number(cachedProductsData.total ?? cachedProductsData.total_count ?? initialProducts.length), hasMore: Boolean(cachedProductsData.hasMore ?? cachedProductsData.has_more), page: Number(cachedProductsData.page || 1) } : { loading: true, error: "", products: [], total: 0, hasMore: false, page: 1 };
   });
   const hasCachedInitialDataRef = useRef(Boolean(cachedProductsData));
 
@@ -579,12 +579,12 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
             sizes: product?.sizes,
           })));
         }
-        if (!cancelled) setState({ loading: false, error: "", products });
+        if (!cancelled) setState({ loading: false, error: "", products, total: Number(data?.total ?? data?.total_count ?? products.length), hasMore: Boolean(data?.hasMore ?? data?.has_more), page: Number(data?.page || 1) });
       })
       .catch((error) => {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : String(error || "Failed to load products");
-        setState({ loading: false, error: message, products: [] });
+        setState({ loading: false, error: message, products: [], total: 0, hasMore: false, page: 1 });
       });
     return () => {
       cancelled = true;
@@ -2519,7 +2519,7 @@ const mainHomeCategoryCards = [
     titleEn: "Men",
     subtitleAr: "أحدث Nike و Adidas و Jordan",
     subtitleEn: "Latest Nike, Adidas & Jordan",
-    href: "/products?gender=men",
+    href: "/men",
     test: (product) => isExclusiveCategoryAudience(product, "men"),
     icon: Briefcase,
     overlay: "from-slate-950/95 via-slate-950/35 to-transparent",
@@ -2532,7 +2532,7 @@ const mainHomeCategoryCards = [
     titleEn: "Men Slipper",
     subtitleAr: "راحة خفيفة للاستخدام اليومي",
     subtitleEn: "Light comfort for every day",
-    href: "/products?gender=men&type=slippers",
+    href: "/slippers?gender=men",
     test: (product) => isExclusiveCategoryAudience(product, "men") && resolveProductTypeKey(product.product_type || product.productType) === "slippers",
     icon: Footprints,
     overlay: "from-cyan-950/90 via-slate-950/30 to-transparent",
@@ -2546,7 +2546,7 @@ const mainHomeCategoryCards = [
     titleEn: "Women",
     subtitleAr: "راحة وأناقة لكل يوم",
     subtitleEn: "Comfort and style for every day",
-    href: "/products?gender=women",
+    href: "/women",
     test: (product) => isExclusiveCategoryAudience(product, "women"),
     icon: Users,
     overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
@@ -2560,7 +2560,7 @@ const mainHomeCategoryCards = [
     titleEn: "Women Slipper",
     subtitleAr: "راحة خفيفة لكل يوم",
     subtitleEn: "Light comfort for every day",
-    href: "/products?gender=women&type=slippers",
+    href: "/slippers?gender=women",
     test: (product) => isExclusiveCategoryAudience(product, "women") && resolveProductTypeKey(product.product_type || product.productType) === "slippers",
     icon: Footprints,
     overlay: "from-fuchsia-950/90 via-rose-950/30 to-transparent",
@@ -2574,7 +2574,7 @@ const mainHomeCategoryCards = [
     titleEn: "Kids",
     subtitleAr: "مصممة للمدرسة واللعب والحركة",
     subtitleEn: "Built for school, play and movement",
-    href: "/products?gender=kids",
+    href: "/kids",
     test: (product) => productAudienceValues(product).includes("kids"),
     icon: Baby,
     overlay: "from-amber-950/90 via-amber-950/25 to-transparent",
@@ -2601,7 +2601,7 @@ const mainHomeCategoryCards = [
     titleEn: "Crocs",
     subtitleAr: "راحة سهلة لكل يوم",
     subtitleEn: "Easy comfort for every day",
-    href: "/products?type=crocs",
+    href: "/crocs",
     test: (product) => categoryCardHasCrocs(product),
     icon: Footprints,
   },
@@ -3402,10 +3402,10 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
     { label: isRtl ? "الشروط والأحكام" : "Terms & conditions", to: "/terms" },
   ];
   const categoryLinks = [
-    { label: isRtl ? "سنيكرز رجالي" : "Men's sneakers", to: "/products?gender=men" },
-    { label: isRtl ? "سنيكرز حريمي" : "Women's sneakers", to: "/products?gender=women" },
-    { label: isRtl ? "أحذية أطفال" : "Kids sneakers", to: "/products?gender=kids" },
-    { label: isRtl ? "شنط" : "Bags", to: "/products?type=bags" },
+    { label: isRtl ? "سنيكرز رجالي" : "Men's sneakers", to: "/men" },
+    { label: isRtl ? "سنيكرز حريمي" : "Women's sneakers", to: "/women" },
+    { label: isRtl ? "أحذية أطفال" : "Kids sneakers", to: "/kids" },
+    { label: isRtl ? "شنط" : "Bags", to: "/bags" },
     { label: isRtl ? "ميرور أوريجنال" : "Mirror Original", to: "/products?quality=mirror_original" },
   ];
   const whatsappHref = buildWhatsAppHref(isRtl ? "مرحبًا، أحتاج مساعدة من خدمة العملاء" : "Hi, I need customer support");
@@ -4778,12 +4778,12 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
     t("storefront.header.announcements.todayDeals"),
   ];
   const headerCategoryItems = [
-    { label: t("storefront.nav.men"), to: "/products?gender=men" },
-    { label: t("storefront.nav.women"), to: "/products?gender=women" },
-    { label: t("storefront.nav.kids"), to: "/products?gender=kids" },
-    { label: getProductTypeLabel("bags", currentLanguage), to: "/products?type=bags" },
-    { label: getProductTypeLabel("crocs", currentLanguage), to: "/products?type=crocs" },
-    { label: getProductTypeLabel("slippers", currentLanguage), to: "/products?type=slippers" },
+    { label: t("storefront.nav.men"), to: "/men" },
+    { label: t("storefront.nav.women"), to: "/women" },
+    { label: t("storefront.nav.kids"), to: "/kids" },
+    { label: getProductTypeLabel("bags", currentLanguage), to: "/bags" },
+    { label: getProductTypeLabel("crocs", currentLanguage), to: "/crocs" },
+    { label: getProductTypeLabel("slippers", currentLanguage), to: "/slippers" },
   ];
   const utilityItems = [
     { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
@@ -9338,12 +9338,12 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
     scrollToTop();
   }, [navigate, path, scrollToTop]);
   const categoryLinks = [
-    { id: "men", label: isRtl ? "رجالي" : "Men", to: "/products?gender=men", icon: Users },
-    { id: "women", label: isRtl ? "حريمي" : "Women", to: "/products?gender=women", icon: Users },
-    { id: "kids", label: isRtl ? "أطفال" : "Kids", to: "/products?gender=kids", icon: Baby },
-    { id: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/products?type=bags", icon: ShoppingBag },
-    { id: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/products?type=crocs", icon: Footprints },
-    { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/products?type=slippers", icon: SlidersHorizontal },
+    { id: "men", label: isRtl ? "رجالي" : "Men", to: "/men", icon: Users },
+    { id: "women", label: isRtl ? "حريمي" : "Women", to: "/women", icon: Users },
+    { id: "kids", label: isRtl ? "أطفال" : "Kids", to: "/kids", icon: Baby },
+    { id: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/bags", icon: ShoppingBag },
+    { id: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/crocs", icon: Footprints },
+    { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/slippers", icon: SlidersHorizontal },
   ];
   const links = [
     { id: "home", to: "/", label: isRtl ? "الرئيسية" : "Home", icon: Home },

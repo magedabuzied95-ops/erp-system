@@ -1,4 +1,5 @@
 const LEGACY_PREFIX = "/shop";
+const SEO_CATEGORY_PATHS = new Set(["/men", "/women", "/kids", "/bags", "/crocs", "/slippers", "/offers", "/men/large-sizes"]);
 
 const ROOT_PATHS = {
   home: "/",
@@ -123,7 +124,7 @@ const isStorefrontHomePath = (pathname = "") => {
 
 const isStorefrontProductsPath = (pathname = "") => {
   const normalized = normalizePathname(pathname);
-  return normalized === ROOT_PATHS.products || normalized === `${LEGACY_PREFIX}/products`;
+  return normalized === ROOT_PATHS.products || normalized === `${LEGACY_PREFIX}/products` || SEO_CATEGORY_PATHS.has(normalized);
 };
 
 const isStorefrontProductPath = (pathname = "") => {
@@ -138,7 +139,7 @@ const isStorefrontCheckoutPath = (pathname = "") => {
 
 const isStorefrontOfferPath = (pathname = "") => {
   const normalized = normalizePathname(pathname);
-  return normalized === ROOT_PATHS.offers || normalized === ROOT_PATHS.sale || normalized === `${LEGACY_PREFIX}/offers` || normalized === `${LEGACY_PREFIX}/sale`;
+  return normalized === ROOT_PATHS.sale || normalized === `${LEGACY_PREFIX}/sale`;
 };
 
 const isStorefrontCheckoutFlowPath = (pathname = "") => {
@@ -183,11 +184,12 @@ const isStorefrontPath = (pathname = "") => {
     `${LEGACY_PREFIX}/size-guide`,
     `${LEGACY_PREFIX}/returns`,
     `${LEGACY_PREFIX}/faq`,
-  ].includes(normalized) || isStorefrontProductPath(normalized) || normalized.startsWith(`${ROOT_PATHS.success}/`) || normalized.startsWith(`${LEGACY_PREFIX}/success/`) || normalized.startsWith(`${ROOT_PATHS.confirm}/`) || normalized.startsWith(`${LEGACY_PREFIX}/confirm/`);
+  ].includes(normalized) || SEO_CATEGORY_PATHS.has(normalized) || isStorefrontProductPath(normalized) || normalized.startsWith(`${ROOT_PATHS.success}/`) || normalized.startsWith(`${LEGACY_PREFIX}/success/`) || normalized.startsWith(`${ROOT_PATHS.confirm}/`) || normalized.startsWith(`${LEGACY_PREFIX}/confirm/`);
 };
 
 export {
   LEGACY_PREFIX,
+  SEO_CATEGORY_PATHS,
   ROOT_PATHS,
   isStorefrontCheckoutFlowPath,
   isStorefrontCheckoutPath,

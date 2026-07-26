@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   EmptyState,
@@ -37,8 +37,16 @@ import {
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
 import { Baby, Briefcase, ChevronDown, ChevronLeft, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
+import {
+  buildCategoryBreadcrumb,
+  buildCategoryItemList,
+  categoryCanonical,
+  productHasLargeAvailableSize,
+  seoCategoryByPath,
+} from "../../shared/lib/categorySeo.js";
 
 const FILTER_DEBOUNCE_MS = 320;
+const SEO_PAGE_SIZE = 24;
 
 const useDebouncedValue = (value, delay = FILTER_DEBOUNCE_MS) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -466,7 +474,10 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const { i18n, t } = useTranslation();
   const lang = i18n.language || "ar";
   const navigate = useNavigate();
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
+  const seoCategory = seoCategoryByPath(location.pathname);
+  const page = Math.max(1, Number.parseInt(params.get("page") || "1", 10) || 1);
   const q = params.get("q") || "";
   const category = params.get("category") || "";
   const brand = params.get("brand") || "";
@@ -474,14 +485,14 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const typeParam = params.get("type") || "";
   const normalizedSearchTerm = normalizeStorefrontSearchTerm(q);
   const searchGender = normalizeStorefrontAudienceValue(q);
-  const gender = normalizeStorefrontAudienceValue(genderParam) || genderParam || searchGender;
+  const gender = seoCategory?.apiFilters?.gender || normalizeStorefrontAudienceValue(genderParam) || genderParam || searchGender;
   const backendSearchTerm = searchGender ? "" : q;
   const size = params.get("size") || "";
   const selectedSizes = useMemo(() => readMultiQueryValues(params, ["size", "sizes"]), [params]);
   const color = params.get("color") || "";
   const inStock = params.get("inStock") || "";
   const quality = params.get("quality") || "";
-  const productType = normalizeStorefrontProductTypeValue(params.get("product_type") || typeParam || "");
+  const productType = seoCategory?.apiFilters?.product_type || normalizeStorefrontProductTypeValue(params.get("product_type") || typeParam || "");
   const bagType = normalizeFilterKey(params.get("bag_type") || "");
   const selectedType = productType || "";
   const grade = params.get("grade") || "";
@@ -492,7 +503,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const saleQuery = truthyFlag(params.get("sale"));
   const offerStoryQuery = truthyFlag(params.get("offer_story") || params.get("offerStory"));
   const lastSizes = truthyFlag(params.get("lastSizes") || params.get("last_sizes"));
-  const saleView = sale || saleQuery || offerStoryQuery;
+  const saleView = sale || Boolean(seoCategory?.apiFilters?.offer_story) || saleQuery || offerStoryQuery;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedGender, setSelectedGender] = useState(gender);
   const [selectedGrade, setSelectedGrade] = useState(grade);
@@ -519,15 +530,17 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       quality: quality || "",
       size: selectedSizes.length === 1 ? selectedSizes[0] : "",
       inStock: truthyFlag(inStock) ? 1 : "",
+      large_sizes: seoCategory?.largeSizes ? 1 : "",
       offer_story: saleView ? 1 : "",
       sort: sort || "newest",
-      limit: 80,
+      limit: SEO_PAGE_SIZE,
+      offset: (page - 1) * SEO_PAGE_SIZE,
     }),
-    [backendSearchTerm, brand, category, gender, grade, inStock, productType, quality, saleView, selectedSizes, sort]
+    [backendSearchTerm, brand, category, gender, grade, inStock, page, productType, quality, saleView, selectedSizes, sort, seoCategory?.largeSizes]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
-  const { products, loading, error } = useProducts(productsApiParams);
-  const filterBasePath = sale ? "/sale" : "/products";
+  const { products, loading, error, total: backendTotal } = useProducts(productsApiParams);
+  const filterBasePath = seoCategory?.path || (sale ? "/sale" : "/products");
   const activeFilterCount = [
     brand,
     gender,
@@ -647,14 +660,76 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const filteredProducts = useMemo(
     () => {
       const base = hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFiltersWithoutGender) : catalogProducts;
-      return bagType ? base.filter((product) => normalizeFilterKey(product.bag_type || product.bagType) === bagType) : base;
+      const typed = bagType ? base.filter((product) => normalizeFilterKey(product.bag_type || product.bagType) === bagType) : base;
+      return seoCategory?.largeSizes ? typed.filter((product) => productHasLargeAvailableSize(product, seoCategory.largeSizes)) : typed;
     },
-    [bagType, catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
+    [bagType, catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters, seoCategory]
   );
+  const pagedFilteredProducts = filteredProducts;
   const orderedFilteredProducts = useMemo(
-    () => sortStorefrontColorCardsByModel(sortCatalogProducts(filteredProducts, debouncedFilterState.selectedSort)),
-    [debouncedFilterState.selectedSort, filteredProducts]
+    () => sortStorefrontColorCardsByModel(sortCatalogProducts(pagedFilteredProducts, debouncedFilterState.selectedSort)),
+    [debouncedFilterState.selectedSort, pagedFilteredProducts]
   );
+  const totalProducts = Number(backendTotal || orderedFilteredProducts.length);
+  const totalPages = Math.max(1, Math.ceil(totalProducts / SEO_PAGE_SIZE));
+
+  useEffect(() => {
+    if (!seoCategory || typeof document === "undefined") return undefined;
+    const hasNonPageFilters = Array.from(params.keys()).some((key) => key !== "page");
+    const canonical = categoryCanonical(seoCategory, hasNonPageFilters ? 1 : page);
+    document.title = seoCategory.title;
+    const setMeta = (selector, attributes, content) => {
+      let node = document.head.querySelector(selector);
+      if (!node) {
+        node = document.createElement(attributes.rel ? "link" : "meta");
+        Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, value));
+        document.head.appendChild(node);
+      }
+      if (attributes.rel) node.setAttribute("href", content);
+      else node.setAttribute("content", content);
+    };
+    setMeta('meta[name="description"]', { name: "description" }, seoCategory.description);
+    setMeta('link[rel="canonical"]', { rel: "canonical" }, canonical);
+    setMeta('meta[name="robots"]', { name: "robots" }, hasNonPageFilters ? "noindex,follow" : "index,follow");
+    setMeta('meta[property="og:title"]', { property: "og:title" }, seoCategory.title);
+    setMeta('meta[property="og:description"]', { property: "og:description" }, seoCategory.description);
+    setMeta('meta[property="og:url"]', { property: "og:url" }, canonical);
+    setMeta('meta[property="og:type"]', { property: "og:type" }, "website");
+    setMeta('meta[name="twitter:card"]', { name: "twitter:card" }, "summary_large_image");
+    setMeta('meta[name="twitter:title"]', { name: "twitter:title" }, seoCategory.title);
+    setMeta('meta[name="twitter:description"]', { name: "twitter:description" }, seoCategory.description);
+    const socialImage = orderedFilteredProducts[0]?.cover_image || orderedFilteredProducts[0]?.coverImage || orderedFilteredProducts[0]?.image || orderedFilteredProducts[0]?.images?.[0]?.url || "";
+    if (socialImage) {
+      setMeta('meta[property="og:image"]', { property: "og:image" }, socialImage);
+      setMeta('meta[name="twitter:image"]', { name: "twitter:image" }, socialImage);
+    }
+    const schemas = [
+      ["breadcrumb", buildCategoryBreadcrumb(seoCategory)],
+      ["item-list", buildCategoryItemList(seoCategory, orderedFilteredProducts, page, SEO_PAGE_SIZE)],
+    ];
+    schemas.forEach(([key, value]) => {
+      let script = document.head.querySelector(`script[data-m1-category-seo="${key}"]`);
+      if (!script) {
+        script = document.createElement("script");
+        script.type = "application/ld+json";
+        script.dataset.m1CategorySeo = key;
+        document.head.appendChild(script);
+      }
+      script.textContent = JSON.stringify(value).replace(/</g, "\\u003c");
+    });
+    return () => document.head.querySelectorAll("script[data-m1-category-seo]").forEach((node) => node.remove());
+  }, [orderedFilteredProducts, page, params, seoCategory]);
+  useEffect(() => {
+    if (seoCategory || typeof document === "undefined") return;
+    const robots = document.head.querySelector('meta[name="robots"]') || document.head.appendChild(document.createElement("meta"));
+    robots.setAttribute("name", "robots");
+    robots.setAttribute("content", q ? "noindex,follow" : "index,follow");
+    if (q) {
+      const canonical = document.head.querySelector('link[rel="canonical"]') || document.head.appendChild(document.createElement("link"));
+      canonical.setAttribute("rel", "canonical");
+      canonical.setAttribute("href", "https://m1store-egy.com/products");
+    }
+  }, [q, seoCategory]);
   const filteredProductsForGender = useMemo(
     () => (hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFilters, ["gender"]) : catalogProducts),
     [catalogFilters, catalogProducts, hasActiveCatalogFilters]
@@ -782,10 +857,12 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const setSearchParam = (mutator, { replace = false } = {}) => {
     const next = new URLSearchParams(params);
     mutator(next);
+    next.delete("page");
     setParams(next, { replace });
   };
   const buildFilterUrl = (field, value) => {
     const next = new URLSearchParams(params);
+    next.delete("page");
     if (field === "type" || field === "productType") {
       next.delete("product_type");
       next.delete("category");
@@ -891,7 +968,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
         <div className="min-w-0">
           <p className="sf-catalog-eyebrow text-xs font-bold text-stone-600 dark:text-stone-400 md:text-sm">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
           <h1 className="sf-catalog-title mt-1 text-[1.7rem] font-black leading-[1.08] text-stone-950 dark:text-white md:text-3xl">
-            {q
+            {seoCategory ? seoCategory.h1 : q
               ? t("storefront.search.resultsFor", "نتائج البحث عن \"{{query}}\"", { query: q })
               : selectedBrandOption
                 ? classificationLabel(selectedBrandOption, lang)
@@ -903,9 +980,10 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                       ? classificationLabel(selectedGenderOption, lang)
                     : category || (lastSizes ? t("storefront.home.lastSizes", "آخر المقاسات") : saleView ? t("storefront.nav.sale", "العروض") : t("storefront.products.allProducts", "كل المنتجات"))}
           </h1>
+          {seoCategory ? <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-stone-600 dark:text-stone-300">{seoCategory.intro}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="sf-catalog-count text-sm font-bold text-stone-700 dark:text-stone-300">{t("storefront.products.productCount", "{{count}} منتج", { count: orderedFilteredProducts.length })}</div>
+          <div className="sf-catalog-count text-sm font-bold text-stone-700 dark:text-stone-300">{t("storefront.products.productCount", "{{count}} منتج", { count: totalProducts })}</div>
           <button
             type="button"
             onClick={() => setFiltersOpen(true)}
@@ -1045,6 +1123,24 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 onAddToCart={onAddToCart}
                 saleModeEnabled={saleModeEnabled}
               />
+              {seoCategory && totalPages > 1 ? (
+                <nav aria-label="صفحات المنتجات" className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => {
+                    const next = new URLSearchParams(params);
+                    if (pageNumber === 1) next.delete("page");
+                    else next.set("page", String(pageNumber));
+                    return <Link key={pageNumber} rel={pageNumber === page + 1 ? "next" : pageNumber === page - 1 ? "prev" : undefined} to={`${seoCategory.path}${next.toString() ? `?${next}` : ""}`} className={`grid h-11 min-w-11 place-items-center rounded-full border px-3 text-sm font-black ${pageNumber === page ? "border-[#d4af37] bg-[#d4af37] text-black" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white"}`}>{pageNumber}</Link>;
+                  })}
+                </nav>
+              ) : null}
+              {seoCategory ? (
+                <nav aria-label="أقسام مرتبطة" className="mt-7 flex flex-wrap justify-center gap-2">
+                  {seoCategory.related.map((path) => {
+                    const related = seoCategoryByPath(path);
+                    return related ? <Link key={path} to={path} className="rounded-full border border-[#d4af37]/35 px-4 py-2 text-sm font-black text-stone-700 dark:text-stone-200">{related.h1}</Link> : null;
+                  })}
+                </nav>
+              ) : null}
             </>
           )}
         </div>

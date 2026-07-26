@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { SEO_CATEGORY_DEFINITIONS } from "../../src/shared/lib/categorySeo.js";
 
 export const STOREFRONT_ORIGIN = "https://m1store-egy.com";
 
@@ -6,7 +7,7 @@ const INDEXABLE_PUBLIC_PATHS = [
   "/",
   "/products",
   "/sale",
-  "/offers",
+  ...SEO_CATEGORY_DEFINITIONS.map((definition) => definition.path),
 ];
 
 const PRIVATE_ROBOTS_PATHS = [
@@ -65,9 +66,14 @@ const validLastmod = (value) => {
 };
 
 export const buildSitemapEntries = (products = []) => {
+  const latestProductUpdate = (Array.isArray(products) ? products : [])
+    .map((product) => validLastmod(product.updated_at))
+    .filter(Boolean)
+    .sort()
+    .at(-1) || "";
   const entries = INDEXABLE_PUBLIC_PATHS.map((pathname) => ({
     loc: `${STOREFRONT_ORIGIN}${pathname}`,
-    lastmod: "",
+    lastmod: SEO_CATEGORY_DEFINITIONS.some((definition) => definition.path === pathname) ? latestProductUpdate : "",
   }));
   const seen = new Set(entries.map((entry) => entry.loc));
 

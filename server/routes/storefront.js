@@ -54,6 +54,7 @@ import {
   storefrontSitemapHandler,
 } from "../services/storefrontSeoService.js";
 import { storefrontProductSeoPageHandler } from "../services/storefrontProductSeoPageService.js";
+import { storefrontCategorySeoPageHandler } from "../services/storefrontCategorySeoPageService.js";
 
 const router = express.Router();
 const publicStorefrontHomeCache = new Map();
@@ -585,6 +586,7 @@ router.get("/brands", getPublicStorefrontBrands);
 router.get("/seo/sitemap.xml", storefrontSitemapHandler);
 router.get("/seo/robots.txt", storefrontRobotsHandler);
 router.get("/seo/product/:identifier", storefrontProductSeoPageHandler);
+router.get("/seo/category/:categoryKey", storefrontCategorySeoPageHandler);
 router.get("/products", listProducts);
 router.get("/classifications/gender", listGenderClassifications);
 router.get("/last-piece", listLastPieceProducts);

@@ -9,8 +9,44 @@
       "destination": "https://api.m1store-egy.com/api/storefront/seo/robots.txt"
     },
     {
+      "source": "/feeds/google.xml",
+      "destination": "https://api.m1store-egy.com/feeds/google.xml"
+    },
+    {
       "source": "/product/:identifier",
       "destination": "https://api.m1store-egy.com/api/storefront/seo/product/:identifier"
+    },
+    {
+      "source": "/men/large-sizes",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/category/men-large-sizes"
+    },
+    {
+      "source": "/men",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/category/men"
+    },
+    {
+      "source": "/women",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/category/women"
+    },
+    {
+      "source": "/kids",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/category/kids"
+    },
+    {
+      "source": "/bags",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/category/bags"
+    },
+    {
+      "source": "/crocs",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/category/crocs"
+    },
+    {
+      "source": "/slippers",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/category/slippers"
+    },
+    {
+      "source": "/offers",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/category/offers"
     },
     {
       "source": "/c/(.*)",

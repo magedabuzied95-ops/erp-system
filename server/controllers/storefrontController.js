@@ -2808,6 +2808,7 @@ const normalizeStorefrontProductsQuery = (query = {}) => {
     grade: queryText(query.grade),
     quality: queryText(query.quality),
     size: queryText(query.size),
+    largeSizes: queryFlagOn(query.large_sizes || query.largeSizes),
     inStock: queryFlagOn(query.inStock || query.in_stock || query.stock),
     saleOnly: queryFlagOn(query.sale),
     offerStory: queryFlagOn(query.offer_story || query.offerStory),
@@ -2855,7 +2856,7 @@ export const listProducts = async (req, res) => {
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     const payload = await getOrSetCache(storefrontCacheKey(tenantId, "products", req.query || {}), 120, async () => {
       const normalizedQuery = normalizeStorefrontProductsQuery(req.query || {});
-      const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch } = normalizedQuery;
+      const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch, largeSizes } = normalizedQuery;
       const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);
       const productType = await getActiveClassificationFilterAliases("product_type", normalizedQuery.productType);
       const grade = await getActiveClassificationFilterAliases("grade", normalizedQuery.grade);
@@ -2981,17 +2982,23 @@ export const listProducts = async (req, res) => {
         console.log("[storefront-shuffle-before]", expandedProducts.map((product) => storefrontCardId(product)));
       }
       const orderedExpandedProducts = shouldOrderAfterExpansion ? sortStorefrontCards(expandedProducts, sort, randomSeed) : expandedProducts;
+      const categoryProducts = largeSizes
+        ? orderedExpandedProducts.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
+            const variantSize = Number(variant.size ?? variant.size_value);
+            return Number.isFinite(variantSize) && variantSize >= 47 && variantSize <= 50 && Number(variant.stock ?? variant.quantity ?? 0) > 0;
+          }))
+        : orderedExpandedProducts;
       if (randomSeed) {
         console.log("[storefront-shuffle-after]", orderedExpandedProducts.map((product) => storefrontCardId(product)));
       }
-      let pagedProducts = orderedExpandedProducts.slice(offset, offset + limit);
+      let pagedProducts = categoryProducts.slice(offset, offset + limit);
       let usedOrderingFallback = false;
-      if (!pagedProducts.length && expandedProducts.length) {
-        const fallbackOffset = Math.min(offset, Math.max(0, expandedProducts.length - limit));
-        pagedProducts = orderedExpandedProducts.slice(fallbackOffset, fallbackOffset + limit);
+      if (!pagedProducts.length && categoryProducts.length) {
+        const fallbackOffset = Math.min(offset, Math.max(0, categoryProducts.length - limit));
+        pagedProducts = categoryProducts.slice(fallbackOffset, fallbackOffset + limit);
         usedOrderingFallback = true;
       }
-      const total = expandedProducts.length;
+      const total = categoryProducts.length;
       const hasMore = offset + pagedProducts.length < total;
       if (ERP_PERF_DEBUG) console.log("[storefront-color-expand-count]", {
         total_raw_products: rawProductCount,
