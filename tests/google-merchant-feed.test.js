@@ -25,7 +25,7 @@ const baseRow = {
   product_sale_price: 0,
   product_sale_price_enabled: false,
   product_stock: 10,
-  gallery_images: ["/uploads/runner-side.webp"],
+  gallery_images: [{ url: "/uploads/runner-side.webp" }],
 };
 
 const variant = (overrides = {}) => ({
@@ -125,6 +125,8 @@ test("feed uses storefront canonical links, HTTPS images, escaped XML, and no ER
   assert.match(feed.xml, /Light &amp; comfortable &lt;shoe&gt;/);
   assert.match(feed.xml, /https:\/\/m1store-egy\.com\/product\/runner-pro/);
   assert.match(feed.xml, /https:\/\/api\.m1store-egy\.com\/uploads\/runner-black-42\.webp/);
+  assert.match(feed.xml, /https:\/\/api\.m1store-egy\.com\/uploads\/runner-side\.webp/);
+  assert.doesNotMatch(feed.xml, /%5Bobject%20Object%5D|\[object Object\]/);
   assert.doesNotMatch(feed.xml, /erp\.m1store-egy\.com/);
   assert.doesNotMatch(feed.xml, /<g:price>0(?:\.00)? EGP<\/g:price>/);
   assert.equal((feed.xml.match(/<item>/g) || []).length, (feed.xml.match(/<\/item>/g) || []).length);

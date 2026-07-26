@@ -37,8 +37,13 @@ const parseArray = (value) => {
   }
 };
 
+const imageValue = (value) => {
+  if (!value || typeof value !== "object") return text(value);
+  return text(value.url || value.image_url || value.src || value.secure_url || value.path);
+};
+
 const publicHttpsUrl = (value = "", base = BACKEND_URL) => {
-  const raw = text(value);
+  const raw = imageValue(value);
   if (!raw) return "";
   try {
     const url = new URL(raw, `${base.replace(/\/+$/, "")}/`);
