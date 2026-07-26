@@ -113,6 +113,11 @@ import {
   trackGa4ShippingInfo,
   trackGa4ViewCart,
 } from "./lib/ga4Events";
+import {
+  isCustomerReviewOrderEligible,
+  isValidSurveyEmail,
+  renderGoogleCustomerReviewOptIn,
+} from "./lib/googleCustomerReviews";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
@@ -204,6 +209,7 @@ const compactStorefrontReceipt = (payload = {}, meta = {}) => ({
   items: Array.isArray(payload.items) ? payload.items : [],
   customer: payload.customer || {},
   checkout: payload.checkout || {},
+  customer_reviews: payload.customer_reviews || null,
   ...meta,
 });
 
@@ -6620,6 +6626,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [form, setForm] = useState({
     full_name: profile.full_name || "",
     primary_phone: profile.primary_phone || "",
+    email: profile.email || profile.customer_email || "",
     secondary_phone: "",
     governorate_id: "",
     governorate: "",
@@ -7513,7 +7520,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     const { showToast = true } = options;
     const next = {};
     const stepKeys = step === 1
-      ? ["full_name", "primary_phone"]
+      ? ["full_name", "primary_phone", "email"]
       : step === 2
         ? ["governorate", "city_area", "detailed_address", "street_address", "building_number"]
         : ["payment_method", "shipping_payment_screenshot"];
@@ -7530,6 +7537,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       if (!form.full_name.trim()) next.full_name = sfText("storefront.validation.fullNameRequired");
       if (!phone) next.primary_phone = sfText("storefront.validation.phoneRequired");
       else if (!/^01[0125][0-9]{8}$/.test(phone)) next.primary_phone = sfText("storefront.validation.invalidEgyptPhone");
+      if (form.email.trim() && !isValidSurveyEmail(form.email)) {
+        next.email = "يرجى إدخال بريد إلكتروني صحيح أو ترك الحقل فارغًا.";
+      }
     }
 
     if (step === 2) {
@@ -7732,8 +7742,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       const successPayload = {
         order: data.order,
         items: data.items || pricedCart,
-        customer: { full_name: form.full_name, phone: cleanPhone },
+        customer: { full_name: form.full_name, phone: cleanPhone, email: form.email.trim().toLowerCase() },
         checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod, coupon_code: couponCodeToSend, coupon_discount_amount: couponDiscountToSend },
+        customer_reviews: data.customer_reviews || null,
       };
       trackGa4Purchase({
         order: data.order,
@@ -7758,6 +7769,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         full_name: form.full_name,
         primary_phone: cleanPhone,
         phone: cleanPhone,
+        email: form.email.trim().toLowerCase(),
+        customer_email: form.email.trim().toLowerCase(),
         customer_id: data.order?.customer_id || profile?.customer_id || profile?.id || "",
         street_address: form.street_address,
         building_number: form.building_number,
@@ -7808,6 +7821,16 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <Field label={sfText("storefront.form.fullName")} placeholder={sfText("storefront.form.fullNamePlaceholder")} value={form.full_name} onChange={(v) => setField("full_name", v)} required error={errors.full_name} />
               <Field label={sfText("storefront.form.primaryPhone")} placeholder="01012345678" value={form.primary_phone} onChange={(v) => setField("primary_phone", v)} required error={errors.primary_phone} inputMode="tel" />
               <Field label={sfText("storefront.form.secondaryPhone")} placeholder={sfText("storefront.form.secondaryPhonePlaceholder")} value={form.secondary_phone} onChange={(v) => setField("secondary_phone", v)} inputMode="tel" />
+              <Field
+                label="البريد الإلكتروني لاستلام الفاتورة وطلب التقييم بعد التسليم"
+                placeholder="name@example.com"
+                value={form.email}
+                onChange={(value) => setField("email", value)}
+                error={errors.email}
+                inputMode="email"
+                type="email"
+                autoComplete="email"
+              />
             </div>
           </CheckoutSection> : null}
           {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address")} note={sfText("storefront.checkout.addressNote")} className="checkout-address-section" dir="rtl">
@@ -8208,6 +8231,10 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
       value: total,
     });
   }, [customerName, isShippingAwaitingVerification, items, loaded?.checkout, loaded?.customer, order, phone, total]);
+  useEffect(() => {
+    if (!loaded?.customer_reviews || !isCustomerReviewOrderEligible(order)) return;
+    renderGoogleCustomerReviewOptIn(loaded.customer_reviews);
+  }, [loaded?.customer_reviews, order]);
   const successTitle = isShippingAwaitingVerification ? t("storefront.success.awaitingVerificationTitle") : t("storefront.success.confirmedTitle");
   const successSubtitle = isShippingAwaitingVerification
     ? t("storefront.success.awaitingVerificationSubtitle")

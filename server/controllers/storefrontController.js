@@ -37,6 +37,10 @@ import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
+import {
+  createStorefrontCustomerReviewData,
+  isValidCustomerReviewEmail,
+} from "../services/storefrontCustomerReviewsService.js";
 import { loadStorefrontMerchantPolicyData } from "../services/storefrontMerchantPolicyService.js";
 import {
   attachPublicOrderNumber,
@@ -4166,6 +4170,7 @@ export const createWebsiteOrder = async (req, res) => {
       ...checkoutRaw,
       full_name: toText(checkoutRaw.full_name || checkoutRaw.customer_name || checkoutRaw.name),
       primary_phone: toText(checkoutRaw.primary_phone || checkoutRaw.customer_phone || checkoutRaw.phone),
+      email: toText(checkoutRaw.email || checkoutRaw.customer_email).toLowerCase(),
       governorate: toText(checkoutRaw.governorate || checkoutRaw.province),
       city_area: toText(checkoutRaw.city_area || checkoutRaw.city || checkoutRaw.area),
       governorate_id: toText(checkoutRaw.governorate_id || checkoutRaw.governorateId),
@@ -4191,8 +4196,12 @@ export const createWebsiteOrder = async (req, res) => {
     };
     receivedPayload = {
       tenant_id: tenantId,
-      checkout,
-      rawCheckout: checkoutRaw,
+      checkout: { ...checkout, email: checkout.email ? "[redacted]" : "" },
+      rawCheckout: {
+        ...checkoutRaw,
+        ...(checkoutRaw.email !== undefined ? { email: checkoutRaw.email ? "[redacted]" : "" } : {}),
+        ...(checkoutRaw.customer_email !== undefined ? { customer_email: checkoutRaw.customer_email ? "[redacted]" : "" } : {}),
+      },
       items: Array.isArray(items)
         ? items.map((item) => ({
             product_id: item?.product_id || item?.productId || null,
@@ -4231,6 +4240,9 @@ export const createWebsiteOrder = async (req, res) => {
     if (!toText(checkout.full_name) || !toText(checkout.primary_phone) || !toText(checkout.governorate) || !toText(checkout.city_area) || !toText(checkout.detailed_address)) {
       const missingFields = ["full_name", "primary_phone", "governorate", "city_area", "detailed_address"].filter((field) => !toText(checkout[field]));
       return checkoutValidationResponse(400, "Name, phone, governorate, city and address are required", missingFields[0] || null, { missing_fields: missingFields });
+    }
+    if (checkout.email && !isValidCustomerReviewEmail(checkout.email)) {
+      return checkoutValidationResponse(400, "Enter a valid email address or leave it empty", "email", { reason: "invalid_email" });
     }
 
     await client.query("BEGIN");
@@ -4474,6 +4486,7 @@ export const createWebsiteOrder = async (req, res) => {
       customer_id: customer?.id || null,
       customer_name: checkout.full_name,
       customer_phone: customer?.phone || normalizePhone(checkout.primary_phone),
+      customer_email: checkout.email || customer?.email || "",
       channel: "storefront",
       source: "website",
       customer_type: "online",
@@ -4702,7 +4715,19 @@ export const createWebsiteOrder = async (req, res) => {
         metadata: { product_id: item.product_id, stock, image_url: item.image_url || "", badge: "عاجل", source: "website_order" },
       }).catch((error) => console.warn("[notifications] low stock skipped", error?.message || error));
     });
-    res.status(201).json({ success: true, order: withPaymentProofAliases(order), items: normalizedItems, track_token: token });
+    const customerReviews = await createStorefrontCustomerReviewData({
+      order,
+      email: checkout.email || customer?.email || "",
+      items: normalizedItems,
+      shippingQuote,
+    }).catch(() => null);
+    res.status(201).json({
+      success: true,
+      order: withPaymentProofAliases(order),
+      items: normalizedItems,
+      track_token: token,
+      ...(customerReviews ? { customer_reviews: customerReviews } : {}),
+    });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     if (req.file?.path) {
