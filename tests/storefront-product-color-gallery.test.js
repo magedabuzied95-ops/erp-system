@@ -97,6 +97,23 @@ test("multiple colors with color galleries remain isolated even when product has
   assert.deepEqual(gallery.map((item) => item.image), ["olive-front.jpg", "olive-side.jpg"]);
 });
 
+test("two model groups with the same visible color name stay separate", () => {
+  const variants = [
+    { id: 501, color: "White & Black", color_group_key: "model-a", size: "42", stock: 1, selling_price: 1200 },
+    { id: 502, color: "White & Black", color_group_key: "model-b", size: "42", stock: 1, selling_price: 1450 },
+  ];
+  const groups = buildProductColorGroups({
+    variants,
+    colorKey: (variant) => variant.color_group_key || variant.color,
+    colorName,
+    variantHasStock: inStock,
+  });
+
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups.map((group) => group.key), ["model-a", "model-b"]);
+  assert.deepEqual(groups.map((group) => group.variants[0].selling_price), [1200, 1450]);
+});
+
 test("New Balance 530 production payload keeps White & Navy cover plus its stored extra image", () => {
   const cover = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1784140987/erp/products/ssgvyssfwsfbz9wdcomb.jpg";
   const extra = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1784735201/erp/products/f4fqafxwunrlhxwimbdg.png";

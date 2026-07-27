@@ -1328,9 +1328,11 @@ const deriveColorGroupsFromVariants = (variants = []) => {
   );
   for (const variant of orderedVariants) {
     const color = String(variant?.color || variant?.color_name || "").trim();
-    const key = color.toLowerCase() || "default";
+    const colorGroupKey = String(variant?.color_group_key || variant?.colorGroupKey || "").trim();
+    const key = colorGroupKey.toLowerCase() || color.toLowerCase() || "default";
     if (!seen.has(key)) {
       seen.set(key, {
+        color_group_key: colorGroupKey,
         color,
         color_name: color,
         color_value: color,
@@ -1367,6 +1369,7 @@ const catalogQuery = `
           'product_id', pv.product_id,
           'size', pv.size,
           'color', pv.color,
+          'color_group_key', pv.color_group_key,
           'color_sort_order', pv.color_sort_order,
           'audience', pv.audience,
           'audiences', string_to_array(LOWER(REPLACE(COALESCE(pv.audience, ''), ' ', '')), ','),
@@ -2322,6 +2325,7 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
           product_id: variant.product_id,
           size: variant.size,
           color: variant.color,
+          color_group_key: variant.color_group_key || variant.colorGroupKey || "",
           color_sort_order: variant.color_sort_order ?? variant.colorSortOrder ?? 0,
           sku: variant.sku,
           barcode: variant.barcode,

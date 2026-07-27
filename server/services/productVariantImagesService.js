@@ -624,8 +624,11 @@ export const attachVariantImages = (variants = [], imageBundle = null) => {
       }, [])
       .sort((a, b) => (b.is_primary === true) - (a.is_primary === true) || Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || 0) - Number(b.id || 0));
     const primary = allImages.find((item) => item.is_primary) || allImages[0] || null;
+    const stableColorGroupKey = groupKey || toText(primary?.color_group_key || primary?.colorGroupKey || "");
     return {
       ...variant,
+      color_group_key: stableColorGroupKey,
+      colorGroupKey: stableColorGroupKey,
       images: allImages,
       image_url: variant.image_url || primary?.image_url || "",
       variant_image_url: variant.variant_image_url || primary?.image_url || variant.image_url || "",
