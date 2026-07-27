@@ -4213,6 +4213,7 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
     () => products.slice(0, visibleCount),
     [products, visibleCount]
   );
+  const needsMobileRowBalance = visibleProducts.length % 2 === 1;
   const hasMoreProducts = visibleCount < products.length;
 
   useEffect(() => {
@@ -4265,6 +4266,12 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
     <>
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5">
         {visibleProducts.map((product, index) => renderProduct(product, index, productCardKey(product, index)))}
+        {needsMobileRowBalance ? (
+          <div
+            aria-hidden="true"
+            className="min-h-[1px] rounded-[1.45rem] border border-white/[0.04] bg-white/[0.015] md:hidden"
+          />
+        ) : null}
       </div>
       {isAppending ? <div className="mt-3"><ProductSkeleton count={appendBatchSize} /></div> : null}
       {hasMoreProducts ? <div ref={loadMoreSentinelRef} aria-hidden="true" className="h-px w-full" /> : null}

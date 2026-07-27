@@ -1117,7 +1117,9 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   const customOriginalPrice = productCompareFields.use_custom_compare_price === true || String(productCompareFields.use_custom_compare_price || "").toLowerCase() === "true"
     ? roundMoney(productCompareFields.custom_compare_price)
     : 0;
-  const rowOriginalPrice = roundMoney(row.original_price || row.base_price || row.list_price || row.compare_at_price || customOriginalPrice || row.regular_price);
+  // A manually entered storefront compare price is an explicit presentation
+  // choice, so it must win over the regular/base price aliases.
+  const rowOriginalPrice = roundMoney(customOriginalPrice || row.original_price || row.base_price || row.list_price || row.compare_at_price || row.regular_price);
   const rowPublicPrice = resolveCustomerFacingDisplayPrice(row, {}, pricingSettings);
   const rowResolvedSellingPrice = resolveCurrentSellingPrice({ product: row }).value;
   const rowSellingPrice = roundMoney(rowResolvedSellingPrice || rowPublicPrice.selling_price || row.selling_price || row.price || row.regular_price);
