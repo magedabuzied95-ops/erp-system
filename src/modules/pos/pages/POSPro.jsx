@@ -1725,6 +1725,7 @@ function POSPro() {
 
   const [barcodeShopProduct, setBarcodeShopProduct] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftPosFilters, setDraftPosFilters] = useState(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [mobileProductQuantity, setMobileProductQuantity] = useState(1);
   const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
@@ -6754,8 +6755,45 @@ function POSPro() {
   }, []);
 
   const handleToggleFilters = useCallback(() => {
-    setFiltersOpen((open) => !open);
+    setFiltersOpen((open) => {
+      if (!open) {
+        setDraftPosFilters({
+          gender: normalizeMultiFilterValue(selectedGender),
+          productType: selectedProductType,
+          grade: selectedGrade,
+          brands: normalizeMultiFilterValue(selectedBrandId),
+          manufacturers: normalizeMultiFilterValue(selectedManufacturerId),
+        });
+      }
+      return !open;
+    });
+  }, [selectedGender, selectedProductType, selectedGrade, selectedBrandId, selectedManufacturerId]);
+
+  const updateDraftMultiFilter = useCallback((field, value) => {
+    setDraftPosFilters((current) => ({
+      ...(current || {}),
+      [field]: toggleMultiFilterValue(current?.[field] || [], value),
+    }));
   }, []);
+
+  const updateDraftSingleFilter = useCallback((field, value) => {
+    setDraftPosFilters((current) => ({ ...(current || {}), [field]: value }));
+  }, []);
+
+  const handleResetDraftPosFilters = useCallback(() => {
+    setDraftPosFilters({ gender: [], productType: "all", grade: "all", brands: [], manufacturers: [] });
+  }, []);
+
+  const handleApplyDraftPosFilters = useCallback(() => {
+    if (draftPosFilters) {
+      setSelectedGender(draftPosFilters.gender || []);
+      setSelectedProductType(draftPosFilters.productType || "all");
+      setSelectedGrade(draftPosFilters.grade || "all");
+      setSelectedBrandId(draftPosFilters.brands || []);
+      setSelectedManufacturerId(draftPosFilters.manufacturers || []);
+    }
+    setFiltersOpen(false);
+  }, [draftPosFilters]);
 
   const handleCreateCustomerFromToolbar = useCallback(async () => {
     const created = await handleCreateCustomer();
@@ -7167,20 +7205,21 @@ function POSPro() {
             panelRef={filtersPanelRef}
             portalTarget={typeof document !== "undefined" ? document.fullscreenElement || document.body : undefined}
             smartFilterOptions={smartFilterOptions}
-            selectedGender={selectedGender}
-            onGenderChange={handleGenderFilterChange}
-            selectedProductType={selectedProductType}
-            onProductTypeChange={setSelectedProductType}
-            selectedGrade={selectedGrade}
-            onGradeChange={setSelectedGrade}
+            selectedGender={draftPosFilters?.gender ?? selectedGender}
+            onGenderChange={(value) => updateDraftMultiFilter("gender", value)}
+            selectedProductType={draftPosFilters?.productType ?? selectedProductType}
+            onProductTypeChange={(value) => updateDraftSingleFilter("productType", value)}
+            selectedGrade={draftPosFilters?.grade ?? selectedGrade}
+            onGradeChange={(value) => updateDraftSingleFilter("grade", value)}
             brandOptions={brandOptions}
-            selectedBrandId={selectedBrandId}
-            onBrandChange={handleBrandFilterChange}
+            selectedBrandId={draftPosFilters?.brands ?? selectedBrandId}
+            onBrandChange={(value) => updateDraftMultiFilter("brands", value)}
             manufacturerOptions={manufacturerOptions}
-            selectedManufacturerId={selectedManufacturerId}
-            onManufacturerChange={handleManufacturerFilterChange}
+            selectedManufacturerId={draftPosFilters?.manufacturers ?? selectedManufacturerId}
+            onManufacturerChange={(value) => updateDraftMultiFilter("manufacturers", value)}
             activeSmartFilterCount={activeSmartFilterCount}
-            onReset={handleClearSmartFilters}
+            onApply={handleApplyDraftPosFilters}
+            onReset={handleResetDraftPosFilters}
             onClose={handleCloseFilters}
           />
           {customerCreateOpen && typeof document !== "undefined" ? createPortal(
