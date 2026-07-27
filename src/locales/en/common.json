@@ -728,7 +728,8 @@
       "orders": "Orders",
       "product": "Product",
       "aiCenter": "AI Center",
-      "products": "Products"
+      "products": "Products",
+      "purchases": "Purchases"
     },
     "subgroups": {
       "aiMarketing": "AI Marketing",

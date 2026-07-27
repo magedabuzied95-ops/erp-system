@@ -687,7 +687,8 @@
       "orders": "الطلبات",
       "product": "منتج",
       "aiCenter": "مركز الذكاء",
-      "products": "المنتجات"
+      "products": "المنتجات",
+      "purchases": "المشتريات"
     },
     "subgroups": {
       "aiMarketing": "التسويق بالذكاء الاصطناعي",
