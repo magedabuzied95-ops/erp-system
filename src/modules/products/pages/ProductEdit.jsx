@@ -4716,7 +4716,18 @@ function ProductEdit() {
                                     placeholder="0"
                                     className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                   />
-                                  <p className="mt-1 text-[10px] leading-4 text-zinc-500 xl:hidden">{t("products.editor.preparationOnlyStock", "Preparation only. Real stock is added from purchase invoices.")}</p>
+                                  {row.variantId ? (
+                                    <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold leading-4 text-emerald-300">
+                                      <span>{t("products.editor.actualWarehouseStock", "Actual warehouse stock")}:</span>
+                                      <span dir="ltr" className="font-black tabular-nums">
+                                        {Number.isFinite(Number(row.available_stock)) ? Number(row.available_stock) : 0}
+                                      </span>
+                                    </p>
+                                  ) : (
+                                    <p className="mt-1 text-[10px] leading-4 text-zinc-500">
+                                      {t("products.editor.newSizeNoWarehouseStock", "New size — no warehouse stock yet.")}
+                                    </p>
+                                  )}
                                 </div>
                                 <div>
                                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">

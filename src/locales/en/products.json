@@ -550,6 +550,8 @@
     "applyBulkSizes": "Apply bulk sizes",
     "fixedSize": "Fixed size",
     "stockQty": "Stock Qty",
+    "actualWarehouseStock": "Actual warehouse stock",
+    "newSizeNoWarehouseStock": "New size — no warehouse stock yet",
     "articleCodeColorHelp": "Article code applies to this color. Stock is managed per size row.",
     "saveProduct": "Save Product",
     "updateProduct": "Update Product",

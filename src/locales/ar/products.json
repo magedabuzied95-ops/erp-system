@@ -550,6 +550,8 @@
     "applyBulkSizes": "تطبيق المقاسات جماعيًا",
     "fixedSize": "مقاس ثابت",
     "stockQty": "كمية المخزون",
+    "actualWarehouseStock": "الكمية الفعلية في المخزن",
+    "newSizeNoWarehouseStock": "مقاس جديد — لا يوجد له رصيد مخزن بعد",
     "articleCodeColorHelp": "كود الأرتكل يخص هذا اللون. المخزون يُدار لكل مقاس.",
     "saveProduct": "حفظ المنتج",
     "updateProduct": "تحديث المنتج",
