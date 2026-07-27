@@ -1001,6 +1001,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
   const isSimpleProduct = String(product?.variation_mode || "").trim().toLowerCase() === "simple" || !Array.isArray(product?.variants) || product.variants.length === 0;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [expandedColorKeys, setExpandedColorKeys] = useState(() => new Set());
   const [bulkSellingPrice, setBulkSellingPrice] = useState("");
   const [bulkSalePrice, setBulkSalePrice] = useState("");
   const [form, setForm] = useState(() => ({
@@ -1014,6 +1015,17 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
       id: variant.id ?? variant.variant_id ?? variant.variantId,
       color: variant.color || variant.variant_color || "-",
       size: variant.size || variant.variant_size || "-",
+      image: resolveProductImageUrl(firstImageValue(
+        variant.image_url,
+        variant.variant_image_url,
+        variant.color_image_url,
+        variant.image,
+        variant.photo_url,
+        variant.thumbnail_url,
+        variant.images,
+        variant.gallery_images,
+        variant.color_images
+      )),
       name: [variant.color, variant.size, variant.sku || variant.barcode].filter(Boolean).join(" / ") || `Variant ${variant.id ?? variant.variant_id ?? ""}`,
       current_sale_price: variantSalePriceValue(variant),
       current_discount_price: variantDiscountPriceValue(variant),
@@ -1049,6 +1061,29 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
   }, [form.product, isSimpleProduct]);
 
   const changedCount = changedVariantIds.size + (productPriceChanged ? 1 : 0);
+  const colorGroups = useMemo(() => {
+    const groups = new Map();
+    form.variants.forEach((variant, index) => {
+      const label = String(variant.color || "-").trim() || "-";
+      const key = label.toLocaleLowerCase();
+      const group = groups.get(key) || { key, label, image: variant.image || getProductThumbnail(product), variants: [] };
+      if (!group.image && variant.image) group.image = variant.image;
+      group.variants.push({ variant, index });
+      groups.set(key, group);
+    });
+    return Array.from(groups.values()).map((group) => {
+      const sellingPrices = new Set(group.variants.map(({ variant }) => String(variant.sale_price ?? "")));
+      const discountPrices = new Set(group.variants.map(({ variant }) => String(variant.discount_price ?? "")));
+      return {
+        ...group,
+        salePrice: sellingPrices.size === 1 ? group.variants[0].variant.sale_price : "",
+        discountPrice: discountPrices.size === 1 ? group.variants[0].variant.discount_price : "",
+        hasMixedSalePrice: sellingPrices.size > 1,
+        hasMixedDiscountPrice: discountPrices.size > 1,
+        changed: group.variants.some(({ variant }) => changedVariantIds.has(String(variant.id))),
+      };
+    });
+  }, [changedVariantIds, form.variants, product]);
 
   const validate = () => {
     const values = [
@@ -1193,6 +1228,24 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
     }
   };
 
+  const setColorGroupPrice = (groupKey, patch) => {
+    setForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((variant) =>
+        String(variant.color || "-").trim().toLocaleLowerCase() === groupKey ? { ...variant, ...patch } : variant
+      ),
+    }));
+  };
+
+  const toggleColorGroup = (groupKey) => {
+    setExpandedColorKeys((current) => {
+      const next = new Set(current);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  };
+
   const clearManualOverrides = async () => {
     if (saving) return;
     setSaving(true);
@@ -1265,7 +1318,51 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
                 <div className="text-sm font-black text-white">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
                 <div className="text-xs font-semibold text-zinc-500">{changedVariantIds.size} {t("products.priceEditor.changed", "changed")}</div>
               </div>
-              <div className="max-h-[42vh] overflow-auto">
+              <div className="max-h-[46vh] space-y-2 overflow-auto p-2">
+                {colorGroups.map((group) => {
+                  const expanded = expandedColorKeys.has(group.key);
+                  return (
+                    <section key={group.key} className={`overflow-hidden rounded-2xl border ${group.changed ? "border-emerald-300/35 bg-emerald-400/[0.05]" : "border-white/10 bg-black/15"}`}>
+                      <div className="grid items-center gap-2 p-2 md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]">
+                        <button type="button" onClick={() => toggleColorGroup(group.key)} className="flex min-w-0 items-center gap-3 rounded-xl p-1 text-start outline-none hover:bg-white/5">
+                          {group.image ? <img src={group.image} alt={group.label} className="h-14 w-14 shrink-0 rounded-xl border border-white/10 bg-white object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-500"><Package2 size={20} /></span>}
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-black text-white">{group.label}</span>
+                            <span className="mt-1 block text-xs font-semibold text-zinc-500">{group.variants.length} مقاس</span>
+                          </span>
+                        </button>
+                        <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={group.salePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { sale_price: value })} placeholder={group.hasMixedSalePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
+                        <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={group.discountPrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { discount_price: value })} placeholder={group.hasMixedDiscountPrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
+                        <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10">
+                          <ChevronDown size={18} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
+                        </button>
+                      </div>
+                      {expanded ? (
+                        <div className="border-t border-white/10 bg-black/20 p-2">
+                          <div className="mb-2 grid grid-cols-[5rem_1fr_1fr] gap-2 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
+                            <span>{t("products.fields.size", "Size")}</span>
+                            <span>{t("products.priceEditor.salePrice", "سعر البيع")}</span>
+                            <span>{t("products.priceEditor.discountPrice", "سعر السيل")}</span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {group.variants.map(({ variant, index }) => {
+                              const changed = changedVariantIds.has(String(variant.id));
+                              return (
+                                <div key={variant.id || index} className={`grid grid-cols-[5rem_1fr_1fr] items-center gap-2 rounded-xl p-2 ${changed ? "bg-emerald-400/[0.06]" : "bg-white/[0.025]"}`}>
+                                  <span className="font-black text-zinc-200">{variant.size}</span>
+                                  <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={variant.sale_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { sale_price: value })} />
+                                  <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={variant.discount_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })}
+              </div>
+              <div className="hidden">
                 <table className="min-w-full table-fixed text-left text-sm">
                   <thead className="sticky top-0 z-10 bg-zinc-950/95 text-[10px] uppercase tracking-[0.14em] text-zinc-500 backdrop-blur">
                     <tr>
