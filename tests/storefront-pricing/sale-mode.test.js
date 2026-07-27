@@ -39,6 +39,20 @@ test("turning sale mode off restores the normal selling price", () => {
   assert.equal(pricing.isOnSale, false);
 });
 
+test("a custom storefront compare price is shown without sale mode", () => {
+  const pricing = getDisplayPricing({
+    ...product,
+    sale_mode_enabled: false,
+    use_custom_compare_price: true,
+    custom_compare_price: 2300,
+  }, false);
+
+  assert.equal(pricing.price, 1750);
+  assert.equal(pricing.comparePrice, 2300);
+  assert.equal(pricing.discountPercent, 24);
+  assert.equal(pricing.isOnSale, true);
+});
+
 test("a storefront offer always uses its saved sale price when POS sale mode is off", () => {
   const offerProduct = {
     ...product,
