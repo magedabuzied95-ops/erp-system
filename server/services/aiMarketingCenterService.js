@@ -1159,10 +1159,56 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
       pv.size AS current_variant_size,
       pv.is_active AS current_variant_active,
       pv.deleted_at AS current_variant_deleted_at,
-      COALESCE(p.status, 'active') AS current_product_status
+      COALESCE(p.status, 'active') AS current_product_status,
+      p.price AS preview_product_price,
+      p.selling_price AS preview_product_selling_price,
+      p.regular_price AS preview_product_regular_price,
+      p.sale_price AS preview_product_sale_price,
+      p.sale_price_enabled AS preview_product_sale_price_enabled,
+      p.sale_start_at AS preview_product_sale_start_at,
+      p.sale_end_at AS preview_product_sale_end_at,
+      p.sale_reason AS preview_product_sale_reason,
+      COALESCE(p.is_offer_story, FALSE) AS preview_is_offer_story,
+      p.use_custom_compare_price AS preview_use_custom_compare_price,
+      p.custom_compare_price AS preview_custom_compare_price,
+      pv.price AS preview_variant_price,
+      COALESCE(preview_purchase_price.purchase_selling_price, pv.selling_price) AS preview_variant_selling_price,
+      pv.regular_price AS preview_variant_regular_price,
+      COALESCE(preview_purchase_price.purchase_sale_price, pv.sale_price) AS preview_variant_sale_price,
+      CASE
+        WHEN preview_purchase_price.purchase_sale_price IS NOT NULL THEN TRUE
+        ELSE pv.sale_price_enabled
+      END AS preview_variant_sale_price_enabled,
+      pv.sale_start_at AS preview_variant_sale_start_at,
+      pv.sale_end_at AS preview_variant_sale_end_at,
+      pv.sale_reason AS preview_variant_sale_reason
     FROM ai_marketing_content_queue q
     LEFT JOIN product_variants pv ON pv.id = q.variant_id
     LEFT JOIN products p ON p.id = q.product_id AND p.tenant_id = q.tenant_id
+    LEFT JOIN LATERAL (
+      SELECT
+        COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
+        NULLIF(pi.sale_price, 0) AS purchase_sale_price
+      FROM purchase_items pi
+      JOIN purchases pu ON pu.id = pi.purchase_id
+      WHERE pi.product_id = p.id
+        AND (
+          pi.variant_id = pv.id
+          OR (
+            COALESCE(TRIM(pi.metadata->>'color'), '') <> ''
+            AND LOWER(TRIM(pi.metadata->>'color')) = LOWER(TRIM(pv.color))
+          )
+        )
+        AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
+        AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
+        AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
+        AND (
+          COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
+          OR NULLIF(pi.sale_price, 0) > 0
+        )
+      ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
+      LIMIT 1
+    ) preview_purchase_price ON TRUE
     WHERE ${clauses.join(" AND ")}
     ORDER BY q.scheduled_at ASC NULLS LAST, q.created_at DESC
     LIMIT 300
@@ -1182,7 +1228,61 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
           is_sellable: rawRow.current_variant_active !== false && !rawRow.current_variant_deleted_at && rawRow.current_product_status === "active" && numberValue(rawRow.current_variant_stock, 0) > 0,
         }
       : null;
-    return withStoryLinks(applyCurrentLastPieceStock(row, currentStock));
+    const linkedRow = withStoryLinks(applyCurrentLastPieceStock(row, currentStock));
+    const design = linkedRow.design_json || {};
+    const isStory = linkedRow.content_type === "story" || cleanText(design.layout_type).toLowerCase().includes("story");
+    if (!isStory || (!rawRow.preview_product_price && !rawRow.preview_product_selling_price && !rawRow.preview_product_regular_price)) {
+      return linkedRow;
+    }
+    const previewProduct = {
+      id: linkedRow.product_id,
+      price: rawRow.preview_product_price,
+      selling_price: rawRow.preview_product_selling_price,
+      regular_price: rawRow.preview_product_regular_price,
+      sale_price: rawRow.preview_product_sale_price,
+      sale_price_enabled: rawRow.preview_product_sale_price_enabled,
+      sale_start_at: rawRow.preview_product_sale_start_at,
+      sale_end_at: rawRow.preview_product_sale_end_at,
+      sale_reason: rawRow.preview_product_sale_reason,
+      is_offer_story: rawRow.preview_is_offer_story,
+      use_custom_compare_price: rawRow.preview_use_custom_compare_price,
+      custom_compare_price: rawRow.preview_custom_compare_price,
+    };
+    const previewVariant = linkedRow.variant_id ? {
+      id: linkedRow.variant_id,
+      price: rawRow.preview_variant_price,
+      selling_price: rawRow.preview_variant_selling_price,
+      regular_price: rawRow.preview_variant_regular_price,
+      sale_price: rawRow.preview_variant_sale_price,
+      sale_price_enabled: rawRow.preview_variant_sale_price_enabled,
+      sale_start_at: rawRow.preview_variant_sale_start_at,
+      sale_end_at: rawRow.preview_variant_sale_end_at,
+      sale_reason: rawRow.preview_variant_sale_reason,
+    } : {};
+    const currentPrice = getProductPrice(previewProduct, previewVariant);
+    const originalPrice = getProductOriginalPrice(previewProduct, previewVariant, currentPrice);
+    if (!(currentPrice > 0)) return linkedRow;
+    const priceFields = {
+      price: currentPrice,
+      current_price: currentPrice,
+      product_price: currentPrice,
+      ...(originalPrice > currentPrice ? {
+        old_crossed_price: originalPrice,
+        original_price: originalPrice,
+        compare_at_price: originalPrice,
+      } : {}),
+    };
+    return {
+      ...linkedRow,
+      ...priceFields,
+      design_json: {
+        ...design,
+        ...priceFields,
+        slides: Array.isArray(design.slides)
+          ? design.slides.map((slide) => ({ ...slide, ...priceFields }))
+          : design.slides,
+      },
+    };
   });
 };
 

@@ -147,6 +147,8 @@ test("AI center hydrates every story slide with storefront compare pricing and c
   assert.match(centerSource, /isOfferStory && storedSalePrice > 0 && storedSalePrice < regularPrice/);
   assert.match(centerSource, /current_price: price/);
   assert.match(centerSource, /compare_at_price: originalPrice/);
+  assert.match(centerSource, /preview_purchase_price\.purchase_sale_price/);
+  assert.match(centerSource, /design\.slides\.map\(\(slide\) => \(\{ \.\.\.slide, \.\.\.priceFields \}\)\)/);
   assert.match(editorSource, /slide\.color_name \|\| slide\.color/);
   assert.match(editorSource, /line-through decoration-2 decoration-red-500/);
 });
