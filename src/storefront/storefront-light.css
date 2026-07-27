@@ -912,6 +912,35 @@ body.storefront-shell:not(.storefront-dark) .sf-product-cta:disabled {
   box-shadow: none !important;
 }
 
+/* Product recommendation strips */
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail {
+  border-color: var(--sf-light-border) !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail h2,
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-name {
+  color: var(--sf-light-text) !important;
+  -webkit-text-fill-color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail > div:first-child p,
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-meta {
+  color: var(--sf-light-text-secondary) !important;
+  -webkit-text-fill-color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail > div:first-child button,
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail > div:first-child a {
+  border-color: var(--sf-light-border-strong) !important;
+  background: #ffffff !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-tile {
+  color: var(--sf-light-text) !important;
+}
+
 /* Mobile search and image-search panel */
 body.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel,
 .storefront-shell:not(.storefront-dark) .sf-mobile-search-panel {

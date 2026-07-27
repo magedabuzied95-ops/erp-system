@@ -6572,15 +6572,15 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
   const brand = recommendationText(product?.brand?.name || product?.brand_name || product?.brand);
   const inWishlist = wishlist.some((item) => String(item?.id) === String(product?.id));
   return (
-    <div className="group relative min-w-0 text-center">
+    <div className="sf-product-recommendation-tile group relative min-w-0 text-center">
       <Link to={productUrl(product)} onClick={resetStorefrontViewportScroll} className="block min-w-0">
         <div className="relative aspect-square overflow-hidden bg-white">
           <img src={imageFor(image)} onError={fallbackProductImage} alt={product?.name || ""} className="h-full w-full object-contain p-2 transition duration-300 group-hover:scale-[1.025]" loading="lazy" decoding="async" />
           {pricing.isOnSale && pricing.discountPercent ? <span className="absolute end-2 top-2 rounded-full bg-[#d4af37] px-2 py-1 text-[9px] font-black text-black">-{pricing.discountPercent}%</span> : null}
         </div>
         <div className="px-1 pt-2">
-          <div className="truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{[brand, category].filter(Boolean).join(" · ")}</div>
-          <h3 className="mt-1 line-clamp-2 min-h-[2.5rem] text-xs font-black leading-5 text-stone-900 dark:text-white md:text-sm">{cleanDisplayText(product?.name || product?.title || "")}</h3>
+          <div className="sf-product-recommendation-meta truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{[brand, category].filter(Boolean).join(" · ")}</div>
+          <h3 className="sf-product-recommendation-name mt-1 line-clamp-2 min-h-[2.5rem] text-xs font-black leading-5 text-stone-900 dark:text-white md:text-sm">{cleanDisplayText(product?.name || product?.title || "")}</h3>
           <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 text-xs font-black">
             <span className="text-[#1683c5] dark:text-[#f3d77a]">{money(pricing.price)}</span>
             {pricing.comparePrice > pricing.price ? <span className="text-stone-400 line-through dark:text-white/35">{money(pricing.comparePrice)}</span> : null}
@@ -10427,16 +10427,20 @@ function Storefront() {
 
     if (isStorefrontProductPath(currentStorefrontPath)) {
       return (
-        <LazyStorefrontProductDetailPage
-          key={storefrontRouteKey}
-          onAddToCart={onAddToCart}
-          toggleWishlist={toggleWishlist}
-          wishlist={wishlist}
-          rememberProduct={rememberProduct}
-          recent={recent}
-          profile={profile}
-          saleModeEnabled={storefrontSalePricesEnabled}
-        />
+        <>
+          <LazyStorefrontProductDetailPage
+            key={storefrontRouteKey}
+            onAddToCart={onAddToCart}
+            toggleWishlist={toggleWishlist}
+            wishlist={wishlist}
+            rememberProduct={rememberProduct}
+            recent={recent}
+            profile={profile}
+            saleModeEnabled={storefrontSalePricesEnabled}
+          />
+          <HomeWhySection lang={i18n.language || "ar"} />
+          <HomeSimpleFooter lang={i18n.language || "ar"} />
+        </>
       );
     }
 
