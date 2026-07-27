@@ -1389,7 +1389,7 @@ const catalogQuery = `
           'list_price', COALESCE(NULLIF(pv.regular_price, 0), NULLIF(p.regular_price, 0), pv.price),
           'compare_base_price', COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(pv.regular_price, 0), NULLIF(p.regular_price, 0), pv.price),
           'custom_compare_price', COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(pv.regular_price, 0), NULLIF(p.regular_price, 0), pv.price),
-          'sale_price', pv.sale_price,
+          'sale_price', COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price),
           'sale_price_enabled', pv.sale_price_enabled,
           'sale_start_at', pv.sale_start_at,
           'sale_end_at', pv.sale_end_at,
@@ -1408,21 +1408,25 @@ const catalogQuery = `
     AND pv.deleted_at IS NULL
   LEFT JOIN LATERAL (
     SELECT
-      COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price
+      COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
+      NULLIF(pi.sale_price, 0) AS purchase_sale_price
     FROM purchase_items pi
     JOIN purchases pu ON pu.id = pi.purchase_id
     WHERE pi.product_id = p.id
       AND (
         pi.variant_id = pv.id
         OR (
-          COALESCE(TRIM(pi.color), '') <> ''
-          AND LOWER(TRIM(pi.color)) = LOWER(TRIM(pv.color))
+          COALESCE(TRIM(pi.metadata->>'color'), '') <> ''
+          AND LOWER(TRIM(pi.metadata->>'color')) = LOWER(TRIM(pv.color))
         )
       )
       AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
       AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
       AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
-      AND COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
+      AND (
+        COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
+        OR NULLIF(pi.sale_price, 0) > 0
+      )
     ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
     LIMIT 1
   ) last_color_purchase_price ON TRUE
