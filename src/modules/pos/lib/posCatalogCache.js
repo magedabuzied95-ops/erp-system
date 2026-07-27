@@ -1,6 +1,6 @@
 import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/lib/imageUrls.js";
 
-export const POS_CATALOG_SCHEMA_VERSION = 1;
+export const POS_CATALOG_SCHEMA_VERSION = 2;
 const POS_CATALOG_DB_NAME = "erp-pos-catalog-cache";
 const POS_CATALOG_DB_STORE = "kv";
 const POS_CATALOG_DB_KEY = "snapshot";
@@ -28,6 +28,9 @@ const normalizeNumber = (value) => {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 };
+
+const normalizeBoolean = (value) =>
+  value === true || value === 1 || String(value ?? "").trim().toLowerCase() === "true";
 
 const uniqueStrings = (values = []) => {
   const seen = new Set();
@@ -132,6 +135,8 @@ const sanitizePosCatalogProduct = (product = {}) => {
     sale_badge: normalizeText(product.sale_badge || ""),
     sale_source: normalizeText(product.sale_source || ""),
     sale_mode_applied: Boolean(product.sale_mode_applied),
+    is_pos_favorite: normalizeBoolean(product.is_pos_favorite ?? product.isPosFavorite),
+    isPosFavorite: normalizeBoolean(product.isPosFavorite ?? product.is_pos_favorite),
     brand_id: product.brand_id ?? product.brandId ?? null,
     brand_name: normalizeText(product.brand_name || product.brandName || product.brand || ""),
     brand: normalizeText(product.brand || product.brand_name || product.brandName || ""),
@@ -265,14 +270,19 @@ export const extractPosCatalogSnapshotImageUrls = (snapshotOrProducts = []) => {
   const products = extractSnapshotProducts(snapshotOrProducts);
   const urls = [];
 
-  products.forEach((product) => {
+  const prioritizedProducts = [...products].sort((left, right) =>
+    Number(normalizeBoolean(right?.is_pos_favorite ?? right?.isPosFavorite)) -
+    Number(normalizeBoolean(left?.is_pos_favorite ?? left?.isPosFavorite))
+  );
+
+  prioritizedProducts.forEach((product) => {
     urls.push(product?.thumbnail_url, product?.image_url, product?.product_image_url);
     (Array.isArray(product?.variants) ? product.variants : []).forEach((variant) => {
       urls.push(variant?.thumbnail_url, variant?.image_url, variant?.variant_image_url, variant?.product_image_url);
     });
   });
 
-  return uniqueStrings(urls.map((value) => pickImageUrl(value)));
+  return uniqueStrings(urls.map((value) => pickImageUrl(value))).slice(0, 120);
 };
 
 export const savePosCatalogSnapshot = async (products = []) => {

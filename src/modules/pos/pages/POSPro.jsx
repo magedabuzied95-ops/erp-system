@@ -1200,16 +1200,17 @@ const refreshCatalogProducts = async ({
   signal,
   saleModeSettings = {},
   search,
+  rawProducts: prefetchedRawProducts,
   persistSnapshot = search === undefined,
 } = {}) => {
   if (manageLoading && setLoading) {
     setLoading(true);
   }
   try {
-    const rawProducts = await getProductsWithVariants({
-      signal,
-      ...(search !== undefined ? { params: { search } } : {}),
-    });
+    const rawProducts = prefetchedRawProducts ?? (await getProductsWithVariants({
+        signal,
+        ...(search !== undefined ? { params: { search } } : {}),
+      }));
     const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
     if (isActive()) {
       setProducts(catalog);
@@ -2340,18 +2341,25 @@ function POSPro() {
             product_count: cachedCatalogSnapshot.products.length,
           });
         }
-        let saleModeForLoad = normalizeSaleModeSettings({ sale_mode_enabled: parseSaleModeEnabled(readUseSalePrices(), true) });
-
-        let websiteSettings = null;
-        try {
-          websiteSettings = await api.get("/website/settings", {
+        const [websiteSettingsResult, catalogResult, manufacturersResult, customersResult] = await Promise.allSettled([
+          api.get("/website/settings", {
             signal: controller.signal,
             cache: "no-store",
             headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-          });
-        } catch {
-          websiteSettings = null;
-        }
+          }),
+          getProductsWithVariants({ signal: controller.signal }),
+          api.get("/manufacturers", { signal: controller.signal }),
+          api.get("/customers", {
+            params: {
+              limit: 200,
+              page: 1,
+              branch_id: activePosShift?.branch_id || posShiftBranch?.id || "",
+            },
+            signal: controller.signal,
+          }),
+        ]);
+        let saleModeForLoad = normalizeSaleModeSettings({ sale_mode_enabled: parseSaleModeEnabled(readUseSalePrices(), true) });
+        const websiteSettings = websiteSettingsResult.status === "fulfilled" ? websiteSettingsResult.value : null;
         if (websiteSettings) {
           const backendSaleModeEnabledRaw = websiteSettings?.settings?.sale_mode_enabled;
           const backendSaleModeEnabled = parseSaleModeEnabled(backendSaleModeEnabledRaw, true);
@@ -2394,6 +2402,7 @@ function POSPro() {
           });
           setSaleModeSettings(saleModeForLoad);
         }
+        if (catalogResult.status === "rejected") throw catalogResult.reason;
         const catalog = await refreshCatalogProducts({
           setProducts,
           setLoading,
@@ -2401,23 +2410,12 @@ function POSPro() {
           isActive: () => active,
           signal: controller.signal,
           saleModeSettings: saleModeForLoad,
+          rawProducts: catalogResult.value,
         });
         catalogFallbackActiveRef.current = false;
         void catalog;
 
         if (!active) return;
-
-        const [manufacturersResult, customersResult] = await Promise.allSettled([
-          api.get("/manufacturers", { signal: controller.signal }),
-          api.get("/customers", {
-            params: {
-              limit: 200,
-              page: 1,
-              branch_id: activePosShift?.branch_id || posShiftBranch?.id || "",
-            },
-            signal: controller.signal,
-          }),
-        ]);
 
         if (!active) return;
 
