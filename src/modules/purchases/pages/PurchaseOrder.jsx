@@ -423,33 +423,50 @@ const normalizeVariantOption = (product, variant = null) => {
     savedPurchaseQty(product) ??
     null;
   const lowStockThreshold = money(variant?.low_stock_threshold ?? variant?.low_stock_alert ?? product?.low_stock_threshold ?? product?.low_stock_alert ?? 5);
-  const costPrice = money(
-    variant?.unit_cost ??
-      variant?.cost_price ??
-      variant?.last_cost ??
-      variant?.purchase_cost ??
-      variant?.purchase_price ??
-      variant?.last_purchase_cost ??
-      variant?.cost ??
-      product?.unit_cost ??
-      product?.cost_price ??
-      product?.last_cost ??
-      product?.purchase_cost ??
-      product?.purchase_price ??
-      product?.last_purchase_cost ??
-      product?.cost ??
-      0
-  );
-  const sellingPrice = money(
-    variant?.selling_price ??
-      variant?.regular_price ??
-      variant?.price ??
-      product?.selling_price ??
-      product?.regular_price ??
-      product?.price ??
-      0
-  );
-  const salePrice = money(variant?.sale_price ?? product?.sale_price ?? 0);
+  // A zero in a current-price column must not hide a real price saved by an
+  // earlier purchase. Purchase screens should prefill the last usable values.
+  const costPrice = firstUsefulPrice([
+    variant?.unit_cost,
+    variant?.cost_price,
+    variant?.last_purchase_cost,
+    variant?.last_purchase_price,
+    variant?.last_cost,
+    variant?.purchase_cost,
+    variant?.purchase_price,
+    variant?.average_cost,
+    variant?.cost,
+    product?.unit_cost,
+    product?.cost_price,
+    product?.last_purchase_cost,
+    product?.last_purchase_price,
+    product?.last_cost,
+    product?.purchase_cost,
+    product?.purchase_price,
+    product?.average_cost,
+    product?.cost,
+  ]);
+  const sellingPrice = firstUsefulPrice([
+    variant?.purchase_selling_price,
+    variant?.manual_selling_price,
+    variant?.selling_price,
+    variant?.regular_price,
+    variant?.price,
+    product?.purchase_selling_price,
+    product?.manual_selling_price,
+    product?.selling_price,
+    product?.regular_price,
+    product?.price,
+  ]);
+  const salePrice = firstUsefulPrice([
+    variant?.purchase_sale_price,
+    variant?.sale_price,
+    variant?.discount_price,
+    variant?.offer_price,
+    product?.purchase_sale_price,
+    product?.sale_price,
+    product?.discount_price,
+    product?.offer_price,
+  ]);
   const wholesalePrice = money(variant?.wholesale_price ?? product?.wholesale_price ?? 0);
   const articleCode = firstText(
     variant?.article_code,
@@ -1465,16 +1482,16 @@ function PurchaseOrder() {
     // edited on the invoice, then fall back to a saved price from another size.
     const sharedPrices = {
       purchasePrice: firstUsefulPrice([
-        ...priceSources.map(({ existing }) => existing?.cost_price ?? existing?.purchase_price),
-        ...priceSources.map(({ variant }) => variant.cost_price ?? variant.purchase_price),
+        ...priceSources.flatMap(({ existing }) => [existing?.cost_price, existing?.purchase_price, existing?.last_purchase_cost]),
+        ...priceSources.flatMap(({ variant }) => [variant.cost_price, variant.last_purchase_cost, variant.last_purchase_price, variant.purchase_price]),
       ]),
       sellingPrice: firstUsefulPrice([
-        ...priceSources.map(({ existing }) => existing?.selling_price ?? existing?.price),
-        ...priceSources.map(({ variant }) => variant.selling_price ?? variant.price),
+        ...priceSources.flatMap(({ existing }) => [existing?.purchase_selling_price, existing?.selling_price, existing?.price]),
+        ...priceSources.flatMap(({ variant }) => [variant.purchase_selling_price, variant.selling_price, variant.regular_price, variant.price]),
       ]),
       salePrice: firstUsefulPrice([
-        ...priceSources.map(({ existing }) => existing?.sale_price),
-        ...priceSources.map(({ variant }) => variant.sale_price),
+        ...priceSources.flatMap(({ existing }) => [existing?.purchase_sale_price, existing?.sale_price, existing?.discount_price]),
+        ...priceSources.flatMap(({ variant }) => [variant.purchase_sale_price, variant.sale_price, variant.discount_price, variant.offer_price]),
       ]),
     };
     return sourceVariants

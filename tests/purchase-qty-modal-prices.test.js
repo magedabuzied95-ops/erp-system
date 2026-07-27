@@ -21,10 +21,18 @@ test("multi-product purchase quantity preview includes one price set per product
 test("purchase quantity preview reuses saved prices across every size of a product", () => {
   assert.match(purchaseOrder, /const firstUsefulPrice = \(values = \[\]\)/);
   assert.match(purchaseOrder, /const sharedPrices = \{/);
-  assert.match(purchaseOrder, /\.\.\.priceSources\.map\(\(\{ variant \}\) => variant\.cost_price/);
+  assert.match(purchaseOrder, /\.\.\.priceSources\.flatMap\(\(\{ variant \}\) => \[variant\.cost_price, variant\.last_purchase_cost/);
   assert.match(purchaseOrder, /purchasePrice:\s*money\(sharedPrices\.purchasePrice\)/);
   assert.match(purchaseOrder, /sellingPrice:\s*money\(sharedPrices\.sellingPrice\)/);
   assert.match(purchaseOrder, /salePrice:\s*money\(sharedPrices\.salePrice\)/);
+});
+
+test("zero current prices do not hide historical purchase prices", () => {
+  assert.match(purchaseOrder, /const costPrice = firstUsefulPrice\(\[/);
+  assert.match(purchaseOrder, /variant\?\.last_purchase_cost/);
+  assert.match(purchaseOrder, /variant\?\.last_purchase_price/);
+  assert.match(purchaseOrder, /const sellingPrice = firstUsefulPrice\(\[[\s\S]*?variant\?\.purchase_selling_price/);
+  assert.match(purchaseOrder, /const salePrice = firstUsefulPrice\(\[[\s\S]*?variant\?\.discount_price/);
 });
 
 test("article is visible on purchase quantity product cards and review rows", () => {
