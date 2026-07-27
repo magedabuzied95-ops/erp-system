@@ -1537,6 +1537,8 @@ const getProductPrice = (product = {}, variant = {}) => {
     0
   );
   const storedSalePrice = numberValue(variant.sale_price || product.sale_price, 0);
+  const isOfferStory = product.is_offer_story === true || String(product.is_offer_story || "").toLowerCase() === "true";
+  if (isOfferStory && storedSalePrice > 0 && storedSalePrice < regularPrice) return storedSalePrice;
   const salePriceEnabled = variant.sale_price_enabled ?? product.sale_price_enabled ?? false;
   const resolved = resolveSaleModePrice(
     {
@@ -1552,6 +1554,19 @@ const getProductPrice = (product = {}, variant = {}) => {
     product.sale_mode_settings || { sale_mode_enabled: false }
   );
   return numberValue(resolved.final_price, 0) || regularPrice;
+};
+
+const getProductOriginalPrice = (product = {}, variant = {}, currentPrice = 0) => {
+  const candidates = [
+    product.use_custom_compare_price ? product.custom_compare_price : 0,
+    variant.selling_price,
+    variant.regular_price,
+    variant.price,
+    product.selling_price,
+    product.regular_price,
+    product.price,
+  ].map((value) => numberValue(value, 0)).filter((value) => value > currentPrice);
+  return candidates.length ? Math.max(...candidates) : 0;
 };
 
 const fetchPricingForQueueItem = async (tenantId, item = {}) => {
@@ -1576,14 +1591,18 @@ const fetchPricingForQueueItem = async (tenantId, item = {}) => {
         p.sale_start_at,
         p.sale_end_at,
         p.sale_reason,
+        COALESCE(p.is_offer_story, FALSE) AS is_offer_story,
         p.use_custom_compare_price,
         p.custom_compare_price,
         pv.id AS variant_id,
         pv.price AS variant_price,
-        pv.selling_price AS variant_selling_price,
+        COALESCE(last_color_purchase_price.purchase_selling_price, pv.selling_price) AS variant_selling_price,
         pv.regular_price AS variant_regular_price,
-        pv.sale_price AS variant_sale_price,
-        pv.sale_price_enabled AS variant_sale_price_enabled,
+        COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price) AS variant_sale_price,
+        CASE
+          WHEN last_color_purchase_price.purchase_sale_price IS NOT NULL THEN TRUE
+          ELSE pv.sale_price_enabled
+        END AS variant_sale_price_enabled,
         pv.sale_start_at AS variant_sale_start_at,
         pv.sale_end_at AS variant_sale_end_at,
         pv.sale_reason AS variant_sale_reason
@@ -1592,6 +1611,30 @@ const fetchPricingForQueueItem = async (tenantId, item = {}) => {
         ON pv.product_id = p.id
        AND pv.id = $3::bigint
        AND pv.deleted_at IS NULL
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
+          NULLIF(pi.sale_price, 0) AS purchase_sale_price
+        FROM purchase_items pi
+        JOIN purchases pu ON pu.id = pi.purchase_id
+        WHERE pi.product_id = p.id
+          AND (
+            pi.variant_id = pv.id
+            OR (
+              COALESCE(TRIM(pi.metadata->>'color'), '') <> ''
+              AND LOWER(TRIM(pi.metadata->>'color')) = LOWER(TRIM(pv.color))
+            )
+          )
+          AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
+          AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
+          AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
+          AND (
+            COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
+            OR NULLIF(pi.sale_price, 0) > 0
+          )
+        ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
+        LIMIT 1
+      ) last_color_purchase_price ON TRUE
       WHERE p.id = $1
         AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint)
       LIMIT 1
@@ -1617,6 +1660,7 @@ const fetchPricingForQueueItem = async (tenantId, item = {}) => {
       sale_start_at: row.sale_start_at,
       sale_end_at: row.sale_end_at,
       sale_reason: row.sale_reason,
+      is_offer_story: row.is_offer_story,
       sale_mode_settings: saleModeSettings,
     },
     row.variant_id ? {
@@ -1634,7 +1678,9 @@ const fetchPricingForQueueItem = async (tenantId, item = {}) => {
   const useCustomComparePrice = row.use_custom_compare_price === true || String(row.use_custom_compare_price || "").toLowerCase() === "true";
   const compareCandidates = [
     useCustomComparePrice ? row.custom_compare_price : 0,
+    row.variant_selling_price,
     row.variant_regular_price,
+    row.selling_price,
     row.regular_price,
   ].map((value) => numberValue(value, 0)).filter((value) => value > currentPrice);
   return {
@@ -3049,10 +3095,13 @@ const loadProducts = async (tenantId) => {
       pv.size,
       pv.article_code,
       pv.price AS variant_price,
-      pv.selling_price AS variant_selling_price,
+      COALESCE(last_color_purchase_price.purchase_selling_price, pv.selling_price) AS variant_selling_price,
       pv.regular_price AS variant_regular_price,
-      pv.sale_price AS variant_sale_price,
-      pv.sale_price_enabled AS variant_sale_price_enabled,
+      COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price) AS variant_sale_price,
+      CASE
+        WHEN last_color_purchase_price.purchase_sale_price IS NOT NULL THEN TRUE
+        ELSE pv.sale_price_enabled
+      END AS variant_sale_price_enabled,
       pv.sale_start_at AS variant_sale_start_at,
       pv.sale_end_at AS variant_sale_end_at,
       pv.sale_reason AS variant_sale_reason,
@@ -3084,6 +3133,30 @@ const loadProducts = async (tenantId) => {
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active IS DISTINCT FROM FALSE AND pv.deleted_at IS NULL
+    LEFT JOIN LATERAL (
+      SELECT
+        COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
+        NULLIF(pi.sale_price, 0) AS purchase_sale_price
+      FROM purchase_items pi
+      JOIN purchases pu ON pu.id = pi.purchase_id
+      WHERE pi.product_id = p.id
+        AND (
+          pi.variant_id = pv.id
+          OR (
+            COALESCE(TRIM(pi.metadata->>'color'), '') <> ''
+            AND LOWER(TRIM(pi.metadata->>'color')) = LOWER(TRIM(pv.color))
+          )
+        )
+        AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
+        AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
+        AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
+        AND (
+          COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
+          OR NULLIF(pi.sale_price, 0) > 0
+        )
+      ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
+      LIMIT 1
+    ) last_color_purchase_price ON TRUE
     WHERE p.tenant_id = $1
       AND COALESCE(p.status, 'active') = 'active'
       AND COALESCE(pv.stock, 0) > 0
@@ -4116,6 +4189,7 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
   const media = resolveAiContentMedia({ product, variant, strategy, contentType });
   const imageUrl = media.primary_image_url || getProductImage(product, variant || {});
   const price = getProductPrice(product, variant || {});
+  const originalPrice = getProductOriginalPrice(product, variant || {}, price);
   const storyProductSlug = productSlug(product);
   const storyProductUrl = productUrl(product);
   const colorName = cleanText(variant?.color || "");
@@ -4182,6 +4256,13 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
       product_url: storyProductUrl,
       cta_url: storyProductUrl,
       price,
+      current_price: price,
+      product_price: price,
+      ...(originalPrice > price ? {
+        old_crossed_price: originalPrice,
+        original_price: originalPrice,
+        compare_at_price: originalPrice,
+      } : {}),
       currency: "EGP",
       variant_id: variant?.id || null,
       color_name: colorName,
@@ -4201,6 +4282,13 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
           product_slug: storyProductSlug,
           product_url: storyProductUrl,
           cta_url: storyProductUrl,
+          price,
+          current_price: price,
+          ...(originalPrice > price ? {
+            old_crossed_price: originalPrice,
+            original_price: originalPrice,
+            compare_at_price: originalPrice,
+          } : {}),
           variant_id: slideVariant?.id || null,
           color_name: cleanText(slideVariant?.color || ""),
           size_name: cleanText(slideVariant?.size || ""),
