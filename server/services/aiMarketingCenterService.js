@@ -1231,9 +1231,7 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
     const linkedRow = withStoryLinks(applyCurrentLastPieceStock(row, currentStock));
     const design = linkedRow.design_json || {};
     const isStory = linkedRow.content_type === "story" || cleanText(design.layout_type).toLowerCase().includes("story");
-    if (!isStory || (!rawRow.preview_product_price && !rawRow.preview_product_selling_price && !rawRow.preview_product_regular_price)) {
-      return linkedRow;
-    }
+    if (!isStory) return linkedRow;
     const previewProduct = {
       id: linkedRow.product_id,
       price: rawRow.preview_product_price,
