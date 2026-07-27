@@ -19,6 +19,13 @@ test("product details render grade, brand and recently viewed recommendation rai
 test("recommendation rails provide paging controls and exclude the open product", () => {
   assert.match(storefrontSource, /parentId === String\(currentId\)/);
   assert.match(storefrontSource, /Math\.ceil\(items\.length \/ 5\)/);
-  assert.match(storefrontSource, /scrollIntoView\(\{ behavior: "smooth"/);
+  assert.match(storefrontSource, /items\.slice\(page \* 5, page \* 5 \+ 5\)/);
   assert.match(storefrontSource, /aria-label=\{`صفحة \$\{index \+ 1\}`\}/);
+});
+
+test("recommendations use a compact five-column storefront strip instead of product cards", () => {
+  assert.match(storefrontSource, /function RecommendationProductTile/);
+  assert.match(storefrontSource, /lg:grid-cols-5/);
+  assert.match(storefrontSource, /aspect-square overflow-hidden bg-white/);
+  assert.doesNotMatch(storefrontSource, /<ProductCard product=\{product\} railType="similar" rank=\{index \+ 1\}/);
 });

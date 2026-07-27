@@ -6564,8 +6564,35 @@ const recommendationText = (value) => {
   return String(value || "").trim();
 };
 
+function RecommendationProductTile({ product, wishlist = [], toggleWishlist, saleModeEnabled }) {
+  const variant = firstDisplayVariant(Array.isArray(product?.variants) ? product.variants : []);
+  const pricing = getDisplayPricing(product, parseSaleModeEnabled(saleModeEnabled, false), variant || {});
+  const image = productCardPrimaryImageFor(product, variant);
+  const category = recommendationText(product?.grade || product?.quality || product?.category?.name || product?.category_name || product?.category);
+  const brand = recommendationText(product?.brand?.name || product?.brand_name || product?.brand);
+  const inWishlist = wishlist.some((item) => String(item?.id) === String(product?.id));
+  return (
+    <div className="group relative min-w-0 text-center">
+      <Link to={productUrl(product)} onClick={resetStorefrontViewportScroll} className="block min-w-0">
+        <div className="relative aspect-square overflow-hidden bg-white">
+          <img src={imageFor(image)} onError={fallbackProductImage} alt={product?.name || ""} className="h-full w-full object-contain p-2 transition duration-300 group-hover:scale-[1.025]" loading="lazy" decoding="async" />
+          {pricing.isOnSale && pricing.discountPercent ? <span className="absolute end-2 top-2 rounded-full bg-[#d4af37] px-2 py-1 text-[9px] font-black text-black">-{pricing.discountPercent}%</span> : null}
+        </div>
+        <div className="px-1 pt-2">
+          <div className="truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{[brand, category].filter(Boolean).join(" · ")}</div>
+          <h3 className="mt-1 line-clamp-2 min-h-[2.5rem] text-xs font-black leading-5 text-stone-900 dark:text-white md:text-sm">{cleanDisplayText(product?.name || product?.title || "")}</h3>
+          <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 text-xs font-black">
+            <span className="text-[#1683c5] dark:text-[#f3d77a]">{money(pricing.price)}</span>
+            {pricing.comparePrice > pricing.price ? <span className="text-stone-400 line-through dark:text-white/35">{money(pricing.comparePrice)}</span> : null}
+          </div>
+        </div>
+      </Link>
+      {typeof toggleWishlist === "function" ? <button type="button" onClick={() => toggleWishlist(product)} aria-label="المفضلة" className={`absolute start-2 top-2 grid h-7 w-7 place-items-center rounded-full border bg-white/95 shadow-sm transition ${inWishlist ? "border-rose-300 text-rose-500" : "border-stone-200 text-stone-700"}`}><Heart className={`h-3.5 w-3.5 ${inWishlist ? "fill-current" : ""}`} /></button> : null}
+    </div>
+  );
+}
+
 function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, ...cardProps }) {
-  const railRef = useRef(null);
   const [page, setPage] = useState(0);
   const items = useMemo(() => {
     const seen = new Set();
@@ -6580,12 +6607,11 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
   const pageCount = Math.max(1, Math.ceil(items.length / 5));
   useEffect(() => {
     setPage(0);
-    railRef.current?.scrollTo?.({ left: 0, behavior: "auto" });
   }, [currentId, itemsSignature]);
+  const visibleItems = items.slice(page * 5, page * 5 + 5);
   const moveToPage = (nextPage) => {
     const safePage = Math.max(0, Math.min(pageCount - 1, nextPage));
     setPage(safePage);
-    railRef.current?.children?.[safePage * 5]?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
   };
   if (!loading && !items.length) return null;
   return (
@@ -6601,11 +6627,9 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
           <Link to={href || "/products"} className="ms-1 hidden rounded-full border border-stone-200 px-3 py-2 text-xs font-black text-stone-700 transition hover:border-[#d4af37] sm:inline-flex dark:border-white/10 dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
         </div>
       </div>
-      <div ref={railRef} className="sf-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-3 md:gap-4">
-        {loading ? Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-72 w-[44vw] shrink-0 animate-pulse rounded-2xl bg-stone-100 sm:w-[30vw] lg:w-[calc((100%_-_4rem)/5)] dark:bg-white/5" />) : items.map((product, index) => (
-          <div key={productCardKey(product, index)} className="w-[44vw] shrink-0 snap-start sm:w-[30vw] lg:w-[calc((100%_-_4rem)/5)]">
-            <ProductCard product={product} railType="similar" rank={index + 1} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
-          </div>
+      <div key={page} className="grid grid-cols-2 gap-x-3 gap-y-6 pb-3 sm:grid-cols-3 md:gap-x-5 lg:grid-cols-5">
+        {loading ? Array.from({ length: 5 }).map((_, index) => <div key={index} className="aspect-[0.72] min-w-0 animate-pulse bg-stone-100 dark:bg-white/5" />) : visibleItems.map((product, index) => (
+          <RecommendationProductTile key={productCardKey(product, index)} product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
         ))}
       </div>
       {pageCount > 1 ? <div className="mt-3 flex justify-center gap-1.5">{Array.from({ length: pageCount }).map((_, index) => <button key={index} type="button" onClick={() => moveToPage(index)} aria-label={`صفحة ${index + 1}`} className={`h-1.5 rounded-full transition-all ${page === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
