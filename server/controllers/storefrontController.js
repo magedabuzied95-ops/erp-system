@@ -1378,7 +1378,7 @@ const catalogQuery = `
           'edition_name', pv.edition_name,
           'edition_slug', pv.edition_slug,
           'image_url', COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pv.photo_url, ''), NULLIF(pv.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), ''),
-          'purchase_selling_price', pv.purchase_selling_price,
+          'purchase_selling_price', COALESCE(last_color_purchase_price.purchase_selling_price, pv.purchase_selling_price),
           'manual_selling_price', pv.manual_selling_price,
           'manual_price_override_active', pv.manual_price_override_active,
           'price', COALESCE(NULLIF(pv.selling_price, 0), pv.price),
@@ -1406,6 +1406,26 @@ const catalogQuery = `
   LEFT JOIN product_variants pv ON pv.product_id = p.id
     AND pv.is_active IS DISTINCT FROM FALSE
     AND pv.deleted_at IS NULL
+  LEFT JOIN LATERAL (
+    SELECT
+      COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price
+    FROM purchase_items pi
+    JOIN purchases pu ON pu.id = pi.purchase_id
+    WHERE pi.product_id = p.id
+      AND (
+        pi.variant_id = pv.id
+        OR (
+          COALESCE(TRIM(pi.color), '') <> ''
+          AND LOWER(TRIM(pi.color)) = LOWER(TRIM(pv.color))
+        )
+      )
+      AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
+      AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
+      AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
+      AND COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
+    ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
+    LIMIT 1
+  ) last_color_purchase_price ON TRUE
   WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
     AND p.is_active IS DISTINCT FROM FALSE
     AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')

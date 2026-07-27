@@ -10,9 +10,15 @@ const controller = readFileSync(
 );
 
 test("storefront catalog payload preserves each variant purchase selling price", () => {
-  assert.match(controller, /'purchase_selling_price', pv\.purchase_selling_price/);
+  assert.match(controller, /'purchase_selling_price', COALESCE\(last_color_purchase_price\.purchase_selling_price, pv\.purchase_selling_price\)/);
   assert.match(controller, /'manual_selling_price', pv\.manual_selling_price/);
   assert.match(controller, /'manual_price_override_active', pv\.manual_price_override_active/);
+});
+
+test("legacy variants inherit the latest purchase selling price from the same color", () => {
+  assert.match(controller, /LEFT JOIN LATERAL \([\s\S]*?FROM purchase_items pi/);
+  assert.match(controller, /LOWER\(TRIM\(pi\.color\)\) = LOWER\(TRIM\(pv\.color\)\)/);
+  assert.match(controller, /ORDER BY pu\.created_at DESC NULLS LAST, pi\.id DESC/);
 });
 
 test("different color variants resolve their own purchase-derived prices", () => {
