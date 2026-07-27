@@ -18,6 +18,21 @@ test("multi-product purchase quantity preview includes one price set per product
   assert.match(purchaseOrder, /priceInput\(product, "salePrice"/);
 });
 
+test("purchase quantity preview reuses saved prices across every size of a product", () => {
+  assert.match(purchaseOrder, /const firstUsefulPrice = \(values = \[\]\)/);
+  assert.match(purchaseOrder, /const sharedPrices = \{/);
+  assert.match(purchaseOrder, /\.\.\.priceSources\.map\(\(\{ variant \}\) => variant\.cost_price/);
+  assert.match(purchaseOrder, /purchasePrice:\s*money\(sharedPrices\.purchasePrice\)/);
+  assert.match(purchaseOrder, /sellingPrice:\s*money\(sharedPrices\.sellingPrice\)/);
+  assert.match(purchaseOrder, /salePrice:\s*money\(sharedPrices\.salePrice\)/);
+});
+
+test("article is visible on purchase quantity product cards and review rows", () => {
+  assert.match(purchaseOrder, /Article \{articleCode\}/);
+  assert.match(purchaseOrder, /\{labels\.article \|\| "Article"\}/);
+  assert.match(purchaseOrder, /firstText\(product\.group\?\.article_code, firstVariant\.article_code\)/);
+});
+
 test("applying selected products copies each product price set into all of its invoice lines", () => {
   assert.match(purchaseOrder, /applyProductPurchaseQty = \(editedProducts = \[\]\)/);
   assert.match(purchaseOrder, /toArray\(editedProducts\)\.flatMap/);

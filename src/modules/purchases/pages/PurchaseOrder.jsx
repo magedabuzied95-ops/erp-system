@@ -53,6 +53,13 @@ const text = (value) => String(value || "").trim();
 const normalizeKey = (value) => text(value).toLowerCase();
 const normalizeFilterValue = (value) => normalizeKey(value).replace(/\s+/g, "_");
 const firstText = (...values) => values.map(text).find(Boolean) || "";
+const firstUsefulPrice = (values = []) => {
+  const numericValues = values
+    .filter((value) => value !== "" && value !== null && value !== undefined)
+    .map(Number)
+    .filter(Number.isFinite);
+  return numericValues.find((value) => value > 0) ?? numericValues[0] ?? 0;
+};
 const purchaseVariantColorGroupKey = (item = {}) =>
   firstText(item.color_group_key, item.colorGroupKey) || `color:${normalizeKey(item.color || "افتراضي")}`;
 const SMART_PURCHASE_DRAFT_STORAGE_KEY = "erp.purchases.smartPurchaseDraft";
@@ -573,10 +580,14 @@ const groupByProduct = (products = []) => {
       matched_variant_id: item.matched_variant_id,
       matched_color: item.matched_color,
       matched_article: item.matched_article,
+      article_code: firstText(item.article_code, item.articleCode, item.variant_article_code, item.color_article_code),
       search_match_type: item.search_match_type,
       variants: [],
     };
     current.variants.push(item);
+    if (!current.article_code) {
+      current.article_code = firstText(item.article_code, item.articleCode, item.variant_article_code, item.color_article_code);
+    }
     if (!current.image_url && item.image_url) current.image_url = item.image_url;
     if (!current.supplier_name && item.supplier_name) current.supplier_name = item.supplier_name;
     groups.set(key, current);
@@ -1444,6 +1455,28 @@ function PurchaseOrder() {
 
   const buildPurchaseQtyRows = (group) => {
     const sourceVariants = toArray(group?.variants);
+    const priceSources = sourceVariants.map((variant) => {
+      const existing =
+        items.find((item) => String(item.line_id) === String(variant.line_id)) ||
+        items.find((item) => String(item.variant_id || "") === String(variant.variant_id || ""));
+      return { variant, existing };
+    });
+    // Sizes of the same product share one price set. Prefer any price already
+    // edited on the invoice, then fall back to a saved price from another size.
+    const sharedPrices = {
+      purchasePrice: firstUsefulPrice([
+        ...priceSources.map(({ existing }) => existing?.cost_price ?? existing?.purchase_price),
+        ...priceSources.map(({ variant }) => variant.cost_price ?? variant.purchase_price),
+      ]),
+      sellingPrice: firstUsefulPrice([
+        ...priceSources.map(({ existing }) => existing?.selling_price ?? existing?.price),
+        ...priceSources.map(({ variant }) => variant.selling_price ?? variant.price),
+      ]),
+      salePrice: firstUsefulPrice([
+        ...priceSources.map(({ existing }) => existing?.sale_price),
+        ...priceSources.map(({ variant }) => variant.sale_price),
+      ]),
+    };
     return sourceVariants
       .map((variant) => {
         const existing =
@@ -1459,9 +1492,9 @@ function PurchaseOrder() {
           currentQty: existing ? money(existing.quantity) : 0,
           savedQty,
           newQty: savedQty,
-          purchasePrice: money(existing?.cost_price ?? existing?.purchase_price ?? variant.cost_price ?? variant.purchase_price),
-          sellingPrice: money(existing?.selling_price ?? existing?.price ?? variant.selling_price ?? variant.price),
-          salePrice: money(existing?.sale_price ?? variant.sale_price),
+          purchasePrice: money(sharedPrices.purchasePrice),
+          sellingPrice: money(sharedPrices.sellingPrice),
+          salePrice: money(sharedPrices.salePrice),
         };
       })
       .filter((row) => row.savedQty !== null);
@@ -2516,6 +2549,7 @@ function ProductCard({ group, purchaseQtyLabel, purchaseQtySelected = false, onC
   const variants = toArray(group.variants);
   const first = variants[0] || {};
   const matchedLabel = firstText(group.matched_article, group.matched_color);
+  const articleCode = firstText(group.article_code, ...variants.map((variant) => variant.article_code));
 
   return (
     <div className={`group overflow-hidden rounded-xl border bg-white/[0.04] transition hover:bg-white/[0.07] ${purchaseQtySelected ? "border-amber-400 ring-2 ring-amber-400/20" : matchedLabel ? "border-emerald-300/60 ring-2 ring-emerald-400/10" : "border-white/10 hover:border-emerald-400/30"}`}>
@@ -2526,6 +2560,7 @@ function ProductCard({ group, purchaseQtyLabel, purchaseQtySelected = false, onC
         <div className="p-2.5">
           <div className="line-clamp-1 text-sm font-black text-white">{group.product_name}</div>
           {matchedLabel ? <div className="mt-1 truncate rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-black text-emerald-100">Match: {matchedLabel}</div> : null}
+          {articleCode ? <div className="mt-1 truncate text-[10px] font-bold text-amber-200">Article {articleCode}</div> : null}
           <div className="mt-1 text-xs text-zinc-500">{first.sku || first.barcode ? `SKU ${first.sku || first.barcode}` : t("purchases.create.variantsCount", { count: variants.length })}</div>
         </div>
       </button>
@@ -3121,6 +3156,7 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
         eyebrow: "Purchase quantities",
         title: "Use Product Purchase Qty",
         description: "Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.",
+        article: "Article",
         variant: "Size / color",
         current: "Current quantity",
         saved: "Saved product purchase qty",
@@ -3254,6 +3290,7 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
         eyebrow: "Purchase quantities",
         title: "Price selected products",
         description: "Enter one price set per product. It will apply to every color and size while using saved quantities.",
+        article: "Article",
         product: "Product",
         coverage: "Colors and sizes",
         variants: "variants",
@@ -3324,6 +3361,11 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
                         />
                         <div className="min-w-0">
                           <div className="max-w-52 truncate text-sm font-black">{product.group?.product_name || "Product"}</div>
+                          {firstText(product.group?.article_code, firstVariant.article_code) ? (
+                            <div className="mt-1 text-[11px] font-bold text-amber-200">
+                              {labels.article || "Article"}: {firstText(product.group?.article_code, firstVariant.article_code)}
+                            </div>
+                          ) : null}
                           <div className="mt-1 text-[11px] text-amber-200">
                             {product.rows.length} {labels.variants} • {labels.totalQuantity}: {totalSavedQuantity(product)}
                           </div>
