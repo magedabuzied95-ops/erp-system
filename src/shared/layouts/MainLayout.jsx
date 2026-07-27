@@ -901,9 +901,10 @@ function MainLayout() {
               </div>
 
               <div className="m1-topbar-tools flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto pointer-events-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
-                <button
-                  type="button"
-                  onClick={() => window.open(publicStorefrontUrl("/"), "_blank", "noopener,noreferrer")}
+                <a
+                  href={publicStorefrontUrl("/")}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   title={t("sidebar.storefront")}
                   aria-label={t("sidebar.openStore")}
                   className={[
@@ -916,10 +917,9 @@ function MainLayout() {
                 >
                   <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
                   <span className="hidden sm:inline">{t("sidebar.storefront")}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/products")}
+                </a>
+                <NavLink
+                  to="/products"
                   title={productsLabel}
                   aria-label={productsLabel}
                   className={[
@@ -932,10 +932,9 @@ function MainLayout() {
                 >
                   <Boxes className="h-4 w-4 text-sky-300 transition group-hover:text-sky-200" />
                   <span className="hidden sm:inline">{productsLabel}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/purchases")}
+                </NavLink>
+                <NavLink
+                  to="/purchases"
                   title={purchasesLabel}
                   aria-label={purchasesLabel}
                   className={[
@@ -948,10 +947,9 @@ function MainLayout() {
                 >
                   <ClipboardList className="h-4 w-4 text-amber-300 transition group-hover:text-amber-200" />
                   <span className="hidden sm:inline">{purchasesLabel}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/pos")}
+                </NavLink>
+                <NavLink
+                  to="/pos"
                   title={`${posLabel} (Alt+P)`}
                   aria-label={`${posLabel} (Alt+P)`}
                   className={[
@@ -965,7 +963,7 @@ function MainLayout() {
                   <Store className="h-4 w-4 text-violet-300 transition group-hover:text-violet-200" />
                   <span className="hidden sm:inline">{posLabel}</span>
                   <span className="sm:hidden">POS</span>
-                </button>
+                </NavLink>
                 <LanguageSwitcher compact className="shrink-0" />
                 <button
                   type="button"
