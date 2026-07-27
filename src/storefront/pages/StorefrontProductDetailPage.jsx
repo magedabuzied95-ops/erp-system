@@ -750,8 +750,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           </div>
         </div>}
         {false && <ProductDetailReviewSection />}
-        <RelatedProducts currentId={product.id} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
-        <RecentProductsSection currentId={product.id} recent={recent} />
+        <RelatedProducts currentProduct={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
+        <RecentProductsSection currentId={product.id} recent={recent} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
       </div>
       {false && <div className="md:hidden">
         <div className="h-28" aria-hidden="true" />

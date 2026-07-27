@@ -28,6 +28,7 @@ import {
   Briefcase,
   Check,
   ChevronLeft,
+  ChevronRight,
   Crown,
   Clock3,
   Footprints,
@@ -4171,19 +4172,6 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
   );
 });
 
-function MiniRailEmpty() {
-  const { t } = useTranslation();
-  return (
-    <div className="rounded-[1.5rem] border border-[#e5c158]/18 bg-[linear-gradient(180deg,rgba(18,18,28,0.96),rgba(7,10,20,0.94))] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl">
-      <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-[#e5c158]/20 bg-[#d4af37]/14 text-[#f3d77a]">
-        <Sparkles className="h-6 w-6" />
-      </span>
-      <h3 className="mt-3 text-lg font-black text-stone-50">{t("storefront.products.emptyRailTitle")}</h3>
-      <p className="mt-1 text-sm font-bold text-stone-400">{t("storefront.products.comingSoon")}</p>
-    </div>
-  );
-}
-
 function useStorefrontProductGridColumns() {
   const [width, setWidth] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
 
@@ -6571,58 +6559,82 @@ function ProductDetailsVariantSheet({
   );
 }
 
-function RelatedProducts({ currentId, ...props }) {
-  const { products } = useProducts({ limit: 8 });
-  const filtered = useMemo(
-    () => sortStorefrontColorCardsByModel(products.filter((product) => String(product.parent_product_id || product.id) !== String(currentId))).slice(0, 4),
-    [currentId, products]
-  );
+const recommendationText = (value) => {
+  if (value && typeof value === "object") return String(value.name || value.title || value.label || value.value || "").trim();
+  return String(value || "").trim();
+};
+
+function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, ...cardProps }) {
+  const railRef = useRef(null);
+  const [page, setPage] = useState(0);
+  const items = useMemo(() => {
+    const seen = new Set();
+    return sortStorefrontColorCardsByModel(products).filter((product) => {
+      const parentId = String(product.parent_product_id || product.id || "");
+      if (!parentId || parentId === String(currentId) || seen.has(parentId)) return false;
+      seen.add(parentId);
+      return true;
+    }).slice(0, 15);
+  }, [currentId, products]);
+  const itemsSignature = items.map((item, index) => productCardKey(item, index)).join("|");
+  const pageCount = Math.max(1, Math.ceil(items.length / 5));
+  useEffect(() => {
+    setPage(0);
+    railRef.current?.scrollTo?.({ left: 0, behavior: "auto" });
+  }, [currentId, itemsSignature]);
+  const moveToPage = (nextPage) => {
+    const safePage = Math.max(0, Math.min(pageCount - 1, nextPage));
+    setPage(safePage);
+    railRef.current?.children?.[safePage * 5]?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+  };
+  if (!loading && !items.length) return null;
   return (
-    <div className="sf-related-products mt-5 border-t border-white/[0.06] pt-5">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.products.similarProducts")}</h2>
-          <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">{sfText("storefront.products.youMayAlsoLike")}</p>
+    <section className="sf-product-recommendation-rail border-t border-stone-200 py-6 dark:border-white/[0.08] md:py-8">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl font-black text-stone-950 dark:text-white md:text-2xl">{title}</h2>
+          {subtitle ? <p className="mt-1 truncate text-xs font-bold text-stone-500 dark:text-white/55 md:text-sm">{subtitle}</p> : null}
         </div>
-        <Link to="/products" className="rounded-full border border-stone-200 bg-white/70 px-3 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:border-stone-950 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70 dark:hover:border-white/25 dark:hover:text-white">{sfText("storefront.common.viewAll")}</Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={() => moveToPage(page - 1)} disabled={page === 0} aria-label="السابق" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveToPage(page + 1)} disabled={page >= pageCount - 1} aria-label="التالي" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
+          <Link to={href || "/products"} className="ms-1 hidden rounded-full border border-stone-200 px-3 py-2 text-xs font-black text-stone-700 transition hover:border-[#d4af37] sm:inline-flex dark:border-white/10 dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {filtered.length ? filtered.map((product, index) => {
-          return <ProductCard key={productCardKey(product, index)} product={product} railType="similar" {...props} saleModeEnabled={props?.saleModeEnabled} />;
-        }) : <MiniRailEmpty />}
+      <div ref={railRef} className="sf-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-3 md:gap-4">
+        {loading ? Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-72 w-[44vw] shrink-0 animate-pulse rounded-2xl bg-stone-100 sm:w-[30vw] lg:w-[calc((100%_-_4rem)/5)] dark:bg-white/5" />) : items.map((product, index) => (
+          <div key={productCardKey(product, index)} className="w-[44vw] shrink-0 snap-start sm:w-[30vw] lg:w-[calc((100%_-_4rem)/5)]">
+            <ProductCard product={product} railType="similar" rank={index + 1} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
+          </div>
+        ))}
       </div>
+      {pageCount > 1 ? <div className="mt-3 flex justify-center gap-1.5">{Array.from({ length: pageCount }).map((_, index) => <button key={index} type="button" onClick={() => moveToPage(index)} aria-label={`صفحة ${index + 1}`} className={`h-1.5 rounded-full transition-all ${page === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
+    </section>
+  );
+}
+
+function RelatedProducts({ currentProduct, ...props }) {
+  const currentId = currentProduct?.id;
+  const grade = recommendationText(currentProduct?.grade || currentProduct?.quality || currentProduct?.quality_grade || currentProduct?.product_grade);
+  const brand = recommendationText(currentProduct?.brand?.name || currentProduct?.brand_name || currentProduct?.brand);
+  const gradeResult = useProducts({ grade: grade || "__no_grade__", limit: 15, in_stock: 1, grouping: "product" });
+  const brandResult = useProducts({ brand: brand || "__no_brand__", limit: 15, in_stock: 1, grouping: "product" });
+  return (
+    <div className="sf-related-products mt-5">
+      <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle={grade ? `المزيد من فئة ${grade}` : "من نفس الفئة"} href={grade ? `/products?grade=${encodeURIComponent(grade)}` : "/products"} products={gradeResult.products} loading={gradeResult.loading} currentId={currentId} {...props} />
+      <StorefrontRecommendationRail title={brand ? `المزيد من منتجات ${brand}` : "منتجات من نفس الماركة"} subtitle="منتجات من نفس الماركة" href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} {...props} />
     </div>
   );
 }
 
-function RecentProductsSection({ currentId, recent = [] }) {
+function RecentProductsSection({ currentId, recent = [], ...props }) {
   const items = useMemo(
-    () => recent.filter((item) => String(item.id) !== String(currentId)).slice(0, 4),
+    () => recent.filter((item) => String(item.id) !== String(currentId)).slice(0, 15),
     [currentId, recent]
   );
   if (!items.length) return null;
   return (
-    <div className="sf-recent-products mt-5 rounded-[1.25rem] border border-stone-200 bg-white/70 p-4 shadow-[0_14px_38px_rgba(39,20,75,0.05)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-[0_20px_50px_rgba(0,0,0,0.20)]">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.account.recentlyViewed")}</h2>
-          <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">{sfText("storefront.account.recentEmpty")}</p>
-        </div>
-        <Link to="/recently-viewed" className="rounded-full border border-stone-200 bg-stone-100 px-3 py-2 text-xs font-black text-stone-700 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {items.map((item) => (
-          <Link key={item.id} to={`/product/${item.slug || item.id}`} onClick={resetStorefrontViewportScroll} className="min-w-0 rounded-2xl bg-stone-50 p-2 transition hover:-translate-y-0.5 dark:bg-white/[0.055]">
-            <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" width="240" height="240" />
-            <div className="mt-2 truncate text-sm font-black text-stone-950 dark:text-white">{item.name}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-white/55">
-              {displayCartItemComparePrice(item) ? <span className="line-through">{money(displayCartItemComparePrice(item))}</span> : null}
-              <span>{money(displayCartItemPrice(item))}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </div>
+    <StorefrontRecommendationRail title={sfText("storefront.account.recentlyViewed")} subtitle={sfText("storefront.account.recentEmpty")} href="/recently-viewed" products={items} currentId={currentId} {...props} />
   );
 }
 
