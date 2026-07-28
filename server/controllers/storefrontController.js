@@ -4080,11 +4080,12 @@ export const getProduct = async (req, res) => {
       } : null,
     };
     console.log("[storefront-product-price-payload]", productPricePayload);
-    const responseProduct = await attachSocialMetadata(product, req);
-    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.set("Pragma", "no-cache");
-    res.set("Expires", "0");
-    res.json({ success: true, product: responseProduct, price_debug: productPricePayload });
+    // The interactive product page must not wait for OG image generation or
+    // merchant-policy lookups. Those can download and resize a remote image and
+    // are only needed by the dedicated share/SEO rendering flow.
+    res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=45");
+    res.set("Vary", "X-Tenant-Id");
+    res.json({ success: true, product, price_debug: productPricePayload });
   } catch (error) {
     console.error("[storefront] product", error);
     res.status(500).json({ success: false, message: "Failed to load product" });
