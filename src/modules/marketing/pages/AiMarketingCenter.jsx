@@ -548,7 +548,7 @@ function AiMarketingCenter() {
   };
 
   const updateQueueItem = async (target, action) => {
-    const targetItem = typeof target === "object" && target !== null ? target : queue.find((item) => String(item.id) === String(target));
+    let targetItem = typeof target === "object" && target !== null ? target : queue.find((item) => String(item.id) === String(target));
     const id = targetItem?.id || target;
     const statusInfo = getQueueStatusInfo(targetItem || { id }, { source: "action", queueType: targetItem?.content_type || targetItem?.strategy_type || "queue" });
     logQueueAuditDebug("[queue-action]", {
@@ -567,13 +567,11 @@ function AiMarketingCenter() {
     }
     const targetFlags = getPreviewContentFlags(targetItem || {});
     if (action === "publish" && targetFlags.isStoryContent && !targetFlags.isFeedContent) {
-      if (storyAssetRequestsRef.current.has(String(id)) || generatingStoryAssetIds.has(String(id))) {
-        toast.error("انتظر حتى يكتمل إنشاء أصل القصة أولًا.");
-        return;
-      }
       if (!hasValidStoryAssetSnapshot(targetItem || {})) {
-        toast.error("أنشئ أصل القصة أولًا من زر المعاينة، ثم أعد محاولة النشر.");
-        return;
+        toast("جارٍ إنشاء أصل القصة تلقائيًا قبل النشر...");
+        const preparedItem = await generateStoryAsset(targetItem || { id });
+        if (!preparedItem || !hasValidStoryAssetSnapshot(preparedItem)) return;
+        targetItem = preparedItem;
       }
     }
     if (action === "publish" && !canPublishQueueItem(targetItem)) {
@@ -752,8 +750,9 @@ function AiMarketingCenter() {
         return flags.isStoryContent && !flags.isFeedContent && !hasValidStoryAssetSnapshot(item);
       });
       if (missingStoryAssets.length) {
-        toast.error("أنشئ أصول القصص المحددة أولًا قبل النشر الجماعي.");
-        return;
+        toast(`جارٍ إنشاء ${missingStoryAssets.length} من أصول القصص تلقائيًا قبل النشر...`);
+        const preparedAssets = await Promise.all(missingStoryAssets.map((item) => generateStoryAsset(item)));
+        if (preparedAssets.some((item) => !item || !hasValidStoryAssetSnapshot(item))) return;
       }
     }
     try {
