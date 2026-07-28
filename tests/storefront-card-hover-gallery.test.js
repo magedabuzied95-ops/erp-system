@@ -20,3 +20,9 @@ test("the second card image fades in and receives the same hover zoom", () => {
   assert.match(source, /sf-card-secondary-image[\s\S]{0,600}group-hover\/card-image:opacity-100/);
   assert.match(source, /sf-card-primary-image[\s\S]{0,700}group-hover\/card-image:opacity-0/);
 });
+
+test("hover never falls back to a different color image", () => {
+  assert.match(source, /const hasColorScope = Boolean\(activeColorGroup \|\| variantColorName\(variant \|\| \{\}\) !== "Default"\)/);
+  assert.match(source, /hasColorScope\s*\? colorScopedCandidates\s*:\s*\[\.\.\.colorScopedCandidates, cardImages\[1\], cardImages\[0\]\]/);
+  assert.match(source, /getActiveColorGroup\(hoverProductDetails, variantColorKey\(hoverDetailVariant \|\| \{\}\) \|\| selectedColorKey\)/);
+});

@@ -914,14 +914,16 @@ const productCardSecondaryImageFor = (product = {}, variant = null, activeColorG
     ...(Array.isArray(variant?.gallery_images) ? variant.gallery_images : []),
     ...(Array.isArray(variant?.image_urls) ? variant.image_urls : []),
   ]);
-  const candidates = [
-    cardImages[1],
-    cardImages[0],
+  const colorScopedCandidates = [
     variantImagesList[1],
     variantImagesList[0],
     cardImageAtIndex(activeColorGroup?.additional_images, 0),
     cardImageAtIndex(variant?.additional_images, 0),
   ];
+  const hasColorScope = Boolean(activeColorGroup || variantColorName(variant || {}) !== "Default");
+  const candidates = hasColorScope
+    ? colorScopedCandidates
+    : [...colorScopedCandidates, cardImages[1], cardImages[0]];
   for (const candidate of candidates) {
     const next = resolveCardImageUrl(candidate);
     if (next && next !== primary) return next;
@@ -5879,7 +5881,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     || firstDisplayVariant(hoverDetailVariants)
   ), [availableVariant?.id, hoverDetailVariants, selectedColorKey]);
   const hoverDetailColorGroup = useMemo(
-    () => (hoverProductDetails ? getActiveColorGroup(hoverProductDetails, selectedColorKey || variantColorKey(hoverDetailVariant || {})) : null),
+    () => (hoverProductDetails ? getActiveColorGroup(hoverProductDetails, variantColorKey(hoverDetailVariant || {}) || selectedColorKey) : null),
     [hoverDetailVariant, hoverProductDetails, selectedColorKey]
   );
   const secondaryDisplayImage = useMemo(
