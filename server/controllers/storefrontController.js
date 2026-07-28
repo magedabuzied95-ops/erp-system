@@ -4947,12 +4947,12 @@ export const accountByPhone = async (req, res) => {
         b.name AS brand,
         b.name AS brand_name,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS image_url,
-        COALESCE(NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), p.price, 0) AS price,
-        COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS selling_price,
-        COALESCE(NULLIF(p.regular_price, 0), 0) AS original_price,
-        COALESCE(NULLIF(p.regular_price, 0), 0) AS regular_price,
-        COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(p.regular_price, 0), 0) AS compare_at_price,
-        p.sale_price,
+        COALESCE(NULLIF(p.selling_price, 0), display_variant.selling_price, NULLIF(p.price, 0), NULLIF(p.regular_price, 0), 0) AS price,
+        COALESCE(NULLIF(p.selling_price, 0), display_variant.selling_price, NULLIF(p.price, 0), NULLIF(p.regular_price, 0), 0) AS selling_price,
+        COALESCE(NULLIF(p.custom_compare_price, 0), display_variant.compare_price, NULLIF(p.regular_price, 0), 0) AS original_price,
+        COALESCE(NULLIF(p.custom_compare_price, 0), display_variant.compare_price, NULLIF(p.regular_price, 0), 0) AS regular_price,
+        COALESCE(NULLIF(p.custom_compare_price, 0), display_variant.compare_price, NULLIF(p.regular_price, 0), 0) AS compare_at_price,
+        COALESCE(NULLIF(p.sale_price, 0), display_variant.sale_price, 0) AS sale_price,
         $3::boolean AS sale_prices_enabled,
         $3::boolean AS global_sale_enabled,
         $3::boolean AS sale_mode_enabled,
@@ -4960,6 +4960,16 @@ export const accountByPhone = async (req, res) => {
       FROM customer_wishlist cw
       JOIN products p ON p.id = cw.product_id
       LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(NULLIF(pv.selling_price, 0), NULLIF(pv.price, 0), NULLIF(pv.regular_price, 0)) AS selling_price,
+          COALESCE(NULLIF(pv.regular_price, 0), NULLIF(pv.price, 0)) AS compare_price,
+          NULLIF(pv.sale_price, 0) AS sale_price
+        FROM product_variants pv
+        WHERE pv.product_id = p.id AND pv.deleted_at IS NULL AND pv.is_active IS NOT FALSE
+        ORDER BY (COALESCE(pv.stock, 0) > 0) DESC, pv.color_sort_order ASC, pv.id ASC
+        LIMIT 1
+      ) display_variant ON TRUE
       WHERE cw.tenant_id = $1 AND cw.phone = $2
       ORDER BY cw.created_at DESC
       LIMIT 50
@@ -4974,12 +4984,12 @@ export const accountByPhone = async (req, res) => {
         b.name AS brand,
         b.name AS brand_name,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS image_url,
-        COALESCE(NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), p.price, 0) AS price,
-        COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS selling_price,
-        COALESCE(NULLIF(p.regular_price, 0), 0) AS original_price,
-        COALESCE(NULLIF(p.regular_price, 0), 0) AS regular_price,
-        COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(p.regular_price, 0), 0) AS compare_at_price,
-        p.sale_price,
+        COALESCE(NULLIF(p.selling_price, 0), display_variant.selling_price, NULLIF(p.price, 0), NULLIF(p.regular_price, 0), 0) AS price,
+        COALESCE(NULLIF(p.selling_price, 0), display_variant.selling_price, NULLIF(p.price, 0), NULLIF(p.regular_price, 0), 0) AS selling_price,
+        COALESCE(NULLIF(p.custom_compare_price, 0), display_variant.compare_price, NULLIF(p.regular_price, 0), 0) AS original_price,
+        COALESCE(NULLIF(p.custom_compare_price, 0), display_variant.compare_price, NULLIF(p.regular_price, 0), 0) AS regular_price,
+        COALESCE(NULLIF(p.custom_compare_price, 0), display_variant.compare_price, NULLIF(p.regular_price, 0), 0) AS compare_at_price,
+        COALESCE(NULLIF(p.sale_price, 0), display_variant.sale_price, 0) AS sale_price,
         $3::boolean AS sale_prices_enabled,
         $3::boolean AS global_sale_enabled,
         $3::boolean AS sale_mode_enabled,
@@ -4987,6 +4997,16 @@ export const accountByPhone = async (req, res) => {
       FROM recently_viewed_products rv
       JOIN products p ON p.id = rv.product_id
       LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(NULLIF(pv.selling_price, 0), NULLIF(pv.price, 0), NULLIF(pv.regular_price, 0)) AS selling_price,
+          COALESCE(NULLIF(pv.regular_price, 0), NULLIF(pv.price, 0)) AS compare_price,
+          NULLIF(pv.sale_price, 0) AS sale_price
+        FROM product_variants pv
+        WHERE pv.product_id = p.id AND pv.deleted_at IS NULL AND pv.is_active IS NOT FALSE
+        ORDER BY (COALESCE(pv.stock, 0) > 0) DESC, pv.color_sort_order ASC, pv.id ASC
+        LIMIT 1
+      ) display_variant ON TRUE
       WHERE rv.tenant_id = $1 AND rv.phone = $2
       ORDER BY rv.product_id, rv.viewed_at DESC
       LIMIT 20

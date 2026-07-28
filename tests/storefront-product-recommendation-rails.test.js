@@ -19,8 +19,8 @@ test("product details render grade, brand and recently viewed recommendation rai
 
 test("recommendation rails provide paging controls and exclude the open product", () => {
   assert.match(storefrontSource, /parentId === String\(currentId\)/);
-  assert.match(storefrontSource, /Math\.ceil\(items\.length \/ 5\)/);
-  assert.match(storefrontSource, /items\.slice\(page \* 5, page \* 5 \+ 5\)/);
+  assert.match(storefrontSource, /Math\.ceil\(items\.length \/ pageSize\)/);
+  assert.match(storefrontSource, /items\.slice\(page \* pageSize, page \* pageSize \+ pageSize\)/);
   assert.match(storefrontSource, /window\.setInterval/);
   assert.match(storefrontSource, /\(currentPage \+ 1\) % pageCount/);
   assert.match(storefrontSource, /sf-product-recommendation-page/);
@@ -32,6 +32,10 @@ test("customer recent products include brand and crossed-price fields", () => {
   assert.match(controller, /b\.name AS brand_name/);
   assert.match(controller, /AS compare_at_price/);
   assert.match(controller, /LEFT JOIN brands b ON b\.id = p\.brand_id/);
+  assert.match(controller, /LEFT JOIN LATERAL \([\s\S]*?FROM product_variants pv/);
+  assert.match(controller, /display_variant\.selling_price/);
+  assert.match(controller, /display_variant\.compare_price/);
+  assert.match(controller, /ORDER BY \(COALESCE\(pv\.stock, 0\) > 0\) DESC/);
 });
 
 test("product page prioritizes cached or direct product data and defers recommendation requests", () => {
