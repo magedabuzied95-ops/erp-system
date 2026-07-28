@@ -53,13 +53,14 @@ const variantColorIdentity = (variant = {}) => {
 };
 
 const isBagProduct = (product = {}) => {
+  const safeProduct = product && typeof product === "object" ? product : {};
   const values = [
-    product.product_type,
-    product.productType,
-    product.category,
-    product.category_name,
-    product.categoryName,
-    product.type,
+    safeProduct.product_type,
+    safeProduct.productType,
+    safeProduct.category,
+    safeProduct.category_name,
+    safeProduct.categoryName,
+    safeProduct.type,
   ];
   return values.some((value) => {
     const normalized = String(value || "").trim().toLowerCase();
