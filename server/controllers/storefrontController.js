@@ -3983,8 +3983,6 @@ export const listLastPieceProducts = async (req, res) => {
 
 export const resolveProductLink = async (req, res) => {
   try {
-    await ensureStorefrontSchema();
-    await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
     const slugOrId = toText(req.params.slugOrId || req.params.identifier || "");
     if (!slugOrId) return res.status(404).json({ success: false, resolvable: false, message: "Product not found" });
@@ -4031,8 +4029,6 @@ export const resolveProductLink = async (req, res) => {
 
 export const getProduct = async (req, res) => {
   try {
-    await ensureStorefrontSchema();
-    await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
     const identifier = toText(req.params.identifier || req.params.id || "");
     if (!identifier) return res.status(404).json({ success: false, message: "Product not found" });
