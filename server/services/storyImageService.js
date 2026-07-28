@@ -23,7 +23,7 @@ const STORY_FONT_PATH = fileURLToPath(new URL("../../src/assets/fonts/customer-s
 const STORY_FONT_BASE64 = readFileSync(STORY_FONT_PATH).toString("base64");
 const STORY_FONT_FAMILY = "M1Story";
 export const STORY_RENDERER_NAME = "m1_story_new_collection";
-export const STORY_RENDERER_BUILD = "m1-story-unified-background-v6-2026-07-28";
+export const STORY_RENDERER_BUILD = "m1-story-price-first-v7-2026-07-28";
 const storyFontFaceSvg = () => `<style>@font-face{font-family:'${STORY_FONT_FAMILY}';src:url(data:font/ttf;base64,${STORY_FONT_BASE64}) format('truetype');font-style:normal;font-weight:100 1000;}text{font-family:'${STORY_FONT_FAMILY}','DejaVu Sans',sans-serif;}</style>`;
 sharp.cache(false);
 sharp.concurrency(1);
@@ -317,10 +317,10 @@ const englishStoryText = (value, fallback) => {
 
 const englishStoryPrice = (value) => {
   const normalized = normalizeStoryDigits(value);
-  if (!normalized) return "Available now";
+  if (!normalized) return "";
   if (!hasArabicText(normalized)) return normalized;
   const amount = normalized.match(/\d+(?:[.,]\d+)?/)?.[0];
-  return amount ? `${amount} EGP` : "Available now";
+  return amount ? `${amount} EGP` : "";
 };
 
 const createStoryTextComposite = async ({ text, left, top, width, height, size, color, align = "left", weight = "bold" }) => {
@@ -583,7 +583,7 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
   const sizesText = cleanSizes ? `AVAILABLE SIZES: ${cleanSizes}` : "AVAILABLE NOW";
   const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
   const sizesLines = storyAssetTextLines(sizesText, { maxChars: 48, maxLines: 1 });
-  const priceLines = storyAssetTextLines(price || "Available now", { maxChars: 20, maxLines: 1 });
+  const priceLines = storyAssetTextLines(price, { maxChars: 20, maxLines: 1 });
   const originalPriceLines = storyAssetTextLines(originalPrice, { maxChars: 20, maxLines: 1 });
   const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 22, maxLines: 1 });
   const sizesWidth = Math.min(900, Math.max(360, sizesText.length * 20 + 110));
@@ -651,7 +651,7 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
   <line x1="72" y1="1470" x2="1008" y2="1470" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
   ${originalPrice ? storySvgText({ lines: originalPriceLines, x: 72, y: 1520, size: 34, weight: 700, color: "#cbd5e1", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 }) : ""}
   ${originalPrice ? `<line x1="68" y1="1508" x2="${68 + originalPriceWidth}" y2="1508" stroke="#ef4444" stroke-width="7" stroke-linecap="round" opacity="${renderText ? 0.96 : 1}"/>` : ""}
-  ${storySvgText({ lines: priceLines, x: 72, y: originalPrice ? 1605 : 1570, size: originalPrice ? 72 : 88, weight: 850, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  ${priceLines.length ? storySvgText({ lines: priceLines, x: 72, y: originalPrice ? 1605 : 1570, size: originalPrice ? 72 : 88, weight: 850, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 }) : ""}
   <g filter="url(#ctaGlow)">
     <rect x="646" y="1550" width="362" height="88" rx="44" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.32"/>
     <text x="827" y="1606" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="31" font-weight="800" fill="#ffffff" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>

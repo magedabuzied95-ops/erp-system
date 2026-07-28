@@ -22,7 +22,7 @@ const rendererSource = fs.readFileSync(
 
 test("story renderer uses one new collection implementation for every strategy", () => {
   assert.equal(STORY_RENDERER_NAME, "m1_story_new_collection");
-  assert.equal(STORY_RENDERER_BUILD, "m1-story-unified-background-v6-2026-07-28");
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-price-first-v7-2026-07-28");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "men" }).id, "m1-men-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "women" }).id, "m1-women-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "kids" }).id, "m1-kids-story-v1");
@@ -71,6 +71,12 @@ test("rendered 9:16 markup is the new collection product layout", () => {
 test("renderer source permanently excludes the removed white clean-product template", () => {
   assert.match(rendererSource, /NEW COLLECTION/);
   assert.doesNotMatch(rendererSource, /m1_story_clean_product|m1-clean-product-v2|#0f766e/i);
+});
+
+test("story price area never replaces a missing price with the white availability label", () => {
+  assert.doesNotMatch(rendererSource, /price\s*\|\|\s*["']Available now["']/);
+  assert.match(rendererSource, /createStoryTextComposite\(\{ text: originalPriceText/);
+  assert.match(rendererSource, /createStoryTextComposite\(\{ text: priceText/);
 });
 
 test("all story audiences use the same pink-to-black background only", () => {

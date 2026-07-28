@@ -215,7 +215,7 @@ test("story publish payload only uses assets bound to the current story", () => 
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "10", assetId: "story-10-current", assetUrl: skechersAsset,
-        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-unified-background-v6-2026-07-28", generationId: "generation-10", checksum: "a".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-price-first-v7-2026-07-28", generationId: "generation-10", checksum: "a".repeat(64),
       },
     },
   };
@@ -230,7 +230,7 @@ test("story publish payload only uses assets bound to the current story", () => 
   assert.equal(payload.assetUrl, skechersAsset);
   assert.equal(payload.templateKey, "m1_story_current");
   assert.equal(payload.templateVersion, "v1");
-  assert.equal(payload.rendererBuild, "m1-story-unified-background-v6-2026-07-28");
+  assert.equal(payload.rendererBuild, "m1-story-price-first-v7-2026-07-28");
   assert.equal(payload.generationId, "generation-10");
   assert.equal(payload.checksum, "a".repeat(64));
   assert.doesNotMatch(JSON.stringify(payload), /adidas|ultra-boost/i);
@@ -288,7 +288,7 @@ test("story asset binding survives reload-shaped normalized rows", () => {
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "12", assetId: "story-12-current", assetUrl: asset,
-        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-unified-background-v6-2026-07-28", generationId: "generation-12", checksum: "b".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-price-first-v7-2026-07-28", generationId: "generation-12", checksum: "b".repeat(64),
       },
     },
   });
@@ -340,7 +340,7 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "20", assetId: "story-20-current", assetUrl,
-        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-unified-background-v6-2026-07-28", generationId: "generation-20", checksum: "c".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-price-first-v7-2026-07-28", generationId: "generation-20", checksum: "c".repeat(64),
       },
     },
   };
@@ -352,7 +352,7 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
   assert.deepEqual(payload.media_urls, [assetUrl]);
   assert.equal(payload.templateKey, "m1_story_current");
   assert.equal(payload.templateVersion, "v1");
-  assert.equal(payload.rendererBuild, "m1-story-unified-background-v6-2026-07-28");
+  assert.equal(payload.rendererBuild, "m1-story-price-first-v7-2026-07-28");
   assert.equal(payload.generationId, "generation-20");
   assert.equal(payload.checksum, "c".repeat(64));
   assert.equal(payload.source_product_image_url, "");
