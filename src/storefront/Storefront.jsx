@@ -1836,6 +1836,16 @@ const getSuccessMessages = () => {
 
 
 const storefrontApi = {
+  peekProductDetails(identifier, options = {}) {
+    const routeValue = String(identifier || "");
+    const ttlMs = Number(options?.ttlMs || STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS);
+    return getCachedProductDetails(routeValue, { ttlMs });
+  },
+  cacheProductDetails(identifier, data) {
+    const routeValue = String(identifier || "");
+    if (routeValue && data) setCachedProductDetails(routeValue, data);
+    return data;
+  },
   getProductDetails(identifier, options = {}) {
     const routeValue = String(identifier || "");
     const { ttlMs: ttlMsInput, allowCache = true, ...requestOptions } = options || {};
@@ -6637,7 +6647,7 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
   );
 }
 
-function RelatedProducts({ currentProduct, ...props }) {
+function RelatedProductsContent({ currentProduct, ...props }) {
   const currentId = currentProduct?.id;
   const grade = recommendationText(currentProduct?.grade || currentProduct?.quality || currentProduct?.quality_grade || currentProduct?.product_grade);
   const brand = recommendationText(currentProduct?.brand?.name || currentProduct?.brand_name || currentProduct?.brand);
@@ -6647,6 +6657,37 @@ function RelatedProducts({ currentProduct, ...props }) {
     <div className="sf-related-products mt-5">
       <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle={grade ? `المزيد من فئة ${grade}` : "من نفس الفئة"} href={grade ? `/products?grade=${encodeURIComponent(grade)}` : "/products"} products={gradeResult.products} loading={gradeResult.loading} currentId={currentId} {...props} />
       <StorefrontRecommendationRail title={brand ? `المزيد من منتجات ${brand}` : "منتجات من نفس الماركة"} subtitle="منتجات من نفس الماركة" href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} {...props} />
+    </div>
+  );
+}
+
+function RelatedProducts({ currentProduct, ...props }) {
+  const containerRef = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (ready) return undefined;
+    const node = containerRef.current;
+    if (!node || typeof window === "undefined") return undefined;
+    if (!("IntersectionObserver" in window)) {
+      const timer = window.setTimeout(() => setReady(true), 800);
+      return () => window.clearTimeout(timer);
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setReady(true);
+        observer.disconnect();
+      },
+      { rootMargin: "600px 0px", threshold: 0.01 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ready]);
+
+  return (
+    <div ref={containerRef} className="sf-related-products-deferred min-h-px">
+      {ready ? <RelatedProductsContent currentProduct={currentProduct} {...props} /> : null}
     </div>
   );
 }

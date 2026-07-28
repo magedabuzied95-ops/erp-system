@@ -200,16 +200,20 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       // Storage can be unavailable in restricted browser contexts.
     }
     const loadProduct = async () => {
-      const attempts = [
-        {
-          label: "resolve",
-          loader: () => storefrontApi.getProductDetails(routeValue, { signal: controller.signal }),
-        },
-        {
-          label: "direct",
-          loader: () => api.get(`/storefront/products/${encodeURIComponent(routeValue)}`, { signal: controller.signal, debugLabel: "storefront-product-direct" }),
-        },
-      ];
+      const prefetched = storefrontApi.peekProductDetails(routeValue);
+      const loadDirect = () => api.get(`/storefront/products/${encodeURIComponent(routeValue)}`, {
+        signal: controller.signal,
+        debugLabel: "storefront-product-direct",
+      }).then((data) => storefrontApi.cacheProductDetails(routeValue, data));
+      const attempts = prefetched
+        ? [
+            { label: "prefetched", loader: () => Promise.resolve(prefetched) },
+            { label: "direct", loader: loadDirect },
+          ]
+        : [
+            { label: "direct", loader: loadDirect },
+            { label: "resolve", loader: () => storefrontApi.getProductDetails(routeValue, { signal: controller.signal }) },
+          ];
       let lastError = null;
       for (const attempt of attempts) {
         try {

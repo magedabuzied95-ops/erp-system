@@ -24,6 +24,15 @@ test("recommendation rails provide paging controls and exclude the open product"
   assert.match(storefrontSource, /aria-label=\{`صفحة \$\{index \+ 1\}`\}/);
 });
 
+test("product page prioritizes cached or direct product data and defers recommendation requests", () => {
+  assert.match(detailSource, /const prefetched = storefrontApi\.peekProductDetails\(routeValue\)/);
+  assert.match(detailSource, /label: "prefetched"/);
+  assert.match(detailSource, /label: "direct", loader: loadDirect/);
+  assert.match(storefrontSource, /function RelatedProductsContent/);
+  assert.match(storefrontSource, /rootMargin: "600px 0px"/);
+  assert.match(storefrontSource, /ready \? <RelatedProductsContent/);
+});
+
 test("recommendations use a compact five-column storefront strip instead of product cards", () => {
   assert.match(storefrontSource, /function RecommendationProductTile/);
   assert.match(storefrontSource, /lg:grid-cols-5/);
