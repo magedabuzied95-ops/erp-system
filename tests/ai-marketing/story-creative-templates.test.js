@@ -22,7 +22,7 @@ const rendererSource = fs.readFileSync(
 
 test("story renderer uses one new collection implementation for every strategy", () => {
   assert.equal(STORY_RENDERER_NAME, "m1_story_new_collection");
-  assert.equal(STORY_RENDERER_BUILD, "m1-story-preview-parity-v5-2026-07-28");
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-unified-background-v6-2026-07-28");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "men" }).id, "m1-men-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "women" }).id, "m1-women-story-v1");
   assert.equal(resolveDesignedStoryTheme({}, { story_template_variant: "kids" }).id, "m1-kids-story-v1");
@@ -71,6 +71,21 @@ test("rendered 9:16 markup is the new collection product layout", () => {
 test("renderer source permanently excludes the removed white clean-product template", () => {
   assert.match(rendererSource, /NEW COLLECTION/);
   assert.doesNotMatch(rendererSource, /m1_story_clean_product|m1-clean-product-v2|#0f766e/i);
+});
+
+test("all story audiences use the same pink-to-black background only", () => {
+  const themes = ["men", "women", "kids", "offers"].map((variant) =>
+    resolveDesignedStoryTheme({}, { story_template_variant: variant })
+  );
+  themes.forEach((theme) => {
+    assert.equal(theme.baseStart, "#fff8f7");
+    assert.equal(theme.baseMiddle, "#f1e5e3");
+    assert.equal(theme.baseEnd, "#170909");
+    assert.equal(theme.glowPrimary, "#ef4444");
+    assert.equal(theme.glowSecondary, "#f97316");
+  });
+  assert.notEqual(themes[0].accent, themes[1].accent);
+  assert.notEqual(themes[1].accent, themes[2].accent);
 });
 
 test("production story text is rasterized with the bundled canonical font", async () => {
