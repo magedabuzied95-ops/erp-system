@@ -37,7 +37,7 @@ test("schema initialization is coalesced and timed-out jobs retain their worker 
   assert.match(serviceSource, /runPromise\s*\.catch\(\(\) => undefined\)\s*\.finally/);
 });
 
-test("publish now does not render story assets before calling Meta", () => {
+test("publish now prepares and validates the immutable story asset before calling Meta", () => {
   const publishStart = serviceSource.indexOf("export const publishAiMarketingQueueItemNow");
   const publishEnd = serviceSource.indexOf("export const deleteAiMarketingQueueItem", publishStart);
   const publishSource = serviceSource.slice(publishStart, publishEnd);
@@ -45,8 +45,8 @@ test("publish now does not render story assets before calling Meta", () => {
   const validateIndex = publishSource.indexOf("assertFinalGeneratedStoryAsset(publishItem)");
   const metaIndex = publishSource.indexOf("publishStoryEverywhereService");
 
-  assert.equal(renderIndex, -1, "publish now must not render or regenerate story assets");
-  assert.ok(validateIndex > -1, "publish now must validate the pre-generated final story asset");
+  assert.ok(renderIndex > -1, "publish now must prepare a missing or stale final story asset");
+  assert.ok(validateIndex > renderIndex, "publish now must validate the prepared final story asset");
   assert.ok(metaIndex > validateIndex, "Meta publish must run only after final asset validation");
 });
 
@@ -230,6 +230,9 @@ test("story publish payload only uses assets bound to the current story", () => 
   assert.equal(payload.assetUrl, skechersAsset);
   assert.equal(payload.templateKey, "m1_story_current");
   assert.equal(payload.templateVersion, "v1");
+  assert.equal(payload.rendererBuild, "m1-story-unified-background-v6-2026-07-28");
+  assert.equal(payload.generationId, "generation-10");
+  assert.equal(payload.checksum, "a".repeat(64));
   assert.doesNotMatch(JSON.stringify(payload), /adidas|ultra-boost/i);
 });
 
@@ -349,6 +352,9 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
   assert.deepEqual(payload.media_urls, [assetUrl]);
   assert.equal(payload.templateKey, "m1_story_current");
   assert.equal(payload.templateVersion, "v1");
+  assert.equal(payload.rendererBuild, "m1-story-unified-background-v6-2026-07-28");
+  assert.equal(payload.generationId, "generation-20");
+  assert.equal(payload.checksum, "c".repeat(64));
   assert.equal(payload.source_product_image_url, "");
   assert.doesNotMatch(JSON.stringify(payload), /LAST SIZE|View details|dark-gradient|legacy/i);
   assert.doesNotMatch(serviceSource.slice(serviceSource.indexOf("export const publishAiMarketingQueueItemNow")), /generateDesignedAiMarketingStoryImages/);

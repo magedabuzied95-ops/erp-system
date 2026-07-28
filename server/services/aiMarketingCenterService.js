@@ -2140,6 +2140,9 @@ const queueItemStoryPayload = (item = {}) => {
     assetUrl: asset.assetUrl,
     templateKey: asset.templateKey,
     templateVersion: asset.templateVersion,
+    rendererBuild: asset.rendererBuild,
+    generationId: asset.generationId,
+    checksum: asset.checksum,
     id: item.id,
     tenant_id: item.tenant_id,
     product_id: item.product_id,
@@ -2345,6 +2348,8 @@ const finalGeneratedStoryAsset = (item = {}) => {
     templateVersion,
     assetTemplateKey: snapshot.templateKey,
     assetTemplateVersion: snapshot.templateVersion,
+    rendererBuild: snapshot.rendererBuild,
+    generationId: snapshot.generationId,
     checksum: snapshot.checksum,
     generatedAt: snapshot.generatedAt,
     isFinalGeneratedAsset: Boolean(
