@@ -3399,7 +3399,7 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   ];
 
   return (
-    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger mt-8 border-y border-[#2f687f]/20 bg-[#2f687f] text-white dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] md:mt-12">
+    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger hidden border-y border-[#2f687f]/20 bg-[#2f687f] text-white dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] md:mt-12 md:block">
       <div className="mx-auto grid max-w-[1440px] divide-y divide-white/15 px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 md:grid-cols-4 md:px-8 rtl:sm:divide-x-reverse">
           {items.map((item, index) => {
             const Icon = item.icon;
@@ -3454,7 +3454,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
       <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr_1.15fr]">
           <div>
-            <div className="relative h-28 w-28" aria-label="M1 Store">
+            <div className="relative h-24 w-24 md:h-28 md:w-28" aria-label="M1 Store">
               <div className="absolute inset-0 dark:hidden">
                 <img src="/branding/m-one-logo-dark-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
                 <img src="/branding/m-one-logo-dark-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
