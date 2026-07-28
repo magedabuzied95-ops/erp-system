@@ -17,3 +17,12 @@ test("interactive product details allow a short private browser cache", () => {
   assert.match(getProductSource, /private, max-age=15, stale-while-revalidate=45/);
   assert.match(getProductSource, /res\.set\("Vary", "X-Tenant-Id"\)/);
 });
+
+test("product details resolve a lightweight id before running the heavy catalog query", () => {
+  assert.match(source, /const findStorefrontProductId = async/);
+  assert.match(source, /const loadStorefrontProductRowById = async/);
+  assert.match(source, /\$\{catalogQuery\} AND p\.id = \$2/);
+  assert.match(getProductSource, /await findStorefrontProductId\(matchedTenantId, identifiers\)/);
+  assert.match(getProductSource, /await loadStorefrontProductRowById\(matchedTenantId, productId\)/);
+  assert.doesNotMatch(getProductSource, /\$\{catalogQuery\} \$\{productIdentifierClause/);
+});

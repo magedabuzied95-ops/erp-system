@@ -1484,6 +1484,34 @@ const productIdentifierOrder = (identifierParam = "$2") => `
     p.id ASC
 `;
 
+const findStorefrontProductId = async (tenantId, identifiers) => {
+  const result = await db.query(
+    `
+      SELECT p.id
+      FROM products p
+      LEFT JOIN brands b ON b.id = p.brand_id
+      WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+        AND p.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+        AND ${storefrontVisibilityConditionSql}
+        ${productIdentifierClause("$2")}
+      ${productIdentifierOrder("$2")}
+      LIMIT 1
+    `,
+    [tenantId, identifiers]
+  );
+  return result.rows[0]?.id || null;
+};
+
+const loadStorefrontProductRowById = async (tenantId, productId) => {
+  if (!productId) return null;
+  const result = await db.query(
+    `${catalogQuery} AND p.id = $2 GROUP BY p.id, c.name, b.name, m.name LIMIT 1`,
+    [tenantId, productId]
+  );
+  return result.rows[0] || null;
+};
+
 const productAudienceFilterSql = (param = "$5") => `
   (
     COALESCE(array_length(${param}::text[], 1), 0) = 0
@@ -3961,12 +3989,14 @@ export const resolveProductLink = async (req, res) => {
     const slugOrId = toText(req.params.slugOrId || req.params.identifier || "");
     if (!slugOrId) return res.status(404).json({ success: false, resolvable: false, message: "Product not found" });
     const identifiers = productIdentifierCandidates(slugOrId);
-    const query = `${catalogQuery} ${productIdentifierClause("$2")} GROUP BY p.id, c.name, b.name, m.name ${productIdentifierOrder("$2")} LIMIT 1`;
-    let result = await db.query(query, [tenantId, identifiers]);
-    if (!result.rows[0] && tenantId !== null) {
-      result = await db.query(query, [null, identifiers]);
+    let matchedTenantId = tenantId;
+    let productId = await findStorefrontProductId(matchedTenantId, identifiers);
+    if (!productId && tenantId !== null) {
+      matchedTenantId = null;
+      productId = await findStorefrontProductId(matchedTenantId, identifiers);
     }
-    if (!result.rows[0]) {
+    const productRow = await loadStorefrontProductRowById(matchedTenantId, productId);
+    if (!productRow) {
       console.warn("[storefront] product resolve failed", {
         identifier: slugOrId,
         identifiers,
@@ -3977,7 +4007,7 @@ export const resolveProductLink = async (req, res) => {
     }
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     const [product] = await scrubInactiveClassifications(
-      await hydrateProductsWithImages([normalizeProduct(result.rows[0], pricingSettings)])
+      await hydrateProductsWithImages([normalizeProduct(productRow, pricingSettings)])
     );
     const link = await resolveStorefrontProductLink({ tenantId, product });
     console.log("[storefront] product resolve", {
@@ -4007,13 +4037,15 @@ export const getProduct = async (req, res) => {
     const identifier = toText(req.params.identifier || req.params.id || "");
     if (!identifier) return res.status(404).json({ success: false, message: "Product not found" });
     const identifiers = productIdentifierCandidates(identifier);
-    const query = `${catalogQuery} ${productIdentifierClause("$2")} GROUP BY p.id, c.name, b.name, m.name ${productIdentifierOrder("$2")} LIMIT 1`;
     console.log("[storefront] product lookup", { identifier, identifiers, tenant_id: tenantId, filters: productLookupFilters });
-    let result = await db.query(query, [tenantId, identifiers]);
-    if (!result.rows[0] && tenantId !== null) {
-      result = await db.query(query, [null, identifiers]);
+    let matchedTenantId = tenantId;
+    let productId = await findStorefrontProductId(matchedTenantId, identifiers);
+    if (!productId && tenantId !== null) {
+      matchedTenantId = null;
+      productId = await findStorefrontProductId(matchedTenantId, identifiers);
     }
-    if (!result.rows[0]) {
+    const productRow = await loadStorefrontProductRowById(matchedTenantId, productId);
+    if (!productRow) {
       console.warn("[storefront] product not found", {
         identifier,
         identifiers,
@@ -4023,9 +4055,9 @@ export const getProduct = async (req, res) => {
       });
       return res.status(404).json({ success: false, message: "Product not found" });
     }
-    console.log("[storefront] product matched", { identifier, matched_product_id: result.rows[0].id });
+    console.log("[storefront] product matched", { identifier, matched_product_id: productRow.id });
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
-    const [product] = await scrubInactiveClassifications(await hydrateProductsWithImages([normalizeProduct(result.rows[0], pricingSettings)]));
+    const [product] = await scrubInactiveClassifications(await hydrateProductsWithImages([normalizeProduct(productRow, pricingSettings)]));
     const firstVariant = Array.isArray(product?.variants) ? product.variants[0] : null;
     console.log("[storefront-price-debug]", {
       identifier,
