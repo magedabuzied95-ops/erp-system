@@ -2619,7 +2619,11 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
         media_urls: rawImages,
         available_sizes: design.available_sizes,
         sizes_label: design.sizes_label,
-        price: item.price || design.price || design.product_price,
+        price: item.current_price || design.current_price || item.price || design.price || design.product_price,
+        current_price: item.current_price || design.current_price || item.price || design.price || design.product_price,
+        old_crossed_price: item.old_crossed_price || design.old_crossed_price || item.original_price || design.original_price || design.compare_at_price,
+        original_price: item.original_price || design.original_price || item.old_crossed_price || design.old_crossed_price || design.compare_at_price,
+        compare_at_price: item.compare_at_price || design.compare_at_price || item.original_price || design.original_price || design.old_crossed_price,
         currency: item.currency || design.currency,
         strategy_type: item.strategy_type || design.strategy_type,
         layout_type: item.layout_type || design.layout_type,
@@ -5270,6 +5274,7 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
   );
   const isStory = isStoryQueueItem(publishItem);
   if (isStory) {
+    publishItem = await ensureQueueStoryRenderedAsset(tenantId, publishItem);
     const selectedAsset = assertFinalGeneratedStoryAsset(publishItem);
     console.log("[story-publish-enqueue]", {
       storyId: publishItem.id || null,

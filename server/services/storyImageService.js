@@ -23,7 +23,7 @@ const STORY_FONT_PATH = fileURLToPath(new URL("../../src/assets/fonts/customer-s
 const STORY_FONT_BASE64 = readFileSync(STORY_FONT_PATH).toString("base64");
 const STORY_FONT_FAMILY = "M1Story";
 export const STORY_RENDERER_NAME = "m1_story_new_collection";
-export const STORY_RENDERER_BUILD = "m1-story-sale-price-v4-2026-07-26";
+export const STORY_RENDERER_BUILD = "m1-story-preview-parity-v5-2026-07-28";
 const storyFontFaceSvg = () => `<style>@font-face{font-family:'${STORY_FONT_FAMILY}';src:url(data:font/ttf;base64,${STORY_FONT_BASE64}) format('truetype');font-style:normal;font-weight:100 1000;}text{font-family:'${STORY_FONT_FAMILY}','DejaVu Sans',sans-serif;}</style>`;
 sharp.cache(false);
 sharp.concurrency(1);
@@ -586,7 +586,7 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
   const priceLines = storyAssetTextLines(price || "Available now", { maxChars: 20, maxLines: 1 });
   const originalPriceLines = storyAssetTextLines(originalPrice, { maxChars: 20, maxLines: 1 });
   const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 22, maxLines: 1 });
-  const sizesWidth = Math.min(952, Math.max(620, sizesText.length * 25 + 160));
+  const sizesWidth = Math.min(900, Math.max(360, sizesText.length * 20 + 110));
   const badgeWidth = Math.min(520, Math.max(300, (badge || "NEW COLLECTION").length * 24 + 72));
   const originalPriceWidth = Math.min(360, Math.max(180, originalPrice.length * 18));
   return `
@@ -642,20 +642,21 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
   <ellipse cx="540" cy="1038" rx="390" ry="48" fill="#000000" fill-opacity="0.28" filter="url(#stageShadow)"/>
   <ellipse cx="540" cy="996" rx="430" ry="92" fill="#ffffff" fill-opacity="0.10" filter="url(#stageShadow)"/>
 
-  <rect x="48" y="1106" width="8" height="388" rx="4" fill="#ef4444" fill-opacity="0.94"/>
+  <rect x="48" y="1106" width="8" height="530" rx="4" fill="#ef4444" fill-opacity="0.94"/>
   <rect x="72" y="1104" width="${badgeWidth}" height="62" rx="31" fill="#dc2626" fill-opacity="0.98"/>
   ${storySvgText({ lines: headingLines, x: 112, y: 1145, size: 25, weight: 800, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
-  ${storySvgText({ lines: titleLines, x: 72, y: 1270, size: 84, weight: 800, color: "#ffffff", anchor: "start", lineHeight: 1.08, opacity: renderText ? 1 : 0 })}
-  <line x1="72" y1="1390" x2="1008" y2="1390" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
-  ${originalPrice ? storySvgText({ lines: originalPriceLines, x: 72, y: 1430, size: 38, weight: 700, color: "#cbd5e1", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 }) : ""}
-  ${originalPrice ? `<line x1="68" y1="1418" x2="${68 + originalPriceWidth}" y2="1418" stroke="#ef4444" stroke-width="7" stroke-linecap="round" opacity="${renderText ? 0.96 : 1}"/>` : ""}
-  ${storySvgText({ lines: priceLines, x: 72, y: originalPrice ? 1510 : 1480, size: originalPrice ? 72 : 92, weight: 850, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  <rect x="72" y="1190" width="${sizesWidth}" height="72" rx="36" fill="#ffffff" fill-opacity="0.96" stroke="#ef4444" stroke-opacity="0.24" stroke-width="2"/>
+  ${storySvgText({ lines: sizesLines, x: 108, y: 1237, size: 28, weight: 800, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  ${storySvgText({ lines: titleLines, x: 72, y: 1350, size: 72, weight: 800, color: "#ffffff", anchor: "start", lineHeight: 1.08, opacity: renderText ? 1 : 0 })}
+  <line x1="72" y1="1470" x2="1008" y2="1470" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
+  ${originalPrice ? storySvgText({ lines: originalPriceLines, x: 72, y: 1520, size: 34, weight: 700, color: "#cbd5e1", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 }) : ""}
+  ${originalPrice ? `<line x1="68" y1="1508" x2="${68 + originalPriceWidth}" y2="1508" stroke="#ef4444" stroke-width="7" stroke-linecap="round" opacity="${renderText ? 0.96 : 1}"/>` : ""}
+  ${storySvgText({ lines: priceLines, x: 72, y: originalPrice ? 1605 : 1570, size: originalPrice ? 72 : 88, weight: 850, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
   <g filter="url(#ctaGlow)">
-    <rect x="646" y="1410" width="362" height="88" rx="44" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.32"/>
-    <text x="827" y="1466" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="31" font-weight="800" fill="#ffffff" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
+    <rect x="646" y="1550" width="362" height="88" rx="44" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.32"/>
+    <text x="827" y="1606" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="31" font-weight="800" fill="#ffffff" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
   </g>
-  <rect x="72" y="1540" width="${sizesWidth}" height="92" rx="46" fill="#ffffff" fill-opacity="0.96" stroke="#ef4444" stroke-opacity="0.24" stroke-width="2"/>
-  ${storySvgText({ lines: sizesLines, x: 120, y: 1600, size: 38, weight: 800, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  <text x="72" y="1680" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="34" font-weight="750" fill="#fb7185" opacity="${renderText ? 1 : 0}">Available now</text>
 </svg>`;
 };
 
@@ -670,12 +671,13 @@ export const createDesignedStoryTextComposites = async ({ badge, title, price, o
   const composites = await Promise.all([
     createStoryTextComposite({ text: theme.label, left: 784, top: 100, width: 192, height: 32, size: 14, color: "#ffffff", align: "center", weight: "semibold" }),
     createStoryTextComposite({ text: badgeText, left: 112, top: 1118, width: 440, height: 42, size: 20, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: titleText, left: 72, top: 1190, width: 936, height: 190, size: 68, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: originalPriceText, left: 72, top: 1392, width: 360, height: 52, size: 28, color: "#cbd5e1", weight: "bold" }),
-    createStoryPriceStrikeComposite({ text: originalPriceText }),
-    createStoryTextComposite({ text: priceText, left: 72, top: originalPriceText ? 1444 : 1404, width: 560, height: originalPriceText ? 76 : 100, size: originalPriceText ? 54 : 70, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: ctaText, left: 666, top: 1426, width: 322, height: 58, size: 25, color: "#ffffff", align: "center", weight: "bold" }),
-    createStoryTextComposite({ text: sizesText, left: 112, top: 1560, width: 872, height: 54, size: 18, color: "#475569", weight: "bold" }),
+    createStoryTextComposite({ text: sizesText, left: 108, top: 1204, width: 820, height: 44, size: 18, color: "#475569", weight: "bold" }),
+    createStoryTextComposite({ text: titleText, left: 72, top: 1276, width: 936, height: 180, size: 58, color: "#ffffff", weight: "bold" }),
+    createStoryTextComposite({ text: originalPriceText, left: 72, top: 1480, width: 360, height: 48, size: 26, color: "#cbd5e1", weight: "bold" }),
+    createStoryPriceStrikeComposite({ text: originalPriceText, top: 1504 }),
+    createStoryTextComposite({ text: priceText, left: 72, top: originalPriceText ? 1530 : 1498, width: 560, height: originalPriceText ? 86 : 104, size: originalPriceText ? 58 : 70, color: "#ffffff", weight: "bold" }),
+    createStoryTextComposite({ text: ctaText, left: 666, top: 1566, width: 322, height: 58, size: 25, color: "#ffffff", align: "center", weight: "bold" }),
+    createStoryTextComposite({ text: "Available now", left: 72, top: 1640, width: 420, height: 52, size: 25, color: "#fb7185", weight: "bold" }),
   ]);
   return composites.filter(Boolean);
 };
@@ -830,7 +832,8 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         ...slide,
         source_product_image_url: slideSource,
         image_url: slideSource,
-        price: slide.price || story.price,
+        price: slide.current_price || slide.price || story.current_price || story.price,
+        current_price: slide.current_price || slide.price || story.current_price || story.price,
         currency: slide.currency || story.currency,
         available_sizes: Array.isArray(slide.available_sizes) && slide.available_sizes.length ? slide.available_sizes : story.available_sizes,
         sizes_label: slide.sizes_label || story.sizes_label,

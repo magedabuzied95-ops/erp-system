@@ -16,7 +16,7 @@ const snapshot = {
   assetUrl: "https://cdn.example.com/erp/stories/story-42-abc.png",
   templateKey: "m1_story_current",
   templateVersion: "v1",
-  rendererBuild: "m1-story-audience-collection-v1-2026-07-24",
+  rendererBuild: "m1-story-preview-parity-v5-2026-07-28",
   generationId: "generation-42",
   checksum: "a".repeat(64),
   generatedAt: "2026-07-23T10:00:00.000Z",
@@ -57,10 +57,10 @@ test("Preview selects the immutable snapshot URL and offers an instant unpublish
   assert.match(pageSource, /معاينة فورية/);
 });
 
-test("Publish is blocked client-side without a snapshot and during generation", () => {
+test("Publish automatically prepares a missing snapshot and waits for generation", () => {
   assert.match(pageSource, /action === "publish"[\s\S]*!hasValidStoryAssetSnapshot\(targetItem \|\| \{\}\)/);
-  assert.match(pageSource, /storyAssetRequestsRef\.current\.has\(String\(id\)\)/);
-  assert.match(pageSource, /أنشئ أصل القصة أولًا/);
+  assert.match(pageSource, /await generateStoryAsset\(targetItem \|\| \{ id \}\)/);
+  assert.match(pageSource, /targetItem = preparedItem/);
 });
 
 test("generate uses the current endpoint response without a legacy endpoint", () => {
