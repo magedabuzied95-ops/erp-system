@@ -2006,10 +2006,11 @@ const serviceError = (message, status = 500, details = {}) => {
   return error;
 };
 
-const appendQueueTimeline = async ({ tenantId, queueId, action, status, userId = null, details = {} } = {}) => {
+const appendQueueTimeline = async ({ tenantId, queueId, action, status, userId = null, details = {}, client = null } = {}) => {
   if (!tenantId || !queueId || !action) return null;
   await ensureAiMarketingCenterSchema();
-  const result = await db.query(
+  const queryable = client && typeof client.query === "function" ? client : db;
+  const result = await queryable.query(
     `
     INSERT INTO ai_marketing_content_timeline (tenant_id, queue_id, user_id, action, status, details)
     VALUES ($1,$2,$3,$4,$5,$6::jsonb)
@@ -5598,13 +5599,51 @@ export const deleteAiMarketingQueueItem = async (tenantId, id) => {
   await ensureAiMarketingCenterSchema();
   const queueItemId = Number(id);
   if (!Number.isInteger(queueItemId) || queueItemId <= 0) return false;
-  const existing = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [queueItemId, tenantId]);
-  const item = existing.rows[0] ? normalizeQueueRow(existing.rows[0]) : null;
-  if (!item) return false;
-  await cleanupQueueItemAssets({ tenantId, item });
-  await appendQueueTimeline({ tenantId, queueId: queueItemId, action: "deleted", status: "deleted", details: { title: item.title || "" } });
-  const result = await db.query(`DELETE FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 RETURNING id`, [queueItemId, tenantId]);
-  return Boolean(result.rows[0]);
+  const client = await db.connect();
+  let item = null;
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query(
+      `SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
+      [queueItemId, tenantId]
+    );
+    item = existing.rows[0] ? normalizeQueueRow(existing.rows[0]) : null;
+    if (!item) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    await appendQueueTimeline({
+      tenantId,
+      queueId: queueItemId,
+      action: "deleted",
+      status: "deleted",
+      details: { title: item.title || "" },
+      client,
+    });
+    const result = await client.query(
+      `DELETE FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+      [queueItemId, tenantId]
+    );
+    await client.query("COMMIT");
+    if (!result.rows[0]) return false;
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {}
+    throw error;
+  } finally {
+    client.release();
+  }
+  try {
+    await cleanupQueueItemAssets({ tenantId, item });
+  } catch (error) {
+    console.warn("[ai-marketing-queue-delete] asset cleanup failed after queue deletion", {
+      tenantId,
+      queueId: queueItemId,
+      error: error?.message || "Asset cleanup failed",
+    });
+  }
+  return true;
 };
 
 export const archiveAiMarketingQueueItem = async (tenantId, id) => {
