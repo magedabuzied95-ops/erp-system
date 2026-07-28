@@ -612,16 +612,16 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
       <stop offset="1" stop-color="#000000" stop-opacity="0.82"/>
     </linearGradient>
     <linearGradient id="ctaFill" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="${theme.accentSoft}"/>
-      <stop offset="0.55" stop-color="${theme.accent}"/>
-      <stop offset="1" stop-color="${theme.glowPrimary}"/>
+      <stop offset="0" stop-color="#dc2626"/>
+      <stop offset="0.55" stop-color="#e11d48"/>
+      <stop offset="1" stop-color="#991b1b"/>
     </linearGradient>
     <filter id="productShadow" x="-45%" y="-45%" width="190%" height="190%">
       <feDropShadow dx="0" dy="34" stdDeviation="28" flood-color="#000000" flood-opacity="0.50"/>
     </filter>
     <filter id="ctaGlow" x="-35%" y="-80%" width="170%" height="260%">
-      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="${theme.accent}" flood-opacity="0.26"/>
-      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="${theme.accentDark}" flood-opacity="0.34"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#ef4444" flood-opacity="0.32"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#450a0a" flood-opacity="0.42"/>
     </filter>
     <filter id="whiteGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="80"/></filter>
     <filter id="cyanStageGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="74"/></filter>
@@ -652,7 +652,7 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
   ${storySvgText({ lines: priceLines, x: 72, y: originalPrice ? 1510 : 1480, size: originalPrice ? 72 : 92, weight: 850, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
   <g filter="url(#ctaGlow)">
     <rect x="646" y="1410" width="362" height="88" rx="44" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.32"/>
-    <text x="827" y="1466" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="31" font-weight="800" fill="${theme.accentDark}" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
+    <text x="827" y="1466" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="31" font-weight="800" fill="#ffffff" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
   </g>
   <rect x="72" y="1540" width="${sizesWidth}" height="92" rx="46" fill="#ffffff" fill-opacity="0.96" stroke="#ef4444" stroke-opacity="0.24" stroke-width="2"/>
   ${storySvgText({ lines: sizesLines, x: 120, y: 1600, size: 38, weight: 800, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
@@ -674,7 +674,7 @@ export const createDesignedStoryTextComposites = async ({ badge, title, price, o
     createStoryTextComposite({ text: originalPriceText, left: 72, top: 1392, width: 360, height: 52, size: 28, color: "#cbd5e1", weight: "bold" }),
     createStoryPriceStrikeComposite({ text: originalPriceText }),
     createStoryTextComposite({ text: priceText, left: 72, top: originalPriceText ? 1444 : 1404, width: 560, height: originalPriceText ? 76 : 100, size: originalPriceText ? 54 : 70, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: ctaText, left: 666, top: 1426, width: 322, height: 58, size: 25, color: theme.accentDark, align: "center", weight: "bold" }),
+    createStoryTextComposite({ text: ctaText, left: 666, top: 1426, width: 322, height: 58, size: 25, color: "#ffffff", align: "center", weight: "bold" }),
     createStoryTextComposite({ text: sizesText, left: 112, top: 1560, width: 872, height: 54, size: 18, color: "#475569", weight: "bold" }),
   ]);
   return composites.filter(Boolean);
