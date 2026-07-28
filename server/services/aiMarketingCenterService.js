@@ -1183,8 +1183,48 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
       pv.sale_end_at AS preview_variant_sale_end_at,
       pv.sale_reason AS preview_variant_sale_reason
     FROM ai_marketing_content_queue q
-    LEFT JOIN product_variants pv ON pv.id = q.variant_id
     LEFT JOIN products p ON p.id = q.product_id AND p.tenant_id = q.tenant_id
+    LEFT JOIN LATERAL (
+      SELECT candidate.*
+      FROM product_variants candidate
+      WHERE candidate.product_id = p.id
+        AND candidate.deleted_at IS NULL
+        AND (
+          candidate.id = q.variant_id
+          OR candidate.id = CASE
+            WHEN COALESCE(q.design_json->>'variant_id', '') ~ '^\d+$'
+              THEN (q.design_json->>'variant_id')::bigint
+            ELSE NULL
+          END
+          OR candidate.id = CASE
+            WHEN COALESCE(q.design_json->'slides'->0->>'variant_id', '') ~ '^\d+$'
+              THEN (q.design_json->'slides'->0->>'variant_id')::bigint
+            ELSE NULL
+          END
+          OR (
+            COALESCE(
+              NULLIF(TRIM(q.design_json->>'color_name'), ''),
+              NULLIF(TRIM(q.design_json->'slides'->0->>'color_name'), ''),
+              NULLIF(TRIM(q.color), '')
+            ) IS NOT NULL
+            AND LOWER(TRIM(candidate.color)) = LOWER(COALESCE(
+              NULLIF(TRIM(q.design_json->>'color_name'), ''),
+              NULLIF(TRIM(q.design_json->'slides'->0->>'color_name'), ''),
+              NULLIF(TRIM(q.color), '')
+            ))
+          )
+        )
+      ORDER BY
+        (candidate.id = q.variant_id) DESC,
+        (candidate.id = CASE
+          WHEN COALESCE(q.design_json->>'variant_id', '') ~ '^\d+$'
+            THEN (q.design_json->>'variant_id')::bigint
+          ELSE NULL
+        END) DESC,
+        COALESCE(candidate.stock, 0) DESC,
+        candidate.id ASC
+      LIMIT 1
+    ) pv ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
