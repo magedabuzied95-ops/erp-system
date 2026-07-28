@@ -57,6 +57,7 @@ const EMPTY_SETTINGS = {
   require_approval: true,
   auto_archive_published_after_days: 30,
   auto_delete_archived_after_days: 90,
+  story_selection_mode: "catalog_coverage",
   active_strategies: { new_arrivals: true, last_size: true, ai_posts: true },
   active: true,
   daily_content_quotas: [],
@@ -863,10 +864,44 @@ function AiMarketingCenter() {
         <Kpi label="بانتظار الموافقة" value={overview.pending_approval || 0} tone="amber" />
       </section>
 
+      {overview.catalog_coverage ? (
+        <section className={`${cardClass} mt-4 p-5`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SectionTitle icon={<Grid2X2 className="h-4 w-4" />} title={`Catalog coverage · Cycle ${overview.catalog_coverage.cycle_number || 1}`} />
+            <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-sm font-black text-cyan-100">
+              {overview.catalog_coverage.coverage_percent || 0}% covered
+            </div>
+          </div>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-black/30">
+            <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all" style={{ width: `${Math.min(100, overview.catalog_coverage.coverage_percent || 0)}%` }} />
+          </div>
+          <div className="mt-4 grid gap-3 text-center sm:grid-cols-4">
+            <Kpi label="Eligible products" value={overview.catalog_coverage.eligible_products || 0} />
+            <Kpi label="Story created" value={overview.catalog_coverage.generated_products || 0} />
+            <Kpi label="Published" value={overview.catalog_coverage.published_products || 0} tone="emerald" />
+            <Kpi label="Remaining" value={overview.catalog_coverage.remaining_products || 0} tone="amber" />
+          </div>
+          <div className="mt-3 text-sm font-bold text-slate-400">
+            Next: {overview.catalog_coverage.next_product?.name || "A new cycle will start after full coverage"}
+          </div>
+        </section>
+      ) : null}
+
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <section className={`${cardClass} p-5`}>
             <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Content Lanes" />
+            <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-black/20 p-1">
+              <button type="button" onClick={() => patchSettings({ story_selection_mode: "catalog_coverage" })} className={`${buttonClass} ${settings.story_selection_mode !== "newest_only" ? "bg-cyan-300 text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
+                Full catalog first
+              </button>
+              <button type="button" onClick={() => patchSettings({ story_selection_mode: "newest_only" })} className={`${buttonClass} ${settings.story_selection_mode === "newest_only" ? "bg-cyan-300 text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
+                Newest only
+              </button>
+            </div>
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
+              Full catalog publishes every eligible product once before repeating, balanced across departments.
+            </p>
             <div className="mt-4 grid gap-3">
               <StrategyCard title="New Arrivals" text="Newest active products with stock and usable images." checked={settings.active_strategies?.new_arrivals !== false} onChange={(value) => toggleStrategy("new_arrivals", value)} />
               <StrategyCard title="آخر مقاس / آخر قطعة" text="يعرض فقط المتغيرات القابلة للبيع مع مخزون 1-2." checked={settings.active_strategies?.last_size !== false} onChange={(value) => toggleStrategy("last_size", value)} />

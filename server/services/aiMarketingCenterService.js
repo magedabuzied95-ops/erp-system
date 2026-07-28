@@ -33,6 +33,7 @@ const DEFAULT_QUOTAS = [
 ];
 const DEFAULT_ARCHIVE_AFTER_DAYS = 30;
 const DEFAULT_DELETE_ARCHIVED_AFTER_DAYS = 90;
+const DEFAULT_STORY_SELECTION_MODE = "catalog_coverage";
 const LOCAL_UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 export const CANONICAL_STORY_TEMPLATE_KEY = "m1_story_current";
 export const CANONICAL_STORY_TEMPLATE_VERSION = "v1";
@@ -533,6 +534,7 @@ const normalizeSettings = (row = {}) => ({
   auto_archive_published_after_days: positiveInt(row.auto_archive_published_after_days, DEFAULT_ARCHIVE_AFTER_DAYS),
   auto_delete_archived_after_days: positiveInt(row.auto_delete_archived_after_days, DEFAULT_DELETE_ARCHIVED_AFTER_DAYS),
   campaign_mode: row.campaign_mode || "balanced",
+  story_selection_mode: ["catalog_coverage", "newest_only"].includes(row.story_selection_mode) ? row.story_selection_mode : DEFAULT_STORY_SELECTION_MODE,
   active_strategies: normalizeFocusedStrategies({ ...DEFAULT_STRATEGIES, ...normalizeJsonObject(row.active_strategies, {}) }),
   active: row.active !== false,
   daily_content_quotas: normalizeJsonArray(row.daily_content_quotas, DEFAULT_QUOTAS),
@@ -628,6 +630,7 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS auto_archive_published_after_days INTEGER NOT NULL DEFAULT 30,
       ADD COLUMN IF NOT EXISTS auto_delete_archived_after_days INTEGER NOT NULL DEFAULT 90,
       ADD COLUMN IF NOT EXISTS campaign_mode VARCHAR(20) NOT NULL DEFAULT 'balanced',
+      ADD COLUMN IF NOT EXISTS story_selection_mode VARCHAR(30) NOT NULL DEFAULT 'catalog_coverage',
       ADD COLUMN IF NOT EXISTS active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE,
       ADD COLUMN IF NOT EXISTS daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -790,6 +793,31 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_runs_tenant_started ON ai_marketing_generation_runs (tenant_id, started_at DESC)`);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS ai_marketing_catalog_cycles (
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      cycle_number INTEGER NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMP NULL,
+      PRIMARY KEY (tenant_id, cycle_number)
+    )
+  `);
+  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_marketing_catalog_active_cycle ON ai_marketing_catalog_cycles (tenant_id) WHERE status = 'active'`);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS ai_marketing_catalog_coverage (
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      cycle_number INTEGER NOT NULL,
+      product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      queue_id BIGINT NULL REFERENCES ai_marketing_content_queue(id) ON DELETE SET NULL,
+      lane VARCHAR(40) NOT NULL DEFAULT 'other',
+      product_signature TEXT NOT NULL DEFAULT '',
+      generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      published_at TIMESTAMP NULL,
+      PRIMARY KEY (tenant_id, cycle_number, product_id)
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_catalog_coverage_cycle ON ai_marketing_catalog_coverage (tenant_id, cycle_number, generated_at)`);
 };
 
 export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
@@ -836,6 +864,7 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
     auto_archive_published_after_days: positiveInt(patch.auto_archive_published_after_days, current.auto_archive_published_after_days || DEFAULT_ARCHIVE_AFTER_DAYS),
     auto_delete_archived_after_days: positiveInt(patch.auto_delete_archived_after_days, current.auto_delete_archived_after_days || DEFAULT_DELETE_ARCHIVED_AFTER_DAYS),
     campaign_mode: ["balanced", "aggressive", "premium"].includes(patch.campaign_mode) ? patch.campaign_mode : current.campaign_mode,
+    story_selection_mode: ["catalog_coverage", "newest_only"].includes(patch.story_selection_mode) ? patch.story_selection_mode : current.story_selection_mode,
     active_strategies: normalizeFocusedStrategies({ ...current.active_strategies, ...normalizeJsonObject(patch.active_strategies, {}) }),
     active: patch.active ?? current.active,
     daily_content_quotas: normalizeJsonArray(patch.daily_content_quotas, current.daily_content_quotas).map((row, index) => ({
@@ -863,9 +892,10 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
         auto_archive_published_after_days = $7,
         auto_delete_archived_after_days = $8,
         campaign_mode = $9,
-        active_strategies = $10::jsonb,
-        active = $11,
-        daily_content_quotas = $12::jsonb,
+        story_selection_mode = $10,
+        active_strategies = $11::jsonb,
+        active = $12,
+        daily_content_quotas = $13::jsonb,
         updated_at = CURRENT_TIMESTAMP
     WHERE tenant_id = $1
     RETURNING *
@@ -880,6 +910,7 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
       next.auto_archive_published_after_days,
       next.auto_delete_archived_after_days,
       next.campaign_mode,
+      next.story_selection_mode,
       JSON.stringify(next.active_strategies),
       next.active,
       JSON.stringify(next.daily_content_quotas),
@@ -1097,6 +1128,40 @@ const buildAiMarketingRecommendations = async (tenantId) => {
   };
 };
 
+const getCatalogCoverageOverview = async (tenantId) => {
+  const products = eligibleCatalogProducts(await loadProducts(tenantId));
+  const cycle = await getActiveCatalogCycle(tenantId);
+  const coverage = await db.query(
+    `SELECT c.product_id, c.lane, c.generated_at, c.published_at,
+            COALESCE(q.publish_status, q.status, '') AS queue_status
+     FROM ai_marketing_catalog_coverage c
+     LEFT JOIN ai_marketing_content_queue q ON q.id = c.queue_id AND q.tenant_id = c.tenant_id
+     WHERE c.tenant_id = $1 AND c.cycle_number = $2`,
+    [tenantId, cycle.cycle_number]
+  );
+  const eligibleIds = new Set(products.map((product) => String(product.id)));
+  const coveredRows = coverage.rows.filter((row) => eligibleIds.has(String(row.product_id)));
+  const coveredIds = new Set(coveredRows.map((row) => String(row.product_id)));
+  const published = coveredRows.filter((row) => row.published_at || String(row.queue_status).toLowerCase() === "published").length;
+  const remainingProducts = interleaveCatalogCoverageProducts(products.filter((product) => !coveredIds.has(String(product.id))));
+  const total = products.length;
+  const generated = coveredIds.size;
+  return {
+    mode: "catalog_coverage",
+    cycle_number: Number(cycle.cycle_number || 1),
+    eligible_products: total,
+    generated_products: generated,
+    published_products: published,
+    remaining_products: Math.max(0, total - generated),
+    coverage_percent: total ? Math.round((generated / total) * 100) : 100,
+    next_product: remainingProducts[0] ? {
+      id: remainingProducts[0].id,
+      name: remainingProducts[0].name,
+      lane: catalogCoverageLane(remainingProducts[0]),
+    } : null,
+  };
+};
+
 export const getAiMarketingOverview = async (tenantId) => {
   await ensureAiMarketingCenterSchema();
   scheduleAiMarketingReadMaintenance(tenantId);
@@ -1118,6 +1183,7 @@ export const getAiMarketingOverview = async (tenantId) => {
   const row = result.rows[0] || {};
   const postingInsights = await getCachedAiMarketingPostingInsights(tenantId);
   const operatingInsights = await buildAiMarketingRecommendations(tenantId);
+  const catalogCoverage = await getCatalogCoverageOverview(tenantId);
   return {
     ai_status: settings.active ? "Active" : "Paused",
     stories_generated_today: Number(row.stories_generated_today || 0),
@@ -1132,6 +1198,7 @@ export const getAiMarketingOverview = async (tenantId) => {
     performance_insufficient_data: operatingInsights.insufficient_data,
     performance_insufficient_data_message: operatingInsights.insufficient_data_message,
     ai_operating_brains: operatingInsights.brains,
+    catalog_coverage: catalogCoverage,
   };
 };
 
@@ -3122,6 +3189,9 @@ const persistQueuePublishResult = async ({ tenantId, id, item, result, platformR
   );
   const normalized = updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : null;
   if (normalized) {
+    if (nextQueueStatus === "published") {
+      await db.query(`UPDATE ai_marketing_catalog_coverage SET published_at = COALESCE(published_at, CURRENT_TIMESTAMP) WHERE tenant_id = $1 AND queue_id = $2`, [tenantId, id]);
+    }
     await appendQueueTimeline({
       tenantId,
       queueId: id,
@@ -3355,7 +3425,6 @@ const loadProducts = async (tenantId) => {
       AND COALESCE(p.status, 'active') = 'active'
       AND COALESCE(pv.stock, 0) > 0
     ORDER BY p.id DESC, pv.color ASC NULLS LAST, pv.size ASC NULLS LAST
-    LIMIT 2000
     `,
       [tenantId]
     ),
@@ -4597,6 +4666,102 @@ export const interleaveStoryTemplateVariants = (items = []) => {
   return output;
 };
 
+export const catalogCoverageLane = (product = {}) => {
+  if (product.is_offer_story === true) return "offers";
+  const text = normalizedSearchText(product.product_type, product.style, product.category_name, product.category);
+  if (/bag|bags|handbag|شنط|شنطة/.test(text)) return "bags";
+  if (/crocs|croc|كروكس/.test(text)) return "crocs";
+  if (/slipper|slide|شبشب|سليبر/.test(text)) return "slippers";
+  return productStoryAudience(product) || "other";
+};
+
+const catalogProductSignature = (product = {}) => crypto.createHash("sha256").update(JSON.stringify({
+  id: String(product.id || ""),
+  price: getProductPrice(product, usableVariants(product)[0] || {}),
+  compare: getProductOriginalPrice(product, usableVariants(product)[0] || {}, getProductPrice(product, usableVariants(product)[0] || {})),
+  offer: product.is_offer_story === true,
+  variants: usableVariants(product).map((variant) => ({
+    id: String(variant.id || ""), color: cleanText(variant.color), size: cleanText(variant.size),
+    stock: numberValue(variant.stock, 0), images: variantMediaUrls(variant),
+  })),
+})).digest("hex");
+
+const eligibleCatalogProducts = (products = []) => products.filter((product) =>
+  usableVariants(product).some((variant) => hasUsableImage(product, variant))
+);
+
+const getActiveCatalogCycle = async (tenantId) => {
+  let result = await db.query(`SELECT * FROM ai_marketing_catalog_cycles WHERE tenant_id = $1 AND status = 'active' ORDER BY cycle_number DESC LIMIT 1`, [tenantId]);
+  if (result.rows[0]) return result.rows[0];
+  await db.query(
+    `INSERT INTO ai_marketing_catalog_cycles (tenant_id, cycle_number, status)
+     SELECT $1, COALESCE(MAX(cycle_number), 0) + 1, 'active' FROM ai_marketing_catalog_cycles WHERE tenant_id = $1
+     ON CONFLICT DO NOTHING`,
+    [tenantId]
+  );
+  result = await db.query(`SELECT * FROM ai_marketing_catalog_cycles WHERE tenant_id = $1 AND status = 'active' ORDER BY cycle_number DESC LIMIT 1`, [tenantId]);
+  return result.rows[0];
+};
+
+const startNextCatalogCycle = async (tenantId, cycleNumber) => {
+  await db.query(`UPDATE ai_marketing_catalog_cycles SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE tenant_id = $1 AND cycle_number = $2 AND status = 'active'`, [tenantId, cycleNumber]);
+  await db.query(`INSERT INTO ai_marketing_catalog_cycles (tenant_id, cycle_number, status) VALUES ($1, $2, 'active') ON CONFLICT DO NOTHING`, [tenantId, Number(cycleNumber) + 1]);
+  return getActiveCatalogCycle(tenantId);
+};
+
+export const interleaveCatalogCoverageProducts = (products = []) => {
+  const order = ["men", "women", "kids", "bags", "crocs", "slippers", "offers", "other"];
+  const groups = new Map();
+  products.forEach((product) => {
+    const lane = catalogCoverageLane(product);
+    groups.set(lane, [...(groups.get(lane) || []), product]);
+  });
+  const lanes = [...order.filter((lane) => groups.has(lane)), ...Array.from(groups.keys()).filter((lane) => !order.includes(lane))];
+  const output = [];
+  while (lanes.some((lane) => groups.get(lane)?.length)) {
+    lanes.forEach((lane) => {
+      const next = groups.get(lane)?.shift();
+      if (next) output.push(next);
+    });
+  }
+  return output;
+};
+
+const buildCatalogCoverageStories = async ({ tenantId, products, quota, limit }) => {
+  const eligible = eligibleCatalogProducts(products);
+  let cycle = await getActiveCatalogCycle(tenantId);
+  let coverage = await db.query(`SELECT product_id, product_signature FROM ai_marketing_catalog_coverage WHERE tenant_id = $1 AND cycle_number = $2`, [tenantId, cycle.cycle_number]);
+  let covered = new Set(coverage.rows.map((row) => String(row.product_id)));
+  let remaining = eligible.filter((product) => !covered.has(String(product.id)));
+  if (!remaining.length && eligible.length) {
+    cycle = await startNextCatalogCycle(tenantId, cycle.cycle_number);
+    coverage = { rows: [] };
+    covered = new Set();
+    remaining = eligible;
+  }
+  const previous = await db.query(`SELECT product_id, product_signature FROM ai_marketing_catalog_coverage WHERE tenant_id = $1 AND cycle_number = $2`, [tenantId, Math.max(0, Number(cycle.cycle_number) - 1)]);
+  const previousSignatures = new Map(previous.rows.map((row) => [String(row.product_id), row.product_signature]));
+  const prioritized = remaining.sort((left, right) => {
+    const leftChanged = previousSignatures.has(String(left.id)) && previousSignatures.get(String(left.id)) !== catalogProductSignature(left);
+    const rightChanged = previousSignatures.has(String(right.id)) && previousSignatures.get(String(right.id)) !== catalogProductSignature(right);
+    return Number(rightChanged) - Number(leftChanged) || Number(left.id) - Number(right.id);
+  });
+  return interleaveCatalogCoverageProducts(prioritized).slice(0, limit).map((product, index) => {
+    const variant = usableVariants(product).find((row) => hasUsableImage(product, row)) || null;
+    const item = makeFocusedCreative({ product, variant, contentType: "story", strategy: product.is_offer_story ? "offers" : "catalog_coverage", layoutType: product.is_offer_story ? "offer_story" : "catalog_product_story", quota, index });
+    return {
+      ...item,
+      metadata: {
+        ...(item.metadata || {}),
+        coverage_cycle: Number(cycle.cycle_number),
+        coverage_lane: catalogCoverageLane(product),
+        product_signature: catalogProductSignature(product),
+        selection_mode: "catalog_coverage",
+      },
+    };
+  });
+};
+
 const buildAiPosts = (products, quota, limit) =>
   products
     .filter((product) => usableVariants(product).some((variant) => hasUsableImage(product, variant)))
@@ -4638,11 +4803,13 @@ const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
   const storyLimit = Math.max(1, Math.min(positiveInt(settings.stories_per_day, 12) * runMultiplier, 360));
   const postLimit = Math.max(0, Math.min(positiveInt(settings.posts_per_day, 3) * runMultiplier, 90));
   const activeStrategies = normalizeFocusedStrategies(settings.active_strategies || {});
-  const storyCandidates = interleaveStoryTemplateVariants([
-    ...buildOfferStories(products, quota, storyLimit),
-    ...(activeStrategies.last_size ? buildLastPieceStories(products, quota, storyLimit) : []),
-    ...(activeStrategies.new_arrivals ? buildNewArrivalStories(products, quota, storyLimit) : []),
-  ]);
+  const storyCandidates = settings.story_selection_mode === "newest_only"
+    ? interleaveStoryTemplateVariants([
+        ...buildOfferStories(products, quota, storyLimit),
+        ...(activeStrategies.last_size ? buildLastPieceStories(products, quota, storyLimit) : []),
+        ...(activeStrategies.new_arrivals ? buildNewArrivalStories(products, quota, storyLimit) : []),
+      ])
+    : await buildCatalogCoverageStories({ tenantId, products, quota, limit: storyLimit });
   const candidates = [
     ...storyCandidates,
     ...(activeStrategies.ai_posts ? buildAiPosts(products, quota, postLimit) : []),
@@ -4750,6 +4917,13 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
         posting_window: scheduledAt.postingWindow || "",
         posting_insight_source: scheduledAt.insightSource || "fallback",
       };
+      const queueMetadata = {
+        ...item.metadata,
+        run_id: runId,
+        generation_stage: "ready",
+        approval_required: settings.require_approval !== false,
+        next_status_after_ready: settings.require_approval ? "pending_approval" : "scheduled",
+      };
       const result = await db.query(
         `
         INSERT INTO ai_marketing_content_queue (
@@ -4765,7 +4939,10 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
             AND existing.content_type = $2::varchar
             AND existing.product_id = $9
             AND COALESCE(existing.variant_id, 0) = COALESCE($10::bigint, 0)
-            AND existing.created_at::date = CURRENT_DATE
+            AND (
+              (COALESCE($23::jsonb->>'coverage_cycle', '') <> '' AND existing.metadata->>'coverage_cycle' = $23::jsonb->>'coverage_cycle')
+              OR (COALESCE($23::jsonb->>'coverage_cycle', '') = '' AND existing.created_at::date = CURRENT_DATE)
+            )
         )
         RETURNING *
         `,
@@ -4792,16 +4969,22 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
           JSON.stringify(scheduledDesign),
           status,
           scheduledAt,
-          JSON.stringify({
-            ...item.metadata,
-            run_id: runId,
-            generation_stage: "ready",
-            approval_required: settings.require_approval !== false,
-            next_status_after_ready: settings.require_approval ? "pending_approval" : "scheduled",
-          }),
+          JSON.stringify(queueMetadata),
         ]
       );
-      if (result.rows[0]) inserted.push(normalizeQueueRow(result.rows[0]));
+      if (result.rows[0]) {
+        const insertedItem = normalizeQueueRow(result.rows[0]);
+        inserted.push(insertedItem);
+        if (queueMetadata.coverage_cycle && item.content_type === "story") {
+          await db.query(
+            `INSERT INTO ai_marketing_catalog_coverage (tenant_id, cycle_number, product_id, queue_id, lane, product_signature)
+             VALUES ($1,$2,$3,$4,$5,$6)
+             ON CONFLICT (tenant_id, cycle_number, product_id) DO UPDATE
+             SET queue_id = EXCLUDED.queue_id, lane = EXCLUDED.lane, product_signature = EXCLUDED.product_signature, generated_at = CURRENT_TIMESTAMP`,
+            [tenantId, queueMetadata.coverage_cycle, item.product_id, insertedItem.id, queueMetadata.coverage_lane || "other", queueMetadata.product_signature || ""]
+          );
+        }
+      }
     }
 
     const generatedStories = inserted.filter((item) => item.content_type === "story").length;
