@@ -2,6 +2,7 @@
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 
 import toast from "react-hot-toast";
 import {
@@ -1326,29 +1327,7 @@ const normalizeAudienceValue = (value = "") => {
 };
 
 const getProductAudienceKeys = (product = {}) => {
-  const seen = new Set();
-  const visit = (value) => {
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-      return;
-    }
-    if (value === null || value === undefined) return;
-    String(value)
-      .split(/[,\n|]+/)
-      .map(normalizeAudienceValue)
-      .filter(Boolean)
-      .forEach((audience) => seen.add(audience));
-  };
-  const variants = Array.isArray(product.variants) ? product.variants : [];
-  variants.forEach((variant) => {
-    visit(variant.audience);
-    visit(variant.variant_audience);
-  });
-  if (seen.size > 0) return ["men", "women", "kids"].filter((audience) => seen.has(audience));
-  visit(product.audiences);
-  visit(product.product_audiences);
-  visit(product.gender);
-  return ["men", "women", "kids"].filter((audience) => seen.has(audience));
+  return getProductAudienceValues(product);
 };
 
 const resolveSmartFilterMatch = (value, options = []) => {

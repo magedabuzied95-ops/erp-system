@@ -28,6 +28,7 @@ import {
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { getProductAudienceValues, productMatchesAudience } from "../../../shared/lib/productAudiences";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import FlowShell from "../components/FlowShell";
 import { accountingApi } from "../../accounting/services/accountingApi";
@@ -657,7 +658,7 @@ const purchaseFilterMatches = (item = {}, filters = {}) => {
     const brandNames = [item.brand, item.brand_name].map(normalizeFilterValue).filter(Boolean);
     if (!brandIds.includes(String(filters.brand)) && !brandNames.includes(normalizeFilterValue(filters.brand))) return false;
   }
-  if (filters.gender !== "all" && ![item.gender].map(normalizeFilterValue).includes(normalizeFilterValue(filters.gender))) return false;
+  if (filters.gender !== "all" && !productMatchesAudience(item, filters.gender)) return false;
   if (filters.productType !== "all" && ![item.product_type, item.productType].map(normalizeFilterValue).includes(normalizeFilterValue(filters.productType))) return false;
   if (filters.color !== "all" && normalizeFilterValue(item.color) !== normalizeFilterValue(filters.color)) return false;
   if (filters.size !== "all" && normalizeFilterValue(item.size) !== normalizeFilterValue(filters.size)) return false;
@@ -1149,7 +1150,11 @@ function PurchaseOrder() {
       (item) => optionId(item.brand_id, normalizeFilterValue(firstText(item.brand_name, item.brand))),
       (item) => firstText(item.brand_name, item.brand)
     ),
-    gender: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.gender), (item) => item.gender),
+    gender: makeCountOptions(
+      filterSource.flatMap((item) => getProductAudienceValues(item).map((audience) => ({ audience }))),
+      (item) => item.audience,
+      (item) => item.audience
+    ),
     productType: makeCountOptions(filterSource, (item) => normalizeFilterValue(firstText(item.product_type, item.productType)), (item) => firstText(item.product_type, item.productType)),
     color: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.color), (item) => item.color),
     size: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.size), (item) => item.size),

@@ -23,6 +23,7 @@ import toast from "react-hot-toast";
 
 import BarcodeScanner from "../../../components/BarcodeScanner";
 import { api } from "../../../shared/api/api";
+import { getProductAudienceValues, productMatchesAudience } from "../../../shared/lib/productAudiences";
 import { getCurrentUser, getUserRole, isAdminUser } from "../../../shared/auth/authStorage";
 import InventoryShell from "../components/InventoryShell";
 import StatusBadge from "../../purchases/components/StatusBadge";
@@ -477,7 +478,7 @@ const matchesInventoryFilters = (group = {}, filters = {}, selectedSize = "all")
     : Array.isArray(group.variants) && group.variants.some((variant) => normalizeText(variant.size) === selectedSizeValue);
 
   return (
-    (filters.gender === "all" || !selectedGender || normalize(group.gender) === selectedGender) &&
+    (filters.gender === "all" || !selectedGender || productMatchesAudience(group, selectedGender)) &&
     (filters.type === "all" || !selectedType || normalize(group.type) === selectedType) &&
     (filters.category === "all" || !selectedCategory || normalize(group.category) === selectedCategory) &&
     (filters.brand === "all" || !selectedBrand || normalize(group.brand) === selectedBrand) &&
@@ -620,7 +621,10 @@ function InventoryCountPage() {
   );
   const smartFilterOptions = useMemo(
     () => ({
-      gender: buildFilterOptions(groupedItems.flatMap((group) => group.variants), "variant_gender"),
+      gender: buildFilterOptions(
+        groupedItems.flatMap((group) => getProductAudienceValues(group).map((audience) => ({ audience }))),
+        "audience"
+      ),
       productType: buildFilterOptions(groupedItems.flatMap((group) => group.variants), "variant_type"),
       grade: buildFilterOptions(groupedItems.flatMap((group) => group.variants), "variant_category"),
     }),

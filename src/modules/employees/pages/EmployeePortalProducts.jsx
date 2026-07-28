@@ -5,6 +5,7 @@ import { ArrowRight, Camera, Filter, Loader2, Package2, Search, Store } from "lu
 import toast from "react-hot-toast";
 
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
+import { productMatchesAudience } from "../../../shared/lib/productAudiences";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
 import ProductGrid from "../../pos/components/ProductGrid";
@@ -1194,7 +1195,7 @@ export default function EmployeePortalProducts() {
     const matchesType = filters.type === "all" || text(product.type) === text(filters.type);
     const matchesBrand = filters.brand === "all" || text(product.brand) === text(filters.brand);
     const matchesManufacturer = filters.manufacturer === "all" || text(product.manufacturer_name) === text(filters.manufacturer);
-    const matchesGender = filters.gender === "all" || text(product.gender) === text(filters.gender);
+    const matchesGender = filters.gender === "all" || productMatchesAudience(product, filters.gender);
     const matchesStock = !filters.inStockOnly || Number(product.total_stock || product.stock || 0) > 0;
     return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
   }, [filters]);

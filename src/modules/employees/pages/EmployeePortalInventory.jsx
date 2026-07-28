@@ -24,6 +24,7 @@ import toast from "react-hot-toast";
 
 import BarcodeScanner from "../../../components/BarcodeScanner";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { productMatchesAudience } from "../../../shared/lib/productAudiences";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
@@ -776,7 +777,7 @@ export default function EmployeePortalInventory() {
     const matchesType = filters.type === "all" || clean(normalized.type) === clean(filters.type);
     const matchesBrand = filters.brand === "all" || clean(normalized.brand) === clean(filters.brand);
     const matchesManufacturer = filters.manufacturer === "all" || clean(normalized.manufacturer_name) === clean(filters.manufacturer);
-    const matchesGender = filters.gender === "all" || clean(normalized.gender) === clean(filters.gender);
+    const matchesGender = filters.gender === "all" || productMatchesAudience(record, filters.gender);
     const matchesStock = !filters.inStockOnly || Number(normalized.system_quantity || normalized.stock || 0) > 0;
     return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
   }, [filters]);
