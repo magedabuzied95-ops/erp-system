@@ -52,6 +52,21 @@ const variantColorIdentity = (variant = {}) => {
   ).trim().toLowerCase();
 };
 
+const isBagProduct = (product = {}) => {
+  const values = [
+    product.product_type,
+    product.productType,
+    product.category,
+    product.category_name,
+    product.categoryName,
+    product.type,
+  ];
+  return values.some((value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    return ["bag", "bags", "handbag", "handbags", "شنط", "شنطة", "حقائب", "حقيبة"].includes(normalized);
+  });
+};
+
 function StorefrontProductDetailSkeleton() {
   return (
     <section className="sf-product-detail-skeleton mx-auto grid max-w-7xl gap-4 px-3 pb-20 pt-3 md:px-4 md:pb-28 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)]">
@@ -371,6 +386,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const variantGroup = selectedColorGroup ? variants.filter((item) => variantColorIdentity(item) === selectedColorGroup.key) : variants;
   const sizes = sortProductSizes([...new Set(variantGroup.map((variant) => variant.size).filter(Boolean))]);
   const colors = colorGroups;
+  const hideSizeSelector = isBagProduct(product);
   const sizeGuideHref = useMemo(
     () => buildSizeGuidePath(product ? resolveSizeGuideTypeForProduct(product) : "men"),
     [product]
@@ -626,7 +642,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           ) : null}
 
-          <div className="sf-product-option-card mt-4 rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)]">
+          {!hideSizeSelector ? <div className="sf-product-option-card mt-4 rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)]">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.size", "Size")}</div>
@@ -660,7 +676,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 {sfText("storefront.products.sizeGuide", isRtl ? "دليل المقاسات" : "Size guide")}
               </Link>
             </div>
-          </div>
+          </div> : null}
 
           <div className="sf-product-quantity-card mt-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_16px_42px_rgba(0,0,0,0.16)]">
             <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>-</button>
