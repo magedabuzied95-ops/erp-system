@@ -1632,6 +1632,7 @@ export const storefrontProductsSql = `
     ORDER BY
       CASE
         WHEN $6::boolean = TRUE THEN 0
+        WHEN $10 <> '' THEN 0
         WHEN COALESCE(p.is_offer_story, FALSE) = TRUE THEN 1
         ELSE 0
       END ASC,
@@ -3070,7 +3071,7 @@ export const listProducts = async (req, res) => {
         console.log("[storefront-shuffle-before]", expandedProducts.map((product) => storefrontCardId(product)));
       }
       const sortedExpandedProducts = shouldOrderAfterExpansion ? sortStorefrontCards(expandedProducts, sort, randomSeed) : expandedProducts;
-      const orderedExpandedProducts = keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly);
+      const orderedExpandedProducts = keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly || Boolean(size));
       const categoryProducts = largeSizes
         ? orderedExpandedProducts.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
             const variantSize = Number(variant.size ?? variant.size_value);
