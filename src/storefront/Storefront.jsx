@@ -871,6 +871,27 @@ const firstDisplayVariant = (variants = []) =>
   variants.find((variant) => variantHasStock(variant)) ||
   variants.find((variant) => variantImage(variant)) ||
   variants[0];
+const productCardColorScopedImages = (activeColorGroup = null, variant = null) => {
+  const sameColorVariants = Array.isArray(activeColorGroup?.variants) ? activeColorGroup.variants : [];
+  const sameColorVariantImages = sameColorVariants.flatMap((colorVariant) => [
+    ...(Array.isArray(colorVariant?.images) ? colorVariant.images : []),
+    ...(Array.isArray(colorVariant?.color_images) ? colorVariant.color_images : []),
+    ...(Array.isArray(colorVariant?.gallery_images) ? colorVariant.gallery_images : []),
+    ...(Array.isArray(colorVariant?.image_urls) ? colorVariant.image_urls : []),
+    ...(Array.isArray(colorVariant?.additional_images) ? colorVariant.additional_images : []),
+    colorVariant?.image_url,
+    colorVariant?.image,
+  ]);
+  return productCardResolvedImageCollection([
+    ...(Array.isArray(activeColorGroup?.images) ? activeColorGroup.images : []),
+    ...sameColorVariantImages,
+    ...(Array.isArray(variant?.images) ? variant.images : []),
+    ...(Array.isArray(variant?.color_images) ? variant.color_images : []),
+    ...(Array.isArray(variant?.gallery_images) ? variant.gallery_images : []),
+    ...(Array.isArray(variant?.image_urls) ? variant.image_urls : []),
+    ...(Array.isArray(variant?.additional_images) ? variant.additional_images : []),
+  ]);
+};
 const productCardPrimaryImageFor = (product = {}, variant = null, activeColorGroup = null) => {
   const cardImages = productCardResolvedImageCollection([
     ...(Array.isArray(product?.images) ? product.images : []),
@@ -879,13 +900,7 @@ const productCardPrimaryImageFor = (product = {}, variant = null, activeColorGro
     ...(Array.isArray(product?.product_images) ? product.product_images : []),
     ...(Array.isArray(product?.color_images) ? product.color_images : []),
   ]);
-  const variantImagesList = productCardResolvedImageCollection([
-    ...(Array.isArray(activeColorGroup?.images) ? activeColorGroup.images : []),
-    ...(Array.isArray(variant?.images) ? variant.images : []),
-    ...(Array.isArray(variant?.color_images) ? variant.color_images : []),
-    ...(Array.isArray(variant?.gallery_images) ? variant.gallery_images : []),
-    ...(Array.isArray(variant?.image_urls) ? variant.image_urls : []),
-  ]);
+  const variantImagesList = productCardColorScopedImages(activeColorGroup, variant);
   return (
     cardImages[0] ||
     variantImagesList[0] ||
@@ -907,13 +922,7 @@ const productCardSecondaryImageFor = (product = {}, variant = null, activeColorG
     ...(Array.isArray(product?.product_images) ? product.product_images : []),
     ...(Array.isArray(product?.color_images) ? product.color_images : []),
   ]);
-  const variantImagesList = productCardResolvedImageCollection([
-    ...(Array.isArray(activeColorGroup?.images) ? activeColorGroup.images : []),
-    ...(Array.isArray(variant?.images) ? variant.images : []),
-    ...(Array.isArray(variant?.color_images) ? variant.color_images : []),
-    ...(Array.isArray(variant?.gallery_images) ? variant.gallery_images : []),
-    ...(Array.isArray(variant?.image_urls) ? variant.image_urls : []),
-  ]);
+  const variantImagesList = productCardColorScopedImages(activeColorGroup, variant);
   const colorScopedCandidates = [
     variantImagesList[1],
     variantImagesList[0],

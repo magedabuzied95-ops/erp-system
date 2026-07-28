@@ -26,3 +26,12 @@ test("hover never falls back to a different color image", () => {
   assert.match(source, /hasColorScope\s*\? colorScopedCandidates\s*:\s*\[\.\.\.colorScopedCandidates, cardImages\[1\], cardImages\[0\]\]/);
   assert.match(source, /getActiveColorGroup\(hoverProductDetails, variantColorKey\(hoverDetailVariant \|\| \{\}\) \|\| selectedColorKey\)/);
 });
+
+test("hover collects images from every size variant of the same color", () => {
+  assert.match(source, /const productCardColorScopedImages =/);
+  assert.match(source, /const sameColorVariants = Array\.isArray\(activeColorGroup\?\.variants\)/);
+  assert.match(source, /const sameColorVariantImages = sameColorVariants\.flatMap/);
+  assert.match(source, /\.\.\.sameColorVariantImages/);
+  assert.match(source, /colorVariant\?\.additional_images/);
+  assert.match(source, /const variantImagesList = productCardColorScopedImages\(activeColorGroup, variant\)/);
+});
