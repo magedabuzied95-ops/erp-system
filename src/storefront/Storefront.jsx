@@ -6603,6 +6603,8 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
 
 function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, ...cardProps }) {
   const [page, setPage] = useState(0);
+  const isMobile = useIsMobileViewport();
+  const touchStartXRef = useRef(null);
   const items = useMemo(() => {
     const seen = new Set();
     return sortStorefrontColorCardsByModel(products).filter((product) => {
@@ -6613,10 +6615,11 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
     }).slice(0, 15);
   }, [currentId, products]);
   const itemsSignature = items.map((item, index) => productCardKey(item, index)).join("|");
-  const pageCount = Math.max(1, Math.ceil(items.length / 5));
+  const pageSize = isMobile ? 1 : 5;
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
   useEffect(() => {
     setPage(0);
-  }, [currentId, itemsSignature]);
+  }, [currentId, isMobile, itemsSignature]);
   useEffect(() => {
     if (loading || pageCount < 2 || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
     const moveTimer = window.setInterval(() => {
@@ -6624,7 +6627,7 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
     }, 4000);
     return () => window.clearInterval(moveTimer);
   }, [loading, pageCount, itemsSignature]);
-  const visibleItems = items.slice(page * 5, page * 5 + 5);
+  const visibleItems = items.slice(page * pageSize, page * pageSize + pageSize);
   const moveToPage = (nextPage) => {
     const safePage = pageCount > 1 ? (nextPage + pageCount) % pageCount : 0;
     setPage(safePage);
@@ -6643,8 +6646,22 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
           <Link to={href || "/products"} className="ms-1 hidden rounded-full border border-stone-200 px-3 py-2 text-xs font-black text-stone-700 transition hover:border-[#d4af37] sm:inline-flex dark:border-white/10 dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
         </div>
       </div>
-      <div key={page} className="sf-product-recommendation-page grid grid-cols-2 gap-x-3 gap-y-6 pb-3 sm:grid-cols-3 md:gap-x-5 lg:grid-cols-5">
-        {loading ? Array.from({ length: 5 }).map((_, index) => <div key={index} className="aspect-[0.72] min-w-0 animate-pulse bg-stone-100 dark:bg-white/5" />) : visibleItems.map((product, index) => (
+      <div
+        key={`${isMobile ? "mobile" : "desktop"}-${page}`}
+        className="sf-product-recommendation-page grid touch-pan-y grid-cols-1 gap-x-3 gap-y-6 pb-3 md:grid-cols-3 md:gap-x-5 lg:grid-cols-5"
+        onTouchStart={(event) => {
+          touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(event) => {
+          if (!isMobile || touchStartXRef.current == null) return;
+          const touchEndX = event.changedTouches?.[0]?.clientX ?? touchStartXRef.current;
+          const distance = touchEndX - touchStartXRef.current;
+          touchStartXRef.current = null;
+          if (Math.abs(distance) < 45) return;
+          moveToPage(distance < 0 ? page + 1 : page - 1);
+        }}
+      >
+        {loading ? Array.from({ length: pageSize }).map((_, index) => <div key={index} className="aspect-[0.72] min-w-0 animate-pulse bg-stone-100 dark:bg-white/5" />) : visibleItems.map((product, index) => (
           <RecommendationProductTile key={productCardKey(product, index)} product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
         ))}
       </div>
