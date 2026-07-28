@@ -24,3 +24,8 @@ test("backend color-card expansion cannot move offers ahead before pagination", 
   assert.match(source, /let pagedProducts = categoryProducts\.slice\(offset, offset \+ limit\)/);
   assert.ok(source.indexOf("keepOfferCardsAfterRegularCards(sortedExpandedProducts") < source.indexOf("let pagedProducts = categoryProducts.slice"));
 });
+
+test("normalization preserves the database offer-story flag for expanded cards", () => {
+  assert.match(source, /is_offer_story:\s*row\.is_offer_story === true \|\|\s*String\(row\.is_offer_story \|\| ""\)\.toLowerCase\(\) === "true"/);
+  assert.match(source, /cards\.push\(\{\s*\.\.\.product,/);
+});

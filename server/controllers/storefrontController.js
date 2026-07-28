@@ -1267,6 +1267,11 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     sale_source: saleModeActive ? "product" : "regular",
     sale_mode_applied: saleModeActive,
     sale_badge: saleModeActive ? (pricingSettings.sale_mode_label || row.sale_reason || "Sale") : "",
+    is_offer_story:
+      row.is_offer_story === true ||
+      String(row.is_offer_story || "").toLowerCase() === "true" ||
+      row.isOfferStory === true ||
+      String(row.isOfferStory || "").toLowerCase() === "true",
     is_storefront_visible:
       row.is_storefront_visible === true ||
       String(row.is_storefront_visible ?? "").toLowerCase() === "true" ||
