@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 import toast from "react-hot-toast";
-import { normalizeProductAudienceValue } from "../../../shared/lib/productAudiences";
+import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 
 import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
@@ -1986,7 +1986,7 @@ function CreateProduct() {
           return;
         }
 
-        if (!normalizeProductAudienceValue(group.audience)) {
+        if (getProductAudienceValues({ audience: group.audience }).length === 0) {
           const message = `يجب تحديد الجمهور للون "${colorValue}": رجالي أو حريمي أو أطفال`;
           setVariantNotice(message);
           toast.error(message, { duration: 6000 });
