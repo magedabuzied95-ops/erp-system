@@ -1,5 +1,5 @@
 const text = (value) => String(value || "").trim();
-export const CURRENT_STORY_RENDERER_BUILD = "m1-story-price-first-v7-2026-07-28";
+export const CURRENT_STORY_RENDERER_BUILD = "m1-story-multi-slide-v8-2026-07-28";
 export const CURRENT_STORY_TEMPLATE_KEY = "m1_story_current";
 export const CURRENT_STORY_TEMPLATE_VERSION = "v1";
 

@@ -2119,7 +2119,18 @@ const queueItemStoryPayload = (item = {}) => {
   const metadata = item.metadata || {};
   const productLink = cleanText(item.cta_url || design.cta_url || item.product_url || design.product_url);
   const asset = assertFinalGeneratedStoryAsset(item);
-  const generatedMediaUrls = [asset.assetUrl];
+  const assetSlides = storyAssetSnapshots(item).filter((snapshot) =>
+    String(snapshot.storyId) === String(item.id) &&
+    snapshot.templateKey === asset.templateKey &&
+    snapshot.templateVersion === asset.templateVersion &&
+    snapshot.rendererBuild === STORY_RENDERER_BUILD
+  );
+  const publishSlides = assetSlides.length ? assetSlides : [{
+    storyId: String(item.id), assetId: asset.assetId, assetUrl: asset.assetUrl,
+    templateKey: asset.templateKey, templateVersion: asset.templateVersion,
+    rendererBuild: asset.rendererBuild, generationId: asset.generationId, checksum: asset.checksum,
+  }];
+  const generatedMediaUrls = uniqueImageUrls(publishSlides.map((slide) => slide.assetUrl));
   console.log("[story-publish-payload]", {
     storyId: item.id || null,
     productId: item.product_id || null,
@@ -2129,6 +2140,7 @@ const queueItemStoryPayload = (item = {}) => {
     templateKey: asset.templateKey,
     templateVersion: asset.templateVersion,
     checksum: asset.checksum,
+    assetSlides: publishSlides,
     storagePublicId: asset.storagePublicId,
     template: metadata.story_asset_renderer || design.story_asset_renderer || "",
     layout: item.layout_type || design.layout_type || "",
@@ -2143,6 +2155,7 @@ const queueItemStoryPayload = (item = {}) => {
     rendererBuild: asset.rendererBuild,
     generationId: asset.generationId,
     checksum: asset.checksum,
+    assetSlides: publishSlides,
     id: item.id,
     tenant_id: item.tenant_id,
     product_id: item.product_id,
@@ -2157,7 +2170,7 @@ const queueItemStoryPayload = (item = {}) => {
     source_product_image_url: "",
     story_type: "ai_center",
     require_generated_story_asset: true,
-    publish_asset_ids: [asset.assetId],
+    publish_asset_ids: publishSlides.map((slide) => slide.assetId),
     product_slug: item.product_slug || design.product_slug || "",
     product_url: item.product_url || design.product_url || productLink || "",
     cta_url: productLink,
@@ -2268,6 +2281,25 @@ const storyAssetSnapshot = (item = {}) => {
     checksum: cleanText(snapshot.checksum),
     generatedAt: cleanText(snapshot.generatedAt || snapshot.generated_at),
   };
+};
+
+const storyAssetSnapshots = (item = {}) => {
+  const metadata = item.metadata || {};
+  const design = item.design_json || {};
+  const rows = normalizeJsonArray(metadata.story_asset_snapshots || design.story_asset_snapshots, []);
+  const normalized = rows.map((snapshot) => ({
+    storyId: cleanText(snapshot?.storyId || snapshot?.story_id),
+    assetId: cleanText(snapshot?.assetId || snapshot?.asset_id),
+    assetUrl: absoluteStoryAssetUrl(snapshot?.assetUrl || snapshot?.asset_url),
+    storagePublicId: cleanText(snapshot?.storagePublicId || snapshot?.storage_public_id),
+    templateKey: cleanText(snapshot?.templateKey || snapshot?.template_key),
+    templateVersion: cleanText(snapshot?.templateVersion || snapshot?.template_version),
+    rendererBuild: cleanText(snapshot?.rendererBuild || snapshot?.renderer_build),
+    generationId: cleanText(snapshot?.generationId || snapshot?.generation_id),
+    checksum: cleanText(snapshot?.checksum),
+    generatedAt: cleanText(snapshot?.generatedAt || snapshot?.generated_at),
+  })).filter((snapshot) => snapshot.assetUrl && snapshot.assetId && snapshot.checksum);
+  return normalized.length ? normalized : [storyAssetSnapshot(item)].filter((snapshot) => snapshot.assetUrl);
 };
 
 const isStoryAssetBoundToCurrentItem = (item = {}) => {
@@ -2707,9 +2739,22 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     throw error;
   }
 
-  const checksum = await generatedStoryAssetChecksum(renderedAssetUrl);
+  const checksums = await Promise.all(renderedAssetUrls.map((url) => generatedStoryAssetChecksum(url)));
+  const checksum = checksums[0];
   const generatedAt = new Date().toISOString();
   const assetId = `story-${item.id}-${checksum.slice(0, 20)}`;
+  const snapshots = Object.freeze(renderedAssetUrls.map((assetUrl, index) => Object.freeze({
+    storyId: String(item.id),
+    assetId: `story-${item.id}-${checksums[index].slice(0, 20)}`,
+    assetUrl,
+    storagePublicId: storyStoragePublicId(assetUrl),
+    templateKey,
+    templateVersion,
+    rendererBuild: STORY_RENDERER_BUILD,
+    generationId,
+    checksum: checksums[index],
+    generatedAt,
+  })));
   const snapshot = Object.freeze({
     storyId: String(item.id),
     assetId,
@@ -2749,8 +2794,9 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     story_asset_queue_id: item.id,
     story_asset_product_id: item.product_id || null,
     story_asset_creative_id: creativeId,
-    story_asset_ids: [assetId],
+    story_asset_ids: snapshots.map((entry) => entry.assetId),
     story_asset_snapshot: snapshot,
+    story_asset_snapshots: snapshots,
     media_urls: renderedAssetUrls,
     media_urls_length: renderedAssetUrls.length,
     generated_asset_count: renderedAssetUrls.length,
@@ -2818,8 +2864,9 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     story_asset_queue_id: item.id,
     story_asset_product_id: item.product_id || null,
     story_asset_creative_id: creativeId,
-    story_asset_ids: [assetId],
+    story_asset_ids: snapshots.map((entry) => entry.assetId),
     story_asset_snapshot: snapshot,
+    story_asset_snapshots: snapshots,
     story_asset_generated_at: generatedAt,
     generation_stage: "ready",
   };

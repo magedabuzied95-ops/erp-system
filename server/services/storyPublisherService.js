@@ -360,6 +360,9 @@ const publishWhatsAppStory = async () => {
 
 const storyForCandidate = (story = {}, candidate = {}) => ({
   ...story,
+  ...((Array.isArray(story.assetSlides) ? story.assetSlides : []).find((slide) =>
+    trimString(slide?.assetUrl || slide?.asset_url) === trimString(candidate.raw || candidate.publicUrl)
+  ) || {}),
   image_url: candidate.raw || candidate.publicUrl || "",
   media_urls: [candidate.raw || candidate.publicUrl || ""].filter(Boolean),
 });

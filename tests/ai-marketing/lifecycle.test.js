@@ -215,7 +215,7 @@ test("story publish payload only uses assets bound to the current story", () => 
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "10", assetId: "story-10-current", assetUrl: skechersAsset,
-        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-price-first-v7-2026-07-28", generationId: "generation-10", checksum: "a".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-multi-slide-v8-2026-07-28", generationId: "generation-10", checksum: "a".repeat(64),
       },
     },
   };
@@ -230,7 +230,7 @@ test("story publish payload only uses assets bound to the current story", () => 
   assert.equal(payload.assetUrl, skechersAsset);
   assert.equal(payload.templateKey, "m1_story_current");
   assert.equal(payload.templateVersion, "v1");
-  assert.equal(payload.rendererBuild, "m1-story-price-first-v7-2026-07-28");
+  assert.equal(payload.rendererBuild, "m1-story-multi-slide-v8-2026-07-28");
   assert.equal(payload.generationId, "generation-10");
   assert.equal(payload.checksum, "a".repeat(64));
   assert.doesNotMatch(JSON.stringify(payload), /adidas|ultra-boost/i);
@@ -288,7 +288,7 @@ test("story asset binding survives reload-shaped normalized rows", () => {
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "12", assetId: "story-12-current", assetUrl: asset,
-        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-price-first-v7-2026-07-28", generationId: "generation-12", checksum: "b".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-multi-slide-v8-2026-07-28", generationId: "generation-12", checksum: "b".repeat(64),
       },
     },
   });
@@ -340,7 +340,7 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "20", assetId: "story-20-current", assetUrl,
-        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-price-first-v7-2026-07-28", generationId: "generation-20", checksum: "c".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-multi-slide-v8-2026-07-28", generationId: "generation-20", checksum: "c".repeat(64),
       },
     },
   };
@@ -352,10 +352,58 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
   assert.deepEqual(payload.media_urls, [assetUrl]);
   assert.equal(payload.templateKey, "m1_story_current");
   assert.equal(payload.templateVersion, "v1");
-  assert.equal(payload.rendererBuild, "m1-story-price-first-v7-2026-07-28");
+  assert.equal(payload.rendererBuild, "m1-story-multi-slide-v8-2026-07-28");
   assert.equal(payload.generationId, "generation-20");
   assert.equal(payload.checksum, "c".repeat(64));
   assert.equal(payload.source_product_image_url, "");
   assert.doesNotMatch(JSON.stringify(payload), /LAST SIZE|View details|dark-gradient|legacy/i);
   assert.doesNotMatch(serviceSource.slice(serviceSource.indexOf("export const publishAiMarketingQueueItemNow")), /generateDesignedAiMarketingStoryImages/);
+});
+
+test("multi-color story publish payload keeps every rendered slide and immutable checksum", () => {
+  const first = "https://res.cloudinary.com/m1-store/image/upload/v1/stories/color-1.png";
+  const second = "https://res.cloudinary.com/m1-store/image/upload/v1/stories/color-2.png";
+  const snapshots = [first, second].map((assetUrl, index) => ({
+    storyId: "30",
+    assetId: `story-30-color-${index + 1}`,
+    assetUrl,
+    templateKey: "m1_story_current",
+    templateVersion: "v1",
+    rendererBuild: "m1-story-multi-slide-v8-2026-07-28",
+    generationId: "generation-30",
+    checksum: String(index + 1).repeat(64),
+  }));
+  const payload = queueItemStoryPayload({
+    id: 30,
+    tenant_id: 1,
+    product_id: 345,
+    content_type: "story",
+    design_json: {
+      layout_type: "story",
+      story_asset_renderer: "m1_story_new_collection",
+      story_asset_story_id: 30,
+      story_asset_product_id: 345,
+      story_asset_template_key: "m1_story_current",
+      story_asset_template_version: "v1",
+      generated_media_urls: [first, second],
+      final_asset_url: first,
+      story_asset_snapshots: snapshots,
+    },
+    metadata: {
+      story_asset_renderer: "m1_story_new_collection",
+      story_asset_story_id: 30,
+      story_asset_product_id: 345,
+      story_asset_template_key: "m1_story_current",
+      story_asset_template_version: "v1",
+      generated_asset_urls: [first, second],
+      story_asset_snapshot: snapshots[0],
+      story_asset_snapshots: snapshots,
+    },
+  });
+  assert.deepEqual(payload.media_urls, [first, second]);
+  assert.deepEqual(payload.publish_asset_ids, ["story-30-color-1", "story-30-color-2"]);
+  assert.deepEqual(payload.assetSlides.map(({ assetUrl, checksum }) => ({ assetUrl, checksum })), [
+    { assetUrl: first, checksum: "1".repeat(64) },
+    { assetUrl: second, checksum: "2".repeat(64) },
+  ]);
 });
