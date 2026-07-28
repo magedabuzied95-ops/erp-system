@@ -10,6 +10,7 @@ import {
 import {
   buildCategorySeoPayload,
   injectCategorySeoIntoHtml,
+  loadStorefrontCategoryHtmlShell,
 } from "../../server/services/storefrontCategorySeoPageService.js";
 import { buildSitemapEntries } from "../../server/services/storefrontSeoService.js";
 
@@ -82,4 +83,18 @@ test("payload has canonical page metadata and valid structured data", () => {
   assert.equal(payload.totalPages, 2);
   assert.equal(payload.breadcrumbJsonLd["@type"], "BreadcrumbList");
   assert.equal(payload.itemListJsonLd["@type"], "ItemList");
+});
+
+test("category SEO shell always bypasses stale deployment caches", async () => {
+  let requestUrl = "";
+  let requestOptions = {};
+  const html = await loadStorefrontCategoryHtmlShell(async (url, options) => {
+    requestUrl = url;
+    requestOptions = options;
+    return { ok: true, text: async () => "<html>fresh</html>" };
+  });
+  assert.equal(html, "<html>fresh</html>");
+  assert.match(requestUrl, /\/index\.html\?seo-shell=\d+$/);
+  assert.equal(requestOptions.cache, "no-store");
+  assert.match(requestOptions.headers["Cache-Control"], /no-store/);
 });

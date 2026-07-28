@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildProductSeo } from "../../src/shared/lib/productSeo.js";
-import { injectProductSeoIntoHtml } from "../../server/services/storefrontProductSeoPageService.js";
+import {
+  injectProductSeoIntoHtml,
+  loadStorefrontHtmlShell,
+} from "../../server/services/storefrontProductSeoPageService.js";
 
 const baseProduct = {
   id: 25,
@@ -82,4 +85,18 @@ test("server HTML contains one Product and one Breadcrumb JSON-LD with safe esca
   assert.match(html, /Nike &lt;Air&gt; &quot;Force&quot;/);
   assert.doesNotMatch(html, /"review"/);
   assert.doesNotMatch(html, /"aggregateRating"/);
+});
+
+test("product SEO shell always bypasses stale deployment caches", async () => {
+  let requestUrl = "";
+  let requestOptions = {};
+  const html = await loadStorefrontHtmlShell(async (url, options) => {
+    requestUrl = url;
+    requestOptions = options;
+    return { ok: true, text: async () => "<html>fresh</html>" };
+  });
+  assert.equal(html, "<html>fresh</html>");
+  assert.match(requestUrl, /\/index\.html\?seo-shell=\d+$/);
+  assert.equal(requestOptions.cache, "no-store");
+  assert.match(requestOptions.headers["Cache-Control"], /no-store/);
 });

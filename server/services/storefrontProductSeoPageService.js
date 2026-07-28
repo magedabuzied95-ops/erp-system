@@ -1,7 +1,6 @@
 import { buildProductSeo, STOREFRONT_ORIGIN } from "../../src/shared/lib/productSeo.js";
 
 const API_ORIGIN = String(process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.m1store-egy.com").replace(/\/+$/, "");
-let shellCache = { html: "", expiresAt: 0 };
 
 const escapeHtml = (value = "") => String(value ?? "")
   .replace(/&/g, "&amp;")
@@ -48,14 +47,16 @@ export const loadProductSeoData = async (identifier, fetchImpl = fetch) => {
 };
 
 export const loadStorefrontHtmlShell = async (fetchImpl = fetch) => {
-  if (shellCache.html && shellCache.expiresAt > Date.now()) return shellCache.html;
-  const response = await fetchImpl(`${STOREFRONT_ORIGIN}/index.html`, {
-    headers: { "User-Agent": "M1-SEO-Renderer/1.0" },
+  const response = await fetchImpl(`${STOREFRONT_ORIGIN}/index.html?seo-shell=${Date.now()}`, {
+    cache: "no-store",
+    headers: {
+      "User-Agent": "M1-SEO-Renderer/1.0",
+      "Cache-Control": "no-cache, no-store, max-age=0",
+      Pragma: "no-cache",
+    },
   });
   if (!response.ok) throw new Error(`storefront_shell_${response.status}`);
-  const html = await response.text();
-  shellCache = { html, expiresAt: Date.now() + 5 * 60_000 };
-  return html;
+  return response.text();
 };
 
 export const createStorefrontProductSeoPageHandler = ({
@@ -68,7 +69,9 @@ export const createStorefrontProductSeoPageHandler = ({
     if (!product) return res.status(status === 404 ? 404 : 503).send("Product not found");
     const html = injectProductSeoIntoHtml(await loadShell(), buildProductSeo(product));
     res.set("Content-Type", "text/html; charset=utf-8");
-    res.set("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=3600");
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
     return res.status(200).send(html);
   } catch (error) {
     return next(error);
@@ -76,4 +79,3 @@ export const createStorefrontProductSeoPageHandler = ({
 };
 
 export const storefrontProductSeoPageHandler = createStorefrontProductSeoPageHandler();
-
