@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import toast from "react-hot-toast";
+import { normalizeProductAudienceValue } from "../../../shared/lib/productAudiences";
 
 import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
@@ -2937,6 +2938,12 @@ function ProductEdit() {
       const invalidGroup = normalizedGroups.find((group) => !group.color);
       if (invalidGroup) {
       toast.error(t("products.editor.eachColorNeedsName"));
+        return;
+      }
+
+      const groupWithoutAudience = normalizedGroups.find((group) => !normalizeProductAudienceValue(group.audience));
+      if (groupWithoutAudience) {
+        toast.error(`يجب تحديد الجمهور للون "${groupWithoutAudience.color}": رجالي أو حريمي أو أطفال`, { duration: 6000 });
         return;
       }
 

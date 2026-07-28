@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import toast from "react-hot-toast";
+import { normalizeProductAudienceValue } from "../../../shared/lib/productAudiences";
 
 import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
@@ -1982,6 +1983,13 @@ function CreateProduct() {
           const message = "Each color group needs a color name before saving variants";
           setVariantNotice(message);
           toast.error(message);
+          return;
+        }
+
+        if (!normalizeProductAudienceValue(group.audience)) {
+          const message = `يجب تحديد الجمهور للون "${colorValue}": رجالي أو حريمي أو أطفال`;
+          setVariantNotice(message);
+          toast.error(message, { duration: 6000 });
           return;
         }
 
