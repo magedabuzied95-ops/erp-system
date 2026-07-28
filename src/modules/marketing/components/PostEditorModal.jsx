@@ -379,7 +379,7 @@ const storyCreativeTheme = (slide = {}) => {
   return {
     badge, edition: "FRESH DROP",
     background: "bg-[radial-gradient(circle_at_22%_18%,rgba(239,68,68,.24),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(249,115,22,.18),transparent_26%),linear-gradient(155deg,#fff8f7_0%,#f1e5e3_43%,#170909_100%)]",
-    accent: "from-red-100 via-red-400 to-rose-600 text-red-950 shadow-[0_0_26px_rgba(239,68,68,.28),0_18px_34px_rgba(69,10,10,.38)]", glow: "bg-red-300/20",
+    accent: "from-red-600 via-rose-600 to-red-800 text-white shadow-[0_0_26px_rgba(239,68,68,.32),0_18px_34px_rgba(69,10,10,.42)]", glow: "bg-red-300/20",
   };
 };
 
@@ -832,7 +832,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
             onClick={(event) => {
               if (!ctaUrl) event.preventDefault();
             }}
-            className={`story-creative-cta max-w-[44%] shrink-0 rounded-full border border-white/35 bg-gradient-to-br px-4 py-3 text-center text-[13px] font-black leading-4 transition hover:scale-[1.02] active:scale-[0.99] ${theme.accent} ${ctaUrl ? "" : "pointer-events-none opacity-70"}`}
+            className={`story-creative-cta max-w-[44%] shrink-0 rounded-full border border-white/45 bg-gradient-to-br px-4 py-3 text-center text-[13px] font-black leading-4 transition hover:scale-[1.02] active:scale-[0.99] ${theme.accent} ${ctaUrl ? "" : "pointer-events-none"}`}
           >
             {cta}
           </a>
