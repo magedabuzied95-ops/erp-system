@@ -930,6 +930,27 @@ body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-meta {
   -webkit-text-fill-color: var(--sf-light-text-secondary) !important;
 }
 
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-current-price {
+  color: #9a6700 !important;
+  -webkit-text-fill-color: #9a6700 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-compare-price {
+  color: #6b655d !important;
+  -webkit-text-fill-color: #6b655d !important;
+  text-decoration-color: #6b655d !important;
+  opacity: 1 !important;
+}
+
+body.storefront-shell.storefront-dark .sf-product-recommendation-current-price {
+  color: #f3d77a !important;
+}
+
+body.storefront-shell.storefront-dark .sf-product-recommendation-compare-price {
+  color: rgb(255 255 255 / 55%) !important;
+  text-decoration-color: rgb(255 255 255 / 55%) !important;
+}
+
 body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail > div:first-child button,
 body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail > div:first-child a {
   border-color: var(--sf-light-border-strong) !important;

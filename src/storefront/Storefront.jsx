@@ -6578,7 +6578,6 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
   const variant = firstDisplayVariant(Array.isArray(product?.variants) ? product.variants : []);
   const pricing = getDisplayPricing(product, parseSaleModeEnabled(saleModeEnabled, false), variant || {});
   const image = productCardPrimaryImageFor(product, variant);
-  const category = recommendationText(product?.grade || product?.quality || product?.category?.name || product?.category_name || product?.category);
   const brand = recommendationText(product?.brand?.name || product?.brand_name || product?.brand);
   const inWishlist = wishlist.some((item) => String(item?.id) === String(product?.id));
   return (
@@ -6589,11 +6588,11 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
           {pricing.isOnSale && pricing.discountPercent ? <span className="absolute end-2 top-2 rounded-full bg-[#d4af37] px-2 py-1 text-[9px] font-black text-black">-{pricing.discountPercent}%</span> : null}
         </div>
         <div className="px-1 pt-2">
-          <div className="sf-product-recommendation-meta truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{[brand, category].filter(Boolean).join(" · ")}</div>
+          {brand ? <div className="sf-product-recommendation-meta truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{brand}</div> : null}
           <h3 className="sf-product-recommendation-name mt-1 line-clamp-2 min-h-[2.5rem] text-xs font-black leading-5 text-stone-900 dark:text-white md:text-sm">{cleanDisplayText(product?.name || product?.title || "")}</h3>
           <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 text-xs font-black">
-            <span className="text-[#1683c5] dark:text-[#f3d77a]">{money(pricing.price)}</span>
-            {pricing.comparePrice > pricing.price ? <span className="text-stone-400 line-through dark:text-white/35">{money(pricing.comparePrice)}</span> : null}
+            <span className="sf-product-recommendation-current-price">{money(pricing.price)}</span>
+            {pricing.comparePrice > pricing.price ? <span className="sf-product-recommendation-compare-price line-through">{money(pricing.comparePrice)}</span> : null}
           </div>
         </div>
       </Link>
@@ -6655,7 +6654,7 @@ function RelatedProductsContent({ currentProduct, ...props }) {
   const brandResult = useProducts({ brand: brand || "__no_brand__", limit: 15, in_stock: 1, grouping: "product" });
   return (
     <div className="sf-related-products mt-5">
-      <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle={grade ? `المزيد من فئة ${grade}` : "من نفس الفئة"} href={grade ? `/products?grade=${encodeURIComponent(grade)}` : "/products"} products={gradeResult.products} loading={gradeResult.loading} currentId={currentId} {...props} />
+      <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle="منتجات مشابهة مختارة لك" href={grade ? `/products?grade=${encodeURIComponent(grade)}` : "/products"} products={gradeResult.products} loading={gradeResult.loading} currentId={currentId} {...props} />
       <StorefrontRecommendationRail title={brand ? `المزيد من منتجات ${brand}` : "منتجات من نفس الماركة"} subtitle="منتجات من نفس الماركة" href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} {...props} />
     </div>
   );

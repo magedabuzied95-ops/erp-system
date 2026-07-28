@@ -44,6 +44,16 @@ test("product recommendation strips have explicit light-mode colors", () => {
   assert.match(storefrontSource, /sf-product-recommendation-name/);
   assert.match(lightStyles, /not\(\.storefront-dark\) \.sf-product-recommendation-name/);
   assert.match(lightStyles, /not\(\.storefront-dark\) \.sf-product-recommendation-meta/);
+  assert.match(storefrontSource, /sf-product-recommendation-current-price/);
+  assert.match(storefrontSource, /sf-product-recommendation-compare-price/);
+  assert.match(lightStyles, /not\(\.storefront-dark\) \.sf-product-recommendation-current-price/);
+  assert.match(lightStyles, /not\(\.storefront-dark\) \.sf-product-recommendation-compare-price/);
+});
+
+test("recommendation copy never exposes the raw mirror grade", () => {
+  assert.doesNotMatch(storefrontSource, /\[brand, category\]\.filter/);
+  assert.doesNotMatch(storefrontSource, /`المزيد من فئة \$\{grade\}`/);
+  assert.match(storefrontSource, /subtitle="منتجات مشابهة مختارة لك"/);
 });
 
 test("the product page reuses the exact home service strip and footer components", () => {
