@@ -21,7 +21,17 @@ test("recommendation rails provide paging controls and exclude the open product"
   assert.match(storefrontSource, /parentId === String\(currentId\)/);
   assert.match(storefrontSource, /Math\.ceil\(items\.length \/ 5\)/);
   assert.match(storefrontSource, /items\.slice\(page \* 5, page \* 5 \+ 5\)/);
+  assert.match(storefrontSource, /window\.setInterval/);
+  assert.match(storefrontSource, /\(currentPage \+ 1\) % pageCount/);
+  assert.match(storefrontSource, /sf-product-recommendation-page/);
   assert.match(storefrontSource, /aria-label=\{`صفحة \$\{index \+ 1\}`\}/);
+});
+
+test("customer recent products include brand and crossed-price fields", () => {
+  const controller = readFileSync(new URL("../server/controllers/storefrontController.js", import.meta.url), "utf8");
+  assert.match(controller, /b\.name AS brand_name/);
+  assert.match(controller, /AS compare_at_price/);
+  assert.match(controller, /LEFT JOIN brands b ON b\.id = p\.brand_id/);
 });
 
 test("product page prioritizes cached or direct product data and defers recommendation requests", () => {

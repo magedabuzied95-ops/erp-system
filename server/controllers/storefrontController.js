@@ -4944,11 +4944,14 @@ export const accountByPhone = async (req, res) => {
       SELECT
         p.id,
         p.name,
+        b.name AS brand,
+        b.name AS brand_name,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS image_url,
         COALESCE(NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), p.price, 0) AS price,
         COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS selling_price,
         COALESCE(NULLIF(p.regular_price, 0), 0) AS original_price,
         COALESCE(NULLIF(p.regular_price, 0), 0) AS regular_price,
+        COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(p.regular_price, 0), 0) AS compare_at_price,
         p.sale_price,
         $3::boolean AS sale_prices_enabled,
         $3::boolean AS global_sale_enabled,
@@ -4956,6 +4959,7 @@ export const accountByPhone = async (req, res) => {
         cw.created_at
       FROM customer_wishlist cw
       JOIN products p ON p.id = cw.product_id
+      LEFT JOIN brands b ON b.id = p.brand_id
       WHERE cw.tenant_id = $1 AND cw.phone = $2
       ORDER BY cw.created_at DESC
       LIMIT 50
@@ -4967,11 +4971,14 @@ export const accountByPhone = async (req, res) => {
       SELECT DISTINCT ON (rv.product_id)
         p.id,
         p.name,
+        b.name AS brand,
+        b.name AS brand_name,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS image_url,
         COALESCE(NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), p.price, 0) AS price,
         COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS selling_price,
         COALESCE(NULLIF(p.regular_price, 0), 0) AS original_price,
         COALESCE(NULLIF(p.regular_price, 0), 0) AS regular_price,
+        COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(p.regular_price, 0), 0) AS compare_at_price,
         p.sale_price,
         $3::boolean AS sale_prices_enabled,
         $3::boolean AS global_sale_enabled,
@@ -4979,6 +4986,7 @@ export const accountByPhone = async (req, res) => {
         rv.viewed_at
       FROM recently_viewed_products rv
       JOIN products p ON p.id = rv.product_id
+      LEFT JOIN brands b ON b.id = p.brand_id
       WHERE rv.tenant_id = $1 AND rv.phone = $2
       ORDER BY rv.product_id, rv.viewed_at DESC
       LIMIT 20

@@ -951,6 +951,25 @@ body.storefront-shell.storefront-dark .sf-product-recommendation-compare-price {
   text-decoration-color: rgb(255 255 255 / 55%) !important;
 }
 
+.sf-product-recommendation-page {
+  animation: sf-recommendation-page-enter 520ms cubic-bezier(.22, .8, .24, 1) both;
+}
+
+@keyframes sf-recommendation-page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(32px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-product-recommendation-page { animation: none !important; }
+}
+
 body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail > div:first-child button,
 body.storefront-shell:not(.storefront-dark) .sf-product-recommendation-rail > div:first-child a {
   border-color: var(--sf-light-border-strong) !important;

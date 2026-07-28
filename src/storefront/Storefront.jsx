@@ -6617,9 +6617,16 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
   useEffect(() => {
     setPage(0);
   }, [currentId, itemsSignature]);
+  useEffect(() => {
+    if (loading || pageCount < 2 || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const moveTimer = window.setInterval(() => {
+      setPage((currentPage) => (currentPage + 1) % pageCount);
+    }, 4000);
+    return () => window.clearInterval(moveTimer);
+  }, [loading, pageCount, itemsSignature]);
   const visibleItems = items.slice(page * 5, page * 5 + 5);
   const moveToPage = (nextPage) => {
-    const safePage = Math.max(0, Math.min(pageCount - 1, nextPage));
+    const safePage = pageCount > 1 ? (nextPage + pageCount) % pageCount : 0;
     setPage(safePage);
   };
   if (!loading && !items.length) return null;
@@ -6631,12 +6638,12 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
           {subtitle ? <p className="mt-1 truncate text-xs font-bold text-stone-500 dark:text-white/55 md:text-sm">{subtitle}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => moveToPage(page - 1)} disabled={page === 0} aria-label="السابق" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
-          <button type="button" onClick={() => moveToPage(page + 1)} disabled={page >= pageCount - 1} aria-label="التالي" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveToPage(page - 1)} disabled={pageCount < 2} aria-label="السابق" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveToPage(page + 1)} disabled={pageCount < 2} aria-label="التالي" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
           <Link to={href || "/products"} className="ms-1 hidden rounded-full border border-stone-200 px-3 py-2 text-xs font-black text-stone-700 transition hover:border-[#d4af37] sm:inline-flex dark:border-white/10 dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
         </div>
       </div>
-      <div key={page} className="grid grid-cols-2 gap-x-3 gap-y-6 pb-3 sm:grid-cols-3 md:gap-x-5 lg:grid-cols-5">
+      <div key={page} className="sf-product-recommendation-page grid grid-cols-2 gap-x-3 gap-y-6 pb-3 sm:grid-cols-3 md:gap-x-5 lg:grid-cols-5">
         {loading ? Array.from({ length: 5 }).map((_, index) => <div key={index} className="aspect-[0.72] min-w-0 animate-pulse bg-stone-100 dark:bg-white/5" />) : visibleItems.map((product, index) => (
           <RecommendationProductTile key={productCardKey(product, index)} product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
         ))}
