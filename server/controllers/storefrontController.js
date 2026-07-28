@@ -318,6 +318,18 @@ const sortStorefrontCards = (cards = [], sort = "", seed = "") => {
   return smartGroupedStorefrontShuffle(rows, seed);
 };
 
+const keepOfferCardsAfterRegularCards = (cards = [], offerStoryOnly = false) => {
+  const rows = Array.isArray(cards) ? cards : [];
+  if (offerStoryOnly) return rows;
+  const regular = [];
+  const offers = [];
+  for (const card of rows) {
+    const isOffer = card?.is_offer_story === true || String(card?.is_offer_story || "").toLowerCase() === "true";
+    (isOffer ? offers : regular).push(card);
+  }
+  return [...regular, ...offers];
+};
+
 const normalizeStorefrontPricingSettings = (settings = {}) => {
   const percent = Math.max(0, Math.min(500, toNumber(settings.fake_compare_percent, STOREFRONT_PRICING_DEFAULTS.fake_compare_percent)));
   const roundingMode = new Set(["none", "nearest_10", "nearest_50", "nearest_100"]).has(settings.fake_compare_rounding_mode)
@@ -1612,7 +1624,13 @@ export const storefrontProductsSql = `
           AND COALESCE(pv_stock.stock, 0) > 0
     ))
     GROUP BY p.id, c.name, b.name, m.name
-    ORDER BY p.id DESC
+    ORDER BY
+      CASE
+        WHEN $6::boolean = TRUE THEN 0
+        WHEN COALESCE(p.is_offer_story, FALSE) = TRUE THEN 1
+        ELSE 0
+      END ASC,
+      p.id DESC
     LIMIT $13 OFFSET $14
 `;
 
@@ -3046,7 +3064,8 @@ export const listProducts = async (req, res) => {
       if (randomSeed) {
         console.log("[storefront-shuffle-before]", expandedProducts.map((product) => storefrontCardId(product)));
       }
-      const orderedExpandedProducts = shouldOrderAfterExpansion ? sortStorefrontCards(expandedProducts, sort, randomSeed) : expandedProducts;
+      const sortedExpandedProducts = shouldOrderAfterExpansion ? sortStorefrontCards(expandedProducts, sort, randomSeed) : expandedProducts;
+      const orderedExpandedProducts = keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly);
       const categoryProducts = largeSizes
         ? orderedExpandedProducts.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
             const variantSize = Number(variant.size ?? variant.size_value);
