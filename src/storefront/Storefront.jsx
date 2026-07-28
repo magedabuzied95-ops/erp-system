@@ -1890,16 +1890,19 @@ const storefrontApi = {
 };
 const prefetchStorefrontProductDetails = (identifier) => {
   const key = String(identifier || "").trim();
-  if (!key) return;
-  if (storefrontPrefetchedDetails.has(key)) return;
-  if (storefrontPrefetchedDetails.size >= STOREFRONT_PREFETCH_LIMIT) return;
+  if (!key) return Promise.resolve(null);
+  if (storefrontPrefetchedDetails.has(key)) {
+    return storefrontApi.getProductDetails(key, { ttlMs: STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS });
+  }
+  if (storefrontPrefetchedDetails.size >= STOREFRONT_PREFETCH_LIMIT) return Promise.resolve(null);
   storefrontPrefetchedDetails.add(key);
   storefrontDebugLog("[storefront-prefetch-count]", {
     count: storefrontPrefetchedDetails.size,
     identifier: key,
   });
-  void storefrontApi.getProductDetails(key, { ttlMs: STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS }).catch(() => {
+  return storefrontApi.getProductDetails(key, { ttlMs: STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS }).catch(() => {
     storefrontPrefetchedDetails.delete(key);
+    return null;
   });
 };
 const extractProductPayload = (payload = {}) => {
@@ -5824,6 +5827,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const initialVariant = providedSelectedVariant || firstAvailableVariant;
   const [selectedVariantId, setSelectedVariantId] = useState(initialVariant?.id || "");
   const [selectedColorKeyState, setSelectedColorKeyState] = useState(providedSelectedColor || (initialVariant ? variantColorKey(initialVariant) : ""));
+  const [hoverProductDetails, setHoverProductDetails] = useState(null);
   const selectedVariant = useMemo(
     () => variants.find((variant) => String(variant.id) === String(selectedVariantId)) || null,
     [selectedVariantId, variants]
@@ -5865,9 +5869,23 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     () => productCardPrimaryImageFor(product, availableVariant, activeColorGroup),
     [activeColorGroup, availableVariant, product]
   );
+  const hoverDetailVariants = useMemo(
+    () => (Array.isArray(hoverProductDetails?.variants) ? hoverProductDetails.variants : []),
+    [hoverProductDetails]
+  );
+  const hoverDetailVariant = useMemo(() => (
+    hoverDetailVariants.find((variant) => String(variant.id) === String(availableVariant?.id))
+    || hoverDetailVariants.find((variant) => variantColorKey(variant) === selectedColorKey)
+    || firstDisplayVariant(hoverDetailVariants)
+  ), [availableVariant?.id, hoverDetailVariants, selectedColorKey]);
+  const hoverDetailColorGroup = useMemo(
+    () => (hoverProductDetails ? getActiveColorGroup(hoverProductDetails, selectedColorKey || variantColorKey(hoverDetailVariant || {})) : null),
+    [hoverDetailVariant, hoverProductDetails, selectedColorKey]
+  );
   const secondaryDisplayImage = useMemo(
-    () => productCardSecondaryImageFor(product, availableVariant, activeColorGroup, displayImage),
-    [activeColorGroup, availableVariant, displayImage, product]
+    () => productCardSecondaryImageFor(product, availableVariant, activeColorGroup, displayImage)
+      || productCardSecondaryImageFor(hoverProductDetails || {}, hoverDetailVariant, hoverDetailColorGroup, displayImage),
+    [activeColorGroup, availableVariant, displayImage, hoverDetailColorGroup, hoverDetailVariant, hoverProductDetails, product]
   );
   const primaryImageUrl = useMemo(() => resolveCardImageUrl(displayImage), [displayImage]);
   const secondaryImageUrl = useMemo(() => resolveCardImageUrl(secondaryDisplayImage), [secondaryDisplayImage]);
@@ -5881,6 +5899,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const secondaryFlashTimerRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
+    setHoverProductDetails(null);
     deferReactState(() => {
       if (!cancelled) {
         const next = providedSelectedVariant && variantHasStock(providedSelectedVariant) ? providedSelectedVariant : firstAvailableVariant;
@@ -6028,7 +6047,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const productIdentifier = useMemo(() => productRouteIdentifier(product), [product]);
   const requestDetailPrefetch = useCallback(() => {
     if (!productIdentifier) return;
-    prefetchStorefrontProductDetails(productIdentifier);
+    void prefetchStorefrontProductDetails(productIdentifier).then((payload) => {
+      const detailProduct = productFromDetailsResponse(payload || {});
+      if (detailProduct && typeof detailProduct === "object") setHoverProductDetails(detailProduct);
+    });
   }, [productIdentifier]);
   const chooseColor = useCallback((event, group) => {
     event.preventDefault();
