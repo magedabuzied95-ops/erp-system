@@ -445,7 +445,7 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
 
   if (shouldRequireGeneratedStoryAsset(story)) {
     for (const candidate of publishCandidates) {
-      await assertGeneratedStoryAsset({ story, platform: "preflight", candidate });
+      await assertGeneratedStoryAsset({ story: storyForCandidate(story, candidate), platform: "preflight", candidate });
     }
   }
 
