@@ -88,6 +88,8 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { isAdminUser } from "../../../shared/auth/authStorage";
 import { canViewCostPrices } from "../../permissions/lib/rbacStore";
+import { normalizeArticleCodes } from "../../../../shared/articleCode";
+import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
 
 const emptyProduct = {
   name: "",
@@ -185,7 +187,20 @@ const createEmptyColorGroup = (defaults = {}) => ({
   manufacturer_id: normalizeManufacturerIds(defaults.manufacturer_ids ?? defaults.manufacturerIds, defaults.manufacturer_id)[0] || "",
   manufacturer_ids: normalizeManufacturerIds(defaults.manufacturer_ids ?? defaults.manufacturerIds, defaults.manufacturer_id),
   manufacturer_override: Boolean(defaults.manufacturer_override),
-  color_article_code: formatFieldValue(defaults.color_article_code ?? defaults.colorArticleCode),
+  color_article_codes: normalizeArticleCodes(
+    defaults.color_article_codes,
+    defaults.colorArticleCodes,
+    defaults.article_codes,
+    defaults.articleCodes,
+    defaults.color_article_code ?? defaults.colorArticleCode
+  ),
+  color_article_code: normalizeArticleCodes(
+    defaults.color_article_codes,
+    defaults.colorArticleCodes,
+    defaults.article_codes,
+    defaults.articleCodes,
+    defaults.color_article_code ?? defaults.colorArticleCode
+  )[0] || "",
   planned_qty: formatFieldValue(
     defaults.default_purchase_qty ??
       defaults.purchase_qty ??
@@ -584,7 +599,8 @@ const buildProductEditVariantContentSnapshot = (groups = []) =>
       manufacturer_id: String(group.manufacturer_id || "").trim(),
       manufacturer_ids: normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id),
       manufacturer_override: Boolean(group.manufacturer_override),
-    color_article_code: String(group.color_article_code || group.article_code || "").trim(),
+      color_article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code, group.article_code),
+      color_article_code: normalizeArticleCodes(group.color_article_codes, group.color_article_code, group.article_code)[0] || "",
       planned_qty: String(group.planned_qty || "").trim(),
       edition_name: String(group.edition_name || "").trim(),
       edition_slug: String(group.edition_slug || "").trim(),
@@ -815,6 +831,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
           color_sort_order: Math.max(0, Number(row.color_sort_order ?? row.colorSortOrder ?? groups.length) || 0),
           color: row.color || "Default",
           color_article_code: row.color_article_code || row.colorArticleCode || "",
+          color_article_codes: row.color_article_codes || row.colorArticleCodes || row.article_codes || row.articleCodes || [],
           thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "",
           manufacturer_id: normalizeManufacturerId(row.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
           manufacturer_ids: normalizeManufacturerIds(row.manufacturer_ids, row.manufacturer_id || defaultManufacturerId),
@@ -848,6 +865,15 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     const group = groupedByColor.get(key);
     if (!group.color_group_key) group.color_group_key = explicitGroupKey || group.id;
     group.color_article_code = String(row.color_article_code || row.colorArticleCode || group.color_article_code || "").trim();
+    group.color_article_codes = normalizeArticleCodes(
+      row.color_article_codes,
+      row.colorArticleCodes,
+      row.article_codes,
+      row.articleCodes,
+      group.color_article_codes,
+      group.color_article_code
+    );
+    group.color_article_code = group.color_article_codes[0] || "";
     if (!String(group.thermal_image_url || "").trim() && String(row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "").trim()) {
       group.thermal_image_url = String(row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "").trim();
     }
@@ -899,6 +925,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     manufacturer_ids: normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id || defaultManufacturerId),
     images: normalizeColorImages(group.images),
     color_article_code: formatFieldValue(group.color_article_code || group.article_code),
+    color_article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code, group.article_code),
     thermal_image_url: formatFieldValue(group.thermal_image_url),
     planned_qty: formatFieldValue(
       group.default_purchase_qty ??
@@ -2918,7 +2945,8 @@ function ProductEdit() {
           .map((group) => ({
             ...group,
             color: String(group.color || "").trim(),
-            color_article_code: String(group.color_article_code || "").trim(),
+            color_article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code),
+            color_article_code: normalizeArticleCodes(group.color_article_codes, group.color_article_code)[0] || "",
             image_url: String(getPrimaryColorImage(group) || group.image_url || "").trim(),
             images: normalizeColorImages(group.images),
             sizes: Array.isArray(group.sizes) ? group.sizes : [],
@@ -2926,7 +2954,7 @@ function ProductEdit() {
           .filter((group) => {
             const hasAnyContent =
               Boolean(group.color) ||
-              Boolean(group.color_article_code) ||
+              group.color_article_codes.length > 0 ||
               Boolean(group.edition_name) ||
               Boolean(group.image_url) ||
               (Array.isArray(group.images) && group.images.length > 0) ||
@@ -2987,6 +3015,8 @@ function ProductEdit() {
           color_name: groupColor,
           color_value: groupColor,
           color_article_code: String(group.color_article_code || "").trim(),
+          color_article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code),
+          article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code),
           thermal_image_url: thermalImageUrl,
           thermalImageUrl: thermalImageUrl,
           product_thermal_image_url: thermalImageUrl,
@@ -3024,7 +3054,8 @@ function ProductEdit() {
       const groupImageUrl = String(getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "").trim();
       const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
       const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
-      const groupArticleCode = String(group.color_article_code || "").trim();
+      const groupArticleCodes = normalizeArticleCodes(group.color_article_codes, group.color_article_code);
+      const groupArticleCode = groupArticleCodes[0] || "";
       const groupKey = String(group.color_group_key || group.id || "").trim();
       const groupThermalImageUrl = String(group.thermal_image_url || "").trim();
       const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_ids || group.manufacturer_id);
@@ -4426,13 +4457,14 @@ function ProductEdit() {
                           </div>
                           <div>
                             <label className="text-sm font-semibold text-zinc-300">{t("products.fields.articleCode", "Article Code")}</label>
-                            <input
-                              value={group.color_article_code || ""}
-                              onChange={(e) => updateColorGroup(group.id, "color_article_code", e.target.value)}
-                              placeholder="L122"
-                              className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                            <ArticleCodeMultiInput
+                              value={group.color_article_codes || []}
+                              onChange={(codes) => {
+                                updateColorGroup(group.id, "color_article_codes", codes);
+                                updateColorGroup(group.id, "color_article_code", codes[0] || "");
+                              }}
                             />
-                            <p className="mt-1 text-xs text-zinc-500">{t("products.editor.articleCodeColorHelp", "Article code is copied to every size in this color. You can then edit any size independently.")}</p>
+                            <p className="mt-1 text-xs text-zinc-500">أضف كل كود منفصلًا واضغط Enter. البحث بأي كود سيعرض هذا اللون مباشرة.</p>
                           </div>
                           {mirrorEditionEnabled ? (
                             <div className="relative">

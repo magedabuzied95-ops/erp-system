@@ -32,6 +32,8 @@ import ProductForm from "../components/ProductForm";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
 import ManufacturerSelect from "../components/ManufacturerSelect";
 import MultiVersionGenerator from "../components/MultiVersionGenerator";
+import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
+import { normalizeArticleCodes } from "../../../../shared/articleCode";
 import "./CreateProduct.m1.css";
 
 import {
@@ -243,7 +245,20 @@ const createEmptyColorGroup = (defaults = {}) => {
         source.bulk_purchase_qty ??
         ""
     ).trim(),
-    color_article_code: String(source.color_article_code || source.colorArticleCode || "").trim(),
+    color_article_codes: normalizeArticleCodes(
+      source.color_article_codes,
+      source.colorArticleCodes,
+      source.article_codes,
+      source.articleCodes,
+      source.color_article_code || source.colorArticleCode
+    ),
+    color_article_code: normalizeArticleCodes(
+      source.color_article_codes,
+      source.colorArticleCodes,
+      source.article_codes,
+      source.articleCodes,
+      source.color_article_code || source.colorArticleCode
+    )[0] || "",
     edition_name: String(source.edition_name || "").trim(),
     edition_slug: String(source.edition_slug || slugifyEdition(source.edition_name || "") || "").trim(),
     imagePreview: String(source.imagePreview || "").trim(),
@@ -1101,7 +1116,8 @@ function CreateProduct() {
     if (isColorOnlyMode) {
       return colorGroups.flatMap((group, groupIndex) => {
         const groupColor = getColorGroupName(group);
-        const groupArticleCode = String(group.color_article_code || "").trim();
+        const groupArticleCodes = normalizeArticleCodes(group.color_article_codes, group.color_article_code);
+        const groupArticleCode = groupArticleCodes[0] || "";
         if (!groupColor) return [];
         return [
           {
@@ -2140,6 +2156,8 @@ function CreateProduct() {
             color_name: groupColor,
             color_value: groupColor,
             color_article_code: String(group.color_article_code || "").trim(),
+            color_article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code),
+            article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code),
             generate_thermal_artwork: Boolean(group.generate_thermal_artwork),
           images: dedupeImages(groupImages).map((image, index) => ({
             id: image.id || makeId(),
@@ -3644,13 +3662,11 @@ function CreateProduct() {
                                 </div>
                                 <div>
                                   <label className="text-sm font-semibold text-zinc-300">{t("products.fields.articleCode", "Article Code")}</label>
-                                  <input
-                                    value={group.color_article_code || ""}
-                                    onChange={(e) => updateColorGroup(group.id, "color_article_code", e.target.value)}
-                                    placeholder="L122"
-                                    className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                  <ArticleCodeMultiInput
+                                    value={group.color_article_codes || []}
+                                    onChange={(codes) => updateColorGroup(group.id, "color_article_codes", codes)}
                                   />
-                                  <p className="mt-1 text-xs text-zinc-500">{t("products.editor.articleCodeColorHelp", "Article code applies to this color. Stock is managed per size row.")}</p>
+                                  <p className="mt-1 text-xs text-zinc-500">أضف كل كود منفصلًا واضغط Enter. البحث بأي كود سيعرض هذا اللون مباشرة.</p>
                                 </div>
                                 {mirrorEditionEnabled ? (
                                   <div className="relative">

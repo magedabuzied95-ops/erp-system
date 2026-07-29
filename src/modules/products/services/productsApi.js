@@ -1,4 +1,5 @@
 import { api } from "../../../shared/api/api";
+import { normalizeArticleCodes } from "../../../../shared/articleCode";
 
 const MAX_VARIANT_IMAGE_URL_LENGTH = 2048;
 
@@ -186,6 +187,22 @@ export const normalizeVariantPayload = (input = {}) => {
     ),
     color_article_code: normalizeText(source.color_article_code ?? source.colorArticleCode ?? ""),
     colorArticleCode: normalizeText(source.colorArticleCode ?? source.color_article_code ?? ""),
+    color_article_codes: normalizeArticleCodes(
+      source.color_article_codes,
+      source.colorArticleCodes,
+      source.article_codes,
+      source.articleCodes,
+      source.color_article_code,
+      source.colorArticleCode
+    ),
+    colorArticleCodes: normalizeArticleCodes(
+      source.colorArticleCodes,
+      source.color_article_codes,
+      source.articleCodes,
+      source.article_codes,
+      source.colorArticleCode,
+      source.color_article_code
+    ),
     thermal_image_url: normalizeText(
       source.thermal_image_url ??
         source.thermalImageUrl ??

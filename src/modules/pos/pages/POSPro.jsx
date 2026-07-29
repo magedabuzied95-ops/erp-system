@@ -3490,7 +3490,7 @@ function POSPro() {
         productsByCode.set(String(value).toLowerCase(), product);
       });
       (product.variants || []).forEach((variant) => {
-        [variant.sku, variant.barcode, variant.article_code, variant.color_article_code, variant.colorArticleCode, product.sku, product.barcode].filter(Boolean).forEach((value) => {
+        [variant.sku, variant.barcode, variant.article_code, variant.color_article_code, variant.colorArticleCode, ...(variant.color_article_codes || []), ...(variant.colorArticleCodes || []), product.sku, product.barcode].filter(Boolean).forEach((value) => {
           const key = String(value).toLowerCase();
           if (!variantsByCode.has(key)) variantsByCode.set(key, { product, variant });
         });

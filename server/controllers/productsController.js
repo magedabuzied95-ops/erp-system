@@ -1413,6 +1413,8 @@ const deriveColorGroupsFromVariants = (variants = []) => {
         articleCode: variant?.colorArticleCode || variant?.color_article_code || "",
         color_article_code: variant?.color_article_code || variant?.colorArticleCode || "",
         colorArticleCode: variant?.colorArticleCode || variant?.color_article_code || "",
+        color_article_codes: variant?.color_article_codes || variant?.colorArticleCodes || [],
+        colorArticleCodes: variant?.colorArticleCodes || variant?.color_article_codes || [],
         image_url: variant?.image_url || "",
         colorPrimaryImageUrl: variant?.colorPrimaryImageUrl || variant?.image_url || "",
         color_image_url: variant?.color_image_url || variant?.image_url || "",
@@ -1643,6 +1645,11 @@ const buildProductSearchClause = ({ values, search }) => {
           AND (
             LOWER(TRIM(COALESCE(pcg.color_article_code, ''))) = LOWER(TRIM(${exactParam}))
             OR COALESCE(pcg.color_article_code, '') ILIKE ${partialParam}
+            OR EXISTS (
+              SELECT 1 FROM unnest(COALESCE(pcg.article_codes, '{}'::text[])) AS article_code
+              WHERE LOWER(TRIM(article_code)) = LOWER(TRIM(${exactParam}))
+                 OR article_code ILIKE ${partialParam}
+            )
           )
       )
       OR EXISTS (
@@ -1684,7 +1691,7 @@ const getVariantDirectSearchMatch = (product = {}, search = "") => {
     },
     {
       type: "variant_article",
-      fields: ["article_code", "articleCode", "color_article_code", "colorArticleCode"],
+      fields: ["article_code", "articleCode", "color_article_code", "colorArticleCode", "color_article_codes", "colorArticleCodes"],
     },
   ];
 
@@ -1705,8 +1712,9 @@ const getVariantDirectSearchMatch = (product = {}, search = "") => {
     };
 
     for (const field of directFields) {
-      const value = pickFirstNonEmptyText(...field.fields.map((key) => variant?.[key]));
-      if (!value || normalizeSearchToken(value) !== query) continue;
+      const values = field.fields.flatMap((key) => Array.isArray(variant?.[key]) ? variant[key] : [variant?.[key]]).filter(Boolean);
+      const value = values.find((item) => normalizeSearchToken(item) === query);
+      if (!value) continue;
       match = {
         search_match_type: field.type,
         matched_variant_id: candidate.variant_id,
@@ -1995,6 +2003,14 @@ const getVariantColorArticleCode = (codeMap, productId, variant = {}) => {
   const groupKey = String(variant.color_group_key || variant.colorGroupKey || "").trim().toLowerCase();
   const colorKey = String(variant.color || variant.color_name || "").trim().toLowerCase();
   return (groupKey ? codeMap.get(`${productId}:group:${groupKey}`) : "") || codeMap.get(`${productId}:${colorKey}`) || "";
+};
+
+const getVariantColorArticleCodes = (codeMap, productId, variant = {}) => {
+  const groupKey = String(variant.color_group_key || variant.colorGroupKey || "").trim().toLowerCase();
+  const colorKey = String(variant.color || variant.color_name || "").trim().toLowerCase();
+  return (groupKey ? codeMap.get(`${productId}:group:${groupKey}:codes`) : null) ||
+    codeMap.get(`${productId}:${colorKey}:codes`) ||
+    [];
 };
 
 const normalizeIncomingVariant = (variant = {}, group = {}) => {
@@ -3630,12 +3646,15 @@ export const getProductsWithVariants = async (req, res) => {
       const imageBundle = imageBundleMap.get(String(product.id ?? product.product_id ?? "")) || null;
       const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle).map((variant) => {
         const colorArticleCode = getVariantColorArticleCode(colorArticleCodeMap, product.id ?? product.product_id, variant);
+        const colorArticleCodes = getVariantColorArticleCodes(colorArticleCodeMap, product.id ?? product.product_id, variant);
         const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
         return {
           ...variant,
           variant_article_code: variantArticleCode,
           color_article_code: colorArticleCode,
           colorArticleCode: colorArticleCode,
+          color_article_codes: colorArticleCodes,
+          colorArticleCodes,
           article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "",
           articleCode: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "",
         };
@@ -4472,8 +4491,9 @@ export const createProduct = async (req, res) => {
     const createdColorArticleMap = await loadProductColorArticleCodes(client, [productId]);
     const hydratedVariants = attachVariantImages(insertedVariants.map(normalizeVariantRow), imageBundle).map((variant) => {
       const colorArticleCode = getVariantColorArticleCode(createdColorArticleMap, productId, variant);
+      const colorArticleCodes = getVariantColorArticleCodes(createdColorArticleMap, productId, variant);
       const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
-      return { ...variant, variant_article_code: variantArticleCode, color_article_code: colorArticleCode, colorArticleCode, article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "" };
+      return { ...variant, variant_article_code: variantArticleCode, color_article_code: colorArticleCode, colorArticleCode, color_article_codes: colorArticleCodes, colorArticleCodes, article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_codes: colorArticleCodes, color_article_code: colorArticleCode }) || "" };
     });
     const colorImagesPayload = attachGroupedColorImages(
       deriveColorGroupsFromVariants(hydratedVariants),
@@ -5470,8 +5490,9 @@ export const updateProduct = async (req, res) => {
     const updatedColorArticleMap = await loadProductColorArticleCodes(client, [productId]);
     const hydratedVariants = attachVariantImages(activeVariantsAfterSave.map(normalizeVariantRow), imageBundle).map((variant) => {
       const colorArticleCode = getVariantColorArticleCode(updatedColorArticleMap, productId, variant);
+      const colorArticleCodes = getVariantColorArticleCodes(updatedColorArticleMap, productId, variant);
       const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
-      return { ...variant, variant_article_code: variantArticleCode, color_article_code: colorArticleCode, colorArticleCode, article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "" };
+      return { ...variant, variant_article_code: variantArticleCode, color_article_code: colorArticleCode, colorArticleCode, color_article_codes: colorArticleCodes, colorArticleCodes, article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_codes: colorArticleCodes, color_article_code: colorArticleCode }) || "" };
     });
     const colorImagesPayload = attachGroupedColorImages(
       deriveColorGroupsFromVariants(hydratedVariants),
