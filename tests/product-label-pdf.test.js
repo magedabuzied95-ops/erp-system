@@ -27,7 +27,28 @@ test("generated PDF uses the exact job page dimensions", async () => {
   assert.equal(result.debug.qr, false);
 });
 
+test("long bag names keep price, color, and barcode in separate vertical slots", async () => {
+  const result = await generateProductLabelJobPdf({
+    widthMm: 40,
+    heightMm: 55,
+    labels: [{
+      type: "bag",
+      barcodeValue: "700524083479",
+      productName: "chrisbella Hand & Crossbody Bag",
+      price: 1350,
+      color: "Mint",
+    }],
+  });
+  const layout = result.debug.layouts[0];
+  const finalNameBaseline = layout.nameBaselines.at(-1);
+  assert.ok(layout.nameLines.length <= 2);
+  assert.ok(layout.priceY > finalNameBaseline);
+  assert.ok(layout.fieldY > layout.priceY);
+  assert.ok(layout.barcodeY > layout.fieldY);
+  assert.ok(layout.barcodeTextY > layout.barcodeY + layout.barcodeHeight);
+  assert.ok(layout.barcodeTextY < 55);
+});
+
 test("empty PDF jobs are rejected", async () => {
   await assert.rejects(() => generateProductLabelJobPdf({ widthMm: 100, heightMm: 50, labels: [] }), /empty/);
 });
-

@@ -10,30 +10,105 @@ export const buildProductLabelTemplateContent = (label = {}) => ({
   qr: false,
 });
 
+const PT_TO_MM = 0.352778;
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const fitLines = (doc, text, maxWidth, maxLines) => {
+  const lines = doc.splitTextToSize(String(text || "Product").trim() || "Product", maxWidth);
+  if (lines.length <= maxLines) return lines;
+  const visible = lines.slice(0, maxLines);
+  let lastLine = String(visible[maxLines - 1] || "").trimEnd();
+  while (lastLine && doc.getTextWidth(`${lastLine}...`) > maxWidth) lastLine = lastLine.slice(0, -1).trimEnd();
+  visible[maxLines - 1] = `${lastLine || String(lines[maxLines - 1] || "").slice(0, 1)}...`;
+  return visible;
+};
+
+export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
+  const marginX = clamp(widthMm * 0.075, 2, 4);
+  const contentWidth = widthMm - marginX * 2;
+  const compact = heightMm <= 36 || widthMm <= 28;
+  const nameFontSize = compact ? 7 : clamp(widthMm * 0.225, 8, 10);
+  const detailFontSize = compact ? 5.7 : clamp(widthMm * 0.18, 6.5, 8);
+  const barcodeTextFontSize = compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
+  const nameLineHeight = nameFontSize * PT_TO_MM * 1.12;
+  const detailLineHeight = detailFontSize * PT_TO_MM * 1.2;
+  const topY = compact ? 3.1 : 3.8;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(nameFontSize);
+  const nameLines = fitLines(doc, content.name, contentWidth, 2);
+  const nameBaselines = nameLines.map((_, index) => topY + nameLineHeight * (index + 1));
+  const nameBottom = nameBaselines[nameBaselines.length - 1] || topY;
+  const priceY = nameBottom + detailLineHeight + (compact ? 0.35 : 0.7);
+  const fieldY = priceY + detailLineHeight + (compact ? 0.25 : 0.45);
+  const barcodeTextGap = compact ? 2.3 : 2.8;
+  const bottomMargin = compact ? 1.6 : 2.2;
+  const barcodeTextY = heightMm - bottomMargin;
+  const barcodeBottom = barcodeTextY - barcodeTextGap;
+  const minimumBarcodeTop = fieldY + (compact ? 1.2 : 1.8);
+  const desiredBarcodeHeight = compact ? heightMm * 0.27 : heightMm * 0.28;
+  const barcodeY = Math.max(minimumBarcodeTop, barcodeBottom - desiredBarcodeHeight);
+  const barcodeHeight = Math.max(4.5, barcodeBottom - barcodeY);
+
+  return {
+    marginX, contentWidth, nameFontSize, detailFontSize, barcodeTextFontSize,
+    nameLines, nameBaselines, priceY, fieldY, barcodeY, barcodeHeight, barcodeTextY,
+  };
+};
+
 const bars = (value, width) => {
   const codes = [Code128Reader.CODE_START_B, ...String(value).split("").map((c) => Math.max(0, Math.min(94, c.charCodeAt(0) - 32)))];
   codes.push(codes.reduce((sum, code, index) => sum + code * (index || 1), 0) % 103, Code128Reader.CODE_STOP);
   const modules = codes.flatMap((code) => Array.from(Code128Reader.CODE_PATTERNS[code] || []));
   const unit = (width - 4) / modules.reduce((a, b) => a + b, 0);
   let x = 2;
-  return modules.map((n, i) => { const bar = { x, w: n * unit, black: i % 2 === 0 }; x += n * unit; return bar; });
+  return modules.map((n, i) => {
+    const bar = { x, w: n * unit, black: i % 2 === 0 };
+    x += n * unit;
+    return bar;
+  });
 };
 
 export async function generateProductLabelJobPdf(job) {
   if (!job?.labels?.length) throw new Error("Cannot generate an empty label job");
-  const doc = new jsPDF({ orientation: job.widthMm >= job.heightMm ? "landscape" : "portrait", unit: "mm", format: [job.widthMm, job.heightMm], compress: true });
+  const orientation = job.widthMm >= job.heightMm ? "landscape" : "portrait";
+  const doc = new jsPDF({ orientation, unit: "mm", format: [job.widthMm, job.heightMm], compress: true });
+  const layouts = [];
+
   job.labels.forEach((label, index) => {
-    if (index) doc.addPage([job.widthMm, job.heightMm], job.widthMm >= job.heightMm ? "landscape" : "portrait");
-    const c = buildProductLabelTemplateContent(label);
-    const w = doc.internal.pageSize.getWidth();
-    const h = doc.internal.pageSize.getHeight();
-    doc.setFont("helvetica", "bold"); doc.setTextColor(15, 23, 42);
-    doc.setFontSize(Math.max(7, Math.min(13, h / 4))); doc.text(c.name || "Product", w / 2, 6, { align: "center", maxWidth: w - 6 });
-    doc.setFontSize(Math.max(6, Math.min(10, h / 5))); doc.text(`${c.price.toFixed(2)} EGP`, w / 2, 12, { align: "center" });
-    doc.text(`${c.fieldLabel}: ${c.fieldValue || "-"}`, w / 2, 17, { align: "center" });
-    const barcodeY = Math.max(19, h * 0.44), barcodeH = Math.max(6, h * 0.28);
-    doc.setFillColor(0, 0, 0); bars(c.barcode, w - 6).filter((b) => b.black).forEach((b) => doc.rect(3 + b.x, barcodeY, b.w, barcodeH, "F"));
-    doc.setFontSize(Math.max(5, Math.min(8, h / 7))); doc.text(c.barcode, w / 2, Math.min(h - 2, barcodeY + barcodeH + 4), { align: "center" });
+    if (index) doc.addPage([job.widthMm, job.heightMm], orientation);
+    const content = buildProductLabelTemplateContent(label);
+    const widthMm = doc.internal.pageSize.getWidth();
+    const heightMm = doc.internal.pageSize.getHeight();
+    const layout = buildProductLabelPdfLayout(doc, content, widthMm, heightMm);
+    layouts.push(layout);
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(layout.nameFontSize);
+    layout.nameLines.forEach((line, lineIndex) => doc.text(line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" }));
+
+    doc.setFontSize(layout.detailFontSize);
+    doc.text(`${content.price.toFixed(2)} EGP`, widthMm / 2, layout.priceY, { align: "center" });
+    doc.text(`${content.fieldLabel}: ${content.fieldValue || "-"}`, widthMm / 2, layout.fieldY, { align: "center" });
+
+    doc.setFillColor(0, 0, 0);
+    bars(content.barcode, layout.contentWidth)
+      .filter((bar) => bar.black)
+      .forEach((bar) => doc.rect(layout.marginX + bar.x, layout.barcodeY, bar.w, layout.barcodeHeight, "F"));
+
+    doc.setFontSize(layout.barcodeTextFontSize);
+    doc.text(content.barcode, widthMm / 2, layout.barcodeTextY, { align: "center" });
   });
-  return { blob: doc.output("blob"), debug: { widthMm: doc.internal.pageSize.getWidth(), heightMm: doc.internal.pageSize.getHeight(), pages: doc.getNumberOfPages(), qr: false } };
+
+  return {
+    blob: doc.output("blob"),
+    debug: {
+      widthMm: doc.internal.pageSize.getWidth(),
+      heightMm: doc.internal.pageSize.getHeight(),
+      pages: doc.getNumberOfPages(),
+      qr: false,
+      layouts,
+    },
+  };
 }
