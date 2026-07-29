@@ -359,7 +359,8 @@ function StockAdjustments() {
   const currentStock = getCurrentStock(selectedVariant);
   const quantityDelta = Math.max(0, asNumber(quantity, 0));
   const signedDelta = adjustmentType === "decrease" ? -quantityDelta : quantityDelta;
-  const targetStock = Math.max(0, currentStock + signedDelta);
+  const requestedTargetStock = currentStock + signedDelta;
+  const targetStock = Math.max(0, requestedTargetStock);
   const requiresManagerApproval = Boolean(selectedVariant) && !isManager && Math.abs(signedDelta) >= asNumber(approvalThreshold, DEFAULT_APPROVAL_THRESHOLD);
   const approvalReady = !requiresManagerApproval || (approvalConfirmed && normalizeText(approvalName).length > 0);
 
@@ -408,7 +409,7 @@ function StockAdjustments() {
       toast.error("يجب أن تكون الكمية 1 على الأقل");
       return;
     }
-    if (adjustmentType === "decrease" && targetStock < 0) {
+    if (adjustmentType === "decrease" && requestedTargetStock < 0) {
       toast.error("لا يمكن أن ينخفض المخزون إلى أقل من صفر");
       return;
     }
@@ -439,7 +440,42 @@ function StockAdjustments() {
     };
 
     try {
-      await api.put("/inventory/update-stock", payload);
+      const response = await api.put("/inventory/update-stock", payload);
+      const savedVariant = response?.variant || response?.data?.variant || null;
+      const savedStock = Math.max(0, asNumber(savedVariant?.stock ?? targetStock, targetStock));
+      const actualDelta = savedStock - currentStock;
+
+      setCatalog((current) =>
+        current.map((product) => {
+          const variants = Array.isArray(product?.variants) ? product.variants : [];
+          let matched = false;
+          const nextVariants = variants.map((variant) => {
+            if (String(variant?.variant_id ?? variant?.id) !== String(selectedVariant.variant_id)) return variant;
+            matched = true;
+            return {
+              ...variant,
+              ...(savedVariant || {}),
+              stock: savedStock,
+              stock_quantity: savedStock,
+              available_quantity: savedStock,
+              available: savedStock > 0,
+            };
+          });
+          if (!matched) return product;
+          const totalStock = nextVariants.reduce(
+            (sum, variant) => sum + Math.max(0, asNumber(variant?.stock ?? variant?.stock_quantity, 0)),
+            0
+          );
+          return {
+            ...product,
+            variants: nextVariants,
+            stock: totalStock,
+            total_stock: totalStock,
+            stock_quantity: totalStock,
+          };
+        })
+      );
+
       notifyProductRefresh("inventory-adjustment", {
         productId: selectedVariant.product_id,
         variantId: selectedVariant.variant_id,
@@ -459,9 +495,9 @@ function StockAdjustments() {
         barcode: selectedVariant.barcode,
         warehouse_id: warehouseId,
         warehouse_name: selectedWarehouseName,
-        quantity_change: signedDelta,
+        quantity_change: actualDelta,
         quantity_before: currentStock,
-        quantity_after: targetStock,
+        quantity_after: savedStock,
         reason: normalizeText(reason) || "تصحيح المخزون",
         notes: finalNotes,
         user_name: normalizeText(currentUser?.name || currentUser?.full_name || currentUser?.email || "المستخدم الحالي"),
@@ -476,7 +512,7 @@ function StockAdjustments() {
       const nextMovements = [
         {
           ...savedRecord,
-        direction: signedDelta >= 0 ? "وارد" : "صادر",
+        direction: actualDelta >= 0 ? "وارد" : "صادر",
         },
         ...localMovements,
       ];
@@ -515,7 +551,7 @@ function StockAdjustments() {
       toast.error("يجب أن تكون الكمية 1 على الأقل");
       return;
     }
-    if (adjustmentType === "decrease" && targetStock < 0) {
+    if (adjustmentType === "decrease" && requestedTargetStock < 0) {
       toast.error("لا يمكن أن ينخفض المخزون إلى أقل من صفر");
       return;
     }

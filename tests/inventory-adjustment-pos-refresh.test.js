@@ -17,6 +17,10 @@ const refreshSignal = readFileSync(
 
 test("inventory adjustment notifies every open product consumer", () => {
   assert.match(adjustmentPage, /notifyProductRefresh\("inventory-adjustment"/);
+  assert.match(adjustmentPage, /const savedStock = Math\.max\(0,\s*asNumber\(savedVariant\?\.stock/);
+  assert.match(adjustmentPage, /setCatalog\(\(current\) =>[\s\S]*?stock:\s*savedStock/);
+  assert.match(adjustmentPage, /quantity_change:\s*actualDelta/);
+  assert.match(adjustmentPage, /requestedTargetStock < 0/);
   assert.match(refreshSignal, /window\.dispatchEvent\(new CustomEvent\(PRODUCT_REFRESH_EVENT/);
   assert.match(refreshSignal, /window\.localStorage\.setItem\(PRODUCT_REFRESH_STORAGE_KEY/);
   assert.match(refreshSignal, /new BroadcastChannel\(PRODUCT_REFRESH_CHANNEL\)/);
