@@ -28,6 +28,7 @@ const makeLabels = (type, product, row, quantity) => Array.from({ length: Math.m
   price: price(product, row),
   size: type === "bag" ? "" : text(row.size || row.variant_size),
   color: text(row.color || row.color_name || row.colorName),
+  articleCode: text(row.color_article_code || row.colorArticleCode || row.article_code || row.articleCode),
   fieldLabel: type === "bag" ? "اللون" : "المقاس",
   fieldValue: type === "bag" ? text(row.color || row.color_name || row.colorName) : text(row.size || row.variant_size),
 }));

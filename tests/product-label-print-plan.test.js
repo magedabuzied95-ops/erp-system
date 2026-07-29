@@ -44,10 +44,12 @@ test("crocs create only 25x35 crocs labels", () => {
   assert.deepEqual(new Set(plan.labels.map((x) => `${x.type}:${x.widthMm}x${x.heightMm}`)), new Set(["crocs:25x35"]));
 });
 
-test("bags create only landscape 55x40 labels with color instead of size", () => {
-  const plan = buildProductLabelPrintPlan([product("bags", [variant(1, "ONE", 2, "BAG", "Red")])]);
+test("bags create landscape 55x40 labels with color and article instead of size", () => {
+  const bagVariant = { ...variant(1, "ONE", 2, "BAG", "Red"), color_article_code: "RED-ART" };
+  const plan = buildProductLabelPrintPlan([product("bags", [bagVariant])]);
   assert.equal(plan.counts.bag, 2);
   assert.ok(plan.labels.every((x) => x.widthMm === 55 && x.heightMm === 40 && x.fieldValue === "Red" && x.size === ""));
+  assert.ok(plan.labels.every((x) => x.articleCode === "RED-ART"));
 });
 
 test("variant without barcode is excluded with a warning", () => {

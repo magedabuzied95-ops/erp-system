@@ -7,6 +7,7 @@ export const buildProductLabelTemplateContent = (label = {}) => ({
   price: Number(label.price || 0),
   fieldLabel: label.type === "bag" ? "COLOR" : "SIZE",
   fieldValue: label.type === "bag" ? String(label.color || "") : String(label.size || ""),
+  article: String(label.articleCode || label.article_code || ""),
   qr: false,
 });
 
@@ -35,6 +36,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const detailFontSize = compact ? 5.7 : clamp(widthMm * 0.17, 7.5, 9);
   const priceFontSize = compact ? 6.5 : clamp(widthMm * 0.245, 11, 13);
   const barcodeTextFontSize = compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
+  const articleFontSize = compact ? 4.5 : 5.5;
   const nameLineHeight = nameFontSize * PT_TO_MM * 1.12;
   const detailLineHeight = detailFontSize * PT_TO_MM * 1.15;
   const priceLineHeight = priceFontSize * PT_TO_MM;
@@ -47,11 +49,14 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const nameBottom = nameBaselines[nameBaselines.length - 1] || topY;
   const priceY = nameBottom + priceLineHeight + (compact ? 0.35 : 0.55);
   const fieldY = priceY + detailLineHeight + (compact ? 0.45 : 1.35);
+  const articleY = content.article
+    ? fieldY + articleFontSize * PT_TO_MM * 1.05 + 0.2
+    : null;
   const barcodeTextGap = compact ? 2.3 : 2.8;
   const bottomMargin = compact ? 1.6 : 2.2;
   const barcodeTextY = heightMm - bottomMargin;
   const barcodeBottom = barcodeTextY - barcodeTextGap;
-  const minimumBarcodeTop = fieldY + (compact ? 1.2 : 1.8);
+  const minimumBarcodeTop = (articleY || fieldY) + 1.2;
   const desiredBarcodeHeight = compact
     ? clamp(heightMm * 0.2, 5.5, 7)
     : clamp(heightMm * 0.25, 8, 10);
@@ -59,7 +64,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const barcodeHeight = Math.max(4.5, barcodeBottom - barcodeY);
 
   return {
-    marginX, contentWidth, nameFontSize, detailFontSize, priceFontSize, barcodeTextFontSize,
+    marginX, contentWidth, nameFontSize, detailFontSize, priceFontSize, barcodeTextFontSize, articleFontSize,
     nameLines,
     nameBaselines,
     priceY,
@@ -68,6 +73,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
       height: priceFontSize * PT_TO_MM * 1.25,
     },
     fieldY,
+    articleY,
     barcodeY,
     barcodeHeight,
     barcodeTextY,
@@ -120,6 +126,10 @@ export async function generateProductLabelJobPdf(job) {
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(layout.detailFontSize);
     doc.text(`${content.fieldLabel}: ${content.fieldValue || "-"}`, widthMm / 2, layout.fieldY, { align: "center" });
+    if (content.article && layout.articleY) {
+      doc.setFontSize(layout.articleFontSize);
+      doc.text(`ART: ${content.article}`, widthMm / 2, layout.articleY, { align: "center" });
+    }
 
     doc.setFillColor(0, 0, 0);
     bars(content.barcode, layout.contentWidth)

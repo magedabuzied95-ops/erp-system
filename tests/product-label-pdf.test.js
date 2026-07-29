@@ -5,14 +5,15 @@ import { buildProductLabelTemplateContent, generateProductLabelJobPdf } from "..
 
 test("new templates contain Code 128 source fields and no QR", () => {
   const content = buildProductLabelTemplateContent({ type: "display", barcodeValue: "ABC123", productName: "Runner", price: 500, size: "42" });
-  assert.deepEqual(content, { barcode: "ABC123", name: "Runner", price: 500, fieldLabel: "SIZE", fieldValue: "42", qr: false });
+  assert.deepEqual(content, { barcode: "ABC123", name: "Runner", price: 500, fieldLabel: "SIZE", fieldValue: "42", article: "", qr: false });
   assert.equal(JSON.stringify(content).toLowerCase().includes("qrsvg"), false);
 });
 
 test("bag template uses color", () => {
-  const content = buildProductLabelTemplateContent({ type: "bag", barcodeValue: "B1", productName: "Bag", price: 300, size: "L", color: "Blue" });
+  const content = buildProductLabelTemplateContent({ type: "bag", barcodeValue: "B1", productName: "Bag", price: 300, size: "L", color: "Blue", articleCode: "BG-22" });
   assert.equal(content.fieldLabel, "COLOR");
   assert.equal(content.fieldValue, "Blue");
+  assert.equal(content.article, "BG-22");
 });
 
 test("generated PDF uses the exact job page dimensions", async () => {
@@ -37,6 +38,7 @@ test("long bag names keep price, color, and barcode in separate vertical slots",
       productName: "chrisbella Hand & Crossbody Bag",
       price: 1350,
       color: "Mint",
+      articleCode: "MINT-101",
     }],
   });
   const layout = result.debug.layouts[0];
@@ -49,6 +51,7 @@ test("long bag names keep price, color, and barcode in separate vertical slots",
   assert.ok(layout.priceBox.height > 5);
   assert.ok(layout.priceY > finalNameBaseline);
   assert.ok(layout.fieldY - layout.priceY > 4);
+  assert.ok(layout.articleY > layout.fieldY);
   assert.ok(layout.barcodeY > layout.fieldY);
   assert.ok(layout.barcodeTextY > layout.barcodeY + layout.barcodeHeight);
   assert.ok(layout.barcodeHeight >= 9);
