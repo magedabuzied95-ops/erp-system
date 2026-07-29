@@ -33,7 +33,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const compact = heightMm <= 36 || widthMm <= 28;
   const nameFontSize = compact ? 7 : clamp(widthMm * 0.205, 9.5, 11);
   const detailFontSize = compact ? 5.7 : clamp(widthMm * 0.17, 7.5, 9);
-  const priceFontSize = compact ? 6.5 : clamp(widthMm * 0.225, 10, 12);
+  const priceFontSize = compact ? 6.5 : clamp(widthMm * 0.245, 11, 13);
   const barcodeTextFontSize = compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
   const nameLineHeight = nameFontSize * PT_TO_MM * 1.12;
   const detailLineHeight = detailFontSize * PT_TO_MM * 1.15;
@@ -54,13 +54,23 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const minimumBarcodeTop = fieldY + (compact ? 1.2 : 1.8);
   const desiredBarcodeHeight = compact
     ? clamp(heightMm * 0.2, 5.5, 7)
-    : clamp(heightMm * 0.18, 6, 8);
+    : clamp(heightMm * 0.25, 8, 10);
   const barcodeY = Math.max(minimumBarcodeTop, barcodeBottom - desiredBarcodeHeight);
   const barcodeHeight = Math.max(4.5, barcodeBottom - barcodeY);
 
   return {
     marginX, contentWidth, nameFontSize, detailFontSize, priceFontSize, barcodeTextFontSize,
-    nameLines, nameBaselines, priceY, fieldY, barcodeY, barcodeHeight, barcodeTextY,
+    nameLines,
+    nameBaselines,
+    priceY,
+    priceBox: {
+      y: priceY - priceFontSize * PT_TO_MM * 0.92,
+      height: priceFontSize * PT_TO_MM * 1.25,
+    },
+    fieldY,
+    barcodeY,
+    barcodeHeight,
+    barcodeTextY,
   };
 };
 
@@ -94,11 +104,24 @@ export async function generateProductLabelJobPdf(job) {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(layout.nameFontSize);
-    layout.nameLines.forEach((line, lineIndex) => doc.text(line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" }));
+    layout.nameLines.forEach((line, lineIndex) => {
+      if (lineIndex === 0) {
+        doc.text(line, layout.marginX, layout.nameBaselines[lineIndex], { align: "left" });
+      } else {
+        doc.text(line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" });
+      }
+    });
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(layout.priceFontSize);
-    doc.text(`${formatPrice(content.price)} EGP`, widthMm / 2, layout.priceY, { align: "center" });
+    const priceText = `${formatPrice(content.price)} EGP`;
+    const priceBoxWidth = Math.min(layout.contentWidth, doc.getTextWidth(priceText) + 6);
+    const priceBoxX = (widthMm - priceBoxWidth) / 2;
+    doc.setFillColor(15, 23, 42);
+    doc.roundedRect(priceBoxX, layout.priceBox.y, priceBoxWidth, layout.priceBox.height, 1.2, 1.2, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.text(priceText, widthMm / 2, layout.priceY, { align: "center" });
+    doc.setTextColor(15, 23, 42);
     doc.setFontSize(layout.detailFontSize);
     doc.text(`${content.fieldLabel}: ${content.fieldValue || "-"}`, widthMm / 2, layout.fieldY, { align: "center" });
 
