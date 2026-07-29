@@ -85,6 +85,7 @@ import {
 import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProduct";
 import { isInvalidEditionName } from "../../../shared/lib/editionNameGenerator";
 import { safeGenerateProductDescriptions } from "../../../shared/lib/generateProductDescriptions";
+import { isSchoolBagType } from "../lib/schoolBagSizes";
 
 const resolveAssetUrl = (url) => {
   const value = String(url || "").trim();
@@ -456,6 +457,7 @@ function CreateProduct() {
   const [audiences, setAudiences] = useState([]);
   const [productType, setProductType] = useState("");
   const [bagType, setBagType] = useState("");
+  const [schoolBagSize, setSchoolBagSize] = useState("");
   const [grade, setGrade] = useState("");
   const [isOfferStory, setIsOfferStory] = useState(false);
   const [variationMode, setVariationMode] = useState("full_variations");
@@ -2002,6 +2004,10 @@ function CreateProduct() {
       toast.error(buildMissingRequiredProductFieldsMessage(missingRequiredFields), { duration: 6000 });
       return;
     }
+    if (String(productType || "").trim().toLowerCase() === "bags" && isSchoolBagType(bagType) && !schoolBagSize) {
+      toast.error("يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة");
+      return;
+    }
 
     const filledGroups = isSimpleMode ? [] : colorGroups.filter((group) => hasGroupContent(group));
 
@@ -2235,7 +2241,7 @@ function CreateProduct() {
         grade,
         is_offer_story: isOfferStory,
         variation_mode: variationMode,
-        fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
+        fixed_size_label: isSchoolBagType(bagType) ? schoolBagSize : isColorOnlyMode ? fixedSizeLabel : "",
         purchase_alerts_enabled: purchaseAlertsEnabled,
         purchase_alert_by_color: purchaseAlertByColor,
         carton_size: cartonSize === "" ? null : Number(cartonSize),
@@ -2297,7 +2303,7 @@ function CreateProduct() {
         grade,
         is_offer_story: isOfferStory,
         variation_mode: variationMode,
-        fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
+        fixed_size_label: isSchoolBagType(bagType) ? schoolBagSize : isColorOnlyMode ? fixedSizeLabel : "",
         purchase_alerts_enabled: purchaseAlertsEnabled,
         purchase_alert_by_color: purchaseAlertByColor,
         carton_size: cartonSize === "" ? null : Number(cartonSize),
@@ -2670,6 +2676,7 @@ function CreateProduct() {
                 audiences={audiences}
                 productType={productType}
                 bagType={bagType}
+                schoolBagSize={schoolBagSize}
                 grade={grade}
                 isOfferStory={isOfferStory}
                 useCustomComparePrice={useCustomComparePrice}
@@ -2685,8 +2692,18 @@ function CreateProduct() {
                   setAudiences(next);
                   setGender(next[0] || "");
                 }}
-                onProductTypeChange={setProductType}
-                onBagTypeChange={setBagType}
+                onProductTypeChange={(value) => {
+                  setProductType(value);
+                  if (String(value || "").trim().toLowerCase() !== "bags") {
+                    setBagType("");
+                    setSchoolBagSize("");
+                  }
+                }}
+                onBagTypeChange={(value) => {
+                  setBagType(value);
+                  if (!isSchoolBagType(value)) setSchoolBagSize("");
+                }}
+                onSchoolBagSizeChange={setSchoolBagSize}
                 onGradeChange={setGrade}
                 onIsOfferStoryChange={setIsOfferStory}
                 onUseCustomComparePriceChange={setUseCustomComparePrice}

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { useProductClassifications } from "../hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../lib/productClassifications";
+import { isSchoolBagType, SCHOOL_BAG_SIZE_OPTIONS } from "../lib/schoolBagSizes";
 
 const PRODUCT_AUDIENCE_OPTIONS = [
   { value: "men", label: "رجال" },
@@ -22,6 +23,7 @@ function ProductForm({
   audiences = [],
   productType = "",
   bagType = "",
+  schoolBagSize = "",
   grade = "",
   isOfferStory = false,
   useCustomComparePrice = false,
@@ -35,6 +37,7 @@ function ProductForm({
   onVariationModeChange,
   onProductTypeChange,
   onBagTypeChange,
+  onSchoolBagSizeChange,
   onGradeChange,
   onIsOfferStoryChange,
   onUseCustomComparePriceChange,
@@ -205,6 +208,18 @@ function ProductForm({
               onChange={onBagTypeChange}
               options={classificationOptions.bagType}
               placeholder={t("products.form.selectBagType", "اختر نوع الشنطة")}
+            />
+          ) : null}
+
+          {String(productType || "").trim().toLowerCase() === "bags" &&
+          isSchoolBagType(bagType) &&
+          typeof onSchoolBagSizeChange === "function" ? (
+            <SmartClassificationSelect
+              label="مقاس الشنطة المدرسية *"
+              value={schoolBagSize}
+              onChange={onSchoolBagSizeChange}
+              options={SCHOOL_BAG_SIZE_OPTIONS}
+              placeholder="اختر المقاس من 12 إلى 22 بوصة"
             />
           ) : null}
 
