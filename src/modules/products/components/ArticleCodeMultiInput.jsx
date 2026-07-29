@@ -25,16 +25,16 @@ export default function ArticleCodeMultiInput({
   return (
     <div
       className={`rounded-[14px] border border-white/8 bg-zinc-950 ${
-        compact ? "flex min-h-10 items-center gap-1.5 p-1 xl:mt-0" : "mt-1.5 p-2"
+        compact ? "flex min-h-10 items-center gap-1.5 p-1 xl:mt-0" : "mt-1.5 p-1.5"
       }`}
     >
       {codes.length ? (
-        <div className={compact ? "flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto" : "mb-2 flex flex-wrap gap-1.5"}>
+        <div className={compact ? "flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto" : "mb-1 flex flex-wrap gap-1"}>
           {codes.map((code) => (
             <span
               key={code}
               className={`inline-flex shrink-0 items-center rounded-full border border-amber-400/30 bg-amber-400/10 text-xs font-bold text-amber-200 ${
-                compact ? "h-7 gap-1 px-2" : "h-8 gap-1.5 px-3"
+                compact ? "h-7 gap-1 px-2" : "h-7 gap-1 px-2.5"
               }`}
             >
               {code}
@@ -63,7 +63,7 @@ export default function ArticleCodeMultiInput({
           onBlur={() => addDraft()}
           placeholder={placeholder}
           className={`min-w-0 bg-transparent text-sm text-white outline-none placeholder:text-zinc-500 ${
-            compact ? "h-8 w-16 px-1" : "h-9 flex-1 px-2"
+            compact ? "h-8 w-16 px-1" : "h-8 flex-1 px-2"
           }`}
         />
         <button
@@ -71,7 +71,7 @@ export default function ArticleCodeMultiInput({
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => addDraft()}
           className={`inline-flex items-center justify-center rounded-[10px] border border-white/10 text-xs font-bold text-zinc-200 hover:bg-white/5 ${
-            compact ? "h-8 w-8 p-0" : "h-9 gap-1 px-3"
+            compact ? "h-8 w-8 p-0" : "h-8 gap-1 px-2.5"
           }`}
         >
           <Plus size={14} />
