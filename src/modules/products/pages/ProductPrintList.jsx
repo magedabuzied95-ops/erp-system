@@ -6,6 +6,7 @@ import ProductsShell from "../components/ProductsShell";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { buildProductLabelPrintPlan, groupProductLabelPdfJobs } from "../../../../shared/productLabelPrintPlan.js";
 import { generateProductLabelJobPdf } from "../lib/productLabelJobsPdf";
+import { generateBarcodeLabelsPdf } from "../lib/barcodePdfGenerator";
 import {
   clearProductPrintList,
   productPrintAudiences,
@@ -45,6 +46,11 @@ const articleFor = (product) =>
   product?.variants?.find((variant) => variant.color_article_code || variant.article_code)?.color_article_code ||
   product?.variants?.find((variant) => variant.article_code)?.article_code ||
   "—";
+
+const generatePrintJobPdf = (job) =>
+  job.key === "box"
+    ? generateBarcodeLabelsPdf(job.labels, { title: "Shoe Box Labels 100x50" })
+    : generateProductLabelJobPdf(job);
 
 const productForAudience = (product, section, audience) => {
   if (section !== "sneakers" || audience === "all") return product;
@@ -90,7 +96,7 @@ export default function ProductPrintList() {
     const key = `${product.id}:${job.key}`;
     try {
       setBusyKey(key);
-      const result = await generateProductLabelJobPdf(job);
+      const result = await generatePrintJobPdf(job);
       const url = URL.createObjectURL(result.blob);
       const link = document.createElement("a");
       link.href = url;
@@ -108,7 +114,7 @@ export default function ProductPrintList() {
     const key = `merged:${section}:${audience}:${job.key}`;
     try {
       setBusyKey(key);
-      const result = await generateProductLabelJobPdf(job);
+      const result = await generatePrintJobPdf(job);
       const url = URL.createObjectURL(result.blob);
       const link = document.createElement("a");
       link.href = url;

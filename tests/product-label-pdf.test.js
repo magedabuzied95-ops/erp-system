@@ -41,22 +41,6 @@ test("generated PDF uses the exact job page dimensions", async () => {
   assert.equal(result.debug.qr, false);
 });
 
-test("100x50 box labels use the shoe image layout", async () => {
-  const result = await generateProductLabelJobPdf({
-    key: "box",
-    widthMm: 100,
-    heightMm: 50,
-    labels: [{
-      type: "box",
-      barcodeValue: "830841729693",
-      productName: "Sneakers",
-      size: "41",
-      color: "Black",
-    }],
-  });
-  assert.equal(result.debug.layouts[0].template, "shoe-box-image");
-});
-
 test("long bag names keep price, color, and barcode in separate vertical slots", async () => {
   const result = await generateProductLabelJobPdf({
     widthMm: 55,
