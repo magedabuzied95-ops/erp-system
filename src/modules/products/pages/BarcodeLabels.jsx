@@ -44,7 +44,7 @@ import {
   resolveLabelArticleCode,
 } from "../lib/barcodeLabels";
 import { generateBarcodeLabelsPdf } from "../lib/barcodePdfGenerator";
-import { generateProductLabelJobPdf } from "../lib/productLabelJobsPdf";
+import { buildProductLabelTemplateContent, generateProductLabelJobPdf } from "../lib/productLabelJobsPdf";
 import { buildProductLabelPrintPlan, groupProductLabelPdfJobs } from "../../../../shared/productLabelPrintPlan.js";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
@@ -1179,12 +1179,18 @@ function BarcodeLabels() {
                     </div>
                     <div className="rounded-[22px] border border-emerald-300/25 bg-emerald-500/10 px-4 py-3">
                       <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">
-                        {SINGLE_BARCODE_TEMPLATE_LABEL}
+                        {productPrintPlan.labels.length
+                          ? `${productPrintPlan.labels[0].type} · ${productPrintPlan.labels[0].widthMm}×${productPrintPlan.labels[0].heightMm} mm`
+                          : SINGLE_BARCODE_TEMPLATE_LABEL}
                       </div>
                       <div className="mt-1 text-sm font-semibold text-zinc-100/80">
-                        {language === "ar"
-                          ? "قالب واحد للطباعة على رول 50×100 مع محتوى Landscape."
-                          : "Single print template for 50x100 roll labels with landscape content."}
+                        {productPrintPlan.labels.length
+                          ? (language === "ar"
+                            ? "المعاينة مطابقة لنوع المنتج والمقاس المستخدم في ملف PDF."
+                            : "Preview matches the product type and the dimensions used by the PDF.")
+                          : (language === "ar"
+                            ? "قالب واحد للطباعة على رول 50×100 مع محتوى Landscape."
+                            : "Single print template for 50x100 roll labels with landscape content.")}
                       </div>
                     </div>
                   </div>
@@ -1234,7 +1240,11 @@ function BarcodeLabels() {
                       {t("products.barcodeLabels.selectLabelFirst")}
                     </div>
                   ) : (
-                    previewPages.map((pageLabels, pageIndex) => (
+                    productPrintPlan.labels.length ? (
+                      productPrintPlan.labels.slice(0, 8).map((label, index) => (
+                        <ProductJobLabelPreview key={`${label.id || label.barcodeValue}:${index}`} label={label} />
+                      ))
+                    ) : previewPages.map((pageLabels, pageIndex) => (
                       <div key={`preview-page-${pageIndex}`} className="rounded-[28px] border border-white/10 bg-black/20 p-4">
                         <div className="mb-3 flex items-center justify-between gap-3 text-xs font-semibold text-zinc-400">
                           <span>{language === "ar" ? `صفحة ${pageIndex + 1}` : `Page ${pageIndex + 1}`}</span>
@@ -1288,6 +1298,49 @@ function BarcodeLabels() {
       </div>
 
     </>
+  );
+}
+
+function ProductJobLabelPreview({ label }) {
+  const content = buildProductLabelTemplateContent(label);
+  const widthMm = Math.max(20, Number(label?.widthMm || 55));
+  const heightMm = Math.max(20, Number(label?.heightMm || 40));
+  const compact = heightMm <= 36 || widthMm <= 28;
+  const price = Number(content.price || 0);
+  const priceText = Number.isInteger(price) ? String(price) : price.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-black/20 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3 text-xs font-semibold text-zinc-400">
+        <span>{label.type === "bag" ? "Bag label" : label.type === "display" ? "Display label" : label.type === "crocs" ? "Crocs label" : "Box label"}</span>
+        <span>{widthMm}×{heightMm} mm</span>
+      </div>
+      <div className="flex min-h-[360px] items-center justify-center rounded-2xl bg-white p-4">
+        <article
+          className="relative flex w-full max-w-[600px] flex-col items-center overflow-hidden border border-slate-200 bg-white px-[3%] py-[3%] text-center text-slate-950 shadow-sm"
+          style={{ aspectRatio: `${widthMm} / ${heightMm}` }}
+        >
+          <div className={`line-clamp-2 w-full font-black leading-[1.08] ${compact ? "text-[13px]" : "text-[clamp(16px,2.2vw,27px)]"}`}>
+            {content.name || "Product"}
+          </div>
+          <div className={`mt-[2%] rounded-lg bg-slate-950 px-[8%] py-[1%] font-black text-white ${compact ? "text-[13px]" : "text-[clamp(18px,2.6vw,32px)]"}`}>
+            {priceText} EGP
+          </div>
+          <div className={`mt-[2%] font-black ${compact ? "text-[10px]" : "text-[clamp(12px,1.45vw,18px)]"}`}>
+            {content.fieldLabel}: {content.fieldValue || "-"}
+          </div>
+          {content.article ? (
+            <div className={`mt-[1%] font-bold ${compact ? "text-[8px]" : "text-[clamp(9px,1vw,13px)]"}`}>
+              ART: {content.article}
+            </div>
+          ) : null}
+          <div className="mt-auto h-[20%] w-full bg-[repeating-linear-gradient(90deg,#020617_0,#020617_2px,transparent_2px,transparent_4px,#020617_4px,#020617_5px,transparent_5px,transparent_8px)]" />
+          <div className={`mt-[1%] max-w-full truncate font-mono font-black ${compact ? "text-[8px]" : "text-[clamp(9px,1vw,13px)]"}`}>
+            {content.barcode}
+          </div>
+        </article>
+      </div>
+    </div>
   );
 }
 

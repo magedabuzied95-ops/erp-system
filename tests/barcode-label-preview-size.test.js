@@ -33,3 +33,10 @@ test("landscape size value can shrink enough for Arabic one-size labels", () => 
   assert.match(labelsPage, /fitThermalSizeValueFontSize\([\s\S]*?measureTextWidth:\s*titleMeasureTextWidth/);
   assert.match(labelsPage, /direction:\s*"auto"/);
 });
+
+test("automatic product preview uses the classified PDF label dimensions", () => {
+  assert.match(labelsPage, /productPrintPlan\.labels\.length[\s\S]*?<ProductJobLabelPreview/);
+  assert.match(labelsPage, /function ProductJobLabelPreview/);
+  assert.match(labelsPage, /label\?\.widthMm \|\| 55/);
+  assert.match(labelsPage, /buildProductLabelTemplateContent\(label\)/);
+});
