@@ -23,11 +23,20 @@ export default function ArticleCodeMultiInput({
   };
 
   return (
-    <div className={`${compact ? "xl:mt-0" : "mt-1.5"} rounded-[14px] border border-white/8 bg-zinc-950 p-2`}>
+    <div
+      className={`rounded-[14px] border border-white/8 bg-zinc-950 ${
+        compact ? "flex min-h-10 items-center gap-1.5 p-1 xl:mt-0" : "mt-1.5 p-2"
+      }`}
+    >
       {codes.length ? (
-        <div className="mb-2 flex flex-wrap gap-1.5">
+        <div className={compact ? "flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto" : "mb-2 flex flex-wrap gap-1.5"}>
           {codes.map((code) => (
-            <span key={code} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 text-xs font-bold text-amber-200">
+            <span
+              key={code}
+              className={`inline-flex shrink-0 items-center rounded-full border border-amber-400/30 bg-amber-400/10 text-xs font-bold text-amber-200 ${
+                compact ? "h-7 gap-1 px-2" : "h-8 gap-1.5 px-3"
+              }`}
+            >
               {code}
               <button
                 type="button"
@@ -41,7 +50,7 @@ export default function ArticleCodeMultiInput({
           ))}
         </div>
       ) : null}
-      <div className="flex gap-2">
+      <div className={compact ? "flex shrink-0 gap-1" : "flex gap-2"}>
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -53,13 +62,17 @@ export default function ArticleCodeMultiInput({
           }}
           onBlur={() => addDraft()}
           placeholder={placeholder}
-          className="h-9 min-w-0 flex-1 bg-transparent px-2 text-sm text-white outline-none placeholder:text-zinc-500"
+          className={`min-w-0 bg-transparent text-sm text-white outline-none placeholder:text-zinc-500 ${
+            compact ? "h-8 w-16 px-1" : "h-9 flex-1 px-2"
+          }`}
         />
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => addDraft()}
-          className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-white/10 px-3 text-xs font-bold text-zinc-200 hover:bg-white/5"
+          className={`inline-flex items-center justify-center rounded-[10px] border border-white/10 text-xs font-bold text-zinc-200 hover:bg-white/5 ${
+            compact ? "h-8 w-8 p-0" : "h-9 gap-1 px-3"
+          }`}
         >
           <Plus size={14} />
           {compact ? null : "إضافة"}
