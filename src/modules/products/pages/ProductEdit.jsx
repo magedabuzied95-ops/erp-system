@@ -914,6 +914,15 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
         available_stock: row.available_stock,
         sku: row.sku,
         article_code: row.article_code,
+        article_codes: normalizeArticleCodes(
+          row.article_codes,
+          row.articleCodes,
+          row.color_article_codes,
+          row.colorArticleCodes,
+          group.color_article_codes,
+          group.color_article_code,
+          row.article_code
+        ),
         thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.color_thermal_image_url || row.variant_color_thermal_image_url || group.thermal_image_url || "",
         barcode: row.barcode,
         price: row.price,
