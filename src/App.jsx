@@ -54,6 +54,7 @@ const Units = lazy(() => import("./modules/products/pages/Units"));
 const Variants = lazy(() => import("./modules/products/pages/Variants"));
 const BarcodeLabels = lazy(() => import("./modules/products/pages/BarcodeLabels"));
 const BarcodePrintQueue = lazy(() => import("./modules/products/pages/BarcodePrintQueue"));
+const ProductPrintList = lazy(() => import("./modules/products/pages/ProductPrintList"));
 
 /* ======================================================
    INVENTORY
@@ -1162,6 +1163,15 @@ function App() {
         <Route
           path="accounting/reports"
           element={<FinancialReports />}
+        />
+
+        <Route
+          path="products/print-list"
+          element={
+            <DebugErrorBoundary>
+              <ProductPrintList />
+            </DebugErrorBoundary>
+          }
         />
 
         <Route

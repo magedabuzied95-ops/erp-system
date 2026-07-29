@@ -35,6 +35,7 @@ export default function ProductsShell({
     { to: "/products/variants", label: t("sidebar.variants"), icon: BarChart3 },
     { to: "/products/barcode-labels", label: t("sidebar.barcodeLabels"), icon: Barcode },
     { to: "/products/barcode-print-queue", label: t("sidebar.barcodePrintQueue"), icon: Printer },
+    { to: "/products/print-list", label: "قائمة الطباعة", icon: Printer },
   ];
 
   return (

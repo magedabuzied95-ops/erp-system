@@ -17,6 +17,7 @@ import {
   Package2,
   Pencil,
   Plus,
+  Printer,
   Power,
   Search,
   Tag,
@@ -36,6 +37,7 @@ import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { canViewCostPrices, hasPermission } from "../../permissions/lib/rbacStore";
 
 import ProductsShell from "../components/ProductsShell";
+import { addProductsToPrintList } from "../lib/productPrintList";
 
 import { useProductClassifications } from "../hooks/useProductClassifications";
 import {
@@ -1945,6 +1947,18 @@ function ProductsList() {
     setActionMenuPosition(null);
   };
 
+  const handleAddToProductPrintList = async (row) => {
+    try {
+      const detailedRow = await loadProductDetails(row.id);
+      addProductsToPrintList([detailedRow || row]);
+      toast.success("تمت إضافة المنتج إلى قائمة الطباعة");
+      setOpenActionId(null);
+      setActionMenuPosition(null);
+    } catch (error) {
+      toast.error(error?.message || "تعذر إضافة المنتج إلى قائمة الطباعة");
+    }
+  };
+
   const handleOpenBarcodeShop = (row) => {
     console.log("[products:list] action click", { action: "barcode-shop", productId: row.id });
     navigate(`/products/labels?mode=barcode-shop&productId=${encodeURIComponent(row.id)}`);
@@ -2034,6 +2048,13 @@ function ProductsList() {
         placement: "dropdown",
         href: `/products/labels?mode=barcode-shop&productId=${encodeURIComponent(row.id)}`,
         onClick: () => handleOpenBarcodeShop(row),
+      },
+      {
+        key: "add-to-print-list",
+        icon: Printer,
+        label: "إضافة إلى قائمة الطباعة",
+        placement: "dropdown",
+        onClick: () => handleAddToProductPrintList(row),
       },
       {
         key: canCreateMarketingPost ? "generate-marketing-post" : canPublishMarketingPost ? "generate-fast-story" : "marketing-story",
@@ -2373,6 +2394,19 @@ function ProductsList() {
     setBarcodeQueueDialogOpen(true);
   };
 
+  const handleBulkAddToProductPrintList = async () => {
+    if (!selectedRows.length) return;
+    try {
+      const detailedRows = await loadMultipleProductDetails(selectedRows.map((row) => row.id));
+      addProductsToPrintList(detailedRows.length ? detailedRows : selectedRows);
+      toast.success(`تمت إضافة ${selectedRows.length} منتج إلى قائمة الطباعة`);
+      setSelectedIds([]);
+      navigate("/products/print-list");
+    } catch (error) {
+      toast.error(error?.message || "تعذر إضافة المنتجات إلى قائمة الطباعة");
+    }
+  };
+
   const closeBarcodeQueueDialog = () => {
     setBarcodeQueueDialogOpen(false);
     setBarcodeQueueSubmitting(false);
@@ -2659,6 +2693,13 @@ function ProductsList() {
             >
               <Barcode size={16} />
               {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
+            </button>
+            <button
+              onClick={handleBulkAddToProductPrintList}
+              className="inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-200"
+            >
+              <Printer size={16} />
+              إضافة إلى قائمة الطباعة
             </button>
             <button
               onClick={() => handleBulkStatus(true)}
