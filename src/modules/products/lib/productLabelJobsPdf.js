@@ -31,7 +31,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const marginX = clamp(widthMm * 0.02, 1.25, 2.25);
   const contentWidth = widthMm - marginX * 2;
   const compact = heightMm <= 36 || widthMm <= 28;
-  const nameFontSize = compact ? 7 : clamp(widthMm * 0.205, 9.5, 11);
+  const nameFontSize = compact ? 7 : clamp(widthMm * 0.19, 9, 10.4);
   const detailFontSize = compact ? 5.7 : clamp(widthMm * 0.17, 7.5, 9);
   const priceFontSize = compact ? 6.5 : clamp(widthMm * 0.245, 11, 13);
   const barcodeTextFontSize = compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
@@ -46,7 +46,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const nameBaselines = nameLines.map((_, index) => topY + nameLineHeight * (index + 1));
   const nameBottom = nameBaselines[nameBaselines.length - 1] || topY;
   const priceY = nameBottom + priceLineHeight + (compact ? 0.35 : 0.55);
-  const fieldY = priceY + detailLineHeight + (compact ? 0.25 : 0.45);
+  const fieldY = priceY + detailLineHeight + (compact ? 0.45 : 1.35);
   const barcodeTextGap = compact ? 2.3 : 2.8;
   const bottomMargin = compact ? 1.6 : 2.2;
   const barcodeTextY = heightMm - bottomMargin;
@@ -104,13 +104,9 @@ export async function generateProductLabelJobPdf(job) {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(layout.nameFontSize);
-    layout.nameLines.forEach((line, lineIndex) => {
-      if (lineIndex === 0) {
-        doc.text(line, layout.marginX, layout.nameBaselines[lineIndex], { align: "left" });
-      } else {
-        doc.text(line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" });
-      }
-    });
+    layout.nameLines.forEach((line, lineIndex) =>
+      doc.text(line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" })
+    );
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(layout.priceFontSize);

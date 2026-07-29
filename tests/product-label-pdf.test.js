@@ -44,11 +44,11 @@ test("long bag names keep price, color, and barcode in separate vertical slots",
   assert.ok(layout.nameLines.length <= 2);
   assert.ok(layout.contentWidth >= 52);
   assert.ok(layout.priceFontSize > layout.detailFontSize);
-  assert.ok(layout.nameFontSize >= 11);
+  assert.ok(layout.nameFontSize >= 10);
   assert.ok(layout.priceFontSize >= 13);
   assert.ok(layout.priceBox.height > 5);
   assert.ok(layout.priceY > finalNameBaseline);
-  assert.ok(layout.fieldY > layout.priceY);
+  assert.ok(layout.fieldY - layout.priceY > 4);
   assert.ok(layout.barcodeY > layout.fieldY);
   assert.ok(layout.barcodeTextY > layout.barcodeY + layout.barcodeHeight);
   assert.ok(layout.barcodeHeight >= 9);
