@@ -29,8 +29,8 @@ test("generated PDF uses the exact job page dimensions", async () => {
 
 test("long bag names keep price, color, and barcode in separate vertical slots", async () => {
   const result = await generateProductLabelJobPdf({
-    widthMm: 40,
-    heightMm: 55,
+    widthMm: 55,
+    heightMm: 40,
     labels: [{
       type: "bag",
       barcodeValue: "700524083479",
@@ -46,7 +46,8 @@ test("long bag names keep price, color, and barcode in separate vertical slots",
   assert.ok(layout.fieldY > layout.priceY);
   assert.ok(layout.barcodeY > layout.fieldY);
   assert.ok(layout.barcodeTextY > layout.barcodeY + layout.barcodeHeight);
-  assert.ok(layout.barcodeTextY < 55);
+  assert.ok(layout.barcodeHeight <= 8);
+  assert.ok(layout.barcodeTextY < 40);
 });
 
 test("empty PDF jobs are rejected", async () => {

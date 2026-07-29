@@ -46,7 +46,9 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const barcodeTextY = heightMm - bottomMargin;
   const barcodeBottom = barcodeTextY - barcodeTextGap;
   const minimumBarcodeTop = fieldY + (compact ? 1.2 : 1.8);
-  const desiredBarcodeHeight = compact ? heightMm * 0.27 : heightMm * 0.28;
+  const desiredBarcodeHeight = compact
+    ? clamp(heightMm * 0.2, 5.5, 7)
+    : clamp(heightMm * 0.18, 6, 8);
   const barcodeY = Math.max(minimumBarcodeTop, barcodeBottom - desiredBarcodeHeight);
   const barcodeHeight = Math.max(4.5, barcodeBottom - barcodeY);
 

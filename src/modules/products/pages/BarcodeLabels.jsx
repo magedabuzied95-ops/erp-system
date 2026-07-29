@@ -1097,8 +1097,8 @@ function BarcodeLabels() {
             <div className="mt-4 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4">
               <div className="grid gap-2 text-sm font-bold text-zinc-100 sm:grid-cols-2 xl:grid-cols-5">
                 <span>Box 100×50: {productPrintPlan.counts.box}</span>
-                <span>Display 40×55: {productPrintPlan.counts.display}</span>
-                <span>Bags 40×55: {productPrintPlan.counts.bag}</span>
+                <span>Display 55×40: {productPrintPlan.counts.display}</span>
+                <span>Bags 55×40: {productPrintPlan.counts.bag}</span>
                 <span>Crocs 25×35: {productPrintPlan.counts.crocs}</span>
                 <span>Total: {productPrintPlan.counts.total}</span>
               </div>
@@ -1112,7 +1112,7 @@ function BarcodeLabels() {
                   {productPdfJobs.map((job) => (
                     <button key={job.key} type="button" onClick={() => void handleProductJob(job)} className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-black text-black hover:bg-emerald-400">
                       <Download size={16} />
-                      {job.key === "box" ? "Box PDF 100×50" : job.key === "display" ? "Display / Bags PDF 40×55" : "Crocs PDF 25×35"}
+                      {job.key === "box" ? "Box PDF 100×50" : job.key === "display" ? "Display / Bags PDF 55×40" : "Crocs PDF 25×35"}
                     </button>
                   ))}
                 </div>
