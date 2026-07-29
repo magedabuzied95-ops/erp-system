@@ -99,6 +99,11 @@ import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
 import { printThermalReceipt, warmThermalReceiptPrinter } from "../lib/thermalReceiptPrint.jsx";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
+import {
+  PRODUCT_REFRESH_CHANNEL,
+  PRODUCT_REFRESH_EVENT,
+  PRODUCT_REFRESH_STORAGE_KEY,
+} from "../../../shared/lib/productRefreshSignal";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 import {
   getPosCatalogCacheMeta,
@@ -1210,6 +1215,8 @@ const refreshCatalogProducts = async ({
   try {
     const rawProducts = prefetchedRawProducts ?? (await getProductsWithVariants({
         signal,
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
         ...(search !== undefined ? { params: { search } } : {}),
       }));
     const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
@@ -2530,6 +2537,79 @@ function POSPro() {
       controller.abort();
     };
   }, [deferredSearch, saleModeSettings]);
+
+  useEffect(() => {
+    let disposed = false;
+    let refreshing = false;
+    let queued = false;
+    let controller = null;
+    let lastRefreshSignal = 0;
+
+    const refreshLiveCatalog = async () => {
+      if (refreshing) {
+        queued = true;
+        return;
+      }
+      refreshing = true;
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        const catalog = await refreshCatalogProducts({
+          setProducts,
+          setLoading,
+          manageLoading: false,
+          isActive: () => !disposed,
+          signal: controller.signal,
+          saleModeSettings,
+        });
+        if (disposed) return;
+        catalogFallbackActiveRef.current = false;
+        setCart((current) => reconcileCartWithCatalog(current, catalog).nextCart);
+      } catch (refreshError) {
+        if (!disposed && refreshError?.name !== "AbortError") {
+          console.warn("[pos] live inventory refresh failed", refreshError?.message || refreshError);
+        }
+      } finally {
+        refreshing = false;
+        if (!disposed && queued) {
+          queued = false;
+          void refreshLiveCatalog();
+        }
+      }
+    };
+
+    const handleProductRefresh = (event) => {
+      const payload = event?.detail || event?.data || event || {};
+      const timestamp = Number(payload?.timestamp || 0);
+      if (timestamp && timestamp === lastRefreshSignal) return;
+      if (timestamp) lastRefreshSignal = timestamp;
+      void refreshLiveCatalog();
+    };
+    const handleStorageRefresh = (event) => {
+      if (event.key !== PRODUCT_REFRESH_STORAGE_KEY || !event.newValue) return;
+      try {
+        handleProductRefresh(JSON.parse(event.newValue));
+      } catch {
+        handleProductRefresh();
+      }
+    };
+
+    window.addEventListener(PRODUCT_REFRESH_EVENT, handleProductRefresh);
+    window.addEventListener("storage", handleStorageRefresh);
+
+    const channel = typeof BroadcastChannel !== "undefined"
+      ? new BroadcastChannel(PRODUCT_REFRESH_CHANNEL)
+      : null;
+    if (channel) channel.onmessage = handleProductRefresh;
+
+    return () => {
+      disposed = true;
+      controller?.abort();
+      window.removeEventListener(PRODUCT_REFRESH_EVENT, handleProductRefresh);
+      window.removeEventListener("storage", handleStorageRefresh);
+      channel?.close();
+    };
+  }, [saleModeSettings]);
 
   useEffect(() => {
     const searchValue = String(customerSearch || "").trim();

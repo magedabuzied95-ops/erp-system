@@ -21,6 +21,7 @@ import toast from "react-hot-toast";
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import { api } from "../../../shared/api/api";
 import { getCurrentUser, hasPermission } from "../../../shared/auth/authStorage";
+import { notifyProductRefresh } from "../../../shared/lib/productRefreshSignal";
 import InventoryShell from "../components/InventoryShell";
 import { getProductsWithVariants } from "../../products/services/productsApi";
 import {
@@ -439,6 +440,10 @@ function StockAdjustments() {
 
     try {
       await api.put("/inventory/update-stock", payload);
+      notifyProductRefresh("inventory-adjustment", {
+        productId: selectedVariant.product_id,
+        variantId: selectedVariant.variant_id,
+      });
 
       const savedRecord = {
         id: `adj-${Date.now()}`,
