@@ -5,7 +5,7 @@ export const buildProductLabelTemplateContent = (label = {}) => ({
   barcode: String(label.barcodeValue || ""),
   name: String(label.productName || ""),
   price: Number(label.price || 0),
-  fieldLabel: label.type === "bag" ? "اللون" : "المقاس",
+  fieldLabel: label.type === "bag" ? "COLOR" : "SIZE",
   fieldValue: label.type === "bag" ? String(label.color || "") : String(label.size || ""),
   qr: false,
 });
@@ -24,11 +24,12 @@ const fitLines = (doc, text, maxWidth, maxLines) => {
 };
 
 export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
-  const marginX = clamp(widthMm * 0.075, 2, 4);
+  const marginX = clamp(widthMm * 0.02, 1.25, 2.25);
   const contentWidth = widthMm - marginX * 2;
   const compact = heightMm <= 36 || widthMm <= 28;
-  const nameFontSize = compact ? 7 : clamp(widthMm * 0.225, 8, 10);
+  const nameFontSize = compact ? 7 : clamp(widthMm * 0.18, 8.5, 9.75);
   const detailFontSize = compact ? 5.7 : clamp(widthMm * 0.18, 6.5, 8);
+  const priceFontSize = compact ? 6.5 : clamp(widthMm * 0.18, 8.5, 10);
   const barcodeTextFontSize = compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
   const nameLineHeight = nameFontSize * PT_TO_MM * 1.12;
   const detailLineHeight = detailFontSize * PT_TO_MM * 1.2;
@@ -53,7 +54,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const barcodeHeight = Math.max(4.5, barcodeBottom - barcodeY);
 
   return {
-    marginX, contentWidth, nameFontSize, detailFontSize, barcodeTextFontSize,
+    marginX, contentWidth, nameFontSize, detailFontSize, priceFontSize, barcodeTextFontSize,
     nameLines, nameBaselines, priceY, fieldY, barcodeY, barcodeHeight, barcodeTextY,
   };
 };
@@ -90,8 +91,10 @@ export async function generateProductLabelJobPdf(job) {
     doc.setFontSize(layout.nameFontSize);
     layout.nameLines.forEach((line, lineIndex) => doc.text(line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" }));
 
-    doc.setFontSize(layout.detailFontSize);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(layout.priceFontSize);
     doc.text(`${content.price.toFixed(2)} EGP`, widthMm / 2, layout.priceY, { align: "center" });
+    doc.setFontSize(layout.detailFontSize);
     doc.text(`${content.fieldLabel}: ${content.fieldValue || "-"}`, widthMm / 2, layout.fieldY, { align: "center" });
 
     doc.setFillColor(0, 0, 0);
@@ -99,6 +102,7 @@ export async function generateProductLabelJobPdf(job) {
       .filter((bar) => bar.black)
       .forEach((bar) => doc.rect(layout.marginX + bar.x, layout.barcodeY, bar.w, layout.barcodeHeight, "F"));
 
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(layout.barcodeTextFontSize);
     doc.text(content.barcode, widthMm / 2, layout.barcodeTextY, { align: "center" });
   });

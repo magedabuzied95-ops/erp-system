@@ -5,13 +5,13 @@ import { buildProductLabelTemplateContent, generateProductLabelJobPdf } from "..
 
 test("new templates contain Code 128 source fields and no QR", () => {
   const content = buildProductLabelTemplateContent({ type: "display", barcodeValue: "ABC123", productName: "Runner", price: 500, size: "42" });
-  assert.deepEqual(content, { barcode: "ABC123", name: "Runner", price: 500, fieldLabel: "المقاس", fieldValue: "42", qr: false });
+  assert.deepEqual(content, { barcode: "ABC123", name: "Runner", price: 500, fieldLabel: "SIZE", fieldValue: "42", qr: false });
   assert.equal(JSON.stringify(content).toLowerCase().includes("qrsvg"), false);
 });
 
 test("bag template uses color", () => {
   const content = buildProductLabelTemplateContent({ type: "bag", barcodeValue: "B1", productName: "Bag", price: 300, size: "L", color: "Blue" });
-  assert.equal(content.fieldLabel, "اللون");
+  assert.equal(content.fieldLabel, "COLOR");
   assert.equal(content.fieldValue, "Blue");
 });
 
@@ -42,6 +42,8 @@ test("long bag names keep price, color, and barcode in separate vertical slots",
   const layout = result.debug.layouts[0];
   const finalNameBaseline = layout.nameBaselines.at(-1);
   assert.ok(layout.nameLines.length <= 2);
+  assert.ok(layout.contentWidth >= 52);
+  assert.ok(layout.priceFontSize > layout.detailFontSize);
   assert.ok(layout.priceY > finalNameBaseline);
   assert.ok(layout.fieldY > layout.priceY);
   assert.ok(layout.barcodeY > layout.fieldY);
