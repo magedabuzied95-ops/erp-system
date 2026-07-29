@@ -7,6 +7,7 @@ export default function ArticleCodeMultiInput({
   value = [],
   onChange,
   placeholder = "مثال: SM17",
+  compact = false,
 }) {
   const [draft, setDraft] = useState("");
   const codes = normalizeArticleCodes(value);
@@ -22,7 +23,7 @@ export default function ArticleCodeMultiInput({
   };
 
   return (
-    <div className="mt-1.5 rounded-[14px] border border-white/8 bg-zinc-950 p-2">
+    <div className={`${compact ? "xl:mt-0" : "mt-1.5"} rounded-[14px] border border-white/8 bg-zinc-950 p-2`}>
       {codes.length ? (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {codes.map((code) => (
@@ -61,7 +62,7 @@ export default function ArticleCodeMultiInput({
           className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-white/10 px-3 text-xs font-bold text-zinc-200 hover:bg-white/5"
         >
           <Plus size={14} />
-          إضافة
+          {compact ? null : "إضافة"}
         </button>
       </div>
     </div>

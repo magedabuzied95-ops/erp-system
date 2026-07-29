@@ -1595,6 +1595,7 @@ function CreateProduct() {
     const articleCode = targetGroupId
       ? String(targetGroupCodes.at(-1) || "").trim()
       : String(bulkArticleCodeInput || "").trim();
+    const appliedArticleCodes = targetGroupId ? targetGroupCodes : normalizeArticleCodes(articleCode);
     if (!articleCode) {
       toast.error(t("products.editor.enterArticleCode", "أدخل كود المقال أولًا"));
       return;
@@ -1626,7 +1627,7 @@ function CreateProduct() {
           const shouldSetRow = shouldOverwriteExisting || !String(row.article_code || "").trim();
           if (!shouldSetRow) return row;
           changedCount += 1;
-          return { ...row, article_code: articleCode };
+          return { ...row, article_codes: appliedArticleCodes, article_code: appliedArticleCodes[0] || articleCode };
         });
         if (shouldSetGroup) changedCount += 1;
         return {
@@ -4000,11 +4001,14 @@ function CreateProduct() {
                                       </div>
                                       <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.fields.articleCode", "Article Code")}</label>
-                                        <input
-                                          value={row.article_code || ""}
-                                          onChange={(e) => updateSizeRow(group.id, row.id, "article_code", e.target.value)}
+                                        <ArticleCodeMultiInput
+                                          compact
+                                          value={normalizeArticleCodes(row.article_codes, row.article_code)}
+                                          onChange={(codes) => {
+                                            updateSizeRow(group.id, row.id, "article_codes", codes);
+                                            updateSizeRow(group.id, row.id, "article_code", codes[0] || "");
+                                          }}
                                           placeholder="L122-40"
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                         />
                                       </div>
                                       <div className="flex items-start">
