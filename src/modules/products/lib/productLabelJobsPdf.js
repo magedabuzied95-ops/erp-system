@@ -1,15 +1,22 @@
 import { jsPDF } from "jspdf";
 import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 
-export const buildProductLabelTemplateContent = (label = {}) => ({
-  barcode: String(label.barcodeValue || ""),
-  name: String(label.productName || ""),
-  price: Number(label.price || 0),
-  fieldLabel: label.type === "bag" ? "COLOR" : "SIZE",
-  fieldValue: label.type === "bag" ? String(label.color || "") : String(label.size || ""),
-  article: String(label.articleCode || label.article_code || ""),
-  qr: false,
-});
+export const buildProductLabelTemplateContent = (label = {}) => {
+  const isBag = label.type === "bag";
+  const size = String(label.size || "").trim();
+  const color = String(label.color || "").trim();
+  return {
+    barcode: String(label.barcodeValue || ""),
+    name: String(label.productName || ""),
+    price: Number(label.price || 0),
+    fieldLabel: isBag ? "COLOR" : "SIZE",
+    fieldValue: isBag
+      ? color
+      : [size, color ? `COLOR: ${color}` : ""].filter(Boolean).join(" / "),
+    article: String(label.articleCode || label.article_code || ""),
+    qr: false,
+  };
+};
 
 const PT_TO_MM = 0.352778;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -124,8 +131,14 @@ export async function generateProductLabelJobPdf(job) {
     doc.setTextColor(255, 255, 255);
     doc.text(priceText, widthMm / 2, layout.priceY, { align: "center" });
     doc.setTextColor(15, 23, 42);
-    doc.setFontSize(layout.detailFontSize);
-    doc.text(`${content.fieldLabel}: ${content.fieldValue || "-"}`, widthMm / 2, layout.fieldY, { align: "center" });
+    const detailText = `${content.fieldLabel}: ${content.fieldValue || "-"}`;
+    let fittedDetailFontSize = layout.detailFontSize;
+    doc.setFontSize(fittedDetailFontSize);
+    while (fittedDetailFontSize > 5.5 && doc.getTextWidth(detailText) > layout.contentWidth) {
+      fittedDetailFontSize -= 0.25;
+      doc.setFontSize(fittedDetailFontSize);
+    }
+    doc.text(detailText, widthMm / 2, layout.fieldY, { align: "center" });
     if (content.article && layout.articleY) {
       doc.setFontSize(layout.articleFontSize);
       doc.text(`ART: ${content.article}`, widthMm / 2, layout.articleY, { align: "center" });

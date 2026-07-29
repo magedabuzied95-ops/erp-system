@@ -16,6 +16,19 @@ test("bag template uses color", () => {
   assert.equal(content.article, "BG-22");
 });
 
+test("shoe template prints size and color together", () => {
+  const content = buildProductLabelTemplateContent({
+    type: "box",
+    barcodeValue: "830841729693",
+    productName: "Sneakers",
+    price: 1850,
+    size: "41",
+    color: "White & Black",
+  });
+  assert.equal(content.fieldLabel, "SIZE");
+  assert.equal(content.fieldValue, "41 / COLOR: White & Black");
+});
+
 test("generated PDF uses the exact job page dimensions", async () => {
   const result = await generateProductLabelJobPdf({
     widthMm: 25,
