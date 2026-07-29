@@ -834,6 +834,28 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         image_url: slideSource,
         price: slide.current_price || slide.price || story.current_price || story.price,
         current_price: slide.current_price || slide.price || story.current_price || story.price,
+        old_crossed_price:
+          slide.old_crossed_price ||
+          slide.old_price ||
+          slide.compare_at_price ||
+          slide.original_price ||
+          slide.regular_price ||
+          story.old_crossed_price ||
+          story.old_price ||
+          story.compare_at_price ||
+          story.original_price ||
+          story.regular_price,
+        compare_at_price:
+          slide.compare_at_price ||
+          slide.old_crossed_price ||
+          slide.old_price ||
+          slide.original_price ||
+          slide.regular_price ||
+          story.compare_at_price ||
+          story.old_crossed_price ||
+          story.old_price ||
+          story.original_price ||
+          story.regular_price,
         currency: slide.currency || story.currency,
         available_sizes: Array.isArray(slide.available_sizes) && slide.available_sizes.length ? slide.available_sizes : story.available_sizes,
         sizes_label: slide.sizes_label || story.sizes_label,

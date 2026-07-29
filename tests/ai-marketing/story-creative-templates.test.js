@@ -140,6 +140,25 @@ test("every story resolves the storefront selling price and the same crossed pri
   assert.equal(storyAssetOriginalPrice({ ...product, old_crossed_price: 850 }, {}, currentPrice), "");
 });
 
+test("men, women and kids rendered slides preserve before-and-after pricing", async () => {
+  for (const storyTemplateVariant of ["men", "women", "kids"]) {
+    const input = {
+      badge: "NEW ARRIVAL",
+      title: `${storyTemplateVariant} sneakers`,
+      price: "850 EGP",
+      originalPrice: "1,100 EGP",
+      sizes: "37, 38, 39",
+      theme: resolveDesignedStoryTheme({}, { story_template_variant: storyTemplateVariant }),
+    };
+    const svg = designedStoryBackgroundSvg(input);
+    assert.match(svg, /850 EGP/);
+    assert.match(svg, /1,100 EGP/);
+    assert.match(svg, /stroke="#ef4444" stroke-width="7"/);
+    const composites = await createDesignedStoryTextComposites(input);
+    assert.equal(composites.length, 9);
+  }
+});
+
 test("story preview merges campaign, story and product pricing sources", () => {
   const previewSource = fs.readFileSync(
     new URL("../../src/modules/marketing/components/StoryPreview.jsx", import.meta.url),
@@ -171,6 +190,9 @@ test("AI center hydrates every story slide with storefront compare pricing and c
   assert.match(centerSource, /preview_purchase_price\.purchase_sale_price/);
   assert.match(centerSource, /design\.slides\.map\(\(slide\) => \(\{ \.\.\.slide, \.\.\.priceFields \}\)\)/);
   assert.doesNotMatch(centerSource, /!rawRow\.preview_product_price && !rawRow\.preview_product_selling_price/);
+  assert.match(rendererSource, /slide\.old_crossed_price/);
+  assert.match(rendererSource, /slide\.compare_at_price/);
+  assert.match(rendererSource, /story\.old_crossed_price/);
   assert.match(editorSource, /slide\.color_name \|\| slide\.color/);
   assert.match(editorSource, /line-through decoration-2 decoration-red-500/);
 });
