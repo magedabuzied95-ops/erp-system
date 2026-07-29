@@ -1584,7 +1584,17 @@ function CreateProduct() {
   };
 
   const applyBulkArticleCode = (targetGroupId = null, overwrite = false) => {
-    const articleCode = String(bulkArticleCodeInput || "").trim();
+    let shouldOverwriteExisting = overwrite;
+    const targetGroup = targetGroupId
+      ? colorGroups.find((group) => group.id === targetGroupId)
+      : null;
+    const targetGroupCodes = normalizeArticleCodes(
+      targetGroup?.color_article_codes,
+      targetGroup?.color_article_code
+    );
+    const articleCode = targetGroupId
+      ? String(targetGroupCodes.at(-1) || "").trim()
+      : String(bulkArticleCodeInput || "").trim();
     if (!articleCode) {
       toast.error(t("products.editor.enterArticleCode", "أدخل كود المقال أولًا"));
       return;
@@ -1601,18 +1611,19 @@ function CreateProduct() {
       String(group.color_article_code || "").trim() ||
       (group.sizes || []).some((row) => String(row.article_code || "").trim())
     );
-    if (hasExistingArticle && !overwrite) {
+    if (hasExistingArticle && !shouldOverwriteExisting) {
       const confirmed = window.confirm(t("products.editor.confirmOverwriteArticleCodes", "بعض المتغيرات تحتوي بالفعل على أكواد مقال. هل تريد استبدالها؟"));
       if (!confirmed) return;
+      shouldOverwriteExisting = true;
     }
 
     let changedCount = 0;
     setColorGroups((prev) =>
       prev.map((group) => {
         if (!isTargetGroup(group)) return group;
-        const shouldSetGroup = overwrite || !String(group.color_article_code || "").trim();
+        const shouldSetGroup = shouldOverwriteExisting || !String(group.color_article_code || "").trim();
         const nextSizes = (group.sizes || []).map((row) => {
-          const shouldSetRow = overwrite || !String(row.article_code || "").trim();
+          const shouldSetRow = shouldOverwriteExisting || !String(row.article_code || "").trim();
           if (!shouldSetRow) return row;
           changedCount += 1;
           return { ...row, article_code: articleCode };
@@ -1620,7 +1631,16 @@ function CreateProduct() {
         if (shouldSetGroup) changedCount += 1;
         return {
           ...group,
-          color_article_code: shouldSetGroup ? articleCode : group.color_article_code,
+          color_article_codes: targetGroupId
+            ? normalizeArticleCodes(group.color_article_codes, group.color_article_code)
+            : shouldSetGroup
+              ? normalizeArticleCodes(articleCode)
+              : group.color_article_codes,
+          color_article_code: targetGroupId
+            ? normalizeArticleCodes(group.color_article_codes, group.color_article_code)[0] || articleCode
+            : shouldSetGroup
+              ? articleCode
+              : group.color_article_code,
           sizes: nextSizes,
         };
       })
