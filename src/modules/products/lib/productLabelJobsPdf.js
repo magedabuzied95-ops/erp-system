@@ -12,6 +12,10 @@ export const buildProductLabelTemplateContent = (label = {}) => ({
 
 const PT_TO_MM = 0.352778;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const formatPrice = (value) => {
+  const price = Number(value || 0);
+  return Number.isInteger(price) ? String(price) : price.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+};
 
 const fitLines = (doc, text, maxWidth, maxLines) => {
   const lines = doc.splitTextToSize(String(text || "Product").trim() || "Product", maxWidth);
@@ -27,12 +31,13 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const marginX = clamp(widthMm * 0.02, 1.25, 2.25);
   const contentWidth = widthMm - marginX * 2;
   const compact = heightMm <= 36 || widthMm <= 28;
-  const nameFontSize = compact ? 7 : clamp(widthMm * 0.18, 8.5, 9.75);
-  const detailFontSize = compact ? 5.7 : clamp(widthMm * 0.18, 6.5, 8);
-  const priceFontSize = compact ? 6.5 : clamp(widthMm * 0.18, 8.5, 10);
+  const nameFontSize = compact ? 7 : clamp(widthMm * 0.205, 9.5, 11);
+  const detailFontSize = compact ? 5.7 : clamp(widthMm * 0.17, 7.5, 9);
+  const priceFontSize = compact ? 6.5 : clamp(widthMm * 0.225, 10, 12);
   const barcodeTextFontSize = compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
   const nameLineHeight = nameFontSize * PT_TO_MM * 1.12;
-  const detailLineHeight = detailFontSize * PT_TO_MM * 1.2;
+  const detailLineHeight = detailFontSize * PT_TO_MM * 1.15;
+  const priceLineHeight = priceFontSize * PT_TO_MM;
   const topY = compact ? 3.1 : 3.8;
 
   doc.setFont("helvetica", "bold");
@@ -40,7 +45,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const nameLines = fitLines(doc, content.name, contentWidth, 2);
   const nameBaselines = nameLines.map((_, index) => topY + nameLineHeight * (index + 1));
   const nameBottom = nameBaselines[nameBaselines.length - 1] || topY;
-  const priceY = nameBottom + detailLineHeight + (compact ? 0.35 : 0.7);
+  const priceY = nameBottom + priceLineHeight + (compact ? 0.35 : 0.55);
   const fieldY = priceY + detailLineHeight + (compact ? 0.25 : 0.45);
   const barcodeTextGap = compact ? 2.3 : 2.8;
   const bottomMargin = compact ? 1.6 : 2.2;
@@ -93,7 +98,7 @@ export async function generateProductLabelJobPdf(job) {
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(layout.priceFontSize);
-    doc.text(`${content.price.toFixed(2)} EGP`, widthMm / 2, layout.priceY, { align: "center" });
+    doc.text(`${formatPrice(content.price)} EGP`, widthMm / 2, layout.priceY, { align: "center" });
     doc.setFontSize(layout.detailFontSize);
     doc.text(`${content.fieldLabel}: ${content.fieldValue || "-"}`, widthMm / 2, layout.fieldY, { align: "center" });
 
