@@ -26,3 +26,10 @@ test("landscape label preview keeps the downloaded label's 2:1 reference size", 
   assert.match(barcodeLabels, /barLeft:\s*barcodeCell\.x/);
   assert.match(pdfGenerator, /orientation:\s*"landscape"[\s\S]*?format:\s*\[100, 50\]/);
 });
+
+test("landscape size value can shrink enough for Arabic one-size labels", () => {
+  assert.match(barcodeLabels, /fitThermalSizeValueFontSize[\s\S]*?Math\.max\(8\.5,/);
+  assert.match(barcodeLabels, /otherWeight:\s*Number\(options\?\.otherWeight \?\? 0\.68\)/);
+  assert.match(labelsPage, /fitThermalSizeValueFontSize\([\s\S]*?measureTextWidth:\s*titleMeasureTextWidth/);
+  assert.match(labelsPage, /direction:\s*"auto"/);
+});

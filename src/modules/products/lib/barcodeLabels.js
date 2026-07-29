@@ -1174,14 +1174,21 @@ export const fitThermalColorValueFontSize = (value = "", boxWidthMm = 0, baseFon
     dashWeight: 0.42,
   });
 
-export const fitThermalSizeValueFontSize = (value = "", boxWidthMm = 0, baseFontSize = THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) =>
-  fitThermalFilledTextFontSize(value, boxWidthMm, baseFontSize, Math.max(14, Number(baseFontSize || THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) * 0.78), {
+export const fitThermalSizeValueFontSize = (
+  value = "",
+  boxWidthMm = 0,
+  baseFontSize = THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE,
+  options = {},
+) =>
+  fitThermalFilledTextFontSize(value, boxWidthMm, baseFontSize, Math.max(8.5, Number(baseFontSize || THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) * 0.34), {
+    ...options,
     startFontSize: Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) * 0.9, Number(baseFontSize || THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) * 0.88),
-    triggerRatio: 0.95,
-    scale: 3.95,
-    paddingMm: 0.2,
-    dashWeight: 0.42,
-    slashWeight: 0.45,
+    triggerRatio: Number(options?.triggerRatio ?? 0.93),
+    scale: Number(options?.scale ?? 3.78),
+    paddingMm: Number(options?.paddingMm ?? 0.45),
+    dashWeight: Number(options?.dashWeight ?? 0.42),
+    slashWeight: Number(options?.slashWeight ?? 0.45),
+    otherWeight: Number(options?.otherWeight ?? 0.68),
   });
 
 export const fitThermalArticleValueFontSize = (

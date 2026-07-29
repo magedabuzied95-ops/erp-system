@@ -1657,7 +1657,12 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   );
   const titleLines = titleLayoutFit.lines;
   const titleFontSize = titleLayoutFit.fontSize;
-  const sizeValueFontSize = fitThermalSizeValueFontSize(sizeValue, thermalLayout.sizeValueWidth, thermalLayout.sizeValueFontSize);
+  const sizeValueFontSize = fitThermalSizeValueFontSize(
+    sizeValue,
+    thermalLayout.sizeValueWidth,
+    thermalLayout.sizeValueFontSize,
+    { measureTextWidth: titleMeasureTextWidth }
+  );
   const colorValueFontSize = fitThermalColorValueFontSize(colorValue, thermalLayout.colorValueWidth, thermalLayout.colorValueFontSize);
   const smallLabelFontSize = Math.max(thermalLayout.colorLabelFontSize, 4.8);
   const titleBadgeStyle = {
@@ -1765,12 +1770,21 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             }}
             >
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[0.3mm]">
-              <div className="grid min-w-0 items-center" style={{ gridTemplateColumns: "8.8mm 1px minmax(0, 1fr)", columnGap: "1.1mm" }}>
+              <div
+                className="grid min-w-0 items-center"
+                style={{
+                  gridTemplateColumns: `${thermalLayout.sizeDividerX - 0.3}mm 1px minmax(0, 1fr)`,
+                  columnGap: "0.6mm",
+                }}
+              >
                 <div className="truncate text-left font-black uppercase leading-none tracking-[0.16em] text-white" style={{ fontSize: `${smallLabelFontSize}px` }}>
                   {t("products.barcodeLabels.size")}
                 </div>
                 <div className="self-stretch w-px bg-white/45" aria-hidden="true" />
-                <div className="truncate text-center font-black leading-none text-white" style={{ fontSize: `${sizeValueFontSize}px` }}>
+                <div
+                  className="min-w-0 truncate text-center font-black leading-none text-white"
+                  style={{ fontSize: `${sizeValueFontSize}px`, direction: "auto" }}
+                >
                   {sizeValue}
                 </div>
               </div>
