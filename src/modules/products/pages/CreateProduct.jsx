@@ -3954,7 +3954,7 @@ function CreateProduct() {
                                   </div>
                                 </div>
 
-                                <div className={`hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(180px,1fr)_110px]"}`}>
+                                <div className={`hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}>
                                   {!isColorOnlyMode ? <div>{t("products.fields.size", "Size")}</div> : null}
                                   <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                                   <div>SKU</div>
@@ -3967,7 +3967,7 @@ function CreateProduct() {
                                   {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                                   <div
                                     key={row.id}
-                                    className={`grid gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(180px,1fr)_110px]"}`}
+                                    className={`grid gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
                                   >
                                       {!isColorOnlyMode ? <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">
