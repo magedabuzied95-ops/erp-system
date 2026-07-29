@@ -3476,6 +3476,68 @@ function POSPro() {
     ? products.find((item) => String(item.product_id || item.id) === String(selectedProduct.product_id || selectedProduct.id)) || selectedProduct
     : null;
 
+  useEffect(() => {
+    const productId = String(selectedProduct?.product_id || selectedProduct?.id || "").trim();
+    if (!productId) return undefined;
+    let disposed = false;
+    let controller = null;
+    let refreshing = false;
+
+    const refreshOpenProductStock = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        const rawProducts = await getProductsWithVariants({
+          signal: controller.signal,
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+          params: { productId, stock_refresh: Date.now() },
+        });
+        if (disposed) return;
+        const incoming = normalizePosSellableProducts(rawProducts, saleModeSettings)
+          .map((product) => normalizePosCatalogProduct(product));
+        const liveProduct = incoming.find(
+          (product) => String(product.product_id || product.id) === productId
+        );
+        if (!liveProduct) return;
+        setProducts((current) => {
+          const exists = current.some(
+            (product) => String(product.product_id || product.id) === productId
+          );
+          const nextProducts = exists
+            ? current.map((product) =>
+                String(product.product_id || product.id) === productId ? liveProduct : product
+              )
+            : [...current, liveProduct];
+          void savePosCatalogSnapshot(nextProducts);
+          return nextProducts;
+        });
+      } catch (stockRefreshError) {
+        if (!disposed && stockRefreshError?.name !== "AbortError") {
+          console.warn("[pos] open product stock refresh failed", stockRefreshError?.message || stockRefreshError);
+        }
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") void refreshOpenProductStock();
+    };
+
+    void refreshOpenProductStock();
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+    return () => {
+      disposed = true;
+      controller?.abort();
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+    };
+  }, [saleModeSettings, selectedProduct?.id, selectedProduct?.product_id]);
+
   const activeVariant = useMemo(() => {
     if (!activeProduct) return null;
     const variants = Array.isArray(activeProduct.variants) ? activeProduct.variants : [];

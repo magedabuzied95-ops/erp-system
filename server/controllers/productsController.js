@@ -3488,6 +3488,9 @@ export const getProducts = async (req, res) => {
 
 export const getProductsWithVariants = async (req, res) => {
   const scope = resolveProductRequestScope(req);
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
 
   console.log("[products] request start", {
     route: "GET /api/products/with-variants",
