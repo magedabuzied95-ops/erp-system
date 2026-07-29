@@ -989,11 +989,13 @@ function CreateProduct() {
   };
 
   const getGroupArticleSummary = (group) =>
-    String(
-      group?.color_article_code ||
-        (Array.isArray(group?.sizes) ? group.sizes.find((row) => String(row?.article_code || "").trim())?.article_code : "") ||
-        ""
-    ).trim();
+    normalizeArticleCodes(
+      group?.color_article_codes,
+      group?.color_article_code,
+      ...(Array.isArray(group?.sizes)
+        ? group.sizes.flatMap((row) => normalizeArticleCodes(row?.article_codes, row?.article_code))
+        : [])
+    ).join(" • ");
 
   const getGroupSizeCount = (group) =>
     (Array.isArray(group?.sizes) ? group.sizes : []).filter((row) => String(row.size || "").trim()).length;
