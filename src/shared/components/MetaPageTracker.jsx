@@ -4,12 +4,20 @@ import {
   initMetaPixel,
   trackMetaPageView,
 } from "../lib/metaPixel";
+import { captureMetaBrowserIdentity } from "../lib/metaBrowserAttribution";
 
 export default function MetaPageTracker() {
   const location = useLocation();
 
   useEffect(() => {
-    initMetaPixel();
+    let storedCustomer = {};
+    try {
+      storedCustomer = JSON.parse(window.localStorage.getItem("storefront.profile") || "{}");
+    } catch {
+      storedCustomer = {};
+    }
+    captureMetaBrowserIdentity();
+    initMetaPixel(storedCustomer);
     trackMetaPageView();
   }, [location.pathname, location.search]);
 

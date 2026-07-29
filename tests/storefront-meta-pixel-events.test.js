@@ -52,6 +52,26 @@ test("AddToCart payload uses catalog SKU and current selling price", () => {
   assert.equal(payload.content_name, "Nike Air Jordan 1 Low");
 });
 
+test("InitiateCheckout uses cart SKUs, quantities, value and a unique event id", () => {
+  const contents = [
+    metaLineContent({ sku: "SKU-1", price: 500, quantity: 2 }),
+    metaLineContent({ sku: "SKU-2", price: 300, quantity: 1 }),
+  ].filter(Boolean);
+  const payload = buildMetaEventPayload({
+    contentIds: contents.map((item) => item.id),
+    contents,
+    numItems: 3,
+    value: 1300,
+    eventId: "m1_initiatecheckout_123_unique",
+    customer: { phone: "01012345678" },
+  });
+  assert.deepEqual(payload.content_ids, ["SKU-1", "SKU-2"]);
+  assert.equal(payload.num_items, 3);
+  assert.equal(payload.value, 1300);
+  assert.equal(payload.phone, "201012345678");
+  assert.equal(payload.event_id, "m1_initiatecheckout_123_unique");
+});
+
 test("Purchase cart lines preserve the catalog SKU instead of falling back to an internal variant ID", () => {
   const line = metaLineContent({
     product_id: 22,

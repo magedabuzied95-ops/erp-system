@@ -34,7 +34,7 @@ import { applyProductSeo, clearProductSeo } from "../../shared/lib/socialMeta";
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
-import { Check, Heart, Ruler, Share2, ShoppingCart } from "lucide-react";
+import { Check, Heart, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
@@ -176,7 +176,7 @@ function ProductDetailReviewSection() {
   );
 }
 
-export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, saleModeEnabled }) {
+export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile = {}, saleModeEnabled }) {
   const { i18n } = useTranslation();
   const isRtl = String(i18n.resolvedLanguage || i18n.language || "ar").toLowerCase().startsWith("ar");
   const { identifier } = useParams();
@@ -299,7 +299,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             const contentId = metaCatalogContentId(product, first || {});
             const viewKey = `${productRouteKey}:${contentId}`;
             if (contentId && metaViewSentRef.current(viewKey)) {
-              trackMetaViewContent({ product, variant: first || {}, value: pricing.price });
+              trackMetaViewContent({ product, variant: first || {}, value: pricing.price, customer: profile });
             }
             trackGa4ViewItem({ product, variant: first || {}, price: pricing.price });
             try {

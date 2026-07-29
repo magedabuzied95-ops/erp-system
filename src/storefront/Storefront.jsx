@@ -104,7 +104,13 @@ import {
 } from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
 import { getDisplayPricing, parseSaleModeEnabled as importedParseSaleModeEnabled } from "../shared/lib/storefrontPricing";
-import { isMetaPurchaseEligible, trackMetaAddToCart, trackMetaPurchase } from "./lib/metaPixelEvents";
+import {
+  isMetaPurchaseEligible,
+  trackMetaAddToCart,
+  trackMetaInitiateCheckout,
+  trackMetaPurchase,
+} from "./lib/metaPixelEvents";
+import { initMetaPixel } from "../shared/lib/metaPixel";
 import {
   trackGa4AddToCart,
   trackGa4BeginCheckout,
@@ -6826,6 +6832,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const latestAddressLookupsRef = useRef(new Set());
   const latestAddressRestoreTokenRef = useRef(0);
   const couponValidationKeyRef = useRef("");
+  const metaCheckoutSentRef = useRef(false);
   useEffect(() => {
     setStorefrontSalePricesEnabled(publicStoreSettings);
   }, [publicStoreSettings]);
@@ -6906,6 +6913,23 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   useEffect(() => {
     if (pricedCart.length) trackGa4BeginCheckout(pricedCart, { value: subtotal });
   }, [pricedCart, subtotal]);
+
+  useEffect(() => {
+    if (checkoutStep !== 3 || metaCheckoutSentRef.current || !pricedCart.length) return;
+    const payload = trackMetaInitiateCheckout({
+      items: pricedCart,
+      value: total,
+      customer: {
+        ...profile,
+        full_name: form.full_name,
+        phone: form.primary_phone,
+        email: form.email,
+        city: form.city || form.city_area || form.area || form.district,
+        state: form.governorate,
+      },
+    });
+    if (payload) metaCheckoutSentRef.current = true;
+  }, [checkoutStep, form, pricedCart, profile, total]);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -7882,10 +7906,31 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       const successPayload = {
         order: data.order,
         items: data.items || pricedCart,
-        customer: { full_name: form.full_name, phone: cleanPhone, email: form.email.trim().toLowerCase() },
+        customer: {
+          full_name: form.full_name,
+          phone: cleanPhone,
+          email: form.email.trim().toLowerCase(),
+          city: form.city || form.city_area || form.area || form.district,
+          state: form.governorate,
+          customer_id: data.order?.customer_id || profile?.customer_id || profile?.id || "",
+        },
         checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod, coupon_code: couponCodeToSend, coupon_discount_amount: couponDiscountToSend },
         customer_reviews: data.customer_reviews || null,
       };
+      trackMetaPurchase({
+        order: data.order,
+        items: data.items || pricedCart,
+        value: data.order?.total_amount ?? data.order?.total ?? total,
+        customer: {
+          ...profile,
+          full_name: form.full_name,
+          phone: cleanPhone,
+          email: form.email,
+          city: form.city || form.city_area || form.area || form.district,
+          state: form.governorate,
+          customer_id: data.order?.customer_id || profile?.customer_id || profile?.id || "",
+        },
+      });
       trackGa4Purchase({
         order: data.order,
         items: data.items || pricedCart,
@@ -7912,6 +7957,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         email: form.email.trim().toLowerCase(),
         customer_email: form.email.trim().toLowerCase(),
         customer_id: data.order?.customer_id || profile?.customer_id || profile?.id || "",
+        city: form.city || form.city_area || form.area || form.district,
+        governorate: form.governorate,
         street_address: form.street_address,
         building_number: form.building_number,
         floor_number: form.floor_number,
@@ -8362,7 +8409,20 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
       order,
       items,
       value: total,
-      customer: loaded?.customer || { full_name: customerName, phone },
+      customer: {
+        ...(loaded?.customer || {}),
+        full_name: loaded?.customer?.full_name || customerName,
+        phone: loaded?.customer?.phone || phone,
+        email: loaded?.customer?.email || loaded?.checkout?.email || profile.email || profile.customer_email,
+        city:
+          loaded?.customer?.city ||
+          loaded?.checkout?.city ||
+          loaded?.checkout?.city_area ||
+          loaded?.checkout?.area ||
+          order.city_area,
+        state: loaded?.customer?.state || loaded?.checkout?.governorate || order.governorate,
+        customer_id: order.customer_id || profile.customer_id || profile.id || "",
+      },
     });
     trackGa4Purchase({
       order,
@@ -10062,6 +10122,10 @@ function Storefront() {
   }, [profile]);
 
   useEffect(() => {
+    initMetaPixel(profile);
+  }, [profile]);
+
+  useEffect(() => {
     if (typeof document === "undefined") return undefined;
     const root = document.documentElement;
     const body = document.body;
@@ -10294,6 +10358,8 @@ function Storefront() {
           phone: data?.customer?.phone || prev.phone || "",
           customer_id: data?.customer?.id || prev.customer_id || "",
           full_name: data?.customer?.name || prev.full_name || "",
+          email: data?.customer?.email || prev.email || prev.customer_email || "",
+          customer_email: data?.customer?.email || prev.customer_email || prev.email || "",
         }));
         setCart(mergedCart);
         setWishlist(mergedWishlist);

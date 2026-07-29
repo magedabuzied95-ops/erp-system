@@ -141,6 +141,10 @@ console.log("[DB CHECK]", resolveDbCheckInfo());
 
 const app = express();
 app.disable("x-powered-by");
+const configuredTrustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
+if (Number.isInteger(configuredTrustProxyHops) && configuredTrustProxyHops > 0) {
+  app.set("trust proxy", configuredTrustProxyHops);
+}
 
 const REQUEST_TIMEOUT_MS = Math.max(Number(process.env.REQUEST_TIMEOUT_MS || 60_000), 5_000);
 const SLOW_REQUEST_MS = Math.max(Number(process.env.SLOW_REQUEST_MS || 2_000), 250);

@@ -1,3 +1,5 @@
+import { normalizeMetaCustomer } from "../../../shared/metaEventMatching.js";
+
 const text = (value = "") => String(value ?? "").trim();
 const normalizeNumericText = (value = "") =>
   text(value)
@@ -33,18 +35,10 @@ export const metaCatalogContentId = (product = {}, variant = {}) => {
 export const metaCurrentSellingPrice = ({ product = {}, variant = {}, line = null, value = null } = {}) =>
   numberValue(value ?? line?.price ?? line?.unit_price ?? line?.selling_price ?? variant.display_price ?? variant.final_price ?? variant.selling_price ?? variant.price ?? product.display_price ?? product.final_price ?? product.selling_price ?? product.price);
 
-const nameParts = (customer = {}) => {
-  const explicitFirst = text(customer.first_name || customer.firstName);
-  const explicitLast = text(customer.last_name || customer.lastName);
-  if (explicitFirst || explicitLast) return { first_name: explicitFirst, last_name: explicitLast };
-  const parts = text(customer.full_name || customer.name || customer.customer_name).split(/\s+/).filter(Boolean);
-  return { first_name: parts[0] || "", last_name: parts.slice(1).join(" ") };
-};
-
 export const buildMetaEventPayload = ({ contentIds = [], contents = [], contentName = "", value = 0, numItems = 0, eventId = "", customer = {} } = {}) => {
   const ids = [...new Set((Array.isArray(contentIds) ? contentIds : []).map(text).filter(Boolean))];
   if (!ids.length) return null;
-  const names = nameParts(customer);
+  const normalizedCustomer = normalizeMetaCustomer(customer);
   return {
     content_type: "product",
     content_ids: ids,
@@ -54,11 +48,14 @@ export const buildMetaEventPayload = ({ contentIds = [], contents = [], contentN
     currency: "EGP",
     value: numberValue(value),
     event_id: text(eventId),
-    email: customer.email,
-    phone: customer.phone || customer.primary_phone,
-    first_name: names.first_name,
-    last_name: names.last_name,
-    external_id: customer.external_id || customer.customer_id || customer.id,
+    ...(normalizedCustomer.email ? { email: normalizedCustomer.email } : {}),
+    ...(normalizedCustomer.phone ? { phone: normalizedCustomer.phone } : {}),
+    ...(normalizedCustomer.firstName ? { first_name: normalizedCustomer.firstName } : {}),
+    ...(normalizedCustomer.lastName ? { last_name: normalizedCustomer.lastName } : {}),
+    ...(normalizedCustomer.city ? { city: normalizedCustomer.city } : {}),
+    ...(normalizedCustomer.state ? { state: normalizedCustomer.state } : {}),
+    ...(normalizedCustomer.country ? { country: normalizedCustomer.country } : {}),
+    ...(normalizedCustomer.externalId ? { external_id: normalizedCustomer.externalId } : {}),
   };
 };
 

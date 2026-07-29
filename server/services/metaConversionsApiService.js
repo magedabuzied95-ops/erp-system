@@ -1,5 +1,12 @@
 import crypto from "node:crypto";
 import db from "../database/db.js";
+import {
+  normalizeMetaCustomer,
+  normalizeMetaEmail,
+  normalizeMetaEgyptPhone,
+  normalizeMetaText,
+} from "../../shared/metaEventMatching.js";
+import { resolveTrustedClientIp } from "../utils/trustedClientIp.js";
 
 const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -18,12 +25,48 @@ const numberValue = (value = 0) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
-const sha256 = async (value = "") => {
-  const normalized = text(value).toLowerCase();
-  if (!normalized || !globalThis.crypto?.subtle) return "";
-  const data = new TextEncoder().encode(normalized);
-  const hash = await globalThis.crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+export const sha256MetaValue = (value = "") => {
+  const normalized = text(value);
+  return normalized ? crypto.createHash("sha256").update(normalized, "utf8").digest("hex") : "";
+};
+
+const validMetaCookie = (value = "", prefix = "") => {
+  const normalized = text(value);
+  return normalized && (!prefix || normalized.startsWith(prefix)) ? normalized : "";
+};
+
+const configuredTestEventCode = () => {
+  const isProduction = text(process.env.NODE_ENV).toLowerCase() === "production";
+  if (isProduction) return "";
+  return text(process.env.M1_META_TEST_EVENT_CODE || process.env.META_TEST_EVENT_CODE);
+};
+
+export const buildHashedMetaUserData = ({ req, event = {} } = {}) => {
+  const normalized = normalizeMetaCustomer({
+    email: normalizeMetaEmail(event.email),
+    phone: normalizeMetaEgyptPhone(event.phone),
+    first_name: normalizeMetaText(event.first_name),
+    last_name: normalizeMetaText(event.last_name),
+    city: normalizeMetaText(event.city),
+    state: normalizeMetaText(event.state),
+    country: normalizeMetaText(event.country),
+    external_id: text(event.external_id),
+  });
+  const userData = {
+    client_ip_address: resolveTrustedClientIp(req),
+    client_user_agent: text(req?.headers?.["user-agent"]),
+    fbp: validMetaCookie(event.fbp, "fb.") || validMetaCookie(cookieValue(req, "_fbp"), "fb."),
+    fbc: validMetaCookie(event.fbc, "fb.") || validMetaCookie(cookieValue(req, "_fbc"), "fb."),
+  };
+  if (normalized.email) userData.em = [sha256MetaValue(normalized.email)];
+  if (normalized.phone) userData.ph = [sha256MetaValue(normalized.phone)];
+  if (normalized.firstName) userData.fn = [sha256MetaValue(normalized.firstName)];
+  if (normalized.lastName) userData.ln = [sha256MetaValue(normalized.lastName)];
+  if (normalized.city) userData.ct = [sha256MetaValue(normalized.city)];
+  if (normalized.state) userData.st = [sha256MetaValue(normalized.state)];
+  if (normalized.country) userData.country = [sha256MetaValue(normalized.country)];
+  if (normalized.externalId) userData.external_id = [sha256MetaValue(normalized.externalId)];
+  return Object.fromEntries(Object.entries(userData).filter(([, value]) => Array.isArray(value) ? value.length > 0 : Boolean(value)));
 };
 
 const configuredAccessToken = () => text(process.env.M1_META_CAPI_ACCESS_TOKEN || process.env.META_CAPI_ACCESS_TOKEN);
@@ -78,38 +121,24 @@ export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } 
   const token = configuredAccessToken() || await storedMetaAccessToken(tenantId);
   const pixelOrDatasetId = datasetId();
   const eventName = text(event.event_name);
+  const metaEventId = text(event.event_id);
   const contentIds = Array.isArray(event.content_ids) ? event.content_ids.map(text).filter(Boolean) : [];
   const eventValue = numberValue(event.value);
-  if (!token || !pixelOrDatasetId || !eventName || !contentIds.length) {
+  if (!token || !pixelOrDatasetId || !eventName || !metaEventId || !contentIds.length) {
     return { sent: false, reason: "missing_config_or_content_ids" };
   }
   if (eventName === "Purchase" && eventValue <= 0) {
     return { sent: false, reason: "invalid_purchase_value" };
   }
 
-  const userData = {
-    client_ip_address: req?.headers?.["x-forwarded-for"]?.split(",")?.[0]?.trim() || req?.socket?.remoteAddress || "",
-    client_user_agent: req?.headers?.["user-agent"] || "",
-    fbp: text(event.fbp) || cookieValue(req, "_fbp"),
-    fbc: text(event.fbc) || cookieValue(req, "_fbc"),
-  };
-  const emailHash = await sha256(event.email);
-  const phoneHash = await sha256(event.phone);
-  const firstNameHash = await sha256(event.first_name);
-  const lastNameHash = await sha256(event.last_name);
-  const externalIdHash = await sha256(event.external_id);
-  if (emailHash) userData.em = [emailHash];
-  if (phoneHash) userData.ph = [phoneHash];
-  if (firstNameHash) userData.fn = [firstNameHash];
-  if (lastNameHash) userData.ln = [lastNameHash];
-  if (externalIdHash) userData.external_id = [externalIdHash];
+  const userData = buildHashedMetaUserData({ req, event });
 
   const payload = {
     data: [
       {
         event_name: eventName,
         event_time: Math.floor(Date.now() / 1000),
-        event_id: text(event.event_id),
+        event_id: metaEventId,
         action_source: "website",
         event_source_url: text(event.event_source_url) || text(req?.headers?.referer),
         user_data: userData,
@@ -125,7 +154,8 @@ export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } 
       },
     ],
   };
-  if (event.test_event_code) payload.test_event_code = text(event.test_event_code);
+  const testEventCode = configuredTestEventCode();
+  if (testEventCode) payload.test_event_code = testEventCode;
 
   const response = await fetch(`${GRAPH_API_BASE_URL}/${encodeURIComponent(pixelOrDatasetId)}/events?access_token=${encodeURIComponent(token)}`, {
     method: "POST",

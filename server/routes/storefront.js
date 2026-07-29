@@ -599,7 +599,7 @@ router.get("/products/:identifier", getProduct);
 router.get("/shipping/quote", getShippingQuote);
 router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) => {
   const eventName = toText(req.body?.event_name);
-  if (!["ViewContent", "AddToCart", "Purchase"].includes(eventName)) {
+  if (!["ViewContent", "AddToCart", "InitiateCheckout", "Purchase"].includes(eventName)) {
     return res.status(400).json({ success: false, message: "Unsupported Meta event" });
   }
   try {
@@ -613,6 +613,9 @@ router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) =
         phone: authenticatedCustomer.phone || req.body?.phone,
         first_name: authenticatedNameParts[0] || req.body?.first_name,
         last_name: authenticatedNameParts.slice(1).join(" ") || req.body?.last_name,
+        city: req.body?.city,
+        state: req.body?.state,
+        country: req.body?.country,
         external_id: authenticatedCustomer.customer_id || req.body?.external_id,
       },
       tenantId: publicTenantId(req),

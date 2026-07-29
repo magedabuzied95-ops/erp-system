@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const eventsSource = fs.readFileSync(new URL("../src/storefront/lib/metaPixelEvents.js", import.meta.url), "utf8");
+const attributionSource = fs.readFileSync(new URL("../src/shared/lib/metaBrowserAttribution.js", import.meta.url), "utf8");
 const authSource = fs.readFileSync(new URL("../server/middleware/storefrontCustomerAuth.js", import.meta.url), "utf8");
 const routeSource = fs.readFileSync(new URL("../server/routes/storefront.js", import.meta.url), "utf8");
 const capiSource = fs.readFileSync(new URL("../server/services/metaConversionsApiService.js", import.meta.url), "utf8");
@@ -24,10 +25,23 @@ test("storefront customer token resolves the canonical customer name", () => {
   assert.match(authSource, /name = customer\.name/);
 });
 
-test("browser ClickID and stable visitor identity are forwarded to CAPI", () => {
-  assert.match(eventsSource, /new URLSearchParams\(window\.location\.search\)\.get\("fbclid"\)/);
-  assert.match(eventsSource, /fb\.1\.\$\{Date\.now\(\)\}\.\$\{fbclid\}/);
-  assert.match(eventsSource, /META_VISITOR_ID_KEY/);
-  assert.match(capiSource, /text\(event\.fbc\) \|\| cookieValue\(req, "_fbc"\)/);
-  assert.match(capiSource, /text\(event\.fbp\) \|\| cookieValue\(req, "_fbp"\)/);
+test("browser ClickID is forwarded while guests are not assigned a fake customer external_id", () => {
+  assert.match(attributionSource, /new URLSearchParams\(window\.location\.search\)\.get\("fbclid"\)/);
+  assert.match(attributionSource, /fb\.1\.\$\{Date\.now\(\)\}\.\$\{fbclid\}/);
+  assert.doesNotMatch(eventsSource, /META_VISITOR_ID_KEY|metaVisitorId/);
+  assert.match(capiSource, /cookieValue\(req, "_fbc"\)/);
+  assert.match(capiSource, /cookieValue\(req, "_fbp"\)/);
+});
+
+test("browser and server event paths share the exact event id for Meta deduplication", () => {
+  assert.match(eventsSource, /window\.fbq\("track", eventName, browserPayload, \{ eventID: id \}\)/);
+  assert.match(eventsSource, /sendCapi\(eventName, \{ \.\.\.eventPayload, event_source_url:/);
+  assert.match(capiSource, /const metaEventId = text\(event\.event_id\)/);
+  assert.match(capiSource, /event_id: metaEventId/);
+});
+
+test("Meta Test Events code is server-side and environment controlled", () => {
+  assert.doesNotMatch(eventsSource, /VITE_META_TEST_EVENT_CODE|test_event_code/);
+  assert.match(capiSource, /M1_META_TEST_EVENT_CODE \|\| process\.env\.META_TEST_EVENT_CODE/);
+  assert.match(capiSource, /if \(isProduction\) return ""/);
 });
