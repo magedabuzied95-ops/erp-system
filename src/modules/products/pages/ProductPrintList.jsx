@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Download, PackageOpen, Printer, Trash2 } from "lucide-react";
+import { Combine, Download, PackageOpen, Printer, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import ProductsShell from "../components/ProductsShell";
@@ -72,6 +72,17 @@ export default function ProductPrintList() {
     [audience, products, section]
   );
 
+  const mergedPrintPlan = useMemo(
+    () => buildProductLabelPrintPlan(
+      visibleProducts.map((product) => productForAudience(product, section, audience))
+    ),
+    [audience, section, visibleProducts]
+  );
+  const mergedJobs = useMemo(
+    () => groupProductLabelPdfJobs(mergedPrintPlan),
+    [mergedPrintPlan]
+  );
+
   const remove = (productId) => setProducts(removeProductFromPrintList(productId));
   const clear = () => setProducts(clearProductPrintList());
 
@@ -88,6 +99,25 @@ export default function ProductPrintList() {
       window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (error) {
       toast.error(error?.message || "تعذر إنشاء ملف الطباعة");
+    } finally {
+      setBusyKey("");
+    }
+  };
+
+  const downloadMergedJob = async (job) => {
+    const key = `merged:${section}:${audience}:${job.key}`;
+    try {
+      setBusyKey(key);
+      const result = await generateProductLabelJobPdf(job);
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${section}-${audience}-${job.filename}`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      toast.success(`تم دمج ${job.labels.length} ملصق في ملف واحد`);
+    } catch (error) {
+      toast.error(error?.message || "تعذر دمج ملف الطباعة");
     } finally {
       setBusyKey("");
     }
@@ -135,6 +165,38 @@ export default function ProductPrintList() {
         <div className="mt-6 rounded-[26px] border border-white/10 bg-zinc-950/70 p-8 text-center text-zinc-400">لا توجد منتجات في هذا القسم.</div>
       ) : (
         <div className="mt-6 grid gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[26px] border border-emerald-300/20 bg-emerald-400/10 p-4">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-black text-white">
+                <Combine size={20} className="text-emerald-300" />
+                دمج منتجات القسم
+              </h2>
+              <p className="mt-1 text-sm text-emerald-100/70">
+                يجمع {visibleProducts.length} منتج و{mergedPrintPlan.counts.total} ملصق حسب الكميات المتاحة.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {mergedJobs.map((job) => {
+                const key = `merged:${section}:${audience}:${job.key}`;
+                return (
+                  <button
+                    key={job.key}
+                    type="button"
+                    disabled={busyKey === key}
+                    onClick={() => downloadMergedJob(job)}
+                    className="inline-flex items-center gap-2 rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-black text-black disabled:opacity-50"
+                  >
+                    <Combine size={16} />
+                    {job.key === "box"
+                      ? `دمج Box PDF (${job.labels.length})`
+                      : job.key === "display"
+                        ? `دمج Display / Bags PDF (${job.labels.length})`
+                        : `دمج Crocs PDF (${job.labels.length})`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {visibleProducts.map((product) => {
             const printableProduct = productForAudience(product, section, audience);
             const plan = buildProductLabelPrintPlan([printableProduct]);
