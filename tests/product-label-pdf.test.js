@@ -5,7 +5,7 @@ import { buildProductLabelTemplateContent, generateProductLabelJobPdf } from "..
 
 test("new templates contain Code 128 source fields and no QR", () => {
   const content = buildProductLabelTemplateContent({ type: "display", barcodeValue: "ABC123", productName: "Runner", price: 500, size: "42" });
-  assert.deepEqual(content, { barcode: "ABC123", name: "Runner", price: 500, fieldLabel: "SIZE", fieldValue: "42", article: "", qr: false });
+  assert.deepEqual(content, { barcode: "ABC123", name: "Runner", price: 500, fieldLabel: "SIZE", fieldValue: "42", article: "", imageUrl: "", qr: false });
   assert.equal(JSON.stringify(content).toLowerCase().includes("qrsvg"), false);
 });
 
@@ -39,6 +39,22 @@ test("generated PDF uses the exact job page dimensions", async () => {
   assert.ok(Math.abs(result.debug.heightMm - 35) < 0.01);
   assert.equal(result.debug.pages, 1);
   assert.equal(result.debug.qr, false);
+});
+
+test("100x50 box labels use the shoe image layout", async () => {
+  const result = await generateProductLabelJobPdf({
+    key: "box",
+    widthMm: 100,
+    heightMm: 50,
+    labels: [{
+      type: "box",
+      barcodeValue: "830841729693",
+      productName: "Sneakers",
+      size: "41",
+      color: "Black",
+    }],
+  });
+  assert.equal(result.debug.layouts[0].template, "shoe-box-image");
 });
 
 test("long bag names keep price, color, and barcode in separate vertical slots", async () => {

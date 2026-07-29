@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 
 export const buildProductLabelTemplateContent = (label = {}) => {
   const isBag = label.type === "bag";
@@ -14,6 +15,7 @@ export const buildProductLabelTemplateContent = (label = {}) => {
       ? color
       : [size, color ? `COLOR: ${color}` : ""].filter(Boolean).join(" / "),
     article: String(label.articleCode || label.article_code || ""),
+    imageUrl: String(label.imageUrl || label.image_url || ""),
     qr: false,
   };
 };
@@ -100,17 +102,108 @@ const bars = (value, width) => {
   });
 };
 
+const loadImageDataUrl = async (source) => {
+  const url = resolveProductImageUrl(source);
+  if (!url) return "";
+  if (url.startsWith("data:")) return url;
+  try {
+    const response = await fetch(url, { mode: "cors", credentials: "omit" });
+    if (!response.ok) return "";
+    const blob = await response.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return "";
+  }
+};
+
+const drawBarcode = (doc, value, { x, y, width, height, textY, fontSize = 6 }) => {
+  doc.setFillColor(0, 0, 0);
+  bars(value, width)
+    .filter((bar) => bar.black)
+    .forEach((bar) => doc.rect(x + bar.x, y, bar.w, height, "F"));
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(fontSize);
+  doc.setTextColor(15, 23, 42);
+  doc.text(value, x + width / 2, textY, { align: "center" });
+};
+
+const drawShoeBoxLabel = async (doc, content, widthMm, heightMm) => {
+  const imageData = await loadImageDataUrl(content.imageUrl);
+  const imageCell = { x: 2.2, y: 2.2, w: 38, h: 32.5 };
+  const detailX = 42.3;
+  const detailWidth = widthMm - detailX - 2.2;
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.25);
+  doc.rect(0.4, 0.4, widthMm - 0.8, heightMm - 0.8);
+  doc.setFillColor(248, 250, 252);
+  doc.rect(imageCell.x, imageCell.y, imageCell.w, imageCell.h, "F");
+  if (imageData) {
+    try {
+      doc.addImage(imageData, imageCell.x, imageCell.y, imageCell.w, imageCell.h, undefined, "FAST");
+    } catch {
+      // Keep the neutral image cell if a browser cannot decode the source image.
+    }
+  }
+
+  doc.setFillColor(2, 6, 23);
+  doc.roundedRect(detailX, 2.2, detailWidth, 10.2, 1.5, 1.5, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  const titleLines = fitLines(doc, content.name, detailWidth - 3, 2);
+  const titleStart = titleLines.length > 1 ? 6 : 7.8;
+  titleLines.forEach((line, index) => doc.text(line, detailX + detailWidth / 2, titleStart + index * 3.5, { align: "center" }));
+
+  doc.setFillColor(2, 6, 23);
+  doc.roundedRect(detailX, 14, 17.5, 7.2, 1.4, 1.4, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(7);
+  doc.text(`SIZE  ${content.fieldValue.split("/")[0].trim() || "-"}`, detailX + 8.75, 18.7, { align: "center" });
+
+  doc.roundedRect(detailX + 19, 14, detailWidth - 19, 7.2, 1.4, 1.4, "F");
+  doc.setFontSize(6.3);
+  const colorText = content.fieldValue.split("COLOR:")[1]?.trim() || "-";
+  doc.text(`COLOR  ${colorText}`, detailX + 19 + (detailWidth - 19) / 2, 18.7, { align: "center", maxWidth: detailWidth - 22 });
+
+  if (content.article) {
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(6.2);
+    doc.text(`ART: ${content.article}`, detailX + detailWidth / 2, 25.1, { align: "center", maxWidth: detailWidth - 2 });
+  }
+
+  drawBarcode(doc, content.barcode, {
+    x: 2.2,
+    y: 37,
+    width: widthMm - 4.4,
+    height: 8,
+    textY: 48.1,
+    fontSize: 6,
+  });
+};
+
 export async function generateProductLabelJobPdf(job) {
   if (!job?.labels?.length) throw new Error("Cannot generate an empty label job");
   const orientation = job.widthMm >= job.heightMm ? "landscape" : "portrait";
   const doc = new jsPDF({ orientation, unit: "mm", format: [job.widthMm, job.heightMm], compress: true });
   const layouts = [];
 
-  job.labels.forEach((label, index) => {
+  for (let index = 0; index < job.labels.length; index += 1) {
+    const label = job.labels[index];
     if (index) doc.addPage([job.widthMm, job.heightMm], orientation);
     const content = buildProductLabelTemplateContent(label);
     const widthMm = doc.internal.pageSize.getWidth();
     const heightMm = doc.internal.pageSize.getHeight();
+    if (job.key === "box") {
+      await drawShoeBoxLabel(doc, content, widthMm, heightMm);
+      layouts.push({ template: "shoe-box-image", widthMm, heightMm });
+      continue;
+    }
     const layout = buildProductLabelPdfLayout(doc, content, widthMm, heightMm);
     layouts.push(layout);
 
@@ -152,7 +245,7 @@ export async function generateProductLabelJobPdf(job) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(layout.barcodeTextFontSize);
     doc.text(content.barcode, widthMm / 2, layout.barcodeTextY, { align: "center" });
-  });
+  }
 
   return {
     blob: doc.output("blob"),

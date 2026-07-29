@@ -14,6 +14,15 @@ const canonicalVariantBarcode = (row = {}) =>
   text(row.barcode || row.variant_barcode || row.barcode_label || row.product_code || row.code);
 const colorKey = (row = {}) => text(row.color || row.color_name || row.colorName || "default").toLowerCase();
 const price = (product, row) => Number(row.sale_price || row.selling_price || row.price || product.sale_price || product.selling_price || product.price || 0);
+const image = (product, row) => text(
+  row.image_url ||
+  row.variant_image_url ||
+  row.color_image_url ||
+  row.image ||
+  product.image_url ||
+  product.product_image_url ||
+  product.image
+);
 
 const makeLabels = (type, product, row, quantity) => Array.from({ length: Math.max(0, quantity) }, (_, copy) => ({
   id: `${product.id || "product"}:${variantId(row)}:${type}:${copy}`,
@@ -28,6 +37,7 @@ const makeLabels = (type, product, row, quantity) => Array.from({ length: Math.m
   price: price(product, row),
   size: type === "bag" ? "" : text(row.size || row.variant_size),
   color: text(row.color || row.color_name || row.colorName),
+  imageUrl: image(product, row),
   articleCode: text(row.color_article_code || row.colorArticleCode || row.article_code || row.articleCode),
   fieldLabel: type === "bag" ? "اللون" : "المقاس",
   fieldValue: type === "bag" ? text(row.color || row.color_name || row.colorName) : text(row.size || row.variant_size),
