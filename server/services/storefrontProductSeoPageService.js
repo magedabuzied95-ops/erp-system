@@ -23,6 +23,7 @@ export const injectProductSeoIntoHtml = (html = "", seo = {}) => {
     `<meta name="robots" content="${escapeHtml(seo.robots)}" />`,
     `<link rel="canonical" href="${escapeHtml(seo.canonical)}" />`,
     `<meta property="og:type" content="product" />`,
+    `<meta property="og:site_name" content="M1 Store" />`,
     `<meta property="og:title" content="${escapeHtml(seo.title)}" />`,
     `<meta property="og:description" content="${escapeHtml(seo.description)}" />`,
     `<meta property="og:image" content="${escapeHtml(seo.image)}" />`,

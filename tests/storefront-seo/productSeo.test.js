@@ -80,6 +80,7 @@ test("server HTML contains one Product and one Breadcrumb JSON-LD with safe esca
     seo
   );
   assert.doesNotMatch(html, /<title>M1 ERP<\/title>/);
+  assert.match(html, /property="og:site_name" content="M1 Store"/);
   assert.equal((html.match(/data-m1-product-seo="product"/g) || []).length, 1);
   assert.equal((html.match(/data-m1-product-seo="breadcrumb"/g) || []).length, 1);
   assert.match(html, /Nike &lt;Air&gt; &quot;Force&quot;/);

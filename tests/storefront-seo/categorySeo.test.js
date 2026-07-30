@@ -42,6 +42,7 @@ test("category initial HTML contains unique metadata, one H1, products, paginati
   const definition = seoCategoryByPath("/men");
   const html = injectCategorySeoIntoHtml(shell, definition, products, { page: 2, total: 50, indexable: true });
   assert.match(html, /<title>[^<]*M1 Store<\/title>/);
+  assert.match(html, /property="og:site_name" content="M1 Store"/);
   assert.match(html, /rel="canonical" href="https:\/\/m1store-egy.com\/men\?page=2"/);
   assert.equal((html.match(/<h1>/g) || []).length, 1);
   assert.match(html, /href="\/product\/men-one"/);

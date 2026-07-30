@@ -630,6 +630,7 @@ const renderProductShareHtml = async ({ req, product, imageUrl, description }) =
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:type" content="product" />
+    <meta property="og:site_name" content="M1 Store" />
     <meta property="og:url" content="${absoluteUrl}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${absoluteImage}" />
@@ -1000,6 +1001,7 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>${title}</title>
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="M1 Store" />
     <meta property="og:title" content="${title}" />
     <meta property="og:description" content="${description}" />
     <meta property="og:image" content="${absoluteImage}" />
