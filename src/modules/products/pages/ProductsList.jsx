@@ -286,6 +286,56 @@ const ProductColorImageBadge = ({ row = {}, onClick }) => {
   );
 };
 
+const getThermalImageLevelDetails = (row = {}) => {
+  const productThermalUrl = String(
+    row.productThermalImageUrl ||
+    row.product_thermal_image_url ||
+    ""
+  ).trim();
+  const hasProductThermal = Boolean(productThermalUrl);
+  const colorCount = Math.max(0, Number(row.thermalColorCount ?? row.thermal_color_count ?? 0) || 0);
+  const colorNames = (
+    Array.isArray(row.thermalColorNames)
+      ? row.thermalColorNames
+      : Array.isArray(row.thermal_color_names)
+        ? row.thermal_color_names
+        : []
+  ).map((value) => String(value || "").trim()).filter(Boolean);
+  return { hasProductThermal, colorCount, colorNames };
+};
+
+const ProductThermalLevelBadge = ({ row = {} }) => {
+  const { hasProductThermal, colorCount, colorNames } = getThermalImageLevelDetails(row);
+  const hasColorThermal = colorCount > 0;
+  const label = hasProductThermal && hasColorThermal
+    ? `Thermal المنتج + الألوان (${colorCount})`
+    : hasColorThermal
+      ? `Thermal الألوان (${colorCount})`
+      : hasProductThermal
+        ? "Thermal المنتج"
+        : "لا توجد Thermal";
+  const title = hasColorThermal && colorNames.length
+    ? `ألوان Thermal: ${colorNames.join("، ")}${hasProductThermal ? " — ويوجد Thermal للمنتج" : ""}`
+    : label;
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${
+        hasProductThermal && hasColorThermal
+          ? "border-violet-300/30 bg-violet-500/15 text-violet-200"
+          : hasColorThermal
+            ? "border-cyan-300/30 bg-cyan-500/15 text-cyan-200"
+            : hasProductThermal
+              ? "border-amber-300/30 bg-amber-500/15 text-amber-200"
+              : "border-zinc-400/20 bg-zinc-500/10 text-zinc-400"
+      }`}
+    >
+      <Zap size={11} />
+      {label}
+    </span>
+  );
+};
+
 const getActionMenuPosition = (rect, itemCount = 8) => {
   const fallback = { top: 12, left: 12, width: ACTION_MENU_WIDTH, maxHeight: ACTION_MENU_ESTIMATED_HEIGHT, placement: "bottom" };
   if (typeof window === "undefined") return fallback;
@@ -2910,6 +2960,9 @@ function ProductsList() {
                               <ProductArticleBadges row={row} />
                               <div className="mt-1.5">
                                 <ProductColorImageBadge row={row} onClick={(event) => openProductColorImages(event, row)} />
+                              </div>
+                              <div className="mt-1.5">
+                                <ProductThermalLevelBadge row={row} />
                               </div>
                             </div>
                           </button>

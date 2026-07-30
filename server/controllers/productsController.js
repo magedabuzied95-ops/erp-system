@@ -3277,6 +3277,29 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(cis.total_colors, 0)::int AS total_colors,
         COALESCE(cis.missing_colors, 0)::int AS missing_colors,
         COALESCE(cis.missing_color_names, '[]'::jsonb) AS missing_color_names,
+        COALESCE(NULLIF(TRIM(p.thermal_image_url), ''), '') AS product_thermal_image_url,
+        COALESCE(NULLIF(LOWER(TRIM(p.thermal_image_status)), ''), 'pending') AS product_thermal_image_status,
+        COALESCE((
+          SELECT COUNT(DISTINCT COALESCE(
+            NULLIF(LOWER(TRIM(tv.color_group_key)), ''),
+            NULLIF(LOWER(TRIM(tv.color)), ''),
+            'default'
+          ))::int
+          FROM product_variants tv
+          WHERE tv.product_id = p.id
+            AND tv.deleted_at IS NULL
+            AND TRIM(COALESCE(tv.thermal_image_url, '')) <> ''
+        ), 0)::int AS thermal_color_count,
+        COALESCE((
+          SELECT jsonb_agg(thermal_color.color_name ORDER BY thermal_color.color_name)
+          FROM (
+            SELECT DISTINCT COALESCE(NULLIF(TRIM(tv.color), ''), 'Default') AS color_name
+            FROM product_variants tv
+            WHERE tv.product_id = p.id
+              AND tv.deleted_at IS NULL
+              AND TRIM(COALESCE(tv.thermal_image_url, '')) <> ''
+          ) thermal_color
+        ), '[]'::jsonb) AS thermal_color_names,
         CASE
           WHEN COALESCE(cis.total_colors, 0) > 0 AND COALESCE(cis.missing_colors, 0) = 0 THEN 'complete'
           WHEN COALESCE(cis.total_colors, 0) = 0 THEN 'none'
@@ -3342,6 +3365,10 @@ export const getProductsAdminList = async (req, res) => {
       totalColors: Number(row.total_colors || 0),
       missingColors: Number(row.missing_colors || 0),
       missingColorNames: Array.isArray(row.missing_color_names) ? row.missing_color_names : [],
+      productThermalImageUrl: row.product_thermal_image_url || "",
+      productThermalImageStatus: row.product_thermal_image_status || "pending",
+      thermalColorCount: Number(row.thermal_color_count || 0),
+      thermalColorNames: Array.isArray(row.thermal_color_names) ? row.thermal_color_names : [],
     };
     });
     const total = Number(result.rows?.[0]?.total_count || 0);
