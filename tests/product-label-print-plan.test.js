@@ -82,3 +82,22 @@ test("PDF jobs contain one physical page size and never mix label sizes", () => 
   ]);
   jobs.forEach((job) => assert.ok(job.labels.every((label) => label.widthMm === job.widthMm && label.heightMm === job.heightMm)));
 });
+
+test("shoe box labels carry the color image with product image fallback", () => {
+  const colorPlan = buildProductLabelPrintPlan([product(
+    "sneakers",
+    [{ ...variant(1, "40", 2, "COLOR-IMAGE"), image_url: "color.jpg" }],
+    { image_url: "product.jpg" }
+  )]);
+  const colorBox = colorPlan.labels.find((label) => label.type === "box");
+  assert.equal(colorBox.imageUrl, "color.jpg");
+  assert.equal(colorBox.color_image_url, "color.jpg");
+  assert.equal(colorBox.product_image_url, "product.jpg");
+
+  const fallbackPlan = buildProductLabelPrintPlan([product(
+    "sneakers",
+    [{ ...variant(1, "40", 2, "PRODUCT-IMAGE"), image_url: "" }],
+    { image_url: "product.jpg" }
+  )]);
+  assert.equal(fallbackPlan.labels.find((label) => label.type === "box").image_url, "product.jpg");
+});
