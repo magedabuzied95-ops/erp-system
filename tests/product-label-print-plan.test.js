@@ -101,3 +101,25 @@ test("shoe box labels carry the color image with product image fallback", () => 
   )]);
   assert.equal(fallbackPlan.labels.find((label) => label.type === "box").image_url, "product.jpg");
 });
+
+test("shoe box labels prioritize thermal image fields before normal images", () => {
+  const plan = buildProductLabelPrintPlan([product(
+    "sneakers",
+    [{
+      ...variant(1, "40", 2, "THERMAL"),
+      image_url: "normal-color.jpg",
+      color_thermal_image_url: "thermal-color.png",
+      thermal_image_status: "ready",
+    }],
+    {
+      image_url: "normal-product.jpg",
+      product_thermal_image_url: "thermal-product.png",
+      product_thermal_image_status: "ready",
+    }
+  )]);
+  const label = plan.labels.find((item) => item.type === "box");
+  assert.equal(label.color_thermal_image_url, "thermal-color.png");
+  assert.equal(label.product_thermal_image_url, "thermal-product.png");
+  assert.equal(label.variant_thermal_image_status, "ready");
+  assert.equal(label.product_thermal_image_status, "ready");
+});

@@ -29,6 +29,34 @@ const productImage = (product) => text(
   product.primary_image_url
 );
 const image = (product, row) => variantImage(row) || productImage(product);
+const variantThermalImage = (row) => text(
+  row.color_thermal_image_url ||
+  row.variant_color_thermal_image_url ||
+  row.variant_thermal_image_url ||
+  row.thermal_image_url ||
+  row.colorThermalImageUrl ||
+  row.variantColorThermalImageUrl ||
+  row.variantThermalImageUrl ||
+  row.thermalImageUrl
+);
+const productThermalImage = (product) => text(
+  product.product_thermal_image_url ||
+  product.productThermalImageUrl ||
+  product.thermal_image_url ||
+  product.thermalImageUrl
+);
+const variantThermalStatus = (row) => text(
+  row.variant_thermal_image_status ||
+  row.thermal_image_status ||
+  row.variantThermalImageStatus ||
+  row.thermalImageStatus
+);
+const productThermalStatus = (product) => text(
+  product.product_thermal_image_status ||
+  product.thermal_image_status ||
+  product.productThermalImageStatus ||
+  product.thermalImageStatus
+);
 
 const makeLabels = (type, product, row, quantity) => Array.from({ length: Math.max(0, quantity) }, (_, copy) => ({
   id: `${product.id || "product"}:${variantId(row)}:${type}:${copy}`,
@@ -51,6 +79,20 @@ const makeLabels = (type, product, row, quantity) => Array.from({ length: Math.m
   variant_image_url: variantImage(row),
   product_image_url: productImage(product),
   productImageUrl: productImage(product),
+  thermal_image_url: variantThermalImage(row),
+  thermalImageUrl: variantThermalImage(row),
+  color_thermal_image_url: variantThermalImage(row),
+  colorThermalImageUrl: variantThermalImage(row),
+  variant_color_thermal_image_url: variantThermalImage(row),
+  variantColorThermalImageUrl: variantThermalImage(row),
+  product_thermal_image_url: productThermalImage(product),
+  productThermalImageUrl: productThermalImage(product),
+  thermal_image_status: variantThermalStatus(row),
+  thermalImageStatus: variantThermalStatus(row),
+  variant_thermal_image_status: variantThermalStatus(row),
+  variantThermalImageStatus: variantThermalStatus(row),
+  product_thermal_image_status: productThermalStatus(product),
+  productThermalImageStatus: productThermalStatus(product),
   articleCode: text(row.color_article_code || row.colorArticleCode || row.article_code || row.articleCode),
   fieldLabel: type === "bag" ? "اللون" : "المقاس",
   fieldValue: type === "bag" ? text(row.color || row.color_name || row.colorName) : text(row.size || row.variant_size),
