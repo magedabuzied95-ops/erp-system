@@ -28,3 +28,11 @@ test("product rows identify cover-level and color-level thermal artwork", () => 
   assert.match(productsListSource, /لا توجد Thermal/);
   assert.match(productsListSource, /<ProductThermalLevelBadge row=\{row\}/);
 });
+
+test("product rows reconcile thermal levels from the same full product data used for printing", () => {
+  assert.match(productsListSource, /summarizeProductThermalLevels/);
+  assert.match(productsListSource, /await loadProductDetails\(row\.id\)/);
+  assert.match(productsListSource, /product\.color_images/);
+  assert.match(productsListSource, /product\.variants/);
+  assert.match(productsListSource, /thermalDetailsLoaded: true/);
+});
