@@ -15,6 +15,8 @@ test("admin product list returns product and color thermal levels", () => {
   assert.match(controllerSource, /AS product_thermal_image_url/);
   assert.match(controllerSource, /AS thermal_color_count/);
   assert.match(controllerSource, /AS thermal_color_names/);
+  assert.match(controllerSource, /FROM barcode_print_queue bpq/);
+  assert.match(controllerSource, /bpq\.status IN \('ready', 'printed'\)/);
   assert.match(controllerSource, /productThermalImageUrl:/);
   assert.match(controllerSource, /thermalColorCount:/);
 });

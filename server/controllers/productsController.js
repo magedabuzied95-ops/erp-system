@@ -3016,6 +3016,31 @@ export const getProductsAdminList = async (req, res) => {
     const hasProductVariantImages = await tableExists(db, "product_variant_images");
     const hasProductColorGroups = await tableExists(db, "product_color_groups");
     const hasProductAudiences = await tableExists(db, "product_audiences");
+    const hasBarcodePrintQueue = await tableExists(db, "barcode_print_queue");
+    const thermalColorSourcesSql = `
+      SELECT
+        COALESCE(
+          NULLIF(LOWER(TRIM(tv.color_group_key)), ''),
+          NULLIF(LOWER(TRIM(tv.color)), ''),
+          'default'
+        ) AS color_key,
+        COALESCE(NULLIF(TRIM(tv.color), ''), 'Default') AS color_name
+      FROM product_variants tv
+      WHERE tv.product_id = p.id
+        AND tv.deleted_at IS NULL
+        AND TRIM(COALESCE(tv.thermal_image_url, '')) <> ''
+      ${hasBarcodePrintQueue ? `
+      UNION
+      SELECT
+        COALESCE(NULLIF(LOWER(TRIM(bpq.color_key)), ''), 'default') AS color_key,
+        COALESCE(NULLIF(TRIM(bpq.color), ''), 'Default') AS color_name
+      FROM barcode_print_queue bpq
+      WHERE bpq.product_id = p.id
+        AND bpq.tenant_id = p.tenant_id
+        AND bpq.status IN ('ready', 'printed')
+        AND TRIM(COALESCE(bpq.thermal_image_url, '')) <> ''
+      ` : ""}
+    `;
 
     const values = [...scopeClause.values];
     const searchClause = buildProductSearchClause({
@@ -3280,24 +3305,21 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(NULLIF(TRIM(p.thermal_image_url), ''), '') AS product_thermal_image_url,
         COALESCE(NULLIF(LOWER(TRIM(p.thermal_image_status)), ''), 'pending') AS product_thermal_image_status,
         COALESCE((
-          SELECT COUNT(DISTINCT COALESCE(
-            NULLIF(LOWER(TRIM(tv.color_group_key)), ''),
-            NULLIF(LOWER(TRIM(tv.color)), ''),
-            'default'
-          ))::int
-          FROM product_variants tv
-          WHERE tv.product_id = p.id
-            AND tv.deleted_at IS NULL
-            AND TRIM(COALESCE(tv.thermal_image_url, '')) <> ''
+          SELECT COUNT(DISTINCT thermal_color_source.color_key)::int
+          FROM LATERAL (
+            ${thermalColorSourcesSql}
+          ) thermal_color_source
         ), 0)::int AS thermal_color_count,
         COALESCE((
           SELECT jsonb_agg(thermal_color.color_name ORDER BY thermal_color.color_name)
           FROM (
-            SELECT DISTINCT COALESCE(NULLIF(TRIM(tv.color), ''), 'Default') AS color_name
-            FROM product_variants tv
-            WHERE tv.product_id = p.id
-              AND tv.deleted_at IS NULL
-              AND TRIM(COALESCE(tv.thermal_image_url, '')) <> ''
+            SELECT DISTINCT ON (thermal_color_source.color_key)
+              thermal_color_source.color_key,
+              thermal_color_source.color_name
+            FROM LATERAL (
+              ${thermalColorSourcesSql}
+            ) thermal_color_source
+            ORDER BY thermal_color_source.color_key, thermal_color_source.color_name
           ) thermal_color
         ), '[]'::jsonb) AS thermal_color_names,
         CASE
