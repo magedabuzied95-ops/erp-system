@@ -1888,18 +1888,18 @@ function CustomerStatementDrawer({
             <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-sm">
               <thead className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-xl">
                 <tr className="border-b border-white/10 text-right text-xs font-black text-zinc-400">
-                  <th className="w-[150px] px-5 py-4">التاريخ</th>
-                  <th className="min-w-[330px] px-5 py-4">البيان والمرجع</th>
-                  <th className="w-[150px] px-5 py-4 text-center">
-                    <span className="text-rose-200">مدين / فاتورة</span>
-                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">مستحق على العميل</span>
-                  </th>
-                  <th className="w-[150px] px-5 py-4 text-center">
+                  <th className="w-[150px] border-b border-l border-white/10 px-5 py-4 text-center">
                     <span className="text-emerald-200">دائن / سداد</span>
                     <span className="mt-1 block text-[10px] font-semibold text-zinc-600">دفعة من العميل</span>
                   </th>
-                  <th className="w-[160px] px-5 py-4 text-center">الرصيد</th>
-                  <th className="w-[210px] px-5 py-4 text-center">التفاصيل والإجراءات</th>
+                  <th className="w-[150px] border-b border-l border-white/10 px-5 py-4 text-center">
+                    <span className="text-rose-200">مدين / فاتورة</span>
+                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">مستحق على العميل</span>
+                  </th>
+                  <th className="w-[160px] border-b border-l border-white/10 px-5 py-4 text-center">الرصيد</th>
+                  <th className="min-w-[330px] border-b border-l border-white/10 px-5 py-4">البيان</th>
+                  <th className="w-[150px] border-b border-l border-white/10 px-5 py-4">التاريخ</th>
+                  <th className="w-[210px] border-b border-white/10 px-5 py-4 text-center">تفاصيل</th>
                 </tr>
               </thead>
               <tbody>
@@ -1918,45 +1918,47 @@ function CustomerStatementDrawer({
                     const rowLabel = row.personal_operation_type_label || row.transaction_type_label || row.notes || row.transaction_type || "-";
                     const rowDetails = [
                       personalValue > 0 ? `القيمة: ${formatMoney(personalValue)}` : "",
-                      row.products ? `المنتجات: ${row.products}` : "",
                       row.notes ? `ملاحظة: ${row.notes}` : "",
                     ].filter(Boolean).join(" • ");
+                    const showMovementBadge = String(rowMeta.label || "").trim() !== String(rowLabel || "").trim();
                     return (
                       <tr key={row.id || `${row.created_at || "row"}-${index}`} className="align-middle text-zinc-200 transition odd:bg-white/[0.018] hover:bg-emerald-400/[0.045]">
-                        <td className="border-b border-white/5 px-5 py-4">
-                          <div className="whitespace-nowrap text-xs font-black text-zinc-200">{formatDateTime(row.created_at)}</div>
-                          <div className="mt-1 text-[10px] font-bold text-zinc-600">حركة #{index + 1}</div>
-                        </td>
-                        <td className="border-b border-white/5 px-5 py-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="font-black text-white">{rowLabel}</div>
-                            <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${getStatementBadgeClass(rowMeta.tone)}`}>
-                              {rowMeta.label}
-                            </div>
-                          </div>
-                          <div className="mt-2 inline-flex rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 font-black text-zinc-200" dir="ltr">{reference}</div>
-                          {rowDetails ? <div className="mt-2 max-w-xl text-xs leading-5 text-zinc-400">{rowDetails}</div> : null}
-                        </td>
-                        <td className="border-b border-white/5 px-5 py-4 text-center">
-                          {debit ? (
-                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 font-black tabular-nums text-rose-100">
-                              {debit}
-                            </span>
-                          ) : <span className="text-zinc-700">—</span>}
-                        </td>
-                        <td className="border-b border-white/5 px-5 py-4 text-center">
+                        <td className="border-b border-l border-white/10 px-5 py-4 text-center">
                           {credit ? (
                             <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 font-black tabular-nums text-emerald-100">
                               {credit}
                             </span>
                           ) : <span className="text-zinc-700">—</span>}
                         </td>
-                        <td className="border-b border-white/5 px-5 py-4 text-center">
+                        <td className="border-b border-l border-white/10 px-5 py-4 text-center">
+                          {debit ? (
+                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 font-black tabular-nums text-rose-100">
+                              {debit}
+                            </span>
+                          ) : <span className="text-zinc-700">—</span>}
+                        </td>
+                        <td className="border-b border-l border-white/10 px-5 py-4 text-center">
                           <span className="inline-flex min-w-[115px] justify-center rounded-xl border border-cyan-300/15 bg-cyan-400/[0.07] px-3 py-2 font-black tabular-nums text-cyan-100">
                             {formatMoney(row.after_balance)}
                           </span>
                         </td>
-                        <td className="border-b border-white/5 px-5 py-4">
+                        <td className="border-b border-l border-white/10 px-5 py-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-black text-white">{rowLabel}</div>
+                            {showMovementBadge ? (
+                              <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${getStatementBadgeClass(rowMeta.tone)}`}>
+                                {rowMeta.label}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="mt-2 inline-flex rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 font-black text-zinc-200" dir="ltr">{reference}</div>
+                          {rowDetails ? <div className="mt-2 max-w-xl text-xs leading-5 text-zinc-400">{rowDetails}</div> : null}
+                        </td>
+                        <td className="border-b border-l border-white/10 px-5 py-4">
+                          <div className="whitespace-nowrap text-xs font-black text-zinc-200">{formatDateTime(row.created_at)}</div>
+                          <div className="mt-1 text-[10px] font-bold text-zinc-600">حركة #{index + 1}</div>
+                        </td>
+                        <td className="border-b border-white/10 px-5 py-4">
                           {row.order_id ? (
                             <div className="grid gap-2">
                               <button
