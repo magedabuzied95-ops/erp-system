@@ -21,6 +21,7 @@ import {
   resolveProductLink,
   listShippingProviders,
   buildStorefrontHomeFromProducts,
+  isHomeMirrorProduct,
   saveRecentlyViewed,
   saveWishlist,
   updateStorefrontCustomerCart,
@@ -204,20 +205,20 @@ const configuredHomeFromSettings = (settings = {}) => ({
 
 const resolveStorefrontHome = async ({ tenantId, settings }) => {
   const configured = configuredHomeFromSettings(settings);
-  if (configured.hero && configured.featured_collections.length) {
-    return { ...configured, source: "settings" };
-  }
   const generated = await buildStorefrontHomeFromProducts({ tenantId, settings });
+  const configuredMirrorHero = configured.hero && isHomeMirrorProduct(configured.hero)
+    ? configured.hero
+    : null;
   return {
     ...generated,
-    hero: configured.hero || generated.hero,
+    hero: configuredMirrorHero || generated.hero,
     featured_collections: configured.featured_collections.length ? configured.featured_collections : generated.featured_collections,
-    source: configured.hero || configured.featured_collections.length ? "settings_with_product_fallback" : generated.source,
+    source: configuredMirrorHero || configured.featured_collections.length ? "settings_with_product_fallback" : generated.source,
   };
 };
 
-const cachedPublicStorefrontHome = async (tenantId) => {
-  const key = String(tenantId || 1);
+const cachedPublicStorefrontHome = async (tenantId, mirrorFilterSlug = "mirror_original") => {
+  const key = `${String(tenantId || 1)}:quality=${mirrorFilterSlug}:in_stock=1`;
   const now = Date.now();
   const cached = publicStorefrontHomeCache.get(key);
   if (cached?.data && now - cached.at < PUBLIC_STOREFRONT_HOME_CACHE_TTL_MS) return cached.data;
@@ -295,7 +296,8 @@ const getPublicStorefrontSettings = async (req, res) => {
 const getPublicStorefrontHome = async (req, res) => {
   try {
     const tenantId = publicTenantId(req);
-    const { settings, home } = await cachedPublicStorefrontHome(tenantId);
+    const mirrorFilterSlug = "mirror_original";
+    const { settings, home } = await cachedPublicStorefrontHome(tenantId, mirrorFilterSlug);
     setPublicStorefrontHomeCacheHeaders(res);
     console.debug("[storefront:public-home-response]", {
       tenant_id: tenantId,

@@ -53,6 +53,15 @@ const markChunkReloadAttempted = () => {
   }
 };
 
+export const clearChunkReloadAttempt = () => {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(CHUNK_RELOAD_FLAG);
+  } catch {
+    // Ignore restricted storage contexts.
+  }
+};
+
 const buildCacheBustedUrl = () => {
   const url = new URL(window.location.href);
   url.searchParams.set("__m1_reload", String(Date.now()));
@@ -134,8 +143,12 @@ export const installChunkLoadRecovery = () => {
 
   window.addEventListener("error", handleError);
   window.addEventListener("unhandledrejection", handleRejection);
+  const healthyBootTimer = window.setTimeout(() => {
+    clearChunkReloadAttempt();
+  }, 10_000);
 
   return () => {
+    window.clearTimeout(healthyBootTimer);
     window.removeEventListener("error", handleError);
     window.removeEventListener("unhandledrejection", handleRejection);
   };

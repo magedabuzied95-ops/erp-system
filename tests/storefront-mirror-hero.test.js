@@ -16,12 +16,17 @@ test("mirror products are recognized from the compact storefront grade field", (
 test("home hero requests and prioritizes Mirror Original products", async () => {
   const source = await readFile(new URL("../src/storefront/Storefront.jsx", import.meta.url), "utf8");
   const controller = await readFile(new URL("../server/controllers/storefrontController.js", import.meta.url), "utf8");
+  const routes = await readFile(new URL("../server/routes/storefront.js", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../src/index.css", import.meta.url), "utf8");
 
-  assert.match(controller, /const mirrorFilters = \{ \.\.\.filters, quality: storefrontQualityAliases\("mirror_original"\) \}/);
+  assert.match(controller, /const STOREFRONT_HOME_MIRROR_FILTER_SLUG = "mirror_original"/);
+  assert.match(controller, /const mirrorFilters = \{ \.\.\.filters, quality: storefrontQualityAliases\(STOREFRONT_HOME_MIRROR_FILTER_SLUG\) \}/);
   assert.match(controller, /queryProducts\(tenantId, "", "", mirrorFilters, false, 12, 0\)/);
   assert.match(controller, /const mirrorProducts = uniqueHomeProducts\(expandProductsToColorCards\(hydratedMirror\)\)/);
   assert.match(controller, /mirror_products: mirrorCards/);
+  assert.match(controller, /mirror_filter_slug: STOREFRONT_HOME_MIRROR_FILTER_SLUG/);
+  assert.match(routes, /configured\.hero && isHomeMirrorProduct\(configured\.hero\)/);
+  assert.match(routes, /quality=\$\{mirrorFilterSlug\}:in_stock=1/);
   assert.match(controller, /const heroProduct = mirrorProducts\[0\] \|\| null/);
   assert.doesNotMatch(controller, /const heroProduct = sale\[0\] \|\| latest\[0\]/);
   assert.match(source, /home\.mirror_products/);
@@ -58,7 +63,23 @@ test("home hero requests and prioritizes Mirror Original products", async () => 
   assert.match(source, /if \(loading && !heroImage && !heroProduct\?\.id\)/);
   assert.match(source, /data-testid="mirror-hero-loading"/);
   assert.match(source, /aria-busy="true"/);
+  assert.match(source, /quality_slug=\$\{STOREFRONT_HOME_MIRROR_FILTER_SLUG\}/);
+  assert.match(source, /storefront\.home\.bootstrap\.v3\.mirror_original/);
+  assert.match(source, /setState\(\{ loading: true, error: "", hero: null, mirrorProducts: \[\], collections: \[\] \}\)/);
+  assert.match(source, /requestId !== requestSequenceRef\.current/);
   assert.match(source, /بنجهز لك أحدث الاختيارات/);
   assert.match(stylesheet, /@keyframes sfHomeHeroLoaderRing/);
   assert.match(stylesheet, /@keyframes sfHomeHeroLoaderDot/);
+});
+
+test("storefront header keeps a fixed placeholder until the real logo loads", async () => {
+  const source = await readFile(new URL("../src/storefront/Storefront.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /const \[logoStatus, setLogoStatus\] = useState\("loading"\)/);
+  assert.match(source, /data-testid="storefront-logo-loading"/);
+  assert.match(source, /data-testid="storefront-logo-fallback"/);
+  assert.match(source, /brandSettingsLoading=\{publicStoreSettingsLoading\}/);
+  assert.match(source, /preload\.rel = "preload"/);
+  assert.doesNotMatch(source, /sf-mobile-header-logo[\s\S]{0,180}\{brandInitials\}/);
+  assert.doesNotMatch(source, /sf-header-logo-chip[\s\S]{0,180}\{brandInitials\}/);
 });

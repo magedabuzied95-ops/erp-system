@@ -688,6 +688,9 @@ const normalizeStorefrontBrand = (brand = {}) => {
 
 const storefrontHomeStateFromResponse = (response, { loading = false } = {}) => {
   const home = getStorefrontHomeFromResponse(response);
+  if (home?.mirror_filter_slug !== STOREFRONT_HOME_MIRROR_FILTER_SLUG) {
+    return { loading, error: "", hero: null, mirrorProducts: [], collections: [] };
+  }
   const normalizedHero = home.hero ? normalizeHomeProduct(home.hero) : null;
   const hero = normalizedHero && isMirrorProduct(normalizedHero) ? normalizedHero : null;
   const mirrorProducts = (Array.isArray(home.mirror_products) ? home.mirror_products : [])
@@ -700,35 +703,42 @@ const storefrontHomeStateFromResponse = (response, { loading = false } = {}) => 
 };
 
 const useStorefrontHome = () => {
-  const [initialHome] = useState(() => {
-    const memoryHome = getCachedStorefrontGetData(STOREFRONT_HOME_REQUEST_URL, { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS });
-    return memoryHome || readPersistedStorefrontHome();
+  const requestSequenceRef = useRef(0);
+  const [state, setState] = useState({
+    loading: true,
+    error: "",
+    hero: null,
+    mirrorProducts: [],
+    collections: [],
   });
-  const [state, setState] = useState(() => (
-    initialHome
-      ? storefrontHomeStateFromResponse(initialHome)
-      : { loading: true, error: "", hero: null, mirrorProducts: [], collections: [] }
-  ));
 
   useEffect(() => {
     let cancelled = false;
+    const requestId = ++requestSequenceRef.current;
+    setState({ loading: true, error: "", hero: null, mirrorProducts: [], collections: [] });
     cachedStorefrontGet(STOREFRONT_HOME_REQUEST_URL, {
       ttlMs: STOREFRONT_HOME_CACHE_TTL_MS,
-      forceRefresh: Boolean(initialHome),
+      forceRefresh: true,
       persist: true,
     })
       .then((json) => {
-        if (!cancelled) setState(storefrontHomeStateFromResponse(json));
+        if (cancelled || requestId !== requestSequenceRef.current) return;
+        const nextState = storefrontHomeStateFromResponse(json);
+        if (!nextState.hero && !nextState.mirrorProducts.length && getStorefrontHomeFromResponse(json)?.mirror_filter_slug !== STOREFRONT_HOME_MIRROR_FILTER_SLUG) {
+          throw new Error("Storefront home response did not match the Mirror Original filter");
+        }
+        setState(nextState);
       })
       .catch((error) => {
-        if (!cancelled && error?.cause?.name !== "AbortError") {
-          if (!initialHome) setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, mirrorProducts: [], collections: [] });
+        if (!cancelled && requestId === requestSequenceRef.current && error?.cause?.name !== "AbortError") {
+          setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, mirrorProducts: [], collections: [] });
         }
       });
     return () => {
       cancelled = true;
+      requestSequenceRef.current += 1;
     };
-  }, [initialHome]);
+  }, []);
 
   return state;
 };
@@ -1700,9 +1710,9 @@ const storefrontPrefetchedDetails = new Set();
 const STOREFRONT_GET_CACHE_TTL_MS = 60 * 1000;
 const STOREFRONT_PRODUCTS_CACHE_TTL_MS = 30 * 1000;
 const STOREFRONT_HOME_CACHE_TTL_MS = 60 * 1000;
-const STOREFRONT_HOME_REQUEST_URL = "/storefront/home?catalog=mirror-v2";
-const STOREFRONT_HOME_PERSISTED_CACHE_KEY = "storefront.home.bootstrap.v2";
-const STOREFRONT_HOME_PERSISTED_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const STOREFRONT_HOME_MIRROR_FILTER_SLUG = "mirror_original";
+const STOREFRONT_HOME_REQUEST_URL = `/storefront/home?quality_slug=${STOREFRONT_HOME_MIRROR_FILTER_SLUG}&in_stock=1&limit=12&catalog=mirror-v3`;
+const STOREFRONT_HOME_PERSISTED_CACHE_KEY = "storefront.home.bootstrap.v3.mirror_original";
 const STOREFRONT_BRANDS_CACHE_TTL_MS = 10 * 60 * 1000;
 const STOREFRONT_GENDER_CACHE_TTL_MS = 10 * 60 * 1000;
 const STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS = 60 * 1000;
@@ -1710,20 +1720,6 @@ const STOREFRONT_PREFETCH_LIMIT = 12;
 const storefrontDebugLog = (label, payload = {}) => {
   if (!import.meta.env.DEV) return;
   console.log(label, payload);
-};
-const readPersistedStorefrontHome = () => {
-  if (typeof window === "undefined") return null;
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(STOREFRONT_HOME_PERSISTED_CACHE_KEY) || "null");
-    const cachedAt = Number(parsed?.at || 0);
-    if (!cachedAt || Date.now() - cachedAt > STOREFRONT_HOME_PERSISTED_MAX_AGE_MS || !parsed?.data) {
-      window.localStorage.removeItem(STOREFRONT_HOME_PERSISTED_CACHE_KEY);
-      return null;
-    }
-    return parsed.data;
-  } catch {
-    return null;
-  }
 };
 const persistStorefrontHome = (data) => {
   if (typeof window === "undefined" || !data) return;
@@ -4762,7 +4758,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
+function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
   const preferredHeaderLogoUrl = headerLogoUrl || brandLogoUrl;
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
   const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
@@ -4774,8 +4770,11 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
     ? `${resolvedHeaderLogoUrl.split("?")[0].replace(mOneHeaderLogoPattern, `/branding/m-one-wordmark-${mOneHeaderLogoVariant}.png`)}?v=20220228`
     : resolvedHeaderLogoUrl;
   const mOneHeaderLayerUrl = (layer) => `/branding/m-one-logo-${mOneHeaderLogoVariant}-${layer}.png?v=20260716`;
+  const primaryHeaderLogoUrl = useAnimatedMOneHeaderLogo
+    ? mOneHeaderLayerUrl("fixed")
+    : displayedHeaderLogoUrl;
   const { i18n: storefrontI18n, t } = useTranslation();
-  const brandInitials = resolveBrandInitials(brandName);
+  const [logoStatus, setLogoStatus] = useState("loading");
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -4794,6 +4793,70 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
     fileType: "",
   });
   const [imageSearchOpen, setImageSearchOpen] = useState(false);
+
+  useEffect(() => {
+    if (brandSettingsLoading) {
+      setLogoStatus("loading");
+      return undefined;
+    }
+    if (!primaryHeaderLogoUrl) {
+      setLogoStatus("error");
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLogoStatus("loading");
+    const preload = document.createElement("link");
+    preload.rel = "preload";
+    preload.as = "image";
+    preload.href = primaryHeaderLogoUrl;
+    preload.dataset.storefrontHeaderLogoPreload = "true";
+    document.head.appendChild(preload);
+
+    const image = new Image();
+    image.onload = () => {
+      if (!cancelled) setLogoStatus("loaded");
+    };
+    image.onerror = () => {
+      if (!cancelled) setLogoStatus("error");
+    };
+    image.src = primaryHeaderLogoUrl;
+
+    return () => {
+      cancelled = true;
+      preload.remove();
+    };
+  }, [brandSettingsLoading, primaryHeaderLogoUrl]);
+
+  const renderHeaderLogo = ({ mobile = false } = {}) => {
+    const frameClassName = mobile
+      ? "sf-header-wordmark relative inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden bg-transparent transition"
+      : "sf-header-wordmark relative inline-flex h-[72px] w-[82px] shrink-0 items-center justify-center overflow-hidden bg-transparent transition group-hover:scale-[1.02]";
+    const imageSize = mobile ? 160 : 240;
+
+    return (
+      <span className={frameClassName} aria-busy={logoStatus === "loading"}>
+        {logoStatus === "loading" ? (
+          <span data-testid="storefront-logo-loading" className="sf-skeleton-shimmer block h-full w-full rounded-full bg-white/10" aria-hidden="true" />
+        ) : null}
+        {logoStatus === "loaded" ? (
+          useAnimatedMOneHeaderLogo ? (
+            <>
+              <img src={mOneHeaderLayerUrl("fixed")} alt={brandName} className="absolute inset-0 block h-full w-full object-contain" decoding="async" width={imageSize} height={imageSize} />
+              <img src={mOneHeaderLayerUrl("m")} alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 block h-full w-full object-contain" decoding="async" width={imageSize} height={imageSize} />
+            </>
+          ) : (
+            <img src={displayedHeaderLogoUrl} alt={brandName} className="block h-full w-full object-contain" decoding="async" width={imageSize} height={imageSize} />
+          )
+        ) : null}
+        {logoStatus === "error" ? (
+          <span data-testid="storefront-logo-fallback" className="grid h-full w-full place-items-center rounded-full bg-white/10" aria-label={brandName}>
+            <ShoppingBag className={mobile ? "h-6 w-6" : "h-7 w-7"} aria-hidden="true" />
+          </span>
+        ) : null}
+      </span>
+    );
+  };
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState(() => readJson(SEARCH_RECENT_KEY, []));
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
@@ -5196,20 +5259,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
-              {preferredHeaderLogoUrl ? (
-                <span className="sf-header-wordmark relative inline-flex h-14 w-14 items-center justify-center transition">
-                    {useAnimatedMOneHeaderLogo ? (
-                    <>
-                      <img src={mOneHeaderLayerUrl("fixed")} alt={brandName} className="absolute inset-0 block h-full w-full object-contain" decoding="async" width="160" height="160" />
-                      <img src={mOneHeaderLayerUrl("m")} alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 block h-full w-full object-contain" decoding="async" width="160" height="160" />
-                    </>
-                  ) : (
-                    <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="160" height="160" />
-                  )}
-                </span>
-              ) : (
-                <span className="sf-mobile-header-logo grid h-12 w-12 place-items-center rounded-full text-[0.7rem] font-black tracking-[0.16em] transition">{brandInitials}</span>
-              )}
+              {renderHeaderLogo({ mobile: true })}
             </Link>
             <div className="flex items-center">
               <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title")} type="button">
@@ -5258,20 +5308,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             </button>
             <span className="sf-header-divider hidden h-12 w-px md:block" />
             <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
-              {preferredHeaderLogoUrl ? (
-                <span className="sf-header-wordmark relative inline-flex h-[72px] w-[82px] items-center justify-center bg-transparent transition group-hover:scale-[1.02]">
-                    {useAnimatedMOneHeaderLogo ? (
-                    <>
-                      <img src={mOneHeaderLayerUrl("fixed")} alt={brandName} className="absolute inset-0 block h-full w-full object-contain" decoding="async" width="240" height="240" />
-                      <img src={mOneHeaderLayerUrl("m")} alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 block h-full w-full object-contain" decoding="async" width="240" height="240" />
-                    </>
-                  ) : (
-                    <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="240" height="240" />
-                  )}
-                </span>
-              ) : (
-                <span className="sf-header-logo-chip grid h-16 w-16 place-items-center rounded-full text-sm font-black tracking-[0.16em] text-white transition group-hover:scale-[1.02] md:h-[68px] md:w-[68px]">{brandInitials}</span>
-              )}
+              {renderHeaderLogo()}
             </Link>
           </div>
           <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
@@ -10060,6 +10097,7 @@ function Storefront() {
   const [profile, setProfile] = useState(() => normalizeStorefrontProfile(readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "", customer_id: "" })));
   const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
   const [publicStoreSettings, setPublicStoreSettings] = useState({});
+  const [publicStoreSettingsLoading, setPublicStoreSettingsLoading] = useState(true);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [routeReady, setRouteReady] = useState(false);
@@ -10186,7 +10224,10 @@ function Storefront() {
         setPublicStoreSettings(normalizedSettings);
         storefrontPublicSaleModeEnabledRaw = rawSaleModeEnabled;
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setPublicStoreSettingsLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -10735,6 +10776,7 @@ function Storefront() {
           brandTagline={storefrontBrandSettings.brandTagline}
           brandLogoUrl={storefrontBrandSettings.brandLogoUrl}
           headerLogoUrl={storefrontBrandSettings.headerLogoUrl}
+          brandSettingsLoading={publicStoreSettingsLoading}
           quickActionLinks={quickActionLinks}
           mobileMenuOpen={mobileMenuOpen}
           setMobileMenuOpen={setMobileMenuOpen}

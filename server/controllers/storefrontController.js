@@ -2614,13 +2614,15 @@ const productHomeCard = async (tenantId, product = {}) => ({
   link: await productHomeLink(tenantId, product),
 });
 
-const isHomeMirrorProduct = (product = {}) => {
+export const isHomeMirrorProduct = (product = {}) => {
   if (product.is_mirror === true || String(product.is_mirror || "").toLowerCase() === "true") return true;
   const aliases = new Set(["mirror", "mirror_original", "mirror original", "original_mirror", "original mirror"]);
   return [product.grade, product.grade_slug, product.grade_name]
     .map((value) => toText(value).toLowerCase().replace(/[-\s]+/g, "_"))
     .some((value) => aliases.has(value) || aliases.has(value.replace(/_/g, " ")));
 };
+
+const STOREFRONT_HOME_MIRROR_FILTER_SLUG = "mirror_original";
 
 const isHomeSaleProduct = (product = {}) => {
   const salePrice = roundMoney(product.sale_price);
@@ -2675,7 +2677,7 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   await ensureProductVariantImagesSchema();
   const pricingSettings = normalizeStorefrontPricingSettings(settings || await getWebsiteSettings({ tenantId }));
   const filters = { gender: [], productType: [], grade: [], quality: [], size: "", inStock: true };
-  const mirrorFilters = { ...filters, quality: storefrontQualityAliases("mirror_original") };
+  const mirrorFilters = { ...filters, quality: storefrontQualityAliases(STOREFRONT_HOME_MIRROR_FILTER_SLUG) };
   let [result, mirrorResult] = await Promise.all([
     queryProducts(tenantId, "", "", filters, false, 80, 0),
     queryProducts(tenantId, "", "", mirrorFilters, false, 12, 0),
@@ -2698,7 +2700,15 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
     .sort((a, b) => homeNewestScore(b) - homeNewestScore(a) || toNumber(b.total_stock) - toNumber(a.total_stock));
 
   if (!products.length) {
-    return { hero: null, featured_collections: [], source: "empty", product_count: 0, used_tenant_fallback: usedTenantFallback };
+    return {
+      hero: null,
+      mirror_products: [],
+      featured_collections: [],
+      source: "empty",
+      product_count: 0,
+      used_tenant_fallback: usedTenantFallback,
+      mirror_filter_slug: STOREFRONT_HOME_MIRROR_FILTER_SLUG,
+    };
   }
 
   const latest = products;
@@ -2736,6 +2746,7 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
     source: "products",
     product_count: products.length,
     used_tenant_fallback: usedTenantFallback,
+    mirror_filter_slug: STOREFRONT_HOME_MIRROR_FILTER_SLUG,
   };
 };
 

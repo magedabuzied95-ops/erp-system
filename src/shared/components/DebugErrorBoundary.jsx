@@ -6,18 +6,23 @@ import {
   recoverFromChunkLoadError,
 } from "../utils/chunkLoadRecovery";
 
-function ChunkReloadFallback() {
+function ChunkReloadFallback({ showAction = false }) {
   return (
     <div dir="rtl" className="flex min-h-screen items-center justify-center bg-stone-950 px-4 text-white">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.06] p-6 text-center shadow-2xl">
-        <h1 className="text-2xl font-black">{i18n.t("common.reloadAfterUpdate")}</h1>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="mt-5 rounded-full bg-white px-5 py-3 text-sm font-black text-stone-950"
-        >
-          {i18n.t("common.reload")}
-        </button>
+      <div className="flex min-h-32 w-full max-w-md flex-col items-center justify-center text-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-white" aria-hidden="true" />
+        {showAction ? (
+          <>
+            <h1 className="mt-5 text-lg font-black">{i18n.t("common.reloadAfterUpdate")}</h1>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-full bg-white px-5 py-3 text-sm font-black text-stone-950"
+            >
+              {i18n.t("common.reload")}
+            </button>
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -26,7 +31,8 @@ function ChunkReloadFallback() {
 export default class DebugErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null, info: null };
+    this.state = { error: null, info: null, showChunkAction: false };
+    this.chunkActionTimer = null;
   }
 
   static getDerivedStateFromError(error) {
@@ -37,15 +43,24 @@ export default class DebugErrorBoundary extends React.Component {
     console.error("[DebugErrorBoundary] error:", error);
     console.error("[DebugErrorBoundary] componentStack:", info?.componentStack);
     this.setState({ info });
-    recoverFromChunkLoadError(error);
+    if (isChunkLoadError(error)) {
+      recoverFromChunkLoadError(error);
+      this.chunkActionTimer = window.setTimeout(() => {
+        this.setState({ showChunkAction: true });
+      }, 8_000);
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.chunkActionTimer) window.clearTimeout(this.chunkActionTimer);
   }
 
   render() {
     const title = this.props.title || "This screen crashed";
 
     if (this.state.error) {
-      if (isChunkLoadError(this.state.error) && hasChunkReloadAttempted()) {
-        return <ChunkReloadFallback />;
+      if (isChunkLoadError(this.state.error)) {
+        return <ChunkReloadFallback showAction={hasChunkReloadAttempted() && this.state.showChunkAction} />;
       }
 
       return (
