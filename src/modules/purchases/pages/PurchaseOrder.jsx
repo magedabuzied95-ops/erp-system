@@ -5,8 +5,6 @@ import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   Barcode,
-  Boxes,
-  Building2,
   ChevronDown,
   ChevronUp,
   ClipboardCheck,
@@ -21,7 +19,6 @@ import {
   SlidersHorizontal,
   ShoppingCart,
   Trash2,
-  Truck,
   X,
 } from "lucide-react";
 
@@ -2420,13 +2417,6 @@ function PurchaseOrder() {
             </button>
           ) : null}
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <ActionTile icon={<Boxes className="h-5 w-5" />} label={t("purchases.create.addFullModel")} onClick={() => setRunModal({ mode: "full", product: groupedCards[0] || null })} disabled={!groupedCards.length} />
-            <ActionTile icon={<ReceiptText className="h-5 w-5" />} label={t("purchases.create.addSizeRun")} onClick={() => setRunModal({ mode: "size", product: groupedCards[0] || null })} disabled={!groupedCards.length} />
-            <ActionTile icon={<Building2 className="h-5 w-5" />} label={t("purchases.create.addColorRun")} onClick={() => setRunModal({ mode: "color", product: groupedCards[0] || null })} disabled={!groupedCards.length} />
-            <ActionTile icon={<Truck className="h-5 w-5" />} label={t("purchases.create.cartonMode")} onClick={() => setRunModal({ mode: "carton", product: groupedCards[0] || null })} disabled={!groupedCards.length} />
-          </div>
-
           <section className={`min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur transition-all duration-300 ${productPanelExpanded ? "flex min-h-0 flex-1 flex-col" : ""}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -2567,15 +2557,6 @@ function Banner({ tone, message }) {
       <AlertTriangle className="mr-2 inline h-4 w-4" />
       {message}
     </div>
-  );
-}
-
-function ActionTile({ icon, label, onClick, disabled }) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className="flex min-h-12 items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-2.5 text-left transition hover:border-emerald-400/30 hover:bg-emerald-400/10 disabled:opacity-40">
-      <span className="rounded-lg bg-emerald-500/10 p-1.5 text-emerald-300">{icon}</span>
-      <span className="text-xs font-black text-white">{label}</span>
-    </button>
   );
 }
 
