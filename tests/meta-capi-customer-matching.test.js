@@ -45,3 +45,10 @@ test("Meta Test Events code is server-side and environment controlled", () => {
   assert.match(capiSource, /M1_META_TEST_EVENT_CODE \|\| process\.env\.META_TEST_EVENT_CODE/);
   assert.match(capiSource, /if \(isProduction\) return ""/);
 });
+
+test("CAPI tries the connected user token before page-token fallbacks", () => {
+  assert.match(capiSource, /SELECT long_lived_user_token AS token, 1 AS priority/);
+  assert.match(capiSource, /SELECT access_token_encrypted AS token, 2 AS priority/);
+  assert.match(capiSource, /SELECT page_access_token AS token, 3 AS priority/);
+  assert.match(capiSource, /for \(const token of tokens\)/);
+});

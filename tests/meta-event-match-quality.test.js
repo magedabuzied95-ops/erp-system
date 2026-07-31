@@ -9,6 +9,7 @@ import {
 import {
   buildHashedMetaUserData,
   sha256MetaValue,
+  uniqueMetaAccessTokens,
 } from "../server/services/metaConversionsApiService.js";
 import { buildMetaEventPayload, purchaseEventId } from "../src/storefront/lib/metaPixelEventPayload.js";
 
@@ -97,4 +98,11 @@ test("anonymous events contain no empty or placeholder customer matching fields"
 test("Purchase event id is stable for refresh deduplication", () => {
   assert.equal(purchaseEventId({ id: 9001 }), "m1_purchase_order_9001");
   assert.equal(purchaseEventId({ id: 9001 }), "m1_purchase_order_9001");
+});
+
+test("CAPI token candidates discard empty values and duplicate fallbacks", () => {
+  assert.deepEqual(
+    uniqueMetaAccessTokens(["", "user-token", "user-token", "page-token"]),
+    ["user-token", "page-token"]
+  );
 });

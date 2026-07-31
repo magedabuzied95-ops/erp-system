@@ -81,29 +81,45 @@ const decryptStoredToken = (value = "") => {
   decipher.setAuthTag(Buffer.from(tagRaw, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(encryptedRaw, "base64")), decipher.final()]).toString("utf8");
 };
-const storedMetaAccessToken = async (tenantId = 1) => {
+export const uniqueMetaAccessTokens = (values = []) =>
+  [...new Set((Array.isArray(values) ? values : []).map((value) => {
+    try {
+      return decryptStoredToken(value);
+    } catch {
+      return "";
+    }
+  }).map(text).filter(Boolean))];
+
+const storedMetaAccessTokens = async (tenantId = 1) => {
   try {
     const result = await db.query(
       `
-      SELECT token
+      SELECT token, priority, updated_at
       FROM (
-        SELECT COALESCE(page_access_token, access_token_encrypted, '') AS token, updated_at
+        SELECT long_lived_user_token AS token, 1 AS priority, updated_at
         FROM marketing_settings
         WHERE tenant_id = $1::integer
         UNION ALL
-        SELECT COALESCE(page_access_token_encrypted, '') AS token, updated_at
+        SELECT access_token_encrypted AS token, 2 AS priority, updated_at
+        FROM marketing_settings
+        WHERE tenant_id = $1::integer
+        UNION ALL
+        SELECT page_access_token AS token, 3 AS priority, updated_at
+        FROM marketing_settings
+        WHERE tenant_id = $1::integer
+        UNION ALL
+        SELECT page_access_token_encrypted AS token, 4 AS priority, updated_at
         FROM meta_integration_configs
         WHERE tenant_id = $1::integer
       ) candidates
       WHERE COALESCE(token, '') <> ''
-      ORDER BY updated_at DESC NULLS LAST
-      LIMIT 1
+      ORDER BY priority ASC, updated_at DESC NULLS LAST
       `,
       [Number(tenantId) || 1]
     );
-    return decryptStoredToken(result.rows?.[0]?.token || "");
+    return uniqueMetaAccessTokens((result.rows || []).map((row) => row.token));
   } catch {
-    return "";
+    return [];
   }
 };
 const cookieValue = (req, name) => {
@@ -118,13 +134,16 @@ const cookieValue = (req, name) => {
 };
 
 export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } = {}) => {
-  const token = configuredAccessToken() || await storedMetaAccessToken(tenantId);
+  const tokens = uniqueMetaAccessTokens([
+    configuredAccessToken(),
+    ...await storedMetaAccessTokens(tenantId),
+  ]);
   const pixelOrDatasetId = datasetId();
   const eventName = text(event.event_name);
   const metaEventId = text(event.event_id);
   const contentIds = Array.isArray(event.content_ids) ? event.content_ids.map(text).filter(Boolean) : [];
   const eventValue = numberValue(event.value);
-  if (!token || !pixelOrDatasetId || !eventName || !metaEventId || !contentIds.length) {
+  if (!tokens.length || !pixelOrDatasetId || !eventName || !metaEventId || !contentIds.length) {
     return { sent: false, reason: "missing_config_or_content_ids" };
   }
   if (eventName === "Purchase" && eventValue <= 0) {
@@ -157,17 +176,21 @@ export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } 
   const testEventCode = configuredTestEventCode();
   if (testEventCode) payload.test_event_code = testEventCode;
 
-  const response = await fetch(`${GRAPH_API_BASE_URL}/${encodeURIComponent(pixelOrDatasetId)}/events?access_token=${encodeURIComponent(token)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
+  let lastError = null;
+  for (const token of tokens) {
+    const response = await fetch(`${GRAPH_API_BASE_URL}/${encodeURIComponent(pixelOrDatasetId)}/events?access_token=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) {
+      return { sent: true, payload, response: body };
+    }
     const error = new Error(body?.error?.message || "Meta Conversions API request failed");
     error.status = response.status;
     error.metaResponse = body;
-    throw error;
+    lastError = error;
   }
-  return { sent: true, payload, response: body };
+  throw lastError || new Error("Meta Conversions API request failed");
 };
