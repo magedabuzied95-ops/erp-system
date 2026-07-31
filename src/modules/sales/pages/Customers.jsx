@@ -1471,8 +1471,6 @@ function CustomerProfileDrawer({
   onAdjust,
   onExportStatement,
   canExportStatement,
-  onViewOrder,
-  onEditOrder,
 }) {
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const walletBalance = Number(customer?.wallet_balance ?? customer?.balance ?? 0);
@@ -1633,6 +1631,8 @@ function CustomerStatementDrawer({
   onPayment,
   onExportStatement,
   canExportStatement,
+  onViewOrder,
+  onEditOrder,
 }) {
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const statementRows = Array.isArray(statement?.rows) ? statement.rows : walletAudit;
