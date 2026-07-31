@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
@@ -482,6 +483,7 @@ const isAdminOrManager = (user = getCurrentUser()) => {
 
 function Customers() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -887,6 +889,8 @@ function Customers() {
         onPayment={handleCustomerPayment}
         onExportStatement={handleExportStatement}
         canExportStatement={canExportStatement}
+        onViewOrder={(orderId) => navigate(`/orders/${encodeURIComponent(orderId)}`)}
+        onEditOrder={(orderId) => navigate(`/pos?editOrderId=${encodeURIComponent(orderId)}`)}
       />
     );
   }
@@ -1444,6 +1448,8 @@ function CustomerProfileDrawer({
   onAdjust,
   onExportStatement,
   canExportStatement,
+  onViewOrder,
+  onEditOrder,
 }) {
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const walletBalance = Number(customer?.wallet_balance ?? customer?.balance ?? 0);
@@ -1830,6 +1836,26 @@ function CustomerStatementDrawer({
                         </td>
                         <td className="px-3 py-3">
                           <div className="font-semibold text-zinc-200">{reference}</div>
+                          {row.order_id ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onViewOrder?.(row.order_id)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-black text-cyan-100 transition hover:bg-cyan-400/20"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                عرض الفاتورة
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onEditOrder?.(row.order_id)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/25 bg-amber-400/10 px-2.5 py-1.5 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/20"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                تعديل الفاتورة
+                              </button>
+                            </div>
+                          ) : null}
                           {row.personal_operation_type ? (
                             <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
                               {row.personal_operation_type_label || row.personal_operation_type}

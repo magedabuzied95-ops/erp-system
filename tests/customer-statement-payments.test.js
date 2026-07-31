@@ -22,6 +22,11 @@ test("customer statement has a professional payment workflow", () => {
   assert.match(customers, /المتبقي على العميل/);
   assert.match(customers, /دفعات العملاء/);
   assert.match(customers, /العودة للعملاء/);
+  assert.match(customers, /onViewOrder/);
+  assert.match(customers, /onEditOrder/);
+  assert.match(customers, /\/pos\?editOrderId=/);
+  assert.match(customers, /عرض الفاتورة/);
+  assert.match(customers, /تعديل الفاتورة/);
   assert.doesNotMatch(
     customers.match(/function CustomerStatementDrawer[\s\S]*?export default Customers;/)?.[0] || "",
     /fixed inset-0/

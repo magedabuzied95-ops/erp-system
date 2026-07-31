@@ -108,6 +108,7 @@ const WALLET_TYPE_LABELS_AR = {
 
 const normalizeWalletTransactionRow = (row = {}) => ({
   id: row.id,
+  order_id: row.order_id || (row.reference_type === "order" ? row.reference_id : null),
   transaction_type: row.transaction_type,
   transaction_type_label: WALLET_TYPE_LABELS_AR[row.transaction_type] || row.transaction_type || "حركة محفظة",
   amount: Number(row.amount || 0),
