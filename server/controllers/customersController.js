@@ -4,6 +4,7 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { calculateTier, ensureLoyaltySchema, getCustomerLoyaltySummary } from "../services/loyaltyService.js";
+import { createJournalEntry, recordFinancialAccountActivity } from "../services/accountingService.js";
 
 let customerColumnsPromise = null;
 
@@ -101,6 +102,7 @@ const WALLET_TYPE_LABELS_AR = {
   loyalty_conversion: "رصيد ولاء",
   manual_add: "إضافة يدوية",
   manual_deduct: "خصم يدوي",
+  customer_payment: "دفعة من العميل",
 };
 
 const normalizeWalletTransactionRow = (row = {}) => ({
@@ -1100,6 +1102,64 @@ const getCustomerWalletTransactions = async (customerId, tenantId, filters = {},
   return result.rows.map(normalizeWalletTransactionRow);
 };
 
+const ensureCustomerPaymentsSchema = async (clientOrPool = pool) => {
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS customer_payments (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+      payment_method VARCHAR(50) NOT NULL DEFAULT 'cash',
+      reference VARCHAR(160),
+      notes TEXT,
+      payment_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_customer_payments_statement ON customer_payments (tenant_id, customer_id, payment_date DESC, id DESC)`);
+};
+
+const getCustomerPaymentTransactions = async (customerId, tenantId, filters = {}) => {
+  await ensureCustomerPaymentsSchema(pool);
+  const where = ["cp.customer_id = $1", "($2::bigint IS NULL OR cp.tenant_id = $2::bigint)"];
+  const params = [customerId, tenantId];
+  const addParam = (value) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+  if (filters.transaction_type && filters.transaction_type !== "customer_payment") return [];
+  if (filters.date_from) where.push(`cp.payment_date >= ${addParam(filters.date_from)}::timestamp`);
+  if (filters.date_to) where.push(`cp.payment_date < (${addParam(filters.date_to)}::date + INTERVAL '1 day')`);
+  if (filters.invoice_number) where.push(`LOWER(COALESCE(cp.reference, cp.id::text, '')) LIKE ${addParam(`%${String(filters.invoice_number).toLowerCase()}%`)}`);
+  if (filters.amount_min !== undefined && filters.amount_min !== "") where.push(`cp.amount >= ${addParam(Number(filters.amount_min) || 0)}::numeric`);
+  if (filters.amount_max !== undefined && filters.amount_max !== "") where.push(`cp.amount <= ${addParam(Number(filters.amount_max) || 0)}::numeric`);
+  const result = await pool.query(
+    `
+    SELECT cp.*, COALESCE(u.name, u.email, '') AS created_by_name
+    FROM customer_payments cp
+    LEFT JOIN users u ON u.id = cp.created_by
+    WHERE ${where.join(" AND ")}
+    ORDER BY cp.payment_date DESC, cp.id DESC
+    `,
+    params
+  );
+  return result.rows.map((row) => ({
+    id: `customer-payment-${row.id}`,
+    payment_id: Number(row.id),
+    transaction_type: "customer_payment",
+    transaction_type_label: "دفعة من العميل",
+    amount: Number(row.amount || 0) * -1,
+    payment_method: row.payment_method || "cash",
+    reference_type: "customer_payment",
+    reference_id: row.reference || row.id,
+    created_by: row.created_by,
+    created_by_name: row.created_by_name || "",
+    created_at: row.payment_date || row.created_at,
+    notes: row.notes || "",
+  }));
+};
+
 const PERSONAL_SETTLEMENT_LABELS = {
   GIFT: "هدية / مصروف",
   EMPLOYEE_ADVANCE: "سلفة موظف",
@@ -1155,6 +1215,8 @@ const getCustomerPersonalTransactions = async (customerId, tenantId, filters = {
       } else {
         where.push("1 = 0");
       }
+    } else {
+      where.push("1 = 0");
     }
   }
 
@@ -1248,6 +1310,9 @@ const getCustomerCreditSaleTransactions = async (customerId, tenantId, filters =
   if (filters.invoice_number) {
     where.push(`LOWER(COALESCE(o.invoice_number, '')) LIKE ${addParam(`%${String(filters.invoice_number).toLowerCase()}%`)}`);
   }
+  if (filters.transaction_type && filters.transaction_type !== "order_payment") {
+    where.push("1 = 0");
+  }
   if (filters.amount_min !== undefined && filters.amount_min !== "") {
     where.push(`COALESCE(o.total_amount, o.total, 0) >= ${addParam(Number(filters.amount_min) || 0)}::numeric`);
   }
@@ -1324,20 +1389,20 @@ const getStatementOpeningBalance = async (customerId, tenantId, dateFrom) => {
     );
     return Number(first.rows[0]?.before_balance || 0);
   }
-
-  const previous = await pool.query(
-    `
-    SELECT after_balance
-    FROM wallet_transactions
-    WHERE customer_id = $1
-      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-      AND created_at < $3::timestamp
-    ORDER BY created_at DESC, id DESC
-    LIMIT 1
-    `,
-    [customerId, tenantId, dateFrom]
+  const fromDate = new Date(`${String(dateFrom).slice(0, 10)}T00:00:00.000Z`);
+  fromDate.setUTCDate(fromDate.getUTCDate() - 1);
+  const priorFilters = { date_to: fromDate.toISOString().slice(0, 10) };
+  const [walletRows, personalRows, creditRows, paymentRows] = await Promise.all([
+    getCustomerWalletTransactions(customerId, tenantId, priorFilters),
+    getCustomerPersonalTransactions(customerId, tenantId, priorFilters),
+    getCustomerCreditSaleTransactions(customerId, tenantId, priorFilters),
+    getCustomerPaymentTransactions(customerId, tenantId, priorFilters),
+  ]);
+  return Number(
+    [...walletRows, ...personalRows, ...creditRows, ...paymentRows]
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0)
+      .toFixed(2)
   );
-  return Number(previous.rows[0]?.after_balance || 0);
 };
 
 export const getCustomerWalletAudit = async (req, res) => {
@@ -1370,12 +1435,13 @@ export const getCustomerStatement = async (req, res) => {
       return res.status(404).json({ success: false, message: "Customer not found" });
     }
 
-    const [walletTransactions, personalTransactions, creditSaleTransactions] = await Promise.all([
+    const [walletTransactions, personalTransactions, creditSaleTransactions, customerPaymentTransactions] = await Promise.all([
       getCustomerWalletTransactions(customerId, tenantId, req.query),
       getCustomerPersonalTransactions(customerId, tenantId, req.query),
       getCustomerCreditSaleTransactions(customerId, tenantId, req.query),
+      getCustomerPaymentTransactions(customerId, tenantId, req.query),
     ]);
-    const chronological = [...walletTransactions, ...personalTransactions]
+    const chronological = [...walletTransactions, ...personalTransactions, ...customerPaymentTransactions]
       .concat(Array.isArray(creditSaleTransactions) ? creditSaleTransactions : [])
       .filter(Boolean)
       .sort((a, b) => {
@@ -1402,7 +1468,7 @@ export const getCustomerStatement = async (req, res) => {
         if (item.transaction_type === "order_payment" || item.payment_method === "credit_sale") acc.orders += Math.abs(amount);
         if (["refund", "exchange_credit"].includes(item.transaction_type)) acc.returns += Math.abs(amount);
         if (["loyalty_conversion", "manual_add"].includes(item.transaction_type)) acc.wallet_credits += Math.abs(amount);
-        if (item.transaction_type === "order_payment" && item.payment_method !== "credit_sale") acc.wallet_payments += Math.abs(amount);
+        if ((item.transaction_type === "order_payment" && item.payment_method !== "credit_sale") || item.transaction_type === "customer_payment") acc.wallet_payments += Math.abs(amount);
         if (["manual_add", "manual_deduct"].includes(item.transaction_type)) acc.manual_adjustments += amount;
         if (String(item.transaction_type || "").startsWith("personal_")) acc.personal += Math.abs(Number(item.personal_value || amount || 0));
         acc.net += amount;
@@ -1440,29 +1506,127 @@ export const adjustCustomerWallet = async (req, res) => {
 
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const customerId = Number(req.params.id);
+    const customer = await getCustomerById(customerId, tenantId);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: "Customer not found" });
+    }
     const type = String(req.body.transaction_type || req.body.type || "").trim();
     const amount = Math.abs(Number(req.body.amount || 0));
     const notes = String(req.body.notes || req.body.reason || "").trim();
-    if (!customerId || !amount || !["manual_add", "manual_deduct"].includes(type)) {
+    const isCustomerPayment = type === "customer_payment";
+    if (!customerId || !amount || !["manual_add", "manual_deduct", "customer_payment"].includes(type)) {
       return res.status(400).json({ success: false, message: "Valid wallet type and amount are required" });
     }
-    if (!notes) {
+    if (!notes && !isCustomerPayment) {
       return res.status(400).json({ success: false, message: "Manual wallet adjustment requires notes" });
+    }
+    const paymentMethod = String(req.body.payment_method || "cash").trim().toLowerCase();
+    const allowedPaymentMethods = new Set(["cash", "card", "bank_transfer", "vodafone_cash", "instapay", "wallet"]);
+    if (isCustomerPayment && !allowedPaymentMethods.has(paymentMethod)) {
+      return res.status(400).json({ success: false, message: "طريقة الدفع غير صحيحة" });
+    }
+
+    let outstandingBalance = 0;
+    if (isCustomerPayment) {
+      const [walletRows, personalRows, creditRows, paymentRows] = await Promise.all([
+        getCustomerWalletTransactions(customerId, tenantId),
+        getCustomerPersonalTransactions(customerId, tenantId),
+        getCustomerCreditSaleTransactions(customerId, tenantId),
+        getCustomerPaymentTransactions(customerId, tenantId),
+      ]);
+      outstandingBalance = [...walletRows, ...personalRows, ...creditRows, ...paymentRows]
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      if (amount > outstandingBalance + 0.009) {
+        return res.status(400).json({
+          success: false,
+          message: "قيمة الدفعة أكبر من المبلغ المستحق على العميل",
+          outstanding_balance: Number(outstandingBalance.toFixed(2)),
+        });
+      }
     }
 
     await client.query("BEGIN");
-    const wallet = await recordWalletTransaction(client, {
-      tenantId,
-      customerId,
-      type,
-      amount: type === "manual_deduct" ? -amount : amount,
-      referenceType: "manual",
-      referenceId: customerId,
-      notes,
-      userId: req.user?.id || null,
-    });
+    let wallet = null;
+    let customerPayment = null;
+    if (isCustomerPayment) {
+      await ensureCustomerPaymentsSchema(client);
+      const paymentDate = req.body.payment_date ? new Date(req.body.payment_date) : new Date();
+      if (Number.isNaN(paymentDate.getTime())) {
+        const error = new Error("تاريخ الدفعة غير صحيح");
+        error.status = 400;
+        throw error;
+      }
+      const inserted = await client.query(
+        `
+        INSERT INTO customer_payments (
+          tenant_id, customer_id, amount, payment_method, reference, notes, payment_date, created_by, created_at
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+        RETURNING *
+        `,
+        [
+          tenantId,
+          customerId,
+          amount,
+          paymentMethod,
+          String(req.body.reference || "").trim() || null,
+          notes,
+          paymentDate,
+          req.user?.id || null,
+        ]
+      );
+      customerPayment = inserted.rows[0];
+      wallet = {
+        amount: -amount,
+        beforeBalance: Number(outstandingBalance.toFixed(2)),
+        afterBalance: Number((outstandingBalance - amount).toFixed(2)),
+        balance: Number((outstandingBalance - amount).toFixed(2)),
+      };
+    } else {
+      wallet = await recordWalletTransaction(client, {
+        tenantId,
+        customerId,
+        type,
+        amount: type === "manual_deduct" ? -amount : amount,
+        referenceType: "manual",
+        referenceId: customerId,
+        notes,
+        userId: req.user?.id || null,
+      });
+    }
+    if (isCustomerPayment) {
+      const cashAccountCode = ["card", "bank_transfer"].includes(paymentMethod)
+        ? "1010"
+        : ["vodafone_cash", "instapay", "wallet"].includes(paymentMethod)
+          ? "1011"
+          : "1000";
+      await recordFinancialAccountActivity(client, {
+        tenantId,
+        paymentMethod,
+        entryType: "in",
+        sourceType: "customer_payment",
+        sourceId: customerPayment.id,
+        amount,
+        notes: notes || `دفعة من العميل ${customer.name}`,
+        createdBy: req.user?.id || null,
+        idempotent: false,
+      });
+      await createJournalEntry(client, {
+        tenantId,
+        entryNumber: `CP-${customerId}-${Date.now()}`,
+        description: `دفعة من العميل ${customer.name}`,
+        referenceType: "customer_payment",
+        referenceId: customerPayment.id,
+        createdBy: req.user?.id || null,
+        notes: notes || `دفعة عميل - ${paymentMethod}`,
+        lines: [
+          { account_code: cashAccountCode, debit: amount, credit: 0, notes },
+          { account_code: "1100", debit: 0, credit: amount, notes },
+        ],
+      });
+    }
     await client.query("COMMIT");
-    return res.status(200).json({ success: true, wallet });
+    return res.status(200).json({ success: true, wallet, payment: customerPayment, transaction_type: type });
   } catch (error) {
     await client.query("ROLLBACK");
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update wallet" });

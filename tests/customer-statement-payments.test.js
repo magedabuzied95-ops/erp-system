@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+
+const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("customer payments are stored separately from loyalty wallet adjustments", () => {
+  const controller = source("server/controllers/customersController.js");
+  assert.match(controller, /CREATE TABLE IF NOT EXISTS customer_payments/);
+  assert.match(controller, /transaction_type:\s*"customer_payment"/);
+  assert.match(controller, /recordFinancialAccountActivity/);
+  assert.match(controller, /account_code:\s*"1100"/);
+});
+
+test("customer statement has a professional payment workflow", () => {
+  const customers = source("src/modules/sales/pages/Customers.jsx");
+  assert.match(customers, /تسجيل دفعة من العميل/);
+  assert.match(customers, /payment_method/);
+  assert.match(customers, /payment_date/);
+  assert.match(customers, /المتبقي على العميل/);
+  assert.match(customers, /دفعات العملاء/);
+});

@@ -10,6 +10,7 @@ import "./Customers.m1.css";
 
 const DEFAULT_CUSTOMERS_PAGE_SIZE = 50;
 const CUSTOMER_PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+const todayInputValue = () => new Date().toISOString().slice(0, 10);
 
 const inputClass =
   "h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:bg-slate-950";
@@ -98,6 +99,7 @@ const walletTypeOptions = [
 
 const statementFilterOptions = [
   { value: "", label: "الكل", tone: "slate" },
+  { value: "customer_payment", label: "دفعات العملاء", tone: "sky" },
   { value: "order_payment", label: "مبيعات عادية", tone: "emerald" },
   { value: "personal_gift", label: "هدية (GIFT)", tone: "amber" },
   { value: "personal_employee_advance", label: "سلفة موظف (EMPLOYEE_ADVANCE)", tone: "cyan" },
@@ -122,6 +124,9 @@ const getStatementMovementMeta = (row = {}) => {
   }
   if (transactionType === "order_payment") {
     return { label: "مبيعات عادية", tone: "emerald" };
+  }
+  if (transactionType === "customer_payment") {
+    return { label: "دفعة عميل", tone: "sky" };
   }
   if (transactionType === "refund") {
     return { label: "استرداد", tone: "rose" };
@@ -274,9 +279,9 @@ const buildCustomerStatementPrintHtml = ({ statement, customer, language }) => {
               <th>التاريخ</th>
               <th>البيان</th>
               <th>رقم الفاتورة/الطلب</th>
-              <th class="num">مدين</th>
-              <th class="num">دائن</th>
-              <th class="num">الرصيد بعد الحركة</th>
+              <th class="num">دفعة/تسوية</th>
+              <th class="num">مبلغ مستحق</th>
+              <th class="num">المتبقي</th>
             </tr>
           </thead>
           <tbody>
@@ -303,9 +308,9 @@ const buildCustomerStatementPrintHtml = ({ statement, customer, language }) => {
       </section>
 
       <section class="statement-card totals-grid">
-        <div><span>إجمالي المدين</span><strong>${escapeHtml(formatMoney(totals.debit))}</strong></div>
-        <div><span>إجمالي الدائن</span><strong>${escapeHtml(formatMoney(totals.credit))}</strong></div>
-        <div><span>الرصيد النهائي</span><strong>${escapeHtml(formatMoney(finalBalance))}</strong></div>
+        <div><span>إجمالي الدفعات والتسويات</span><strong>${escapeHtml(formatMoney(totals.debit))}</strong></div>
+        <div><span>إجمالي المبالغ المستحقة</span><strong>${escapeHtml(formatMoney(totals.credit))}</strong></div>
+        <div><span>المتبقي على العميل</span><strong>${escapeHtml(formatMoney(finalBalance))}</strong></div>
       </section>
     </main>
   `;
@@ -509,6 +514,8 @@ function Customers() {
     amount_max: "",
   });
   const [adjustment, setAdjustment] = useState({ type: "manual_add", amount: "", notes: "" });
+  const [payment, setPayment] = useState({ amount: "", payment_method: "cash", payment_date: todayInputValue(), reference: "", notes: "" });
+  const [paymentSaving, setPaymentSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importPreview, setImportPreview] = useState(null);
@@ -643,6 +650,39 @@ function Customers() {
     } catch (error) {
       console.error("[customers] failed to adjust wallet:", error);
       window.alert(error?.message || "تعذر تعديل المحفظة");
+    }
+  };
+
+  const handleCustomerPayment = async (event) => {
+    event.preventDefault();
+    if (!selectedCustomer?.id || paymentSaving) return;
+    const amount = Number(payment.amount || 0);
+    if (!(amount > 0)) {
+      window.alert("أدخل مبلغ دفعة صحيح.");
+      return;
+    }
+    const currentBalance = Number(statementData?.current_balance ?? selectedCustomer?.wallet_balance ?? selectedCustomer?.balance ?? 0);
+    if (amount > currentBalance) {
+      window.alert(`الدفعة أكبر من المبلغ المستحق (${formatMoney(currentBalance)} ج.م).`);
+      return;
+    }
+    try {
+      setPaymentSaving(true);
+      await api.post(`/customers/${selectedCustomer.id}/wallet/adjust`, {
+        transaction_type: "customer_payment",
+        amount,
+        payment_method: payment.payment_method,
+        payment_date: payment.payment_date,
+        reference: payment.reference,
+        notes: payment.notes,
+      });
+      setPayment({ amount: "", payment_method: "cash", payment_date: todayInputValue(), reference: "", notes: "" });
+      await Promise.all([fetchCustomers(), fetchCustomerProfile(selectedCustomer), fetchCustomerStatement()]);
+    } catch (error) {
+      console.error("[customers] failed to record customer payment:", error);
+      window.alert(error?.message || "تعذر تسجيل دفعة العميل");
+    } finally {
+      setPaymentSaving(false);
     }
   };
 
@@ -1160,12 +1200,16 @@ function Customers() {
           setFilters={setFilters}
           adjustment={adjustment}
           setAdjustment={setAdjustment}
+          payment={payment}
+          setPayment={setPayment}
+          paymentSaving={paymentSaving}
           onClose={() => {
             setSelectedCustomer(null);
             setStatementData(null);
             setStatementError("");
           }}
           onAdjust={handleManualAdjustment}
+          onPayment={handleCustomerPayment}
           onExportStatement={handleExportStatement}
           canExportStatement={canExportStatement}
         />
@@ -1549,8 +1593,12 @@ function CustomerStatementDrawer({
   setFilters,
   adjustment,
   setAdjustment,
+  payment,
+  setPayment,
+  paymentSaving,
   onClose,
   onAdjust,
+  onPayment,
   onExportStatement,
   canExportStatement,
 }) {
@@ -1618,20 +1666,65 @@ function CustomerStatementDrawer({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الاسم</div>
-            <div className="mt-2 text-xl font-black text-white">{customerName}</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الرصيد الافتتاحي</div>
+            <div className="mt-2 text-xl font-black text-white">{formatMoney(openingBalance)} ج.م</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الرصيد الحالي</div>
-            <div className="mt-2 text-xl font-black text-emerald-200">{formatMoney(currentBalance)}</div>
+          <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.08] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200/70">إجمالي المبالغ المستحقة</div>
+            <div className="mt-2 text-xl font-black text-amber-100">{formatMoney(totals.credit)} ج.م</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">نقاط الولاء</div>
-            <div className="mt-2 text-xl font-black text-cyan-200">{loyaltyPoints.toLocaleString("ar-EG-u-nu-latn")}</div>
+          <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.08] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-sky-200/70">إجمالي الدفعات والتسويات</div>
+            <div className="mt-2 text-xl font-black text-sky-100">{formatMoney(totals.debit)} ج.م</div>
+          </div>
+          <div className={`rounded-2xl border p-4 ${currentBalance > 0 ? "border-rose-300/25 bg-rose-400/[0.09]" : "border-emerald-300/20 bg-emerald-400/[0.08]"}`}>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">المتبقي على العميل</div>
+            <div className={`mt-2 text-2xl font-black ${currentBalance > 0 ? "text-rose-100" : "text-emerald-100"}`}>{formatMoney(currentBalance)} ج.م</div>
           </div>
         </div>
+
+        <section className="mt-5 overflow-hidden rounded-3xl border border-emerald-300/20 bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.14),transparent_42%),rgba(15,23,42,0.86)] shadow-xl shadow-black/20">
+          <div className="flex flex-col gap-2 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-lg font-black text-white">
+                <Wallet className="h-5 w-5 text-emerald-300" />
+                تسجيل دفعة من العميل
+              </div>
+              <p className="mt-1 text-sm font-semibold text-zinc-400">تخفض المبلغ المستحق وتُسجل في الخزينة وكشف الحساب والقيود المحاسبية.</p>
+            </div>
+            <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm font-black text-rose-100">
+              المستحق الآن: {formatMoney(currentBalance)} ج.م
+            </div>
+          </div>
+          <form onSubmit={onPayment} className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-[160px_170px_170px_170px_minmax(200px,1fr)_140px]">
+            <input
+              type="number"
+              min="0.01"
+              max={Math.max(0, currentBalance)}
+              step="0.01"
+              required
+              value={payment.amount}
+              onChange={(event) => setPayment((current) => ({ ...current, amount: event.target.value }))}
+              placeholder="مبلغ الدفعة"
+              className={inputClass}
+            />
+            <select value={payment.payment_method} onChange={(event) => setPayment((current) => ({ ...current, payment_method: event.target.value }))} className={inputClass}>
+              <option value="cash">نقدي</option>
+              <option value="card">بطاقة / فيزا</option>
+              <option value="bank_transfer">تحويل بنكي</option>
+              <option value="instapay">InstaPay</option>
+              <option value="vodafone_cash">Vodafone Cash</option>
+            </select>
+            <input type="date" required value={payment.payment_date} onChange={(event) => setPayment((current) => ({ ...current, payment_date: event.target.value }))} className={inputClass} />
+            <input value={payment.reference} onChange={(event) => setPayment((current) => ({ ...current, reference: event.target.value }))} placeholder="رقم مرجع (اختياري)" className={inputClass} />
+            <input value={payment.notes} onChange={(event) => setPayment((current) => ({ ...current, notes: event.target.value }))} placeholder="ملاحظات الدفعة" className={inputClass} />
+            <button type="submit" disabled={paymentSaving || currentBalance <= 0} className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40">
+              {paymentSaving ? "جاري الحفظ..." : "تسجيل الدفعة"}
+            </button>
+          </form>
+        </section>
 
         <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
@@ -1667,7 +1760,7 @@ function CustomerStatementDrawer({
         <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <PlusCircle className="h-4 w-4" />
-            تعديل يدوي للمحفظة
+            تسوية إدارية يدوية
           </div>
           <form onSubmit={onAdjust} className="grid gap-3 md:grid-cols-[180px_160px_minmax(0,1fr)_120px]">
             <select value={adjustment.type} onChange={(event) => setAdjustment((current) => ({ ...current, type: event.target.value }))} className={inputClass}>
@@ -1697,9 +1790,9 @@ function CustomerStatementDrawer({
                   <th className="px-3 py-3">التاريخ</th>
                   <th className="px-3 py-3">البيان</th>
                   <th className="px-3 py-3">رقم الفاتورة/الطلب</th>
-                  <th className="px-3 py-3 text-left">مدين</th>
-                  <th className="px-3 py-3 text-left">دائن</th>
-                  <th className="px-3 py-3 text-left">الرصيد بعد الحركة</th>
+                  <th className="px-3 py-3 text-left">دفعة/تسوية</th>
+                  <th className="px-3 py-3 text-left">مبلغ مستحق</th>
+                  <th className="px-3 py-3 text-left">المتبقي</th>
                 </tr>
               </thead>
               <tbody>
@@ -1757,15 +1850,15 @@ function CustomerStatementDrawer({
 
         <section className="mt-5 grid gap-3 md:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">إجمالي المدين</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">إجمالي الدفعات والتسويات</div>
             <div className="mt-2 text-2xl font-black text-rose-200">{formatMoney(totals.debit)}</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">إجمالي الدائن</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">إجمالي المبالغ المستحقة</div>
             <div className="mt-2 text-2xl font-black text-emerald-200">{formatMoney(totals.credit)}</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الرصيد النهائي</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">المتبقي على العميل</div>
             <div className="mt-2 text-2xl font-black text-cyan-200">{formatMoney(finalBalance)}</div>
             <div className="mt-1 text-xs font-semibold text-zinc-500">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>
           </div>
