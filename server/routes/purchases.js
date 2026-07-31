@@ -240,6 +240,7 @@ const ensurePurchaseCreateSchema = async (client) => {
     ALTER TABLE IF EXISTS purchases
       ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
       ADD COLUMN IF NOT EXISTS warehouse_id BIGINT,
+      ADD COLUMN IF NOT EXISTS branch_id BIGINT,
       ADD COLUMN IF NOT EXISTS purchase_number VARCHAR(100) NOT NULL DEFAULT 'PO-PENDING',
       ADD COLUMN IF NOT EXISTS legacy_purchase_number VARCHAR(100),
       ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL,
@@ -1193,6 +1194,35 @@ const ensureDefaultWarehouseForPurchase = async (client, tenantId, warehouseId =
   return created.rows[0].id;
 };
 
+const resolvePurchaseBranchId = async (client, tenantId, requestedBranchId = null) => {
+  const numericBranchId = Number(requestedBranchId);
+  if (Number.isInteger(numericBranchId) && numericBranchId > 0) {
+    const requested = await client.query(
+      "SELECT id FROM branches WHERE id = $1 AND tenant_id = $2 LIMIT 1",
+      [numericBranchId, tenantId]
+    );
+    if (requested.rows[0]?.id) return requested.rows[0].id;
+  }
+
+  const fallback = await client.query(
+    `
+    SELECT id
+    FROM branches
+    WHERE tenant_id = $1
+    ORDER BY
+      CASE
+        WHEN LOWER(TRIM(name)) IN (LOWER('البشبيشي'), LOWER('فرع البشبيشي')) THEN 0
+        ELSE 1
+      END,
+      CASE WHEN is_active THEN 0 ELSE 1 END,
+      id ASC
+    LIMIT 1
+    `,
+    [tenantId]
+  );
+  return fallback.rows[0]?.id || null;
+};
+
 const upsertWarehouseVariantStock = async (client, { tenantId, warehouseId, variantId, quantity }) => {
   const tableName = (await tableExists(client, "warehouse_inventory"))
     ? "warehouse_inventory"
@@ -1463,6 +1493,7 @@ const insertPurchaseHeader = async (client, data = {}) => {
   addInsertValue(insertColumns, values, columns, "tenant_id", data.tenantId);
   addInsertValue(insertColumns, values, columns, "supplier_id", data.supplierId);
   addInsertValue(insertColumns, values, columns, "warehouse_id", data.warehouseId);
+  addInsertValue(insertColumns, values, columns, "branch_id", data.branchId);
   addInsertValue(insertColumns, values, columns, "purchase_number", data.purchaseNumber || "PO-PENDING");
   addInsertValue(insertColumns, values, columns, "status", data.status);
   addInsertValue(insertColumns, values, columns, "payment_status", data.paymentStatus);
@@ -2254,7 +2285,14 @@ const purchaseBlockedMessage = (action, safety = {}) => {
 };
 
 const getBranchIdFromRequest = (req = {}) => {
-  const raw = req.user?.branch_id ?? req.user?.branchId ?? req.headers?.["x-branch-id"] ?? req.query?.branch_id ?? null;
+  const raw = req.body?.branch_id
+    ?? req.body?.branchId
+    ?? req.headers?.["x-branch-id"]
+    ?? req.query?.branch_id
+    ?? req.query?.branchId
+    ?? req.user?.branch_id
+    ?? req.user?.branchId
+    ?? null;
   const branchId = Number(raw);
   return Number.isFinite(branchId) && branchId > 0 ? branchId : null;
 };
@@ -4056,6 +4094,7 @@ router.post(
 
       const knownSupplierIds = [...new Set(validLines.map((line) => Number(line.supplier_id)).filter((value) => Number.isInteger(value) && value > 0))];
       const supplierId = await ensureDraftSupplier(client, tenantId, knownSupplierIds.length === 1 ? knownSupplierIds[0] : null);
+      const branchId = await resolvePurchaseBranchId(client, tenantId, getBranchIdFromRequest(req));
       const subtotal = validLines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.cost_price || 0), 0);
       const metadata = {
         source: "smart_reorder",
@@ -4072,6 +4111,7 @@ router.post(
         INSERT INTO purchases (
           tenant_id,
           supplier_id,
+          branch_id,
           status,
           payment_status,
           subtotal,
@@ -4080,12 +4120,13 @@ router.post(
           created_by,
           metadata
         )
-        VALUES ($1, $2, 'draft', 'unpaid', $3, $3, $4, $5, $6::jsonb)
+        VALUES ($1, $2, $3, 'draft', 'unpaid', $4, $4, $5, $6, $7::jsonb)
         RETURNING *
         `,
         [
           tenantId,
           supplierId,
+          branchId,
           subtotal,
           "Smart Reorder purchase draft",
           req.user?.id || null,
@@ -4599,6 +4640,7 @@ router.post(
         tenantId,
         supplierId: purchase.supplier_id,
         warehouseId: purchase.warehouse_id,
+        branchId: purchase.branch_id,
         status: "draft",
         paymentStatus: "unpaid",
         supplierPaymentStatus: "unpaid",
@@ -5146,6 +5188,7 @@ router.post(
 
       const supplierId = await runStep("resolve.supplier", () => ensureDefaultSupplierForPurchase(client, tenantId, requestedSupplierId));
       const warehouseId = await runStep("resolve.warehouse", () => ensureDefaultWarehouseForPurchase(client, tenantId, requestedWarehouseId));
+      const branchId = await runStep("resolve.branch", () => resolvePurchaseBranchId(client, tenantId, getBranchIdFromRequest(req)));
       const status = normalizeCreatePurchaseStatus(req.body?.status);
       const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_cost, 0);
       const discount = Number(req.body?.discount ?? req.body?.discount_amount ?? 0) || 0;
@@ -5235,6 +5278,7 @@ router.post(
         tenantId,
         supplier_id: supplierId,
         warehouse_id: warehouseId,
+        branch_id: branchId,
         status,
         paymentStatus,
         supplierPaymentStatus,
@@ -5249,6 +5293,7 @@ router.post(
         tenantId,
         supplierId,
         warehouseId,
+        branchId,
         status,
         paymentStatus,
         supplierPaymentStatus,

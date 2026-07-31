@@ -48,3 +48,16 @@ test("profit and loss does not count COGS twice as an operating expense", () => 
   assert.match(accountingService, /const grossProfit = roundMoney\(netSales - totalCogs\)/);
   assert.match(accountingService, /net_profit: roundMoney\(grossProfit - totalExpenses\)/);
 });
+
+test("purchase invoices persist branch ownership and payables honor branch filters", () => {
+  const purchaseRoutes = source("server/routes/purchases.js");
+  const reports = source("server/services/accountingReportsV2Service.js");
+  const migration = source("server/database/migrations/2026-07-31-add-purchases-branch.sql");
+
+  assert.match(purchaseRoutes, /addInsertValue\(insertColumns, values, columns, "branch_id", data\.branchId\)/);
+  assert.match(purchaseRoutes, /resolvePurchaseBranchId\(client, tenantId, getBranchIdFromRequest\(req\)\)/);
+  assert.match(reports, /branchId:\s*filters\.branchId/);
+  assert.match(reports, /branch_filter_applied:\s*purchaseColumns\.has\("branch_id"\)/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL/);
+  assert.match(migration, /LOWER\('فرع البشبيشي'\)/);
+});

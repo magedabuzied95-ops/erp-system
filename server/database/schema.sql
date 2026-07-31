@@ -1074,6 +1074,7 @@ CREATE TABLE IF NOT EXISTS purchases (
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   supplier_id BIGINT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
   warehouse_id BIGINT NULL REFERENCES warehouses(id) ON DELETE SET NULL,
+  branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
   purchase_number VARCHAR(100) NOT NULL DEFAULT ('PUR-' || EXTRACT(EPOCH FROM NOW())::BIGINT || '-' || FLOOR(RANDOM() * 1000)::INT),
   status VARCHAR(50) NOT NULL DEFAULT 'draft',
   payment_status VARCHAR(50) NOT NULL DEFAULT 'unpaid',
@@ -1088,6 +1089,9 @@ CREATE TABLE IF NOT EXISTS purchases (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (tenant_id, purchase_number)
 );
+
+CREATE INDEX IF NOT EXISTS idx_purchases_tenant_branch_created
+  ON purchases (tenant_id, branch_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS purchase_items (
   id BIGSERIAL PRIMARY KEY,

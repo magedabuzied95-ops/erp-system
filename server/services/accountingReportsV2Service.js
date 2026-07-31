@@ -445,7 +445,7 @@ export const getAccountingReportsV2Payables = async (clientOrPool, data = {}) =>
     tenantId: filters.tenantId,
     fromDate: filters.fromDate,
     toDate: filters.toDate,
-    branchId: null,
+    branchId: filters.branchId,
   });
   clauses.push(...activePurchaseClauses(purchaseColumns, "p"));
   clauses.push(`GREATEST((${totalExpr}) - COALESCE(${paidExpr}, 0), 0) > 0`);
@@ -494,6 +494,7 @@ export const getAccountingReportsV2Payables = async (clientOrPool, data = {}) =>
       GREATEST((${totalExpr}) - COALESCE(${paidExpr}, 0), 0)::numeric AS outstanding_balance,
       COALESCE(p.status, '') AS status,
       COALESCE(p.payment_status, '') AS payment_status
+      ${purchaseColumns.has("branch_id") ? ", p.branch_id" : ", NULL::bigint AS branch_id"}
     FROM purchases p
     ${supplierJoin}
     ${whereSql(clauses)}
@@ -529,11 +530,14 @@ export const getAccountingReportsV2Payables = async (clientOrPool, data = {}) =>
       outstanding_balance: roundMoney(row.outstanding_balance || 0),
       status: row.status || "",
       payment_status: row.payment_status || "",
+      branch_id: row.branch_id === null || row.branch_id === undefined ? null : Number(row.branch_id),
     })),
     meta: {
       supported: true,
-      branch_filter_applied: false,
-      branch_filter_note: "Purchases do not currently store branch_id, so branch-level payables filtering is not available.",
+      branch_filter_applied: purchaseColumns.has("branch_id"),
+      branch_filter_note: purchaseColumns.has("branch_id")
+        ? null
+        : "Purchases do not currently store branch_id, so branch-level payables filtering is not available.",
     },
   };
 };

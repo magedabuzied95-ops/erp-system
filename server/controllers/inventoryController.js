@@ -924,6 +924,22 @@ export const createPurchaseAlertsDraft = async (req, res) => {
     );
     const supplierId = await ensureDraftSupplier(client, tenantId, supplierLabel);
     const warehouseId = await getDefaultDraftWarehouseId(client, tenantId);
+    const requestedBranchId = Number(req.body?.branch_id ?? req.body?.branchId ?? req.headers?.["x-branch-id"] ?? req.user?.branch_id);
+    const branchResult = await client.query(
+      `
+      SELECT id
+      FROM branches
+      WHERE tenant_id = $1
+      ORDER BY
+        CASE WHEN id = $2 THEN 0 ELSE 1 END,
+        CASE WHEN LOWER(TRIM(name)) IN (LOWER('البشبيشي'), LOWER('فرع البشبيشي')) THEN 0 ELSE 1 END,
+        CASE WHEN is_active THEN 0 ELSE 1 END,
+        id ASC
+      LIMIT 1
+      `,
+      [tenantId, Number.isInteger(requestedBranchId) && requestedBranchId > 0 ? requestedBranchId : null]
+    );
+    const branchId = branchResult.rows[0]?.id || null;
     const draftLines = selectedAlerts.map(buildPurchaseAlertDraftItem);
     const draftSubtotal = 0;
     const draftPayload = buildPurchaseAlertDraftPayload({
@@ -942,6 +958,7 @@ export const createPurchaseAlertsDraft = async (req, res) => {
         tenant_id,
         supplier_id,
         warehouse_id,
+        branch_id,
         status,
         payment_status,
         subtotal,
@@ -953,13 +970,14 @@ export const createPurchaseAlertsDraft = async (req, res) => {
         created_by,
         metadata
       )
-      VALUES ($1, $2, $3, 'draft', 'unpaid', $4, 0, 0, $4, 0, $5, $6, $7::jsonb)
+      VALUES ($1, $2, $3, $4, 'draft', 'unpaid', $5, 0, 0, $5, 0, $6, $7, $8::jsonb)
       RETURNING *
       `,
       [
         tenantId,
         supplierId,
         warehouseId,
+        branchId,
         draftSubtotal,
         "Smart purchase alerts draft",
         req.user?.id || null,
