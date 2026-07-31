@@ -1120,6 +1120,112 @@ const ensureCustomerPaymentsSchema = async (clientOrPool = pool) => {
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_customer_payments_statement ON customer_payments (tenant_id, customer_id, payment_date DESC, id DESC)`);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS customer_payment_allocations (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      payment_id BIGINT NOT NULL REFERENCES customer_payments(id) ON DELETE CASCADE,
+      order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (payment_id, order_id)
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_customer_payment_allocations_order ON customer_payment_allocations (tenant_id, customer_id, order_id)`);
+};
+
+const reconcileCustomerInvoicePayments = async (clientOrPool, { tenantId, customerId }) => {
+  await ensureCustomerPaymentsSchema(clientOrPool);
+  const ordersResult = await clientOrPool.query(
+    `
+    SELECT id, COALESCE(total_amount, total, 0)::numeric AS total_amount
+    FROM orders
+    WHERE tenant_id = $1
+      AND customer_id = $2
+      AND LOWER(COALESCE(payment_method, '')) = 'credit_sale'
+      AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'refunded', 'returned')
+    ORDER BY created_at ASC, id ASC
+    FOR UPDATE
+    `,
+    [tenantId, customerId]
+  );
+  const paymentsResult = await clientOrPool.query(
+    `
+    SELECT id, amount
+    FROM customer_payments
+    WHERE tenant_id = $1 AND customer_id = $2
+    ORDER BY payment_date ASC, id ASC
+    FOR UPDATE
+    `,
+    [tenantId, customerId]
+  );
+
+  await clientOrPool.query(
+    `DELETE FROM customer_payment_allocations WHERE tenant_id = $1 AND customer_id = $2`,
+    [tenantId, customerId]
+  );
+
+  let orderIndex = 0;
+  let orderRemaining = Number(ordersResult.rows[0]?.total_amount || 0);
+  for (const paymentRow of paymentsResult.rows) {
+    let paymentRemaining = Number(paymentRow.amount || 0);
+    while (paymentRemaining > 0.009 && orderIndex < ordersResult.rows.length) {
+      if (orderRemaining <= 0.009) {
+        orderIndex += 1;
+        orderRemaining = Number(ordersResult.rows[orderIndex]?.total_amount || 0);
+        continue;
+      }
+      const allocatedAmount = Number(Math.min(paymentRemaining, orderRemaining).toFixed(2));
+      await clientOrPool.query(
+        `
+        INSERT INTO customer_payment_allocations (tenant_id, customer_id, payment_id, order_id, amount)
+        VALUES ($1,$2,$3,$4,$5)
+        `,
+        [tenantId, customerId, paymentRow.id, ordersResult.rows[orderIndex].id, allocatedAmount]
+      );
+      paymentRemaining = Number((paymentRemaining - allocatedAmount).toFixed(2));
+      orderRemaining = Number((orderRemaining - allocatedAmount).toFixed(2));
+    }
+  }
+
+  await clientOrPool.query(
+    `
+    UPDATE orders o
+    SET paid_amount = allocation.paid_amount,
+        payment_status = CASE
+          WHEN allocation.paid_amount >= COALESCE(o.total_amount, o.total, 0) - 0.009 THEN 'paid'
+          WHEN allocation.paid_amount > 0.009 THEN 'partially_paid'
+          ELSE 'unpaid'
+        END
+    FROM (
+      SELECT target.id AS order_id, COALESCE(SUM(cpa.amount), 0)::numeric AS paid_amount
+      FROM orders target
+      LEFT JOIN customer_payment_allocations cpa ON cpa.order_id = target.id
+      WHERE target.tenant_id = $1
+        AND target.customer_id = $2
+        AND LOWER(COALESCE(target.payment_method, '')) = 'credit_sale'
+        AND LOWER(COALESCE(target.status, '')) NOT IN ('cancelled', 'canceled', 'refunded', 'returned')
+      GROUP BY target.id
+    ) allocation
+    WHERE o.id = allocation.order_id
+    `,
+    [tenantId, customerId]
+  );
+};
+
+const reconcileCustomerInvoicePaymentsInTransaction = async ({ tenantId, customerId }) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await reconcileCustomerInvoicePayments(client, { tenantId, customerId });
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 const getCustomerPaymentTransactions = async (customerId, tenantId, filters = {}) => {
@@ -1138,10 +1244,18 @@ const getCustomerPaymentTransactions = async (customerId, tenantId, filters = {}
   if (filters.amount_max !== undefined && filters.amount_max !== "") where.push(`cp.amount <= ${addParam(Number(filters.amount_max) || 0)}::numeric`);
   const result = await pool.query(
     `
-    SELECT cp.*, COALESCE(u.name, u.email, '') AS created_by_name
+    SELECT
+      cp.*,
+      COALESCE(u.name, u.email, '') AS created_by_name,
+      STRING_AGG(DISTINCT o.invoice_number, ', ' ORDER BY o.invoice_number) AS allocated_invoice_numbers,
+      MIN(o.id) AS allocated_order_id,
+      COUNT(DISTINCT o.id)::int AS allocated_orders_count
     FROM customer_payments cp
     LEFT JOIN users u ON u.id = cp.created_by
+    LEFT JOIN customer_payment_allocations cpa ON cpa.payment_id = cp.id
+    LEFT JOIN orders o ON o.id = cpa.order_id
     WHERE ${where.join(" AND ")}
+    GROUP BY cp.id, u.name, u.email
     ORDER BY cp.payment_date DESC, cp.id DESC
     `,
     params
@@ -1155,6 +1269,8 @@ const getCustomerPaymentTransactions = async (customerId, tenantId, filters = {}
     payment_method: row.payment_method || "cash",
     reference_type: "customer_payment",
     reference_id: row.reference || row.id,
+    order_id: Number(row.allocated_orders_count || 0) === 1 ? Number(row.allocated_order_id) : null,
+    invoice_number: row.allocated_invoice_numbers || null,
     created_by: row.created_by,
     created_by_name: row.created_by_name || "",
     created_at: row.payment_date || row.created_at,
@@ -1284,6 +1400,7 @@ const getCustomerCreditSaleTransactions = async (customerId, tenantId, filters =
   const hasTenantId = await columnExists("orders", "tenant_id");
   const hasPaymentMethod = await columnExists("orders", "payment_method");
   const hasPaymentStatus = await columnExists("orders", "payment_status");
+  const hasPaidAmount = await columnExists("orders", "paid_amount");
   const hasItems = await tableExists("order_items");
   const where = ["o.customer_id = $1"];
   const params = [customerId];
@@ -1299,9 +1416,6 @@ const getCustomerCreditSaleTransactions = async (customerId, tenantId, filters =
   }
   if (hasPaymentMethod) {
     where.push(`LOWER(COALESCE(o.payment_method, '')) = 'credit_sale'`);
-  }
-  if (hasPaymentStatus) {
-    where.push(`LOWER(COALESCE(o.payment_status, '')) IN ('unpaid', 'due')`);
   }
   if (filters.date_from) {
     where.push(`o.created_at >= ${addParam(filters.date_from)}::timestamp`);
@@ -1330,6 +1444,8 @@ const getCustomerCreditSaleTransactions = async (customerId, tenantId, filters =
       o.created_at,
       COALESCE(o.invoice_number, CONCAT('ORD-', o.id::text)) AS invoice_number,
       COALESCE(o.total_amount, o.total, 0) AS total_amount,
+      ${hasPaidAmount ? "COALESCE(o.paid_amount, 0)" : "0"} AS paid_amount,
+      ${hasPaymentStatus ? "COALESCE(o.payment_status, 'unpaid')" : "'unpaid'"} AS payment_status,
       COALESCE(o.notes, '') AS order_note,
       STRING_AGG(
         DISTINCT NULLIF(TRIM(CONCAT(COALESCE(oi.product_name, oi.variant_name, oi.sku, 'Item'), ' x', COALESCE(oi.quantity, 1))), ''),
@@ -1358,7 +1474,9 @@ const getCustomerCreditSaleTransactions = async (customerId, tenantId, filters =
       transaction_type: "order_payment",
       transaction_type_label: "آجل",
       payment_method: "credit_sale",
-      payment_status: "unpaid",
+      payment_status: row.payment_status || "unpaid",
+      paid_amount: Number(row.paid_amount || 0),
+      remaining_amount: Math.max(0, value - Number(row.paid_amount || 0)),
       personal_operation_type: null,
       personal_operation_type_label: "",
       personal_value: 0,
@@ -1436,6 +1554,8 @@ export const getCustomerStatement = async (req, res) => {
     if (!customer) {
       return res.status(404).json({ success: false, message: "Customer not found" });
     }
+
+    await reconcileCustomerInvoicePaymentsInTransaction({ tenantId: Number(customer.tenant_id || tenantId), customerId });
 
     const [walletTransactions, personalTransactions, creditSaleTransactions, customerPaymentTransactions] = await Promise.all([
       getCustomerWalletTransactions(customerId, tenantId, req.query),
@@ -1585,6 +1705,7 @@ export const adjustCustomerWallet = async (req, res) => {
         ]
       );
       customerPayment = inserted.rows[0];
+      await reconcileCustomerInvoicePayments(client, { tenantId, customerId });
       wallet = {
         amount: -amount,
         beforeBalance: Number(outstandingBalance.toFixed(2)),

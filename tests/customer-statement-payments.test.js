@@ -12,6 +12,11 @@ test("customer payments are stored separately from loyalty wallet adjustments", 
   assert.match(controller, /account_code:\s*"1100"/);
   assert.match(controller, /tenant_id:\s*row\.tenant_id/);
   assert.match(controller, /Number\(customer\.tenant_id \|\| requestedTenantId \|\| 0\)/);
+  assert.match(controller, /CREATE TABLE IF NOT EXISTS customer_payment_allocations/);
+  assert.match(controller, /reconcileCustomerInvoicePayments/);
+  assert.match(controller, /payment_status = CASE/);
+  assert.match(controller, /'partially_paid'/);
+  assert.match(controller, /'paid'/);
 });
 
 test("customer statement has a professional payment workflow", () => {
@@ -24,6 +29,9 @@ test("customer statement has a professional payment workflow", () => {
   assert.match(customers, /العودة للعملاء/);
   assert.match(customers, /onViewOrder/);
   assert.match(customers, /onEditOrder/);
+  assert.match(customers, /مسدد بالكامل/);
+  assert.match(customers, /مسدد جزئيًا/);
+  assert.match(customers, /آجل غير مسدد/);
   assert.match(customers, /\/pos\?editOrderId=/);
   assert.match(customers, /\/customers\/\$\{encodeURIComponent\(customer\.id\)\}\/statement/);
   assert.match(customers, /useParams/);

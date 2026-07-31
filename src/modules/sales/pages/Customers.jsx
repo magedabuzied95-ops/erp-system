@@ -121,7 +121,14 @@ const getStatementMovementMeta = (row = {}) => {
     return { label: "استخدام شخصي", tone: "violet" };
   }
   if (String(row.payment_method || "").trim().toLowerCase() === "credit_sale") {
-    return { label: "آجل", tone: "amber" };
+    const paymentStatus = String(row.payment_status || "").trim().toLowerCase();
+    if (["paid", "completed", "settled"].includes(paymentStatus)) {
+      return { label: "مسدد بالكامل", tone: "emerald" };
+    }
+    if (["partially_paid", "partial"].includes(paymentStatus)) {
+      return { label: "مسدد جزئيًا", tone: "sky" };
+    }
+    return { label: "آجل غير مسدد", tone: "amber" };
   }
   if (transactionType === "order_payment") {
     return { label: "مبيعات عادية", tone: "emerald" };
