@@ -688,9 +688,6 @@ const normalizeStorefrontBrand = (brand = {}) => {
 
 const storefrontHomeStateFromResponse = (response, { loading = false } = {}) => {
   const home = getStorefrontHomeFromResponse(response);
-  if (home?.mirror_filter_slug !== STOREFRONT_HOME_MIRROR_FILTER_SLUG) {
-    return { loading, error: "", hero: null, mirrorProducts: [], collections: [] };
-  }
   const normalizedHero = home.hero ? normalizeHomeProduct(home.hero) : null;
   const hero = normalizedHero && isMirrorProduct(normalizedHero) ? normalizedHero : null;
   const mirrorProducts = (Array.isArray(home.mirror_products) ? home.mirror_products : [])
@@ -724,9 +721,6 @@ const useStorefrontHome = () => {
       .then((json) => {
         if (cancelled || requestId !== requestSequenceRef.current) return;
         const nextState = storefrontHomeStateFromResponse(json);
-        if (!nextState.hero && !nextState.mirrorProducts.length && getStorefrontHomeFromResponse(json)?.mirror_filter_slug !== STOREFRONT_HOME_MIRROR_FILTER_SLUG) {
-          throw new Error("Storefront home response did not match the Mirror Original filter");
-        }
         setState(nextState);
       })
       .catch((error) => {
