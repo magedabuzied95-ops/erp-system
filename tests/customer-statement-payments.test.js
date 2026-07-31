@@ -10,6 +10,8 @@ test("customer payments are stored separately from loyalty wallet adjustments", 
   assert.match(controller, /transaction_type:\s*"customer_payment"/);
   assert.match(controller, /recordFinancialAccountActivity/);
   assert.match(controller, /account_code:\s*"1100"/);
+  assert.match(controller, /tenant_id:\s*row\.tenant_id/);
+  assert.match(controller, /Number\(customer\.tenant_id \|\| requestedTenantId \|\| 0\)/);
 });
 
 test("customer statement has a professional payment workflow", () => {

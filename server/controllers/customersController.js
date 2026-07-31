@@ -54,6 +54,7 @@ const columnExists = async (tableName, columnName) => {
 
 const normalizeCustomerRow = (row = {}) => ({
   id: row.id ?? null,
+  tenant_id: row.tenant_id ?? null,
   name: row.name ?? "",
   phone: row.phone ?? "",
   mobile: row.mobile ?? "",
@@ -1504,11 +1505,18 @@ export const adjustCustomerWallet = async (req, res) => {
       return res.status(403).json({ success: false, message: "Admin permission required" });
     }
 
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const requestedTenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const customerId = Number(req.params.id);
-    const customer = await getCustomerById(customerId, tenantId);
+    const customer = await getCustomerById(customerId, requestedTenantId);
     if (!customer) {
       return res.status(404).json({ success: false, message: "Customer not found" });
+    }
+    const tenantId = Number(customer.tenant_id || requestedTenantId || 0) || null;
+    if (!tenantId) {
+      return res.status(422).json({
+        success: false,
+        message: "لا يمكن تسجيل الدفعة لأن العميل غير مرتبط بوحدة تشغيل",
+      });
     }
     const type = String(req.body.transaction_type || req.body.type || "").trim();
     const amount = Math.abs(Number(req.body.amount || 0));
