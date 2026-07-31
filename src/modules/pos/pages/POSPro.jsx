@@ -1120,7 +1120,8 @@ const reconcileCartWithCatalog = (cart = [], products = []) => {
     }
 
     const livePrice = getCatalogItemPrice(products, item);
-    if (nextQuantity !== Number(item.quantity || 0) || Number(item.stock || 0) !== liveStock || Number(item.price || 0) !== livePrice) {
+    const effectivePrice = item.manual_price_override ? Number(item.price || 0) : livePrice;
+    if (nextQuantity !== Number(item.quantity || 0) || Number(item.stock || 0) !== liveStock || Number(item.price || 0) !== effectivePrice) {
       changed = true;
     }
 
@@ -1129,8 +1130,9 @@ const reconcileCartWithCatalog = (cart = [], products = []) => {
       stock: liveStock,
       stock_quantity: liveStock,
       original_price: Number(item.original_price || item.regular_price || item.price || 0),
-      price: livePrice,
-      sale_price: livePrice,
+      price: effectivePrice,
+      unit_price: effectivePrice,
+      sale_price: effectivePrice,
       quantity: nextQuantity,
     });
   }
@@ -4550,6 +4552,24 @@ function POSPro() {
           : item
       )
     ), []);
+  const handleItemPrice = useCallback((key, value) => {
+    const parsed = Number(value);
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.key !== key) return item;
+        const nextPrice = Number.isFinite(parsed) && parsed > 0 ? parsed : Number(item.price || 0);
+        return {
+          ...item,
+          price: nextPrice,
+          unit_price: nextPrice,
+          sale_price: nextPrice,
+          final_price: nextPrice,
+          variant_price: nextPrice,
+          manual_price_override: true,
+        };
+      })
+    );
+  }, []);
   const showQuantityAdjustedWarning = useCallback((oldQuantity, newQuantity, availableStock) => {
     toast(
       [
@@ -7802,6 +7822,7 @@ function POSPro() {
             marketingAttribution={marketingAttribution}
             setMarketingAttribution={setMarketingAttribution}
             onItemDiscountChange={handleItemDiscount}
+            onItemPriceChange={handleItemPrice}
             invoiceDiscountType={invoiceDiscountType}
             setInvoiceDiscountType={setInvoiceDiscountType}
             invoiceDiscountValue={invoiceDiscountValue}
@@ -7946,6 +7967,7 @@ function POSPro() {
             marketingAttribution={marketingAttribution}
             setMarketingAttribution={setMarketingAttribution}
             onItemDiscountChange={handleItemDiscount}
+            onItemPriceChange={handleItemPrice}
             invoiceDiscountType={invoiceDiscountType}
             setInvoiceDiscountType={setInvoiceDiscountType}
             invoiceDiscountValue={invoiceDiscountValue}

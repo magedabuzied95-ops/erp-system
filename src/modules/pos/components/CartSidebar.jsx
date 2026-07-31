@@ -373,6 +373,7 @@ function CartSidebar({
   checkoutLabel = "Create order",
   canUsePaymobTerminal = false,
   onItemDiscountChange,
+  onItemPriceChange,
   invoiceDiscountType = "fixed",
   setInvoiceDiscountType,
   invoiceDiscountValue = 0,
@@ -703,6 +704,23 @@ function CartSidebar({
                     />
                   </label>
 
+                  <label className="inline-flex h-8 w-28 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-2 text-emerald-50">
+                    <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.08em] text-emerald-200/80">
+                      {posLabel("cart.unitPrice", "Price")}
+                    </span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={item.price}
+                      onChange={(e) => onItemPriceChange?.(item.key, e.target.value)}
+                      onBlur={(e) => {
+                        if (!(Number(e.target.value) > 0)) onItemPriceChange?.(item.key, item.original_price || 0.01);
+                      }}
+                      className="min-w-0 flex-1 bg-transparent text-right text-xs font-black text-emerald-50 outline-none"
+                    />
+                  </label>
+
                   {Number(item.original_price || 0) > Number(item.price || 0) ? (
                     <div className="hidden h-7 shrink-0 items-center gap-1.5 rounded-lg border border-amber-300/20 bg-amber-300/10 px-2 text-[10px] font-black text-[var(--text)] xl:inline-flex">
                       <span className="uppercase tracking-[0.08em] text-amber-200">{item.sale_badge || posLabel("cart.sale", "Sale")}</span>
@@ -737,12 +755,18 @@ function CartSidebar({
               <span>{posLabel("cart.subtotal", "Subtotal")}</span>
               <span className="text-zinc-200 tabular-nums">{formatCurrency(subtotalAmount)}</span>
             </div>
-            {totalDiscountAmount > 0 ? (
-              <div className="flex items-center justify-between gap-3 text-amber-100">
-                <span>{posLabel("cart.discount", "Discount")}</span>
-                <span className="tabular-nums">- {formatCurrency(totalDiscountAmount)}</span>
-              </div>
-            ) : null}
+            <div className="flex items-center justify-between gap-3 text-amber-100">
+              <button
+                type="button"
+                onClick={() => setInvoiceDiscountOpen(true)}
+                disabled={!cartHasItems}
+                className="inline-flex items-center gap-1 rounded-md border border-amber-300/25 bg-amber-300/10 px-2 py-1 text-[10px] font-black transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Percent className="h-3 w-3" />
+                {posLabel("cart.invoiceDiscount", "Invoice Discount")}
+              </button>
+              <span className="tabular-nums">- {formatCurrency(totalDiscountAmount)}</span>
+            </div>
           </div>
           <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-white/10 pt-1.5" dir="auto">
             <span className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
