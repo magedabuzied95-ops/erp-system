@@ -16,8 +16,15 @@ export default function MetaPageTracker() {
     } catch {
       storedCustomer = {};
     }
-    captureMetaBrowserIdentity();
-    initMetaPixel(storedCustomer);
+    const browserIdentity = captureMetaBrowserIdentity();
+    initMetaPixel({
+      ...storedCustomer,
+      external_id:
+        storedCustomer.external_id ||
+        storedCustomer.customer_id ||
+        storedCustomer.id ||
+        browserIdentity.externalId,
+    });
     trackMetaPageView();
   }, [location.pathname, location.search]);
 

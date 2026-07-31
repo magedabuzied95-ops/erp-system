@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { captureMetaBrowserIdentity } from "../src/shared/lib/metaBrowserAttribution.js";
 
 const eventsSource = fs.readFileSync(new URL("../src/storefront/lib/metaPixelEvents.js", import.meta.url), "utf8");
 const attributionSource = fs.readFileSync(new URL("../src/shared/lib/metaBrowserAttribution.js", import.meta.url), "utf8");
@@ -25,12 +26,60 @@ test("storefront customer token resolves the canonical customer name", () => {
   assert.match(authSource, /name = customer\.name/);
 });
 
-test("browser ClickID is forwarded while guests are not assigned a fake customer external_id", () => {
+test("browser ClickID and a stable first-party visitor id are forwarded for guest matching", () => {
   assert.match(attributionSource, /new URLSearchParams\(window\.location\.search\)\.get\("fbclid"\)/);
   assert.match(attributionSource, /fb\.1\.\$\{Date\.now\(\)\}\.\$\{fbclid\}/);
-  assert.doesNotMatch(eventsSource, /META_VISITOR_ID_KEY|metaVisitorId/);
+  assert.match(attributionSource, /META_VISITOR_ID_KEY/);
+  assert.match(attributionSource, /metaVisitorId/);
+  assert.match(attributionSource, /externalId: metaVisitorId\(\)/);
+  assert.match(eventsSource, /eventPayload\.external_id = browserIdentity\.externalId/);
   assert.match(capiSource, /cookieValue\(req, "_fbc"\)/);
   assert.match(capiSource, /cookieValue\(req, "_fbp"\)/);
+});
+
+test("the landing-page tracker initializes advanced matching with the same visitor id", () => {
+  const trackerSource = fs.readFileSync(new URL("../src/shared/components/MetaPageTracker.jsx", import.meta.url), "utf8");
+  assert.match(trackerSource, /const browserIdentity = captureMetaBrowserIdentity\(\)/);
+  assert.match(trackerSource, /browserIdentity\.externalId/);
+});
+
+test("landing on a Meta ad persists fbc, fbp and the stable visitor id across navigation", () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const cookieJar = new Map();
+  const storage = new Map();
+  globalThis.document = {};
+  Object.defineProperty(globalThis.document, "cookie", {
+    configurable: true,
+    get: () => [...cookieJar.entries()].map(([key, value]) => `${key}=${value}`).join("; "),
+    set: (value) => {
+      const [pair] = String(value).split(";");
+      const separator = pair.indexOf("=");
+      cookieJar.set(pair.slice(0, separator), pair.slice(separator + 1));
+    },
+  });
+  globalThis.window = {
+    location: { search: "?fbclid=meta-click-123" },
+    localStorage: {
+      getItem: (key) => storage.get(key) || null,
+      setItem: (key, value) => storage.set(key, value),
+    },
+  };
+  try {
+    const landing = captureMetaBrowserIdentity();
+    assert.match(landing.fbc, /^fb\.1\.\d+\.meta-click-123$/);
+    assert.match(landing.fbp, /^fb\.1\.\d+\.\d+$/);
+    assert.ok(landing.externalId);
+
+    globalThis.window.location.search = "";
+    const laterProductView = captureMetaBrowserIdentity();
+    assert.equal(laterProductView.fbc, landing.fbc);
+    assert.equal(laterProductView.fbp, landing.fbp);
+    assert.equal(laterProductView.externalId, landing.externalId);
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+  }
 });
 
 test("browser and server event paths share the exact event id for Meta deduplication", () => {

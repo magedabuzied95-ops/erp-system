@@ -49,6 +49,9 @@ const track = (eventName, payload = {}) => {
   if (!eventPayload) return null;
   if (browserIdentity.fbp) eventPayload.fbp = browserIdentity.fbp;
   if (browserIdentity.fbc) eventPayload.fbc = browserIdentity.fbc;
+  if (!eventPayload.external_id && browserIdentity.externalId) {
+    eventPayload.external_id = browserIdentity.externalId;
+  }
   const {
     event_id: id,
     email,
