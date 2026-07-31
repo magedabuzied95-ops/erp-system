@@ -170,6 +170,18 @@ const isStandaloneDisplayMode = () =>
 
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
 const POS_USE_SALE_PRICES_KEY = "pos.useSalePrices";
+const POS_OPEN_INVOICES_KEY = "erp.pos.open-invoices";
+const POS_ACTIVE_INVOICE_KEY = "erp.pos.active-invoice";
+
+const readStoredOpenInvoices = () => {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(POS_OPEN_INVOICES_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((draft) => draft?.id).slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+};
 const POS_MANIFEST_HREF = "/pos-manifest.webmanifest?v=10";
 const POS_SERVICE_WORKER_HREF = "/pos-sw.js";
 const POS_SERVICE_WORKER_VERSION = 10;
@@ -1688,6 +1700,12 @@ function POSPro() {
   const variantAddedIndicatorTimerRef = useRef(null);
   const [showAllVariantColors, setShowAllVariantColors] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState(generateInvoiceNumber());
+  const [openInvoiceDrafts, setOpenInvoiceDrafts] = useState(() => readStoredOpenInvoices());
+  const [activeInvoiceTabId, setActiveInvoiceTabId] = useState(() => {
+    const stored = readStoredOpenInvoices();
+    const requested = typeof window !== "undefined" ? window.localStorage.getItem(POS_ACTIVE_INVOICE_KEY) : "";
+    return stored.some((draft) => String(draft.id) === String(requested)) ? requested : (stored[0]?.id || `invoice-${Date.now()}`);
+  });
   const [lastOrder, setLastOrder] = useState(null);
   const [lastShareContext, setLastShareContext] = useState(null);
   const [receiptRuntimeSettings, setReceiptRuntimeSettings] = useState({
@@ -3743,6 +3761,112 @@ function POSPro() {
     [cart, computedInvoiceDiscount, serviceFee, loyaltyValidation, couponValidation]
   );
   const cartItemCount = useMemo(() => cart.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0), [cart]);
+
+  const captureCurrentInvoiceDraft = useCallback(() => ({
+    id: activeInvoiceTabId,
+    invoiceNumber,
+    cart,
+    selectedCustomerId,
+    selectedSalespersonId,
+    paymentMode,
+    cashAmount,
+    cardAmount,
+    walletAmount,
+    vodafoneCashAmount,
+    customerWalletAmount,
+    invoiceDiscountType,
+    invoiceDiscountValue,
+    invoiceDiscountReason,
+    invoiceDiscount: computedInvoiceDiscount,
+    serviceFee,
+    itemCount: cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    total: Number(cartTotals.total || 0),
+    customerName: customer?.name || customer?.customer_name || "",
+    dirty: cart.length > 0,
+    updatedAt: Date.now(),
+  }), [activeInvoiceTabId, invoiceNumber, cart, selectedCustomerId, selectedSalespersonId, paymentMode, cashAmount, cardAmount, walletAmount, vodafoneCashAmount, customerWalletAmount, invoiceDiscountType, invoiceDiscountValue, invoiceDiscountReason, computedInvoiceDiscount, serviceFee, cartTotals.total, customer]);
+
+  const applyInvoiceDraft = useCallback((draft = {}) => {
+    setCart(Array.isArray(draft.cart) ? draft.cart : []);
+    setInvoiceNumber(draft.invoiceNumber || generateInvoiceNumber());
+    setSelectedCustomerId(draft.selectedCustomerId || null);
+    setSelectedSalespersonId(draft.selectedSalespersonId || "");
+    setPaymentMode(draft.paymentMode || "");
+    setCashAmount(Number(draft.cashAmount || 0));
+    setCardAmount(Number(draft.cardAmount || 0));
+    setWalletAmount(Number(draft.walletAmount || 0));
+    setVodafoneCashAmount(Number(draft.vodafoneCashAmount || 0));
+    setCustomerWalletAmount(Number(draft.customerWalletAmount || 0));
+    setInvoiceDiscountType(normalizeInvoiceDiscountType(draft.invoiceDiscountType || defaultState.invoiceDiscountType));
+    setInvoiceDiscountValue(Number(draft.invoiceDiscountValue || 0));
+    setInvoiceDiscountReason(draft.invoiceDiscountReason || "");
+    setInvoiceDiscount(Number(draft.invoiceDiscount || 0));
+    setServiceFee(Number(draft.serviceFee || 0));
+    setCouponCode("");
+    setCouponValidation(null);
+    setExchangeState(null);
+  }, []);
+
+  useEffect(() => {
+    const current = captureCurrentInvoiceDraft();
+    setOpenInvoiceDrafts((drafts) => {
+      const existing = drafts.length ? drafts : [current];
+      const next = existing.some((draft) => String(draft.id) === String(activeInvoiceTabId))
+        ? existing.map((draft) => String(draft.id) === String(activeInvoiceTabId) ? current : draft)
+        : [...existing, current];
+      try { window.localStorage.setItem("erp.pos.open-invoices", JSON.stringify(next)); } catch { /* storage is optional */ }
+      try { window.localStorage.setItem(POS_ACTIVE_INVOICE_KEY, String(activeInvoiceTabId)); } catch { /* storage is optional */ }
+      return next;
+    });
+  }, [activeInvoiceTabId, captureCurrentInvoiceDraft]);
+
+  const handleSelectInvoiceTab = useCallback((tabId) => {
+    if (String(tabId) === String(activeInvoiceTabId)) return;
+    const current = captureCurrentInvoiceDraft();
+    const target = openInvoiceDrafts.find((draft) => String(draft.id) === String(tabId));
+    if (!target) return;
+    setOpenInvoiceDrafts((drafts) => drafts.map((draft) => String(draft.id) === String(activeInvoiceTabId) ? current : draft));
+    setActiveInvoiceTabId(target.id);
+    applyInvoiceDraft(target);
+  }, [activeInvoiceTabId, applyInvoiceDraft, captureCurrentInvoiceDraft, openInvoiceDrafts]);
+
+  const handleAddInvoiceTab = useCallback(() => {
+    if (openInvoiceDrafts.length >= 5) {
+      toast.error("الحد الأقصى 5 فواتير مفتوحة");
+      return;
+    }
+    const current = captureCurrentInvoiceDraft();
+    const next = { id: `invoice-${Date.now()}`, invoiceNumber: generateInvoiceNumber(), cart: [], itemCount: 0, total: 0, dirty: false };
+    setOpenInvoiceDrafts((drafts) => [...drafts.map((draft) => String(draft.id) === String(activeInvoiceTabId) ? current : draft), next]);
+    setActiveInvoiceTabId(next.id);
+    applyInvoiceDraft(next);
+  }, [activeInvoiceTabId, applyInvoiceDraft, captureCurrentInvoiceDraft, openInvoiceDrafts.length]);
+
+  const handleCloseInvoiceTab = useCallback((tabId, { completed = false } = {}) => {
+    const current = captureCurrentInvoiceDraft();
+    const drafts = openInvoiceDrafts.map((draft) => String(draft.id) === String(activeInvoiceTabId) ? current : draft);
+    const closing = drafts.find((draft) => String(draft.id) === String(tabId));
+    if (!completed && closing?.cart?.length && !window.confirm("الفاتورة تحتوي على منتجات. هل تريد إغلاقها؟")) return;
+    if (drafts.length === 1) {
+      const blank = { id: closing?.id || activeInvoiceTabId, invoiceNumber: generateInvoiceNumber(), cart: [], itemCount: 0, total: 0, dirty: false };
+      setOpenInvoiceDrafts([blank]);
+      setActiveInvoiceTabId(blank.id);
+      applyInvoiceDraft(blank);
+      return;
+    }
+    const remaining = drafts.filter((draft) => String(draft.id) !== String(tabId));
+    setOpenInvoiceDrafts(remaining);
+    if (String(tabId) === String(activeInvoiceTabId)) {
+      const target = remaining[0];
+      setActiveInvoiceTabId(target.id);
+      applyInvoiceDraft(target);
+    }
+  }, [activeInvoiceTabId, applyInvoiceDraft, captureCurrentInvoiceDraft, openInvoiceDrafts]);
+
+  const invoiceTabs = useMemo(() => openInvoiceDrafts.map((draft, index) => ({
+    ...draft,
+    label: draft.customerName || `فاتورة ${index + 1}`,
+  })), [openInvoiceDrafts]);
 
   const exchangeCreditAmount = Math.max(0, Number(exchangeState?.creditAmount || 0));
   const appliedExchangeCredit = Math.min(exchangeCreditAmount, Math.max(0, Number(cartTotals.total || 0)));
@@ -6134,6 +6258,7 @@ function POSPro() {
       setServiceFee(0);
       setLoyaltyRedeemPoints(0);
       handleClearSelectedCustomer();
+      handleCloseInvoiceTab(activeInvoiceTabId, { completed: true });
       refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }).then(() => {
         catalogFallbackActiveRef.current = false;
       }).catch((refreshError) => {
@@ -7855,6 +7980,11 @@ function POSPro() {
             onClearCustomer={handleClearSelectedCustomer}
             onCreateCustomerClick={openCustomerCreateModal}
             filtersModalOpen={filtersOpen}
+            invoiceTabs={invoiceTabs}
+            activeInvoiceTabId={activeInvoiceTabId}
+            onSelectInvoiceTab={handleSelectInvoiceTab}
+            onAddInvoiceTab={handleAddInvoiceTab}
+            onCloseInvoiceTab={handleCloseInvoiceTab}
           />
           </div>
         </div>
@@ -8000,6 +8130,11 @@ function POSPro() {
             onClearCustomer={handleClearSelectedCustomer}
             onCreateCustomerClick={openCustomerCreateModal}
             filtersModalOpen={filtersOpen}
+            invoiceTabs={invoiceTabs}
+            activeInvoiceTabId={activeInvoiceTabId}
+            onSelectInvoiceTab={handleSelectInvoiceTab}
+            onAddInvoiceTab={handleAddInvoiceTab}
+            onCloseInvoiceTab={handleCloseInvoiceTab}
           />
         </MobileBottomSheet>
 

@@ -403,6 +403,11 @@ function CartSidebar({
   onClearCustomer,
   onCreateCustomerClick,
   filtersModalOpen = false,
+  invoiceTabs = [],
+  activeInvoiceTabId = "",
+  onSelectInvoiceTab,
+  onAddInvoiceTab,
+  onCloseInvoiceTab,
 }) {
   const renderCountRef = useRef(0);
   const [discountLoyaltyOpen, setDiscountLoyaltyOpen] = useState(false);
@@ -566,6 +571,43 @@ function CartSidebar({
   return (
     <>
     <aside className="pos-cart-panel flex h-full min-w-0 flex-col gap-3 overflow-y-auto overflow-x-hidden xl:min-h-0" dir="auto">
+      <div className="theme-card flex items-center gap-1.5 overflow-x-auto p-2" dir="rtl">
+        {invoiceTabs.map((tab, index) => (
+          <div
+            key={tab.id}
+            className={`group inline-flex h-9 shrink-0 items-center overflow-hidden rounded-xl border transition ${
+              String(tab.id) === String(activeInvoiceTabId)
+                ? "border-amber-300/45 bg-amber-300/15 text-amber-50"
+                : "border-white/10 bg-black/20 text-zinc-400 hover:bg-white/[0.06] hover:text-white"
+            }`}
+          >
+            <button type="button" onClick={() => onSelectInvoiceTab?.(tab.id)} className="flex h-full items-center gap-2 px-3 text-xs font-black">
+              <ReceiptText className="h-3.5 w-3.5" />
+              <span>{tab.customerName || `فاتورة ${index + 1}`}</span>
+              <span className="rounded-md bg-black/25 px-1.5 py-0.5 text-[9px] tabular-nums">{tab.itemCount || 0}</span>
+              <span className="text-[9px] tabular-nums">{formatCurrency(tab.total || 0)}</span>
+              {tab.dirty ? <span className="h-1.5 w-1.5 rounded-full bg-amber-300" title="غير محفوظة" /> : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => onCloseInvoiceTab?.(tab.id)}
+              className="inline-flex h-full w-7 items-center justify-center border-r border-white/10 text-zinc-500 transition hover:bg-red-400/10 hover:text-red-200"
+              aria-label="إغلاق الفاتورة"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={onAddInvoiceTab}
+          disabled={invoiceTabs.length >= 5}
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          فاتورة
+        </button>
+      </div>
       <InvoiceCustomerPicker
         customerSearch={customerSearch}
         setCustomerSearch={setCustomerSearch}
