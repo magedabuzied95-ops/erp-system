@@ -14,6 +14,31 @@ export const toggleMultiFilterValue = (current, value) => {
 
 export const multiFilterHasValue = (value) => normalizeMultiFilterValue(value).length > 0;
 
+const isWinterCollectionOption = (option = {}) => {
+  const text = [
+    option.name,
+    option.label,
+    option.label_ar,
+    option.label_en,
+    option.value,
+    option.id,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim()
+    .toLowerCase();
+  return text.includes("شتو") || text.includes("winter");
+};
+
+export const moveWinterCollectionToEnd = (options = []) => {
+  const regular = [];
+  const winter = [];
+  (Array.isArray(options) ? options : []).forEach((option) => {
+    (isWinterCollectionOption(option) ? winter : regular).push(option);
+  });
+  return [...regular, ...winter];
+};
+
 export const multiFilterMatches = (selected, candidate) => {
   const values = normalizeMultiFilterValue(selected);
   if (values.length === 0) return true;

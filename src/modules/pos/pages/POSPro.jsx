@@ -82,6 +82,7 @@ import { canManagePosSalePrices } from "../lib/posSaleModeAccess";
 import { countUniqueVariantColors, mergeCatalogProducts } from "../lib/posCatalogMerge";
 import {
   matchesQuickFilterGroups,
+  moveWinterCollectionToEnd,
   normalizeMultiFilterValue,
   toggleMultiFilterValue,
 } from "../lib/posQuickFilterLogic";
@@ -3288,7 +3289,7 @@ function POSPro() {
 
     const counts = {
       gender: withCounts(smartClassificationOptions.gender, "gender"),
-      productType: withCounts(smartClassificationOptions.productType, "productType"),
+      productType: moveWinterCollectionToEnd(withCounts(smartClassificationOptions.productType, "productType")),
       grade: withCounts(smartClassificationOptions.grade, "grade"),
     };
     return counts;
@@ -3347,6 +3348,84 @@ function POSPro() {
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [productsAfterSmartFilters, manufacturers, manufacturerLookup]);
+
+  const draftProductsAfterSmartFilters = useMemo(() => {
+    const draftGender = draftPosFilters?.gender ?? selectedGender;
+    const draftProductType = draftPosFilters?.productType ?? selectedProductType;
+    const draftGrade = draftPosFilters?.grade ?? selectedGrade;
+
+    return productsAfterNonSmartFilters.filter(({ product }) => {
+      const matchesGender = matchesQuickFilterGroups(
+        { audienceKeys: getProductAudienceKeys(product) },
+        {
+          genders: normalizeMultiFilterValue(draftGender).map(
+            (gender) => normalizeAudienceValue(gender) || normalizeFilterValue(gender)
+          ),
+        },
+        normalizeSmartText
+      );
+      const matchesProductType =
+        draftProductType === "all" ||
+        getProductSmartFilterValue(product, "productType", smartClassificationOptions.productType) ===
+          normalizeFilterValue(draftProductType);
+      const matchesGrade =
+        draftGrade === "all" ||
+        getProductSmartFilterValue(product, "grade", smartClassificationOptions.grade) ===
+          normalizeFilterValue(draftGrade);
+      return matchesGender && matchesProductType && matchesGrade;
+    });
+  }, [
+    draftPosFilters,
+    productsAfterNonSmartFilters,
+    selectedGender,
+    selectedGrade,
+    selectedProductType,
+    smartClassificationOptions,
+  ]);
+
+  const draftBrandOptions = useMemo(() => {
+    const map = new Map();
+    draftProductsAfterSmartFilters.forEach(({ product, meta }) => {
+      const label = product.brand_name || product.brand;
+      if (!label || label === "Unbranded") return;
+      const key = meta.brandKey || `name:${normalizeSmartText(label)}`;
+      if (!map.has(key)) map.set(key, { id: key, name: label });
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [draftProductsAfterSmartFilters]);
+
+  const draftManufacturerOptions = useMemo(() => {
+    const map = new Map();
+    draftProductsAfterSmartFilters.forEach(({ product, meta }) => {
+      meta.manufacturerIds.forEach((id) => {
+        const name = manufacturerLookup.get(id) || product.manufacturer_name || product.manufacturer;
+        if (name) map.set(id, { id, name });
+      });
+      meta.manufacturerNames.forEach((name) => {
+        if (!name) return;
+        const existing = Array.from(map.values()).find((item) => normalizeSmartText(item.name) === name);
+        if (!existing) map.set(`name:${name}`, { id: `name:${name}`, name });
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [draftProductsAfterSmartFilters, manufacturerLookup]);
+
+  useEffect(() => {
+    if (!filtersOpen || !draftPosFilters) return;
+    const validBrandIds = new Set(draftBrandOptions.map((option) => String(option.id)));
+    const validManufacturerIds = new Set(draftManufacturerOptions.map((option) => String(option.id)));
+    const brands = normalizeMultiFilterValue(draftPosFilters.brands).filter((id) => validBrandIds.has(String(id)));
+    const manufacturers = normalizeMultiFilterValue(draftPosFilters.manufacturers).filter((id) =>
+      validManufacturerIds.has(String(id))
+    );
+    if (
+      brands.length === normalizeMultiFilterValue(draftPosFilters.brands).length &&
+      manufacturers.length === normalizeMultiFilterValue(draftPosFilters.manufacturers).length
+    ) {
+      return;
+    }
+    setDraftPosFilters((current) => ({ ...(current || {}), brands, manufacturers }));
+  }, [draftBrandOptions, draftManufacturerOptions, draftPosFilters, filtersOpen]);
 
   const visibleProducts = useMemo(() => {
     const query = normalizeSmartText(deferredSearch.trim());
@@ -7337,10 +7416,10 @@ function POSPro() {
             onProductTypeChange={(value) => updateDraftSingleFilter("productType", value)}
             selectedGrade={draftPosFilters?.grade ?? selectedGrade}
             onGradeChange={(value) => updateDraftSingleFilter("grade", value)}
-            brandOptions={brandOptions}
+            brandOptions={draftBrandOptions}
             selectedBrandId={draftPosFilters?.brands ?? selectedBrandId}
             onBrandChange={(value) => updateDraftMultiFilter("brands", value)}
-            manufacturerOptions={manufacturerOptions}
+            manufacturerOptions={draftManufacturerOptions}
             selectedManufacturerId={draftPosFilters?.manufacturers ?? selectedManufacturerId}
             onManufacturerChange={(value) => updateDraftMultiFilter("manufacturers", value)}
             activeSmartFilterCount={activeSmartFilterCount}

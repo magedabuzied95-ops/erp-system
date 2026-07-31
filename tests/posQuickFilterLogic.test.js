@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   matchesQuickFilterGroups,
+  moveWinterCollectionToEnd,
   toggleMultiFilterValue,
 } from "../src/modules/pos/lib/posQuickFilterLogic.js";
 
@@ -11,6 +12,19 @@ const product = ({ audienceKeys = [], brandKey = "", manufacturerIds = [], manuf
   brandKey,
   manufacturerIds: new Set(manufacturerIds),
   manufacturerNames,
+});
+
+test("winter collection moves after the other product types without reordering them", () => {
+  const options = [
+    { id: "winter", name: "كولكشن شتوي" },
+    { id: "shoes", name: "Shoes" },
+    { id: "bags", name: "Bags" },
+  ];
+
+  assert.deepEqual(
+    moveWinterCollectionToEnd(options).map((option) => option.id),
+    ["shoes", "bags", "winter"]
+  );
 });
 
 test("quick filters support gender OR and empty selections show all", () => {
