@@ -1885,27 +1885,27 @@ function CustomerStatementDrawer({
             </div>
           ) : null}
           <div className="overflow-x-auto">
-            <table className="min-w-[1080px] w-full border-collapse text-sm">
-              <thead className="bg-black/20">
+            <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-sm">
+              <thead className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-xl">
                 <tr className="border-b border-white/10 text-right text-xs font-black text-zinc-400">
                   <th className="w-[150px] px-5 py-4">التاريخ</th>
-                  <th className="px-5 py-4">البيان</th>
-                  <th className="w-[260px] px-5 py-4">المرجع</th>
+                  <th className="min-w-[330px] px-5 py-4">البيان والمرجع</th>
                   <th className="w-[150px] px-5 py-4 text-center">
-                    <span className="text-rose-200">مدين</span>
+                    <span className="text-rose-200">مدين / فاتورة</span>
                     <span className="mt-1 block text-[10px] font-semibold text-zinc-600">مستحق على العميل</span>
                   </th>
                   <th className="w-[150px] px-5 py-4 text-center">
-                    <span className="text-emerald-200">دائن</span>
+                    <span className="text-emerald-200">دائن / سداد</span>
                     <span className="mt-1 block text-[10px] font-semibold text-zinc-600">دفعة من العميل</span>
                   </th>
-                  <th className="w-[150px] px-5 py-4 text-center">الرصيد بعد الحركة</th>
+                  <th className="w-[160px] px-5 py-4 text-center">الرصيد</th>
+                  <th className="w-[210px] px-5 py-4 text-center">التفاصيل والإجراءات</th>
                 </tr>
               </thead>
               <tbody>
                 {auditLoading ? (
                   <tr>
-                    <td colSpan="6" className="px-3 py-10 text-center text-sm font-bold text-emerald-300">جاري تحميل كشف الحساب...</td>
+                    <td colSpan="7" className="px-3 py-10 text-center text-sm font-bold text-emerald-300">جاري تحميل كشف الحساب...</td>
                   </tr>
                 ) : statementRows.length ? (
                   statementRows.map((row, index) => {
@@ -1922,23 +1922,47 @@ function CustomerStatementDrawer({
                       row.notes ? `ملاحظة: ${row.notes}` : "",
                     ].filter(Boolean).join(" • ");
                     return (
-                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="border-b border-white/5 align-middle text-zinc-200 transition hover:bg-white/[0.025]">
-                        <td className="whitespace-nowrap px-5 py-4 text-xs font-semibold text-zinc-400">{formatDateTime(row.created_at)}</td>
-                        <td className="px-5 py-4">
-                          <div className="font-bold text-white">{rowLabel}</div>
-                          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${getStatementBadgeClass(rowMeta.tone)}`}>
-                            {rowMeta.label}
-                          </div>
-                          {rowDetails ? <div className="mt-1 text-xs leading-5 text-zinc-400">{rowDetails}</div> : null}
+                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="align-middle text-zinc-200 transition odd:bg-white/[0.018] hover:bg-emerald-400/[0.045]">
+                        <td className="border-b border-white/5 px-5 py-4">
+                          <div className="whitespace-nowrap text-xs font-black text-zinc-200">{formatDateTime(row.created_at)}</div>
+                          <div className="mt-1 text-[10px] font-bold text-zinc-600">حركة #{index + 1}</div>
                         </td>
-                        <td className="px-5 py-4">
-                          <div className="font-black text-zinc-200">{reference}</div>
+                        <td className="border-b border-white/5 px-5 py-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-black text-white">{rowLabel}</div>
+                            <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${getStatementBadgeClass(rowMeta.tone)}`}>
+                              {rowMeta.label}
+                            </div>
+                          </div>
+                          <div className="mt-2 inline-flex rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 font-black text-zinc-200" dir="ltr">{reference}</div>
+                          {rowDetails ? <div className="mt-2 max-w-xl text-xs leading-5 text-zinc-400">{rowDetails}</div> : null}
+                        </td>
+                        <td className="border-b border-white/5 px-5 py-4 text-center">
+                          {debit ? (
+                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 font-black tabular-nums text-rose-100">
+                              {debit}
+                            </span>
+                          ) : <span className="text-zinc-700">—</span>}
+                        </td>
+                        <td className="border-b border-white/5 px-5 py-4 text-center">
+                          {credit ? (
+                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 font-black tabular-nums text-emerald-100">
+                              {credit}
+                            </span>
+                          ) : <span className="text-zinc-700">—</span>}
+                        </td>
+                        <td className="border-b border-white/5 px-5 py-4 text-center">
+                          <span className="inline-flex min-w-[115px] justify-center rounded-xl border border-cyan-300/15 bg-cyan-400/[0.07] px-3 py-2 font-black tabular-nums text-cyan-100">
+                            {formatMoney(row.after_balance)}
+                          </span>
+                        </td>
+                        <td className="border-b border-white/5 px-5 py-4">
                           {row.order_id ? (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="grid gap-2">
                               <button
                                 type="button"
                                 onClick={() => onViewOrder?.(row.order_id)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-black text-cyan-100 transition hover:bg-cyan-400/20"
+                                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-[11px] font-black text-cyan-100 transition hover:bg-cyan-400/20"
                               >
                                 <FileText className="h-3.5 w-3.5" />
                                 عرض الفاتورة
@@ -1946,44 +1970,25 @@ function CustomerStatementDrawer({
                               <button
                                 type="button"
                                 onClick={() => onEditOrder?.(row.order_id)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/25 bg-amber-400/10 px-2.5 py-1.5 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/20"
+                                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/20"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                                 تعديل الفاتورة
                               </button>
                             </div>
-                          ) : null}
+                          ) : <span className="block text-center text-xs font-semibold text-zinc-600">حركة بدون فاتورة</span>}
                           {row.personal_operation_type ? (
-                            <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
+                            <div className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
                               {row.personal_operation_type_label || row.personal_operation_type}
                             </div>
                           ) : null}
-                        </td>
-                        <td className="px-5 py-4 text-center">
-                          {debit ? (
-                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 font-black tabular-nums text-rose-100">
-                              {debit}
-                            </span>
-                          ) : <span className="text-zinc-700">—</span>}
-                        </td>
-                        <td className="px-5 py-4 text-center">
-                          {credit ? (
-                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 font-black tabular-nums text-emerald-100">
-                              {credit}
-                            </span>
-                          ) : <span className="text-zinc-700">—</span>}
-                        </td>
-                        <td className="px-5 py-4 text-center">
-                          <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-cyan-300/15 bg-cyan-400/[0.07] px-3 py-2 font-black tabular-nums text-cyan-100">
-                            {formatMoney(row.after_balance)}
-                          </span>
                         </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan="6" className="px-3 py-10 text-center text-sm text-zinc-500">لا توجد حركات مطابقة للفلاتر الحالية.</td>
+                    <td colSpan="7" className="px-3 py-10 text-center text-sm text-zinc-500">لا توجد حركات مطابقة للفلاتر الحالية.</td>
                   </tr>
                 )}
               </tbody>
@@ -1992,13 +1997,13 @@ function CustomerStatementDrawer({
         </section>
 
         <section className="mt-5 grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">إجمالي الدفعات والتسويات</div>
-            <div className="mt-2 text-2xl font-black text-rose-200">{formatMoney(totals.debit)}</div>
+          <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200/70">إجمالي الدفعات والتسويات</div>
+            <div className="mt-2 text-2xl font-black text-emerald-100">{formatMoney(totals.debit)}</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">إجمالي المبالغ المستحقة</div>
-            <div className="mt-2 text-2xl font-black text-emerald-200">{formatMoney(totals.credit)}</div>
+          <div className="rounded-2xl border border-rose-300/15 bg-rose-400/[0.06] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-200/70">إجمالي المبالغ المستحقة</div>
+            <div className="mt-2 text-2xl font-black text-rose-100">{formatMoney(totals.credit)}</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">المتبقي على العميل</div>
