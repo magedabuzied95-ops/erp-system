@@ -5128,6 +5128,9 @@ export const getProfitLossReport = async (clientOrPool, data = {}) => {
       clauses.push(`jel.branch_id = $${params.length}`);
     }
     clauses.push(`LOWER(COALESCE(a.type, '')) = 'expense'`);
+    // COGS is calculated and presented separately above. Including account 5000
+    // again in operating expenses would deduct the same cost twice from profit.
+    clauses.push(`COALESCE(a.code, '') <> '5000'`);
     const journalExpenseRows = await dbClient.query(
       `
       SELECT

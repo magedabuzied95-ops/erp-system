@@ -40,3 +40,11 @@ test("executive accounting reports support filtered CSV export and professional 
   assert.match(reports, /filters\.to_date/);
   assert.match(reports, /filters\.branch_id/);
 });
+
+test("profit and loss does not count COGS twice as an operating expense", () => {
+  const accountingService = source("server/services/accountingService.js");
+
+  assert.match(accountingService, /COALESCE\(a\.code, ''\) <> '5000'/);
+  assert.match(accountingService, /const grossProfit = roundMoney\(netSales - totalCogs\)/);
+  assert.match(accountingService, /net_profit: roundMoney\(grossProfit - totalExpenses\)/);
+});
