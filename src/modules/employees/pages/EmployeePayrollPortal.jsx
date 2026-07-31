@@ -58,6 +58,10 @@ import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
 import "./EmployeePayrollPortal.m1.css";
 
+// Temporary product decision: keep payroll data and logic intact, but hide the
+// employee-facing salary surface until it is ready to be enabled again.
+const EMPLOYEE_PORTAL_SALARY_ENABLED = false;
+
 const labels = {
   ar: {
     title: "محفظة الموظف",
@@ -1544,7 +1548,9 @@ export default function EmployeePayrollPortal() {
       setChatOpen(true);
       return;
     }
-    if (["home", "attendance", "tasks", "requests", "salary", "notifications", "display-refill"].includes(tab)) setActiveTab(tab);
+    const allowedTabs = ["home", "attendance", "tasks", "requests", "notifications", "display-refill"];
+    if (EMPLOYEE_PORTAL_SALARY_ENABLED) allowedTabs.push("salary");
+    setActiveTab(allowedTabs.includes(tab) ? tab : "home");
   }, []);
 
   const loadDisplayRefillAlerts = useCallback(async ({ silent = false, timeoutMs = EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS } = {}) => {
@@ -1752,7 +1758,7 @@ export default function EmployeePayrollPortal() {
     ["requests", text.requestsTab, MessageCircle],
     ["display-refill", ui("displayRefillTab"), AlertTriangle],
     ["attendance", text.attendanceTab, CalendarDays],
-    ["salary", ui("salaryTab"), WalletCards],
+    ...(EMPLOYEE_PORTAL_SALARY_ENABLED ? [["salary", ui("salaryTab"), WalletCards]] : []),
   ];
   const performanceData = portal?.performance || {};
   const score = performanceData.score || {};
@@ -3402,7 +3408,9 @@ export default function EmployeePayrollPortal() {
                           });
                         }
                         setPortal((current) => current ? { ...current, notifications: safeArray(current.notifications).map((row) => String(row.id) === String(item.id) ? { ...row, read_at: row.read_at || new Date().toISOString() } : row) } : current);
-                        if (item.type === "commission_earned") setActiveTab("salary");
+                        if (item.type === "commission_earned") {
+                          setActiveTab(EMPLOYEE_PORTAL_SALARY_ENABLED ? "salary" : "home");
+                        }
                         if (isDisplayRefill) setActiveTab("display-refill");
                       }}
                       className={`rounded-2xl border px-3 py-2 text-start ${isDisplayRefill ? "border-amber-200 bg-amber-50" : "border-slate-100 bg-slate-50"}`}
@@ -3577,7 +3585,7 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md grid-cols-6 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur">
+            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${EMPLOYEE_PORTAL_SALARY_ENABLED ? "grid-cols-6" : "grid-cols-5"} gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
@@ -3591,7 +3599,7 @@ export default function EmployeePayrollPortal() {
               ))}
             </nav>
 
-            {activeTab === "salary" ? (
+            {EMPLOYEE_PORTAL_SALARY_ENABLED && activeTab === "salary" ? (
               <div className="grid gap-3">
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
