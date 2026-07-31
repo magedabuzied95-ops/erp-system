@@ -484,8 +484,7 @@ function CartSidebar({
   const totalDiscountAmount = Number(totals?.itemDiscountTotal || 0) + Number(totals?.invoiceDiscount || 0) + Number(totals?.loyaltyDiscount || 0) + Number(totals?.couponDiscount || 0);
   const activeMethodCount = paymentMethods.filter((method) => methodAmounts[method.key] > 0.009).length;
   const activePaymentMethodCount = activeMethodCount + (appliedCredit > 0.009 ? 1 : 0);
-  const walletPaymentUsed = methodAmounts.wallet > 0.009;
-  const showOrderSummary = personalPaymentActive || creditSaleActive || appliedCredit > 0.009 || activeMethodCount > 1 || walletPaymentUsed || remainingAmount > 0.009 || paymentMismatch;
+  const showOrderSummary = personalPaymentActive || creditSaleActive || hasPaymentBreakdown || normalizedPaymentMode === "split";
   const hasAccountWarning = Number(paymentAccountStatus?.shortage_amount || 0) > 0 || paymentAccountStatus?.allow_negative_balance === true;
   const shouldShowPaymentDetails = editActive
     ? paymentDetailsOpen || activePaymentMethodCount > 1 || paymentMismatch
@@ -793,10 +792,12 @@ function CartSidebar({
 
         <div className="pos-cart-totals sticky bottom-0 mt-2 rounded-xl border border-emerald-300/25 bg-zinc-950/95 px-3 py-2 shadow-[0_-12px_30px_rgba(0,0,0,0.28)] backdrop-blur">
           <div className="space-y-1 text-[11px] font-bold text-zinc-400">
-            <div className="flex items-center justify-between gap-3">
-              <span>{posLabel("cart.subtotal", "Subtotal")}</span>
-              <span className="text-zinc-200 tabular-nums">{formatCurrency(subtotalAmount)}</span>
-            </div>
+            {totalDiscountAmount > 0 ? (
+              <div className="flex items-center justify-between gap-3">
+                <span>{posLabel("cart.subtotal", "Subtotal")}</span>
+                <span className="text-zinc-200 tabular-nums">{formatCurrency(subtotalAmount)}</span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-3 text-amber-100">
               <button
                 type="button"
