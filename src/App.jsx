@@ -1003,6 +1003,11 @@ function App() {
         />
 
         <Route
+          path="customers/:customerId/statement"
+          element={<Customers />}
+        />
+
+        <Route
           path="sales-employees"
           element={
             <Navigate to="/employees/employees" replace />

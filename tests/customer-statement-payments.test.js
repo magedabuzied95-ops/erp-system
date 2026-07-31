@@ -25,10 +25,12 @@ test("customer statement has a professional payment workflow", () => {
   assert.match(customers, /onViewOrder/);
   assert.match(customers, /onEditOrder/);
   assert.match(customers, /\/pos\?editOrderId=/);
+  assert.match(customers, /\/customers\/\$\{encodeURIComponent\(customer\.id\)\}\/statement/);
+  assert.match(customers, /useParams/);
   assert.match(customers, /عرض الفاتورة/);
   assert.match(customers, /تعديل الفاتورة/);
-  assert.doesNotMatch(
+  assert.match(
     customers.match(/function CustomerStatementDrawer[\s\S]*?export default Customers;/)?.[0] || "",
-    /fixed inset-0/
+    /m1-customers-page min-h-screen/
   );
 });

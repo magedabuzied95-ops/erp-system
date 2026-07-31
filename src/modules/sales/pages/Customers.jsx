@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
@@ -484,6 +484,7 @@ const isAdminOrManager = (user = getCurrentUser()) => {
 function Customers() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const { customerId: statementCustomerId } = useParams();
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -502,7 +503,9 @@ function Customers() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [allowPersonalTransactions, setAllowPersonalTransactions] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState(() => (
+    statementCustomerId ? { id: Number(statementCustomerId) || statementCustomerId } : null
+  ));
   const [profile, setProfile] = useState(null);
   const [statementData, setStatementData] = useState(null);
   const [walletAudit, setWalletAudit] = useState([]);
@@ -594,6 +597,16 @@ function Customers() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!statementCustomerId) return;
+    const routeCustomerId = Number(statementCustomerId) || statementCustomerId;
+    setStatementData(null);
+    setStatementError("");
+    setWalletAudit([]);
+    setProfile(null);
+    fetchCustomerProfile({ id: routeCustomerId });
+  }, [fetchCustomerProfile, statementCustomerId]);
+
   const fetchCustomerStatement = useCallback(async () => {
     if (!selectedCustomer?.id) return null;
     try {
@@ -627,11 +640,7 @@ function Customers() {
   }, [search]);
 
   const handleOpenProfile = (customer) => {
-    setStatementData(null);
-    setStatementError("");
-    setWalletAudit([]);
-    setProfile(null);
-    fetchCustomerProfile(customer);
+    navigate(`/customers/${encodeURIComponent(customer.id)}/statement`);
   };
 
   const handleManualAdjustment = async (event) => {
@@ -889,6 +898,7 @@ function Customers() {
           setSelectedCustomer(null);
           setStatementData(null);
           setStatementError("");
+          navigate("/customers");
         }}
         onAdjust={handleManualAdjustment}
         onPayment={handleCustomerPayment}
@@ -1852,26 +1862,44 @@ function CustomerStatementDrawer({
           </form>
         </section>
 
-        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-            <div className="text-sm font-black text-white">الحركات</div>
-            <div className="text-xs font-bold text-zinc-500">{statementRows.length.toLocaleString("ar-EG-u-nu-latn")} حركة</div>
+        <section className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]">
+          <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-lg font-black text-white">حركات كشف الحساب</div>
+              <div className="mt-1 text-xs font-semibold text-zinc-500">{statementRows.length.toLocaleString("ar-EG-u-nu-latn")} حركة مسجلة</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+              <span className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-rose-100">
+                <span className="h-2 w-2 rounded-full bg-rose-400" />
+                مدين: مبالغ مستحقة على العميل
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                دائن: دفعات وتسويات العميل
+              </span>
+            </div>
           </div>
           {statementError ? (
-            <div className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-100">
+            <div className="m-4 rounded-2xl border border-rose-300/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-100">
               {statementError}
             </div>
           ) : null}
           <div className="overflow-x-auto">
-            <table className="mt-4 min-w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-right text-xs font-black uppercase tracking-[0.14em] text-zinc-500">
-                  <th className="px-3 py-3">التاريخ</th>
-                  <th className="px-3 py-3">البيان</th>
-                  <th className="px-3 py-3">رقم الفاتورة/الطلب</th>
-                  <th className="px-3 py-3 text-left">دفعة/تسوية</th>
-                  <th className="px-3 py-3 text-left">مبلغ مستحق</th>
-                  <th className="px-3 py-3 text-left">المتبقي</th>
+            <table className="min-w-[1080px] w-full border-collapse text-sm">
+              <thead className="bg-black/20">
+                <tr className="border-b border-white/10 text-right text-xs font-black text-zinc-400">
+                  <th className="w-[150px] px-5 py-4">التاريخ</th>
+                  <th className="px-5 py-4">البيان</th>
+                  <th className="w-[260px] px-5 py-4">المرجع</th>
+                  <th className="w-[150px] px-5 py-4 text-center">
+                    <span className="text-rose-200">مدين</span>
+                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">مستحق على العميل</span>
+                  </th>
+                  <th className="w-[150px] px-5 py-4 text-center">
+                    <span className="text-emerald-200">دائن</span>
+                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">دفعة من العميل</span>
+                  </th>
+                  <th className="w-[150px] px-5 py-4 text-center">الرصيد بعد الحركة</th>
                 </tr>
               </thead>
               <tbody>
@@ -1883,8 +1911,8 @@ function CustomerStatementDrawer({
                   statementRows.map((row, index) => {
                     const amount = Number(row.amount || 0);
                     const personalValue = Number(row.personal_value || row.total_amount || 0);
-                    const debit = amount < 0 ? formatMoney(Math.abs(amount)) : "";
-                    const credit = amount > 0 ? formatMoney(amount) : "";
+                    const debit = amount > 0 ? formatMoney(amount) : "";
+                    const credit = amount < 0 ? formatMoney(Math.abs(amount)) : "";
                     const reference = row.invoice_number || row.return_number || row.reference_id || "-";
                     const rowMeta = getStatementMovementMeta(row);
                     const rowLabel = row.personal_operation_type_label || row.transaction_type_label || row.notes || row.transaction_type || "-";
@@ -1894,17 +1922,17 @@ function CustomerStatementDrawer({
                       row.notes ? `ملاحظة: ${row.notes}` : "",
                     ].filter(Boolean).join(" • ");
                     return (
-                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="border-b border-white/5 align-top text-zinc-200">
-                        <td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.created_at)}</td>
-                        <td className="px-3 py-3">
+                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="border-b border-white/5 align-middle text-zinc-200 transition hover:bg-white/[0.025]">
+                        <td className="whitespace-nowrap px-5 py-4 text-xs font-semibold text-zinc-400">{formatDateTime(row.created_at)}</td>
+                        <td className="px-5 py-4">
                           <div className="font-bold text-white">{rowLabel}</div>
-                          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
+                          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${getStatementBadgeClass(rowMeta.tone)}`}>
                             {rowMeta.label}
                           </div>
                           {rowDetails ? <div className="mt-1 text-xs leading-5 text-zinc-400">{rowDetails}</div> : null}
                         </td>
-                        <td className="px-3 py-3">
-                          <div className="font-semibold text-zinc-200">{reference}</div>
+                        <td className="px-5 py-4">
+                          <div className="font-black text-zinc-200">{reference}</div>
                           {row.order_id ? (
                             <div className="mt-2 flex flex-wrap gap-2">
                               <button
@@ -1931,9 +1959,25 @@ function CustomerStatementDrawer({
                             </div>
                           ) : null}
                         </td>
-                        <td className="px-3 py-3 text-left font-bold text-rose-200">{debit || "-"}</td>
-                        <td className="px-3 py-3 text-left font-bold text-emerald-200">{credit || "-"}</td>
-                        <td className="px-3 py-3 text-left font-bold text-cyan-200">{formatMoney(row.after_balance)}</td>
+                        <td className="px-5 py-4 text-center">
+                          {debit ? (
+                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 font-black tabular-nums text-rose-100">
+                              {debit}
+                            </span>
+                          ) : <span className="text-zinc-700">—</span>}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          {credit ? (
+                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 font-black tabular-nums text-emerald-100">
+                              {credit}
+                            </span>
+                          ) : <span className="text-zinc-700">—</span>}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-cyan-300/15 bg-cyan-400/[0.07] px-3 py-2 font-black tabular-nums text-cyan-100">
+                            {formatMoney(row.after_balance)}
+                          </span>
+                        </td>
                       </tr>
                     );
                   })
