@@ -117,9 +117,7 @@ const Accounts = lazy(() => import("./modules/accounting/pages/Accounts"));
 const GeneralLedger = lazy(() => import("./modules/accounting/pages/GeneralLedger"));
 const TrialBalance = lazy(() => import("./modules/accounting/pages/TrialBalance"));
 const FinancialReports = lazy(() => import("./modules/accounting/pages/FinancialReports"));
-const AccountingAnalytics = lazy(() => import("./modules/accounting/pages/AccountingAnalytics"));
 const ProfitAndLoss = lazy(() => import("./modules/accounting/pages/ProfitAndLoss"));
-const Taxes = lazy(() => import("./modules/accounting/pages/Taxes"));
 const CostFixCenter = lazy(() => import("./modules/accounting/pages/CostFixCenter"));
 const AuditTrail = lazy(() => import("./modules/accounting/pages/AuditTrail"));
 
@@ -1093,7 +1091,7 @@ function App() {
 
         <Route
           path="accounting/dashboard"
-          element={<Accounting />}
+          element={<Navigate to="/accounting" replace />}
         />
 
         <Route
@@ -1117,7 +1115,7 @@ function App() {
 
         <Route
           path="accounting/cash-registers"
-          element={<CashRegisters />}
+          element={<Navigate to="/accounting/cashbox" replace />}
         />
 
         <Route
@@ -1142,7 +1140,7 @@ function App() {
 
         <Route
           path="accounting/ledgers"
-          element={<Accounts />}
+          element={<Navigate to="/accounting/accounts" replace />}
         />
 
         <Route
@@ -1176,7 +1174,7 @@ function App() {
 
         <Route
           path="accounting/analytics"
-          element={<AccountingAnalytics />}
+          element={<Navigate to="/accounting/reports" replace />}
         />
 
         <Route
@@ -1186,7 +1184,7 @@ function App() {
 
         <Route
           path="accounting/taxes"
-          element={<Taxes />}
+          element={<Navigate to="/accounting/reports" replace />}
         />
 
         <Route

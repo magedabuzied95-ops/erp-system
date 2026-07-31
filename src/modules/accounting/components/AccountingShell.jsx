@@ -1,12 +1,11 @@
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { getAccountingNavigation } from "../lib/accountingNavigation";
 
-export default function AccountingShell({ title, subtitle, actions, tabs = [], children }) {
+export default function AccountingShell({ title, subtitle, actions, children }) {
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
-  const effectiveTabs = tabs.some((tab) => tab.to === "/accounting/analytics")
-    ? tabs
-    : [...tabs, { to: "/accounting/analytics", label: isArabic ? "التحليلات المتقدمة" : "Advanced analytics" }];
+  const effectiveTabs = getAccountingNavigation(isArabic);
 
   return (
     <div className="space-y-6">
@@ -19,7 +18,8 @@ export default function AccountingShell({ title, subtitle, actions, tabs = [], c
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl shadow-[var(--shadow)]">
+      <nav aria-label={isArabic ? "أقسام الحسابات" : "Accounting sections"} className="sticky top-2 z-20 overflow-x-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)]/95 p-2 shadow-2xl shadow-[var(--shadow)] backdrop-blur">
+        <div className="flex min-w-max gap-2">
         {effectiveTabs.map((tab) => (
           <NavLink
             key={tab.to}
@@ -35,7 +35,8 @@ export default function AccountingShell({ title, subtitle, actions, tabs = [], c
             {tab.label}
           </NavLink>
         ))}
-      </div>
+        </div>
+      </nav>
 
       {children}
     </div>

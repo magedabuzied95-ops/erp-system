@@ -6,7 +6,6 @@ import {
   createFinancialAccount,
   createPaymentMethodMapping,
   deletePaymentMethodMapping,
-  getAccountingDashboard,
   getFinancialReportsSummary,
   getJournalEntries,
   getJournalEntryDetail,
@@ -72,7 +71,8 @@ const treasuryTenantId = (req, source = {}) =>
 export const getAccountingSummary = async (req, res) => {
   try {
     const tenantId = treasuryTenantId(req, req.query);
-    const summary = await getAccountingDashboard(db, { tenantId });
+    const reports = await getAccountingReportsV2Dashboard(db, { ...req.query, tenantId });
+    const cards = reports?.cards || {};
 
     const cashbox = await db.query(
       `
@@ -88,15 +88,19 @@ export const getAccountingSummary = async (req, res) => {
     return res.status(200).json({
       success: true,
       summary: {
-        sales: summary.salesTotal,
-        purchases: summary.purchasesTotal,
-        expenses: summary.expenses,
-        profit: summary.grossProfit,
+        sales: Number(cards.net_revenue || 0),
+        purchases: Number(cards.payables_due || 0),
+        expenses: Number(cards.expenses || 0),
+        profit: Number(cards.net_profit || 0),
         balance: cashbox.rows.length > 0 ? Number(cashbox.rows[0].balance || 0) : 0,
-        revenue: summary.revenue,
-        cogs: summary.cogs,
-        inventoryValue: summary.inventoryValue,
-        grossProfit: summary.grossProfit,
+        revenue: Number(cards.net_revenue || 0),
+        cogs: Number(cards.cogs || 0),
+        inventoryValue: Number(cards.inventory_value || 0),
+        grossProfit: Number(cards.net_revenue || 0) - Number(cards.cogs || 0),
+        netProfit: Number(cards.net_profit || 0),
+        receivablesDue: Number(cards.receivables_due || 0),
+        payablesDue: Number(cards.payables_due || 0),
+        dataSource: "reports_v2",
       },
     });
   } catch (error) {
@@ -127,7 +131,29 @@ export const getAccountingAnalyticsEmbedController = async (req, res) => {
 export const getAccountingDashboardController = async (req, res) => {
   try {
     const tenantId = treasuryTenantId(req, req.query);
-    const dashboard = await getAccountingDashboard(db, { tenantId });
+    const reports = await getAccountingReportsV2Dashboard(db, {
+      ...req.query,
+      tenantId,
+    });
+    const cards = reports?.cards || {};
+    const dashboard = {
+      revenue: Number(cards.net_revenue || 0),
+      grossRevenue: Number(cards.revenue || 0),
+      expenses: Number(cards.expenses || 0),
+      inventoryValue: Number(cards.inventory_value || 0),
+      cogs: Number(cards.cogs || 0),
+      grossProfit: Number(cards.net_revenue || 0) - Number(cards.cogs || 0),
+      netProfit: Number(cards.net_profit || 0),
+      receivablesDue: Number(cards.receivables_due || 0),
+      payablesDue: Number(cards.payables_due || 0),
+      discounts: Number(cards.discounts || 0),
+      refunds: Number(cards.refunds || 0),
+      salesTotal: Number(cards.net_revenue || 0),
+      purchasesTotal: Number(cards.payables_due || 0),
+      notes: reports?.notes || [],
+      dataSource: "reports_v2",
+      filters: reports?.filters || {},
+    };
     return res.status(200).json({ success: true, dashboard });
   } catch (error) {
     console.log(error);

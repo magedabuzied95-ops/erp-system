@@ -8,10 +8,12 @@ import {
   Building2,
   CalendarRange,
   CreditCard,
+  Download,
   HandCoins,
   Landmark,
   LoaderCircle,
   PackageSearch,
+  Printer,
   ReceiptText,
   RefreshCw,
   TrendingUp,
@@ -160,6 +162,24 @@ function FinancialReports() {
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {isArabic ? "تحديث" : "Refresh"}
+            </button>
+            <button
+              type="button"
+              onClick={() => exportCurrentReportCsv({ title: activeTitle, data: reportData[activeTab], isArabic })}
+              disabled={loading || !reportData[activeTab]}
+              className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--card)] disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              {isArabic ? "تصدير CSV" : "Export CSV"}
+            </button>
+            <button
+              type="button"
+              onClick={() => printCurrentReport({ title: activeTitle, data: reportData[activeTab], filters, isArabic })}
+              disabled={loading || !reportData[activeTab]}
+              className="inline-flex items-center gap-2 rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-black text-white transition hover:brightness-110 disabled:opacity-50"
+            >
+              <Printer className="h-4 w-4" />
+              {isArabic ? "طباعة احترافية" : "Professional print"}
             </button>
           </>
         }
@@ -724,6 +744,60 @@ function renderCell(row, column, isArabic) {
     return parsed.toLocaleDateString(isArabic ? "ar-EG" : "en-GB");
   }
   return value === null || value === undefined || value === "" ? (isArabic ? "—" : "—") : String(value);
+}
+
+const exportSections = (data = {}) =>
+  Object.entries(data || {})
+    .filter(([key, value]) => key !== "filters" && key !== "meta" && key !== "notes" && value && (Array.isArray(value) || typeof value === "object"))
+    .map(([key, value]) => {
+      if (Array.isArray(value)) return { title: key, rows: value };
+      return { title: key, rows: Object.entries(value).map(([metric, amount]) => ({ metric, value: amount })) };
+    })
+    .filter((section) => section.rows.length);
+
+const safeExportValue = (value) => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+};
+
+const csvCell = (value) => `"${safeExportValue(value).replace(/"/g, '""')}"`;
+
+function exportCurrentReportCsv({ title, data, isArabic }) {
+  const lines = [[title], [new Date().toLocaleString(isArabic ? "ar-EG" : "en-GB")], []];
+  exportSections(data).forEach((section) => {
+    const headers = [...new Set(section.rows.flatMap((row) => Object.keys(row || {})))];
+    lines.push([section.title], headers, ...section.rows.map((row) => headers.map((header) => row?.[header])), []);
+  });
+  const content = `\uFEFF${lines.map((row) => row.map(csvCell).join(",")).join("\n")}`;
+  const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `accounting-${Date.now()}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+const escapePrintHtml = (value) =>
+  safeExportValue(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+
+function printCurrentReport({ title, data, filters, isArabic }) {
+  const sections = exportSections(data);
+  const popup = window.open("", "_blank");
+  if (!popup) return;
+  const filterText = [
+    filters?.from_date ? `${isArabic ? "من" : "From"}: ${filters.from_date}` : "",
+    filters?.to_date ? `${isArabic ? "إلى" : "To"}: ${filters.to_date}` : "",
+    filters?.branch_id ? `${isArabic ? "الفرع" : "Branch"}: ${filters.branch_id}` : "",
+  ].filter(Boolean).join(" • ");
+  const tables = sections.map((section) => {
+    const headers = [...new Set(section.rows.flatMap((row) => Object.keys(row || {})))];
+    return `<section><h2>${escapePrintHtml(section.title)}</h2><table><thead><tr>${headers.map((header) => `<th>${escapePrintHtml(header)}</th>`).join("")}</tr></thead><tbody>${section.rows.map((row) => `<tr>${headers.map((header) => `<td>${escapePrintHtml(row?.[header])}</td>`).join("")}</tr>`).join("")}</tbody></table></section>`;
+  }).join("");
+  popup.document.write(`<!doctype html><html dir="${isArabic ? "rtl" : "ltr"}"><head><meta charset="utf-8"><title>${escapePrintHtml(title)}</title><style>@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;margin:0}header{border-bottom:3px solid #d9aa20;padding-bottom:12px;margin-bottom:18px;display:flex;justify-content:space-between;gap:20px}h1{margin:0;font-size:24px}h2{font-size:16px;margin:22px 0 8px;color:#7a5a00}small{color:#666}table{width:100%;border-collapse:collapse;font-size:10px;page-break-inside:auto}th,td{border:1px solid #d8d8d8;padding:6px;text-align:${isArabic ? "right" : "left"};vertical-align:top}th{background:#111827;color:#fff}tr:nth-child(even){background:#f7f7f7}section{page-break-inside:avoid;margin-bottom:16px}</style></head><body><header><div><h1>${escapePrintHtml(title)}</h1><small>${escapePrintHtml(filterText || (isArabic ? "كل الفترات والفروع" : "All periods and branches"))}</small></div><small>${escapePrintHtml(new Date().toLocaleString(isArabic ? "ar-EG" : "en-GB"))}</small></header>${tables}</body></html>`);
+  popup.document.close();
+  popup.focus();
+  popup.print();
 }
 
 export default FinancialReports;
