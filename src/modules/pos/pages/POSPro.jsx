@@ -6941,7 +6941,6 @@ function POSPro() {
     setSelectedGender([]);
     setSelectedProductType("all");
     setSelectedGrade("all");
-    setSearch("");
   }, []);
 
   const handleGenderFilterChange = useCallback((value) => {
@@ -7352,8 +7351,37 @@ function POSPro() {
         ) : null}
 
         <div className={`pos-desktop-toolbar hidden shrink-0 items-center justify-between gap-2 overflow-x-hidden ${isRtl ? "flex-row-reverse" : ""} lg:flex`}>
-          <div className="pos-session-pill hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 lg:block">
-            نافذة مفتوحة: {currentUser?.name || currentUser?.email || "المستخدم"} | {posShiftBranch?.name || activePosShift?.branch_name || "الفرع"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
+          <div className={`flex min-w-0 items-center gap-2 ${isRtl ? "flex-row-reverse" : ""}`}>
+            <div className="pos-session-pill hidden min-w-0 shrink rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 lg:block">
+              <span className="block truncate">
+                نافذة مفتوحة: {currentUser?.name || currentUser?.email || "المستخدم"} | {posShiftBranch?.name || activePosShift?.branch_name || "الفرع"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setScannedInvoiceNumber("");
+                setRecentOperationsOpenedAt(performance.now());
+                setRecentOperationsOpen(true);
+              }}
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:border-emerald-200/50 hover:bg-emerald-400/15"
+              dir="rtl"
+            >
+              <History className="h-4 w-4" />
+              العمليات الأخيرة
+            </button>
+            {canCreatePosExpense ? (
+              <button
+                type="button"
+                onClick={() => setQuickExpenseOpen(true)}
+                disabled={!activePosShift?.id}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-xs font-black text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                title="مصروف / Expense"
+              >
+                <ReceiptText className="h-4 w-4" />
+                <span>مصروف</span>
+              </button>
+            ) : null}
           </div>
           <div className={`flex shrink-0 items-center gap-2 ${isRtl ? "flex-row-reverse" : ""}`}>
           <button
@@ -7676,29 +7704,13 @@ function POSPro() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setScannedInvoiceNumber("");
-                    setRecentOperationsOpenedAt(performance.now());
-                    setRecentOperationsOpen(true);
-                  }}
-                  className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:border-emerald-200/50 hover:bg-emerald-400/15"
-                  dir="rtl"
+                  onClick={handleClearSmartFilters}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 text-xs font-black text-rose-100 transition hover:border-rose-200/45 hover:bg-rose-400/15"
+                  title="مسح الفلاتر"
                 >
-                  <History className="h-4 w-4" />
-                  العمليات الأخيرة
+                  <RotateCcw className="h-4 w-4" />
+                  <span>مسح الفلاتر</span>
                 </button>
-                {canCreatePosExpense ? (
-                  <button
-                    type="button"
-                    onClick={() => setQuickExpenseOpen(true)}
-                    disabled={!activePosShift?.id}
-                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-xs font-black text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="مصروف / Expense"
-                  >
-                    <ReceiptText className="h-4 w-4" />
-                    <span>مصروف</span>
-                  </button>
-                ) : null}
             </div>
             <QuickPosFilters
               genderOptions={smartFilterOptions.gender}
