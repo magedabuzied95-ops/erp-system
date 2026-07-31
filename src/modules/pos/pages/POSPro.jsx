@@ -1690,6 +1690,7 @@ function POSPro() {
   const [couponValidation, setCouponValidation] = useState(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [posRefreshLoading, setPosRefreshLoading] = useState(false);
   const [error, setError] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [offlinePendingSyncCount, setOfflinePendingSyncCount] = useState(0);
@@ -7383,6 +7384,33 @@ function POSPro() {
     }
   }, [t]);
   const handleRefreshSellerUsers = useCallback(() => loadSellerUsers({ silent: false }), [loadSellerUsers]);
+  const handleSoftRefreshPos = useCallback(async () => {
+    if (posRefreshLoading) return;
+    setPosRefreshLoading(true);
+    const refreshToast = toast.loading("جاري تحديث المنتجات والمخزون والعملاء...");
+    try {
+      const [catalog] = await Promise.all([
+        refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }),
+        loadCustomers(),
+        loadSellerUsers({ silent: true }),
+      ]);
+      catalogFallbackActiveRef.current = false;
+      setCart((current) => {
+        if (editingOrder?.id) return current;
+        const reconciled = reconcileCartWithCatalog(current, catalog);
+        if (reconciled.removedItems.length > 0) {
+          toast.error(`تم حذف ${reconciled.removedItems.length} منتج غير متاح من السلة`);
+        }
+        return reconciled.nextCart;
+      });
+      toast.success("تم تحديث الـ POS مع الاحتفاظ بالفواتير المفتوحة", { id: refreshToast });
+    } catch (refreshError) {
+      console.error("[pos] soft refresh failed", refreshError);
+      toast.error(getErrorMessage(refreshError, "تعذر تحديث الـ POS"), { id: refreshToast });
+    } finally {
+      setPosRefreshLoading(false);
+    }
+  }, [editingOrder?.id, loadCustomers, loadSellerUsers, posRefreshLoading, saleModeSettings]);
   const handleClearExchangeCredit = useCallback(() => setExchangeState(null), []);
   const handlePaymentAccountAdjusted = useCallback(() => setPaymentAccountRefreshKey((key) => key + 1), []);
   const handleCloseFilters = useCallback(() => setFiltersOpen(false), []);
@@ -7827,6 +7855,16 @@ function POSPro() {
                     <Camera className="h-4 w-4" />
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleSoftRefreshPos}
+                  disabled={posRefreshLoading}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-3 text-xs font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-400/15 disabled:cursor-wait disabled:opacity-60"
+                  title="تحديث المنتجات والمخزون والعملاء بدون إعادة تحميل الصفحة"
+                >
+                  <RotateCcw className={`h-4 w-4 ${posRefreshLoading ? "animate-spin" : ""}`} />
+                  <span>{posRefreshLoading ? "جاري التحديث" : "تحديث POS"}</span>
+                </button>
                 <button
                   ref={filtersButtonRef}
                   type="button"
