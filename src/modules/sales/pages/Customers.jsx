@@ -658,16 +658,16 @@ function Customers() {
 
   const handleCustomerPayment = async (event) => {
     event.preventDefault();
-    if (!selectedCustomer?.id || paymentSaving) return;
+    if (!selectedCustomer?.id || paymentSaving) return false;
     const amount = Number(payment.amount || 0);
     if (!(amount > 0)) {
       window.alert("أدخل مبلغ دفعة صحيح.");
-      return;
+      return false;
     }
     const currentBalance = Number(statementData?.current_balance ?? selectedCustomer?.wallet_balance ?? selectedCustomer?.balance ?? 0);
     if (amount > currentBalance) {
       window.alert(`الدفعة أكبر من المبلغ المستحق (${formatMoney(currentBalance)} ج.م).`);
-      return;
+      return false;
     }
     try {
       setPaymentSaving(true);
@@ -681,9 +681,11 @@ function Customers() {
       });
       setPayment({ amount: "", payment_method: "cash", payment_date: todayInputValue(), reference: "", notes: "" });
       await Promise.all([fetchCustomers(), fetchCustomerProfile(selectedCustomer), fetchCustomerStatement()]);
+      return true;
     } catch (error) {
       console.error("[customers] failed to record customer payment:", error);
       window.alert(error?.message || "تعذر تسجيل دفعة العميل");
+      return false;
     } finally {
       setPaymentSaving(false);
     }
@@ -1634,6 +1636,11 @@ function CustomerStatementDrawer({
   onViewOrder,
   onEditOrder,
 }) {
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const submitPayment = async (event) => {
+    const saved = await onPayment(event);
+    if (saved) setPaymentDialogOpen(false);
+  };
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const statementRows = Array.isArray(statement?.rows) ? statement.rows : walletAudit;
   const totals = getStatementTotals({ rows: statementRows, totals: statement?.totals });
@@ -1679,6 +1686,15 @@ function CustomerStatementDrawer({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
+              onClick={() => setPaymentDialogOpen(true)}
+              disabled={currentBalance <= 0}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Wallet className="h-4 w-4" />
+              تسجيل دفعة
+            </button>
+            <button
+              type="button"
               onClick={onExportStatement}
               disabled={!canExportStatement}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1718,46 +1734,76 @@ function CustomerStatementDrawer({
           </div>
         </div>
 
-        <section className="mt-5 overflow-hidden rounded-3xl border border-emerald-300/20 bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.14),transparent_42%),rgba(15,23,42,0.86)] shadow-xl shadow-black/20">
-          <div className="flex flex-col gap-2 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-lg font-black text-white">
-                <Wallet className="h-5 w-5 text-emerald-300" />
-                تسجيل دفعة من العميل
+        {paymentDialogOpen ? (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-payment-dialog-title"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setPaymentDialogOpen(false);
+            }}
+          >
+            <section className="w-full max-w-3xl overflow-hidden rounded-3xl border border-emerald-300/25 bg-slate-950 shadow-2xl shadow-black/50">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                <div>
+                  <div id="customer-payment-dialog-title" className="flex items-center gap-2 text-lg font-black text-white">
+                    <Wallet className="h-5 w-5 text-emerald-300" />
+                    تسجيل دفعة من العميل
+                  </div>
+                  <p className="mt-1 text-sm font-semibold text-zinc-400">تخفض المبلغ المستحق وتُسجل في الخزينة وكشف الحساب والقيود المحاسبية.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPaymentDialogOpen(false)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                  aria-label="إغلاق نافذة تسجيل الدفعة"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <p className="mt-1 text-sm font-semibold text-zinc-400">تخفض المبلغ المستحق وتُسجل في الخزينة وكشف الحساب والقيود المحاسبية.</p>
-            </div>
-            <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm font-black text-rose-100">
-              المستحق الآن: {formatMoney(currentBalance)} ج.م
-            </div>
+              <div className="mx-5 mt-5 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100">
+                المستحق الآن: {formatMoney(currentBalance)} ج.م
+              </div>
+              <form onSubmit={submitPayment} className="grid gap-3 p-5 md:grid-cols-2">
+                <input
+                  type="number"
+                  min="0.01"
+                  max={Math.max(0, currentBalance)}
+                  step="0.01"
+                  required
+                  value={payment.amount}
+                  onChange={(event) => setPayment((current) => ({ ...current, amount: event.target.value }))}
+                  placeholder="مبلغ الدفعة"
+                  className={inputClass}
+                  autoFocus
+                />
+                <select value={payment.payment_method} onChange={(event) => setPayment((current) => ({ ...current, payment_method: event.target.value }))} className={inputClass}>
+                  <option value="cash">نقدي</option>
+                  <option value="card">بطاقة / فيزا</option>
+                  <option value="bank_transfer">تحويل بنكي</option>
+                  <option value="instapay">InstaPay</option>
+                  <option value="vodafone_cash">Vodafone Cash</option>
+                </select>
+                <input type="date" required value={payment.payment_date} onChange={(event) => setPayment((current) => ({ ...current, payment_date: event.target.value }))} className={inputClass} />
+                <input value={payment.reference} onChange={(event) => setPayment((current) => ({ ...current, reference: event.target.value }))} placeholder="رقم مرجع (اختياري)" className={inputClass} />
+                <input value={payment.notes} onChange={(event) => setPayment((current) => ({ ...current, notes: event.target.value }))} placeholder="ملاحظات الدفعة" className={`${inputClass} md:col-span-2`} />
+                <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end md:col-span-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentDialogOpen(false)}
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-black text-zinc-200 transition hover:bg-white/10"
+                  >
+                    إلغاء
+                  </button>
+                  <button type="submit" disabled={paymentSaving || currentBalance <= 0} className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-400 px-6 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40">
+                    {paymentSaving ? "جاري الحفظ..." : "تسجيل الدفعة"}
+                  </button>
+                </div>
+              </form>
+            </section>
           </div>
-          <form onSubmit={onPayment} className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-[160px_170px_170px_170px_minmax(200px,1fr)_140px]">
-            <input
-              type="number"
-              min="0.01"
-              max={Math.max(0, currentBalance)}
-              step="0.01"
-              required
-              value={payment.amount}
-              onChange={(event) => setPayment((current) => ({ ...current, amount: event.target.value }))}
-              placeholder="مبلغ الدفعة"
-              className={inputClass}
-            />
-            <select value={payment.payment_method} onChange={(event) => setPayment((current) => ({ ...current, payment_method: event.target.value }))} className={inputClass}>
-              <option value="cash">نقدي</option>
-              <option value="card">بطاقة / فيزا</option>
-              <option value="bank_transfer">تحويل بنكي</option>
-              <option value="instapay">InstaPay</option>
-              <option value="vodafone_cash">Vodafone Cash</option>
-            </select>
-            <input type="date" required value={payment.payment_date} onChange={(event) => setPayment((current) => ({ ...current, payment_date: event.target.value }))} className={inputClass} />
-            <input value={payment.reference} onChange={(event) => setPayment((current) => ({ ...current, reference: event.target.value }))} placeholder="رقم مرجع (اختياري)" className={inputClass} />
-            <input value={payment.notes} onChange={(event) => setPayment((current) => ({ ...current, notes: event.target.value }))} placeholder="ملاحظات الدفعة" className={inputClass} />
-            <button type="submit" disabled={paymentSaving || currentBalance <= 0} className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40">
-              {paymentSaving ? "جاري الحفظ..." : "تسجيل الدفعة"}
-            </button>
-          </form>
-        </section>
+        ) : null}
 
         <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
