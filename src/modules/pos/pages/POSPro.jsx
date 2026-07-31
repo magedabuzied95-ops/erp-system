@@ -78,6 +78,7 @@ import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSearch";
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
+import { canManagePosSalePrices } from "../lib/posSaleModeAccess";
 import { countUniqueVariantColors, mergeCatalogProducts } from "../lib/posCatalogMerge";
 import {
   matchesQuickFilterGroups,
@@ -1560,6 +1561,7 @@ function POSPro() {
 
   const currentTenant = useMemo(() => getCurrentTenant() || {}, []);
   const currentUser = useMemo(() => getCurrentUser() || {}, []);
+  const canManageSalePrices = useMemo(() => canManagePosSalePrices(currentUser), [currentUser]);
   const customerCacheTenantId = currentTenant?.id || currentTenant?.tenant_id || currentUser?.tenant_id || null;
 
   const [products, setProducts] = useState([]);
@@ -7118,6 +7120,7 @@ function POSPro() {
   const saleMode = useMemo(() => normalizeSaleModeSettings(saleModeSettings), [saleModeSettings]);
   const salePricesEnabled = Boolean(saleMode.sale_mode_enabled);
   const handleToggleSaleMode = useCallback(async () => {
+    if (!canManageSalePrices) return;
     const previousSaleMode = Boolean(saleModeSettings?.sale_mode_enabled);
     const nextSaleMode = !previousSaleMode;
     setSaleModeSettings((current) => normalizeSaleModeSettings({ ...current, sale_mode_enabled: nextSaleMode }));
@@ -7125,7 +7128,7 @@ function POSPro() {
     if (!saved) {
       setSaleModeSettings((current) => normalizeSaleModeSettings({ ...current, sale_mode_enabled: previousSaleMode }));
     }
-  }, [saleModeSettings, saveSaleModeSettings]);
+  }, [canManageSalePrices, saleModeSettings, saveSaleModeSettings]);
 
   const handleToggleFullscreen = useCallback(async () => {
     const getFullscreenElement = () =>
@@ -7284,22 +7287,24 @@ function POSPro() {
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
-          <button
-            type="button"
-            aria-pressed={salePricesEnabled}
-            onClick={handleToggleSaleMode}
-            disabled={saleModeSaving}
-            title={salePricesEnabled ? "Sale Prices ON" : "Sale Prices OFF"}
-            className={`pos-toolbar-action pos-action-sale inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
-              salePricesEnabled
-                ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100 hover:border-emerald-300/50 hover:bg-emerald-400/15"
-                : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-300/50 hover:bg-amber-400/15"
-            }`}
-          >
-            {saleModeSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">Sale Prices</span>
-            <span>{salePricesEnabled ? "ON" : "OFF"}</span>
-          </button>
+          {canManageSalePrices ? (
+            <button
+              type="button"
+              aria-pressed={salePricesEnabled}
+              onClick={handleToggleSaleMode}
+              disabled={saleModeSaving}
+              title={salePricesEnabled ? "Sale Prices ON" : "Sale Prices OFF"}
+              className={`pos-toolbar-action pos-action-sale inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                salePricesEnabled
+                  ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100 hover:border-emerald-300/50 hover:bg-emerald-400/15"
+                  : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-300/50 hover:bg-amber-400/15"
+              }`}
+            >
+              {saleModeSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Sale Prices</span>
+              <span>{salePricesEnabled ? "ON" : "OFF"}</span>
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={handleCloseShift}
