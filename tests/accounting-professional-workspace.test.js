@@ -65,3 +65,12 @@ test("purchase invoices persist branch ownership and payables honor branch filte
   assert.match(purchaseForm, /placeholder=\{isArabic \? "اختر الفرع"/);
   assert.match(purchaseRoutes, /extraSets\.push\(`branch_id = \$\$\{extraValues\.length\}`\)/);
 });
+
+test("simple-product purchase stock lock uses a dedicated typed parameter list", () => {
+  const purchaseRoutes = source("server/routes/purchases.js");
+
+  assert.match(purchaseRoutes, /const stockBeforeParams = \[numericProductId\]/);
+  assert.match(purchaseRoutes, /p\.id = \$1::bigint/);
+  assert.match(purchaseRoutes, /p\.tenant_id = \$2::bigint/);
+  assert.match(purchaseRoutes, /stockBeforeParams\s*\n\s*\)/);
+});

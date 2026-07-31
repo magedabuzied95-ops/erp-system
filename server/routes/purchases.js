@@ -2032,15 +2032,21 @@ const updateProductFallbackStock = async (client, { tenantId, productId, quantit
     const tenantParam = push(tenantId);
     where.push(`(${tenantParam}::bigint IS NULL OR tenant_id = ${tenantParam}::bigint OR tenant_id IS NULL)`);
   }
+  const stockBeforeParams = [numericProductId];
+  const stockBeforeWhere = ["p.id = $1::bigint"];
+  if (columns.has("tenant_id")) {
+    stockBeforeParams.push(tenantId);
+    stockBeforeWhere.push("($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)");
+  }
   const stockBeforeResult = stockColumn
     ? await client.query(
         `
         SELECT ${stockColumn} AS stock
         FROM products p
-        WHERE ${where.join(" AND ")}
+        WHERE ${stockBeforeWhere.join(" AND ")}
         FOR UPDATE
         `,
-        values
+        stockBeforeParams
       )
     : null;
   const stockBefore = Number(stockBeforeResult?.rows[0]?.stock || 0);
