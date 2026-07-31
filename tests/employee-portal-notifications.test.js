@@ -76,6 +76,18 @@ test("shared shortage alerts use employee-specific read receipts", () => {
   assert.match(refill, /ON CONFLICT \(alert_id, employee_id\)/);
 });
 
+test("display refill alerts are assigned to the POS seller while Maged can supervise all alerts", () => {
+  const refill = source("server/services/displayRefillAlertService.js");
+  const routes = source("server/routes/employeePortal.js");
+
+  assert.match(refill, /const alertEmployeeId = safeEmployeeId/);
+  assert.match(refill, /COALESCE\(employee_id, 0\) = COALESCE\(\$4::bigint, 0\)/);
+  assert.match(refill, /export const isDisplayRefillSupervisor/);
+  assert.match(refill, /\(maged\|ماجد\)/);
+  assert.match(refill, /\$6::boolean = TRUE/);
+  assert.match(routes, /includeAll: isDisplayRefillSupervisor\(employee\)/);
+});
+
 test("legacy employee task portal writes to the active push subscription store", () => {
   const tasks = source("server/services/staffTasksService.js");
   const api = source("src/modules/employees/services/staffTasksApi.js");

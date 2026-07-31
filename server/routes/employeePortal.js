@@ -32,6 +32,7 @@ import {
 import { getEmployeeChat, sendEmployeeChatMessage } from "../services/employeeChatService.js";
 import {
   listDisplayRefillAlertsForEmployee,
+  isDisplayRefillSupervisor,
   listRecentDisplayRefillAlerts,
   markDisplayRefillAlertRead,
   resolveDisplayRefillAlert,
@@ -1144,10 +1145,12 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
     if (!employee) return;
     const branchId = employee.branch_id || employee.branchId || null;
     const tenantId = employee.tenant_id || employee.tenantId || null;
+    const includeAll = isDisplayRefillSupervisor(employee);
     const alerts = await listDisplayRefillAlertsForEmployee({
       employeeId: employee.id,
       tenantId,
       branchId,
+      includeAll,
       limit: req.query.limit || 50,
       status: req.query.status || "all",
     });
@@ -1160,6 +1163,7 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
       tenant_id: tenantId,
       employee_id: employee.id,
       branch_id: branchId,
+      include_all: includeAll,
       count: alerts.length,
       pending_count: alerts.filter((item) => item.status === "pending").length,
       completed_count: alerts.filter((item) => item.status === "resolved").length,
@@ -1222,6 +1226,7 @@ router.patch("/:token/display-refill-alerts/:alertId/read", async (req, res) => 
       employeeId: employee.id,
       tenantId: employee.tenant_id || employee.tenantId || null,
       branchId: employee.branch_id || employee.branchId || null,
+      includeAll: isDisplayRefillSupervisor(employee),
       alertId: req.params.alertId,
     });
     if (!alert) return res.status(404).json({ success: false, message: "Display refill alert not found" });
@@ -1240,6 +1245,7 @@ router.patch("/:token/display-refill-alerts/:alertId/resolve", async (req, res) 
       employeeId: employee.id,
       tenantId: employee.tenant_id || employee.tenantId || null,
       branchId: employee.branch_id || employee.branchId || null,
+      includeAll: isDisplayRefillSupervisor(employee),
       alertId: req.params.alertId,
     });
     if (!alert) return res.status(404).json({ success: false, message: "Display refill alert not found" });

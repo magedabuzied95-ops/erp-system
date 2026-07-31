@@ -181,6 +181,14 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS resolved_by_employee_id BIGINT NULL`);
       await clientOrPool.query(`
         UPDATE employee_display_refill_alerts a
+        SET employee_id = o.sales_employee_id
+        FROM orders o
+        WHERE a.employee_id IS NULL
+          AND a.order_id = o.id
+          AND o.sales_employee_id IS NOT NULL
+      `);
+      await clientOrPool.query(`
+        UPDATE employee_display_refill_alerts a
         SET tenant_id = COALESCE(
           a.tenant_id,
           (SELECT o.tenant_id FROM orders o WHERE o.id = a.order_id LIMIT 1),
@@ -201,7 +209,7 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
       `);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_display_refill_reads_employee ON employee_display_refill_alert_reads (employee_id, read_at DESC)`);
       await clientOrPool.query(`DROP INDEX IF EXISTS uq_display_refill_pending_active`);
-      await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_display_refill_pending_active ON employee_display_refill_alerts (COALESCE(tenant_id, 0), COALESCE(product_id, 0), COALESCE(branch_id, 0), LOWER(COALESCE(color_name, '')), LOWER(COALESCE(sold_size, ''))) WHERE status = 'pending'`);
+      await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_display_refill_pending_active ON employee_display_refill_alerts (COALESCE(tenant_id, 0), COALESCE(employee_id, 0), COALESCE(product_id, 0), COALESCE(branch_id, 0), LOWER(COALESCE(color_name, '')), LOWER(COALESCE(sold_size, ''))) WHERE status = 'pending'`);
     };
     if (clientOrPool === db) schemaReadyPromise = run();
     else return run();
@@ -533,7 +541,7 @@ const legacySortVariantsBySize = (variants = []) =>
       return clean(a.size).localeCompare(clean(b.size), "en");
     });
 
-const duplicateExists = async ({ tenantId, productId, branchId, colorName, soldSize } = {}) => {
+const duplicateExists = async ({ tenantId, employeeId, productId, branchId, colorName, soldSize } = {}) => {
   const result = await db.query(
     `
     SELECT id
@@ -541,12 +549,13 @@ const duplicateExists = async ({ tenantId, productId, branchId, colorName, soldS
     WHERE COALESCE(tenant_id, 0) = COALESCE($1::bigint, 0)
       AND COALESCE(product_id, 0) = COALESCE($2::bigint, 0)
       AND COALESCE(branch_id, 0) = COALESCE($3::bigint, 0)
-      AND LOWER(COALESCE(color_name, '')) = LOWER($4::text)
-      AND LOWER(COALESCE(sold_size, '')) = LOWER($5::text)
+      AND COALESCE(employee_id, 0) = COALESCE($4::bigint, 0)
+      AND LOWER(COALESCE(color_name, '')) = LOWER($5::text)
+      AND LOWER(COALESCE(sold_size, '')) = LOWER($6::text)
       AND status = 'pending'
     LIMIT 1
     `,
-    [numberOrNull(tenantId), numberOrNull(productId), numberOrNull(branchId), clean(colorName), clean(soldSize)]
+    [numberOrNull(tenantId), numberOrNull(productId), numberOrNull(branchId), numberOrNull(employeeId), clean(colorName), clean(soldSize)]
   );
   return result.rows[0] || null;
 };
@@ -565,12 +574,7 @@ const loadBranchEmployeeNotificationTargets = async ({ tenantId, branchId, selle
       AND ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)
       AND (
         ($3::bigint IS NOT NULL AND id = $3::bigint)
-        OR (
-          $2::bigint IS NOT NULL
-          AND branch_id = $2::bigint
-          AND LOWER(CONCAT_WS(' ', COALESCE(role, ''), COALESCE(job_title, ''), COALESCE(position, ''), COALESCE(department, ''))) ~
-            '(manager|supervisor|inventory|stock|warehouse|display|operations|admin|مدير|مشرف|مخزون|مستودع|عرض|تشغيل)'
-        )
+        OR LOWER(COALESCE(full_name, '')) ~ '(^|[[:space:]])(maged|ماجد)([[:space:]]|$)'
       )
     ORDER BY CASE WHEN id = $3::bigint THEN 0 ELSE 1 END, id ASC
     LIMIT $4
@@ -1018,6 +1022,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     const invoiceNumber = clean(item.invoice_number || item.display_order_number || item.public_order_number || safeOrderId);
     const pendingAlert = await duplicateExists({
       tenantId: itemTenantId,
+      employeeId: safeEmployeeId,
       productId,
       branchId,
       colorName,
@@ -1119,7 +1124,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       continue;
     }
 
-    const alertEmployeeId = branchId ? null : safeEmployeeId;
+    const alertEmployeeId = safeEmployeeId;
     const alert = await insertAlert({
       tenant_id: itemTenantId,
       employee_id: alertEmployeeId,
@@ -1170,7 +1175,12 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
   return created;
 };
 
-export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId = null, branchId = null, limit = 50, status = "all" } = {}) => {
+export const isDisplayRefillSupervisor = (employee = {}) => {
+  const name = clean(employee.full_name || employee.name || employee.employee_name).toLocaleLowerCase("ar");
+  return /(^|\s)(maged|ماجد)(\s|$)/iu.test(name);
+};
+
+export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId = null, branchId = null, includeAll = false, limit = 50, status = "all" } = {}) => {
   await ensureDisplayRefillAlertSchema();
   const safeLimit = Math.max(1, Math.min(100, Number(limit || 50)));
   const pendingLimit = safeLimit;
@@ -1182,7 +1192,7 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
     return "all";
   })();
   const queryMode = normalizedStatus === "pending" ? "pending_only" : normalizedStatus === "completed" ? "completed_only" : "all";
-  const params = [numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId), pendingLimit, completedLimit];
+  const params = [numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId), pendingLimit, completedLimit, Boolean(includeAll)];
   const scopedCte = `
     WITH scoped AS (
       SELECT
@@ -1197,12 +1207,8 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
        AND r.employee_id = $1::bigint
       WHERE ($3::bigint IS NULL OR a.tenant_id = $3::bigint OR a.tenant_id IS NULL)
         AND (
-          a.employee_id = $1
-          OR (
-            a.employee_id IS NULL
-            AND $2::bigint IS NOT NULL
-            AND a.branch_id = $2::bigint
-          )
+          $6::boolean = TRUE
+          OR a.employee_id = $1
         )
     )
   `;
@@ -1308,7 +1314,7 @@ export const listRecentDisplayRefillAlerts = async ({ limit = 20 } = {}) => {
   return enrichAlertsWithBarcodeData(result.rows.map(normalizeAlert));
 };
 
-export const markDisplayRefillAlertRead = async ({ employeeId, tenantId = null, branchId = null, alertId } = {}) => {
+export const markDisplayRefillAlertRead = async ({ employeeId, tenantId = null, branchId = null, includeAll = false, alertId } = {}) => {
   await ensureDisplayRefillAlertSchema();
   const result = await db.query(
     `
@@ -1318,8 +1324,8 @@ export const markDisplayRefillAlertRead = async ({ employeeId, tenantId = null, 
       WHERE id = $1
         AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
         AND (
-          employee_id = $2
-          OR (employee_id IS NULL AND $3::bigint IS NOT NULL AND branch_id = $3::bigint)
+          $5::boolean = TRUE
+          OR employee_id = $2
         )
     ), receipt AS (
       INSERT INTO employee_display_refill_alert_reads (alert_id, employee_id, read_at)
@@ -1331,12 +1337,12 @@ export const markDisplayRefillAlertRead = async ({ employeeId, tenantId = null, 
     FROM scoped
     JOIN receipt ON receipt.alert_id = scoped.id
     `,
-    [numberOrNull(alertId), numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId)]
+    [numberOrNull(alertId), numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId), Boolean(includeAll)]
   );
   return result.rows[0] ? normalizeAlert(result.rows[0]) : null;
 };
 
-export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, branchId = null, alertId } = {}) => {
+export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, branchId = null, includeAll = false, alertId } = {}) => {
   await ensureDisplayRefillAlertSchema();
   const result = await db.query(
     `
@@ -1349,16 +1355,12 @@ export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, b
     WHERE id = $1
       AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
       AND (
-        employee_id = $2
-        OR (
-          employee_id IS NULL
-          AND $3::bigint IS NOT NULL
-          AND branch_id = $3::bigint
-        )
+        $5::boolean = TRUE
+        OR employee_id = $2
       )
     RETURNING *
     `,
-    [numberOrNull(alertId), numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId)]
+    [numberOrNull(alertId), numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId), Boolean(includeAll)]
   );
   const alert = result.rows[0] ? normalizeAlert(result.rows[0]) : null;
   if (alert && employeeId) {
