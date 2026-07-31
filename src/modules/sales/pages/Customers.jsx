@@ -495,6 +495,7 @@ function Customers() {
     hasMore: false,
   });
   const [editingId, setEditingId] = useState(null);
+  const [customerFormOpen, setCustomerFormOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -718,6 +719,7 @@ function Customers() {
     setAddress("");
     setAllowPersonalTransactions(false);
     setEditingId(null);
+    setCustomerFormOpen(false);
   };
 
   const handleSubmit = async (event) => {
@@ -741,6 +743,7 @@ function Customers() {
 
   const editCustomer = (customer) => {
     setEditingId(customer.id);
+    setCustomerFormOpen(true);
     setName(customer.name || "");
     setPhone(customer.phone || "");
     setEmail(customer.email || "");
@@ -931,27 +934,46 @@ function Customers() {
           </div>
         </div>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl">
-          <label className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500" htmlFor="customer-search">
-            {t("customers.search")}
-          </label>
-          <input
-            id="customer-search"
-            type="text"
-            placeholder={t("customers.searchPlaceholder")}
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPagination((current) => ({ ...current, page: 1 }));
+        <section className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/45 p-4 shadow-2xl shadow-black/20 backdrop-blur-xl sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <label className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500" htmlFor="customer-search">
+              {t("customers.search")}
+            </label>
+            <input
+              id="customer-search"
+              type="text"
+              placeholder={t("customers.searchPlaceholder")}
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPagination((current) => ({ ...current, page: 1 }));
+              }}
+              className={`${inputClass} mt-2`}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (customerFormOpen) {
+                resetForm();
+                return;
+              }
+              resetForm();
+              setCustomerFormOpen(true);
             }}
-            className={`${inputClass} mt-3`}
-          />
+            aria-expanded={customerFormOpen}
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
+          >
+            {customerFormOpen ? <X className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
+            {customerFormOpen ? t("customers.form.cancel") : t("customers.form.titleAdd")}
+          </button>
         </section>
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
-        >
+        {customerFormOpen ? (
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
+          >
           <div className="mb-5 flex flex-col gap-1">
             <h2 className="text-xl font-black text-white">{editingId ? t("customers.form.titleUpdate") : t("customers.form.titleAdd")}</h2>
             <p className="text-sm text-zinc-500">{t("customers.form.subtitle")}</p>
@@ -1016,7 +1038,8 @@ function Customers() {
               </button>
             ) : null}
           </div>
-        </form>
+          </form>
+        ) : null}
 
         <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="border-b border-white/10 px-6 py-5">
