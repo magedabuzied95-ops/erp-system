@@ -3402,10 +3402,11 @@ function ProductEdit() {
 
       if (savedProduct?.color_images?.length) {
         setColorGroups((prev) =>
-          prev.map((group) => {
-            const savedGroup = savedProduct.color_images.find(
-              (item) => normalizeColorKey(item.color_name || item.color) === normalizeColorKey(group.color)
-            );
+          prev.map((group, groupIndex) => {
+            const groupKey = String(group.color_group_key || group.id || "").trim();
+            const savedGroup = savedProduct.color_images.find((item) => (
+              groupKey && String(item.color_group_key || item.colorGroupKey || "").trim() === groupKey
+            )) || savedProduct.color_images[groupIndex];
             if (!savedGroup) return group;
             const images = normalizeColorImages(savedGroup.images);
             const primary = images.find((item) => item.is_primary) || images[0] || null;
@@ -4227,6 +4228,18 @@ function ProductEdit() {
             </div>
 
             <div className="mt-4 space-y-3">
+              {(() => {
+                const counts = new Map();
+                colorGroups.forEach((group) => {
+                  const key = normalizeColorKey(group.color);
+                  if (key) counts.set(key, (counts.get(key) || 0) + 1);
+                });
+                return [...counts.values()].some((count) => count > 1) ? (
+                  <div className="rounded-[14px] border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-100">
+                    تنبيه: يوجد لونان أو أكثر بنفس الاسم. كل بلوك مستقل تمامًا بصوره ومقاساته، ولن تُدمج صوره مع البلوك الآخر عند الحفظ.
+                  </div>
+                ) : null;
+              })()}
               {colorGroups.map((group, groupIndex) => {
                 const isExpanded = expandedGroupId === group.id;
                 const isMissingImageHighlight = highlightMissingColorKeys.has(normalizeColorKey(group.color));

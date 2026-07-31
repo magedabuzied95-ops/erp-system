@@ -212,6 +212,17 @@ const makeId = () =>
     ? crypto.randomUUID()
     : `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+const normalizeColorGroupName = (value) => String(value || "").trim().toLocaleLowerCase();
+
+const getDuplicateColorGroupNames = (groups = []) => {
+  const counts = new Map();
+  groups.forEach((group) => {
+    const key = normalizeColorGroupName(group?.color);
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
+};
+
 const createEmptySizeRow = (defaults = {}) => createVariantRow(defaults);
 
 const getColorGroupName = (group = {}) =>
@@ -227,8 +238,10 @@ const normalizeManufacturerIds = (value, fallback = "") => {
 const createEmptyColorGroup = (defaults = {}) => {
   const source = typeof defaults === "string" ? { manufacturer_id: defaults } : defaults || {};
   const manufacturerIds = normalizeManufacturerIds(source.manufacturer_ids ?? source.manufacturerIds, source.manufacturer_id);
+  const stableGroupKey = String(source.color_group_key || source.colorGroupKey || source.id || makeId()).trim();
   return {
-    id: makeId(),
+    id: stableGroupKey,
+    color_group_key: stableGroupKey,
     color: getColorGroupName(source),
     audience: String(source.audience || source.variant_audience || "").trim(),
     manufacturer_id: manufacturerIds[0] || "",
@@ -2070,6 +2083,13 @@ function CreateProduct() {
       }
 
       const usedVariantSkus = new Set(existingSkuValues);
+      const duplicateColorNames = getDuplicateColorGroupNames(filledGroups);
+      if (duplicateColorNames.size > 0) {
+        toast(`تنبيه: يوجد أكثر من بلوك بنفس اسم اللون. سيُحفظ كل بلوك وصوره منفصلًا ولن يتم دمج الصور.`, {
+          icon: "⚠️",
+          duration: 6000,
+        });
+      }
       const generatedVariants = filledGroups.flatMap((group, groupIndex) => {
         const groupColor = String(group.color || "").trim();
         const groupImageUrl = String(getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "").trim();
@@ -2085,6 +2105,8 @@ function CreateProduct() {
           return [
             normalizeVariantPayload({
               color_sort_order: groupIndex,
+              color_group_key: String(group.color_group_key || group.id || "").trim(),
+              colorGroupKey: String(group.color_group_key || group.id || "").trim(),
               color: groupColor,
               audience: group.audience || "",
               size: String(fixedSizeLabel || "One Size").trim() || "One Size",
@@ -2129,6 +2151,8 @@ function CreateProduct() {
             const purchaseQty = getVariantPurchaseQty(row, group);
             return normalizeVariantPayload({
               color_sort_order: groupIndex,
+              color_group_key: String(group.color_group_key || group.id || "").trim(),
+              colorGroupKey: String(group.color_group_key || group.id || "").trim(),
               color: groupColor,
               audience: group.audience || "",
               size: String(row.size || "").trim(),
@@ -2182,6 +2206,8 @@ function CreateProduct() {
           return {
             sort_order: groupIndex,
             color_sort_order: groupIndex,
+            color_group_key: String(group.color_group_key || group.id || "").trim(),
+            colorGroupKey: String(group.color_group_key || group.id || "").trim(),
             color_name: groupColor,
             color_value: groupColor,
             color_article_code: String(group.color_article_code || "").trim(),
@@ -3454,6 +3480,11 @@ function CreateProduct() {
               </div>
 
               <div className="mt-4 space-y-3">
+                {getDuplicateColorGroupNames(colorGroups).size > 0 ? (
+                  <div className="rounded-[14px] border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-100">
+                    تنبيه: يوجد لونان أو أكثر بنفس الاسم. كل بلوك مستقل تمامًا بصوره ومقاساته، ولن تُدمج صوره مع البلوك الآخر عند الحفظ.
+                  </div>
+                ) : null}
                 {colorGroups.map((group, groupIndex) => {
                   const isExpanded = expandedGroupId === group.id;
 
