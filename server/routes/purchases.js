@@ -2667,6 +2667,7 @@ const updatePurchaseHeader = async (client, { tenantId, purchase, body }) => {
   const total = Number(body.total ?? Math.max(0, subtotal + tax - discount)) || 0;
   const supplierId = await resolveSupplierForPurchaseUpdate(client, tenantId, body, purchase.supplier_id);
   const warehouseId = await ensureDefaultWarehouseForPurchase(client, tenantId, body.warehouse_id ?? body.warehouseId ?? purchase.warehouse_id);
+  const branchId = await resolvePurchaseBranchId(client, tenantId, body.branch_id ?? body.branchId ?? purchase.branch_id);
   const paymentStatus = normalizePaymentStatus(body.payment_status ?? body.paymentStatus ?? purchase.payment_status);
   const supplierPaymentStatus = normalizeSupplierPaymentStatus(body.supplier_payment_status ?? body.supplierPaymentStatus ?? paymentStatus);
   const paidAmount = Number(body.paid_amount ?? body.paidAmount ?? body.supplier_paid_amount ?? body.supplierPaidAmount ?? purchase.paid_amount ?? 0) || 0;
@@ -2727,6 +2728,10 @@ const updatePurchaseHeader = async (client, { tenantId, purchase, body }) => {
 
   const extraSets = [];
   const extraValues = [purchase.id, tenantId];
+  if (purchaseColumns.has("branch_id")) {
+    extraValues.push(branchId);
+    extraSets.push(`branch_id = $${extraValues.length}`);
+  }
   if (purchaseColumns.has("remaining_amount")) {
     extraValues.push(remainingAmount);
     extraSets.push(`remaining_amount = $${extraValues.length}`);

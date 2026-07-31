@@ -51,6 +51,7 @@ test("profit and loss does not count COGS twice as an operating expense", () => 
 
 test("purchase invoices persist branch ownership and payables honor branch filters", () => {
   const purchaseRoutes = source("server/routes/purchases.js");
+  const purchaseForm = source("src/modules/purchases/pages/PurchaseOrder.jsx");
   const reports = source("server/services/accountingReportsV2Service.js");
   const migration = source("server/database/migrations/2026-07-31-add-purchases-branch.sql");
 
@@ -60,4 +61,7 @@ test("purchase invoices persist branch ownership and payables honor branch filte
   assert.match(reports, /branch_filter_applied:\s*purchaseColumns\.has\("branch_id"\)/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL/);
   assert.match(migration, /LOWER\('فرع البشبيشي'\)/);
+  assert.match(purchaseForm, /اختر الفرع أولاً قبل حفظ فاتورة الشراء/);
+  assert.match(purchaseForm, /placeholder=\{isArabic \? "اختر الفرع"/);
+  assert.match(purchaseRoutes, /extraSets\.push\(`branch_id = \$\$\{extraValues\.length\}`\)/);
 });

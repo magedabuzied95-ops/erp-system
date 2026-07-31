@@ -1068,7 +1068,6 @@ function PurchaseOrder() {
     if (!supplierId && suppliers.length) setSupplierId(String(suppliers[0].id));
     if (!supplierId && !suppliers.length && !loading) setSupplierModalOpen(true);
     if (!warehouseId && warehouses.length) setWarehouseId(String(warehouses[0].id));
-    if (!branchId && branches.length === 1) setBranchId(String(branches[0].id));
   }, [suppliers, warehouses, branches, supplierId, warehouseId, branchId, location.search, loading, isEditMode]);
 
   useEffect(() => {
@@ -1887,6 +1886,13 @@ function PurchaseOrder() {
       releasePostingLock();
       return;
     }
+    if (!branchId) {
+      const message = isArabic ? "اختر الفرع أولاً قبل حفظ فاتورة الشراء." : "Select the branch before saving the purchase invoice.";
+      setPostError(message);
+      toast.error(message);
+      releasePostingLock();
+      return;
+    }
     const normalizedItems = items.map(normalizePurchaseItem);
     const invalidCostIds = normalizedItems
       .filter((item) => !item.unit_cost || item.unit_cost <= 0)
@@ -2280,7 +2286,7 @@ function PurchaseOrder() {
       />
 
       <div className="sticky top-0 z-20 rounded-2xl border border-white/10 bg-zinc-950/95 p-3 shadow-2xl shadow-black/20 backdrop-blur">
-        <div className={`grid items-end gap-3 md:grid-cols-2 ${branches.length > 1 ? "xl:grid-cols-[minmax(18rem,1.15fr)_minmax(15rem,0.9fr)_minmax(12rem,0.75fr)_minmax(25rem,2fr)]" : "xl:grid-cols-[minmax(18rem,1.1fr)_minmax(15rem,0.9fr)_minmax(28rem,2fr)]"}`}>
+        <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(18rem,1.15fr)_minmax(15rem,0.9fr)_minmax(12rem,0.75fr)_minmax(25rem,2fr)]">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
             <Select label={t("purchases.filters.supplier")} value={supplierId} onChange={setSupplierId} options={suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code ? `${supplier.supplier_code} - ` : ""}${supplier.name}` }))} emptyLabel={t("purchases.create.createSupplierFirst")} />
             <button
@@ -2294,7 +2300,14 @@ function PurchaseOrder() {
             </button>
           </div>
           <Select label={t("purchases.filters.warehouse")} value={warehouseId} onChange={setWarehouseId} options={warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))} emptyLabel={t("purchases.create.mainWarehouse")} />
-          {branches.length > 1 ? <Select label={t("purchases.filters.branch")} value={branchId} onChange={setBranchId} options={branches.map((branch) => ({ value: branch.id, label: branch.name }))} emptyLabel={t("purchases.create.allBranches")} /> : null}
+          <Select
+            label={`${t("purchases.filters.branch")} *`}
+            value={branchId}
+            onChange={setBranchId}
+            options={branches.map((branch) => ({ value: branch.id, label: branch.name }))}
+            emptyLabel={isArabic ? "لا توجد فروع نشطة" : "No active branches"}
+            placeholder={isArabic ? "اختر الفرع" : "Select branch"}
+          />
           <div ref={searchPanelWrapRef} className="relative min-w-0">
             <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-zinc-400">
               <Barcode className="h-3.5 w-3.5" />
@@ -4015,13 +4028,14 @@ function Modal({ eyebrow, title, children, onClose }) {
   );
 }
 
-function Select({ label, value, onChange, options, emptyLabel }) {
+function Select({ label, value, onChange, options, emptyLabel, placeholder = "" }) {
   const { t } = useTranslation();
   const fallbackEmptyLabel = emptyLabel || t("purchases.create.noOptions");
   return (
     <label className="block">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm capitalize text-white outline-none">
+        {placeholder ? <option value="" className="bg-zinc-950 text-white">{placeholder}</option> : null}
         {options.length === 0 ? <option value="" className="bg-zinc-950 text-white">{fallbackEmptyLabel}</option> : null}
         {options.map((option) => (
           <option key={String(option.value)} value={option.value} className="bg-zinc-950 text-white">
