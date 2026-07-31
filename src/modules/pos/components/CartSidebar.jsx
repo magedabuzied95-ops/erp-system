@@ -463,7 +463,7 @@ function CartSidebar({
         ? "credit_sale"
       : ["cash", "card", "wallet", "vodafone_cash"].includes(normalizedPaymentMode)
         ? normalizedPaymentMode
-        : "cash";
+        : "";
   const paymentMethods = [
     { key: "cash", label: editActive ? "كاش" : "CASH", fullLabel: editActive ? "كاش" : "CASH", tone: "green", icon: <Banknote className="h-4 w-4" />, setter: setCashAmount },
     { key: "card", label: editActive ? "فيزا" : "VISA", fullLabel: editActive ? "فيزا" : "VISA", tone: "blue", icon: <CreditCard className="h-4 w-4" />, setter: setCardAmount },

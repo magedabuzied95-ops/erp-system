@@ -147,7 +147,7 @@ const defaultState = {
   selectedProductType: "all",
   selectedGrade: "all",
   customerSearch: "",
-  paymentMode: "cash",
+  paymentMode: "",
   cashAmount: 0,
   cardAmount: 0,
   walletAmount: 0,
@@ -1574,7 +1574,7 @@ function POSPro() {
   const [sellersLoading, setSellersLoading] = useState(false);
   const [sellersLoaded, setSellersLoaded] = useState(false);
   const [sellerLoadError, setSellerLoadError] = useState("");
-  const [salesSettings, setSalesSettings] = useState({ allow_sale_without_salesperson: true, fixed_commission_mode: "fixed_per_invoice" });
+  const [, setSalesSettings] = useState({ allow_sale_without_salesperson: true, fixed_commission_mode: "fixed_per_invoice" });
   const [selectedSalespersonId, setSelectedSalespersonId] = useState("");
   const lastSalespersonIdRef = useRef(readLastSalespersonId());
   const [cart, setCart] = useState(() => readPosCart());
@@ -1792,8 +1792,8 @@ function POSPro() {
           `#${activeSalesperson.id || ""}`
       ).trim();
     }
-    return salesSettings.allow_sale_without_salesperson ? "بدون بائع" : "اختر بائع";
-  }, [activeSalesperson, salesSettings.allow_sale_without_salesperson]);
+    return "اختر بائع";
+  }, [activeSalesperson]);
   const canOverrideSeller = useMemo(
     () => sellerOverrideAllowed || isAdminUser(currentUser) || hasPermission("pos.override_seller", currentUser) || hasPermission("orders.edit", currentUser),
     [currentUser, sellerOverrideAllowed]
@@ -2952,17 +2952,8 @@ function POSPro() {
         }
         setSelectedSalespersonId((current) => {
           const activeRows = normalizedRows.filter((user) => user.is_active !== false && user.active_for_pos === true);
-          const currentUserId = currentUser?.id ? String(currentUser.id) : "";
-          const currentUserSeller = activeRows.find((user) => currentUserId && String(user.user_id || "") === currentUserId);
-          if (currentUserSeller?.id) {
-            const currentEmployeeId = String(currentUserSeller.id);
-            if (!canOverrideSeller) return currentEmployeeId;
-            if (activeRows.some((user) => String(user.id) === String(current))) return current || currentEmployeeId;
-            return currentEmployeeId;
-          }
-          if (response?.settings?.allow_sale_without_salesperson !== false && !current) return "";
           if (activeRows.some((user) => String(user.id) === String(current))) return current;
-          return activeRows[0]?.id ? String(activeRows[0].id) : "";
+          return "";
         });
     } catch (error) {
       console.error("[pos] failed to load branch seller users:", error);
@@ -2970,7 +2961,7 @@ function POSPro() {
     } finally {
       setSellersLoading(false);
     }
-  }, [activePosShift?.id, activePosShift?.branch_id, canOverrideSeller, posShiftLoading, resolvedPosBranchId, salesEmployees.length]);
+  }, [activePosShift?.id, activePosShift?.branch_id, posShiftLoading, resolvedPosBranchId, salesEmployees.length]);
 
   useEffect(() => {
     loadSellerUsers({ silent: sellersLoaded || salesEmployees.length > 0 });
@@ -2990,10 +2981,6 @@ function POSPro() {
     const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
     if (!canOverrideSeller && nextId && currentEmployeeId && nextId !== currentEmployeeId) {
       toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
-      return;
-    }
-    if (!canOverrideSeller && !nextId && currentEmployeeId) {
-      setSelectedSalespersonId(currentEmployeeId);
       return;
     }
     setSelectedSalespersonId(nextId);
@@ -3021,7 +3008,7 @@ function POSPro() {
     setCustomerSearch(selected.name || selected.phone || "");
     setLoyaltyRedeemPoints(0);
     if (!(selected.allow_personal_transactions ?? selected.allowPersonalTransactions ?? false)) {
-      setPaymentMode((current) => (String(current || "").toLowerCase() === "personal" ? "cash" : current));
+      setPaymentMode((current) => (String(current || "").toLowerCase() === "personal" ? "" : current));
       setPersonalSettlementType("");
       setPersonalNote("");
     }
@@ -3090,7 +3077,7 @@ function POSPro() {
     setCustomerWalletAmount(0);
     setPaymentMode((current) => {
       const normalized = String(current || "").toLowerCase();
-      if (normalized === "customer_wallet" || normalized === "personal" || normalized === "credit_sale") return "cash";
+      if (normalized === "customer_wallet" || normalized === "personal" || normalized === "credit_sale") return "";
       return current;
     });
     setPersonalSettlementType("");
@@ -3100,7 +3087,7 @@ function POSPro() {
   useEffect(() => {
     if (String(paymentMode || "").toLowerCase() !== "personal") return;
     if (!selectedCustomerId || !(customer?.allow_personal_transactions ?? customer?.allowPersonalTransactions ?? false)) {
-      setPaymentMode("cash");
+      setPaymentMode("");
       setPersonalSettlementType("");
       setPersonalNote("");
     }
@@ -3109,7 +3096,7 @@ function POSPro() {
   useEffect(() => {
     if (String(paymentMode || "").toLowerCase() !== "credit_sale") return;
     if (!selectedCustomerId) {
-      setPaymentMode("cash");
+      setPaymentMode("");
     }
   }, [paymentMode, selectedCustomerId]);
 
@@ -3848,7 +3835,7 @@ function POSPro() {
       isShiftActive &&
       !missingFullVariantForCheckout &&
       !invalidCartItemForCheckout &&
-      (salesSettings.allow_sale_without_salesperson || Boolean(selectedSalespersonId)) &&
+      Boolean(selectedSalespersonId) &&
       paymobTerminalAmount > 0 &&
       paymentMode !== "personal" &&
       paymentMode !== "credit_sale" &&
@@ -3957,7 +3944,7 @@ function POSPro() {
 
   useEffect(() => {
     if (!canUseCustomerCredit) {
-      if (paymentMode === "customer_wallet") setPaymentMode("cash");
+      if (paymentMode === "customer_wallet") setPaymentMode("");
       if (Number(customerWalletAmount || 0) > 0) setCustomerWalletAmount(0);
       return;
     }
@@ -4809,7 +4796,7 @@ function POSPro() {
       });
       setCart(mappedCart);
       setInvoiceNumber(loadedOrder.invoice_number || invoiceNumber);
-      setPaymentMode(loadedOrder.payment_method || "cash");
+      setPaymentMode(loadedOrder.payment_method || "");
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
@@ -4936,7 +4923,7 @@ function POSPro() {
       });
       setCart(mappedCart);
       setInvoiceNumber(loadedOrder.invoice_number || order.invoice_number || invoiceNumber);
-      setPaymentMode(loadedOrder.payment_method || order.payment_method || "cash");
+      setPaymentMode(loadedOrder.payment_method || order.payment_method || "");
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
@@ -4986,7 +4973,8 @@ function POSPro() {
   const handleExchangeStarted = ({ order, returnTotal = 0 } = {}) => {
     setEditingOrder(null);
     setInvoiceNumber(generateInvoiceNumber());
-    setPaymentMode("cash");
+    setPaymentMode("");
+    setSelectedSalespersonId("");
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
@@ -5043,7 +5031,8 @@ function POSPro() {
     setEditingOrder(null);
     setCart([]);
     setInvoiceNumber(generateInvoiceNumber());
-    setPaymentMode("cash");
+    setPaymentMode("");
+    setSelectedSalespersonId("");
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
@@ -5181,7 +5170,7 @@ function POSPro() {
         cacheActiveShiftSnapshot(nextShift, nextBranch);
       }
       setOpeningCash("");
-      setSelectedSalespersonId(currentUser?.id ? String(currentUser.id) : "");
+      setSelectedSalespersonId("");
       toast.success(t("pos.shift.opened"));
       emitFeedback("attendance_check_in", {
         title: t("pos.shift.opened"),
@@ -5420,8 +5409,8 @@ function POSPro() {
       return null;
     }
 
-    if (!salesSettings.allow_sale_without_salesperson && !selectedSalespersonId) {
-      toast.error("Select a salesperson before checkout");
+    if (!selectedSalespersonId) {
+      toast.error("يجب تحديد البائع قبل إتمام الفاتورة");
       return null;
     }
 
@@ -5431,6 +5420,10 @@ function POSPro() {
     }
 
     const normalizedPaymentMode = String(creditSaleCheckout ? "credit_sale" : paymentMode || "").toLowerCase();
+    if (!paymobTerminalCheckout && !paymobTerminalConfirmed && !normalizedPaymentMode) {
+      toast.error("يجب اختيار طريقة الدفع لهذه الفاتورة");
+      return null;
+    }
     const isPersonalTransaction = normalizedPaymentMode === "personal";
     const isCreditSaleTransaction = normalizedPaymentMode === "credit_sale";
     const requestedCustomerWalletAmount = paymentMode === "customer_wallet"
@@ -6106,6 +6099,8 @@ function POSPro() {
       writePosSaleStats(cart);
       setCart([]);
       clearPosPersistedState();
+      setSelectedSalespersonId("");
+      setPaymentMode("");
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
@@ -6173,6 +6168,8 @@ function POSPro() {
           writePosSaleStats(offlineCheckoutSnapshot.cartItems);
           setCart([]);
           clearPosPersistedState();
+          setSelectedSalespersonId("");
+          setPaymentMode("");
           setCashAmount(0);
           setCardAmount(0);
           setWalletAmount(0);
@@ -6911,6 +6908,8 @@ function POSPro() {
       return;
     }
     setCart([]);
+    setSelectedSalespersonId("");
+    setPaymentMode("");
     setInvoiceDiscountType(defaultState.invoiceDiscountType);
     setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
     setInvoiceDiscountReason(defaultState.invoiceDiscountReason);
@@ -7825,7 +7824,7 @@ function POSPro() {
             selectedSalespersonId={selectedSalespersonId}
             setSelectedSalespersonId={handleSalespersonChange}
             onRefreshSellers={handleRefreshSellerUsers}
-            allowSaleWithoutSalesperson={salesSettings.allow_sale_without_salesperson}
+            allowSaleWithoutSalesperson={false}
             canChangeSalesperson={canChangeSalesperson}
             customerSearch={customerSearch}
             setCustomerSearch={setCustomerSearch}
@@ -7969,7 +7968,7 @@ function POSPro() {
             selectedSalespersonId={selectedSalespersonId}
             setSelectedSalespersonId={handleSalespersonChange}
             onRefreshSellers={handleRefreshSellerUsers}
-            allowSaleWithoutSalesperson={salesSettings.allow_sale_without_salesperson}
+            allowSaleWithoutSalesperson={false}
             canChangeSalesperson={canChangeSalesperson}
             customerSearch={customerSearch}
             setCustomerSearch={setCustomerSearch}

@@ -2678,7 +2678,10 @@ export const createOrder = async (req, res) => {
     }
 
     const resolvedCustomerName = String(customer_name || "").trim() || "Walk-in Customer";
-    const normalizedPaymentMethod = normalizeMoneyPaymentMethod(payment_method || "cash");
+    if (!String(payment_method || "").trim()) {
+      return res.status(400).json({ success: false, message: "Payment method is required for every invoice" });
+    }
+    const normalizedPaymentMethod = normalizeMoneyPaymentMethod(payment_method);
     const isPersonalTransaction = normalizedPaymentMethod === "personal";
     const isCreditSaleTransaction = normalizedPaymentMethod === "credit_sale";
     let resolvedPersonalSettlementType = normalizePersonalSettlementType(personal_settlement_type);
@@ -2903,7 +2906,7 @@ export const createOrder = async (req, res) => {
       salespersonSnapshot,
     });
 
-    if (!settings.allow_sale_without_salesperson && !resolvedSalesEmployeeId) {
+    if (!resolvedSalesEmployeeId) {
       await client.query("ROLLBACK");
       transactionStarted = false;
       return res.status(400).json({
