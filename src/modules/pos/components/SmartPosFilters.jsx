@@ -183,7 +183,7 @@ function SmartPosFilters({
         role="dialog"
         aria-modal="true"
         aria-labelledby="smart-pos-filters-title"
-        className="m1-smart-filter-panel flex w-[min(1050px,calc(100vw-40px))] max-w-[calc(100vw-40px)] max-h-[84vh] flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/60 sm:w-[min(1050px,calc(100vw-56px))] sm:max-w-[calc(100vw-56px)] sm:rounded-3xl"
+        className="m1-smart-filter-panel flex h-[84vh] max-h-[84vh] w-[min(1050px,calc(100vw-40px))] max-w-[calc(100vw-40px)] flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/60 sm:w-[min(1050px,calc(100vw-56px))] sm:max-w-[calc(100vw-56px)] sm:rounded-3xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="m1-smart-filter-header flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4 sm:py-3.5">

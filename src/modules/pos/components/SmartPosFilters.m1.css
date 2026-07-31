@@ -135,6 +135,7 @@
   .m1-smart-filter-panel {
     width: 100% !important;
     max-width: 100% !important;
+    height: 92dvh !important;
     max-height: 92dvh !important;
     border-radius: 20px 20px 0 0 !important;
   }
