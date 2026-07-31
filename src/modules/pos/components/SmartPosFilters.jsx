@@ -209,14 +209,14 @@ function SmartPosFilters({
           <div className="grid gap-2 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
             {hasExtendedFilters ? (
               <>
-                <div className="grid gap-2">
+                <div className="grid content-start gap-2">
                   <SmartSelectBlock label={isArabic ? "الفئة" : "Category"} options={categoryOptions} value={selectedCategoryId} onChange={onCategoryChange} allLabel={isArabic ? "كل الفئات" : "All categories"} />
                   <SmartSelectBlock label={copy.brand} options={brandOptions} value={selectedBrandId} onChange={onBrandChange} allLabel={copy.allBrands} />
                   <SmartFilterRow label={copy.gender} options={smartFilterOptions?.gender} value={selectedGender} onChange={onGenderChange} />
                   <SmartFilterRow label={copy.productType} options={smartFilterOptions?.productType} value={selectedProductType} onChange={onProductTypeChange} />
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid content-start gap-2">
                   <SmartFilterRow label={isArabic ? "اللون" : "Color"} options={colorOptions} value={selectedColor} onChange={onColorChange} />
                   <SmartFilterRow label={copy.size} options={sizeOptions} value={selectedSize} onChange={onSizeChange} />
                   <SmartFilterRow label={isArabic ? "المخزون" : "Stock"} options={stockOptions} value={selectedStock} onChange={onStockChange} />
@@ -225,14 +225,14 @@ function SmartPosFilters({
               </>
             ) : (
               <>
-                <div className="grid gap-2">
+                <div className="grid content-start gap-2">
                   <SmartFilterRow label={copy.gender} options={smartFilterOptions?.gender} value={selectedGender} onChange={onGenderChange} />
                   <SmartFilterRow label={copy.productType} options={smartFilterOptions?.productType} value={selectedProductType} onChange={onProductTypeChange} />
                   <SmartFilterRow label={copy.grade} options={smartFilterOptions?.grade} value={selectedGrade} onChange={onGradeChange} />
                   {Array.isArray(sizeOptions) && sizeOptions.length ? <SmartFilterRow label={copy.size} options={sizeOptions} value={selectedSize} onChange={onSizeChange} /> : null}
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid content-start gap-2">
                   <SmartSelectBlock label={copy.brand} options={brandOptions} value={selectedBrandId} onChange={onBrandChange} allLabel={copy.allBrands} />
                   <SmartSelectBlock label={copy.manufacturer} options={manufacturerOptions} value={selectedManufacturerId} onChange={onManufacturerChange} allLabel={copy.allManufacturers} />
                 </div>
