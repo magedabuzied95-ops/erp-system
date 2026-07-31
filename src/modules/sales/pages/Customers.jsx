@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
@@ -862,6 +862,35 @@ function Customers() {
     }));
   };
 
+  if (selectedCustomer) {
+    return (
+      <CustomerStatementDrawer
+        customer={profile?.customer || selectedCustomer}
+        metrics={profile?.metrics}
+        statement={statementData}
+        walletAudit={walletAudit}
+        auditLoading={auditLoading}
+        statementError={statementError}
+        filters={filters}
+        setFilters={setFilters}
+        adjustment={adjustment}
+        setAdjustment={setAdjustment}
+        payment={payment}
+        setPayment={setPayment}
+        paymentSaving={paymentSaving}
+        onClose={() => {
+          setSelectedCustomer(null);
+          setStatementData(null);
+          setStatementError("");
+        }}
+        onAdjust={handleManualAdjustment}
+        onPayment={handleCustomerPayment}
+        onExportStatement={handleExportStatement}
+        canExportStatement={canExportStatement}
+      />
+    );
+  }
+
   return (
     <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-6 py-6 text-white">
       <div className="w-full space-y-6">
@@ -1188,32 +1217,6 @@ function Customers() {
           </div>
         </section>
       </div>
-      {selectedCustomer ? (
-        <CustomerStatementDrawer
-          customer={profile?.customer || selectedCustomer}
-          metrics={profile?.metrics}
-          statement={statementData}
-          walletAudit={walletAudit}
-          auditLoading={auditLoading}
-          statementError={statementError}
-          filters={filters}
-          setFilters={setFilters}
-          adjustment={adjustment}
-          setAdjustment={setAdjustment}
-          payment={payment}
-          setPayment={setPayment}
-          paymentSaving={paymentSaving}
-          onClose={() => {
-            setSelectedCustomer(null);
-            setStatementData(null);
-            setStatementError("");
-          }}
-          onAdjust={handleManualAdjustment}
-          onPayment={handleCustomerPayment}
-          onExportStatement={handleExportStatement}
-          canExportStatement={canExportStatement}
-        />
-      ) : null}
       {importOpen ? (
         <CustomerImportModal
           file={importFile}
@@ -1619,8 +1622,8 @@ function CustomerStatementDrawer({
     customer?.created_at;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm" dir="rtl">
-      <aside className="h-full w-full max-w-6xl overflow-y-auto border-l border-white/10 bg-slate-950 p-5 text-white shadow-2xl shadow-black/40">
+    <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-4 py-6 text-white sm:px-6" dir="rtl">
+      <main className="mx-auto w-full max-w-[1500px] rounded-[2rem] border border-white/10 bg-slate-950/80 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
         <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">كشف حساب العميل</div>
@@ -1658,10 +1661,11 @@ function CustomerStatementDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10"
-              aria-label="Close"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-black text-zinc-200 transition hover:bg-white/10"
+              aria-label="العودة للعملاء"
             >
-              <X className="h-5 w-5" />
+              <ArrowRight className="h-5 w-5" />
+              العودة للعملاء
             </button>
           </div>
         </div>
@@ -1863,7 +1867,7 @@ function CustomerStatementDrawer({
             <div className="mt-1 text-xs font-semibold text-zinc-500">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>
           </div>
         </section>
-      </aside>
+      </main>
     </div>
   );
 }
