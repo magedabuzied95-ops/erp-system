@@ -35,6 +35,8 @@ const isQuotaExceeded = (error) =>
 
 const duplicateVariantPayload = (variant = {}, group = {}) =>
   normalizeVariantPayload({
+    color_group_key: variant.color_group_key || variant.colorGroupKey || group.color_group_key || group.colorGroupKey || "",
+    colorGroupKey: variant.color_group_key || variant.colorGroupKey || group.color_group_key || group.colorGroupKey || "",
     color: variant.color || group.color || "",
     size: variant.size || "",
     sku: "",
@@ -45,10 +47,11 @@ const duplicateVariantPayload = (variant = {}, group = {}) =>
     price: variant.price ?? variant.sale_price,
     cost_price: variant.cost_price,
     manufacturer_id: variant.manufacturer_id || group.manufacturer_id || null,
-    image_url: variantPrimaryImage(variant) || group.image_url || "",
-    variant_image_url: variantPrimaryImage(variant) || group.image_url || "",
-    color_image_url: group.image_url || variantPrimaryImage(variant) || "",
-    images: Array.isArray(variant.images) ? variant.images : [],
+    image_url: "",
+    variant_image_url: "",
+    color_image_url: "",
+    thermal_image_url: "",
+    images: [],
   });
 
 const placeholderImage = (label = "Product image") =>
@@ -711,10 +714,15 @@ function ProductDetails() {
           product.variation_mode === "simple"
             ? []
             : (product.groupedVariants || []).map((group) => ({
+                color_group_key: group.color_group_key || group.colorGroupKey || "",
+                colorGroupKey: group.color_group_key || group.colorGroupKey || "",
                 color_name: group.color,
                 color_value: group.color,
-                images: Array.isArray(group.images) ? group.images : [],
-                image_url: group.image_url || "",
+                images: [],
+                image_url: "",
+                thermal_image_url: "",
+                ai_cover: null,
+                ai_cover_status: "",
               })),
         variants:
           product.variation_mode === "simple"

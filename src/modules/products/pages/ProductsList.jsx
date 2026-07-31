@@ -450,6 +450,8 @@ const cleanSkuDisplay = (value) => {
 };
 
 const duplicateVariantPayload = (variant = {}, index = 0) => ({
+  color_group_key: variant.color_group_key || variant.colorGroupKey || "",
+  colorGroupKey: variant.color_group_key || variant.colorGroupKey || "",
   color: variant.color || "",
   size: variant.size || "",
   sku: "",
@@ -459,10 +461,11 @@ const duplicateVariantPayload = (variant = {}, index = 0) => ({
   price: Number(variant.price ?? variant.sale_price ?? 0),
   cost_price: Number(variant.cost_price ?? variant.purchase_price ?? 0),
   manufacturer_id: variant.manufacturer_id || null,
-  image_url: variant.image_url || variant.variant_image_url || variant.color_image_url || "",
-  variant_image_url: variant.variant_image_url || variant.image_url || variant.color_image_url || "",
-  color_image_url: variant.color_image_url || variant.image_url || variant.variant_image_url || "",
-  images: Array.isArray(variant.images) ? variant.images : [],
+  image_url: "",
+  variant_image_url: "",
+  color_image_url: "",
+  thermal_image_url: "",
+  images: [],
   edition_name: variant.edition_name ? `${variant.edition_name} Copy ${index + 1}` : "",
   edition_slug: "",
 });
@@ -493,7 +496,14 @@ const duplicateProductPayload = (row = {}) => ({
   image_url: "",
   gallery: [],
   colorImages: Array.isArray(row.color_images)
-    ? row.color_images
+    ? row.color_images.map((group) => ({
+        ...group,
+        image_url: "",
+        thermal_image_url: "",
+        images: [],
+        ai_cover: null,
+        ai_cover_status: "",
+      }))
     : Array.isArray(row.variants)
       ? Object.values(
           row.variants.reduce((groups, variant) => {
@@ -504,8 +514,10 @@ const duplicateProductPayload = (row = {}) => ({
               groups[key] = {
                 color_name: color,
                 color_value: color,
-                images: Array.isArray(variant.images) ? variant.images : [],
-                image_url: variant.color_image_url || variant.image_url || variant.variant_image_url || "",
+                color_group_key: variant.color_group_key || variant.colorGroupKey || "",
+                colorGroupKey: variant.color_group_key || variant.colorGroupKey || "",
+                images: [],
+                image_url: "",
               };
             }
             return groups;
