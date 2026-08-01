@@ -44,7 +44,7 @@ test("crocs create only 25x35 crocs labels", () => {
   assert.deepEqual(new Set(plan.labels.map((x) => `${x.type}:${x.widthMm}x${x.heightMm}`)), new Set(["crocs:25x35"]));
 });
 
-test("bags preserve the 38x25 layout and request a 90-degree printer rotation", () => {
+test("bags create landscape 38x25 labels with color and article instead of size", () => {
   const bagVariant = { ...variant(1, "ONE", 2, "BAG", "Red"), color_article_code: "RED-ART" };
   const plan = buildProductLabelPrintPlan([product("bags", [bagVariant])]);
   assert.equal(plan.counts.bag, 2);
@@ -82,8 +82,6 @@ test("PDF jobs contain one physical page size and never mix label sizes", () => 
     ["crocs", 25, 35],
   ]);
   jobs.forEach((job) => assert.ok(job.labels.every((label) => label.widthMm === job.widthMm && label.heightMm === job.heightMm)));
-  const bagJob = jobs.find((job) => job.key === "bag");
-  assert.equal(bagJob.printRotation, 90);
 });
 
 test("shoe box labels carry the color image with product image fallback", () => {

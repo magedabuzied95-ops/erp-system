@@ -151,14 +151,7 @@ export function groupProductLabelPdfJobs(plan = {}) {
   return [
     { key: "box", filename: "box-labels-100x50.pdf", widthMm: 100, heightMm: 50, labels: labels.filter((x) => x.type === "box") },
     { key: "display", filename: "display-labels-55x40.pdf", widthMm: 55, heightMm: 40, labels: labels.filter((x) => x.type === "display") },
-    {
-      key: "bag",
-      filename: "bag-labels-38x25-rotated.pdf",
-      widthMm: 38,
-      heightMm: 25,
-      printRotation: 90,
-      labels: labels.filter((x) => x.type === "bag"),
-    },
+    { key: "bag", filename: "bag-labels-38x25.pdf", widthMm: 38, heightMm: 25, labels: labels.filter((x) => x.type === "bag") },
     { key: "crocs", filename: "crocs-labels-25x35.pdf", widthMm: 25, heightMm: 35, labels: labels.filter((x) => x.type === "crocs") },
   ].filter((job) => job.labels.length > 0);
 }
