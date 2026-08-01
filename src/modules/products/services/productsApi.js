@@ -1,5 +1,6 @@
 import { api } from "../../../shared/api/api";
 import { normalizeArticleCodes } from "../../../../shared/articleCode";
+import { normalizePurchaseQuantity } from "../lib/purchaseQuantity";
 
 const MAX_VARIANT_IMAGE_URL_LENGTH = 2048;
 
@@ -28,14 +29,6 @@ const unwrapItem = (payload, fallbackKey = "data") =>
 const normalizeNumber = (value) => {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const normalizePurchaseQuantity = (...values) => {
-  for (const value of values) {
-    const parsed = Number(value ?? 0);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 0;
 };
 
 const normalizeText = (value) => {
