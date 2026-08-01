@@ -751,7 +751,7 @@ function BarcodeLabels() {
   const selectedProductPriceFallbackVariant = useMemo(
     () =>
       (routeProductVariants.length ? routeProductVariants : selectedProductVariants).find((variant) =>
-        Number(variant?.sale_price || variant?.selling_price || variant?.regular_price || variant?.price || variant?.variant_price || 0) > 0
+        Number(variant?.selling_price || variant?.regular_price || variant?.retail_price || variant?.price || variant?.variant_price || 0) > 0
       ) || (routeProductVariants.length ? routeProductVariants[0] : selectedProductVariants[0]) || null,
     [routeProductVariants, selectedProductVariants]
   );

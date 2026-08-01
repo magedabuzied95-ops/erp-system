@@ -52,6 +52,25 @@ test("bags create landscape 55x40 labels with color and article instead of size"
   assert.ok(plan.labels.every((x) => x.articleCode === "RED-ART"));
 });
 
+test("all physical labels print the normal selling price instead of the sale price", () => {
+  const discountedVariant = {
+    ...variant(1, "41", 2, "NORMAL-PRICE"),
+    selling_price: 1500,
+    regular_price: 1500,
+    price: 1500,
+    sale_price: 900,
+    sale_price_enabled: true,
+  };
+  const plan = buildProductLabelPrintPlan([product("sneakers", [discountedVariant], {
+    selling_price: 1500,
+    sale_price: 900,
+    sale_price_enabled: true,
+  })]);
+
+  assert.ok(plan.labels.length > 0);
+  assert.ok(plan.labels.every((label) => label.price === 1500));
+});
+
 test("variant without barcode is excluded with a warning", () => {
   const plan = buildProductLabelPrintPlan([product("crocs", [variant(1, "40", 4, "")])]);
   assert.equal(plan.counts.total, 0);

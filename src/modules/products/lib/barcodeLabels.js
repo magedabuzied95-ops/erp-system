@@ -204,13 +204,6 @@ export const resolveBarcodeLabelImage = (item = {}) => {
 const formatLabelCurrency = (value) =>
   formatCurrency(Math.round(Number(value || 0))).replace(/([.,٫]\d{2})(?=\s|$)/g, "");
 
-const truthyFlag = (value) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value === 1;
-  if (typeof value === "string") return ["1", "true", "yes", "on", "active", "enabled"].includes(value.trim().toLowerCase());
-  return false;
-};
-
 const positiveNumber = (...values) => {
   for (const value of values) {
     const parsed = Number(value ?? 0);
@@ -220,38 +213,38 @@ const positiveNumber = (...values) => {
 };
 
 const resolveLabelPrice = (source = {}, fallbackSource = {}) => {
-  const salePrice = positiveNumber(source.sale_price, source.salePrice);
-  const saleEnabled = truthyFlag(source.sale_price_enabled ?? source.salePriceEnabled ?? fallbackSource.sale_price_enabled ?? fallbackSource.salePriceEnabled);
   const sellingPrice = positiveNumber(source.selling_price, source.sellingPrice, fallbackSource.selling_price, fallbackSource.sellingPrice);
   const regularPrice = positiveNumber(source.regular_price, source.regularPrice, fallbackSource.regular_price, fallbackSource.regularPrice);
+  const retailPrice = positiveNumber(source.retail_price, source.retailPrice, fallbackSource.retail_price, fallbackSource.retailPrice);
   const basePrice = positiveNumber(source.price, source.variant_price, fallbackSource.price, fallbackSource.variant_price);
-  const effectivePrice = saleEnabled && salePrice > 0 ? salePrice : positiveNumber(sellingPrice, regularPrice, basePrice);
-  const comparePrice = saleEnabled && salePrice > 0 ? positiveNumber(sellingPrice, regularPrice, basePrice) : 0;
+  const normalSellingPrice = positiveNumber(sellingPrice, regularPrice, retailPrice, basePrice);
 
   return {
-    price: effectivePrice,
-    comparePrice: comparePrice > effectivePrice ? comparePrice : 0,
-    saleActive: Boolean(saleEnabled && salePrice > 0),
+    price: normalSellingPrice,
+    comparePrice: 0,
+    saleActive: false,
   };
 };
 
 const resolveProductFirstLabelPrice = (product = {}, variant = {}) => {
-  const productSalePrice = positiveNumber(product.sale_price, product.salePrice);
   const productSellingPrice = positiveNumber(product.selling_price, product.sellingPrice);
   const productRegularPrice = positiveNumber(product.regular_price, product.regularPrice);
+  const productRetailPrice = positiveNumber(product.retail_price, product.retailPrice);
   const productBasePrice = positiveNumber(product.price);
 
   const variantSellingPrice = positiveNumber(variant.selling_price, variant.sellingPrice);
   const variantRegularPrice = positiveNumber(variant.regular_price, variant.regularPrice);
+  const variantRetailPrice = positiveNumber(variant.retail_price, variant.retailPrice);
   const variantBasePrice = positiveNumber(variant.price, variant.variant_price);
   const effectivePrice = positiveNumber(
     productSellingPrice,
     productRegularPrice,
+    productRetailPrice,
     productBasePrice,
     variantSellingPrice,
     variantRegularPrice,
-    variantBasePrice,
-    productSalePrice
+    variantRetailPrice,
+    variantBasePrice
   );
 
   return {

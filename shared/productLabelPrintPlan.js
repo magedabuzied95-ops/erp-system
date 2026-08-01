@@ -13,7 +13,27 @@ const variantId = (row) => row.variant_id ?? row.variantId ?? row.id ?? "";
 const canonicalVariantBarcode = (row = {}) =>
   text(row.barcode || row.variant_barcode || row.barcode_label || row.product_code || row.code);
 const colorKey = (row = {}) => text(row.color || row.color_name || row.colorName || "default").toLowerCase();
-const price = (product, row) => Number(row.sale_price || row.selling_price || row.price || product.sale_price || product.selling_price || product.price || 0);
+// Printed stock labels always carry the normal selling price. The discounted
+// sale price belongs to checkout/storefront promotions and must not become the
+// permanent price printed on the physical product.
+const price = (product, row) => Number(
+  row.selling_price ||
+  row.sellingPrice ||
+  row.regular_price ||
+  row.regularPrice ||
+  row.retail_price ||
+  row.retailPrice ||
+  row.price ||
+  row.variant_price ||
+  product.selling_price ||
+  product.sellingPrice ||
+  product.regular_price ||
+  product.regularPrice ||
+  product.retail_price ||
+  product.retailPrice ||
+  product.price ||
+  0
+);
 const variantImage = (row) => text(
   row.image_url ||
   row.variant_image_url ||
