@@ -3100,6 +3100,67 @@ export const getProductsAdminList = async (req, res) => {
         ) pvi_cover ON pvi_cover.product_id = p.id
       `
       : "";
+    const colorImagePreviewsSql = `
+        COALESCE((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'color', color_preview.color_name,
+              'image_url', color_preview.image_url
+            )
+            ORDER BY color_preview.color_name
+          )
+          FROM (
+            SELECT DISTINCT ON (preview_source.color_key)
+              preview_source.color_key,
+              preview_source.color_name,
+              preview_source.image_url
+            FROM (
+              ${hasProductVariantImages ? `
+              SELECT
+                COALESCE(NULLIF(LOWER(TRIM(pvi.color_group_key)), ''), LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))), 'default') AS color_key,
+                COALESCE(NULLIF(TRIM(pvi.color_name), ''), NULLIF(TRIM(pvi.color_value), ''), 'Default') AS color_name,
+                pvi.image_url,
+                0 AS source_priority,
+                CASE WHEN COALESCE(pvi.is_primary, FALSE) THEN 0 ELSE 1 END AS primary_priority,
+                COALESCE(pvi.sort_order, 0) AS image_sort_order,
+                pvi.id AS image_id
+              FROM product_variant_images pvi
+              WHERE pvi.product_id = p.id
+                AND TRIM(COALESCE(pvi.image_url, '')) <> ''
+              UNION ALL
+              ` : ""}
+              SELECT
+                COALESCE(NULLIF(LOWER(TRIM(pv.color_group_key)), ''), LOWER(TRIM(COALESCE(pv.color, ''))), 'default') AS color_key,
+                COALESCE(NULLIF(TRIM(pv.color), ''), 'Default') AS color_name,
+                COALESCE(
+                  NULLIF(TRIM(pv.image_url), ''),
+                  NULLIF(TRIM(pv.image), ''),
+                  NULLIF(TRIM(pv.photo_url), ''),
+                  NULLIF(TRIM(pv.thumbnail_url), '')
+                ) AS image_url,
+                1 AS source_priority,
+                0 AS primary_priority,
+                COALESCE(pv.color_sort_order, 0) AS image_sort_order,
+                pv.id AS image_id
+              FROM product_variants pv
+              WHERE pv.product_id = p.id
+                AND pv.deleted_at IS NULL
+                AND COALESCE(
+                  NULLIF(TRIM(pv.image_url), ''),
+                  NULLIF(TRIM(pv.image), ''),
+                  NULLIF(TRIM(pv.photo_url), ''),
+                  NULLIF(TRIM(pv.thumbnail_url), '')
+                ) IS NOT NULL
+            ) preview_source
+            ORDER BY
+              preview_source.color_key,
+              preview_source.source_priority,
+              preview_source.primary_priority,
+              preview_source.image_sort_order,
+              preview_source.image_id
+          ) color_preview
+        ), '[]'::jsonb)
+      `;
     const colorImageStatusJoinSql = `
         LEFT JOIN (
           WITH all_colors AS (
@@ -3302,6 +3363,7 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(cis.total_colors, 0)::int AS total_colors,
         COALESCE(cis.missing_colors, 0)::int AS missing_colors,
         COALESCE(cis.missing_color_names, '[]'::jsonb) AS missing_color_names,
+        ${colorImagePreviewsSql} AS color_image_previews,
         COALESCE(NULLIF(TRIM(p.thermal_image_url), ''), '') AS product_thermal_image_url,
         COALESCE(NULLIF(LOWER(TRIM(p.thermal_image_status)), ''), 'pending') AS product_thermal_image_status,
         COALESCE((
@@ -3387,6 +3449,7 @@ export const getProductsAdminList = async (req, res) => {
       totalColors: Number(row.total_colors || 0),
       missingColors: Number(row.missing_colors || 0),
       missingColorNames: Array.isArray(row.missing_color_names) ? row.missing_color_names : [],
+      colorImagePreviews: Array.isArray(row.color_image_previews) ? row.color_image_previews : [],
       productThermalImageUrl: row.product_thermal_image_url || "",
       productThermalImageStatus: row.product_thermal_image_status || "pending",
       thermalColorCount: Number(row.thermal_color_count || 0),

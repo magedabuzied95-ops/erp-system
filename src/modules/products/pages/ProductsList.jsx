@@ -609,6 +609,24 @@ const getProductThumbnail = (row = {}) => {
   return resolveProductImageUrl(imageValue);
 };
 
+const getProductColorPreviews = (row = {}) => {
+  const previews = Array.isArray(row.colorImagePreviews)
+    ? row.colorImagePreviews
+    : Array.isArray(row.color_image_previews)
+      ? row.color_image_previews
+      : [];
+  const seen = new Set();
+  return previews.reduce((result, preview) => {
+    const imageUrl = resolveProductImageUrl(firstImageValue(preview?.image_url, preview?.imageUrl, preview?.url));
+    const color = String(preview?.color || preview?.color_name || preview?.colorName || "لون").trim();
+    const key = `${color.toLowerCase()}|${imageUrl}`;
+    if (!imageUrl || seen.has(key)) return result;
+    seen.add(key);
+    result.push({ color, imageUrl });
+    return result;
+  }, []);
+};
+
 const normalizeQueueColorKey = (value = "") => String(value ?? "").trim().toLowerCase();
 
 const getProductQueueColorGroups = (row = {}) => {
@@ -926,6 +944,24 @@ function PriceLine({
 
 const ProductThumbnail = memo(function ProductThumbnail({ row }) {
   const src = getProductThumbnail(row);
+  const colorPreviews = getProductColorPreviews(row);
+  const [previewPosition, setPreviewPosition] = useState(null);
+  const imageRef = useRef(null);
+
+  const showColorPreviews = () => {
+    if (!colorPreviews.length || !imageRef.current || typeof window === "undefined") return;
+    const rect = imageRef.current.getBoundingClientRect();
+    const columns = Math.min(4, colorPreviews.length);
+    const width = Math.max(176, columns * 82 + 24);
+    const estimatedHeight = 54 + Math.ceil(colorPreviews.length / 4) * 88;
+    const left = Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - width - 12));
+    const roomBelow = window.innerHeight - rect.bottom;
+    setPreviewPosition({
+      left,
+      top: roomBelow >= estimatedHeight + 12 ? rect.bottom + 8 : Math.max(12, rect.top - estimatedHeight - 8),
+      width,
+    });
+  };
 
   if (!src) {
     return (
@@ -936,12 +972,43 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
   }
 
   return (
-    <img
-      src={src}
-      alt={row?.name || "Product"}
-      loading="lazy"
-      className="h-14 w-14 shrink-0 rounded-2xl border border-white/10 bg-white/5 object-cover"
-    />
+    <>
+      <img
+        ref={imageRef}
+        src={src}
+        alt={row?.name || "Product"}
+        loading="lazy"
+        onMouseEnter={showColorPreviews}
+        onMouseLeave={() => setPreviewPosition(null)}
+        className={`h-14 w-14 shrink-0 rounded-2xl border border-white/10 bg-white/5 object-cover ${colorPreviews.length ? "cursor-zoom-in" : ""}`}
+      />
+      {previewPosition && typeof document !== "undefined" ? createPortal(
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[300] rounded-2xl border border-white/15 bg-zinc-950/95 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl"
+          style={{ left: previewPosition.left, top: previewPosition.top, width: previewPosition.width }}
+        >
+          <p className="mb-2 text-right text-[11px] font-black text-zinc-300">صور ألوان المنتج</p>
+          <div
+            className="grid gap-2"
+            dir="rtl"
+            style={{ gridTemplateColumns: `repeat(${Math.min(4, colorPreviews.length)}, minmax(0, 1fr))` }}
+          >
+            {colorPreviews.map((preview) => (
+              <div key={`${preview.color}-${preview.imageUrl}`} className="min-w-0">
+                <img
+                  src={preview.imageUrl}
+                  alt={`${row?.name || "Product"} - ${preview.color}`}
+                  className="h-16 w-full rounded-xl border border-white/10 bg-white object-contain"
+                />
+                <p className="mt-1 truncate text-center text-[10px] font-bold text-zinc-300" title={preview.color}>{preview.color}</p>
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body
+      ) : null}
+    </>
   );
 });
 
