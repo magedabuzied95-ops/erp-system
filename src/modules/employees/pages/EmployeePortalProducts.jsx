@@ -11,12 +11,39 @@ import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../serv
 import ProductGrid from "../../pos/components/ProductGrid";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
+import { moveWinterCollectionToEnd } from "../../pos/lib/posQuickFilterLogic";
+import { useProductClassifications } from "../../products/hooks/useProductClassifications";
+import {
+  classificationGroupsToFieldOptions,
+  normalizeClassificationValue,
+} from "../../products/lib/productClassifications";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 
 const text = (value = "") => String(value || "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const uniqueValues = (values = []) => [...new Set(values.map((value) => text(value)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
+const normalizeFilterValue = (value = "") => normalizeClassificationValue(value);
+
+const resolveConfiguredFilterValue = (value, options = []) => {
+  const normalized = normalizeFilterValue(value);
+  if (!normalized) return "";
+  const match = (Array.isArray(options) ? options : []).find((option) =>
+    [option?.value, option?.id, option?.name, option?.label, option?.label_ar, option?.label_en]
+      .map(normalizeFilterValue)
+      .filter(Boolean)
+      .includes(normalized)
+  );
+  return normalizeFilterValue(match?.value || match?.id || normalized);
+};
+
+const getEmployeeSmartFilterValue = (product = {}, field, options = []) => {
+  const firstVariant = Array.isArray(product?.variants) ? product.variants[0] || {} : {};
+  const candidates = field === "productType"
+    ? [product.product_type, product.productType, product.type, firstVariant.product_type, firstVariant.productType, firstVariant.type]
+    : [product.grade, product.product_grade, firstVariant.grade, firstVariant.product_grade];
+  return resolveConfiguredFilterValue(candidates.find((value) => text(value)), options);
+};
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const isActiveSizeFilter = (value) => {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -98,6 +125,9 @@ const normalizeProduct = (product = {}) => {
     manufacturer_name: text(mappedProduct.manufacturer_name || mappedProduct.manufacturer || ""),
     category: text(mappedProduct.category || mappedProduct.category_name || ""),
     type: text(mappedProduct.type || mappedProduct.product_type || mappedProduct.style || ""),
+    product_type: text(mappedProduct.product_type || mappedProduct.productType || mappedProduct.type || ""),
+    productType: text(mappedProduct.productType || mappedProduct.product_type || mappedProduct.type || ""),
+    grade: text(mappedProduct.grade || mappedProduct.product_grade || ""),
     brand: text(mappedProduct.brand || mappedProduct.brand_name || ""),
     gender: text(variantAudiences[0] || mappedProduct.gender || ""),
     audiences: variantAudiences.length ? variantAudiences : mappedProduct.audiences || [],
@@ -816,6 +846,7 @@ export default function EmployeePortalProducts() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const queryKey = searchParams.toString();
 
   const directLookup = useMemo(
@@ -1127,29 +1158,59 @@ export default function EmployeePortalProducts() {
   }, [directLookup, directLookupActive, normalizedProducts]);
 
   const filterOptions = useMemo(() => {
-    const categories = uniqueValues(normalizedProducts.map((product) => product.category));
-    const types = uniqueValues(normalizedProducts.map((product) => product.type));
     const brands = uniqueValues(normalizedProducts.map((product) => product.brand));
     const manufacturers = uniqueValues(normalizedProducts.map((product) => product.manufacturer_name));
-    const genders = uniqueValues(normalizedProducts.map((product) => product.gender));
-    return { categories, types, brands, manufacturers, genders };
+    return { brands, manufacturers };
   }, [normalizedProducts]);
 
-  const optionWithCounts = (values, products, valueForProduct) =>
-    values.map((value) => ({
-      id: value,
-      name: value,
-      count: products.filter((product) => text(valueForProduct(product)) === text(value)).length,
-    }));
-
-  const smartFilterOptions = useMemo(
-    () => ({
-      gender: optionWithCounts(filterOptions.genders, normalizedProducts, (product) => product.gender),
-      productType: optionWithCounts(filterOptions.types, normalizedProducts, (product) => product.type),
-      grade: optionWithCounts(filterOptions.categories, normalizedProducts, (product) => product.category),
-    }),
-    [filterOptions, normalizedProducts]
+  const smartClassificationOptions = useMemo(
+    () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
+    [classificationGroups]
   );
+
+  const smartFilterOptions = useMemo(() => {
+    const configuredWithCounts = (options, field) => (Array.isArray(options) ? options : []).map((option) => {
+      const id = normalizeFilterValue(option.value || option.id || option.name || option.label);
+      return {
+        ...option,
+        id,
+        name: option.label_ar || option.label || option.label_en || option.value || option.id || "",
+        count: normalizedProducts.filter((product) =>
+          field === "gender"
+            ? productMatchesAudience(product, id)
+            : getEmployeeSmartFilterValue(product, field, options) === id
+        ).length,
+      };
+    });
+
+    const fallbackWithCounts = (values = []) => {
+      const grouped = new Map();
+      values.forEach((rawValue) => {
+        const id = normalizeFilterValue(rawValue);
+        if (!id) return;
+        const current = grouped.get(id) || { id, name: text(rawValue), count: 0 };
+        current.count += 1;
+        grouped.set(id, current);
+      });
+      return [...grouped.values()];
+    };
+
+    const gender = smartClassificationOptions.gender?.length
+      ? configuredWithCounts(smartClassificationOptions.gender, "gender")
+      : fallbackWithCounts(normalizedProducts.map((product) => product.gender));
+    const productType = smartClassificationOptions.productType?.length
+      ? configuredWithCounts(smartClassificationOptions.productType, "productType")
+      : fallbackWithCounts(normalizedProducts.map((product) => product.product_type || product.type));
+    const grade = smartClassificationOptions.grade?.length
+      ? configuredWithCounts(smartClassificationOptions.grade, "grade")
+      : fallbackWithCounts(normalizedProducts.map((product) => product.grade));
+
+    return {
+      gender,
+      productType: moveWinterCollectionToEnd(productType),
+      grade,
+    };
+  }, [normalizedProducts, smartClassificationOptions]);
 
   const brandOptions = useMemo(
     () => filterOptions.brands.map((brand) => ({ id: brand, name: brand })),
@@ -1192,14 +1253,18 @@ export default function EmployeePortalProducts() {
   }, [selectedProduct, selectedColor, selectedSize]);
 
   const matchesEmployeeBaseFilters = useCallback((product) => {
-    const matchesCategory = filters.category === "all" || text(product.category) === text(filters.category);
-    const matchesType = filters.type === "all" || text(product.type) === text(filters.type);
+    const matchesCategory =
+      filters.category === "all" ||
+      getEmployeeSmartFilterValue(product, "grade", smartClassificationOptions.grade) === normalizeFilterValue(filters.category);
+    const matchesType =
+      filters.type === "all" ||
+      getEmployeeSmartFilterValue(product, "productType", smartClassificationOptions.productType) === normalizeFilterValue(filters.type);
     const matchesBrand = filters.brand === "all" || text(product.brand) === text(filters.brand);
     const matchesManufacturer = filters.manufacturer === "all" || text(product.manufacturer_name) === text(filters.manufacturer);
     const matchesGender = filters.gender === "all" || productMatchesAudience(product, filters.gender);
     const matchesStock = !filters.inStockOnly || Number(product.total_stock || product.stock || 0) > 0;
     return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
-  }, [filters]);
+  }, [filters, smartClassificationOptions]);
 
   const productsMatchingBaseFilters = useMemo(
     () => normalizedProducts.filter(matchesEmployeeBaseFilters),
