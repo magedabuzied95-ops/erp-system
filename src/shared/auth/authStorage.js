@@ -43,6 +43,14 @@ const CURRENT_TENANT_KEY = "erp.saas.currentTenant";
 export const getUserRole = (user = getCurrentUser()) =>
   String(user?.role || user?.role_name || "admin").toLowerCase();
 
+export const isCashierUser = (user = getCurrentUser()) => {
+  const role = getUserRole(user)
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  return ["cashier", "pos cashier", "كاشير"].includes(role);
+};
+
 export const getUserPermissions = (user = getCurrentUser()) => {
   const permissions = user?.permissions || user?.permission || [];
   if (Array.isArray(permissions)) return permissions.map(normalizePermissionKey);

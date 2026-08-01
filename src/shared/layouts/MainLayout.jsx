@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Bell, Boxes, ChevronDown, CircleDollarSign, ClipboardList, LogOut, Menu, Moon, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShoppingBag, Store, Sun, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { clearAuth, getCurrentTenant, getCurrentUser, getToken } from "../auth/authStorage";
+import { clearAuth, getCurrentTenant, getCurrentUser, getToken, isCashierUser } from "../auth/authStorage";
 import { getVisibleSidebarSections } from "../../modules/permissions/lib/rbacStore";
 import { translateSidebarSections } from "../../i18n/navigation";
 import NotificationSoundProvider from "../../components/feedback/NotificationSoundProvider";
@@ -933,21 +933,23 @@ function MainLayout() {
                   <Boxes className="h-4 w-4 text-sky-300 transition group-hover:text-sky-200" />
                   <span className="hidden sm:inline">{productsLabel}</span>
                 </NavLink>
-                <NavLink
-                  to="/purchases"
-                  title={purchasesLabel}
-                  aria-label={purchasesLabel}
-                  className={[
-                    "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                    "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
-                    isPurchasesActive
-                      ? "border-amber-300/55 bg-amber-500/15 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.24)]"
-                      : "border-amber-400/25 hover:-translate-y-0.5 hover:border-amber-300/50 hover:bg-amber-500/10 hover:text-amber-100 hover:shadow-[0_0_26px_rgba(245,158,11,0.2)]",
-                  ].join(" ")}
-                >
-                  <ClipboardList className="h-4 w-4 text-amber-300 transition group-hover:text-amber-200" />
-                  <span className="hidden sm:inline">{purchasesLabel}</span>
-                </NavLink>
+                {!isCashierUser(user) ? (
+                  <NavLink
+                    to="/purchases"
+                    title={purchasesLabel}
+                    aria-label={purchasesLabel}
+                    className={[
+                      "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
+                      "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
+                      isPurchasesActive
+                        ? "border-amber-300/55 bg-amber-500/15 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.24)]"
+                        : "border-amber-400/25 hover:-translate-y-0.5 hover:border-amber-300/50 hover:bg-amber-500/10 hover:text-amber-100 hover:shadow-[0_0_26px_rgba(245,158,11,0.2)]",
+                    ].join(" ")}
+                  >
+                    <ClipboardList className="h-4 w-4 text-amber-300 transition group-hover:text-amber-200" />
+                    <span className="hidden sm:inline">{purchasesLabel}</span>
+                  </NavLink>
+                ) : null}
                 <NavLink
                   to="/pos"
                   title={`${posLabel} (Alt+P)`}

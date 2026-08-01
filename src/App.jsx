@@ -1064,27 +1064,47 @@ function App() {
 
         <Route
           path="purchases"
-          element={<Purchases />}
+          element={(
+            <ProtectedRoute requiredPermissions={["purchases.view"]}>
+              <Purchases />
+            </ProtectedRoute>
+          )}
         />
 
         <Route
           path="purchases/create"
-          element={<CreatePurchase />}
+          element={(
+            <ProtectedRoute requiredPermissions={["purchases.create"]}>
+              <CreatePurchase />
+            </ProtectedRoute>
+          )}
         />
 
         <Route
           path="purchases/reorder-suggestions"
-          element={<ReorderSuggestions />}
+          element={(
+            <ProtectedRoute requiredPermissions={["purchases.view"]}>
+              <ReorderSuggestions />
+            </ProtectedRoute>
+          )}
         />
 
         <Route
           path="purchases/:id/edit"
-          element={<CreatePurchase />}
+          element={(
+            <ProtectedRoute requiredPermissions={["purchases.edit"]}>
+              <CreatePurchase />
+            </ProtectedRoute>
+          )}
         />
 
         <Route
           path="purchases/:id"
-          element={<PurchaseDetails />}
+          element={(
+            <ProtectedRoute requiredPermissions={["purchases.view"]}>
+              <PurchaseDetails />
+            </ProtectedRoute>
+          )}
         />
 
         {/* ACCOUNTING */}
