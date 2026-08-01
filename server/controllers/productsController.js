@@ -895,7 +895,8 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS edition_slug TEXT,
       ADD COLUMN IF NOT EXISTS color_group_key VARCHAR(160),
       ADD COLUMN IF NOT EXISTS article_code TEXT,
-      ADD COLUMN IF NOT EXISTS audience VARCHAR(30)
+      ADD COLUMN IF NOT EXISTS audience VARCHAR(30),
+      ADD COLUMN IF NOT EXISTS is_storefront_visible BOOLEAN NOT NULL DEFAULT TRUE
       `);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (product_id, id)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_color_sort ON product_variants (product_id, color_sort_order, id)`);
@@ -1268,6 +1269,7 @@ const normalizeVariantRow = (row = {}) => {
   variant_article_code: String(row.variant_article_code ?? row.article_code ?? row.articleCode ?? "").trim(),
   color_article_code: String(row.color_article_code ?? row.colorArticleCode ?? "").trim(),
   colorArticleCode: String(row.colorArticleCode ?? row.color_article_code ?? "").trim(),
+  is_storefront_visible: row.is_storefront_visible !== false,
   manufacturer_id: row.variant_manufacturer_id ?? row.manufacturer_id ?? null,
   manufacturer_ids: normalizeIncomingManufacturerIds(
     row.variant_manufacturer_ids ?? row.manufacturer_ids,
@@ -2550,6 +2552,7 @@ const prepareVariantsForCreate = async (client, {
       barcode: nextBarcode,
       article_code: variant.article_code || "",
       audience: String(variant.audience || variant.variant_audience || "").trim() || null,
+      is_storefront_visible: variant.is_storefront_visible !== false,
       image_url: normalizedVariantImageUrl,
       thermal_image_url: normalizedVariantImageUrl ? "" : normalizedThermalImageUrl,
       thermal_image_status: normalizedVariantImageUrl ? "pending" : normalizedThermalImageUrl ? "ready" : "pending",
@@ -2570,7 +2573,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
 
   const values = [];
   const placeholders = variants.map((variant, index) => {
-    const offset = index * 27;
+    const offset = index * 28;
     values.push(
       tenantId,
       productId,
@@ -2598,9 +2601,10 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       variant.edition_name || null,
       variant.edition_slug || null,
       variant.default_purchase_qty ?? 0,
+      variant.is_storefront_visible !== false,
       true
     );
-    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::bigint[], $${offset + 5}, $${offset + 6}, $${offset + 7}, NULLIF($${offset + 8}, ''), $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, NULLIF($${offset + 14}, ''), $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, $${offset + 25}, $${offset + 26}, $${offset + 27}, NULL)`;
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::bigint[], $${offset + 5}, $${offset + 6}, $${offset + 7}, NULLIF($${offset + 8}, ''), $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, NULLIF($${offset + 14}, ''), $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, $${offset + 25}, $${offset + 26}, $${offset + 27}, $${offset + 28}, NULL)`;
   });
 
   const result = await client.query(
@@ -2632,6 +2636,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       edition_name,
       edition_slug,
       default_purchase_qty,
+      is_storefront_visible,
       is_active,
       deleted_at
     )
@@ -2696,10 +2701,11 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       edition_name,
       edition_slug,
       default_purchase_qty,
+      is_storefront_visible,
       is_active,
       deleted_at
     )
-    VALUES ($1, $2, $3, $4::bigint[], $5, $6, $7, NULLIF($8, ''), $9, $10, $11, $12, $13, NULLIF($14, ''), $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, TRUE, NULL)
+    VALUES ($1, $2, $3, $4::bigint[], $5, $6, $7, NULLIF($8, ''), $9, $10, $11, $12, $13, NULLIF($14, ''), $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, TRUE, NULL)
     RETURNING *
     `,
     [
@@ -2729,6 +2735,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       nextVariant.edition_name || null,
       nextVariant.edition_slug || slugifyEdition(nextVariant.edition_name) || null,
       Math.max(0, Number(nextVariant.default_purchase_qty || 0)),
+      nextVariant.is_storefront_visible !== false,
     ]
   );
 
@@ -2841,11 +2848,12 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       color_group_key = COALESCE(NULLIF($22, ''), color_group_key),
       color_sort_order = $23,
       default_purchase_qty = COALESCE($24, default_purchase_qty),
+      is_storefront_visible = $25,
       is_active = TRUE,
       deleted_at = NULL
-    WHERE id = $25
-      AND product_id = $26
-      AND ($27::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $27::bigint)
+    WHERE id = $26
+      AND product_id = $27
+      AND ($28::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $28::bigint)
     RETURNING *
     `,
     [
@@ -2875,6 +2883,7 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       nextVariant.default_purchase_qty === undefined || nextVariant.default_purchase_qty === null || nextVariant.default_purchase_qty === ""
         ? null
         : Math.max(0, Number(nextVariant.default_purchase_qty || 0)),
+      nextVariant.is_storefront_visible !== false,
       nextVariant.id,
       productId,
       tenantId,
@@ -6417,6 +6426,7 @@ export const createVariant = async (req, res) => {
       branch_id,
       edition_name,
       edition_slug,
+      is_storefront_visible,
     } = req.body || {};
     const normalizedManufacturerId = normalizeOptionalForeignKey(manufacturer_id);
     const normalizedManufacturerIds = normalizeIncomingManufacturerIds(manufacturer_ids, normalizedManufacturerId);
@@ -6650,9 +6660,10 @@ export const updateVariant = async (req, res) => {
         edition_name = $15,
         edition_slug = $16,
         default_purchase_qty = COALESCE($17, default_purchase_qty),
+        is_storefront_visible = COALESCE($18, is_storefront_visible),
         is_active = TRUE,
         deleted_at = NULL
-      WHERE id = $18
+      WHERE id = $19
       RETURNING *
       `,
       [
@@ -6675,6 +6686,9 @@ export const updateVariant = async (req, res) => {
         default_purchase_qty === undefined || default_purchase_qty === null || default_purchase_qty === ""
           ? null
           : Math.max(0, Number(default_purchase_qty || 0)),
+        is_storefront_visible === undefined || is_storefront_visible === null || is_storefront_visible === ""
+          ? null
+          : !(is_storefront_visible === false || String(is_storefront_visible).toLowerCase() === "false"),
         req.params.id,
       ]
     );

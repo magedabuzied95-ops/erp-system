@@ -91,6 +91,7 @@ export const normalizeVariantPayload = (input = {}) => {
     ),
     audience: normalizeText(source.audience ?? source.variant_audience ?? source.gender ?? ""),
     variant_audience: normalizeText(source.variant_audience ?? source.audience ?? source.gender ?? ""),
+    is_storefront_visible: source.is_storefront_visible ?? source.storefront_visible ?? source.visible_on_storefront ?? true,
     size: normalizeText(
       source.size ??
         source.sizeName ??

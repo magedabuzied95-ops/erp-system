@@ -185,6 +185,7 @@ const createEmptyColorGroup = (defaults = {}) => ({
   color_group_key: formatFieldValue(defaults.color_group_key ?? defaults.colorGroupKey ?? defaults.id),
   color: formatFieldValue(defaults.color),
   audience: formatFieldValue(defaults.audience ?? defaults.variant_audience ?? defaults.gender),
+  is_storefront_visible: defaults.is_storefront_visible ?? defaults.storefront_visible ?? defaults.visible_on_storefront ?? true,
   manufacturer_id: normalizeManufacturerIds(defaults.manufacturer_ids ?? defaults.manufacturerIds, defaults.manufacturer_id)[0] || "",
   manufacturer_ids: normalizeManufacturerIds(defaults.manufacturer_ids ?? defaults.manufacturerIds, defaults.manufacturer_id),
   manufacturer_override: Boolean(defaults.manufacturer_override),
@@ -597,6 +598,7 @@ const buildProductEditVariantContentSnapshot = (groups = []) =>
     (Array.isArray(groups) ? groups : []).map((group) => ({
       color: String(group.color || "").trim(),
       audience: String(group.audience || "").trim(),
+      is_storefront_visible: group.is_storefront_visible !== false,
       manufacturer_id: String(group.manufacturer_id || "").trim(),
       manufacturer_ids: normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id),
       manufacturer_override: Boolean(group.manufacturer_override),
@@ -844,6 +846,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
           manufacturer_id: normalizeManufacturerId(row.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
           manufacturer_ids: normalizeManufacturerIds(row.manufacturer_ids, row.manufacturer_id || defaultManufacturerId),
           audience: String(row.audience || row.variant_audience || "").trim(),
+          is_storefront_visible: row.is_storefront_visible !== false,
           manufacturer_override:
             normalizeManufacturerId(row.manufacturer_id) !== normalizeManufacturerId(defaultManufacturerId),
         planned_qty:
@@ -871,6 +874,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     }
 
     const group = groupedByColor.get(key);
+    if (row.is_storefront_visible === false) group.is_storefront_visible = false;
     if (!group.color_group_key) group.color_group_key = explicitGroupKey || group.id;
     group.color_article_code = String(row.color_article_code || row.colorArticleCode || group.color_article_code || "").trim();
     group.color_article_codes = normalizeArticleCodes(
@@ -3118,6 +3122,7 @@ function ProductEdit() {
           colorGroupKey: groupKey,
           color: group.color,
           audience: group.audience || "",
+          is_storefront_visible: group.is_storefront_visible !== false,
           size: String(product.fixed_size_label || "One Size").trim() || "One Size",
           default_purchase_qty: purchaseQty,
           purchase_qty: purchaseQty,
@@ -3174,6 +3179,7 @@ function ProductEdit() {
           colorGroupKey: groupKey,
           color: group.color,
           audience: group.audience || "",
+          is_storefront_visible: group.is_storefront_visible !== false,
           size,
           default_purchase_qty: purchaseQty,
           purchase_qty: purchaseQty,
@@ -4651,8 +4657,21 @@ function ProductEdit() {
                                 </button>
                               ))}
                             </div>
-                            <p className="mt-1 text-[11px] text-zinc-500">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
-                          </div>
+                              <p className="mt-1 text-[11px] text-zinc-500">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
+                            </div>
+                            <div>
+                              <label className="text-sm font-semibold text-zinc-300">ظهور اللون على الموقع</label>
+                              <button
+                                type="button"
+                                aria-pressed={group.is_storefront_visible !== false}
+                                onClick={() => updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false)}
+                                className={`mt-1.5 flex h-10 w-full items-center justify-between rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
+                              >
+                                <span>{group.is_storefront_visible !== false ? "ظاهر على الموقع" : "مخفي من الموقع"}</span>
+                                <span>{group.is_storefront_visible !== false ? "مفعّل" : "متوقف"}</span>
+                              </button>
+                              <p className="mt-1 text-[11px] text-zinc-500">الإخفاء لا يحذف اللون ولا يؤثر على المخزون أو الـPOS.</p>
+                            </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">

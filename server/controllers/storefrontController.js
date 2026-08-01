@@ -726,6 +726,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_slug TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS article_code TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS audience VARCHAR(30)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_storefront_visible BOOLEAN NOT NULL DEFAULT TRUE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS color_sort_order INTEGER NOT NULL DEFAULT 0`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_audience ON product_variants (product_id, audience, is_active) WHERE deleted_at IS NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
@@ -1422,6 +1423,7 @@ const catalogQuery = `
   LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
   LEFT JOIN product_variants pv ON pv.product_id = p.id
     AND pv.is_active IS DISTINCT FROM FALSE
+    AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
     AND pv.deleted_at IS NULL
   LEFT JOIN LATERAL (
     SELECT
@@ -1472,6 +1474,7 @@ const productIdentifierClause = (identifierParam = "$2") => `
       FROM product_variants pv_lookup
       WHERE pv_lookup.product_id = p.id
         AND pv_lookup.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(pv_lookup.is_storefront_visible, TRUE) = TRUE
         AND pv_lookup.deleted_at IS NULL
         AND (
           ${lookupAny("pv_lookup.sku", identifierParam)}
@@ -1537,6 +1540,7 @@ const productAudienceFilterSql = (param = "$5") => `
       FROM product_variants pv_audience
       WHERE pv_audience.product_id = p.id
         AND pv_audience.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(pv_audience.is_storefront_visible, TRUE) = TRUE
         AND pv_audience.deleted_at IS NULL
         AND string_to_array(LOWER(REPLACE(COALESCE(pv_audience.audience, ''), ' ', '')), ',') && ${param}::text[]
     )
@@ -1546,6 +1550,7 @@ const productAudienceFilterSql = (param = "$5") => `
         WHERE pv_audience_any.product_id = p.id
           AND COALESCE(TRIM(pv_audience_any.audience), '') <> ''
           AND pv_audience_any.is_active IS DISTINCT FROM FALSE
+          AND COALESCE(pv_audience_any.is_storefront_visible, TRUE) = TRUE
           AND pv_audience_any.deleted_at IS NULL
       )
       AND EXISTS (
@@ -1556,7 +1561,7 @@ const productAudienceFilterSql = (param = "$5") => `
       )
     )
     OR (
-      NOT EXISTS (SELECT 1 FROM product_variants pv_audience_any WHERE pv_audience_any.product_id = p.id AND COALESCE(TRIM(pv_audience_any.audience), '') <> '')
+      NOT EXISTS (SELECT 1 FROM product_variants pv_audience_any WHERE pv_audience_any.product_id = p.id AND COALESCE(pv_audience_any.is_storefront_visible, TRUE) = TRUE AND COALESCE(TRIM(pv_audience_any.audience), '') <> '')
       AND
       NOT EXISTS (SELECT 1 FROM product_audiences pa_any WHERE pa_any.product_id = p.id)
       AND LOWER(TRIM(COALESCE(p.gender, ''))) = ANY(${param}::text[])
@@ -1615,6 +1620,7 @@ export const storefrontProductsSql = `
         FROM product_variants pv_size
         WHERE pv_size.product_id = p.id
           AND pv_size.is_active IS DISTINCT FROM FALSE
+          AND COALESCE(pv_size.is_storefront_visible, TRUE) = TRUE
           AND pv_size.deleted_at IS NULL
           AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($10))
           AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR COALESCE(TRIM(pv_size.audience), '') = '' OR string_to_array(LOWER(REPLACE(pv_size.audience, ' ', '')), ',') && $7::text[])
@@ -1625,6 +1631,7 @@ export const storefrontProductsSql = `
         FROM product_variants pv_stock
         WHERE pv_stock.product_id = p.id
           AND pv_stock.is_active IS DISTINCT FROM FALSE
+          AND COALESCE(pv_stock.is_storefront_visible, TRUE) = TRUE
           AND pv_stock.deleted_at IS NULL
           AND COALESCE(pv_stock.stock, 0) > 0
     ))
@@ -1785,6 +1792,7 @@ const queryVisualKeywordProductIds = async (tenantId, terms = [], limit = 8) => 
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN product_variants pv ON pv.product_id = p.id
       AND pv.is_active IS DISTINCT FROM FALSE
+      AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
       AND pv.deleted_at IS NULL
     AND pv.is_active IS DISTINCT FROM FALSE
     AND pv.deleted_at IS NULL
@@ -3581,6 +3589,9 @@ const countActiveProductsByGender = async (tenantId, aliases = []) => {
     SELECT COUNT(DISTINCT p.id)::int AS total
     FROM products p
     LEFT JOIN product_variants pv ON pv.product_id = p.id
+      AND pv.is_active IS DISTINCT FROM FALSE
+      AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
+      AND pv.deleted_at IS NULL
     WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
       AND p.is_active IS DISTINCT FROM FALSE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
@@ -3746,6 +3757,7 @@ const queryLastPieceProducts = async (tenantId, category, size, limit) => {
         AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
         AND COALESCE(p.is_storefront_visible, TRUE) = TRUE
         AND pv.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
         AND pv.deleted_at IS NULL
         ${variantStatusClause}
         AND ($2 = '' OR ${lastPieceCategorySql} = $2)
@@ -3848,6 +3860,7 @@ const queryLastPieceApiDebugStats = async (tenantId, category, size) => {
         AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
         AND COALESCE(p.is_storefront_visible, TRUE) = TRUE
         AND pv.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
         AND pv.deleted_at IS NULL
         ${variantStatusClause}
         AND ($2 = '' OR ${lastPieceCategorySql} = $2)
@@ -4399,6 +4412,7 @@ export const createWebsiteOrder = async (req, res) => {
         JOIN products p ON p.id = pv.product_id
         WHERE pv.id = $1
           AND pv.is_active IS DISTINCT FROM FALSE
+          AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
           AND pv.deleted_at IS NULL
           ${variantTenantClause}
           ${productTenantClause}
@@ -5002,7 +5016,7 @@ export const accountByPhone = async (req, res) => {
           COALESCE(NULLIF(pv.regular_price, 0), NULLIF(pv.price, 0)) AS compare_price,
           NULLIF(pv.sale_price, 0) AS sale_price
         FROM product_variants pv
-        WHERE pv.product_id = p.id AND pv.deleted_at IS NULL AND pv.is_active IS NOT FALSE
+        WHERE pv.product_id = p.id AND pv.deleted_at IS NULL AND pv.is_active IS NOT FALSE AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
         ORDER BY (COALESCE(pv.stock, 0) > 0) DESC, pv.color_sort_order ASC, pv.id ASC
         LIMIT 1
       ) display_variant ON TRUE
@@ -5039,7 +5053,7 @@ export const accountByPhone = async (req, res) => {
           COALESCE(NULLIF(pv.regular_price, 0), NULLIF(pv.price, 0)) AS compare_price,
           NULLIF(pv.sale_price, 0) AS sale_price
         FROM product_variants pv
-        WHERE pv.product_id = p.id AND pv.deleted_at IS NULL AND pv.is_active IS NOT FALSE
+        WHERE pv.product_id = p.id AND pv.deleted_at IS NULL AND pv.is_active IS NOT FALSE AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
         ORDER BY (COALESCE(pv.stock, 0) > 0) DESC, pv.color_sort_order ASC, pv.id ASC
         LIMIT 1
       ) display_variant ON TRUE

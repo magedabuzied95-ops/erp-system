@@ -244,6 +244,7 @@ const createEmptyColorGroup = (defaults = {}) => {
     color_group_key: stableGroupKey,
     color: getColorGroupName(source),
     audience: String(source.audience || source.variant_audience || "").trim(),
+    is_storefront_visible: source.is_storefront_visible ?? source.storefront_visible ?? source.visible_on_storefront ?? true,
     manufacturer_id: manufacturerIds[0] || "",
     manufacturer_ids: manufacturerIds,
     manufacturer_override: Boolean(source.manufacturer_override),
@@ -2109,6 +2110,7 @@ function CreateProduct() {
               colorGroupKey: String(group.color_group_key || group.id || "").trim(),
               color: groupColor,
               audience: group.audience || "",
+              is_storefront_visible: group.is_storefront_visible !== false,
               size: String(fixedSizeLabel || "One Size").trim() || "One Size",
               default_purchase_qty: purchaseQty,
               purchase_qty: purchaseQty,
@@ -2155,6 +2157,7 @@ function CreateProduct() {
               colorGroupKey: String(group.color_group_key || group.id || "").trim(),
               color: groupColor,
               audience: group.audience || "",
+              is_storefront_visible: group.is_storefront_visible !== false,
               size: String(row.size || "").trim(),
               default_purchase_qty: purchaseQty,
               purchase_qty: purchaseQty,
@@ -3848,6 +3851,19 @@ function CreateProduct() {
                                     ))}
                                   </div>
                                   <p className="mt-1 text-[11px] text-zinc-500">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-semibold text-zinc-300">ظهور اللون على الموقع</label>
+                                  <button
+                                    type="button"
+                                    aria-pressed={group.is_storefront_visible !== false}
+                                    onClick={() => updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false)}
+                                    className={`mt-1.5 flex h-10 w-full items-center justify-between rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
+                                  >
+                                    <span>{group.is_storefront_visible !== false ? "ظاهر على الموقع" : "مخفي من الموقع"}</span>
+                                    <span>{group.is_storefront_visible !== false ? "مفعّل" : "متوقف"}</span>
+                                  </button>
+                                  <p className="mt-1 text-[11px] text-zinc-500">الإخفاء لا يحذف اللون ولا يؤثر على المخزون أو الـPOS.</p>
                                 </div>
                               </div>
 
