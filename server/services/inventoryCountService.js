@@ -1187,11 +1187,12 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
     };
   }
 
-  const [variantColumns, productColumns, imageSelects, lookupSelects] = await Promise.all([
+  const [variantColumns, productColumns, imageSelects, lookupSelects, hasProductColorGroups] = await Promise.all([
     getTableColumns(dbClient, "product_variants"),
     getTableColumns(dbClient, "products"),
     buildInventoryCountVariantImageSelects(dbClient),
     buildInventoryCountLookupSelects(dbClient),
+    tableExists(dbClient, "product_color_groups"),
   ]);
 
   const executeSearch = async (searchText) => {
@@ -1202,6 +1203,54 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
     const likeProductParts = buildLikeMatchParts("p", productColumns, ["barcode", "sku", "product_code", "code", "barcode_label"], "$3");
     const exactMatchParts = [...exactVariantParts, ...exactProductParts];
     const likeMatchParts = [...likeVariantParts, ...likeProductParts];
+    const colorGroupIdentitySql = `
+      pcg.product_id = v.product_id
+      AND (
+        (NULLIF(TRIM(COALESCE(v.color_group_key, '')), '') IS NOT NULL AND LOWER(TRIM(pcg.color_group_key)) = LOWER(TRIM(v.color_group_key)))
+        OR LOWER(TRIM(COALESCE(pcg.color_name, ''))) = LOWER(TRIM(COALESCE(v.color, '')))
+      )
+    `;
+    const exactColorArticleSql = hasProductColorGroups
+      ? `EXISTS (
+          SELECT 1
+          FROM product_color_groups pcg
+          WHERE ${colorGroupIdentitySql}
+            AND (
+              LOWER(TRIM(COALESCE(pcg.color_article_code, ''))) = LOWER(TRIM($2))
+              OR EXISTS (
+                SELECT 1 FROM unnest(COALESCE(pcg.article_codes, '{}'::text[])) AS article_code
+                WHERE LOWER(TRIM(article_code)) = LOWER(TRIM($2))
+              )
+            )
+        )`
+      : "FALSE";
+    const likeColorArticleSql = hasProductColorGroups
+      ? `EXISTS (
+          SELECT 1
+          FROM product_color_groups pcg
+          WHERE ${colorGroupIdentitySql}
+            AND (
+              COALESCE(pcg.color_article_code, '') ILIKE $3
+              OR EXISTS (
+                SELECT 1 FROM unnest(COALESCE(pcg.article_codes, '{}'::text[])) AS article_code
+                WHERE article_code ILIKE $3
+              )
+            )
+        )`
+      : "FALSE";
+    const effectiveArticleCodeSql = hasProductColorGroups
+      ? `COALESCE(
+          NULLIF(v.article_code, ''),
+          (
+            SELECT COALESCE(NULLIF(pcg.color_article_code, ''), pcg.article_codes[1], '')
+            FROM product_color_groups pcg
+            WHERE ${colorGroupIdentitySql}
+            ORDER BY pcg.id ASC
+            LIMIT 1
+          ),
+          ''
+        )`
+      : "COALESCE(v.article_code, '')";
     const result = await dbClient.query(
       `
       SELECT
@@ -1219,14 +1268,14 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         v.barcode,
         ${lookupSelects.variantCodeExpr} AS variant_code,
         ${lookupSelects.variantBarcodeLabelExpr} AS variant_barcode_label,
-        v.article_code,
+        ${effectiveArticleCodeSql} AS article_code,
         COALESCE(v.stock, 0)::int AS stock,
         ${imageSelects.productImageExpr} AS product_image,
         ${imageSelects.productImageUrlExpr} AS product_image_url,
         ${imageSelects.imageUrlExpr} AS image_url,
         CASE
-          WHEN ${exactMatchParts.length ? exactMatchParts.join(" OR ") : "FALSE"} THEN 0
-          WHEN ${likeMatchParts.length ? likeMatchParts.join(" OR ") : "FALSE"} THEN 1
+          WHEN (${exactMatchParts.length ? exactMatchParts.join(" OR ") : "FALSE"}) OR ${exactColorArticleSql} THEN 0
+          WHEN (${likeMatchParts.length ? likeMatchParts.join(" OR ") : "FALSE"}) OR ${likeColorArticleSql} THEN 1
           ELSE 2
         END AS match_rank
       FROM product_variants v
@@ -1234,6 +1283,8 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
       WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
         AND (
           ${exactMatchParts.length ? exactMatchParts.join(" OR ") : "FALSE"}
+          OR ${exactColorArticleSql}
+          OR ${likeColorArticleSql}
           OR p.name ILIKE $3
           OR COALESCE(v.color, '') ILIKE $3
           OR COALESCE(v.size, '') ILIKE $3
@@ -1329,6 +1380,24 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
 
 const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productId }) => {
   const imageSelects = await buildInventoryCountVariantImageSelects(dbClient);
+  const hasProductColorGroups = await tableExists(dbClient, "product_color_groups");
+  const effectiveArticleCodeSql = hasProductColorGroups
+    ? `COALESCE(
+        NULLIF(v.article_code, ''),
+        (
+          SELECT COALESCE(NULLIF(pcg.color_article_code, ''), pcg.article_codes[1], '')
+          FROM product_color_groups pcg
+          WHERE pcg.product_id = v.product_id
+            AND (
+              (NULLIF(TRIM(COALESCE(v.color_group_key, '')), '') IS NOT NULL AND LOWER(TRIM(pcg.color_group_key)) = LOWER(TRIM(v.color_group_key)))
+              OR LOWER(TRIM(COALESCE(pcg.color_name, ''))) = LOWER(TRIM(COALESCE(v.color, '')))
+            )
+          ORDER BY pcg.id ASC
+          LIMIT 1
+        ),
+        ''
+      )`
+    : "COALESCE(v.article_code, '')";
   const result = await dbClient.query(
     `
     SELECT
@@ -1342,7 +1411,7 @@ const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productI
       COALESCE(NULLIF(v.audience, ''), p.gender, '') AS gender,
       v.sku,
       v.barcode,
-      v.article_code,
+      ${effectiveArticleCodeSql} AS article_code,
       COALESCE(v.stock, 0)::int AS stock,
       ${imageSelects.productImageExpr} AS product_image,
       ${imageSelects.productImageUrlExpr} AS product_image_url,

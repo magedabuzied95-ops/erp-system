@@ -1495,7 +1495,7 @@ export default function EmployeePortalInventory() {
                         value={lookupQuery}
                         onChange={(event) => setLookupQuery(event.target.value)}
                         disabled={!isEditable}
-                        placeholder="ابحث بالاسم أو الباركود"
+                        placeholder="ابحث بالاسم أو الباركود أو الأرتكل"
                         className="w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400 disabled:opacity-70"
                       />
                     </label>
