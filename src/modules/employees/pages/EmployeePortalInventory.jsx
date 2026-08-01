@@ -1008,7 +1008,31 @@ export default function EmployeePortalInventory() {
     try {
       setItemSavingId(group.key);
       const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
-      await Promise.all(group.variants.map(async (variant) => {
+      const seedVariant = group.variants[0] || {};
+      const exactLookupValue = clean(
+        seedVariant.sku ||
+        seedVariant.barcode ||
+        seedVariant.article_code ||
+        seedVariant.product_sku ||
+        seedVariant.product_barcode ||
+        ""
+      );
+      let completeGroup = group;
+      if (exactLookupValue) {
+        const response = await lookupEmployeePortalInventoryVariants(token, session.id, {
+          query: exactLookupValue,
+          limit: 25,
+        });
+        const completeResults = Array.isArray(response?.items) ? response.items.map((row) => normalizeVariant(row)) : [];
+        const seedProductId = seedVariant.product_id ?? null;
+        const seedColorKey = normalizeColorKey(seedVariant.color || "");
+        const resolvedGroup = groupVariants(completeResults).find((entry) =>
+          String(entry.product_id ?? "") === String(seedProductId ?? "") &&
+          normalizeColorKey(entry.color || "") === seedColorKey
+        );
+        if (resolvedGroup?.variants?.length) completeGroup = resolvedGroup;
+      }
+      await Promise.all(completeGroup.variants.map(async (variant) => {
         const existing = items.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? ""));
         await saveItem(variant, {
           countedQuantity: existing ? toNumber(existing.counted_quantity, 0) : 0,
@@ -1016,14 +1040,14 @@ export default function EmployeePortalInventory() {
         }, { busy: false });
       }));
       await refreshCurrentSession();
-      logDevDuration("add color group", startedAt, { groupKey: group.key });
+      logDevDuration("add color group", startedAt, { groupKey: group.key, variantCount: completeGroup.variants.length });
       toast.success("تمت إضافة اللون للجرد");
     } catch (error) {
       toast.error(error?.responseBody?.message || error?.message || "تعذر إضافة اللون");
     } finally {
       setItemSavingId("");
     }
-  }, [isEditable, items, refreshCurrentSession, saveItem, session?.id]);
+  }, [isEditable, items, refreshCurrentSession, saveItem, session?.id, token]);
 
   const findColorGroupForVariant = useCallback((variant, records = []) => {
     const productId = variant?.product_id ?? null;

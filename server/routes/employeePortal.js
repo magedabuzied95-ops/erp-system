@@ -385,6 +385,8 @@ const loadEmployeePortalInventoryColorGroup = async ({ tenantId, productId, colo
     JOIN products p ON p.id = v.product_id
     WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
       AND v.product_id = $2
+      AND v.is_active IS DISTINCT FROM FALSE
+      AND v.deleted_at IS NULL
     ORDER BY COALESCE(NULLIF(v.size, ''), ''), v.id ASC
     `,
     [tenantId, productId]

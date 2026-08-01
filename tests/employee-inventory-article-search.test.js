@@ -4,6 +4,7 @@ import test from "node:test";
 
 const serviceSource = readFileSync(new URL("../server/services/inventoryCountService.js", import.meta.url), "utf8");
 const portalSource = readFileSync(new URL("../src/modules/employees/pages/EmployeePortalInventory.jsx", import.meta.url), "utf8");
+const portalRouteSource = readFileSync(new URL("../server/routes/employeePortal.js", import.meta.url), "utf8");
 
 test("employee inventory lookup searches variant and color-level article codes", () => {
   assert.match(serviceSource, /buildExactMatchParts\("v", variantColumns, \["barcode", "sku", "article_code"/);
@@ -15,4 +16,12 @@ test("employee inventory lookup searches variant and color-level article codes",
 
 test("employee inventory search communicates article support", () => {
   assert.match(portalSource, /placeholder="ابحث بالاسم أو الباركود أو الأرتكل"/);
+});
+
+test("adding a color reloads and counts every registered size including zero stock", () => {
+  assert.match(portalSource, /const exactLookupValue = clean\(/);
+  assert.match(portalSource, /lookupEmployeePortalInventoryVariants\(token, session\.id/);
+  assert.match(portalSource, /completeGroup\.variants\.map/);
+  assert.match(portalRouteSource, /loadEmployeePortalInventoryColorGroup[\s\S]*?AND v\.is_active IS DISTINCT FROM FALSE[\s\S]*?AND v\.deleted_at IS NULL/);
+  assert.doesNotMatch(portalRouteSource, /loadEmployeePortalInventoryColorGroup[\s\S]*?COALESCE\(v\.stock, 0\) > 0/);
 });
