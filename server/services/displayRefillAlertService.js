@@ -1192,7 +1192,15 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
     return "all";
   })();
   const queryMode = normalizedStatus === "pending" ? "pending_only" : normalizedStatus === "completed" ? "completed_only" : "all";
-  const params = [numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId), pendingLimit, completedLimit, Boolean(includeAll)];
+  const params = normalizedStatus === "all"
+    ? [numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId), Boolean(includeAll), pendingLimit, completedLimit]
+    : [
+        numberOrNull(employeeId),
+        numberOrNull(branchId),
+        numberOrNull(tenantId),
+        Boolean(includeAll),
+        normalizedStatus === "pending" ? pendingLimit : completedLimit,
+      ];
   const scopedCte = `
     WITH scoped AS (
       SELECT
@@ -1207,8 +1215,14 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
        AND r.employee_id = $1::bigint
       WHERE ($3::bigint IS NULL OR a.tenant_id = $3::bigint OR a.tenant_id IS NULL)
         AND (
-          $6::boolean = TRUE
-          OR a.employee_id = $1
+          $4::boolean = TRUE
+          OR $2::bigint IS NULL
+          OR a.branch_id = $2::bigint
+          OR a.branch_id IS NULL
+        )
+        AND (
+          $4::boolean = TRUE
+          OR a.employee_id = $1::bigint
         )
     )
   `;
@@ -1243,7 +1257,7 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
     FROM scoped
     WHERE status = 'pending'
     ORDER BY created_at DESC, id DESC
-    LIMIT $4
+    LIMIT $5
   `;
   const completedSelect = `
     SELECT
@@ -1253,7 +1267,7 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
     FROM scoped
     WHERE status = 'resolved'
     ORDER BY COALESCE(updated_at, resolved_at, created_at) DESC, id DESC
-    LIMIT $5
+    LIMIT ${normalizedStatus === "all" ? "$6" : "$5"}
   `;
   const queryText =
     normalizedStatus === "pending"
