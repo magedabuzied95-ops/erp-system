@@ -28,6 +28,7 @@ test("product list renders a saved school bag size beside article badges", () =>
   const controllerSource = readFileSync(new URL("../server/controllers/productsController.js", import.meta.url), "utf8");
   assert.match(listSource, /getSchoolBagSizeLabel/);
   assert.match(listSource, /مقاس \{schoolBagSizeLabel\}/);
+  assert.match(listSource, /inches >= 12 && inches <= 22/);
   assert.match(controllerSource, /COALESCE\(p\.bag_type, ''\) AS bag_type/);
   assert.match(controllerSource, /COALESCE\(p\.fixed_size_label, ''\) AS fixed_size_label/);
 });

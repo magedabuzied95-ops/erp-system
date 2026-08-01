@@ -206,7 +206,8 @@ const getSchoolBagSizeLabel = (row = {}) => {
   const value = String(row.fixed_size_label ?? row.fixedSizeLabel ?? "").trim();
   if (!value) return "";
   const inchMatch = value.match(/^(\d{1,2})(?:[-_\s]*inch(?:es)?)?$/i);
-  return inchMatch ? `${inchMatch[1]} بوصة` : value;
+  const inches = Number(inchMatch?.[1] || 0);
+  return inches >= 12 && inches <= 22 ? `${inches} بوصة` : "";
 };
 
 const ProductArticleBadges = ({ row = {}, limit = 3 }) => {
