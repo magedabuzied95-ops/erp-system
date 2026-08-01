@@ -1,6 +1,49 @@
 import { jsPDF } from "jspdf";
 import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 
+const ARABIC_FONT = {
+  fileName: "product-label-arabic.ttf",
+  family: "ProductLabelArabic",
+  url: new URL("../../../../server/assets/fonts/NotoSansArabic.ttf", import.meta.url).href,
+};
+let arabicFontPromise = null;
+
+const hasArabic = (value = "") => /[\u0600-\u06ff]/.test(String(value || ""));
+const arrayBufferToBinaryString = (buffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return binary;
+};
+const registerArabicFont = async (doc) => {
+  if (!arabicFontPromise) {
+    arabicFontPromise = fetch(ARABIC_FONT.url).then((response) => {
+      if (!response.ok) throw new Error(`Failed to load Arabic product-label font: ${response.status}`);
+      return response.arrayBuffer();
+    }).then(arrayBufferToBinaryString);
+  }
+  const fontData = await arabicFontPromise;
+  doc.addFileToVFS(ARABIC_FONT.fileName, fontData);
+  doc.addFont(ARABIC_FONT.fileName, ARABIC_FONT.family, "normal");
+  doc.addFont(ARABIC_FONT.fileName, ARABIC_FONT.family, "bold");
+  if (typeof doc.setLanguage === "function") doc.setLanguage("ar");
+};
+const setLabelFont = (doc, value = "") => {
+  doc.setFont(hasArabic(value) ? ARABIC_FONT.family : "helvetica", "bold");
+};
+const drawLabelText = (doc, value, x, y, options = {}) => {
+  const raw = String(value || "");
+  const isArabic = hasArabic(raw);
+  setLabelFont(doc, raw);
+  // jsPDF shapes Arabic correctly with the embedded Noto font. Enabling R2L here
+  // reverses the already-shaped glyph sequence in the generated/printed PDF.
+  const printable = isArabic && typeof doc.processArabic === "function" ? doc.processArabic(raw) : raw;
+  if (typeof doc.setR2L === "function") doc.setR2L(false);
+  doc.text(printable, x, y, options);
+};
+
 export const buildProductLabelTemplateContent = (label = {}) => {
   const isBag = label.type === "bag";
   const size = String(label.size || "").trim();
@@ -116,6 +159,8 @@ export async function generateProductLabelJobPdf(job) {
   if (!job?.labels?.length) throw new Error("Cannot generate an empty label job");
   const orientation = job.widthMm >= job.heightMm ? "landscape" : "portrait";
   const doc = new jsPDF({ orientation, unit: "mm", format: [job.widthMm, job.heightMm], compress: true });
+  const requiresArabicFont = job.labels.some((label) => [label.productName, label.color, label.articleCode, label.article_code].some(hasArabic));
+  if (requiresArabicFont) await registerArabicFont(doc);
   const layouts = [];
 
   for (let index = 0; index < job.labels.length; index += 1) {
@@ -127,11 +172,11 @@ export async function generateProductLabelJobPdf(job) {
     const layout = buildProductLabelPdfLayout(doc, content, widthMm, heightMm);
     layouts.push(layout);
 
-    doc.setFont("helvetica", "bold");
+    setLabelFont(doc, content.name);
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(layout.nameFontSize);
     layout.nameLines.forEach((line, lineIndex) =>
-      doc.text(line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" })
+      drawLabelText(doc, line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" })
     );
 
     doc.setFont("helvetica", "bold");
@@ -151,10 +196,10 @@ export async function generateProductLabelJobPdf(job) {
       fittedDetailFontSize -= 0.25;
       doc.setFontSize(fittedDetailFontSize);
     }
-    doc.text(detailText, widthMm / 2, layout.fieldY, { align: "center" });
+    drawLabelText(doc, detailText, widthMm / 2, layout.fieldY, { align: "center" });
     if (content.article && layout.articleY) {
       doc.setFontSize(layout.articleFontSize);
-      doc.text(`ART: ${content.article}`, widthMm / 2, layout.articleY, { align: "center" });
+      drawLabelText(doc, `ART: ${content.article}`, widthMm / 2, layout.articleY, { align: "center" });
     }
 
     doc.setFillColor(0, 0, 0);
