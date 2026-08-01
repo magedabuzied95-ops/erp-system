@@ -105,6 +105,12 @@ export async function generateProductLabelJobPdf(job) {
   if (!job?.labels?.length) throw new Error("Cannot generate an empty label job");
   const orientation = job.widthMm >= job.heightMm ? "landscape" : "portrait";
   const doc = new jsPDF({ orientation, unit: "mm", format: [job.widthMm, job.heightMm], compress: true });
+  const printRotation = Number(job.printRotation || 0);
+  if ([90, 180, 270].includes(printRotation)) {
+    doc.internal.events.subscribe("putPage", () => {
+      doc.internal.write(`/Rotate ${printRotation}`);
+    });
+  }
   const layouts = [];
 
   for (let index = 0; index < job.labels.length; index += 1) {
@@ -161,6 +167,7 @@ export async function generateProductLabelJobPdf(job) {
     debug: {
       widthMm: doc.internal.pageSize.getWidth(),
       heightMm: doc.internal.pageSize.getHeight(),
+      printRotation,
       pages: doc.getNumberOfPages(),
       qr: false,
       layouts,
