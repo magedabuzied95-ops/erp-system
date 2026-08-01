@@ -63,6 +63,7 @@ import {
   updateProductStatus,
 } from "../services/productsApi";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { isSchoolBagType } from "../lib/schoolBagSizes";
 
 import PostEditorModal from "../../marketing/components/PostEditorModal";
 import {
@@ -200,9 +201,18 @@ const getProductArticleCodes = (row = {}) => {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 };
 
+const getSchoolBagSizeLabel = (row = {}) => {
+  if (!isSchoolBagType(row.bag_type ?? row.bagType)) return "";
+  const value = String(row.fixed_size_label ?? row.fixedSizeLabel ?? "").trim();
+  if (!value) return "";
+  const inchMatch = value.match(/^(\d{1,2})(?:[-_\s]*inch(?:es)?)?$/i);
+  return inchMatch ? `${inchMatch[1]} بوصة` : value;
+};
+
 const ProductArticleBadges = ({ row = {}, limit = 3 }) => {
   const articleCodes = getProductArticleCodes(row);
-  if (!articleCodes.length) return null;
+  const schoolBagSizeLabel = getSchoolBagSizeLabel(row);
+  if (!articleCodes.length && !schoolBagSizeLabel) return null;
   const visibleCodes = articleCodes.slice(0, limit);
   const remainingCount = Math.max(0, articleCodes.length - visibleCodes.length);
 
@@ -220,6 +230,11 @@ const ProductArticleBadges = ({ row = {}, limit = 3 }) => {
       {remainingCount ? (
         <span className="inline-flex items-center rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-black leading-4 text-zinc-400">
           +{remainingCount}
+        </span>
+      ) : null}
+      {schoolBagSizeLabel ? (
+        <span className="inline-flex items-center rounded-md border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-0.5 text-[10px] font-black leading-4 text-cyan-200">
+          مقاس {schoolBagSizeLabel}
         </span>
       ) : null}
     </div>

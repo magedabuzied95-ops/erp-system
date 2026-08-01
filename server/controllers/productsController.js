@@ -3369,6 +3369,8 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(p.low_stock_alert, 0) AS low_stock_alert,
         COALESCE(p.gender, '') AS gender,
         COALESCE(p.product_type, '') AS product_type,
+        COALESCE(p.bag_type, '') AS bag_type,
+        COALESCE(p.fixed_size_label, '') AS fixed_size_label,
         COALESCE(p.grade, '') AS grade,
         COALESCE((
           SELECT jsonb_agg(article_code ORDER BY article_code)

@@ -22,3 +22,12 @@ test("product edit wires the school bag size field and preserves its stored valu
   assert.match(source, /onSchoolBagSizeChange=\{\(value\) => updateProductField\("fixed_size_label", value\)\}/);
   assert.match(source, /fixed_size_label:\s*isSchoolBagType\(product\.bag_type\)/);
 });
+
+test("product list renders a saved school bag size beside article badges", () => {
+  const listSource = readFileSync(new URL("../src/modules/products/pages/ProductsList.jsx", import.meta.url), "utf8");
+  const controllerSource = readFileSync(new URL("../server/controllers/productsController.js", import.meta.url), "utf8");
+  assert.match(listSource, /getSchoolBagSizeLabel/);
+  assert.match(listSource, /مقاس \{schoolBagSizeLabel\}/);
+  assert.match(controllerSource, /COALESCE\(p\.bag_type, ''\) AS bag_type/);
+  assert.match(controllerSource, /COALESCE\(p\.fixed_size_label, ''\) AS fixed_size_label/);
+});
