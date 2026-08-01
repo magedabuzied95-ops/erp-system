@@ -3883,6 +3883,9 @@ export const loadProductsWithVariantsPayload = async ({ query = {}, user = null,
     user,
   };
   const mockRes = {
+    set() {
+      return this;
+    },
     status(code) {
       statusCode = Number(code || 500);
       return this;
