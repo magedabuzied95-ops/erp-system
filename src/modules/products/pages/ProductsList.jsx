@@ -680,7 +680,16 @@ function getProductColorStockSummary(row = {}) {
     const color = String(variant?.color || "لون").trim();
     const colorKey = color.toLowerCase();
     const size = String(variant?.size || row.fixed_size_label || "مقاس واحد").trim();
-    const stock = Math.max(0, Number(variant?.stock ?? variant?.quantity ?? 0) || 0);
+    const stock = Math.max(0, Number(
+      variant?.default_purchase_qty ??
+      variant?.defaultPurchaseQty ??
+      variant?.purchase_qty ??
+      variant?.purchase_quantity ??
+      variant?.planned_qty ??
+      variant?.planned_quantity ??
+      variant?.bulk_purchase_qty ??
+      0
+    ) || 0);
     if (!colors.has(colorKey)) colors.set(colorKey, { color, stock: 0, sizes: new Map() });
     const entry = colors.get(colorKey);
     entry.stock += stock;
@@ -692,29 +701,6 @@ function getProductColorStockSummary(row = {}) {
     sizes: [...item.sizes.entries()].map(([size, stock]) => ({ size, stock })),
   }));
 }
-
-const ProductColorStockBadge = ({ row = {} }) => {
-  const summary = getProductColorStockSummary(row);
-  if (!summary.length) return null;
-  return (
-    <div className="flex max-w-full flex-wrap items-center gap-1" title="كميات المخزون حسب اللون">
-      {summary.slice(0, 4).map((item) => {
-        const tone = item.stock <= 0
-          ? "border-red-400/25 bg-red-500/15 text-red-200"
-          : item.stock <= 2
-            ? "border-amber-400/25 bg-amber-500/15 text-amber-200"
-            : "border-emerald-400/25 bg-emerald-500/15 text-emerald-200";
-        return (
-          <span key={item.color} className={`inline-flex max-w-24 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black ${tone}`}>
-            <span className="truncate">{item.color}</span>
-            <span className="shrink-0 tabular-nums">{item.stock}</span>
-          </span>
-        );
-      })}
-      {summary.length > 4 ? <span className="text-[9px] font-black text-zinc-400">+{summary.length - 4}</span> : null}
-    </div>
-  );
-};
 
 const normalizeQueueColorKey = (value = "") => String(value ?? "").trim().toLowerCase();
 
@@ -1138,7 +1124,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
                 />
                 <p className="mt-1 truncate text-center text-[10px] font-bold text-zinc-300" title={preview.color}>{preview.color}</p>
                 <p className={`mt-0.5 text-center text-[10px] font-black ${preview.stock <= 0 ? "text-red-300" : preview.stock <= 2 ? "text-amber-300" : "text-emerald-300"}`}>
-                  {preview.stock <= 0 ? "نفد" : `${preview.stock} قطعة`}
+                  {preview.stock <= 0 ? "لم تُحدد كمية" : `${preview.stock} قبل الشراء`}
                 </p>
                 {preview.sizes?.length ? (
                   <div className="mt-1 flex flex-wrap justify-center gap-1">
@@ -1672,6 +1658,13 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                 <div className="text-xs font-semibold text-zinc-500">{changedVariantIds.size} {t("products.priceEditor.changed", "changed")}</div>
               </div>
               <div className="max-h-[46vh] space-y-2 overflow-auto p-2">
+                <div className={`hidden items-center gap-2 px-2 pb-1 text-[11px] font-black text-zinc-400 md:grid ${canEditPurchasePrice ? "md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(130px,180px))_auto]" : "md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]"}`}>
+                  <span>اللون</span>
+                  {canEditPurchasePrice ? <span className="text-center">سعر الشراء</span> : null}
+                  <span className="text-center">سعر البيع</span>
+                  <span className="text-center">سعر السيل</span>
+                  <span aria-hidden="true" />
+                </div>
                 {colorGroups.map((group) => {
                   const expanded = expandedColorKeys.has(group.key);
                   return (
@@ -3292,9 +3285,6 @@ function ProductsList() {
                               <ProductArticleBadges row={row} />
                               <div className="mt-1.5">
                                 <ProductColorImageBadge row={row} onClick={(event) => openProductColorImages(event, row)} />
-                              </div>
-                              <div className="mt-1.5">
-                                <ProductColorStockBadge row={row} />
                               </div>
                               <div className="mt-1.5">
                                 <ProductThermalLevelBadge row={row} />
