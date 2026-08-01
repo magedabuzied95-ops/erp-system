@@ -3168,7 +3168,7 @@ export const getProductsAdminList = async (req, res) => {
               COALESCE(NULLIF(LOWER(TRIM(pv.color_group_key)), ''), LOWER(TRIM(COALESCE(pv.color, ''))), 'default') AS color_key,
               COALESCE(NULLIF(TRIM(pv.color), ''), 'Default') AS color_name,
               COALESCE(NULLIF(TRIM(pv.size), ''), 'مقاس واحد') AS size_name,
-              SUM(GREATEST(COALESCE(pv.stock, 0), 0))::int AS stock
+              SUM(GREATEST(COALESCE(pv.default_purchase_qty, 0), 0))::int AS stock
             FROM product_variants pv
             WHERE pv.product_id = p.id
               AND pv.is_active IS DISTINCT FROM FALSE
