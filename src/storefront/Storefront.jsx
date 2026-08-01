@@ -84,7 +84,7 @@ import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage
 import { forceCleanReload, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
 import { animateFlyToCart } from "./lib/flyToCart";
-import { formatSchoolBagCardSize, isSchoolBagProduct } from "./lib/schoolBagSize";
+import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
 import "./storefront-light.css";
 import {
@@ -5913,7 +5913,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     const maxVisible = activeSizes.length > 1 ? 2 : activeSizes.length;
     return activeSizes.slice(0, Math.min(maxVisible, sizeLimit));
   }, [activeSizes, sizeLimit]);
-  const schoolBagCard = isSchoolBagProduct(product);
   const extraSizeCount = Math.max(0, activeSizes.length - visibleSizes.length);
   const displayImage = useMemo(
     () => productCardPrimaryImageFor(product, availableVariant, activeColorGroup),
@@ -6320,7 +6319,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
                   className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 active:translate-y-[1px] active:scale-[0.98] md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d4af37] bg-[linear-gradient(135deg,#d4af37,#d4af37)] text-white shadow-[0_8px_18px_rgba(212,175,55,0.12)] ring-1 ring-[#f3d77a]/12 dark:border-[#f3d77a] dark:bg-[linear-gradient(135deg,#e5c158,#d4af37)] dark:text-white dark:ring-[#f3d77a]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d4af37]/35 hover:bg-[#faf7ff] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#f3d77a]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
                 >
-                  {schoolBagCard ? formatSchoolBagCardSize(size, i18n.resolvedLanguage || i18n.language) : size}
+                  {formatSchoolBagCardSize(size, i18n.resolvedLanguage || i18n.language)}
                 </button>
               );
             })}

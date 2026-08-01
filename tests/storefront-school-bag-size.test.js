@@ -15,6 +15,7 @@ test("school bag sizes accept both stored inch formats", () => {
 test("school bag card size is readable in Arabic and English", () => {
   assert.equal(formatSchoolBagCardSize("inch-18", "ar"), "18 بوصة");
   assert.equal(formatSchoolBagCardSize("18-inch", "en"), "18 inch");
+  assert.equal(formatSchoolBagCardSize("42", "ar"), "42");
 });
 
 test("school bag detection does not affect regular bags", () => {
