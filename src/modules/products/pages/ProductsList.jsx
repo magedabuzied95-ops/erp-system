@@ -616,7 +616,7 @@ const getProductColorPreviews = (row = {}) => {
       ? row.color_image_previews
       : [];
   const seen = new Set();
-  return previews.reduce((result, preview) => {
+  const normalizedPreviews = previews.reduce((result, preview) => {
     const imageUrl = resolveProductImageUrl(firstImageValue(preview?.image_url, preview?.imageUrl, preview?.url));
     const color = String(preview?.color || preview?.color_name || preview?.colorName || "لون").trim();
     const key = `${color.toLowerCase()}|${imageUrl}`;
@@ -625,7 +625,34 @@ const getProductColorPreviews = (row = {}) => {
     result.push({ color, imageUrl });
     return result;
   }, []);
+  if (normalizedPreviews.length) return normalizedPreviews;
+
+  const colorGroups = Array.isArray(row.color_images) ? row.color_images : [];
+  const variants = Array.isArray(row.variants) ? row.variants : [];
+  const sources = colorGroups.length ? colorGroups : variants;
+  return sources.reduce((result, source) => {
+    const color = String(
+      source?.color ?? source?.color_name ?? source?.colorName ?? source?.color_value ?? source?.colorValue ?? "لون"
+    ).trim();
+    const imageUrl = resolveProductImageUrl(firstImageValue(
+      source?.primary_image_url,
+      source?.primaryImageUrl,
+      source?.image_url,
+      source?.color_image_url,
+      source?.variant_image_url,
+      source?.images,
+      source?.gallery_images,
+      Array.isArray(source?.sizes) ? source.sizes.map((size) => firstImageValue(size?.image_url, size?.variant_image_url, size?.color_image_url, size?.images)) : []
+    ));
+    const key = `${color.toLowerCase()}|${imageUrl}`;
+    if (!imageUrl || seen.has(key)) return result;
+    seen.add(key);
+    result.push({ color, imageUrl });
+    return result;
+  }, []);
 };
+
+const productColorHoverCache = new Map();
 
 const normalizeQueueColorKey = (value = "") => String(value ?? "").trim().toLowerCase();
 
@@ -944,16 +971,22 @@ function PriceLine({
 
 const ProductThumbnail = memo(function ProductThumbnail({ row }) {
   const src = getProductThumbnail(row);
-  const colorPreviews = getProductColorPreviews(row);
+  const [colorPreviews, setColorPreviews] = useState(() => getProductColorPreviews(row));
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [previewPosition, setPreviewPosition] = useState(null);
   const imageRef = useRef(null);
+  const hoverActiveRef = useRef(false);
 
-  const showColorPreviews = () => {
-    if (!colorPreviews.length || !imageRef.current || typeof window === "undefined") return;
+  useEffect(() => {
+    setColorPreviews(getProductColorPreviews(row));
+  }, [row]);
+
+  const positionColorPreview = (previewCount = colorPreviews.length) => {
+    if (!imageRef.current || typeof window === "undefined") return;
     const rect = imageRef.current.getBoundingClientRect();
-    const columns = Math.min(4, colorPreviews.length);
+    const columns = Math.min(4, Math.max(1, previewCount));
     const width = Math.max(176, columns * 82 + 24);
-    const estimatedHeight = 54 + Math.ceil(colorPreviews.length / 4) * 88;
+    const estimatedHeight = 54 + Math.ceil(Math.max(1, previewCount) / 4) * 88;
     const left = Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - width - 12));
     const roomBelow = window.innerHeight - rect.bottom;
     setPreviewPosition({
@@ -961,6 +994,42 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
       top: roomBelow >= estimatedHeight + 12 ? rect.bottom + 8 : Math.max(12, rect.top - estimatedHeight - 8),
       width,
     });
+  };
+
+  const showColorPreviews = async () => {
+    hoverActiveRef.current = true;
+    positionColorPreview();
+    if (colorPreviews.length || previewLoading || !row?.id) return;
+
+    const cacheKey = String(row.id);
+    if (productColorHoverCache.has(cacheKey)) {
+      const cached = productColorHoverCache.get(cacheKey);
+      setColorPreviews(cached);
+      positionColorPreview(cached.length);
+      return;
+    }
+
+    try {
+      setPreviewLoading(true);
+      const result = await getProductsWithVariants({
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        params: { productId: row.id },
+      });
+      const details = Array.isArray(result) ? result[0] : null;
+      const loadedPreviews = getProductColorPreviews(details || {});
+      productColorHoverCache.set(cacheKey, loadedPreviews);
+      setColorPreviews(loadedPreviews);
+      if (hoverActiveRef.current) positionColorPreview(loadedPreviews.length);
+    } catch (error) {
+      console.error("[products:list] color preview load failed", { productId: row.id, message: error?.message || String(error) });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const hideColorPreviews = () => {
+    hoverActiveRef.current = false;
+    setPreviewPosition(null);
   };
 
   if (!src) {
@@ -979,8 +1048,8 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
         alt={row?.name || "Product"}
         loading="lazy"
         onMouseEnter={showColorPreviews}
-        onMouseLeave={() => setPreviewPosition(null)}
-        className={`h-14 w-14 shrink-0 rounded-2xl border border-white/10 bg-white/5 object-cover ${colorPreviews.length ? "cursor-zoom-in" : ""}`}
+        onMouseLeave={hideColorPreviews}
+        className="h-14 w-14 shrink-0 cursor-zoom-in rounded-2xl border border-white/10 bg-white/5 object-cover"
       />
       {previewPosition && typeof document !== "undefined" ? createPortal(
         <div
@@ -988,8 +1057,10 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
           className="pointer-events-none fixed z-[300] rounded-2xl border border-white/15 bg-zinc-950/95 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl"
           style={{ left: previewPosition.left, top: previewPosition.top, width: previewPosition.width }}
         >
-          <p className="mb-2 text-right text-[11px] font-black text-zinc-300">صور ألوان المنتج</p>
-          <div
+          <p className="mb-2 text-right text-[11px] font-black text-zinc-300">
+            {previewLoading ? "جاري تحميل صور الألوان..." : colorPreviews.length ? "صور ألوان المنتج" : "لا توجد صور ألوان"}
+          </p>
+          {colorPreviews.length ? <div
             className="grid gap-2"
             dir="rtl"
             style={{ gridTemplateColumns: `repeat(${Math.min(4, colorPreviews.length)}, minmax(0, 1fr))` }}
@@ -1004,7 +1075,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
                 <p className="mt-1 truncate text-center text-[10px] font-bold text-zinc-300" title={preview.color}>{preview.color}</p>
               </div>
             ))}
-          </div>
+          </div> : null}
         </div>,
         document.body
       ) : null}
