@@ -889,7 +889,7 @@ export default function EmployeePortalProducts() {
 
   useEffect(() => {
     let cancelled = false;
-    const timeoutId = window.setTimeout(async () => {
+    const loadProducts = async () => {
       try {
         setLoading(true);
         setError("");
@@ -904,11 +904,12 @@ export default function EmployeePortalProducts() {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }, 180);
+    };
+
+    void loadProducts();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timeoutId);
     };
   }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.manufacturer, filters.gender, filters.inStockOnly]);
 

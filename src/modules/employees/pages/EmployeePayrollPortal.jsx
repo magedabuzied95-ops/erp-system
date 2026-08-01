@@ -3144,7 +3144,9 @@ export default function EmployeePayrollPortal() {
 
               <button
                 type="button"
-                onClick={() => window.location.assign(`/employee-portal/${encodeURIComponent(token)}/products`)}
+                onPointerEnter={() => { void import("./EmployeePortalProducts"); }}
+                onFocus={() => { void import("./EmployeePortalProducts"); }}
+                onClick={() => navigate(`/employee-portal/${encodeURIComponent(token)}/products`)}
                 className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-500"
               >
                 <Package2 className="h-4 w-4" />
@@ -3153,7 +3155,9 @@ export default function EmployeePayrollPortal() {
 
               <button
                 type="button"
-                onClick={() => window.location.assign(`/employee-portal/${encodeURIComponent(token)}/inventory`)}
+                onPointerEnter={() => { void import("./EmployeePortalInventory"); }}
+                onFocus={() => { void import("./EmployeePortalInventory"); }}
+                onClick={() => navigate(`/employee-portal/${encodeURIComponent(token)}/inventory`)}
                 className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 <ClipboardList className="h-4 w-4" />
