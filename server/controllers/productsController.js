@@ -3161,6 +3161,42 @@ export const getProductsAdminList = async (req, res) => {
           ) color_preview
         ), '[]'::jsonb)
       `;
+    const colorStockSummarySql = `
+        COALESCE((
+          WITH size_stock AS (
+            SELECT
+              COALESCE(NULLIF(LOWER(TRIM(pv.color_group_key)), ''), LOWER(TRIM(COALESCE(pv.color, ''))), 'default') AS color_key,
+              COALESCE(NULLIF(TRIM(pv.color), ''), 'Default') AS color_name,
+              COALESCE(NULLIF(TRIM(pv.size), ''), 'مقاس واحد') AS size_name,
+              SUM(GREATEST(COALESCE(pv.stock, 0), 0))::int AS stock
+            FROM product_variants pv
+            WHERE pv.product_id = p.id
+              AND pv.is_active IS DISTINCT FROM FALSE
+              AND pv.deleted_at IS NULL
+            GROUP BY 1, 2, 3
+          ), color_stock AS (
+            SELECT
+              color_key,
+              MAX(color_name) AS color_name,
+              SUM(stock)::int AS stock,
+              jsonb_agg(
+                jsonb_build_object('size', size_name, 'stock', stock)
+                ORDER BY size_name
+              ) AS sizes
+            FROM size_stock
+            GROUP BY color_key
+          )
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'color', color_name,
+              'stock', stock,
+              'sizes', sizes
+            )
+            ORDER BY color_name
+          )
+          FROM color_stock
+        ), '[]'::jsonb)
+      `;
     const colorImageStatusJoinSql = `
         LEFT JOIN (
           WITH all_colors AS (
@@ -3364,6 +3400,7 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(cis.missing_colors, 0)::int AS missing_colors,
         COALESCE(cis.missing_color_names, '[]'::jsonb) AS missing_color_names,
         ${colorImagePreviewsSql} AS color_image_previews,
+        ${colorStockSummarySql} AS color_stock_summary,
         COALESCE(NULLIF(TRIM(p.thermal_image_url), ''), '') AS product_thermal_image_url,
         COALESCE(NULLIF(LOWER(TRIM(p.thermal_image_status)), ''), 'pending') AS product_thermal_image_status,
         COALESCE((
@@ -3450,6 +3487,7 @@ export const getProductsAdminList = async (req, res) => {
       missingColors: Number(row.missing_colors || 0),
       missingColorNames: Array.isArray(row.missing_color_names) ? row.missing_color_names : [],
       colorImagePreviews: Array.isArray(row.color_image_previews) ? row.color_image_previews : [],
+      colorStockSummary: Array.isArray(row.color_stock_summary) ? row.color_stock_summary : [],
       productThermalImageUrl: row.product_thermal_image_url || "",
       productThermalImageStatus: row.product_thermal_image_status || "pending",
       thermalColorCount: Number(row.thermal_color_count || 0),
@@ -5977,6 +6015,10 @@ export const updateProductPrices = async (req, res) => {
     const productOverrideActive = req.body?.manual_price_override_active ?? req.body?.manualPriceOverrideActive;
     const productManualPrice = toPriceValue(req.body?.manual_selling_price ?? req.body?.manualSellingPrice ?? req.body?.selling_price ?? req.body?.sellingPrice, { nullable: true });
     const hasProductDiscount = !variantOnly && ["discount_price", "discountPrice", "offer_price", "offerPrice"].some((key) => Object.prototype.hasOwnProperty.call(req.body || {}, key));
+    const hasProductPurchasePrice = !variantOnly && ["purchase_price", "purchasePrice", "cost_price", "costPrice"].some((key) => Object.prototype.hasOwnProperty.call(req.body || {}, key));
+    const hasAnyVariantPurchasePrice = variants.some((variant) => ["purchase_price", "purchasePrice", "cost_price", "costPrice"].some((key) => Object.prototype.hasOwnProperty.call(variant || {}, key)));
+    if ((hasProductPurchasePrice || hasAnyVariantPurchasePrice) && !isAdminLikeUser(req.user)) return res.status(403).json({ success: false, message: "Admin access is required to update purchase prices" });
+    const productPurchasePrice = hasProductPurchasePrice ? toPriceValue(req.body?.purchase_price ?? req.body?.purchasePrice ?? req.body?.cost_price ?? req.body?.costPrice) : null;
     const productPrice = hasProductPrice ? toPriceValue(req.body?.selling_price ?? req.body?.sellingPrice ?? req.body?.variant_sale_price ?? req.body?.variantSalePrice ?? req.body?.sale_price ?? req.body?.salePrice ?? req.body?.regular_price ?? req.body?.price) : null;
     const productDiscount = hasProductDiscount
       ? toPriceValue(req.body?.discount_price ?? req.body?.discountPrice ?? req.body?.offer_price ?? req.body?.offerPrice, { nullable: true })
@@ -6014,6 +6056,10 @@ export const updateProductPrices = async (req, res) => {
     if (hasProductDiscount && productColumns.has("sale_price")) productSets.push(`sale_price = ${pushProduct(productDiscount ?? 0)}`);
     if (hasProductDiscount && productColumns.has("offer_price")) productSets.push(`offer_price = ${pushProduct(productDiscount)}`);
     if (hasProductDiscount && productColumns.has("sale_price_enabled")) productSets.push(`sale_price_enabled = ${pushProduct(productDiscount !== null && productDiscount > 0)}`);
+    if (hasProductPurchasePrice && productColumns.has("purchase_price")) productSets.push(`purchase_price = ${pushProduct(productPurchasePrice)}`);
+    if (hasProductPurchasePrice && productColumns.has("cost_price")) productSets.push(`cost_price = ${pushProduct(productPurchasePrice)}`);
+    if (hasProductPurchasePrice && productColumns.has("last_purchase_price")) productSets.push(`last_purchase_price = ${pushProduct(productPurchasePrice)}`);
+    if (hasProductPurchasePrice && productColumns.has("last_purchase_cost")) productSets.push(`last_purchase_cost = ${pushProduct(productPurchasePrice)}`);
     if (productColumns.has("updated_at")) productSets.push("updated_at = NOW()");
     if (productSets.length) {
       productValues.push(productId, tenantId);
@@ -6042,7 +6088,8 @@ export const updateProductPrices = async (req, res) => {
       const hasVariantManualOverride = ["manual_selling_price", "manualSellingPrice", "manual_price_override_active", "manualPriceOverrideActive"].some((key) => Object.prototype.hasOwnProperty.call(variant || {}, key));
       const hasVariantPrice = ["variant_sale_price", "sale_price", "salePrice", "regular_price", "price"].some((key) => Object.prototype.hasOwnProperty.call(variant || {}, key));
       const hasVariantDiscount = ["variant_discount_price", "discount_price", "discountPrice", "offer_price", "offerPrice"].some((key) => Object.prototype.hasOwnProperty.call(variant || {}, key));
-      if (!hasVariantPrice && !hasVariantDiscount && !hasVariantManualOverride) continue;
+      const hasVariantPurchasePrice = ["purchase_price", "purchasePrice", "cost_price", "costPrice"].some((key) => Object.prototype.hasOwnProperty.call(variant || {}, key));
+      if (!hasVariantPrice && !hasVariantDiscount && !hasVariantManualOverride && !hasVariantPurchasePrice) continue;
       const existingVariant = await client.query(
         `
         SELECT id, price, regular_price, sale_price, sale_price_enabled, manual_selling_price, manual_price_override_active, purchase_selling_price
@@ -6062,6 +6109,7 @@ export const updateProductPrices = async (req, res) => {
         : null;
       const variantOverrideActive = variant.manual_price_override_active ?? variant.manualPriceOverrideActive;
       const variantManualPrice = toPriceValue(variant.manual_selling_price ?? variant.manualSellingPrice ?? variant.variant_sale_price ?? variant.sale_price ?? variant.salePrice ?? variant.regular_price ?? variant.price, { nullable: true });
+      const variantPurchasePrice = hasVariantPurchasePrice ? toPriceValue(variant.purchase_price ?? variant.purchasePrice ?? variant.cost_price ?? variant.costPrice) : null;
       const variantSets = [];
       const variantValues = [];
       const pushVariant = (value) => {
@@ -6075,6 +6123,10 @@ export const updateProductPrices = async (req, res) => {
       if (hasVariantDiscount && variantColumns.has("sale_price")) variantSets.push(`sale_price = ${pushVariant(variantDiscount ?? 0)}`);
       if (hasVariantDiscount && variantColumns.has("offer_price")) variantSets.push(`offer_price = ${pushVariant(variantDiscount)}`);
       if (hasVariantDiscount && variantColumns.has("sale_price_enabled")) variantSets.push(`sale_price_enabled = ${pushVariant(variantDiscount !== null && variantDiscount > 0)}`);
+      if (hasVariantPurchasePrice && variantColumns.has("purchase_price")) variantSets.push(`purchase_price = ${pushVariant(variantPurchasePrice)}`);
+      if (hasVariantPurchasePrice && variantColumns.has("cost_price")) variantSets.push(`cost_price = ${pushVariant(variantPurchasePrice)}`);
+      if (hasVariantPurchasePrice && variantColumns.has("last_purchase_price")) variantSets.push(`last_purchase_price = ${pushVariant(variantPurchasePrice)}`);
+      if (hasVariantPurchasePrice && variantColumns.has("last_purchase_cost")) variantSets.push(`last_purchase_cost = ${pushVariant(variantPurchasePrice)}`);
       if (variantColumns.has("updated_at")) variantSets.push("updated_at = NOW()");
       if (!variantSets.length) continue;
       variantValues.push(variantId, productId, tenantId);

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 
 import toast from "react-hot-toast";
+import { isAdminUser } from "../../../shared/auth/authStorage";
 
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { canViewCostPrices, hasPermission } from "../../permissions/lib/rbacStore";
@@ -610,6 +611,8 @@ const getProductThumbnail = (row = {}) => {
 };
 
 const getProductColorPreviews = (row = {}) => {
+  const stockSummary = getProductColorStockSummary(row);
+  const stockByColor = new Map(stockSummary.map((item) => [item.color.toLowerCase(), item]));
   const previews = Array.isArray(row.colorImagePreviews)
     ? row.colorImagePreviews
     : Array.isArray(row.color_image_previews)
@@ -622,7 +625,7 @@ const getProductColorPreviews = (row = {}) => {
     const key = `${color.toLowerCase()}|${imageUrl}`;
     if (!imageUrl || seen.has(key)) return result;
     seen.add(key);
-    result.push({ color, imageUrl });
+    result.push({ color, imageUrl, ...(stockByColor.get(color.toLowerCase()) || { stock: 0, sizes: [] }) });
     return result;
   }, []);
   if (normalizedPreviews.length) return normalizedPreviews;
@@ -647,12 +650,71 @@ const getProductColorPreviews = (row = {}) => {
     const key = `${color.toLowerCase()}|${imageUrl}`;
     if (!imageUrl || seen.has(key)) return result;
     seen.add(key);
-    result.push({ color, imageUrl });
+    result.push({ color, imageUrl, ...(stockByColor.get(color.toLowerCase()) || { stock: 0, sizes: [] }) });
     return result;
   }, []);
 };
 
 const productColorHoverCache = new Map();
+
+function getProductColorStockSummary(row = {}) {
+  const supplied = Array.isArray(row.colorStockSummary)
+    ? row.colorStockSummary
+    : Array.isArray(row.color_stock_summary)
+      ? row.color_stock_summary
+      : [];
+  if (supplied.length) {
+    return supplied.map((item) => ({
+      color: String(item?.color || item?.color_name || "لون").trim(),
+      stock: Math.max(0, Number(item?.stock || 0) || 0),
+      sizes: (Array.isArray(item?.sizes) ? item.sizes : []).map((size) => ({
+        size: String(size?.size || size?.size_name || "مقاس واحد").trim(),
+        stock: Math.max(0, Number(size?.stock || 0) || 0),
+      })),
+    }));
+  }
+
+  const variants = Array.isArray(row.variants) ? row.variants : [];
+  const colors = new Map();
+  variants.forEach((variant) => {
+    const color = String(variant?.color || "لون").trim();
+    const colorKey = color.toLowerCase();
+    const size = String(variant?.size || row.fixed_size_label || "مقاس واحد").trim();
+    const stock = Math.max(0, Number(variant?.stock ?? variant?.quantity ?? 0) || 0);
+    if (!colors.has(colorKey)) colors.set(colorKey, { color, stock: 0, sizes: new Map() });
+    const entry = colors.get(colorKey);
+    entry.stock += stock;
+    entry.sizes.set(size, (entry.sizes.get(size) || 0) + stock);
+  });
+  return [...colors.values()].map((item) => ({
+    color: item.color,
+    stock: item.stock,
+    sizes: [...item.sizes.entries()].map(([size, stock]) => ({ size, stock })),
+  }));
+}
+
+const ProductColorStockBadge = ({ row = {} }) => {
+  const summary = getProductColorStockSummary(row);
+  if (!summary.length) return null;
+  return (
+    <div className="flex max-w-full flex-wrap items-center gap-1" title="كميات المخزون حسب اللون">
+      {summary.slice(0, 4).map((item) => {
+        const tone = item.stock <= 0
+          ? "border-red-400/25 bg-red-500/15 text-red-200"
+          : item.stock <= 2
+            ? "border-amber-400/25 bg-amber-500/15 text-amber-200"
+            : "border-emerald-400/25 bg-emerald-500/15 text-emerald-200";
+        return (
+          <span key={item.color} className={`inline-flex max-w-24 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black ${tone}`}>
+            <span className="truncate">{item.color}</span>
+            <span className="shrink-0 tabular-nums">{item.stock}</span>
+          </span>
+        );
+      })}
+      {summary.length > 4 ? <span className="text-[9px] font-black text-zinc-400">+{summary.length - 4}</span> : null}
+    </div>
+  );
+};
 
 const normalizeQueueColorKey = (value = "") => String(value ?? "").trim().toLowerCase();
 
@@ -779,6 +841,8 @@ const productSalePriceValue = (row = {}) => priceNumber(row.selling_price ?? row
 const productDiscountPriceValue = (row = {}) => nullablePriceInput(row.discount_price ?? row.offer_price ?? row.sale_price);
 const variantSalePriceValue = (variant = {}) => priceNumber(variant.selling_price ?? variant.regular_price ?? variant.price ?? variant.variant_price ?? 0);
 const variantDiscountPriceValue = (variant = {}) => nullablePriceInput(variant.discount_price ?? variant.offer_price ?? variant.sale_price);
+const productPurchasePriceValue = (row = {}) => priceNumber(row.purchase_price ?? row.last_purchase_price ?? row.cost_price ?? row.last_purchase_cost ?? 0);
+const variantPurchasePriceValue = (variant = {}) => priceNumber(variant.purchase_price ?? variant.last_purchase_price ?? variant.cost_price ?? variant.last_purchase_cost ?? 0);
 const isSimpleCatalogProduct = (row = {}) => {
   const mode = String(row?.variation_mode || "").trim().toLowerCase();
   const type = String(row?.product_type || row?.type || "").trim().toLowerCase();
@@ -1073,6 +1137,18 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
                   className="h-16 w-full rounded-xl border border-white/10 bg-white object-contain"
                 />
                 <p className="mt-1 truncate text-center text-[10px] font-bold text-zinc-300" title={preview.color}>{preview.color}</p>
+                <p className={`mt-0.5 text-center text-[10px] font-black ${preview.stock <= 0 ? "text-red-300" : preview.stock <= 2 ? "text-amber-300" : "text-emerald-300"}`}>
+                  {preview.stock <= 0 ? "نفد" : `${preview.stock} قطعة`}
+                </p>
+                {preview.sizes?.length ? (
+                  <div className="mt-1 flex flex-wrap justify-center gap-1">
+                    {preview.sizes.map((size) => (
+                      <span key={size.size} className={`rounded-md px-1 py-0.5 text-[8px] font-black ${size.stock > 0 ? "bg-white/10 text-zinc-200" : "bg-red-500/10 text-red-300"}`}>
+                        {size.size}×{size.stock}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div> : null}
@@ -1250,7 +1326,7 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
   );
 }
 
-function EnhancedPriceEditorModal({ product, onClose, onSave }) {
+function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePrice = false }) {
   const { t } = useTranslation();
   const isSimpleProduct = String(product?.variation_mode || "").trim().toLowerCase() === "simple" || !Array.isArray(product?.variants) || product.variants.length === 0;
   const [saving, setSaving] = useState(false);
@@ -1258,12 +1334,15 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
   const [expandedColorKeys, setExpandedColorKeys] = useState(() => new Set());
   const [bulkSellingPrice, setBulkSellingPrice] = useState("");
   const [bulkSalePrice, setBulkSalePrice] = useState("");
+  const [bulkPurchasePrice, setBulkPurchasePrice] = useState("");
   const [form, setForm] = useState(() => ({
     product: {
       current_sale_price: productSalePriceValue(product),
       current_discount_price: productDiscountPriceValue(product),
+      current_purchase_price: productPurchasePriceValue(product),
       sale_price: String(productSalePriceValue(product)),
       discount_price: productDiscountPriceValue(product),
+      purchase_price: String(productPurchasePriceValue(product)),
     },
     variants: (Array.isArray(product?.variants) ? product.variants : []).map((variant) => ({
       id: variant.id ?? variant.variant_id ?? variant.variantId,
@@ -1283,8 +1362,10 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
       name: [variant.color, variant.size, variant.sku || variant.barcode].filter(Boolean).join(" / ") || `Variant ${variant.id ?? variant.variant_id ?? ""}`,
       current_sale_price: variantSalePriceValue(variant),
       current_discount_price: variantDiscountPriceValue(variant),
+      current_purchase_price: variantPurchasePriceValue(variant),
       sale_price: String(variantSalePriceValue(variant)),
       discount_price: variantDiscountPriceValue(variant),
+      purchase_price: String(variantPurchasePriceValue(variant)),
     })),
   }));
 
@@ -1301,7 +1382,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
       const nextSale = Number(normalizePriceInput(variant.sale_price));
       const nextDiscount = variant.discount_price === "" ? "" : normalizePriceInput(variant.discount_price, { nullable: true });
       const currentDiscount = variant.current_discount_price === "" ? "" : normalizePriceInput(variant.current_discount_price, { nullable: true });
-      if (Number(nextSale) !== Number(variant.current_sale_price) || (nextDiscount === "" ? 0 : Number(nextDiscount)) !== (currentDiscount === "" ? 0 : Number(currentDiscount))) ids.add(String(variant.id));
+      const purchaseChanged = canEditPurchasePrice && Number(normalizePriceInput(variant.purchase_price)) !== Number(variant.current_purchase_price);
+      if (purchaseChanged || Number(nextSale) !== Number(variant.current_sale_price) || (nextDiscount === "" ? 0 : Number(nextDiscount)) !== (currentDiscount === "" ? 0 : Number(currentDiscount))) ids.add(String(variant.id));
     });
     return ids;
   }, [form.variants]);
@@ -1311,7 +1393,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
     const nextSale = Number(normalizePriceInput(form.product.sale_price));
     const nextDiscount = form.product.discount_price === "" ? 0 : Number(normalizePriceInput(form.product.discount_price, { nullable: true }));
     const currentDiscount = form.product.current_discount_price === "" ? 0 : Number(normalizePriceInput(form.product.current_discount_price, { nullable: true }));
-    return Number(nextSale) !== Number(form.product.current_sale_price) || Number(nextDiscount) !== Number(currentDiscount);
+    const purchaseChanged = canEditPurchasePrice && Number(normalizePriceInput(form.product.purchase_price)) !== Number(form.product.current_purchase_price);
+    return purchaseChanged || Number(nextSale) !== Number(form.product.current_sale_price) || Number(nextDiscount) !== Number(currentDiscount);
   }, [form.product, isSimpleProduct]);
 
   const changedCount = changedVariantIds.size + (productPriceChanged ? 1 : 0);
@@ -1328,12 +1411,15 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
     return Array.from(groups.values()).map((group) => {
       const sellingPrices = new Set(group.variants.map(({ variant }) => String(variant.sale_price ?? "")));
       const discountPrices = new Set(group.variants.map(({ variant }) => String(variant.discount_price ?? "")));
+      const purchasePrices = new Set(group.variants.map(({ variant }) => String(variant.purchase_price ?? "")));
       return {
         ...group,
         salePrice: sellingPrices.size === 1 ? group.variants[0].variant.sale_price : "",
         discountPrice: discountPrices.size === 1 ? group.variants[0].variant.discount_price : "",
+        purchasePrice: purchasePrices.size === 1 ? group.variants[0].variant.purchase_price : "",
         hasMixedSalePrice: sellingPrices.size > 1,
         hasMixedDiscountPrice: discountPrices.size > 1,
+        hasMixedPurchasePrice: purchasePrices.size > 1,
         changed: group.variants.some(({ variant }) => changedVariantIds.has(String(variant.id))),
       };
     });
@@ -1343,6 +1429,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
     const values = [
       [t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price"), bulkSellingPrice],
       [t("products.priceEditor.bulkSalePrice", "Bulk Sale Price"), bulkSalePrice],
+      ...(canEditPurchasePrice ? [["سعر الشراء الجماعي", bulkPurchasePrice]] : []),
       ...(isSimpleProduct
         ? [
             [`${product.name || product.product_name || t("products.fields.product", "Product")} ${t("products.priceEditor.salePrice", "سعر البيع")}`, form.product.sale_price],
@@ -1383,21 +1470,25 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
         ...prev.product,
         sale_price: normalizePriceInput(prev.product.sale_price),
         discount_price: normalizePriceInput(prev.product.discount_price, { nullable: true }),
+        purchase_price: normalizePriceInput(prev.product.purchase_price),
       },
       variants: prev.variants.map((variant) => ({
         ...variant,
         sale_price: normalizePriceInput(variant.sale_price),
         discount_price: normalizePriceInput(variant.discount_price, { nullable: true }),
+        purchase_price: normalizePriceInput(variant.purchase_price),
       })),
     }));
     setBulkSellingPrice((value) => normalizePriceInput(value, { nullable: true }));
     setBulkSalePrice((value) => normalizePriceInput(value, { nullable: true }));
+    setBulkPurchasePrice((value) => normalizePriceInput(value, { nullable: true }));
   };
 
   const applyBulkPricesToVariants = () => {
     const nextSellingPrice = bulkSellingPrice === "" ? null : normalizePriceInput(bulkSellingPrice);
     const nextSalePrice = bulkSalePrice === "" ? null : normalizePriceInput(bulkSalePrice, { nullable: true });
-    if (nextSellingPrice === null && nextSalePrice === null) {
+    const nextPurchasePrice = canEditPurchasePrice && bulkPurchasePrice !== "" ? normalizePriceInput(bulkPurchasePrice) : null;
+    if (nextSellingPrice === null && nextSalePrice === null && nextPurchasePrice === null) {
       setError(t("products.priceEditor.enterBulkPrice", "Enter a bulk price first"));
       return;
     }
@@ -1410,6 +1501,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
             ...prev.product,
             sale_price: nextSellingPrice === null ? prev.product.sale_price : nextSellingPrice,
             discount_price: nextSalePrice === null ? prev.product.discount_price : nextSalePrice,
+            purchase_price: nextPurchasePrice === null ? prev.product.purchase_price : nextPurchasePrice,
           },
         };
       }
@@ -1419,6 +1511,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
           ...variant,
           sale_price: nextSellingPrice === null ? variant.sale_price : nextSellingPrice,
           discount_price: nextSalePrice === null ? variant.discount_price : nextSalePrice,
+          purchase_price: nextPurchasePrice === null ? variant.purchase_price : nextPurchasePrice,
         })),
       };
     });
@@ -1464,6 +1557,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
           variant_only: false,
           manual_selling_price: Number(form.product.sale_price || 0),
           manual_price_override_active: true,
+          discount_price: form.product.discount_price === "" ? null : Number(form.product.discount_price),
+          ...(canEditPurchasePrice ? { purchase_price: Number(form.product.purchase_price || 0) } : {}),
         });
       } else {
         await onSave(product.id, {
@@ -1472,6 +1567,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
             id: variant.id,
             manual_selling_price: Number(variant.sale_price || 0),
             manual_price_override_active: true,
+            variant_discount_price: variant.discount_price === "" ? null : Number(variant.discount_price),
+            ...(canEditPurchasePrice ? { purchase_price: Number(variant.purchase_price || 0) } : {}),
           })),
         });
       }
@@ -1540,7 +1637,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {error ? <div className="mb-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
           <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-            <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto_auto_auto] md:items-end">
+            <div className={`grid gap-2 md:items-end ${canEditPurchasePrice ? "md:grid-cols-[1fr_1fr_1fr_auto_auto_auto]" : "md:grid-cols-[1fr_1fr_auto_auto_auto]"}`}>
+              {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء الجماعي" value={bulkPurchasePrice} onBlur={normalizeFormInputs} onChange={setBulkPurchasePrice} placeholder={t("products.priceEditor.empty", "Empty")} /> : null}
               <AdvancedPriceField label={t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price")} value={bulkSellingPrice} onBlur={normalizeFormInputs} onChange={setBulkSellingPrice} placeholder={t("products.priceEditor.empty", "Empty")} />
               <AdvancedPriceField label={t("products.priceEditor.bulkSalePrice", "Bulk Sale Price")} value={bulkSalePrice} onBlur={normalizeFormInputs} onChange={setBulkSalePrice} placeholder={t("products.priceEditor.empty", "Empty")} />
               <button type="button" onClick={applyBulkPricesToVariants} disabled={!isSimpleProduct && !form.variants.length} className="h-10 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 outline-none hover:bg-emerald-400/15 focus:border-emerald-300/60 disabled:opacity-50">
@@ -1560,7 +1658,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
                 <div className="text-sm font-black text-white">{t("products.priceEditor.productPrices", "Product prices")}</div>
                 <div className="text-xs font-semibold text-zinc-500">{productPriceChanged ? t("products.priceEditor.changed", "changed") : t("products.priceEditor.noChanges", "No price changes")}</div>
               </div>
-              <div className={productPriceChanged ? "grid gap-3 rounded-xl border border-emerald-300/30 bg-emerald-400/[0.06] p-3 md:grid-cols-2" : "grid gap-3 rounded-xl border border-white/10 bg-black/10 p-3 md:grid-cols-2"}>
+              <div className={productPriceChanged ? "grid gap-3 rounded-xl border border-emerald-300/30 bg-emerald-400/[0.06] p-3 md:grid-cols-3" : "grid gap-3 rounded-xl border border-white/10 bg-black/10 p-3 md:grid-cols-3"}>
+                {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء" value={form.product.purchase_price} changed={productPriceChanged} current={formatPrice(form.product.current_purchase_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ purchase_price: value })} /> : null}
                 <AdvancedPriceField label={t("products.priceEditor.salePrice", "سعر البيع")} value={form.product.sale_price} changed={productPriceChanged} current={formatPrice(form.product.current_sale_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ sale_price: value })} />
                 <AdvancedPriceField label={t("products.priceEditor.discountPrice", "سعر السيل")} value={form.product.discount_price} changed={productPriceChanged} current={form.product.current_discount_price === "" ? t("products.priceEditor.empty", "Empty") : formatPrice(form.product.current_discount_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
               </div>
@@ -1577,7 +1676,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
                   const expanded = expandedColorKeys.has(group.key);
                   return (
                     <section key={group.key} className={`overflow-hidden rounded-2xl border ${group.changed ? "border-emerald-300/35 bg-emerald-400/[0.05]" : "border-white/10 bg-black/15"}`}>
-                      <div className="grid items-center gap-2 p-2 md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]">
+                      <div className={`grid items-center gap-2 p-2 ${canEditPurchasePrice ? "md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(130px,180px))_auto]" : "md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]"}`}>
                         <button type="button" onClick={() => toggleColorGroup(group.key)} className="flex min-w-0 items-center gap-3 rounded-xl p-1 text-start outline-none hover:bg-white/5">
                           {group.image ? <img src={group.image} alt={group.label} className="h-14 w-14 shrink-0 rounded-xl border border-white/10 bg-white object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-500"><Package2 size={20} /></span>}
                           <span className="min-w-0">
@@ -1585,6 +1684,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
                             <span className="mt-1 block text-xs font-semibold text-zinc-500">{group.variants.length} مقاس</span>
                           </span>
                         </button>
+                        {canEditPurchasePrice ? <AdvancedPriceField compact label="سعر الشراء" value={group.purchasePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { purchase_price: value })} placeholder={group.hasMixedPurchasePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} /> : null}
                         <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={group.salePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { sale_price: value })} placeholder={group.hasMixedSalePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
                         <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={group.discountPrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { discount_price: value })} placeholder={group.hasMixedDiscountPrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
                         <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10">
@@ -1593,8 +1693,9 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
                       </div>
                       {expanded ? (
                         <div className="border-t border-white/10 bg-black/20 p-2">
-                          <div className="mb-2 grid grid-cols-[5rem_1fr_1fr] gap-2 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
+                          <div className={`mb-2 grid gap-2 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 ${canEditPurchasePrice ? "grid-cols-[5rem_1fr_1fr_1fr]" : "grid-cols-[5rem_1fr_1fr]"}`}>
                             <span>{t("products.fields.size", "Size")}</span>
+                            {canEditPurchasePrice ? <span>سعر الشراء</span> : null}
                             <span>{t("products.priceEditor.salePrice", "سعر البيع")}</span>
                             <span>{t("products.priceEditor.discountPrice", "سعر السيل")}</span>
                           </div>
@@ -1602,8 +1703,9 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
                             {group.variants.map(({ variant, index }) => {
                               const changed = changedVariantIds.has(String(variant.id));
                               return (
-                                <div key={variant.id || index} className={`grid grid-cols-[5rem_1fr_1fr] items-center gap-2 rounded-xl p-2 ${changed ? "bg-emerald-400/[0.06]" : "bg-white/[0.025]"}`}>
+                                <div key={variant.id || index} className={`grid items-center gap-2 rounded-xl p-2 ${canEditPurchasePrice ? "grid-cols-[5rem_1fr_1fr_1fr]" : "grid-cols-[5rem_1fr_1fr]"} ${changed ? "bg-emerald-400/[0.06]" : "bg-white/[0.025]"}`}>
                                   <span className="font-black text-zinc-200">{variant.size}</span>
+                                  {canEditPurchasePrice ? <AdvancedPriceField compact label="سعر الشراء" value={variant.purchase_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { purchase_price: value })} /> : null}
                                   <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={variant.sale_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { sale_price: value })} />
                                   <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={variant.discount_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
                                 </div>
@@ -3192,6 +3294,9 @@ function ProductsList() {
                                 <ProductColorImageBadge row={row} onClick={(event) => openProductColorImages(event, row)} />
                               </div>
                               <div className="mt-1.5">
+                                <ProductColorStockBadge row={row} />
+                              </div>
+                              <div className="mt-1.5">
                                 <ProductThermalLevelBadge row={row} />
                               </div>
                             </div>
@@ -3498,6 +3603,7 @@ function ProductsList() {
       {priceEditorProduct ? (
         <EnhancedPriceEditorModal
           product={priceEditorProduct}
+          canEditPurchasePrice={isAdminUser()}
           onClose={() => setPriceEditorProduct(null)}
           onSave={handleSavePrices}
         />
