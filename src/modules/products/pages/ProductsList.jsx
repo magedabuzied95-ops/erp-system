@@ -64,6 +64,12 @@ import {
 } from "../services/productsApi";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { isSchoolBagType } from "../lib/schoolBagSizes";
+import {
+  DEFAULT_PRODUCTS_LIST_FILTERS,
+  readProductsListFilters,
+  removeStoredProductsListFilters,
+  writeProductsListFilters,
+} from "../lib/productListFilters";
 
 import PostEditorModal from "../../marketing/components/PostEditorModal";
 import {
@@ -1787,16 +1793,13 @@ function ProductsList() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [catalogTab, setCatalogTab] = useState("products");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [colorImageFilter, setColorImageFilter] = useState("all");
-  const [storefrontVisibilityFilter, setStorefrontVisibilityFilter] = useState("all");
-  const [classificationFilters, setClassificationFilters] = useState(() => ({
-    gender: "all",
-    productType: "all",
-    grade: "all",
-  }));
-  const [brandFilter, setBrandFilter] = useState("all");
+  const [initialFilters] = useState(readProductsListFilters);
+  const [catalogTab, setCatalogTab] = useState(initialFilters.catalogTab);
+  const [statusFilter, setStatusFilter] = useState(initialFilters.status);
+  const [colorImageFilter, setColorImageFilter] = useState(initialFilters.colorImageStatus);
+  const [storefrontVisibilityFilter, setStorefrontVisibilityFilter] = useState(initialFilters.storefrontVisibility);
+  const [classificationFilters, setClassificationFilters] = useState(initialFilters.classifications);
+  const [brandFilter, setBrandFilter] = useState(initialFilters.brand);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(getStoredProductsPageSize);
   const [pagination, setPagination] = useState({ page: 1, limit: 8, offset: 0, total: 0, totalPages: 1 });
@@ -1841,6 +1844,17 @@ function ProductsList() {
   useEffect(() => {
     storeProductsPageSize(pageSize);
   }, [pageSize]);
+
+  useEffect(() => {
+    writeProductsListFilters({
+      catalogTab,
+      status: statusFilter,
+      colorImageStatus: colorImageFilter,
+      storefrontVisibility: storefrontVisibilityFilter,
+      brand: brandFilter,
+      classifications: classificationFilters,
+    });
+  }, [brandFilter, catalogTab, classificationFilters, colorImageFilter, statusFilter, storefrontVisibilityFilter]);
 
   useEffect(() => {
     if (!openActionId) return undefined;
@@ -2080,6 +2094,25 @@ function ProductsList() {
       productType: "all",
       grade: "all",
     });
+    setPage(1);
+  };
+
+  const hasAnyStoredFilter =
+    catalogTab !== DEFAULT_PRODUCTS_LIST_FILTERS.catalogTab ||
+    statusFilter !== "all" ||
+    colorImageFilter !== "all" ||
+    storefrontVisibilityFilter !== "all" ||
+    brandFilter !== "all" ||
+    activeClassificationCount > 0;
+
+  const clearAllProductFilters = () => {
+    setCatalogTab(DEFAULT_PRODUCTS_LIST_FILTERS.catalogTab);
+    setStatusFilter("all");
+    setColorImageFilter("all");
+    setStorefrontVisibilityFilter("all");
+    setBrandFilter("all");
+    setClassificationFilters({ ...DEFAULT_PRODUCTS_LIST_FILTERS.classifications });
+    removeStoredProductsListFilters();
     setPage(1);
   };
 
@@ -2969,22 +3002,35 @@ function ProductsList() {
           </select>
 
           <div className="relative" data-products-filter-popover>
-            <button
-              ref={filtersTriggerRef}
-              type="button"
-              onClick={() => setFiltersOpen((open) => !open)}
-              disabled={!classificationFilterGroups.length}
-              className={`flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                activeClassificationCount
-                  ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]"
-                  : "border-white/8 bg-white/5 text-white hover:border-white/15 hover:bg-white/8"
-              }`}
-              aria-expanded={filtersOpen}
-            >
-              <Filter size={16} />
-              <span>{t("products.filters.filters", "Filters")}{activeClassificationCount ? ` (${activeClassificationCount})` : ""}</span>
-              <ChevronDown size={16} className={`transition ${filtersOpen ? "rotate-180" : ""}`} />
-            </button>
+            <div className="flex items-stretch gap-2">
+              <button
+                ref={filtersTriggerRef}
+                type="button"
+                onClick={() => setFiltersOpen((open) => !open)}
+                disabled={!classificationFilterGroups.length}
+                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  activeClassificationCount
+                    ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]"
+                    : "border-white/8 bg-white/5 text-white hover:border-white/15 hover:bg-white/8"
+                }`}
+                aria-expanded={filtersOpen}
+              >
+                <Filter size={16} />
+                <span>{t("products.filters.filters", "Filters")}{activeClassificationCount ? ` (${activeClassificationCount})` : ""}</span>
+                <ChevronDown size={16} className={`transition ${filtersOpen ? "rotate-180" : ""}`} />
+              </button>
+              {hasAnyStoredFilter ? (
+                <button
+                  type="button"
+                  onClick={clearAllProductFilters}
+                  className="inline-flex h-auto w-10 shrink-0 items-center justify-center rounded-2xl border border-red-300/20 bg-red-500/10 text-red-200 transition hover:border-red-300/40 hover:bg-red-500/15"
+                  title={t("products.filters.clearClassifications", "Clear")}
+                  aria-label={t("products.filters.clearClassifications", "Clear")}
+                >
+                  <X size={15} />
+                </button>
+              ) : null}
+            </div>
 
             {filtersOpen && classificationFilterGroups.length ? (
               <div ref={filtersRef} className="fixed inset-x-2 bottom-2 z-[80] max-h-[85dvh] overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(38rem,calc(100vw-2rem))]">
