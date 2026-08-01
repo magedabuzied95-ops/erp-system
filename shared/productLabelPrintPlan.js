@@ -4,7 +4,7 @@ import { classifyPrintProduct, PRINT_PRODUCT_KINDS } from "./productPrintClassif
 export const LABEL_SPECS = Object.freeze({
   box: { key: "box", label: "Box", widthMm: 100, heightMm: 50, job: "box" },
   display: { key: "display", label: "Display", widthMm: 55, heightMm: 40, job: "display" },
-  bag: { key: "bag", label: "Bags", widthMm: 55, heightMm: 40, job: "display" },
+  bag: { key: "bag", label: "Bags", widthMm: 38, heightMm: 25, job: "bag" },
   crocs: { key: "crocs", label: "Crocs", widthMm: 25, heightMm: 35, job: "crocs" },
 });
 
@@ -150,7 +150,8 @@ export function groupProductLabelPdfJobs(plan = {}) {
   const labels = Array.isArray(plan.labels) ? plan.labels : [];
   return [
     { key: "box", filename: "box-labels-100x50.pdf", widthMm: 100, heightMm: 50, labels: labels.filter((x) => x.type === "box") },
-    { key: "display", filename: "display-bag-labels-55x40.pdf", widthMm: 55, heightMm: 40, labels: labels.filter((x) => x.type === "display" || x.type === "bag") },
+    { key: "display", filename: "display-labels-55x40.pdf", widthMm: 55, heightMm: 40, labels: labels.filter((x) => x.type === "display") },
+    { key: "bag", filename: "bag-labels-38x25.pdf", widthMm: 38, heightMm: 25, labels: labels.filter((x) => x.type === "bag") },
     { key: "crocs", filename: "crocs-labels-25x35.pdf", widthMm: 25, heightMm: 35, labels: labels.filter((x) => x.type === "crocs") },
   ].filter((job) => job.labels.length > 0);
 }
