@@ -37,39 +37,42 @@ const fitLines = (doc, text, maxWidth, maxLines) => {
 };
 
 export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
-  const marginX = clamp(widthMm * 0.02, 1.25, 2.25);
+  const isCompactBag = content.fieldLabel === "COLOR" && widthMm <= 40 && heightMm <= 28;
+  const marginX = isCompactBag ? 0.8 : clamp(widthMm * 0.02, 1.25, 2.25);
   const contentWidth = widthMm - marginX * 2;
   const compact = heightMm <= 36 || widthMm <= 28;
-  const nameFontSize = compact ? 7 : clamp(widthMm * 0.19, 9, 10.4);
-  const detailFontSize = compact ? 5.7 : clamp(widthMm * 0.17, 7.5, 9);
-  const priceFontSize = compact ? 6.5 : clamp(widthMm * 0.245, 11, 13);
-  const barcodeTextFontSize = compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
-  const articleFontSize = compact ? 4.5 : 5.5;
+  const nameFontSize = isCompactBag ? 11.5 : compact ? 7 : clamp(widthMm * 0.19, 9, 10.4);
+  const detailFontSize = isCompactBag ? 7.5 : compact ? 5.7 : clamp(widthMm * 0.17, 7.5, 9);
+  const priceFontSize = isCompactBag ? 9.5 : compact ? 6.5 : clamp(widthMm * 0.245, 11, 13);
+  const barcodeTextFontSize = isCompactBag ? 5.5 : compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
+  const articleFontSize = isCompactBag ? 5 : compact ? 4.5 : 5.5;
   const nameLineHeight = nameFontSize * PT_TO_MM * 1.12;
   const detailLineHeight = detailFontSize * PT_TO_MM * 1.15;
   const priceLineHeight = priceFontSize * PT_TO_MM;
-  const topY = compact ? 3.1 : 3.8;
+  const topY = isCompactBag ? 0.7 : compact ? 3.1 : 3.8;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(nameFontSize);
   const nameLines = fitLines(doc, content.name, contentWidth, 2);
   const nameBaselines = nameLines.map((_, index) => topY + nameLineHeight * (index + 1));
   const nameBottom = nameBaselines[nameBaselines.length - 1] || topY;
-  const priceY = nameBottom + priceLineHeight + (compact ? 0.35 : 0.55);
-  const fieldY = priceY + detailLineHeight + (compact ? 0.45 : 1.35);
+  const priceY = nameBottom + priceLineHeight + (isCompactBag ? 0.15 : compact ? 0.35 : 0.55);
+  const fieldY = priceY + detailLineHeight + (isCompactBag ? 0.2 : compact ? 0.45 : 1.35);
   const articleY = content.article
-    ? fieldY + articleFontSize * PT_TO_MM * 1.05 + 0.2
+    ? fieldY + articleFontSize * PT_TO_MM * 1.05 + (isCompactBag ? 0.05 : 0.2)
     : null;
-  const barcodeTextGap = compact ? 2.3 : 2.8;
-  const bottomMargin = compact ? 1.6 : 2.2;
+  const barcodeTextGap = isCompactBag ? 1.9 : compact ? 2.3 : 2.8;
+  const bottomMargin = isCompactBag ? 0.8 : compact ? 1.6 : 2.2;
   const barcodeTextY = heightMm - bottomMargin;
   const barcodeBottom = barcodeTextY - barcodeTextGap;
-  const minimumBarcodeTop = (articleY || fieldY) + 1.2;
-  const desiredBarcodeHeight = compact
+  const minimumBarcodeTop = (articleY || fieldY) + (isCompactBag ? 0.45 : 1.2);
+  const desiredBarcodeHeight = isCompactBag
+    ? 8.5
+    : compact
     ? clamp(heightMm * 0.2, 5.5, 7)
     : clamp(heightMm * 0.25, 8, 10);
   const barcodeY = Math.max(minimumBarcodeTop, barcodeBottom - desiredBarcodeHeight);
-  const barcodeHeight = Math.max(4.5, barcodeBottom - barcodeY);
+  const barcodeHeight = Math.max(isCompactBag ? 3 : 4.5, barcodeBottom - barcodeY);
 
   return {
     marginX, contentWidth, nameFontSize, detailFontSize, priceFontSize, barcodeTextFontSize, articleFontSize,
