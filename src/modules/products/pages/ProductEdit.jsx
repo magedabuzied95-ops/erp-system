@@ -90,6 +90,7 @@ import { isAdminUser } from "../../../shared/auth/authStorage";
 import { canViewCostPrices } from "../../permissions/lib/rbacStore";
 import { normalizeArticleCodes } from "../../../../shared/articleCode";
 import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
+import { isSchoolBagType } from "../lib/schoolBagSizes";
 
 const emptyProduct = {
   name: "",
@@ -2977,6 +2978,14 @@ function ProductEdit() {
       toast.error(buildMissingRequiredProductFieldsMessage(missingRequiredFields), { duration: 6000 });
       return;
     }
+    if (
+      String(product.product_type || "").trim().toLowerCase() === "bags" &&
+      isSchoolBagType(product.bag_type) &&
+      !String(product.fixed_size_label || "").trim()
+    ) {
+      toast.error("يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة");
+      return;
+    }
 
     const normalizedGroups = isSimpleMode
       ? []
@@ -3345,7 +3354,11 @@ function ProductEdit() {
             grade: product.grade || "",
             is_offer_story: Boolean(product.is_offer_story),
             variation_mode: product.variation_mode || "full_variations",
-            fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
+            fixed_size_label: isSchoolBagType(product.bag_type)
+              ? product.fixed_size_label || ""
+              : isColorOnlyMode
+                ? product.fixed_size_label || "One Size"
+                : "",
             purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
             purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
             carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
@@ -3448,7 +3461,11 @@ function ProductEdit() {
         grade: product.grade || "",
         is_offer_story: Boolean(product.is_offer_story),
         variation_mode: product.variation_mode || "full_variations",
-        fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
+        fixed_size_label: isSchoolBagType(product.bag_type)
+          ? product.fixed_size_label || ""
+          : isColorOnlyMode
+            ? product.fixed_size_label || "One Size"
+            : "",
         purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
         purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
         carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
@@ -3832,6 +3849,7 @@ function ProductEdit() {
               audiences={product.audiences || []}
               productType={product.product_type}
               bagType={product.bag_type}
+              schoolBagSize={isSchoolBagType(product.bag_type) ? product.fixed_size_label || "" : ""}
               grade={product.grade}
               isOfferStory={product.is_offer_story}
               useCustomComparePrice={product.use_custom_compare_price}
@@ -3848,8 +3866,18 @@ function ProductEdit() {
                   gender: next[0] || "",
                 }));
               }}
-              onProductTypeChange={(value) => updateProductField("product_type", value)}
-              onBagTypeChange={(value) => updateProductField("bag_type", value)}
+              onProductTypeChange={(value) => {
+                updateProductField("product_type", value);
+                if (String(value || "").trim().toLowerCase() !== "bags") {
+                  updateProductField("bag_type", "");
+                  updateProductField("fixed_size_label", "");
+                }
+              }}
+              onBagTypeChange={(value) => {
+                updateProductField("bag_type", value);
+                if (!isSchoolBagType(value)) updateProductField("fixed_size_label", "");
+              }}
+              onSchoolBagSizeChange={(value) => updateProductField("fixed_size_label", value)}
               onGradeChange={(value) => updateProductField("grade", value)}
               onIsOfferStoryChange={(value) => updateProductField("is_offer_story", value)}
               onUseCustomComparePriceChange={(value) => updateProductField("use_custom_compare_price", value)}
