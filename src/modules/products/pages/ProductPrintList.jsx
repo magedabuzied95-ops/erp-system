@@ -198,7 +198,7 @@ export default function ProductPrintList() {
                       : job.key === "display"
                         ? `دمج Display PDF (${job.labels.length})`
                         : job.key === "bag"
-                          ? `دمج Bags PDF 25×38 (${job.labels.length})`
+                          ? `دمج Bags PDF 40×55 (${job.labels.length})`
                         : `دمج Crocs PDF (${job.labels.length})`}
                   </button>
                 );
@@ -228,7 +228,7 @@ export default function ProductPrintList() {
                     {jobs.map((job) => (
                       <button key={job.key} type="button" disabled={busyKey === `${product.id}:${job.key}`} onClick={() => downloadJob(product, job)} className="inline-flex items-center gap-2 rounded-full bg-amber-400 px-4 py-2.5 text-sm font-black text-black disabled:opacity-50">
                         {job.key === "box" ? <Printer size={16} /> : <Download size={16} />}
-                        {job.key === "box" ? "Box PDF 100×50" : job.key === "display" ? "Display PDF 55×40" : job.key === "bag" ? "Bags PDF 25×38" : "Crocs PDF 25×35"}
+                        {job.key === "box" ? "Box PDF 100×50" : job.key === "display" ? "Display PDF 55×40" : job.key === "bag" ? "Bags PDF 40×55" : "Crocs PDF 25×35"}
                       </button>
                     ))}
                     <button type="button" onClick={() => remove(product.id)} className="inline-flex items-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 py-2.5 text-sm font-bold text-rose-200">
