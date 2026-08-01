@@ -634,7 +634,7 @@ const safeNow = () => {
 };
 
 const localeForLanguage = (language = "en") => (language === "ar" ? "ar-EG-u-nu-latn" : "en-US");
-const EMPLOYEE_PORTAL_PWA_VERSION = "20260716-notifications-2";
+const EMPLOYEE_PORTAL_PWA_VERSION = "20260802-android-startup-1";
 
 const browserTimeZone = () => {
   try {

@@ -95,12 +95,15 @@ const isEmployeeAppRoute = typeof window !== "undefined" && window.location.path
 if (isEmployeeAppRoute) {
   import("./modules/employees/pages/EmployeeAppShell.jsx").then(({ default: EmployeeAppShell }) => {
     root.render(
-      <BrowserRouter>
-        <Routes>
-          <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
-          <Route path="/employee-app/*" element={<EmployeeAppShell />} />
-        </Routes>
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
+            <Route path="/employee-app/*" element={<EmployeeAppShell />} />
+          </Routes>
+          <LocalizedToaster />
+        </BrowserRouter>
+      </ThemeProvider>
     );
   });
 } else {
