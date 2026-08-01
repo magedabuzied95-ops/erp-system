@@ -44,11 +44,11 @@ test("crocs create only 25x35 crocs labels", () => {
   assert.deepEqual(new Set(plan.labels.map((x) => `${x.type}:${x.widthMm}x${x.heightMm}`)), new Set(["crocs:25x35"]));
 });
 
-test("bags use a physical 25x38 page with the unchanged 38x25 design rotated inside", () => {
+test("bags preserve the 38x25 layout and request a 90-degree printer rotation", () => {
   const bagVariant = { ...variant(1, "ONE", 2, "BAG", "Red"), color_article_code: "RED-ART" };
   const plan = buildProductLabelPrintPlan([product("bags", [bagVariant])]);
   assert.equal(plan.counts.bag, 2);
-  assert.ok(plan.labels.every((x) => x.widthMm === 25 && x.heightMm === 38 && x.fieldValue === "Red" && x.size === ""));
+  assert.ok(plan.labels.every((x) => x.widthMm === 38 && x.heightMm === 25 && x.fieldValue === "Red" && x.size === ""));
   assert.ok(plan.labels.every((x) => x.articleCode === "RED-ART"));
 });
 
@@ -78,14 +78,12 @@ test("PDF jobs contain one physical page size and never mix label sizes", () => 
   assert.deepEqual(jobs.map((x) => [x.key, x.widthMm, x.heightMm]), [
     ["box", 100, 50],
     ["display", 55, 40],
-    ["bag", 25, 38],
+    ["bag", 38, 25],
     ["crocs", 25, 35],
   ]);
   jobs.forEach((job) => assert.ok(job.labels.every((label) => label.widthMm === job.widthMm && label.heightMm === job.heightMm)));
   const bagJob = jobs.find((job) => job.key === "bag");
-  assert.equal(bagJob.rotateContent90, true);
-  assert.equal(bagJob.layoutWidthMm, 38);
-  assert.equal(bagJob.layoutHeightMm, 25);
+  assert.equal(bagJob.printRotation, 90);
 });
 
 test("shoe box labels carry the color image with product image fallback", () => {

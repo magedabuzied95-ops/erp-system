@@ -4,7 +4,7 @@ import { classifyPrintProduct, PRINT_PRODUCT_KINDS } from "./productPrintClassif
 export const LABEL_SPECS = Object.freeze({
   box: { key: "box", label: "Box", widthMm: 100, heightMm: 50, job: "box" },
   display: { key: "display", label: "Display", widthMm: 55, heightMm: 40, job: "display" },
-  bag: { key: "bag", label: "Bags", widthMm: 25, heightMm: 38, job: "bag" },
+  bag: { key: "bag", label: "Bags", widthMm: 38, heightMm: 25, job: "bag" },
   crocs: { key: "crocs", label: "Crocs", widthMm: 25, heightMm: 35, job: "crocs" },
 });
 
@@ -153,12 +153,10 @@ export function groupProductLabelPdfJobs(plan = {}) {
     { key: "display", filename: "display-labels-55x40.pdf", widthMm: 55, heightMm: 40, labels: labels.filter((x) => x.type === "display") },
     {
       key: "bag",
-      filename: "bag-labels-25x38-printer.pdf",
-      widthMm: 25,
-      heightMm: 38,
-      layoutWidthMm: 38,
-      layoutHeightMm: 25,
-      rotateContent90: true,
+      filename: "bag-labels-38x25-rotated.pdf",
+      widthMm: 38,
+      heightMm: 25,
+      printRotation: 90,
       labels: labels.filter((x) => x.type === "bag"),
     },
     { key: "crocs", filename: "crocs-labels-25x35.pdf", widthMm: 25, heightMm: 35, labels: labels.filter((x) => x.type === "crocs") },

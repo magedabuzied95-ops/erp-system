@@ -105,37 +105,29 @@ export async function generateProductLabelJobPdf(job) {
   if (!job?.labels?.length) throw new Error("Cannot generate an empty label job");
   const orientation = job.widthMm >= job.heightMm ? "landscape" : "portrait";
   const doc = new jsPDF({ orientation, unit: "mm", format: [job.widthMm, job.heightMm], compress: true });
+  const printRotation = Number(job.printRotation || 0);
+  if ([90, 180, 270].includes(printRotation)) {
+    doc.internal.events.subscribe("putPage", () => {
+      doc.internal.write(`/Rotate ${printRotation}`);
+    });
+  }
   const layouts = [];
 
   for (let index = 0; index < job.labels.length; index += 1) {
     const label = job.labels[index];
     if (index) doc.addPage([job.widthMm, job.heightMm], orientation);
     const content = buildProductLabelTemplateContent(label);
-    const pageWidthMm = doc.internal.pageSize.getWidth();
-    const pageHeightMm = doc.internal.pageSize.getHeight();
-    const rotateContent90 = Boolean(job.rotateContent90);
-    const widthMm = rotateContent90 ? Number(job.layoutWidthMm || pageHeightMm) : pageWidthMm;
-    const heightMm = rotateContent90 ? Number(job.layoutHeightMm || pageWidthMm) : pageHeightMm;
+    const widthMm = doc.internal.pageSize.getWidth();
+    const heightMm = doc.internal.pageSize.getHeight();
     const layout = buildProductLabelPdfLayout(doc, content, widthMm, heightMm);
-    const point = (x, y) => rotateContent90 ? { x: pageWidthMm - y, y: x } : { x, y };
-    const rectangle = (x, y, width, height) => rotateContent90
-      ? { x: pageWidthMm - y - height, y: x, width: height, height: width }
-      : { x, y, width, height };
-    const drawCenteredText = (value, centerX, y) => {
-      if (!rotateContent90) {
-        doc.text(value, centerX, y, { align: "center" });
-        return;
-      }
-      const logicalLeft = centerX - doc.getTextWidth(value) / 2;
-      const position = point(logicalLeft, y);
-      doc.text(value, position.x, position.y, { angle: 90, rotationDirection: 0 });
-    };
     layouts.push(layout);
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(layout.nameFontSize);
-    layout.nameLines.forEach((line, lineIndex) => drawCenteredText(line, widthMm / 2, layout.nameBaselines[lineIndex]));
+    layout.nameLines.forEach((line, lineIndex) =>
+      doc.text(line, widthMm / 2, layout.nameBaselines[lineIndex], { align: "center" })
+    );
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(layout.priceFontSize);
@@ -143,10 +135,9 @@ export async function generateProductLabelJobPdf(job) {
     const priceBoxWidth = Math.min(layout.contentWidth, doc.getTextWidth(priceText) + 6);
     const priceBoxX = (widthMm - priceBoxWidth) / 2;
     doc.setFillColor(15, 23, 42);
-    const priceBox = rectangle(priceBoxX, layout.priceBox.y, priceBoxWidth, layout.priceBox.height);
-    doc.roundedRect(priceBox.x, priceBox.y, priceBox.width, priceBox.height, 1.2, 1.2, "F");
+    doc.roundedRect(priceBoxX, layout.priceBox.y, priceBoxWidth, layout.priceBox.height, 1.2, 1.2, "F");
     doc.setTextColor(255, 255, 255);
-    drawCenteredText(priceText, widthMm / 2, layout.priceY);
+    doc.text(priceText, widthMm / 2, layout.priceY, { align: "center" });
     doc.setTextColor(15, 23, 42);
     const detailText = `${content.fieldLabel}: ${content.fieldValue || "-"}`;
     let fittedDetailFontSize = layout.detailFontSize;
@@ -155,23 +146,20 @@ export async function generateProductLabelJobPdf(job) {
       fittedDetailFontSize -= 0.25;
       doc.setFontSize(fittedDetailFontSize);
     }
-    drawCenteredText(detailText, widthMm / 2, layout.fieldY);
+    doc.text(detailText, widthMm / 2, layout.fieldY, { align: "center" });
     if (content.article && layout.articleY) {
       doc.setFontSize(layout.articleFontSize);
-      drawCenteredText(`ART: ${content.article}`, widthMm / 2, layout.articleY);
+      doc.text(`ART: ${content.article}`, widthMm / 2, layout.articleY, { align: "center" });
     }
 
     doc.setFillColor(0, 0, 0);
     bars(content.barcode, layout.contentWidth)
       .filter((bar) => bar.black)
-      .forEach((bar) => {
-        const barcodeBar = rectangle(layout.marginX + bar.x, layout.barcodeY, bar.w, layout.barcodeHeight);
-        doc.rect(barcodeBar.x, barcodeBar.y, barcodeBar.width, barcodeBar.height, "F");
-      });
+      .forEach((bar) => doc.rect(layout.marginX + bar.x, layout.barcodeY, bar.w, layout.barcodeHeight, "F"));
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(layout.barcodeTextFontSize);
-    drawCenteredText(content.barcode, widthMm / 2, layout.barcodeTextY);
+    doc.text(content.barcode, widthMm / 2, layout.barcodeTextY, { align: "center" });
   }
 
   return {
@@ -179,9 +167,7 @@ export async function generateProductLabelJobPdf(job) {
     debug: {
       widthMm: doc.internal.pageSize.getWidth(),
       heightMm: doc.internal.pageSize.getHeight(),
-      layoutWidthMm: Number(job.layoutWidthMm || doc.internal.pageSize.getWidth()),
-      layoutHeightMm: Number(job.layoutHeightMm || doc.internal.pageSize.getHeight()),
-      rotateContent90: Boolean(job.rotateContent90),
+      printRotation,
       pages: doc.getNumberOfPages(),
       qr: false,
       layouts,
