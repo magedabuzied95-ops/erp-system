@@ -10,6 +10,8 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Eye,
+  EyeOff,
   GripVertical,
   ImagePlus,
   Loader2,
@@ -4370,6 +4372,19 @@ function ProductEdit() {
                       </div>
                       <button
                         type="button"
+                        aria-pressed={group.is_storefront_visible !== false}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false);
+                        }}
+                        className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
+                        title={group.is_storefront_visible !== false ? "اللون ظاهر على الموقع" : "اللون مخفي من الموقع"}
+                      >
+                        {group.is_storefront_visible !== false ? <Eye size={15} /> : <EyeOff size={15} />}
+                        <span>{group.is_storefront_visible !== false ? "ظاهر في الموقع" : "مخفي من الموقع"}</span>
+                      </button>
+                      <button
+                        type="button"
                         aria-pressed={Boolean(group.generate_thermal_artwork)}
                         onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
                         disabled={!getPrimaryColorImage(group)}
@@ -4658,19 +4673,6 @@ function ProductEdit() {
                               ))}
                             </div>
                               <p className="mt-1 text-[11px] text-zinc-500">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
-                            </div>
-                            <div>
-                              <label className="text-sm font-semibold text-zinc-300">ظهور اللون على الموقع</label>
-                              <button
-                                type="button"
-                                aria-pressed={group.is_storefront_visible !== false}
-                                onClick={() => updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false)}
-                                className={`mt-1.5 flex h-10 w-full items-center justify-between rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
-                              >
-                                <span>{group.is_storefront_visible !== false ? "ظاهر على الموقع" : "مخفي من الموقع"}</span>
-                                <span>{group.is_storefront_visible !== false ? "مفعّل" : "متوقف"}</span>
-                              </button>
-                              <p className="mt-1 text-[11px] text-zinc-500">الإخفاء لا يحذف اللون ولا يؤثر على المخزون أو الـPOS.</p>
                             </div>
                         </div>
 
