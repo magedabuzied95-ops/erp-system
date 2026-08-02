@@ -14,11 +14,11 @@ export const emailHeader = ({ logoUrl = "", eyebrow = "M1 STORE" } = {}) => `<tr
       ${safeUrl(logoUrl) ? `<div style="width:58px;height:58px;border-radius:16px;background:#ffffff;border:1px solid #343434;overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="58" height="58" alt="M1 Store" style="display:block;width:58px;height:58px;object-fit:contain;border:0"></div>` : `<div style="width:58px;height:58px;border-radius:16px;background:${BRAND.gold};color:#101010;text-align:center;font:800 17px/58px Arial,sans-serif">M1</div>`}
     </td>
     <td style="padding-left:14px;vertical-align:middle;text-align:left">
-      <div style="color:#ffffff;font:800 20px/1.2 Arial,sans-serif;letter-spacing:2.5px">${escapeHtml(eyebrow)}</div>
-      <div style="margin-top:6px;color:${BRAND.gold};font:700 9px/1.2 Arial,sans-serif;letter-spacing:2.2px">CHANGE YOUR LIFE</div>
+      <div style="color:#f0c94f!important;-webkit-text-fill-color:#f0c94f;font:900 22px/1.2 Arial,sans-serif;letter-spacing:2.5px;text-shadow:0 0 1px #f0c94f">${escapeHtml(eyebrow)}</div>
+      <div style="margin-top:6px;color:#e2b83c!important;-webkit-text-fill-color:#e2b83c;font:800 10px/1.2 Arial,sans-serif;letter-spacing:2.2px">CHANGE YOUR LIFE</div>
       <div style="margin-top:7px;width:34px;height:2px;background:${BRAND.gold};font-size:0;line-height:0">&nbsp;</div>
     </td>
-    <td style="vertical-align:middle;text-align:right;color:#8e8b84;font:700 10px/1.5 Arial,sans-serif;letter-spacing:1px">EST. 2024<br>CAIRO</td>
+    <td style="vertical-align:middle;text-align:right;color:#f0c94f!important;-webkit-text-fill-color:#f0c94f;font:800 11px/1.55 Arial,sans-serif;letter-spacing:1px">EST. 2024<br>CAIRO</td>
   </tr></table>
 </td></tr>`;
 
