@@ -12,6 +12,8 @@ test("employee display audit stays independent from display refill alerts", asyn
   assert.match(service, /is_displayed/);
   assert.match(service, /COALESCE\(p\.is_displayed, FALSE\) = FALSE/);
   assert.match(service, /COALESCE\(pv\.stock, 0\) > 0/);
+  assert.match(service, /jsonb_agg\(/);
+  assert.match(service, /color_group_key/);
   assert.match(routes, /\/:token\/display-audit/);
   assert.doesNotMatch(service, /display_refill_alerts/);
 });
@@ -50,6 +52,7 @@ test("display audit exposes product, source, and audience navigation", async () 
 test("display audit keeps every model's colors next to each other", async () => {
   const panel = await source("src/modules/employees/components/EmployeeDisplayAuditPanel.jsx");
   assert.match(panel, /orderProductsByModelAndColor/);
+  assert.match(panel, /expandModelColors/);
   assert.match(panel, /normalizeModelSortKey\(left\?\.name\)/);
   assert.match(panel, /left\?\.color/);
 });

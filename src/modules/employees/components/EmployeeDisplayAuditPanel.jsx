@@ -10,6 +10,11 @@ const orderProductsByModelAndColor = (products = []) => [...safeArray(products)]
   if (colorOrder) return colorOrder;
   return Number(left?.product_id || 0) - Number(right?.product_id || 0);
 });
+const expandModelColors = (products = []) => orderProductsByModelAndColor(products).flatMap((product) => {
+  const colors = safeArray(product?.colors);
+  if (!colors.length) return [product];
+  return colors.map((color) => ({ ...product, ...color, colors }));
+});
 const PRODUCT_TABS = [
   { key: "sneakers", label: "اسنيكرز" },
   { key: "crocs", label: "كروكس" },
@@ -102,9 +107,10 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
       {!loading && !sections.length ? <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-10 text-center"><Check className="mx-auto h-9 w-9 text-emerald-600" /><div className="mt-2 text-base font-black text-emerald-950">كل الموديلات الموجودة بالمخزن معروضة</div></div> : null}
 
       {selectedAudience?.products?.length ? <section className="grid gap-2 sm:grid-cols-2">
-        {selectedAudience.products.map((product) => {
+        {expandModelColors(selectedAudience.products).map((product) => {
           const saving = String(savingId) === String(product.product_id);
-          return <article key={product.product_id} className="grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+          const colorKey = product.color_group_key || product.variant_id || product.color || "color";
+          return <article key={`${product.product_id}:${colorKey}`} className="grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
             <div className="h-[74px] w-[74px] overflow-hidden rounded-xl bg-slate-100">{product.image_url ? <img src={product.image_url} alt={product.name} loading="lazy" className="h-full w-full object-cover" /> : <PackageCheck className="m-5 h-8 w-8 text-slate-300" />}</div>
             <div className="min-w-0"><h5 className="line-clamp-2 text-sm font-black leading-5 text-slate-950" dir="auto">{product.name}</h5><div className="mt-1 flex flex-wrap gap-1 text-[11px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">اللون: {product.color || "-"}</span><span className="rounded-full bg-blue-50 px-2 py-1 text-blue-800">أصغر مقاس: {product.size || "-"}</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">الكمية: {product.stock || 0}</span></div><button type="button" onClick={() => onMarkDisplayed?.(product)} disabled={saving} className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white transition hover:bg-emerald-700 disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}معروض</button></div>
           </article>;

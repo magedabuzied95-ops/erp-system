@@ -43,21 +43,38 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
        p.id AS product_id, p.name, p.sku AS product_sku, p.image_url AS product_image_url,
        p.grade, p.gender, p.product_type, p.is_displayed,
        COALESCE((SELECT jsonb_agg(pa.audience ORDER BY pa.audience) FROM product_audiences pa WHERE pa.product_id = p.id), '[]'::jsonb) AS audiences,
-       selected.variant_id, selected.color, selected.size, selected.stock, selected.sku, selected.barcode,
-       COALESCE(NULLIF(selected.image_url, ''), NULLIF(p.image_url, ''), '') AS image_url
+       selected.colors
      FROM products p
      JOIN LATERAL (
-       SELECT pv.id AS variant_id, pv.color, pv.size, pv.stock, pv.sku, pv.barcode, pv.image_url
-       FROM product_variants pv
-       WHERE pv.product_id = p.id
-         AND pv.deleted_at IS NULL
-         AND pv.is_active IS DISTINCT FROM FALSE
-         AND COALESCE(pv.stock, 0) > 0
-       ORDER BY
-         COALESCE(NULLIF(regexp_replace(COALESCE(pv.size, ''), '[^0-9.]', '', 'g'), '')::numeric, 999999),
-         LOWER(COALESCE(pv.size, '')), pv.id
-       LIMIT 1
-     ) selected ON TRUE
+       SELECT jsonb_agg(
+         jsonb_build_object(
+           'variant_id', color_variant.variant_id,
+           'color_group_key', color_variant.color_group_key,
+           'color', color_variant.color,
+           'size', color_variant.size,
+           'stock', color_variant.stock,
+           'sku', color_variant.sku,
+           'barcode', color_variant.barcode,
+           'image_url', COALESCE(NULLIF(color_variant.image_url, ''), NULLIF(p.image_url, ''), '')
+         ) ORDER BY color_variant.color_sort_order, LOWER(COALESCE(color_variant.color, '')), color_variant.variant_id
+       ) AS colors
+       FROM (
+         SELECT DISTINCT ON (
+           COALESCE(NULLIF(TRIM(pv.color_group_key), ''), LOWER(TRIM(COALESCE(pv.color, ''))), CONCAT('variant:', pv.id::text))
+         )
+           pv.id AS variant_id, pv.color_group_key, pv.color, pv.size, pv.stock, pv.sku, pv.barcode, pv.image_url,
+           COALESCE(pv.color_sort_order, 0) AS color_sort_order
+         FROM product_variants pv
+         WHERE pv.product_id = p.id
+           AND pv.deleted_at IS NULL
+           AND pv.is_active IS DISTINCT FROM FALSE
+           AND COALESCE(pv.stock, 0) > 0
+         ORDER BY
+           COALESCE(NULLIF(TRIM(pv.color_group_key), ''), LOWER(TRIM(COALESCE(pv.color, ''))), CONCAT('variant:', pv.id::text)),
+           COALESCE(NULLIF(regexp_replace(COALESCE(pv.size, ''), '[^0-9.]', '', 'g'), '')::numeric, 999999),
+           LOWER(COALESCE(pv.size, '')), pv.id
+       ) color_variant
+     ) selected ON jsonb_array_length(COALESCE(selected.colors, '[]'::jsonb)) > 0
      WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
        AND p.is_active IS DISTINCT FROM FALSE
        AND LOWER(COALESCE(p.status, 'active')) = 'active'
@@ -78,15 +95,27 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
     if (!source) continue;
     const audience = normalizeAudience(row.audiences, row.gender);
     const productGroup = normalizeProductGroup(row.product_type);
+    const colors = (Array.isArray(row.colors) ? row.colors : []).map((color) => ({
+      variant_id: color.variant_id,
+      color_group_key: color.color_group_key || "",
+      color: color.color || "-",
+      size: color.size || "-",
+      stock: Number(color.stock || 0),
+      sku: color.sku || row.product_sku || "",
+      barcode: color.barcode || "",
+      image_url: color.image_url || row.product_image_url || "",
+    }));
+    const firstColor = colors[0] || {};
     const item = {
       product_id: row.product_id,
       name: row.name || "منتج",
-      image_url: row.image_url || "",
-      color: row.color || "-",
-      size: row.size || "-",
-      stock: Number(row.stock || 0),
-      sku: row.sku || row.product_sku || "",
-      barcode: row.barcode || "",
+      image_url: firstColor.image_url || row.product_image_url || "",
+      color: firstColor.color || "-",
+      size: firstColor.size || "-",
+      stock: Number(firstColor.stock || 0),
+      sku: firstColor.sku || row.product_sku || "",
+      barcode: firstColor.barcode || "",
+      colors,
       source,
       audience,
       product_group: productGroup,
