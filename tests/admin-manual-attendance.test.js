@@ -14,6 +14,13 @@ test("manual attendance route is tenant scoped, audited and does not duplicate a
   assert.match(routeSource, /reason.*required/s);
 });
 
+test("daily attendance defaults to today and groups results with filtered totals", () => {
+  assert.match(uiSource, /startDate: todayValue\(\)/);
+  assert.match(uiSource, /groupedRows/);
+  assert.match(uiSource, /إجماليات النتائج الحالية/);
+  assert.match(uiSource, /totals\.payrollImpact/);
+});
+
 test("attendance center exposes the correction form through the admin API", () => {
   assert.match(apiSource, /saveManualAttendance/);
   assert.match(apiSource, /\/admin\/attendance\/manual-entry/);

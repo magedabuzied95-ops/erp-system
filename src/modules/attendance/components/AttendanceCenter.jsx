@@ -426,7 +426,7 @@ export default function AttendanceCenter() {
     search: "",
     branchId: "",
     employeeId: "",
-    startDate: monthStartValue(),
+    startDate: todayValue(),
     endDate: todayValue(),
     status: "",
     source: "",
@@ -690,7 +690,7 @@ export default function AttendanceCenter() {
       ) : null}
 
       {activeTab === "live" ? <LiveAttendance rows={liveRows} text={text} /> : null}
-      {["daily", "late", "missing", "absences"].includes(activeTab) ? <AttendanceTable rows={filteredRows} text={text} dense={dense} onSelect={setSelectedRow} /> : null}
+      {["daily", "late", "missing", "absences"].includes(activeTab) ? <AttendanceTable rows={filteredRows} text={text} dense={dense} onSelect={setSelectedRow} isArabic={isArabic} /> : null}
       {activeTab === "leaves" ? <LeavesTable rows={leaveRows} text={text} /> : null}
       {activeTab === "qr" ? <QrSessionsTable rows={qrRows} text={text} /> : null}
       {activeTab === "payroll" ? (
@@ -818,35 +818,74 @@ function ChartPanel({ title, data, xKey = "date", type = "line", lines = [], bar
   );
 }
 
-function AttendanceTable({ rows, text, dense, onSelect }) {
+function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
   const headers = [text.columns.employee, text.columns.branch, text.columns.date, text.columns.checkIn, text.columns.checkOut, text.columns.workedHours, text.columns.status, text.columns.lateDuration, text.columns.missingHours, text.columns.overtime, text.columns.source, text.columns.payrollImpact, text.columns.notes];
+  const groupedRows = useMemo(() => {
+    const groups = new Map();
+    rows.forEach((row) => {
+      const key = String(row.attendance_date || "-").slice(0, 10);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    });
+    return [...groups.entries()].sort(([a], [b]) => b.localeCompare(a));
+  }, [rows]);
+  const totals = useMemo(() => rows.reduce((result, row) => {
+    const hasCheckIn = Boolean(row.check_in_time);
+    result.present += hasCheckIn ? 1 : 0;
+    result.absent += row.status === "absent" ? 1 : 0;
+    result.workedHours += numberValue(row.worked_hours);
+    result.lateMinutes += numberValue(row.late_minutes);
+    result.missingHours += numberValue(row.missing_hours);
+    result.overtimeHours += numberValue(row.overtime_hours);
+    result.payrollImpact += numberValue(row.payroll_impact);
+    return result;
+  }, { present: 0, absent: 0, workedHours: 0, lateMinutes: 0, missingHours: 0, overtimeHours: 0, payrollImpact: 0 }), [rows]);
+  const renderRows = (sourceRows) => sourceRows.map((row) => (
+    <tr key={`${row.employee_id}-${row.attendance_date}-${row.status}`} onClick={() => onSelect(row)} className="cursor-pointer hover:bg-[var(--surface)]">
+      <td className={`px-3 ${dense ? "py-2" : "py-4"}`}><div className="table-cell-stack"><div className="font-black text-[var(--text)]">{row.employee_name}</div><div className="text-xs text-[var(--muted)]">{row.employee_code}</div></div></td>
+      <td className="px-3 py-2">{row.branch_name || "-"}</td>
+      <td className="px-3 py-2" dir="ltr">{row.attendance_date}</td>
+      <td className="px-3 py-2" dir="ltr">{formatTime(row.check_in_time)}</td>
+      <td className="px-3 py-2" dir="ltr">{formatTime(row.check_out_time)}</td>
+      <td className="px-3 py-2" dir="ltr">{row.worked_hours}</td>
+      <td className="px-3 py-2"><Chip status={row.status}>{text.statusLabels[row.status] || row.status}</Chip></td>
+      <td className="px-3 py-2" dir="ltr">{row.late_minutes || 0}m</td>
+      <td className="px-3 py-2" dir="ltr">{row.missing_hours || 0}</td>
+      <td className="px-3 py-2" dir="ltr">{row.overtime_hours || 0}</td>
+      <td className="px-3 py-2"><SourceBadge value={row.source_label} /></td>
+      <td className="px-3 py-2 font-black text-rose-400" dir="ltr">{formatMoney(row.payroll_impact)}</td>
+      <td className="max-w-[240px] truncate px-3 py-2" title={row.notes || ""}>{row.notes || "-"}</td>
+    </tr>
+  ));
   return (
-    <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
-      <div className="overflow-auto">
-        <table className="min-w-[1280px] w-full text-sm">
-          <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]">
-            <tr>{headers.map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--border)]">
-            {rows.length ? rows.map((row) => (
-              <tr key={`${row.employee_id}-${row.attendance_date}-${row.status}`} onClick={() => onSelect(row)} className="cursor-pointer hover:bg-[var(--surface)]">
-                <td className={`px-3 ${dense ? "py-2" : "py-4"}`}><div className="table-cell-stack"><div className="font-black text-[var(--text)]">{row.employee_name}</div><div className="text-xs text-[var(--muted)]">{row.employee_code}</div></div></td>
-                <td className="px-3 py-2">{row.branch_name || "-"}</td>
-                <td className="px-3 py-2" dir="ltr">{row.attendance_date}</td>
-                <td className="px-3 py-2" dir="ltr">{formatTime(row.check_in_time)}</td>
-                <td className="px-3 py-2" dir="ltr">{formatTime(row.check_out_time)}</td>
-                <td className="px-3 py-2" dir="ltr">{row.worked_hours}</td>
-                <td className="px-3 py-2"><Chip status={row.status}>{text.statusLabels[row.status] || row.status}</Chip></td>
-                <td className="px-3 py-2" dir="ltr">{row.late_minutes || 0}m</td>
-                <td className="px-3 py-2" dir="ltr">{row.missing_hours || 0}</td>
-                <td className="px-3 py-2" dir="ltr">{row.overtime_hours || 0}</td>
-                <td className="px-3 py-2"><SourceBadge value={row.source_label} /></td>
-                <td className="px-3 py-2 font-black text-rose-400" dir="ltr">{formatMoney(row.payroll_impact)}</td>
-                <td className="max-w-[240px] truncate px-3 py-2" title={row.notes || ""}>{row.notes || "-"}</td>
-              </tr>
-            )) : <tr><td colSpan={headers.length} className="p-8 text-center text-[var(--muted)]">{text.noRows}</td></tr>}
-          </tbody>
-        </table>
+    <section className="space-y-3">
+      {groupedRows.length ? groupedRows.map(([date, dateRows]) => (
+        <div key={date} className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+          <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+            <div className="inline-flex items-center gap-2 font-black text-[var(--text)]"><CalendarDays className="h-4 w-4 text-[var(--primary)]" />{date}</div>
+            <span className="rounded-full bg-[var(--card)] px-3 py-1 text-xs font-black text-[var(--muted)]">{dateRows.length} {isArabic ? "موظف" : "employees"}</span>
+          </div>
+          <div className="overflow-auto">
+            <table className="min-w-[1280px] w-full text-sm">
+              <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]"><tr>{headers.map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr></thead>
+              <tbody className="divide-y divide-[var(--border)]">{renderRows(dateRows)}</tbody>
+            </table>
+          </div>
+        </div>
+      )) : <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-[var(--muted)]">{text.noRows}</div>}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+        <h3 className="mb-3 text-base font-black text-[var(--text)]">{isArabic ? "إجماليات النتائج الحالية" : "Current results totals"}</h3>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {[
+            [isArabic ? "الحضور" : "Present", totals.present],
+            [isArabic ? "الغياب" : "Absent", totals.absent],
+            [isArabic ? "ساعات العمل" : "Worked hours", totals.workedHours.toFixed(2)],
+            [isArabic ? "دقائق التأخير" : "Late minutes", Math.round(totals.lateMinutes)],
+            [isArabic ? "ساعات النقص" : "Missing hours", totals.missingHours.toFixed(2)],
+            [isArabic ? "الساعات الإضافية" : "Overtime", totals.overtimeHours.toFixed(2)],
+            [isArabic ? "تأثير الرواتب" : "Payroll impact", formatMoney(totals.payrollImpact)],
+          ].map(([label, value]) => <div key={label} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3"><div className="text-xs font-black text-[var(--muted)]">{label}</div><div className="mt-1 text-lg font-black text-[var(--text)]" dir="ltr">{value}</div></div>)}
+        </div>
       </div>
     </section>
   );
