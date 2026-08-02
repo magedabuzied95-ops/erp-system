@@ -1430,7 +1430,7 @@ export default function EmployeePayrollPortal() {
   const [displayRefillAlerts, setDisplayRefillAlerts] = useState([]);
   const [displayRefillLoading, setDisplayRefillLoading] = useState(false);
   const [displayRefillSavingId, setDisplayRefillSavingId] = useState("");
-  const [displayAudit, setDisplayAudit] = useState({ total: 0, sections: [] });
+  const [displayAudit, setDisplayAudit] = useState({ total: 0, product_group_counts: {}, sections: [] });
   const [displayAuditLoading, setDisplayAuditLoading] = useState(false);
   const [displayAuditSavingId, setDisplayAuditSavingId] = useState("");
   const [displayAuditError, setDisplayAuditError] = useState("");
@@ -1607,7 +1607,13 @@ export default function EmployeePayrollPortal() {
       if (!silent) setDisplayAuditLoading(true);
       setDisplayAuditError("");
       const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/display-audit`, { timeoutMs: EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS });
-      setDisplayAudit({ total: Number(response.total || 0), sections: safeArray(response.sections) });
+      setDisplayAudit({
+        total: Number(response.total || 0),
+        product_group_counts: response.product_group_counts && typeof response.product_group_counts === "object"
+          ? response.product_group_counts
+          : {},
+        sections: safeArray(response.sections),
+      });
     } catch (err) {
       setDisplayAuditError(err?.responseBody?.message || err?.message || "تعذر تحميل قائمة العرض");
     } finally {
@@ -1627,9 +1633,19 @@ export default function EmployeePayrollPortal() {
             const products = safeArray(audience.products).filter((item) => String(item.product_id) !== String(product.product_id));
             return { ...audience, products, count: products.length };
           }).filter((audience) => audience.count > 0);
-          return { ...section, audiences, count: audiences.reduce((sum, audience) => sum + audience.count, 0) };
+          const uniqueProductIds = new Set(
+            audiences.flatMap((audience) => safeArray(audience.products).map((item) => String(item.product_id)))
+          );
+          return { ...section, audiences, count: uniqueProductIds.size };
         }).filter((section) => section.count > 0);
-        return { total: Math.max(0, Number(current.total || 0) - 1), sections };
+        const productGroup = product.product_group || "sneakers";
+        const productGroupCounts = { ...(current.product_group_counts || {}) };
+        productGroupCounts[productGroup] = Math.max(0, Number(productGroupCounts[productGroup] || 0) - 1);
+        return {
+          total: Math.max(0, Number(current.total || 0) - 1),
+          product_group_counts: productGroupCounts,
+          sections,
+        };
       });
     } catch (err) {
       setDisplayAuditError(err?.responseBody?.message || err?.message || "تعذر تحديث حالة العرض");
