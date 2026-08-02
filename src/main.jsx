@@ -5,7 +5,7 @@ import "./i18n/i18n";
 import "./index.css";
 import "./theme/foundation.css";
 import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app.js?m1PreviewApi=2";
-import { installChunkLoadRecovery } from "./shared/utils/chunkLoadRecovery";
+import { installChunkLoadRecovery, recoverFromChunkLoadError } from "./shared/utils/chunkLoadRecovery";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -114,26 +114,30 @@ if (isEmployeeAppRoute) {
     );
   });
 } else {
-  import("./App.jsx").then(({ default: App }) => {
-    root.render(
-      <ThemeProvider>
-        <BrowserRouter>
-          <MetaPageTracker />
+  import("./App.jsx")
+    .then(({ default: App }) => {
+      root.render(
+        <ThemeProvider>
+          <BrowserRouter>
+            <MetaPageTracker />
 
-          {/* ======================================================
-             APP
-          ====================================================== */}
+            {/* ======================================================
+               APP
+            ====================================================== */}
 
-          <App />
+            <App />
 
-          {/* ======================================================
-             TOASTER
-          ====================================================== */}
+            {/* ======================================================
+               TOASTER
+            ====================================================== */}
 
-          <LocalizedToaster />
+            <LocalizedToaster />
 
-        </BrowserRouter>
-      </ThemeProvider>
-    );
-  });
+          </BrowserRouter>
+        </ThemeProvider>
+      );
+    })
+    .catch((error) => {
+      recoverFromChunkLoadError(error);
+    });
 }

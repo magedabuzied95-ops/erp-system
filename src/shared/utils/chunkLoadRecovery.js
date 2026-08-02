@@ -4,6 +4,8 @@ const CHUNK_RELOAD_GUARD_MS = 5 * 60 * 1000;
 const CHUNK_ERROR_PATTERNS = [
   "error loading dynamically imported module",
   "failed to fetch dynamically imported module",
+  "failed to load module script",
+  "expected a javascript-or-wasm module script",
   "loading chunk",
   "importing a module script failed",
 ];
@@ -17,6 +19,9 @@ const getErrorText = (error) => {
     error.message,
     error.name,
     error.filename,
+    error.type,
+    error.target?.src,
+    error.target?.href,
     reason?.message,
     reason?.name,
     reason?.stack,
@@ -28,7 +33,10 @@ const getErrorText = (error) => {
 
 export const isChunkLoadError = (error) => {
   const text = getErrorText(error);
-  return CHUNK_ERROR_PATTERNS.some((pattern) => text.includes(pattern));
+  const failedScriptSource = String(error?.target?.src || "").toLowerCase();
+  const isFailedModuleScript = error?.target?.tagName === "SCRIPT"
+    && (failedScriptSource.includes("/assets/") || failedScriptSource.endsWith(".js"));
+  return isFailedModuleScript || CHUNK_ERROR_PATTERNS.some((pattern) => text.includes(pattern));
 };
 
 export const hasChunkReloadAttempted = () => {
