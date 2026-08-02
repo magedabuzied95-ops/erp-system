@@ -2761,7 +2761,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
   const updateParams = [
     employee.tenant_id,
     employee.id,
-    attendanceDate,
+    attendanceRow.attendance_date || attendanceDate,
     notes,
     gps.latitude,
     gps.longitude,
@@ -2799,6 +2799,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         WHERE id = $16::bigint
           AND tenant_id = $1::bigint
           AND employee_id = $2::bigint
+          AND attendance_date = $3::date
           AND COALESCE(check_out_at, check_out) IS NULL
         RETURNING *
         `,
