@@ -53,6 +53,7 @@ import {
 import { expandLabelCopies, openBarcodePrintWindow } from "../../products/lib/barcodeLabels.js";
 import PortalChatComposer from "../../../shared/chat/PortalChatComposer";
 import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
+import PortalChatContactInfo from "../../../shared/chat/PortalChatContactInfo";
 import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import { getEmployeeSalesOpportunities } from "../services/salesOpportunitiesApi";
@@ -1412,6 +1413,7 @@ export default function EmployeePayrollPortal() {
   const [editingChatMessage, setEditingChatMessage] = useState(null);
   const [chatSearch, setChatSearch] = useState("");
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
+  const [chatContactInfoOpen, setChatContactInfoOpen] = useState(false);
   const [chatImagePreview, setChatImagePreview] = useState("");
   const [chatTyping, setChatTyping] = useState(false);
   const [showChatJump, setShowChatJump] = useState(false);
@@ -4155,15 +4157,15 @@ export default function EmployeePayrollPortal() {
                   <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label="رجوع">
                     <ArrowRight className="h-5 w-5" />
                   </button>
-                  <div className="employee-chat-m1-avatar relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20">
+                  <button type="button" onClick={() => setChatContactInfoOpen(true)} className="employee-chat-m1-avatar relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20" aria-label="معلومات M1 Store">
                     <img src="/branding/m-one-logo-white-fixed.png" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" />
                     <img src="/branding/m-one-logo-white-m.png" alt="" aria-hidden="true" className="employee-chat-m1-moving-part absolute inset-0 h-full w-full object-contain" />
-                  </div>
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1">
+                <button type="button" onClick={() => setChatContactInfoOpen(true)} className="min-w-0 flex-1 text-start" aria-label="معلومات M1 Store">
                   <h2 className="truncate text-[16px] font-bold leading-5">M1 Store</h2>
                   <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">حساب أعمال</p>
-                </div>
+                </button>
                 <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label="بحث في الرسائل">
                   {chatSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                 </button>
@@ -4246,6 +4248,18 @@ export default function EmployeePayrollPortal() {
               onSendRecording={sendVoiceRecording}
               onStartRecording={startVoiceRecording}
               onScrollToReply={scrollToChatMessage}
+            />
+            <PortalChatContactInfo
+              open={chatContactInfoOpen}
+              onClose={() => setChatContactInfoOpen(false)}
+              contact={{
+                name: "M1 Store",
+                phone: portal?.store_phone || portal?.support_phone || "",
+                avatar: "/branding/m-one-logo-white-fixed.png",
+                about: "متجر M1 Store الرسمي",
+              }}
+              messages={chatMessages}
+              onSearch={() => { setChatSearchOpen(true); window.setTimeout(() => document.querySelector('input[placeholder="ابحث في الرسائل"]')?.focus?.(), 40); }}
             />
           </section>
         </div>

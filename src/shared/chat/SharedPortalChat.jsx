@@ -4,6 +4,7 @@ import { ArrowRight, Loader2, MessageCircle, RefreshCw, Search, UserRound, X } f
 import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../lib/chatState";
 import PortalChatComposer from "./PortalChatComposer";
 import PortalChatMessageList from "./PortalChatMessageList";
+import PortalChatContactInfo from "./PortalChatContactInfo";
 import { allowedPortalChatAttachment, portalChatMessagePreview } from "./portalChatUtils";
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
@@ -97,6 +98,7 @@ export default function SharedPortalChat({
   const [messageSearch, setMessageSearch] = useState("");
   const [forwardSearch, setForwardSearch] = useState("");
   const [forwardMessage, setForwardMessage] = useState(null);
+  const [contactInfoOpen, setContactInfoOpen] = useState(false);
   const [forwarding, setForwarding] = useState(false);
   const [imagePreview, setImagePreview] = useState("");
   const [typingLabel, setTypingLabel] = useState("");
@@ -790,13 +792,15 @@ export default function SharedPortalChat({
                       <ArrowRight className="h-6 w-6" />
                     </button>
                   ) : null}
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
-                    <UserRound className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || selectedThread?.employee_name || "موظف"}</div>
-                    <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">{activeThreadId ? "المحادثة جاهزة" : "لا توجد رسائل حتى الآن"}</div>
-                  </div>
+                  <button type="button" onClick={() => setContactInfoOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-start hover:bg-white/5" aria-label="فتح معلومات الموظف">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
+                      {selectedEmployeeRecord.photo_url ? <img src={selectedEmployeeRecord.photo_url} alt="" className="h-full w-full object-cover" /> : <UserRound className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || selectedThread?.employee_name || "موظف"}</div>
+                      <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">{activeThreadId ? "المحادثة جاهزة" : "لا توجد رسائل حتى الآن"}</div>
+                    </div>
+                  </button>
                   <label className="flex h-9 max-w-44 items-center gap-1.5 rounded-full bg-white/10 px-2 text-slate-200">
                     <Search className="h-4 w-4 shrink-0" />
                     <input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder="بحث" className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-300" />
@@ -876,6 +880,18 @@ export default function SharedPortalChat({
                 onScrollToReply={scrollToMessage}
                 disabled={!activeThreadId}
                 useTextarea={useTextareaComposer}
+              />
+              <PortalChatContactInfo
+                open={contactInfoOpen}
+                onClose={() => setContactInfoOpen(false)}
+                contact={{
+                  name: selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || "موظف",
+                  phone: selectedEmployeeRecord.phone || selectedEmployeeRecord.mobile || "",
+                  avatar: selectedEmployeeRecord.photo_url || selectedEmployeeRecord.image_url || "",
+                  about: selectedEmployeeRecord.branch_name || "موظف M1 Store",
+                }}
+                messages={messages}
+                onSearch={() => window.setTimeout(() => document.querySelector('input[placeholder="بحث"]')?.focus?.(), 30)}
               />
             </>
           ) : (
