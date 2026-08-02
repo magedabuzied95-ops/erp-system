@@ -107,4 +107,7 @@ test("mobile message actions render outside the scroll area in a bottom sheet", 
   assert.match(messageList, /fixed inset-0 z-\[140\]/);
   assert.match(messageList, /safe-area-inset-bottom/);
   assert.match(messageList, /dir="ltr" className=\{`flex items-end/);
+  assert.match(messageList, /setActiveMessage\(message\)/);
+  assert.match(messageList, /closest\("a, button, input, audio, video"\)/);
+  assert.doesNotMatch(messageList, /className="mb-1 grid h-8 w-8 shrink-0 place-items-center/);
 });

@@ -133,18 +133,17 @@ export default function PortalChatMessageList({
                   {labels.unread || "رسائل غير مقروءة"}
                 </div>
               ) : null}
-              <div dir="ltr" className={`flex items-end gap-1 rounded-2xl transition-shadow duration-300 ${outgoing ? "justify-end" : "justify-start"}`}>
-                {!outgoing && !deleted ? (
-                  <button type="button" onClick={() => setActiveMessage(message)} className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white" aria-label={labels.messageActions || "إجراءات الرسالة"}>
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                ) : null}
+              <div dir="ltr" className={`flex items-end rounded-2xl transition-shadow duration-300 ${outgoing ? "justify-end" : "justify-start"}`}>
                 <div
+                  onClick={(event) => {
+                    if (deleted || event.target.closest("a, button, input, audio, video")) return;
+                    setActiveMessage(message);
+                  }}
                   onTouchStart={(event) => onBeginSwipe?.(event, message)}
                   onTouchMove={(event) => onMoveSwipe?.(event, message)}
                   onTouchEnd={onEndSwipe}
                   onTouchCancel={onEndSwipe}
-                  className={`relative touch-pan-y select-none break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(76vw,18.5rem)] px-2 py-1" : "w-fit max-w-[82%] px-3 py-2"} ${outgoing ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
+                  className={`relative cursor-pointer touch-pan-y select-none break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm transition active:brightness-110 ${voiceMessage ? "w-[min(76vw,18.5rem)] px-2 py-1" : "w-fit max-w-[82%] px-3 py-2"} ${outgoing ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
                   dir="rtl"
                 >
                   {false && !deleted ? (
@@ -197,11 +196,6 @@ export default function PortalChatMessageList({
                     </div>
                   ) : null}
                 </div>
-                {outgoing && !deleted ? (
-                  <button type="button" onClick={() => setActiveMessage(message)} className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white" aria-label={labels.messageActions || "إجراءات الرسالة"}>
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                ) : null}
               </div>
             </div>
           );
