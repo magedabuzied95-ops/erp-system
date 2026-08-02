@@ -200,9 +200,9 @@ export default function PortalChatMessageList({
                     </div>
                   ) : null}
                   {message.reply_to_message_id ? (
-                    <button type="button" onClick={() => scrollToMessage(message.reply_to_message_id)} className="mb-1.5 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
-                      <div className="font-black">{message.reply_sender_type === outgoingSenderType ? outgoingLabel : incomingLabel}</div>
-                      <div className="truncate">{portalChatMessagePreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name }, labels)}</div>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); scrollToMessage(message.reply_to_message_id); }} className="mb-2 block w-full min-w-[12rem] max-w-[19rem] rounded-[0.8rem] border-l-[4px] border-[#ff5d74] bg-black/20 px-3 py-2 text-start shadow-inner" dir="rtl">
+                      <div className="truncate text-[13px] font-black leading-5 text-[#ff7186]">{message.reply_sender_type === outgoingSenderType ? outgoingLabel : incomingLabel}</div>
+                      <div className="line-clamp-2 text-[13px] font-semibold leading-5 text-slate-100/80">{portalChatMessagePreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name }, labels)}</div>
                     </button>
                   ) : null}
                   {!deleted ? <PortalChatAttachment

@@ -4194,7 +4194,7 @@ export default function EmployeePayrollPortal() {
               }}
               outgoingSenderType="employee"
               outgoingLabel={ui("you")}
-              incomingLabel={ui("management")}
+              incomingLabel="M1 Store"
               timeFormatter={(value) => formatTimeLocal(value, language)}
               messagesRef={chatMessagesRef}
               onScroll={handleChatScroll}
@@ -4229,7 +4229,7 @@ export default function EmployeePayrollPortal() {
                 ...text,
                 outgoingSenderType: "employee",
                 you: ui("you"),
-                management: ui("management"),
+                management: "M1 Store",
                 placeholder: ui("chatPlaceholder"),
                 attachFile: ui("attachFile"),
                 removeAttachment: ui("removeAttachment"),

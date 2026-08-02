@@ -51,13 +51,13 @@ export default function PortalChatComposer({
       ) : (
         <>
           {replyTo ? (
-            <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold leading-4 text-white">
-              <button type="button" onClick={() => onScrollToReply?.(replyTo.id)} className="min-w-0 flex-1 border-r-2 border-emerald-300 pr-2 text-start">
-                <div className="text-emerald-200">{replyTo.sender_type === labels.outgoingSenderType ? labels.you || "أنت" : labels.management || "الإدارة"}</div>
-                <div className="truncate opacity-80">{portalChatMessagePreview(replyTo, labels)}</div>
+            <div className="mb-1.5 flex items-stretch gap-2 rounded-[1rem] bg-[#111b21] p-1.5 text-[12px] font-bold leading-5 text-white shadow-lg">
+              <button type="button" onClick={() => onScrollToReply?.(replyTo.id)} className="min-w-0 flex-1 rounded-xl border-l-[4px] border-[#ff5d74] bg-[#202c33] px-3 py-2 text-start" dir="rtl">
+                <div className="truncate text-[13px] font-black text-[#ff7186]">{replyTo.sender_type === labels.outgoingSenderType ? labels.you || "أنت" : labels.management || "M1 Store"}</div>
+                <div className="truncate text-[12px] font-semibold text-slate-200/85">{portalChatMessagePreview(replyTo, labels)}</div>
               </button>
-              <button type="button" onClick={() => setReplyTo?.(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-red-200">
-                <X className="h-3.5 w-3.5" />
+              <button type="button" onClick={() => setReplyTo?.(null)} className="flex h-9 w-9 shrink-0 self-center items-center justify-center rounded-full text-slate-300 hover:bg-white/10 hover:text-white" aria-label={labels.cancelReply || "إلغاء الرد"}>
+                <X className="h-5 w-5" />
               </button>
             </div>
           ) : null}
