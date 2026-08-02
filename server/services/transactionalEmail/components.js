@@ -18,7 +18,7 @@ export const emailHeader = ({ logoUrl = "", eyebrow = "M1 STORE" } = {}) => `<tr
       <div style="margin-top:6px;color:#e2b83c!important;-webkit-text-fill-color:#e2b83c;font:800 10px/1.2 Arial,sans-serif;letter-spacing:2.2px">CHANGE YOUR LIFE</div>
       <div style="margin-top:7px;width:34px;height:2px;background:${BRAND.gold};font-size:0;line-height:0">&nbsp;</div>
     </td>
-    <td style="vertical-align:middle;text-align:right;color:#f0c94f!important;-webkit-text-fill-color:#f0c94f;font:800 11px/1.55 Arial,sans-serif;letter-spacing:1px">EST. 2024<br>CAIRO</td>
+    <td style="vertical-align:middle;text-align:right;color:#f0c94f!important;-webkit-text-fill-color:#f0c94f;font:800 11px/1.55 Arial,sans-serif;letter-spacing:1px">EST. 2021<br>DAMIETTA</td>
   </tr></table>
 </td></tr>`;
 

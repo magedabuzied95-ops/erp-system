@@ -57,6 +57,8 @@ test("customer confirmation is responsive, branded and contains no raw unsafe HT
   assert.match(rendered.html, /CHANGE YOUR LIFE/);
   assert.match(rendered.html, /linear-gradient\(#101010,#101010\)/);
   assert.match(rendered.html, /-webkit-text-fill-color:#f0c94f/);
+  assert.match(rendered.html, /EST\. 2021/);
+  assert.match(rendered.html, /DAMIETTA/);
   assert.match(rendered.html, /عرض الفاتورة/);
   assert.match(rendered.html, /تتبع الطلب/);
   assert.match(rendered.html, /1,300\.00 EGP/);
