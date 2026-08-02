@@ -14,12 +14,77 @@ const normalizeSource = (value = "") => {
   return "";
 };
 
-const normalizeAudience = (...values) => {
+export const normalizeDisplayAuditAudiences = (...values) => {
   const text = values.flat().filter(Boolean).join(" ").toLowerCase();
-  if (/(women|woman|female|ladies|حريمي|نسائي|نساء)/i.test(text)) return "women";
-  if (/(kids|kid|child|children|boy|girl|أطفال|اطفال|طفل)/i.test(text)) return "kids";
-  if (/(men|man|male|رجالي|رجال)/i.test(text)) return "men";
-  return "men";
+  const matched = [];
+  if (/(women|woman|female|ladies|حريمي|نسائي|نساء)/i.test(text)) matched.push("women");
+  if (/(kids|kid|child|children|boy|girl|أطفال|اطفال|طفل)/i.test(text)) matched.push("kids");
+  if (/(^|[^a-z])(men|man|male)([^a-z]|$)|رجالي|رجال/i.test(text)) matched.push("men");
+  return matched.length ? AUDIENCE_ORDER.filter((key) => matched.includes(key)) : ["men"];
+};
+
+const DISPLAY_SIZE_RANGES = {
+  kids: [
+    { key: "kids-22-26", label: "أطفال 22–26", min: 22, max: 26 },
+    { key: "kids-27-31", label: "أطفال 27–31", min: 27, max: 31 },
+    { key: "kids-32-36", label: "أطفال 32–36", min: 32, max: 36 },
+  ],
+  women: [{ key: "women-37-41", label: "حريمي 37–41", min: 37, max: 41 }],
+  men: [{ key: "men-41-plus", label: "رجالي 41+", min: 41, max: Number.POSITIVE_INFINITY }],
+};
+const numericSize = (value) => {
+  const match = String(value ?? "").replace(",", ".").match(/\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : null;
+};
+const variantColorKey = (variant = {}) => String(variant.color_group_key || variant.color || `variant:${variant.variant_id || ""}`).trim().toLowerCase();
+export const resolveDisplayAuditColorsForAudience = ({ variants = [], audience, productGroup, productAudiences = [], productImageUrl = "", productSku = "" }) => {
+  const byColor = new Map();
+  for (const variant of variants) {
+    const key = variantColorKey(variant);
+    if (!byColor.has(key)) byColor.set(key, []);
+    byColor.get(key).push(variant);
+  }
+  const shouldSplitBySize = productGroup === "sneakers" && (audience === "kids" || productAudiences.length > 1);
+  const ranges = DISPLAY_SIZE_RANGES[audience] || [];
+  const colors = [];
+  for (const colorVariants of byColor.values()) {
+    const explicitAudienceText = colorVariants.map((variant) => variant.audience).filter(Boolean);
+    const colorAudiences = explicitAudienceText.length ? normalizeDisplayAuditAudiences(explicitAudienceText) : productAudiences;
+    if (!colorAudiences.includes(audience)) continue;
+    const sorted = [...colorVariants].sort((left, right) =>
+      (numericSize(left.size) ?? Number.POSITIVE_INFINITY) - (numericSize(right.size) ?? Number.POSITIVE_INFINITY) ||
+      Number(left.variant_id || 0) - Number(right.variant_id || 0)
+    );
+    const numericVariants = sorted.filter((variant) => numericSize(variant.size) !== null);
+    const selections = shouldSplitBySize && numericVariants.length
+      ? ranges.map((range) => ({
+          range,
+          variant: numericVariants.find((variant) => numericSize(variant.size) >= range.min && numericSize(variant.size) <= range.max),
+        })).filter((selection) => selection.variant)
+      : [{ range: null, variant: sorted[0] }];
+    // Preserve unusual legacy sizes instead of hiding the model entirely.
+    if (!selections.length && productAudiences.length === 1 && sorted[0]) selections.push({ range: null, variant: sorted[0] });
+    for (const { range, variant: selected } of selections) {
+      colors.push({
+        variant_id: selected.variant_id,
+        color_group_key: selected.color_group_key || "",
+        color_sort_order: Number(selected.color_sort_order || 0),
+        color: selected.color || "-",
+        size: selected.size || "-",
+        stock: Number(selected.stock || 0),
+        sku: selected.sku || productSku || "",
+        barcode: selected.barcode || "",
+        image_url: selected.image_url || productImageUrl || "",
+        display_stage_key: range?.key || "",
+        display_stage_label: range?.label || "",
+      });
+    }
+  }
+  return colors.sort((left, right) =>
+    left.color_sort_order - right.color_sort_order ||
+    String(left.color).localeCompare(String(right.color), "en") ||
+    (numericSize(left.size) ?? Number.POSITIVE_INFINITY) - (numericSize(right.size) ?? Number.POSITIVE_INFINITY)
+  );
 };
 
 const normalizeProductGroup = (value = "") => {
@@ -43,38 +108,29 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
        p.id AS product_id, p.name, p.sku AS product_sku, p.image_url AS product_image_url,
        p.grade, p.gender, p.product_type, p.is_displayed,
        COALESCE((SELECT jsonb_agg(pa.audience ORDER BY pa.audience) FROM product_audiences pa WHERE pa.product_id = p.id), '[]'::jsonb) AS audiences,
-       selected.colors
+       selected.variants
      FROM products p
      JOIN LATERAL (
        SELECT jsonb_agg(
          jsonb_build_object(
-           'variant_id', color_variant.variant_id,
-           'color_group_key', color_variant.color_group_key,
-           'color', color_variant.color,
-           'size', color_variant.size,
-           'stock', color_variant.stock,
-           'sku', color_variant.sku,
-           'barcode', color_variant.barcode,
-           'image_url', COALESCE(NULLIF(color_variant.image_url, ''), NULLIF(p.image_url, ''), '')
-         ) ORDER BY color_variant.color_sort_order, LOWER(COALESCE(color_variant.color, '')), color_variant.variant_id
-       ) AS colors
-       FROM (
-         SELECT DISTINCT ON (
-           COALESCE(NULLIF(TRIM(pv.color_group_key), ''), LOWER(TRIM(COALESCE(pv.color, ''))), CONCAT('variant:', pv.id::text))
-         )
-           pv.id AS variant_id, pv.color_group_key, pv.color, pv.size, pv.stock, pv.sku, pv.barcode, pv.image_url,
-           COALESCE(pv.color_sort_order, 0) AS color_sort_order
-         FROM product_variants pv
-         WHERE pv.product_id = p.id
-           AND pv.deleted_at IS NULL
-           AND pv.is_active IS DISTINCT FROM FALSE
-           AND COALESCE(pv.stock, 0) > 0
-         ORDER BY
-           COALESCE(NULLIF(TRIM(pv.color_group_key), ''), LOWER(TRIM(COALESCE(pv.color, ''))), CONCAT('variant:', pv.id::text)),
-           COALESCE(NULLIF(regexp_replace(COALESCE(pv.size, ''), '[^0-9.]', '', 'g'), '')::numeric, 999999),
-           LOWER(COALESCE(pv.size, '')), pv.id
-       ) color_variant
-     ) selected ON jsonb_array_length(COALESCE(selected.colors, '[]'::jsonb)) > 0
+           'variant_id', pv.id,
+           'color_group_key', pv.color_group_key,
+           'color_sort_order', pv.color_sort_order,
+           'color', pv.color,
+           'size', pv.size,
+           'stock', pv.stock,
+           'sku', pv.sku,
+           'barcode', pv.barcode,
+           'audience', pv.audience,
+           'image_url', COALESCE(NULLIF(pv.image_url, ''), NULLIF(p.image_url, ''), '')
+         ) ORDER BY pv.color_sort_order, LOWER(COALESCE(pv.color, '')), pv.id
+       ) AS variants
+       FROM product_variants pv
+       WHERE pv.product_id = p.id
+         AND pv.deleted_at IS NULL
+         AND pv.is_active IS DISTINCT FROM FALSE
+         AND COALESCE(pv.stock, 0) > 0
+     ) selected ON jsonb_array_length(COALESCE(selected.variants, '[]'::jsonb)) > 0
      WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
        AND p.is_active IS DISTINCT FROM FALSE
        AND LOWER(COALESCE(p.status, 'active')) = 'active'
@@ -93,36 +149,37 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
   for (const row of result.rows) {
     const source = normalizeSource(row.grade);
     if (!source) continue;
-    const audience = normalizeAudience(row.audiences, row.gender);
+    const audiences = normalizeDisplayAuditAudiences(row.audiences, row.gender);
     const productGroup = normalizeProductGroup(row.product_type);
-    const colors = (Array.isArray(row.colors) ? row.colors : []).map((color) => ({
-      variant_id: color.variant_id,
-      color_group_key: color.color_group_key || "",
-      color: color.color || "-",
-      size: color.size || "-",
-      stock: Number(color.stock || 0),
-      sku: color.sku || row.product_sku || "",
-      barcode: color.barcode || "",
-      image_url: color.image_url || row.product_image_url || "",
-    }));
-    const firstColor = colors[0] || {};
-    const item = {
-      product_id: row.product_id,
-      name: row.name || "منتج",
-      image_url: firstColor.image_url || row.product_image_url || "",
-      color: firstColor.color || "-",
-      size: firstColor.size || "-",
-      stock: Number(firstColor.stock || 0),
-      sku: firstColor.sku || row.product_sku || "",
-      barcode: firstColor.barcode || "",
-      colors,
-      source,
-      audience,
-      product_group: productGroup,
-      is_displayed: false,
-    };
-    groups[source].audiences[audience].products.push(item);
-    groups[source].audiences[audience].count += 1;
+    for (const audience of audiences) {
+      const colors = resolveDisplayAuditColorsForAudience({
+        variants: Array.isArray(row.variants) ? row.variants : [],
+        audience,
+        productGroup,
+        productAudiences: audiences,
+        productImageUrl: row.product_image_url,
+        productSku: row.product_sku,
+      });
+      if (!colors.length) continue;
+      const firstColor = colors[0];
+      const item = {
+        product_id: row.product_id,
+        name: row.name || "منتج",
+        image_url: firstColor.image_url || row.product_image_url || "",
+        color: firstColor.color || "-",
+        size: firstColor.size || "-",
+        stock: Number(firstColor.stock || 0),
+        sku: firstColor.sku || row.product_sku || "",
+        barcode: firstColor.barcode || "",
+        colors,
+        source,
+        audience,
+        product_group: productGroup,
+        is_displayed: false,
+      };
+      groups[source].audiences[audience].products.push(item);
+      groups[source].audiences[audience].count += 1;
+    }
     groups[source].count += 1;
   }
 
@@ -130,10 +187,11 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
     ...groups[source],
     audiences: AUDIENCE_ORDER.map((audience) => groups[source].audiences[audience]).filter((group) => group.count > 0),
   })).filter((section) => section.count > 0);
-  const product_group_counts = Object.fromEntries(PRODUCT_GROUP_ORDER.map((key) => [key, 0]));
+  const productGroupIds = Object.fromEntries(PRODUCT_GROUP_ORDER.map((key) => [key, new Set()]));
   sections.forEach((section) => section.audiences.forEach((audience) => audience.products.forEach((product) => {
-    product_group_counts[product.product_group] = Number(product_group_counts[product.product_group] || 0) + 1;
+    productGroupIds[product.product_group]?.add(String(product.product_id));
   })));
+  const product_group_counts = Object.fromEntries(PRODUCT_GROUP_ORDER.map((key) => [key, productGroupIds[key].size]));
   return { total: sections.reduce((sum, section) => sum + section.count, 0), product_group_counts, sections };
 };
 

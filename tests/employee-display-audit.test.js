@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
+import {
+  normalizeDisplayAuditAudiences,
+  resolveDisplayAuditColorsForAudience,
+} from "../server/services/employeeDisplayAuditService.js";
 
 const source = (path) => fs.readFile(path, "utf8");
 
@@ -55,4 +59,40 @@ test("display audit keeps every model's colors next to each other", async () => 
   assert.match(panel, /expandModelColors/);
   assert.match(panel, /normalizeModelSortKey\(left\?\.name\)/);
   assert.match(panel, /left\?\.color/);
+});
+
+test("multi-audience display models use the smallest stocked size for each audience", () => {
+  const audiences = normalizeDisplayAuditAudiences(["kids", "women", "men"]);
+  assert.deepEqual(audiences, ["men", "women", "kids"]);
+  const variants = [32, 34, 37, 39, 41, 43, 45].map((size, index) => ({
+    variant_id: index + 1,
+    color_group_key: "same-color",
+    color: "Black",
+    size: String(size),
+    stock: 1,
+    audience: "kids,women,men",
+  }));
+  const base = { variants, productGroup: "sneakers", productAudiences: audiences };
+  assert.equal(resolveDisplayAuditColorsForAudience({ ...base, audience: "kids" })[0].size, "32");
+  assert.equal(resolveDisplayAuditColorsForAudience({ ...base, audience: "women" })[0].size, "37");
+  assert.equal(resolveDisplayAuditColorsForAudience({ ...base, audience: "men" })[0].size, "41");
+});
+
+test("kids display models are represented in each stocked size stage", () => {
+  const variants = [22, 24, 27, 30, 32, 35].map((size, index) => ({
+    variant_id: index + 1,
+    color_group_key: "same-color",
+    color: "White",
+    size: String(size),
+    stock: 1,
+    audience: "kids",
+  }));
+  const colors = resolveDisplayAuditColorsForAudience({
+    variants,
+    audience: "kids",
+    productGroup: "sneakers",
+    productAudiences: ["kids"],
+  });
+  assert.deepEqual(colors.map((item) => item.size), ["22", "27", "32"]);
+  assert.deepEqual(colors.map((item) => item.display_stage_key), ["kids-22-26", "kids-27-31", "kids-32-36"]);
 });
