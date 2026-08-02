@@ -3142,16 +3142,16 @@ export default function EmployeePayrollPortal() {
                 </div>
               </div>
 
-              <button
-                type="button"
+              <a
+                href={`/employee-portal/${encodeURIComponent(token)}/products`}
+                data-testid="warehouse-request-link"
                 onPointerEnter={() => { void import("./EmployeePortalProducts"); }}
                 onFocus={() => { void import("./EmployeePortalProducts"); }}
-                onClick={() => navigate(`/employee-portal/${encodeURIComponent(token)}/products`)}
                 className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-500"
               >
                 <Package2 className="h-4 w-4" />
                 <span>طلب من المخزن</span>
-              </button>
+              </a>
 
               <button
                 type="button"

@@ -11,9 +11,11 @@ const productsSource = await readFile(
   "utf8"
 );
 
-test("warehouse request uses client-side navigation and preloads its page", () => {
+test("warehouse request uses a cache-safe direct link and preloads its page", () => {
   assert.match(payrollPortalSource, /import\("\.\/EmployeePortalProducts"\)/);
-  assert.match(payrollPortalSource, /navigate\(`\/employee-portal\/\$\{encodeURIComponent\(token\)\}\/products`\)/);
+  assert.match(payrollPortalSource, /href=\{`\/employee-portal\/\$\{encodeURIComponent\(token\)\}\/products`\}/);
+  assert.match(payrollPortalSource, /data-testid="warehouse-request-link"/);
+  assert.doesNotMatch(payrollPortalSource, /onClick=\{\(\) => navigate\(`\/employee-portal\/\$\{encodeURIComponent\(token\)\}\/products`\)\}/);
   assert.doesNotMatch(payrollPortalSource, /window\.location\.assign\(`\/employee-portal\/\$\{encodeURIComponent\(token\)\}\/products`\)/);
 });
 
