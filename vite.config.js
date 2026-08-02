@@ -10,6 +10,12 @@ const indexHtml = path.resolve(projectRoot, "index.html");
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, "");
+  const buildVersion = String(
+    env.VERCEL_GIT_COMMIT_SHA ||
+    env.GITHUB_SHA ||
+    env.SOURCE_VERSION ||
+    Date.now()
+  ).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 12);
   const devProxyTarget = String(
     env.VITE_DEV_PROXY_TARGET ||
     env.VITE_API_PROXY_TARGET ||
@@ -80,6 +86,10 @@ export default defineConfig(({ mode }) => {
           app: indexHtml,
         },
         output: {
+          // Include the deployment identity even when a chunk's source did not change.
+          // This prevents a previously cached HTML fallback from poisoning a JS URL forever.
+          entryFileNames: `assets/[name]-[hash]-${buildVersion}.js`,
+          chunkFileNames: `assets/[name]-[hash]-${buildVersion}.js`,
           manualChunks(id) {
             if (!id.includes("node_modules")) return undefined;
             if (/[\\/]node_modules[\\/](react|react-dom|react-router-dom)[\\/]/.test(id)) return "react";
