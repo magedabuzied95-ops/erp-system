@@ -80,6 +80,7 @@ export default function PortalChatMessageList({
   style,
 }) {
   const [activeMessage, setActiveMessage] = useState(null);
+  const [actionAnchor, setActionAnchor] = useState(null);
   const backgroundStyle = style || DEFAULT_BACKGROUND;
 
   const scrollToMessage = (messageId) => {
@@ -87,18 +88,33 @@ export default function PortalChatMessageList({
     document.getElementById(`${messageIdPrefix}-${messageId}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
 
-  const closeActions = () => setActiveMessage(null);
+  const closeActions = () => {
+    setActiveMessage(null);
+    setActionAnchor(null);
+  };
+  const openActions = (message, node) => {
+    const rect = node?.getBoundingClientRect?.();
+    const viewportWidth = window.innerWidth || 360;
+    const viewportHeight = window.innerHeight || 640;
+    const menuWidth = Math.min(264, viewportWidth - 24);
+    const menuHeight = 250;
+    const left = Math.max(12, Math.min((rect?.left || 12), viewportWidth - menuWidth - 12));
+    const top = (rect?.bottom || 80) + menuHeight + 12 < viewportHeight
+      ? (rect?.bottom || 80) + 8
+      : Math.max(12, (rect?.top || viewportHeight) - menuHeight - 8);
+    setActionAnchor({ left, top, width: menuWidth });
+    setActiveMessage(message);
+  };
   const actionSheet = activeMessage && typeof document !== "undefined" ? createPortal(
     <div className="fixed inset-0 z-[140]" dir="rtl" role="dialog" aria-modal="true" aria-label={labels.messageActions || "إجراءات الرسالة"}>
-      <button type="button" className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" onClick={closeActions} aria-label={labels.close || "إغلاق"} />
-      <div className="absolute inset-x-0 bottom-0 rounded-t-[1.75rem] border-t border-white/10 bg-[#202c33] px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-white shadow-2xl sm:bottom-4 sm:left-1/2 sm:right-auto sm:w-[24rem] sm:-translate-x-1/2 sm:rounded-[1.5rem] sm:border">
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/25" />
-        <div className="mb-2 truncate rounded-xl bg-black/15 px-3 py-2 text-xs text-slate-300" dir="auto">{portalChatMessagePreview(activeMessage, labels)}</div>
-        <div className="grid gap-1 text-sm font-bold">
-          {onReply ? <button type="button" onClick={() => { onReply(activeMessage); closeActions(); }} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Reply className="h-5 w-5 text-emerald-300" />{labels.reply || "رد"}</button> : null}
-          {activeMessage.body ? <button type="button" onClick={() => { navigator.clipboard?.writeText?.(activeMessage.body); closeActions(); }} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Copy className="h-5 w-5 text-sky-300" />{labels.copy || "نسخ"}</button> : null}
-          {activeMessage.sender_type === outgoingSenderType && activeMessage.body && onEdit ? <button type="button" onClick={() => { onEdit(activeMessage); closeActions(); }} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Pencil className="h-5 w-5 text-amber-300" />{labels.edit || "تعديل"}</button> : null}
-          {activeMessage.sender_type === outgoingSenderType && onDelete ? <button type="button" onClick={() => { onDelete(activeMessage); closeActions(); }} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-start text-red-300 hover:bg-white/10"><Trash2 className="h-5 w-5" />{labels.delete || "حذف لدى الجميع"}</button> : null}
+      <button type="button" className="absolute inset-0 bg-black/45 backdrop-blur-[3px]" onClick={closeActions} aria-label={labels.close || "إغلاق"} />
+      <div className="absolute overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#24292d]/95 p-2 text-white shadow-2xl backdrop-blur-xl" style={actionAnchor || undefined}>
+        <div className="mb-1 truncate rounded-xl bg-black/15 px-3 py-2 text-xs font-semibold text-slate-300" dir="auto">{portalChatMessagePreview(activeMessage, labels)}</div>
+        <div className="grid text-[15px] font-bold">
+          {onReply ? <button type="button" onClick={() => { onReply(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Reply className="h-[18px] w-[18px]" />{labels.reply || "رد"}</button> : null}
+          {activeMessage.body ? <button type="button" onClick={() => { navigator.clipboard?.writeText?.(activeMessage.body); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Copy className="h-[18px] w-[18px]" />{labels.copy || "نسخ"}</button> : null}
+          {activeMessage.sender_type === outgoingSenderType && activeMessage.body && onEdit ? <button type="button" onClick={() => { onEdit(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Pencil className="h-[18px] w-[18px]" />{labels.edit || "تعديل"}</button> : null}
+          {activeMessage.sender_type === outgoingSenderType && onDelete ? <button type="button" onClick={() => { onDelete(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start text-red-300 hover:bg-white/10"><Trash2 className="h-[18px] w-[18px]" />{labels.delete || "حذف لدى الجميع"}</button> : null}
         </div>
       </div>
     </div>, document.body
@@ -137,7 +153,7 @@ export default function PortalChatMessageList({
                 <div
                   onClick={(event) => {
                     if (deleted || event.target.closest("a, button, input, audio, video")) return;
-                    setActiveMessage(message);
+                    openActions(message, event.currentTarget);
                   }}
                   onTouchStart={(event) => onBeginSwipe?.(event, message)}
                   onTouchMove={(event) => onMoveSwipe?.(event, message)}

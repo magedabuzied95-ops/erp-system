@@ -2686,7 +2686,7 @@ export default function EmployeePayrollPortal() {
     if (!touch || !swipe.active || String(swipe.id) !== String(message.id)) return;
     const deltaX = touch.clientX - swipe.startX;
     const deltaY = touch.clientY - swipe.startY;
-    if (Math.abs(deltaY) > 36 || deltaX > -52) return;
+    if (Math.abs(deltaY) > 28 || Math.abs(deltaX) < 38) return;
     setReplyToChat(message);
     chatSwipeRef.current = { id: null, startX: 0, startY: 0, active: false };
     if (navigator.vibrate) navigator.vibrate(10);

@@ -101,13 +101,20 @@ test("employee chat supports WhatsApp-style search and message management", asyn
   assert.match(service, /employee-chat:message-deleted/);
 });
 
-test("mobile message actions render outside the scroll area in a bottom sheet", async () => {
+test("mobile message actions render outside the scroll area beside the selected message", async () => {
   const messageList = await source("src/shared/chat/PortalChatMessageList.jsx");
   assert.match(messageList, /createPortal/);
   assert.match(messageList, /fixed inset-0 z-\[140\]/);
-  assert.match(messageList, /safe-area-inset-bottom/);
   assert.match(messageList, /dir="ltr" className=\{`flex items-end/);
-  assert.match(messageList, /setActiveMessage\(message\)/);
+  assert.match(messageList, /openActions\(message, event\.currentTarget\)/);
   assert.match(messageList, /closest\("a, button, input, audio, video"\)/);
   assert.doesNotMatch(messageList, /className="mb-1 grid h-8 w-8 shrink-0 place-items-center/);
+  assert.match(messageList, /backdrop-blur-\[3px\]/);
+  assert.match(messageList, /style=\{actionAnchor \|\| undefined\}/);
+});
+
+test("employee chat reply gesture accepts a horizontal swipe in either direction", async () => {
+  const employeePortal = await source("src/modules/employees/pages/EmployeePayrollPortal.jsx");
+  assert.match(employeePortal, /Math\.abs\(deltaX\) < 38/);
+  assert.doesNotMatch(employeePortal, /deltaX > -52/);
 });
