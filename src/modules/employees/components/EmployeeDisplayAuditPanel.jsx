@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Loader2, PackageCheck, RefreshCw } from "lucide-react";
 
 const safeArray = (value) => Array.isArray(value) ? value : [];
+const normalizeModelSortKey = (value = "") => String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+const orderProductsByModelAndColor = (products = []) => [...safeArray(products)].sort((left, right) => {
+  const modelOrder = normalizeModelSortKey(left?.name).localeCompare(normalizeModelSortKey(right?.name), "en", { numeric: true });
+  if (modelOrder) return modelOrder;
+  const colorOrder = String(left?.color || "").localeCompare(String(right?.color || ""), "en", { numeric: true });
+  if (colorOrder) return colorOrder;
+  return Number(left?.product_id || 0) - Number(right?.product_id || 0);
+});
 const PRODUCT_TABS = [
   { key: "sneakers", label: "اسنيكرز" },
   { key: "crocs", label: "كروكس" },
@@ -37,7 +45,9 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
   const selectedSource = sourceOptions.find((section) => section.key === sourceKey) || sourceOptions[0];
   const availableAudiences = useMemo(() => AUDIENCE_TABS.map((tab) => {
     const sourceAudience = safeArray(selectedSource?.audiences).find((audience) => audience.key === tab.key);
-    const products = safeArray(sourceAudience?.products).filter((product) => product.product_group === productGroup);
+    const products = orderProductsByModelAndColor(
+      safeArray(sourceAudience?.products).filter((product) => product.product_group === productGroup)
+    );
     return { ...tab, products, count: products.length };
   }).filter((audience) => audience.count > 0), [selectedSource, productGroup]);
 

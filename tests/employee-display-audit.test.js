@@ -46,3 +46,10 @@ test("display audit exposes product, source, and audience navigation", async () 
   assert.match(panel, /<select/);
   assert.match(panel, /AUDIENCE_TABS/);
 });
+
+test("display audit keeps every model's colors next to each other", async () => {
+  const panel = await source("src/modules/employees/components/EmployeeDisplayAuditPanel.jsx");
+  assert.match(panel, /orderProductsByModelAndColor/);
+  assert.match(panel, /normalizeModelSortKey\(left\?\.name\)/);
+  assert.match(panel, /left\?\.color/);
+});
