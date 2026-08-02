@@ -52,6 +52,7 @@ import {
 } from "../utils/invoiceNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
+import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderEmailService.js";
 
 export const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
@@ -4753,6 +4754,21 @@ export const createWebsiteOrder = async (req, res) => {
         metadata: JSON.stringify({ order_id: order.id, invoice_number: order.invoice_number, public_order_number: order.public_order_number }),
       }, checkoutColumns.notifications, { step: "create payment/shipping records if used" });
       markCheckoutStep("create payment/shipping records if used:done", { table: "website_notifications", orderId: order.id });
+    }
+    await client.query("SAVEPOINT storefront_order_email_outbox");
+    try {
+      await enqueueOrderCreatedEmails(client, {
+        tenantId,
+        orderId: order.id,
+        customerEmail: checkout.email || customer?.email || "",
+      });
+      await client.query("RELEASE SAVEPOINT storefront_order_email_outbox");
+    } catch (emailQueueError) {
+      await client.query("ROLLBACK TO SAVEPOINT storefront_order_email_outbox");
+      console.warn("[order-email] outbox enqueue skipped", {
+        orderId: order?.id,
+        message: emailQueueError?.message || String(emailQueueError),
+      });
     }
     await client.query("COMMIT");
     invalidateStorefrontTenantCache(tenantId);

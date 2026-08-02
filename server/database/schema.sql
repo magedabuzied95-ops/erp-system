@@ -651,6 +651,27 @@ CREATE INDEX IF NOT EXISTS idx_orders_tenant_created ON orders (tenant_id, creat
 CREATE INDEX IF NOT EXISTS idx_orders_branch_created ON orders (branch_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_invoice_number ON orders (invoice_number);
 
+CREATE TABLE IF NOT EXISTS transactional_email_outbox (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  template_key VARCHAR(80) NOT NULL,
+  recipient_type VARCHAR(30) NOT NULL,
+  dedupe_key VARCHAR(180) NOT NULL UNIQUE,
+  status VARCHAR(30) NOT NULL DEFAULT 'pending',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  locked_at TIMESTAMP NULL,
+  sent_at TIMESTAMP NULL,
+  last_error TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (recipient_type IN ('admin','customer')),
+  CHECK (status IN ('pending','processing','retry','sent','failed'))
+);
+CREATE INDEX IF NOT EXISTS idx_transactional_email_outbox_ready ON transactional_email_outbox (status, next_attempt_at, id);
+CREATE INDEX IF NOT EXISTS idx_transactional_email_outbox_order ON transactional_email_outbox (order_id, template_key);
+
 CREATE TABLE IF NOT EXISTS shipping_events (
   id BIGSERIAL PRIMARY KEY,
   order_id BIGINT REFERENCES orders(id) ON DELETE CASCADE,

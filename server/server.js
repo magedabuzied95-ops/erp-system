@@ -579,6 +579,7 @@ const { startSocialCommentJobWorker } = await import("./services/socialCommentJo
 const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadActionsService.js");
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
+const { ensureTransactionalEmailSchema, processTransactionalEmailOutbox } = await import("./services/transactionalEmail/orderEmailService.js");
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
@@ -2097,6 +2098,15 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       void processStaffTaskEmailQueue().catch((error) => {
         console.warn("[server] initial staff task email queue skipped", error.message);
       });
+      const safeProcessOrderEmails = () => {
+        void processTransactionalEmailOutbox().catch((error) => {
+          console.error("[server] transactional order email queue error", { message: error?.message || String(error) });
+        });
+      };
+      const orderEmailInterval = setInterval(safeProcessOrderEmails, Math.max(15_000, Number(process.env.ORDER_EMAIL_POLL_INTERVAL_MS || 30_000)));
+      backgroundIntervals.add(orderEmailInterval);
+      safeProcessOrderEmails();
+      console.log("[server] transactional order email scheduler started");
       console.log("[server] staff task schedulers started");
       console.log("[server] story scheduler started");
       console.log("[server] social publisher scheduler started");
@@ -2181,6 +2191,8 @@ const bootstrapStartup = async () => {
     console.log("[server] inventory count schema ensured");
     await ensureOrdersSchema(db, null);
     console.log("[server] orders schema ensured");
+    await ensureTransactionalEmailSchema(db);
+    console.log("[server] transactional email outbox schema ensured");
     await ensureAccountingSchema();
     console.log("[server] accounting schema ensured");
     await repairOrdersShiftForeignKey(db, { source: "startup:after_orders_schema" });

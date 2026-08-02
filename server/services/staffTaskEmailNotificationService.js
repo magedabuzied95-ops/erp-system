@@ -36,7 +36,10 @@ const encodeBase64 = (value) => Buffer.from(String(value || ""), "utf8").toStrin
 
 const wrapBase64 = (value) => String(value || "").match(/.{1,76}/g)?.join("\r\n") || "";
 
-const buildRawEmail = ({ fromHeader, to, subject, body, attachments = [] }) => {
+const dotStuff = (value = "") => String(value || "").replace(/(^|\r?\n)\./g, "$1..");
+
+const buildRawEmail = ({ fromHeader, to, subject, text: textBody = "", html = "", body = "", attachments = [] }) => {
+  const plainText = String(textBody || body || "");
   const safeAttachments = (Array.isArray(attachments) ? attachments : []).filter((item) => item?.content);
   const headers = [
     `From: ${fromHeader}`,
@@ -44,8 +47,28 @@ const buildRawEmail = ({ fromHeader, to, subject, body, attachments = [] }) => {
     `Subject: =?UTF-8?B?${encodeBase64(subject)}?=`,
     "MIME-Version: 1.0",
   ];
+  if (!safeAttachments.length && !html) {
+    return dotStuff([...headers, "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", wrapBase64(encodeBase64(plainText))].join("\r\n")) + "\r\n.\r\n";
+  }
   if (!safeAttachments.length) {
-    return [...headers, "Content-Type: text/plain; charset=UTF-8", "", body, ".", ""].join("\r\n");
+    const alternativeBoundary = `mone-alt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const message = [
+      ...headers,
+      `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+      "",
+      `--${alternativeBoundary}`,
+      "Content-Type: text/plain; charset=UTF-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      wrapBase64(encodeBase64(plainText)),
+      `--${alternativeBoundary}`,
+      "Content-Type: text/html; charset=UTF-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      wrapBase64(encodeBase64(html)),
+      `--${alternativeBoundary}--`,
+    ].join("\r\n");
+    return dotStuff(message) + "\r\n.\r\n";
   }
   const boundary = `mone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const parts = [
@@ -56,7 +79,7 @@ const buildRawEmail = ({ fromHeader, to, subject, body, attachments = [] }) => {
     "Content-Type: text/plain; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
     "",
-    wrapBase64(encodeBase64(body)),
+    wrapBase64(encodeBase64(plainText)),
   ];
   safeAttachments.forEach((attachment) => {
     const filename = text(attachment.filename || "attachment.pdf").replace(/[\r\n"]/g, "_");
@@ -71,26 +94,31 @@ const buildRawEmail = ({ fromHeader, to, subject, body, attachments = [] }) => {
       wrapBase64(content.toString("base64"))
     );
   });
-  parts.push(`--${boundary}--`, ".", "");
-  return parts.join("\r\n");
+  parts.push(`--${boundary}--`);
+  return dotStuff(parts.join("\r\n")) + "\r\n.\r\n";
 };
 
-export const sendSmtpMail = async ({ to, subject, body, attachments = [] }) => {
+export const sendSmtpMail = async ({ to, subject, body = "", text: textBody = "", html = "", attachments = [] }) => {
   const host = text(process.env.SMTP_HOST);
   const port = Number(process.env.SMTP_PORT || 587);
   const user = text(process.env.SMTP_USER);
   const pass = text(process.env.SMTP_PASS);
   const from = text(process.env.MAIL_FROM || process.env.SMTP_FROM || user);
   const fromName = text(process.env.MAIL_FROM_NAME || process.env.SMTP_FROM_NAME || "");
-  const fromHeader = fromName ? `=?UTF-8?B?${encodeBase64(fromName)}?= <${from}>` : from;
+  const safeTo = text(to).replace(/[\r\n]/g, "");
+  const safeFrom = from.replace(/[\r\n]/g, "");
+  const fromHeader = fromName ? `=?UTF-8?B?${encodeBase64(fromName)}?= <${safeFrom}>` : safeFrom;
 
-  if (!host || !from) {
+  if (!host || !safeFrom || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeTo)) {
     throw new Error("SMTP is not configured");
   }
 
   const socket = port === 465
     ? tls.connect({ host, port, servername: host })
     : net.connect({ host, port });
+  socket.setTimeout(Math.max(5000, Number(process.env.SMTP_TIMEOUT_MS || 15000)), () => {
+    socket.destroy(new Error("SMTP connection timed out"));
+  });
 
   await smtpRequest(socket, [220]);
   await smtpCommand(socket, `EHLO ${host}`, [250]);
@@ -104,10 +132,13 @@ export const sendSmtpMail = async ({ to, subject, body, attachments = [] }) => {
       await smtpCommand(secureSocket, encodeBase64(user), [334]);
       await smtpCommand(secureSocket, encodeBase64(pass), [235]);
     }
-    await smtpCommand(secureSocket, `MAIL FROM:<${from}>`, [250]);
-    await smtpCommand(secureSocket, `RCPT TO:<${to}>`, [250, 251]);
+    secureSocket.setTimeout(Math.max(5000, Number(process.env.SMTP_TIMEOUT_MS || 15000)), () => {
+      secureSocket.destroy(new Error("SMTP connection timed out"));
+    });
+    await smtpCommand(secureSocket, `MAIL FROM:<${safeFrom}>`, [250]);
+    await smtpCommand(secureSocket, `RCPT TO:<${safeTo}>`, [250, 251]);
     await smtpCommand(secureSocket, "DATA", [354]);
-    secureSocket.write(buildRawEmail({ fromHeader, to, subject, body, attachments }));
+    secureSocket.write(buildRawEmail({ fromHeader, to: safeTo, subject, body, text: textBody, html, attachments }));
     await smtpRequest(secureSocket, [250]);
     await smtpCommand(secureSocket, "QUIT", [221]);
     secureSocket.end();
@@ -119,10 +150,10 @@ export const sendSmtpMail = async ({ to, subject, body, attachments = [] }) => {
     await smtpCommand(socket, encodeBase64(user), [334]);
     await smtpCommand(socket, encodeBase64(pass), [235]);
   }
-  await smtpCommand(socket, `MAIL FROM:<${from}>`, [250]);
-  await smtpCommand(socket, `RCPT TO:<${to}>`, [250, 251]);
+  await smtpCommand(socket, `MAIL FROM:<${safeFrom}>`, [250]);
+  await smtpCommand(socket, `RCPT TO:<${safeTo}>`, [250, 251]);
   await smtpCommand(socket, "DATA", [354]);
-  socket.write(buildRawEmail({ fromHeader, to, subject, body, attachments }));
+  socket.write(buildRawEmail({ fromHeader, to: safeTo, subject, body, text: textBody, html, attachments }));
   await smtpRequest(socket, [250]);
   await smtpCommand(socket, "QUIT", [221]);
   socket.end();
