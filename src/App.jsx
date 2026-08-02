@@ -364,6 +364,9 @@ function App() {
       <DebugErrorBoundary title="Employee app screen crashed">
         <Suspense fallback={<RouteSkeleton />}>
           <Routes>
+            <Route path="/employee-app/:token/products" element={<EmployeePortalProducts />} />
+            <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
+            <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
             <Route path="/employee-app/*" element={<EmployeeAppShell />} />
           </Routes>

@@ -1389,6 +1389,7 @@ export default function EmployeePayrollPortal() {
   const [nowTick, setNowTick] = useState(Date.now());
   const [standalone, setStandalone] = useState(() => isStandaloneApp());
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
+  const employeeFeatureBasePath = location.pathname.startsWith("/employee-app/") ? "/employee-app" : "/employee-portal";
   const lastAppliedBadgeTotalRef = useRef(null);
   const [notificationState, setNotificationState] = useState(() => {
     if (!pushSupported()) return "unsupported";
@@ -3195,7 +3196,7 @@ export default function EmployeePayrollPortal() {
               </div>
 
               <a
-                href={`/employee-portal/${encodeURIComponent(token)}/products`}
+                href={`${employeeFeatureBasePath}/${encodeURIComponent(token)}/products`}
                 data-testid="warehouse-request-link"
                 onPointerEnter={() => { void import("./EmployeePortalProducts"); }}
                 onFocus={() => { void import("./EmployeePortalProducts"); }}
@@ -3205,16 +3206,16 @@ export default function EmployeePayrollPortal() {
                 <span>طلب من المخزن</span>
               </a>
 
-              <button
-                type="button"
+              <a
+                href={`${employeeFeatureBasePath}/${encodeURIComponent(token)}/inventory`}
+                data-testid="employee-inventory-link"
                 onPointerEnter={() => { void import("./EmployeePortalInventory"); }}
                 onFocus={() => { void import("./EmployeePortalInventory"); }}
-                onClick={() => navigate(`/employee-portal/${encodeURIComponent(token)}/inventory`)}
                 className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 <ClipboardList className="h-4 w-4" />
                 <span>الجرد</span>
-              </button>
+              </a>
 
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
