@@ -513,11 +513,25 @@ const buildPosCatalogQuery = (query = {}) => {
   const productId = toPositiveInt(query.productId ?? query.product_id);
   const qrToken = clean(query.qr_token ?? query.qrToken ?? query.qr ?? "");
   const sku = clean(query.sku);
+  const limit = Math.min(Math.max(toPositiveInt(query.limit ?? query.per_page ?? query.perPage, 120), 1), 120);
+  const page = Math.max(1, toPositiveInt(query.page, 1));
+  const brand = clean(query.brand);
+  const manufacturer = clean(query.manufacturer ?? query.manufacturer_name ?? query.manufacturerName);
+  const gender = clean(query.gender);
+  const productType = clean(query.product_type ?? query.productType ?? query.type);
+  const grade = clean(query.grade ?? query.category);
   return {
     ...(directSearch ? { search: directSearch } : {}),
     ...(productId ? { productId } : {}),
     ...(qrToken ? { qr_token: qrToken } : {}),
     ...(sku ? { sku } : {}),
+    limit,
+    page,
+    ...(brand && brand.toLowerCase() !== "all" ? { brand } : {}),
+    ...(manufacturer && manufacturer.toLowerCase() !== "all" ? { manufacturer } : {}),
+    ...(gender && gender.toLowerCase() !== "all" ? { gender } : {}),
+    ...(productType && productType.toLowerCase() !== "all" ? { product_type: productType } : {}),
+    ...(grade && grade.toLowerCase() !== "all" ? { grade } : {}),
   };
 };
 

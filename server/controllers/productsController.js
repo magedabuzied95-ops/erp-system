@@ -1833,6 +1833,13 @@ const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => 
     applied.brand = rawBrand;
   }
 
+  const rawManufacturer = normalizeAdminListFilterValue(filters.manufacturer);
+  if (rawManufacturer && rawManufacturer.toLowerCase() !== "all") {
+    values.push(rawManufacturer);
+    parts.push(`COALESCE(NULLIF(TRIM(m.name), ''), NULLIF(TRIM(p.manufacturer), ''), '') = $${values.length}`);
+    applied.manufacturer = rawManufacturer;
+  }
+
   const rawCategory = normalizeAdminListFilterValue(filters.category);
   if (rawCategory && rawCategory.toLowerCase() !== "all") {
     values.push(rawCategory);
@@ -3061,6 +3068,7 @@ export const getProductsAdminList = async (req, res) => {
       filters: {
         status: req.query.status,
         brand: req.query.brand,
+        manufacturer: req.query.manufacturer,
         category: req.query.category,
         storefront_visibility: req.query.storefront_visibility ?? req.query.storefrontVisibility,
         sale: req.query.sale,
@@ -3687,9 +3695,20 @@ export const getProductsWithVariants = async (req, res) => {
       values: productQueryValues,
       search: req.query.search ?? req.query.q ?? "",
     });
+    const productFiltersClause = await buildProductsAdminListFiltersClause({
+      values: productQueryValues,
+      filters: {
+        brand: req.query.brand,
+        manufacturer: req.query.manufacturer,
+        gender: req.query.gender,
+        product_type: req.query.product_type ?? req.query.productType,
+        grade: req.query.grade,
+      },
+    });
     let productWhereSql = [
       scopeClause.whereSql,
       productSearchClause ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${productSearchClause}` : "",
+      productFiltersClause.sql ? `${scopeClause.whereSql || productSearchClause ? "AND" : "WHERE"} ${productFiltersClause.sql}` : "",
     ].filter(Boolean).join("\n");
     const requestedProductId = Number(req.query.productId ?? req.query.product_id ?? 0);
     if (Number.isFinite(requestedProductId) && requestedProductId > 0) {
@@ -3699,6 +3718,12 @@ export const getProductsWithVariants = async (req, res) => {
         `${productWhereSql ? "AND" : "WHERE"} p.id = $${productQueryValues.length}`,
       ].filter(Boolean).join("\n");
     }
+    const page = Math.max(1, Number(req.query.page || 1) || 1);
+    const requestedLimit = Number(req.query.limit || 0) || 0;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 120) : null;
+    const offset = limit ? (page - 1) * limit : 0;
+    const limitSql = limit ? `LIMIT $${productQueryValues.length + 1} OFFSET $${productQueryValues.length + 2}` : "";
+    if (limit) productQueryValues.push(limit, offset);
     console.log("[products] final where scope", {
       route: "GET /api/products/with-variants",
       userId: scope.userId,
@@ -3740,9 +3765,11 @@ export const getProductsWithVariants = async (req, res) => {
         FROM products p
         LEFT JOIN categories c ON c.id = p.category_id
         LEFT JOIN brands b ON b.id = p.brand_id
+        LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
         LEFT JOIN units u ON u.id = p.unit_id
         ${productWhereSql}
         ORDER BY p.id DESC
+        ${limitSql}
       `,
       values: productQueryValues,
       scope,
