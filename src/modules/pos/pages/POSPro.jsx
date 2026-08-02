@@ -5339,11 +5339,8 @@ function POSPro() {
       return;
     }
 
-    try {
-      setAttendanceLoading(true);
-      const response = await api.get(`/pos/shifts/${activePosShift.id}/report`);
-      const report = response?.report || null;
-      setShiftCloseReport(report || {
+    const shiftId = activePosShift.id;
+    const fallbackReport = {
         shift: activePosShift,
         totals: {
           opening_cash: Number(activePosShift.opening_cash || 0),
@@ -5359,22 +5356,32 @@ function POSPro() {
         payment_breakdown: [],
         top_products: [],
         audit_timeline: [],
-      });
-      const expectedCash = report?.totals?.expected_cash ?? activePosShift.expected_cash ?? activePosShift.opening_cash ?? 0;
-      setClosingCash(String(expectedCash));
-      setActualDrawerAmount(String(expectedCash));
-      setShiftCloseNotes("");
-      setShiftVarianceReason("");
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      setNextOpeningWorkDate(tomorrow.toISOString().slice(0, 10));
-      setNextOpeningEmployeeId("");
-      setNextOpeningException(false);
-      setNextOpeningExceptionReason("");
-      setShiftCloseOpen(true);
+      };
+    const expectedCash = activePosShift.expected_cash ?? activePosShift.opening_cash ?? 0;
+    setShiftCloseReport(fallbackReport);
+    setClosingCash(String(expectedCash));
+    setActualDrawerAmount(String(expectedCash));
+    setShiftCloseNotes("");
+    setShiftVarianceReason("");
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setNextOpeningWorkDate(tomorrow.toISOString().slice(0, 10));
+    setNextOpeningEmployeeId("");
+    setNextOpeningException(false);
+    setNextOpeningExceptionReason("");
+    setShiftCloseOpen(true);
+
+    try {
+      setAttendanceLoading(true);
+      const response = await api.get(`/pos/shifts/${shiftId}/report`);
+      const report = response?.report || null;
+      if (!report || String(activePosShift?.id || "") !== String(shiftId)) return;
+      setShiftCloseReport(report);
+      const reportExpectedCash = report?.totals?.expected_cash ?? expectedCash;
+      setClosingCash(String(reportExpectedCash));
+      setActualDrawerAmount(String(reportExpectedCash));
     } catch (err) {
-      console.error("[pos] failed to close shift:", err);
-      toast.error(err?.message || t("pos.shift.failedClose"));
+      console.warn("[pos] shift close report unavailable; using active shift snapshot:", err);
     } finally {
       setAttendanceLoading(false);
     }
@@ -5432,7 +5439,7 @@ function POSPro() {
       setPosShiftNetworkUnavailable(false);
       clearPosPersistedState();
       clearCachedActivePosShift();
-      await loadActivePosShift({ silent: true });
+      void loadActivePosShift({ silent: true });
     } catch (err) {
       console.error("[pos] failed to confirm shift close:", err);
       toast.error(err?.message || t("pos.shift.failedClose"));

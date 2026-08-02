@@ -243,9 +243,12 @@ const normalizeQuickExpenseType = (value = "") => {
   return quickExpenseTypes.has(normalized) ? normalized : "other";
 };
 
+let posExpenseSchemaReadyPromise = null;
 const ensurePosExpenseSchema = async (clientOrPool = db) => {
-  await ensureAccountingSchema();
-  await clientOrPool.query(`
+  if (posExpenseSchemaReadyPromise) return posExpenseSchemaReadyPromise;
+  posExpenseSchemaReadyPromise = (async () => {
+    await ensureAccountingSchema();
+    await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS expenses (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NULL,
@@ -307,7 +310,12 @@ const ensurePosExpenseSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'active'`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_advances_pos_expense ON employee_advances (expense_id)`);
-  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_advances_employee_status ON employee_advances (tenant_id, employee_id, deduction_status)`);
+    await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_advances_employee_status ON employee_advances (tenant_id, employee_id, deduction_status)`);
+  })().catch((error) => {
+    posExpenseSchemaReadyPromise = null;
+    throw error;
+  });
+  return posExpenseSchemaReadyPromise;
 };
 
 const paymobMerchantOrderLocalId = (value = "") => {
@@ -665,9 +673,12 @@ const unavailablePaymentAccountStatus = ({ paymentMethod, branchId, amount, dire
   sufficient: null,
 });
 
+let posUserShiftSchemaReadyPromise = null;
 export const ensurePosUserShiftSchema = async (clientOrPool = db) => {
-  await ensureAccountingSchema();
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS seller_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
+  if (posUserShiftSchemaReadyPromise) return posUserShiftSchemaReadyPromise;
+  posUserShiftSchemaReadyPromise = (async () => {
+    await ensureAccountingSchema();
+    await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS seller_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS seller_name VARCHAR(255)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cashier_name VARCHAR(255)`);
@@ -679,7 +690,12 @@ export const ensurePosUserShiftSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_pos_orders_shift_id ON orders (shift_id)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_pos_orders_seller_user_id ON orders (seller_user_id)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_pos_orders_cashier_user_id ON orders (cashier_user_id)`);
-  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_pos_shifts_user_branch_status ON cash_drawer_shifts (opened_by_user_id, branch_id, status)`);
+    await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_pos_shifts_user_branch_status ON cash_drawer_shifts (opened_by_user_id, branch_id, status)`);
+  })().catch((error) => {
+    posUserShiftSchemaReadyPromise = null;
+    throw error;
+  });
+  return posUserShiftSchemaReadyPromise;
 };
 
 const getSingleTenantBranch = async (client, tenantId) => {
@@ -1439,44 +1455,13 @@ export const closePosShift = async (req, res) => {
       openingAssignment = openingResult.assignment;
     }
     const events = await getCashDrawerShiftEvents(client, { tenantId, shiftId: shift.id });
-    const report = await buildPosShiftReport(client, { tenantId, shiftId: shift.id });
     await client.query("COMMIT");
 
-    try {
-      const manager = await resolveBranchManagerEmployee(client, { tenantId, branchId: report?.shift?.branch_id || shiftRow.branch_id || null });
-      const managerPhone = String(manager?.whatsapp_phone || "").trim();
-      if (managerPhone) {
-        const message = buildShiftCloseWhatsappMessage({
-          report,
-          closingNotes,
-          varianceReason,
-        });
-        await sendTextMessage({ phone: managerPhone, message });
-        console.log("[pos] shift close whatsapp sent", {
-          shift_id: shift.id,
-          branch_id: report?.shift?.branch_id || shiftRow.branch_id || null,
-          manager_employee_id: manager.id || null,
-          phone_suffix: managerPhone.slice(-4),
-        });
-      } else {
-        console.warn("[pos] shift close whatsapp skipped: manager phone missing", {
-          shift_id: shift.id,
-          branch_id: report?.shift?.branch_id || shiftRow.branch_id || null,
-        });
-      }
-    } catch (whatsappError) {
-      console.warn("[pos] shift close whatsapp send failed", {
-        shift_id: shift.id,
-        branch_id: report?.shift?.branch_id || shiftRow.branch_id || null,
-        message: whatsappError?.message || String(whatsappError),
-      });
-    }
-
-    return res.status(200).json({
+    const responsePayload = {
       success: true,
       shift,
       events,
-      report,
+      report: null,
       openingAssignment,
       nextOpening: {
         required: requireNextOpening,
@@ -1484,7 +1469,42 @@ export const closePosShift = async (req, res) => {
         exception: nextOpeningException || null,
         exception_reason: nextOpeningExceptionReason || null,
       },
+    };
+    res.status(200).json(responsePayload);
+
+    setImmediate(() => {
+      void (async () => {
+        let report = null;
+        try {
+          report = await buildPosShiftReport(db, { tenantId, shiftId: shift.id });
+          const branchId = report?.shift?.branch_id || shiftRow.branch_id || null;
+          const manager = await resolveBranchManagerEmployee(db, { tenantId, branchId });
+          const managerPhone = String(manager?.whatsapp_phone || "").trim();
+          if (!managerPhone) {
+            console.warn("[pos] shift close whatsapp skipped: manager phone missing", {
+              shift_id: shift.id,
+              branch_id: branchId,
+            });
+            return;
+          }
+          const message = buildShiftCloseWhatsappMessage({ report, closingNotes, varianceReason });
+          await sendTextMessage({ phone: managerPhone, message });
+          console.log("[pos] shift close whatsapp sent", {
+            shift_id: shift.id,
+            branch_id: branchId,
+            manager_employee_id: manager.id || null,
+            phone_suffix: managerPhone.slice(-4),
+          });
+        } catch (whatsappError) {
+          console.warn("[pos] shift close background report/whatsapp failed", {
+            shift_id: shift.id,
+            branch_id: report?.shift?.branch_id || shiftRow.branch_id || null,
+            message: whatsappError?.message || String(whatsappError),
+          });
+        }
+      })();
     });
+    return;
   } catch (error) {
     await client.query("ROLLBACK");
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to close POS shift" });
