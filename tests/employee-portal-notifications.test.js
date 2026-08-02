@@ -74,6 +74,11 @@ test("shared shortage alerts use employee-specific read receipts", () => {
   assert.match(refill, /employee_is_read AS is_read/);
   assert.match(refill, /baseColumns\.replace\("employee_is_read AS is_read", "is_read"\)/);
   assert.match(refill, /ON CONFLICT \(alert_id, employee_id\)/);
+  assert.equal(
+    (refill.match(/\(\$3::bigint IS NULL OR branch_id = \$3::bigint OR branch_id IS NULL\)/g) || []).length,
+    2,
+    "read and resolve queries must type and apply the branch parameter"
+  );
 });
 
 test("display refill alerts are assigned to the POS seller while Maged can supervise all alerts", () => {

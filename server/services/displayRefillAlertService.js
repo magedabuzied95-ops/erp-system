@@ -1336,6 +1336,7 @@ export const markDisplayRefillAlertRead = async ({ employeeId, tenantId = null, 
       SELECT *
       FROM employee_display_refill_alerts
       WHERE id = $1
+        AND ($3::bigint IS NULL OR branch_id = $3::bigint OR branch_id IS NULL)
         AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
         AND (
           $5::boolean = TRUE
@@ -1367,6 +1368,7 @@ export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, b
         updated_at = CURRENT_TIMESTAMP,
         resolved_by_employee_id = $2
     WHERE id = $1
+      AND ($3::bigint IS NULL OR branch_id = $3::bigint OR branch_id IS NULL)
       AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
       AND (
         $5::boolean = TRUE
