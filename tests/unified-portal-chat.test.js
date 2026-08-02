@@ -100,3 +100,11 @@ test("employee chat supports WhatsApp-style search and message management", asyn
   assert.match(service, /employee-chat:message-updated/);
   assert.match(service, /employee-chat:message-deleted/);
 });
+
+test("mobile message actions render outside the scroll area in a bottom sheet", async () => {
+  const messageList = await source("src/shared/chat/PortalChatMessageList.jsx");
+  assert.match(messageList, /createPortal/);
+  assert.match(messageList, /fixed inset-0 z-\[140\]/);
+  assert.match(messageList, /safe-area-inset-bottom/);
+  assert.match(messageList, /dir="ltr" className=\{`flex items-end/);
+});

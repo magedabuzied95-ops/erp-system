@@ -1411,6 +1411,7 @@ export default function EmployeePayrollPortal() {
   const [replyToChat, setReplyToChat] = useState(null);
   const [editingChatMessage, setEditingChatMessage] = useState(null);
   const [chatSearch, setChatSearch] = useState("");
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatImagePreview, setChatImagePreview] = useState("");
   const [chatTyping, setChatTyping] = useState(false);
   const [showChatJump, setShowChatJump] = useState(false);
@@ -4150,12 +4151,19 @@ export default function EmployeePayrollPortal() {
                   <h2 className="truncate text-[16px] font-bold leading-5">M1 Store</h2>
                   <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">حساب أعمال</p>
                 </div>
-                <label className="flex h-9 max-w-36 items-center gap-1.5 rounded-full bg-white/10 px-2 text-slate-200">
-                  <Search className="h-4 w-4 shrink-0" />
-                  <input value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="بحث" className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-300" />
-                  {chatSearch ? <button type="button" onClick={() => setChatSearch("")}><X className="h-3.5 w-3.5" /></button> : null}
-                </label>
+                <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label="بحث في الرسائل">
+                  {chatSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+                </button>
               </header>
+              {chatSearchOpen ? (
+                <div className="border-b border-white/10 bg-[#1f2c33] px-3 pb-2">
+                  <label className="flex h-10 items-center gap-2 rounded-full bg-[#111b21] px-3 text-slate-200">
+                    <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                    <input autoFocus value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="ابحث في الرسائل" className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-400" />
+                    {chatSearch ? <button type="button" onClick={() => setChatSearch("")} className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10" aria-label="مسح البحث"><X className="h-4 w-4" /></button> : null}
+                  </label>
+                </div>
+              ) : null}
               {chatError ? <div className="mx-4 my-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             </div>
             <PortalChatMessageList
