@@ -56,6 +56,7 @@ import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
 import PortalChatContactInfo from "../../../shared/chat/PortalChatContactInfo";
 import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
+import EmployeeDisplayAuditPanel from "../components/EmployeeDisplayAuditPanel";
 import { getEmployeeSalesOpportunities } from "../services/salesOpportunitiesApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
@@ -1429,6 +1430,10 @@ export default function EmployeePayrollPortal() {
   const [displayRefillAlerts, setDisplayRefillAlerts] = useState([]);
   const [displayRefillLoading, setDisplayRefillLoading] = useState(false);
   const [displayRefillSavingId, setDisplayRefillSavingId] = useState("");
+  const [displayAudit, setDisplayAudit] = useState({ total: 0, sections: [] });
+  const [displayAuditLoading, setDisplayAuditLoading] = useState(false);
+  const [displayAuditSavingId, setDisplayAuditSavingId] = useState("");
+  const [displayAuditError, setDisplayAuditError] = useState("");
   const [barcodePrintSettings, setBarcodePrintSettings] = useState(() => normalizeBarcodePrintSettings(BARCODE_PRINT_DEFAULTS));
   const [displayRefillBarcodeSettings, setDisplayRefillBarcodeSettings] = useState(() => normalizeDisplayRefillBarcodeSettings(DISPLAY_REFILL_BARCODE_DEFAULTS));
   const [completedExpanded, setCompletedExpanded] = useState(false);
@@ -1567,7 +1572,7 @@ export default function EmployeePayrollPortal() {
       setChatOpen(true);
       return;
     }
-    const allowedTabs = ["home", "attendance", "tasks", "requests", "notifications", "display-refill"];
+    const allowedTabs = ["home", "attendance", "tasks", "requests", "notifications", "display-refill", "display-audit"];
     if (EMPLOYEE_PORTAL_SALARY_ENABLED) allowedTabs.push("salary");
     setActiveTab(allowedTabs.includes(tab) ? tab : "home");
   }, []);
@@ -1595,6 +1600,48 @@ export default function EmployeePayrollPortal() {
       if (!silent) setDisplayRefillLoading(false);
     }
   }, [token]);
+
+  const loadDisplayAudit = useCallback(async ({ silent = false } = {}) => {
+    if (!token) return;
+    try {
+      if (!silent) setDisplayAuditLoading(true);
+      setDisplayAuditError("");
+      const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/display-audit`, { timeoutMs: EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS });
+      setDisplayAudit({ total: Number(response.total || 0), sections: safeArray(response.sections) });
+    } catch (err) {
+      setDisplayAuditError(err?.responseBody?.message || err?.message || "تعذر تحميل قائمة العرض");
+    } finally {
+      if (!silent) setDisplayAuditLoading(false);
+    }
+  }, [token]);
+
+  const markDisplayAuditProduct = useCallback(async (product) => {
+    if (!token || !product?.product_id) return;
+    try {
+      setDisplayAuditSavingId(String(product.product_id));
+      setDisplayAuditError("");
+      await api.patch(`/employee-portal/${encodeURIComponent(token)}/display-audit/${encodeURIComponent(product.product_id)}/displayed`, {});
+      setDisplayAudit((current) => {
+        const sections = safeArray(current.sections).map((section) => {
+          const audiences = safeArray(section.audiences).map((audience) => {
+            const products = safeArray(audience.products).filter((item) => String(item.product_id) !== String(product.product_id));
+            return { ...audience, products, count: products.length };
+          }).filter((audience) => audience.count > 0);
+          return { ...section, audiences, count: audiences.reduce((sum, audience) => sum + audience.count, 0) };
+        }).filter((section) => section.count > 0);
+        return { total: Math.max(0, Number(current.total || 0) - 1), sections };
+      });
+    } catch (err) {
+      setDisplayAuditError(err?.responseBody?.message || err?.message || "تعذر تحديث حالة العرض");
+    } finally {
+      setDisplayAuditSavingId("");
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (activeTab !== "display-audit") return;
+    void loadDisplayAudit();
+  }, [activeTab, loadDisplayAudit]);
 
   const loadPortalByToken = useCallback(
     async ({ silent = false, clearNotice = true, activeRef = null } = {}) => {
@@ -1813,6 +1860,7 @@ export default function EmployeePayrollPortal() {
     ["tasks", text.tasksTab, ClipboardList],
     ["requests", text.requestsTab, MessageCircle],
     ["display-refill", ui("displayRefillTab"), AlertTriangle],
+    ["display-audit", "تمم العرض", CheckCircle2],
     ["attendance", text.attendanceTab, CalendarDays],
     ...(EMPLOYEE_PORTAL_SALARY_ENABLED ? [["salary", ui("salaryTab"), WalletCards]] : []),
   ];
@@ -3712,7 +3760,18 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${EMPLOYEE_PORTAL_SALARY_ENABLED ? "grid-cols-6" : "grid-cols-5"} gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
+            {activeTab === "display-audit" ? (
+              <EmployeeDisplayAuditPanel
+                data={displayAudit}
+                loading={displayAuditLoading}
+                savingId={displayAuditSavingId}
+                error={displayAuditError}
+                onRefresh={() => loadDisplayAudit()}
+                onMarkDisplayed={markDisplayAuditProduct}
+              />
+            ) : null}
+
+            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${EMPLOYEE_PORTAL_SALARY_ENABLED ? "grid-cols-7" : "grid-cols-6"} gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}

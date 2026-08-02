@@ -190,6 +190,7 @@ CREATE TABLE IF NOT EXISTS products (
   grade VARCHAR(80) DEFAULT '',
   is_offer_story BOOLEAN NOT NULL DEFAULT FALSE,
   is_storefront_visible BOOLEAN NOT NULL DEFAULT TRUE,
+  is_displayed BOOLEAN NOT NULL DEFAULT FALSE,
   stock INTEGER NOT NULL DEFAULT 0,
   low_stock_alert INTEGER NOT NULL DEFAULT 0,
   low_stock_tracking_mode VARCHAR(30) NOT NULL DEFAULT 'variant',
@@ -205,6 +206,7 @@ CREATE INDEX IF NOT EXISTS idx_products_gender ON products (gender);
 CREATE INDEX IF NOT EXISTS idx_products_product_type ON products (product_type);
 CREATE INDEX IF NOT EXISTS idx_products_style ON products (style);
 CREATE INDEX IF NOT EXISTS idx_products_grade ON products (grade);
+CREATE INDEX IF NOT EXISTS idx_products_display_audit ON products (tenant_id, is_displayed, is_active) WHERE status = 'active';
 
 CREATE TABLE IF NOT EXISTS product_classification_groups (
   id BIGSERIAL PRIMARY KEY,

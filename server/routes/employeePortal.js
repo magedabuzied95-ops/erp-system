@@ -19,6 +19,7 @@ import {
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
 import { loadEmployeePortalProducts } from "../services/employeePortalProductsService.js";
+import { loadEmployeeDisplayAudit, markEmployeeProductDisplayed } from "../services/employeeDisplayAuditService.js";
 import {
   createInventoryCountSession,
   getInventoryCountSession,
@@ -627,6 +628,29 @@ router.get("/:token/products", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] product browser load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee products" });
+  }
+});
+
+router.get("/:token/display-audit", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    return res.json({ success: true, ...(await loadEmployeeDisplayAudit({ employee })) });
+  } catch (error) {
+    console.error("[employee-display-audit] load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load display audit" });
+  }
+});
+
+router.patch("/:token/display-audit/:productId/displayed", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const product = await markEmployeeProductDisplayed({ employee, productId: req.params.productId });
+    return res.json({ success: true, product });
+  } catch (error) {
+    console.error("[employee-display-audit] update error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to update display state" });
   }
 });
 
