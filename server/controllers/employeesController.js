@@ -29,6 +29,7 @@ import {
 } from "../services/managerPortalService.js";
 import {
   deleteAdminEmployeeChatMessage,
+  forwardAdminEmployeeChatMessage,
   getAdminEmployeeChatThread,
   listEmployeeChatThreads,
   markAdminEmployeeChatThreadRead,
@@ -389,6 +390,22 @@ export const sendEmployeeChatThreadMessageRecord = async (req, res) => {
   } catch (error) {
     console.error("[employees] chat message send error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send employee chat message" });
+  }
+};
+
+export const forwardEmployeeChatThreadMessageRecord = async (req, res) => {
+  try {
+    const { tenantId, userId } = getTenantContext(req);
+    const result = await forwardAdminEmployeeChatMessage({
+      tenantId,
+      userId,
+      sourceMessageId: req.params.messageId,
+      targetThreadId: req.body?.target_thread_id || req.body?.targetThreadId,
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employees] chat message forward error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to forward employee chat message" });
   }
 };
 

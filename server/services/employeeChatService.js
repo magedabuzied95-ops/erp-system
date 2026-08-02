@@ -517,8 +517,8 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
   return { thread, messages };
 };
 
-export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
-  const attachment = attachmentFromUpload(file, attachmentDurationSeconds);
+export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null, attachmentOverride = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
+  const attachment = attachmentOverride || attachmentFromUpload(file, attachmentDurationSeconds);
   const text = validateMessageInput({ body, attachment });
   const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: true });
   const replyTo = normalizeReplyId(replyToMessageId);
@@ -586,6 +586,38 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
     markPersistedRead: employeeChatIsActive,
   }).catch((error) => console.warn("[employee-chat] notification skipped", error?.message || error));
   return { thread: updatedThread || thread, message };
+};
+
+export const forwardAdminEmployeeChatMessage = async ({ tenantId = null, sourceMessageId, targetThreadId, userId = null } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const sourceResult = await db.query(
+    `SELECT m.*
+     FROM employee_chat_messages m
+     JOIN employee_chat_threads t ON t.id = m.thread_id
+     WHERE m.id = $1
+       AND ($2::bigint IS NULL OR t.tenant_id = $2::bigint)
+       AND m.deleted_at IS NULL
+     LIMIT 1`,
+    [sourceMessageId, tenantId]
+  );
+  const source = sourceResult.rows[0];
+  if (!source) throw chatError("Message not found", 404, "message_not_found");
+  const forwardedLabel = "↪ مُعاد توجيهها";
+  const body = source.body ? `${forwardedLabel}\n${source.body}` : forwardedLabel;
+  return sendAdminEmployeeChatMessage({
+    tenantId,
+    threadId: targetThreadId,
+    userId,
+    body,
+    attachmentOverride: source.attachment_url ? {
+      attachment_url: source.attachment_url,
+      attachment_type: source.attachment_type,
+      attachment_name: source.attachment_name,
+      attachment_size: source.attachment_size,
+      attachment_mime: source.attachment_mime,
+      attachment_duration_seconds: source.attachment_duration_seconds,
+    } : null,
+  });
 };
 
 export const markAdminEmployeeChatThreadRead = async ({ tenantId = null, threadId } = {}) => {

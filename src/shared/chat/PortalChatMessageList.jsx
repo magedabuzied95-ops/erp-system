@@ -1,4 +1,4 @@
-import { ArrowDownCircle, CheckCheck, Copy, Loader2, MessageCircle, MoreVertical, Pencil, Reply, Trash2 } from "lucide-react";
+import { ArrowDownCircle, CheckCheck, Copy, Forward, Loader2, MessageCircle, MoreVertical, Pencil, Reply, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -69,6 +69,7 @@ export default function PortalChatMessageList({
   typingLabel = "",
   onImageClick,
   onReply,
+  onForward,
   onEdit,
   onDelete,
   onBeginSwipe,
@@ -112,6 +113,7 @@ export default function PortalChatMessageList({
         <div className="mb-1 truncate rounded-xl bg-black/15 px-3 py-2 text-xs font-semibold text-slate-300" dir="auto">{portalChatMessagePreview(activeMessage, labels)}</div>
         <div className="grid text-[15px] font-bold">
           {onReply ? <button type="button" onClick={() => { onReply(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Reply className="h-[18px] w-[18px]" />{labels.reply || "رد"}</button> : null}
+          {onForward ? <button type="button" onClick={() => { onForward(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Forward className="h-[18px] w-[18px]" />{labels.forward || "إعادة توجيه"}</button> : null}
           {activeMessage.body ? <button type="button" onClick={() => { navigator.clipboard?.writeText?.(activeMessage.body); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Copy className="h-[18px] w-[18px]" />{labels.copy || "نسخ"}</button> : null}
           {activeMessage.sender_type === outgoingSenderType && activeMessage.body && onEdit ? <button type="button" onClick={() => { onEdit(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Pencil className="h-[18px] w-[18px]" />{labels.edit || "تعديل"}</button> : null}
           {activeMessage.sender_type === outgoingSenderType && onDelete ? <button type="button" onClick={() => { onDelete(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start text-red-300 hover:bg-white/10"><Trash2 className="h-[18px] w-[18px]" />{labels.delete || "حذف لدى الجميع"}</button> : null}

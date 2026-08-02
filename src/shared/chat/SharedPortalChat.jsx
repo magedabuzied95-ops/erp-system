@@ -95,6 +95,9 @@ export default function SharedPortalChat({
   const [editingMessage, setEditingMessage] = useState(null);
   const [threadSearch, setThreadSearch] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
+  const [forwardSearch, setForwardSearch] = useState("");
+  const [forwardMessage, setForwardMessage] = useState(null);
+  const [forwarding, setForwarding] = useState(false);
   const [imagePreview, setImagePreview] = useState("");
   const [typingLabel, setTypingLabel] = useState("");
   const [showJump, setShowJump] = useState(false);
@@ -501,6 +504,30 @@ export default function SharedPortalChat({
     }
   };
 
+  const forwardTargets = sidebarRows.filter(({ employee, thread: targetThread }) => {
+    if (!targetThread?.id || String(targetThread.id) === String(activeThreadId || "")) return false;
+    const query = forwardSearch.trim().toLocaleLowerCase("ar");
+    if (!query) return true;
+    return [employee?.full_name, employee?.employee_name, employee?.employee_code, employee?.branch_name]
+      .some((value) => String(value || "").toLocaleLowerCase("ar").includes(query));
+  });
+
+  const forwardToThread = async (targetThreadId) => {
+    if (!forwardMessage?.id || !targetThreadId || !apiAdapter?.forwardMessage) return;
+    try {
+      setForwarding(true);
+      setError("");
+      await apiAdapter.forwardMessage(forwardMessage.id, targetThreadId);
+      setForwardMessage(null);
+      setForwardSearch("");
+      await loadThreads();
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر إعادة توجيه الرسالة");
+    } finally {
+      setForwarding(false);
+    }
+  };
+
   const emitTyping = () => {
     apiAdapter?.emitTyping?.({ thread_id: activeThreadId, employee_id: selectedEmployeeId });
     if (typingStopRef.current) window.clearTimeout(typingStopRef.current);
@@ -788,6 +815,7 @@ export default function SharedPortalChat({
                 typingLabel={typingLabel}
                 onImageClick={setImagePreview}
                 onReply={allowReply ? setReplyTo : null}
+                onForward={apiAdapter?.forwardMessage ? setForwardMessage : null}
                 onEdit={apiAdapter?.editMessage ? beginEditMessage : null}
                 onDelete={apiAdapter?.deleteMessage ? deleteMessage : null}
                 onBeginSwipe={beginSwipe}
@@ -852,6 +880,29 @@ export default function SharedPortalChat({
             <X className="h-5 w-5" />
           </button>
           <img src={imagePreview} alt="" className="max-h-full max-w-full object-contain" />
+        </div>
+      ) : null}
+      {forwardMessage ? (
+        <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" dir="rtl">
+          <button type="button" className="absolute inset-0" onClick={() => !forwarding && setForwardMessage(null)} aria-label="إغلاق" />
+          <div className="relative flex max-h-[78dvh] w-full max-w-md flex-col overflow-hidden rounded-t-[1.75rem] border border-white/10 bg-[#202c33] text-white shadow-2xl sm:rounded-[1.75rem]">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div><div className="text-base font-black">إعادة توجيه إلى</div><div className="mt-0.5 text-xs text-slate-400">اختر محادثة الموظف</div></div>
+              <button type="button" onClick={() => setForwardMessage(null)} disabled={forwarding} className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button>
+            </div>
+            <label className="mx-3 mt-3 flex h-11 items-center gap-2 rounded-full bg-[#111b21] px-3 text-slate-300">
+              <Search className="h-4 w-4" /><input autoFocus value={forwardSearch} onChange={(event) => setForwardSearch(event.target.value)} placeholder="ابحث عن موظف" className="min-w-0 flex-1 bg-transparent text-sm font-bold text-white outline-none" />
+            </label>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {forwardTargets.length ? forwardTargets.map(({ employee, thread: targetThread }) => (
+                <button key={targetThread.id} type="button" disabled={forwarding} onClick={() => forwardToThread(targetThread.id)} className="mb-2 flex w-full items-center gap-3 rounded-2xl bg-white/5 p-3 text-start transition hover:bg-white/10 disabled:opacity-50">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-300"><UserRound className="h-5 w-5" /></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate font-black" dir="auto">{employee?.full_name || employee?.employee_name || targetThread.employee_name || "موظف"}</span><span className="mt-1 block truncate text-xs text-slate-400">{employee?.branch_name || targetThread.branch_name || "بدون فرع"}</span></span>
+                  {forwarding ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                </button>
+              )) : <div className="py-8 text-center text-sm font-bold text-slate-400">لا توجد محادثات أخرى متاحة.</div>}
+            </div>
+          </div>
         </div>
       ) : null}
     </section>
