@@ -39,7 +39,7 @@ export const resolveCurrentLanguage = () => {
 
 export const getLanguageDirection = (language) => (normalizeLanguage(language) === "ar" ? "rtl" : "ltr");
 export const isRtlLanguage = (language) => getLanguageDirection(language) === "rtl";
-export const getLocale = (language) => (normalizeLanguage(language) === "ar" ? "ar-EG" : "en-US");
+export const getLocale = (language) => (normalizeLanguage(language) === "ar" ? "ar-EG" : "en-GB");
 
 export const numberFormatter = (language, options = {}) =>
   new Intl.NumberFormat(getLocale(language), {
