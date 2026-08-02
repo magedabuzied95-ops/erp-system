@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../database/db.js";
 import employeeChatUpload from "../config/employeeChatUpload.js";
+import employeeProfileUpload from "../config/employeeProfileUpload.js";
 import {
   buildEmployeePayrollPortalPayload,
   createEmployeePortalRequest,
@@ -326,6 +327,43 @@ const uploadEmployeeChatAttachment = (req, res, next) => {
     });
   });
 };
+
+const uploadEmployeeProfilePhoto = (req, res, next) => {
+  employeeProfileUpload.single("profile_photo")(req, res, (error) => {
+    if (!error) return next();
+    return res.status(error.status || 400).json({
+      success: false,
+      code: error.code || "employee_profile_image_invalid",
+      message: error.code === "LIMIT_FILE_SIZE" ? "حجم الصورة يجب ألا يزيد عن 5 ميجابايت" : error.message,
+    });
+  });
+};
+
+router.patch("/:token/profile", verifyEmployeePortalToken, uploadEmployeeProfilePhoto, async (req, res) => {
+  try {
+    const employee = req.employeePortalEmployee;
+    const mobile = clean(req.body?.mobile).replace(/[\s()-]/g, "");
+    if (mobile && !/^01[0125]\d{8}$/.test(mobile)) {
+      return res.status(400).json({ success: false, code: "employee_mobile_invalid", message: "أدخل رقم موبايل مصري صحيح" });
+    }
+    await db.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS mobile TEXT`);
+    await db.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    const photoUrl = req.file ? `/uploads/employee-profiles/${req.file.filename}` : clean(employee.photo_url);
+    await db.query(
+      `UPDATE employees SET mobile = $1, photo_url = COALESCE(NULLIF($2, ''), photo_url), updated_at = NOW() WHERE id = $3 AND tenant_id = $4`,
+      [mobile, photoUrl, employee.id, employee.tenant_id]
+    );
+    const updatedEmployee = await loadEmployeePortalByToken(req.params.token);
+    const portal = await buildEmployeePayrollPortalPayload({
+      employee: updatedEmployee,
+      timeZone: req.body?.timezone || "Africa/Cairo",
+    });
+    return res.json({ success: true, portal });
+  } catch (error) {
+    console.error("[employee-payroll-portal] profile update error", error);
+    return res.status(500).json({ success: false, message: "تعذر حفظ بيانات الملف الشخصي" });
+  }
+});
 
 const loadEmployeeInventorySession = async (req, res) => {
   const employee = await loadVerifiedEmployee(req, res);

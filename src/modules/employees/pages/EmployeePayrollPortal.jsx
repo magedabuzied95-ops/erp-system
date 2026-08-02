@@ -27,6 +27,7 @@ import {
   ReceiptText,
   ShieldCheck,
   Smartphone,
+  Settings,
   Star,
   Sun,
   Target,
@@ -1426,6 +1427,11 @@ export default function EmployeePayrollPortal() {
   const [completedExpanded, setCompletedExpanded] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0, displayRefillAlerts: 0 });
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
+  const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
+  const [profileMobile, setProfileMobile] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
   const chatSocketRef = useRef(null);
   const requestSocketRef = useRef(null);
   const receivedChatNotificationIdsRef = useRef(new Set());
@@ -1690,6 +1696,35 @@ export default function EmployeePayrollPortal() {
     portal?.employee?.photo_url,
   ].find((value) => String(value || "").trim()) || "";
   const profilePhotoUrl = resolveEmployeeProfileImageUrl(rawProfilePhotoUrl);
+  const openProfileSettings = () => {
+    setProfileMobile(profile.mobile || portal?.employee?.mobile || "");
+    setProfilePhoto(null);
+    setProfilePhotoPreview(profilePhotoUrl || "");
+    setProfileSettingsOpen(true);
+  };
+  const saveProfileSettings = async (event) => {
+    event.preventDefault();
+    const normalizedMobile = String(profileMobile || "").replace(/[\s()-]/g, "");
+    if (normalizedMobile && !/^01[0125]\d{8}$/.test(normalizedMobile)) {
+      setPortalNotice("أدخل رقم موبايل مصري صحيح");
+      return;
+    }
+    try {
+      setProfileSaving(true);
+      const formData = new FormData();
+      formData.append("mobile", normalizedMobile);
+      formData.append("timezone", browserTimeZone());
+      if (profilePhoto) formData.append("profile_photo", profilePhoto);
+      const response = await api.patch(`/employee-portal/${encodeURIComponent(token)}/profile`, formData, { timeoutMs: 30000 });
+      if (response.portal) setPortal(response.portal);
+      setProfileSettingsOpen(false);
+      setPortalNotice("تم حفظ بياناتك بنجاح");
+    } catch (err) {
+      setPortalNotice(err?.responseBody?.message || err?.message || "تعذر حفظ البيانات");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
   const attendanceRows = safeArray(portal?.attendance?.timeline);
     const employeeRequests = safeArray(portal?.employee_requests);
@@ -3140,6 +3175,14 @@ export default function EmployeePayrollPortal() {
                   </div>
                   {profile.code ? <div className="mt-1 break-words text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
                 </div>
+                <button
+                  type="button"
+                  onClick={openProfileSettings}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700"
+                  aria-label="إعدادات الملف الشخصي"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
               </div>
 
               <a
@@ -4133,6 +4176,56 @@ export default function EmployeePayrollPortal() {
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+      {profileSettingsOpen ? (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/60 p-3 sm:items-center" dir="rtl">
+          <form onSubmit={saveProfileSettings} className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-950">إعدادات الملف الشخصي</h2>
+                <p className="mt-1 text-xs font-bold text-slate-500">حدّث صورتك ورقم الموبايل</p>
+              </div>
+              <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700" aria-label="إغلاق">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <label className="mt-5 flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3">
+              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-slate-200">
+                {profilePhotoPreview ? <img src={profilePhotoPreview} alt="معاينة الصورة" className="h-full w-full object-cover" /> : <UserRound className="m-5 h-10 w-10 text-slate-400" />}
+              </div>
+              <div className="min-w-0 text-sm font-black text-slate-800">
+                اختر صورة جديدة
+                <div className="mt-1 text-xs font-bold text-slate-500">JPG أو PNG أو WebP — بحد أقصى 5MB</div>
+              </div>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  setProfilePhoto(file);
+                  if (file) setProfilePhotoPreview(URL.createObjectURL(file));
+                }}
+              />
+            </label>
+            <label className="mt-4 block text-sm font-black text-slate-800">
+              رقم الموبايل
+              <input
+                type="tel"
+                inputMode="tel"
+                value={profileMobile}
+                onChange={(event) => setProfileMobile(event.target.value)}
+                placeholder="01xxxxxxxxx"
+                className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                dir="ltr"
+              />
+            </label>
+            <button type="submit" disabled={profileSaving} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60">
+              {profileSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {profileSaving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
+            </button>
+          </form>
         </div>
       ) : null}
     </main>
