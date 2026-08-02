@@ -34,6 +34,7 @@ import {
 import {
   deleteEmployeeChatMessage,
   getEmployeeChat,
+  reactEmployeeChatMessage,
   sendEmployeeChatMessage,
   updateEmployeeChatMessage,
 } from "../services/employeeChatService.js";
@@ -961,6 +962,15 @@ router.post("/:token/chat/messages", verifyEmployeePortalToken, uploadEmployeeCh
   } catch (error) {
     console.error("[employee-payroll-portal] chat message error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send message" });
+  }
+});
+
+router.post("/:token/chat/messages/:messageId/reaction", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const result = await reactEmployeeChatMessage({ employee: req.employeePortalEmployee, messageId: req.params.messageId, emoji: req.body?.emoji });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to react to message" });
   }
 });
 

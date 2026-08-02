@@ -2977,6 +2977,19 @@ export default function EmployeePayrollPortal() {
     }
   };
 
+  const reactToChatMessage = async (message, emoji) => {
+    if (!message?.id) return;
+    try {
+      setChatError("");
+      const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages/${encodeURIComponent(message.id)}/reaction`, { emoji });
+      if (response?.message) {
+        setChatMessages((current) => current.map((item) => String(item.id) === String(response.message.id) ? response.message : item));
+      }
+    } catch (err) {
+      setChatError(err?.responseBody?.message || err?.message || "تعذر إضافة التفاعل");
+    }
+  };
+
   useEffect(() => {
     if (!token || !pushSupported()) return undefined;
     let cancelled = false;
@@ -4190,6 +4203,7 @@ export default function EmployeePayrollPortal() {
               typingLabel={chatTyping ? "الإدارة تكتب الآن..." : ""}
               onImageClick={setChatImagePreview}
               onReply={setReplyToChat}
+              onReact={reactToChatMessage}
               onEdit={beginEditChatMessage}
               onDelete={deleteChatMessage}
               onBeginSwipe={beginChatSwipe}

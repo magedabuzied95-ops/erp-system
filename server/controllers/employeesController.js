@@ -33,6 +33,7 @@ import {
   getAdminEmployeeChatThread,
   listEmployeeChatThreads,
   markAdminEmployeeChatThreadRead,
+  reactAdminEmployeeChatMessage,
   sendAdminEmployeeChatMessage,
   updateAdminEmployeeChatMessage,
 } from "../services/employeeChatService.js";
@@ -406,6 +407,16 @@ export const forwardEmployeeChatThreadMessageRecord = async (req, res) => {
   } catch (error) {
     console.error("[employees] chat message forward error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to forward employee chat message" });
+  }
+};
+
+export const reactEmployeeChatThreadMessageRecord = async (req, res) => {
+  try {
+    const { tenantId, userId } = getTenantContext(req);
+    const result = await reactAdminEmployeeChatMessage({ tenantId, userId, messageId: req.params.messageId, emoji: req.body?.emoji });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to react to message" });
   }
 };
 

@@ -1547,6 +1547,16 @@ CREATE TABLE IF NOT EXISTS employee_chat_messages (
 CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC);
 CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_unread ON employee_chat_messages (thread_id, sender_type, read_at) WHERE read_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS employee_chat_message_reactions (
+  message_id BIGINT NOT NULL REFERENCES employee_chat_messages(id) ON DELETE CASCADE,
+  actor_type VARCHAR(20) NOT NULL CHECK (actor_type IN ('employee', 'admin')),
+  actor_id BIGINT NOT NULL,
+  emoji VARCHAR(16) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (message_id, actor_type, actor_id)
+);
+CREATE INDEX IF NOT EXISTS idx_employee_chat_reactions_message ON employee_chat_message_reactions (message_id);
+
 CREATE INDEX IF NOT EXISTS idx_employee_shifts_tenant_employee ON employee_shifts (tenant_id, employee_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_employee_date ON attendance_logs (tenant_id, employee_id, attendance_date DESC);
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_branch_date ON attendance_logs (tenant_id, branch_id, attendance_date DESC);

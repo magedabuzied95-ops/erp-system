@@ -5,6 +5,13 @@ import { createPortal } from "react-dom";
 import { portalChatMessagePreview, isPortalChatAudioMessage, portalChatTextParts } from "./portalChatUtils";
 import PortalChatAttachment from "./PortalChatAttachment";
 
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const reactionCounts = (reactions = []) => Object.entries((Array.isArray(reactions) ? reactions : []).reduce((counts, reaction) => {
+  const emoji = String(reaction?.emoji || "").trim();
+  if (emoji) counts[emoji] = (counts[emoji] || 0) + 1;
+  return counts;
+}, {}));
+
 const DEFAULT_BACKGROUND = {
   backgroundColor: "#0b141a",
   backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.055) 1px, transparent 0), linear-gradient(135deg, rgba(20,184,166,0.035), transparent 35%, rgba(15,23,42,0.18))",
@@ -70,6 +77,7 @@ export default function PortalChatMessageList({
   onImageClick,
   onReply,
   onForward,
+  onReact,
   onEdit,
   onDelete,
   onBeginSwipe,
@@ -98,7 +106,7 @@ export default function PortalChatMessageList({
     const viewportWidth = window.innerWidth || 360;
     const viewportHeight = window.innerHeight || 640;
     const menuWidth = Math.min(264, viewportWidth - 24);
-    const menuHeight = 250;
+    const menuHeight = 315;
     const left = Math.max(12, Math.min((rect?.left || 12), viewportWidth - menuWidth - 12));
     const top = (rect?.bottom || 80) + menuHeight + 12 < viewportHeight
       ? (rect?.bottom || 80) + 8
@@ -110,6 +118,13 @@ export default function PortalChatMessageList({
     <div className="fixed inset-0 z-[140]" dir="rtl" role="dialog" aria-modal="true" aria-label={labels.messageActions || "إجراءات الرسالة"}>
       <button type="button" className="absolute inset-0 bg-black/45 backdrop-blur-[3px]" onClick={closeActions} aria-label={labels.close || "إغلاق"} />
       <div className="absolute overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#24292d]/95 p-2 text-white shadow-2xl backdrop-blur-xl" style={actionAnchor || undefined}>
+        {onReact ? (
+          <div className="mb-2 flex items-center justify-between gap-1 rounded-2xl bg-[#111b21] px-2 py-2 shadow-inner" dir="ltr">
+            {QUICK_REACTIONS.map((emoji) => (
+              <button key={emoji} type="button" onClick={() => { onReact(activeMessage, emoji); closeActions(); }} className="grid h-9 w-9 place-items-center rounded-full text-[23px] transition hover:-translate-y-1 hover:bg-white/10 active:scale-90" aria-label={`${labels.react || "تفاعل"} ${emoji}`}>{emoji}</button>
+            ))}
+          </div>
+        ) : null}
         <div className="mb-1 truncate rounded-xl bg-black/15 px-3 py-2 text-xs font-semibold text-slate-300" dir="auto">{portalChatMessagePreview(activeMessage, labels)}</div>
         <div className="grid text-[15px] font-bold">
           {onReply ? <button type="button" onClick={() => { onReply(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Reply className="h-[18px] w-[18px]" />{labels.reply || "رد"}</button> : null}
@@ -211,6 +226,15 @@ export default function PortalChatMessageList({
                       <span>{timeFormatter(message.created_at)}</span>
                       {message.edited_at && !deleted ? <span>{labels.edited || "معدلة"}</span> : null}
                       {outgoing ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
+                    </div>
+                  ) : null}
+                  {!deleted && reactionCounts(message.reactions).length ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-1" dir="ltr">
+                      {reactionCounts(message.reactions).map(([emoji, count]) => (
+                        <button key={emoji} type="button" onClick={(event) => { event.stopPropagation(); onReact?.(message, emoji); }} className="flex h-6 items-center gap-1 rounded-full border border-white/10 bg-[#182229] px-2 text-[14px] shadow-sm" aria-label={`${labels.react || "تفاعل"} ${emoji}`}>
+                          <span>{emoji}</span>{count > 1 ? <span className="text-[10px] font-black text-slate-300">{count}</span> : null}
+                        </button>
+                      ))}
                     </div>
                   ) : null}
                 </div>

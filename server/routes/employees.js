@@ -19,6 +19,7 @@ import {
   getEmployeeChatThreadRecord,
   getEmployeeChatThreads,
   forwardEmployeeChatThreadMessageRecord,
+  reactEmployeeChatThreadMessageRecord,
   getEmployeePortalRequests,
   getSalesPerformance,
   getTopPerformers,
@@ -112,6 +113,7 @@ router.get("/chat/threads", protect, permit("employees", "view"), getEmployeeCha
 router.get("/chat/threads/:threadId", protect, permit("employees", "view"), getEmployeeChatThreadRecord);
 router.post("/chat/threads/:threadId/messages", protect, permit("employees", "edit"), uploadEmployeeChatAttachment, sendEmployeeChatThreadMessageRecord);
 router.post("/chat/messages/:messageId/forward", protect, permit("employees", "edit"), forwardEmployeeChatThreadMessageRecord);
+router.post("/chat/messages/:messageId/reaction", protect, permit("employees", "edit"), reactEmployeeChatThreadMessageRecord);
 router.patch("/chat/threads/:threadId/messages/:messageId", protect, permit("employees", "edit"), updateEmployeeChatThreadMessageRecord);
 router.delete("/chat/threads/:threadId/messages/:messageId", protect, permit("employees", "edit"), deleteEmployeeChatThreadMessageRecord);
 router.patch("/chat/threads/:threadId/read", protect, permit("employees", "edit"), markEmployeeChatThreadReadRecord);

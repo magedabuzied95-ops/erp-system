@@ -37,9 +37,20 @@ const messageSelect = `
     m.read_at,
     m.edited_at,
     m.deleted_at,
-    m.created_at
+    m.created_at,
+    COALESCE(rx.reactions, '[]'::json) AS reactions
   FROM employee_chat_messages m
   LEFT JOIN employee_chat_messages rm ON rm.id = m.reply_to_message_id
+  LEFT JOIN LATERAL (
+    SELECT json_agg(json_build_object(
+      'actor_type', r.actor_type,
+      'actor_id', r.actor_id,
+      'emoji', r.emoji,
+      'created_at', r.created_at
+    ) ORDER BY r.created_at ASC) AS reactions
+    FROM employee_chat_message_reactions r
+    WHERE r.message_id = m.id
+  ) rx ON TRUE
 `;
 
 const attachmentLabelSql = (alias = "m") => `
@@ -421,6 +432,48 @@ export const deleteAdminEmployeeChatMessage = async ({ tenantId = null, threadId
   const message = await mutateChatMessage({ message: current, remove: true });
   return emitMessageMutation(message, "employee-chat:message-deleted");
 };
+
+const ALLOWED_CHAT_REACTIONS = new Set(["👍", "❤️", "😂", "😮", "😢", "🙏"]);
+
+const reactToEmployeeChatMessage = async ({ messageId, actorType, actorId, employeeId = null, tenantId = null, emoji = "" } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const normalizedEmoji = clean(emoji);
+  if (!ALLOWED_CHAT_REACTIONS.has(normalizedEmoji)) throw chatError("Unsupported reaction", 400, "reaction_invalid");
+  const target = await db.query(
+    `SELECT m.id, m.thread_id, t.employee_id, t.tenant_id
+     FROM employee_chat_messages m
+     JOIN employee_chat_threads t ON t.id = m.thread_id
+     WHERE m.id = $1 AND m.deleted_at IS NULL
+       AND ($2::bigint IS NULL OR t.employee_id = $2::bigint)
+       AND ($3::bigint IS NULL OR t.tenant_id = $3::bigint)
+     LIMIT 1`,
+    [messageId, employeeId, tenantId]
+  );
+  const current = target.rows[0];
+  if (!current) throw chatError("Message not found", 404, "message_not_found");
+  const existing = await db.query(
+    `SELECT emoji FROM employee_chat_message_reactions WHERE message_id = $1 AND actor_type = $2 AND actor_id = $3`,
+    [messageId, actorType, actorId]
+  );
+  if (existing.rows[0]?.emoji === normalizedEmoji) {
+    await db.query(`DELETE FROM employee_chat_message_reactions WHERE message_id = $1 AND actor_type = $2 AND actor_id = $3`, [messageId, actorType, actorId]);
+  } else {
+    await db.query(
+      `INSERT INTO employee_chat_message_reactions (message_id, actor_type, actor_id, emoji, created_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (message_id, actor_type, actor_id) DO UPDATE SET emoji = EXCLUDED.emoji, created_at = NOW()`,
+      [messageId, actorType, actorId, normalizedEmoji]
+    );
+  }
+  const message = (await loadMessages(current.thread_id)).find((item) => String(item.id) === String(messageId));
+  return emitMessageMutation({ ...message, employee_id: current.employee_id, tenant_id: current.tenant_id }, "employee-chat:message-updated");
+};
+
+export const reactEmployeeChatMessage = ({ employee, messageId, emoji } = {}) =>
+  reactToEmployeeChatMessage({ messageId, emoji, actorType: "employee", actorId: employee?.id, employeeId: employee?.id });
+
+export const reactAdminEmployeeChatMessage = ({ tenantId = null, userId, messageId, emoji } = {}) =>
+  reactToEmployeeChatMessage({ messageId, emoji, actorType: "admin", actorId: userId, tenantId });
 
 export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } = {}) => {
   await ensureEmployeePayrollPortalSchema(db);

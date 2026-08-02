@@ -504,6 +504,22 @@ export default function SharedPortalChat({
     }
   };
 
+  const reactToMessage = async (message, emoji) => {
+    if (!message?.id || !apiAdapter?.reactMessage) return;
+    try {
+      setError("");
+      const response = await apiAdapter.reactMessage(message.id, emoji);
+      if (response?.message) {
+        setMessagesByThread((current) => ({
+          ...current,
+          [activeThreadId]: mergeChatMessages(current[activeThreadId] || [], [response.message], response?.thread || threadRef.current),
+        }));
+      }
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر إضافة التفاعل");
+    }
+  };
+
   const forwardTargets = sidebarRows.filter(({ employee, thread: targetThread }) => {
     if (!targetThread?.id || String(targetThread.id) === String(activeThreadId || "")) return false;
     const query = forwardSearch.trim().toLocaleLowerCase("ar");
@@ -816,6 +832,7 @@ export default function SharedPortalChat({
                 onImageClick={setImagePreview}
                 onReply={allowReply ? setReplyTo : null}
                 onForward={apiAdapter?.forwardMessage ? setForwardMessage : null}
+                onReact={apiAdapter?.reactMessage ? reactToMessage : null}
                 onEdit={apiAdapter?.editMessage ? beginEditMessage : null}
                 onDelete={apiAdapter?.deleteMessage ? deleteMessage : null}
                 onBeginSwipe={beginSwipe}

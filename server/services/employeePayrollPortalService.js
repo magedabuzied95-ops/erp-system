@@ -319,6 +319,17 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_unread ON employee_chat_messages (thread_id, sender_type, read_at) WHERE read_at IS NULL`);
   await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_chat_message_reactions (
+      message_id BIGINT NOT NULL REFERENCES employee_chat_messages(id) ON DELETE CASCADE,
+      actor_type VARCHAR(20) NOT NULL CHECK (actor_type IN ('employee', 'admin')),
+      actor_id BIGINT NOT NULL,
+      emoji VARCHAR(16) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (message_id, actor_type, actor_id)
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_reactions_message ON employee_chat_message_reactions (message_id)`);
+  await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_push_subscriptions (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NULL,

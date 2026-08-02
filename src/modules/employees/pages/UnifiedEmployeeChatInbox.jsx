@@ -35,6 +35,7 @@ export default function UnifiedEmployeeChatInbox({
     getThread: (threadId) => api.get(`/employees/chat/threads/${encodeURIComponent(threadId)}`),
     sendMessage: (threadId, formData) => api.post(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages`, formData),
     forwardMessage: (messageId, targetThreadId) => api.post(`/employees/chat/messages/${encodeURIComponent(messageId)}/forward`, { target_thread_id: targetThreadId }),
+    reactMessage: (messageId, emoji) => api.post(`/employees/chat/messages/${encodeURIComponent(messageId)}/reaction`, { emoji }),
     editMessage: (threadId, messageId, payload) => api.patch(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`, payload),
     deleteMessage: (threadId, messageId) => api.delete(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`),
     markRead: (threadId) => api.patch(`/employees/chat/threads/${encodeURIComponent(threadId)}/read`, {}),
