@@ -1157,12 +1157,6 @@ export default function EmployeePortalProducts() {
     }
   }, [directLookup, directLookupActive, normalizedProducts]);
 
-  const filterOptions = useMemo(() => {
-    const brands = uniqueValues(normalizedProducts.map((product) => product.brand));
-    const manufacturers = uniqueValues(normalizedProducts.map((product) => product.manufacturer_name));
-    return { brands, manufacturers };
-  }, [normalizedProducts]);
-
   const smartClassificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
     [classificationGroups]
@@ -1212,14 +1206,26 @@ export default function EmployeePortalProducts() {
     };
   }, [normalizedProducts, smartClassificationOptions]);
 
+  const productsMatchingClassificationFilters = useMemo(() => normalizedProducts.filter((product) => {
+    const matchesCategory =
+      filters.category === "all" ||
+      getEmployeeSmartFilterValue(product, "grade", smartClassificationOptions.grade) === normalizeFilterValue(filters.category);
+    const matchesType =
+      filters.type === "all" ||
+      getEmployeeSmartFilterValue(product, "productType", smartClassificationOptions.productType) === normalizeFilterValue(filters.type);
+    return matchesCategory && matchesType;
+  }), [filters.category, filters.type, normalizedProducts, smartClassificationOptions]);
+
   const brandOptions = useMemo(
-    () => filterOptions.brands.map((brand) => ({ id: brand, name: brand })),
-    [filterOptions.brands]
+    () => uniqueValues(productsMatchingClassificationFilters.map((product) => product.brand))
+      .map((brand) => ({ id: brand, name: brand })),
+    [productsMatchingClassificationFilters]
   );
 
   const manufacturerOptions = useMemo(
-    () => filterOptions.manufacturers.map((manufacturer) => ({ id: manufacturer, name: manufacturer })),
-    [filterOptions.manufacturers]
+    () => uniqueValues(productsMatchingClassificationFilters.map((product) => product.manufacturer_name))
+      .map((manufacturer) => ({ id: manufacturer, name: manufacturer })),
+    [productsMatchingClassificationFilters]
   );
 
   const activeFilterCount = useMemo(
@@ -1273,7 +1279,7 @@ export default function EmployeePortalProducts() {
 
   const availableSizes = useMemo(() => {
     const sizes = new Set();
-    for (const product of productsMatchingBaseFilters) {
+    for (const product of productsMatchingClassificationFilters) {
       for (const variant of Array.isArray(product.variants) ? product.variants : []) {
         const size = variantSizeValue(variant);
         if (!size || variantStockValue(variant) <= 0) continue;
@@ -1283,13 +1289,27 @@ export default function EmployeePortalProducts() {
     return sortSizes([...sizes]).map((size) => ({
       id: size,
       name: size,
-      count: productsMatchingBaseFilters.filter((product) =>
+      count: productsMatchingClassificationFilters.filter((product) =>
         (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
           variantSizeValue(variant) === size && variantStockValue(variant) > 0
         )
       ).length,
     }));
-  }, [productsMatchingBaseFilters]);
+  }, [productsMatchingClassificationFilters]);
+
+  useEffect(() => {
+    if (filters.brand === "all") return;
+    if (!brandOptions.some((option) => option.id === filters.brand)) {
+      setFilters((current) => ({ ...current, brand: "all" }));
+    }
+  }, [brandOptions, filters.brand]);
+
+  useEffect(() => {
+    if (filters.manufacturer === "all") return;
+    if (!manufacturerOptions.some((option) => option.id === filters.manufacturer)) {
+      setFilters((current) => ({ ...current, manufacturer: "all" }));
+    }
+  }, [filters.manufacturer, manufacturerOptions]);
 
   useEffect(() => {
     if (selectedFilterSize === "all") return;

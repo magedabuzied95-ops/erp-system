@@ -22,3 +22,12 @@ test("grade filter is sourced from product grade instead of display category", (
   assert.match(source, /grade: text\(mappedProduct\.grade \|\| mappedProduct\.product_grade/);
   assert.doesNotMatch(source, /grade: optionWithCounts\(filterOptions\.categories/);
 });
+
+test("warehouse facets cascade from the selected product type and grade", () => {
+  assert.match(source, /const productsMatchingClassificationFilters = useMemo/);
+  assert.match(source, /uniqueValues\(productsMatchingClassificationFilters\.map\(\(product\) => product\.brand\)\)/);
+  assert.match(source, /uniqueValues\(productsMatchingClassificationFilters\.map\(\(product\) => product\.manufacturer_name\)\)/);
+  assert.match(source, /for \(const product of productsMatchingClassificationFilters\)/);
+  assert.match(source, /if \(!brandOptions\.some\(\(option\) => option\.id === filters\.brand\)\)/);
+  assert.match(source, /if \(!manufacturerOptions\.some\(\(option\) => option\.id === filters\.manufacturer\)\)/);
+});
