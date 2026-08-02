@@ -18,3 +18,11 @@ test("checkout API safely falls back to a recent open attendance", async () => {
   assert.match(service, /COALESCE\(check_out_at, check_out\) IS NULL/);
   assert.match(service, /COALESCE\(check_in_at, check_in\) DESC/);
 });
+
+test("checkout by id is not blocked by a midnight date change and requires an updated row", async () => {
+  const service = await source("server/services/employeePayrollPortalService.js");
+  const updateById = service.slice(service.indexOf('"checkout_update_by_id"'), service.indexOf('"checkout_update_by_date"'));
+  assert.doesNotMatch(updateById, /attendance_date = \$3::date/);
+  assert.match(updateById, /COALESCE\(check_out_at, check_out\) IS NULL/);
+  assert.match(service, /const updatedAttendanceRow = result\?\.rows\?\.\[0\] \|\| null;\s*if \(!updatedAttendanceRow\)/);
+});

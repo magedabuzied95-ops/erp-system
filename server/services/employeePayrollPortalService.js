@@ -2799,7 +2799,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         WHERE id = $16::bigint
           AND tenant_id = $1::bigint
           AND employee_id = $2::bigint
-          AND attendance_date = $3::date
+          AND COALESCE(check_out_at, check_out) IS NULL
         RETURNING *
         `,
         [...updateParams, attendanceRecordId],
@@ -2833,7 +2833,8 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         updateParams,
         { employee_id: employee.id, branch_id: branch.id }
       );
-  if (!result) {
+  const updatedAttendanceRow = result?.rows?.[0] || null;
+  if (!updatedAttendanceRow) {
     console.warn("[employee-portal-attendance] checkout step returned no result", {
       step: attendanceRecordId ? "checkout_update_by_id" : "checkout_update_by_date",
       employee_id: employee.id,
@@ -2845,7 +2846,6 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
       500
     );
   }
-  const updatedAttendanceRow = result?.rows?.[0] || null;
   if (updatedAttendanceRow && toAttendanceMinutes(metrics.overtime_minutes) > 0) {
     await db.query(
       `
