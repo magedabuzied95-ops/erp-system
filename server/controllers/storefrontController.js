@@ -362,8 +362,11 @@ const resolveStorefrontActivePrice = ({ originalPrice, sellingPrice, salePrice, 
   const selling = roundMoney(sellingPrice);
   const sale = roundMoney(salePrice);
   const enabled = saleModeEnabled(pricingSettings);
-  const activeSale = enabled && sale > 0 && (selling <= 0 || sale < selling);
-  const activePrice = activeSale ? sale : selling;
+  // Some catalog imports store the only customer-facing price in sale_price.
+  // Never turn that valid price into zero merely because global sale mode is off.
+  const basePrice = selling > 0 ? selling : sale > 0 ? sale : original;
+  const activeSale = enabled && sale > 0 && selling > 0 && sale < selling;
+  const activePrice = activeSale ? sale : basePrice;
   const compareAtPrice = original > activePrice && activePrice > 0 ? original : 0;
   return {
     activePrice,
@@ -383,9 +386,9 @@ const resolveCustomerFacingDisplayPrice = (product = {}, variant = {}, pricingSe
         global_sale_enabled: variant.global_sale_enabled ?? product.global_sale_enabled,
         sale_prices_enabled: variant.sale_prices_enabled ?? product.sale_prices_enabled,
       });
-  const saleApplied = explicitSaleMode && sale > 0 && (selling <= 0 || sale < selling);
-  const selected_display_price = saleApplied ? sale : selling;
-  const selected_price_source = saleApplied ? "sale_price" : "selling_price";
+  const saleApplied = explicitSaleMode && sale > 0 && selling > 0 && sale < selling;
+  const selected_display_price = saleApplied ? sale : selling > 0 ? selling : sale;
+  const selected_price_source = saleApplied || (selling <= 0 && sale > 0) ? "sale_price" : "selling_price";
   const wholesale_price = roundMoney(variant.wholesale_price ?? product.wholesale_price ?? variant.purchase_price ?? product.purchase_price ?? variant.average_cost ?? product.average_cost ?? variant.last_purchase_price ?? product.last_purchase_price ?? 0);
   const cost_price = roundMoney(variant.cost_price ?? product.cost_price ?? 0);
   console.log("[ai-price-source]", {
@@ -4441,6 +4444,12 @@ export const createWebsiteOrder = async (req, res) => {
         pricingSettings,
       });
       const price = resolvedPrice.activePrice;
+      if (price <= 0) {
+        throw checkoutValidationError("This product does not have a valid selling price", "items.price", {
+          product_id: variant.product_id,
+          variant_id: variant.id,
+        });
+      }
       subtotal += price * quantity;
       normalizedItems.push({
         product_id: variant.product_id,
