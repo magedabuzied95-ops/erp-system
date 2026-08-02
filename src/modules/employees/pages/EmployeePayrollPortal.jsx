@@ -1841,12 +1841,19 @@ export default function EmployeePayrollPortal() {
   const tasks = safeArray(portal?.tasks);
   const todayKey = todayIsoLocal(language);
   const exactTodayAttendance = attendanceRows.find((row) => attendanceLocalDate(row, language) === todayKey) || null;
-  const todayAttendance = exactTodayAttendance || {};
+  const recentOpenAttendance = attendanceRows.find((row) => {
+    const checkIn = row?.check_in_at || row?.check_in;
+    const checkOut = row?.check_out_at || row?.check_out;
+    return Boolean(checkIn && !checkOut && minutesBetween(checkIn, nowTick) <= 36 * 60);
+  }) || null;
+  // A shift can remain open after Cairo midnight. Keep that open record as the
+  // active attendance instead of incorrectly offering a second check-in.
+  const todayAttendance = exactTodayAttendance || recentOpenAttendance || {};
   const todayCheckIn = todayAttendance.check_in_at || todayAttendance.check_in;
   const todayCheckOut = todayAttendance.check_out_at || todayAttendance.check_out;
   const isCheckedIn = Boolean(todayCheckIn && !todayCheckOut);
   const isCheckedOut = Boolean(todayCheckOut);
-  const canCheckOutToday = Boolean(exactTodayAttendance && todayCheckIn && !todayCheckOut);
+  const canCheckOutToday = Boolean(todayCheckIn && !todayCheckOut);
   const employeeStatus = isCheckedOut ? ui("checkedOut") : isCheckedIn ? ui("present") : ui("absent");
   const employeeStatusDotClassName = isCheckedIn ? "bg-emerald-500" : isCheckedOut ? "bg-slate-400" : "bg-red-500";
   const workedMinutes = todayCheckIn ? minutesBetween(todayCheckIn, todayCheckOut || nowTick) : 0;
@@ -3123,7 +3130,7 @@ export default function EmployeePayrollPortal() {
       const location = await getBrowserLocation();
       const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/attendance/actions`, {
         action: actionType,
-        attendance_log_id: actionType === "check_out" ? (exactTodayAttendance?.id || exactTodayAttendance?.attendance_id || null) : null,
+        attendance_log_id: actionType === "check_out" ? (todayAttendance?.id || todayAttendance?.attendance_id || null) : null,
         gps_lat: location.latitude,
         gps_lng: location.longitude,
         gps_accuracy: location.accuracy,
@@ -3144,8 +3151,8 @@ export default function EmployeePayrollPortal() {
         console.warn("[employee-portal-attendance:checkout-rejected]", {
           employee_id: profile.id || portal?.employee?.id || null,
           branch_id: portal?.employee?.branch_id || portal?.qr_attendance?.branch_id || null,
-          attendance_record_id: exactTodayAttendance?.id || exactTodayAttendance?.attendance_id || null,
-          attendance_date: exactTodayAttendance?.attendance_date || exactTodayAttendance?.date || todayKey,
+          attendance_record_id: todayAttendance?.id || todayAttendance?.attendance_id || null,
+          attendance_date: todayAttendance?.attendance_date || todayAttendance?.date || todayKey,
           code: code || null,
           message: err?.responseBody?.message || err?.responseBody?.message_ar || err?.message || "",
         });

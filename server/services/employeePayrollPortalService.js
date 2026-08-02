@@ -2666,8 +2666,15 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         FROM attendance_logs
         WHERE tenant_id = $1::bigint
           AND employee_id = $2::bigint
-          AND attendance_date = $3::date
           AND COALESCE(check_out_at, check_out) IS NULL
+          AND COALESCE(check_in_at, check_in) IS NOT NULL
+          AND (
+            attendance_date = $3::date
+            OR COALESCE(check_in_at, check_in) >= NOW() - INTERVAL '36 hours'
+          )
+        ORDER BY
+          CASE WHEN attendance_date = $3::date THEN 0 ELSE 1 END,
+          COALESCE(check_in_at, check_in) DESC
         LIMIT 1
         `,
         [employee.tenant_id, employee.id, attendanceDate],
