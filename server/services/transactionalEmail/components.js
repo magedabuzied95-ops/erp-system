@@ -8,9 +8,18 @@ export const emailButton = ({ href, label, secondary = false }) => {
   return `<a href="${escapeHtml(safeHref)}" style="display:inline-block;margin:6px 4px;padding:13px 22px;border-radius:10px;background:${secondary ? "#ffffff" : BRAND.gold};color:${secondary ? BRAND.ink : "#171205"};border:1px solid ${secondary ? "#d7d2c7" : BRAND.gold};font:700 14px Arial,sans-serif;text-decoration:none">${escapeHtml(label)}</a>`;
 };
 
-export const emailHeader = ({ logoUrl = "", eyebrow = "M1 STORE" } = {}) => `<tr><td style="padding:28px 32px;background:${BRAND.ink};text-align:center">
-  ${safeUrl(logoUrl) ? `<img src="${escapeHtml(logoUrl)}" width="74" height="74" alt="M1 Store" style="display:block;width:74px;height:74px;object-fit:contain;margin:0 auto 12px">` : ""}
-  <div style="font:700 11px Arial,sans-serif;letter-spacing:3px;color:${BRAND.gold}">${escapeHtml(eyebrow)}</div>
+export const emailHeader = ({ logoUrl = "", eyebrow = "M1 STORE" } = {}) => `<tr><td bgcolor="#101010" style="padding:20px 26px;background:#101010;background-image:linear-gradient(#101010,#101010);border-bottom:3px solid ${BRAND.gold}">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" dir="ltr"><tr>
+    <td width="68" style="width:68px;vertical-align:middle">
+      ${safeUrl(logoUrl) ? `<div style="width:58px;height:58px;border-radius:16px;background:#ffffff;border:1px solid #343434;overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="58" height="58" alt="M1 Store" style="display:block;width:58px;height:58px;object-fit:contain;border:0"></div>` : `<div style="width:58px;height:58px;border-radius:16px;background:${BRAND.gold};color:#101010;text-align:center;font:800 17px/58px Arial,sans-serif">M1</div>`}
+    </td>
+    <td style="padding-left:14px;vertical-align:middle;text-align:left">
+      <div style="color:#ffffff;font:800 20px/1.2 Arial,sans-serif;letter-spacing:2.5px">${escapeHtml(eyebrow)}</div>
+      <div style="margin-top:6px;color:${BRAND.gold};font:700 9px/1.2 Arial,sans-serif;letter-spacing:2.2px">CHANGE YOUR LIFE</div>
+      <div style="margin-top:7px;width:34px;height:2px;background:${BRAND.gold};font-size:0;line-height:0">&nbsp;</div>
+    </td>
+    <td style="vertical-align:middle;text-align:right;color:#8e8b84;font:700 10px/1.5 Arial,sans-serif;letter-spacing:1px">EST. 2024<br>CAIRO</td>
+  </tr></table>
 </td></tr>`;
 
 export const emailFooter = ({ supportEmail = "support@m1store-egy.com", socialLinks = [] } = {}) => {
