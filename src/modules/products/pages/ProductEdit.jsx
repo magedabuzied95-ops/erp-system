@@ -746,6 +746,15 @@ const normalizeVariantForm = (row = {}) => ({
   manufacturer_ids: normalizeManufacturerIds(row.manufacturer_ids ?? row.variant_manufacturer_ids, row.manufacturer_id ?? row.variant_manufacturer_id),
   audience: row.audience || row.variant_audience || "",
   variant_audience: row.variant_audience || row.audience || "",
+  is_storefront_visible: !(
+    row.is_storefront_visible === false ||
+    String(
+      row.is_storefront_visible ??
+      row.storefront_visible ??
+      row.visible_on_storefront ??
+      "true"
+    ).trim().toLowerCase() === "false"
+  ),
   images: Array.isArray(row.images) ? row.images : Array.isArray(row.color_images) ? row.color_images : [],
 });
 
