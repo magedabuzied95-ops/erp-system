@@ -24,6 +24,8 @@ test("product edit restores persisted hidden color visibility", () => {
 
 test("variant visibility is persisted with a backwards-compatible visible default", () => {
   assert.match(productsController, /is_storefront_visible BOOLEAN NOT NULL DEFAULT TRUE/);
+  assert.match(productsController, /const normalizeIncomingVariant[\s\S]*?is_storefront_visible:/);
+  assert.match(productsController, /variant\.is_storefront_visible \?\?/);
   assert.match(productsController, /is_storefront_visible = \$25/);
   assert.match(productsController, /nextVariant\.is_storefront_visible !== false/);
 });

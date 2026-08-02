@@ -2065,6 +2065,18 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.gender ??
         ""
     ),
+    is_storefront_visible: !(
+      (variant.is_storefront_visible ?? group.is_storefront_visible) === false ||
+      String(
+        variant.is_storefront_visible ??
+        variant.storefront_visible ??
+        variant.visible_on_storefront ??
+        group.is_storefront_visible ??
+        group.storefront_visible ??
+        group.visible_on_storefront ??
+        "true"
+      ).trim().toLowerCase() === "false"
+    ),
     article_code: normalizeCopiedText(
       variant.article_code ??
         variant.articleCode ??
@@ -6495,6 +6507,7 @@ export const createVariant = async (req, res) => {
         branch_id,
         edition_name,
         edition_slug,
+        is_storefront_visible,
       }),
       skuPrefix,
       userId: req.user?.id || null,
