@@ -73,6 +73,7 @@ export const rejectAttendanceDevice = (id) => api.post(`/attendance/devices/${id
 export const resetEmployeeAttendanceDevice = (employeeId) => api.post(`/attendance/employees/${employeeId}/reset-device`);
 export const resetEmployeeTodayAttendance = (employeeId, payload = {}) =>
   api.delete(`/admin/attendance/employees/${employeeId}/today-attendance`, { body: payload });
+export const saveManualAttendance = (payload = {}) => api.post("/admin/attendance/manual-entry", payload);
 export const resetTodayAttendanceDeviceBindings = () => api.delete("/admin/attendance/device-bindings/today");
 export const resetEmployeeAttendanceDeviceBindings = (employeeId, businessDate) =>
   api.delete("/admin/attendance/device-bindings/reset-device", {

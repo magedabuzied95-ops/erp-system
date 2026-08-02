@@ -160,6 +160,14 @@ const getBusinessDateUtcRange = (businessDate) => {
   return { start, end };
 };
 
+const parseManualAttendanceTimestamp = (businessDate, timeValue, addDay = false) => {
+  const match = String(timeValue || "").trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return null;
+  const { start } = getBusinessDateUtcRange(businessDate);
+  const minutes = (Number(match[1]) * 60) + Number(match[2]) + (addDay ? 24 * 60 : 0);
+  return new Date(start.getTime() + (minutes * 60 * 1000));
+};
+
 const todayAttendancePredicate = `
   tenant_id = $1
   AND employee_id = $2
@@ -314,6 +322,154 @@ const resetErrorResponse = (res, fallbackMessage, error, step = "reset") => {
 };
 
 router.use(protect, adminOnly);
+
+router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
+  const client = await db.connect();
+  try {
+    await ensureAttendanceSchema();
+    res.set("Cache-Control", "no-store");
+    const tenantId = withTenant(req, res);
+    if (!tenantId) return;
+
+    const employeeId = Number(req.body?.employee_id || req.body?.employeeId || 0);
+    const attendanceDate = dateKey(req.body?.attendance_date || req.body?.attendanceDate);
+    const checkInTime = String(req.body?.check_in_time || req.body?.checkInTime || "").trim();
+    const checkOutTime = String(req.body?.check_out_time || req.body?.checkOutTime || "").trim();
+    const reason = String(req.body?.reason || "").trim();
+
+    if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(attendanceDate) || !checkInTime || !reason) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_MANUAL_ATTENDANCE",
+        message: "Employee, attendance date, check-in time and correction reason are required",
+      });
+    }
+
+    const checkInAt = parseManualAttendanceTimestamp(attendanceDate, checkInTime);
+    if (!checkInAt) {
+      return res.status(400).json({ success: false, code: "INVALID_CHECK_IN_TIME", message: "Invalid check-in time" });
+    }
+
+    let checkOutAt = null;
+    if (checkOutTime) {
+      checkOutAt = parseManualAttendanceTimestamp(attendanceDate, checkOutTime);
+      if (!checkOutAt) {
+        return res.status(400).json({ success: false, code: "INVALID_CHECK_OUT_TIME", message: "Invalid check-out time" });
+      }
+      if (checkOutAt <= checkInAt) {
+        checkOutAt = parseManualAttendanceTimestamp(attendanceDate, checkOutTime, true);
+      }
+    }
+
+    const employeeResult = await client.query(
+      `
+      SELECT id, employee_code, full_name, branch_id
+      FROM employees
+      WHERE tenant_id = $1
+        AND id = $2
+        AND COALESCE(is_deleted, FALSE) = FALSE
+      LIMIT 1
+      `,
+      [tenantId, employeeId]
+    );
+    const employee = employeeResult.rows[0];
+    if (!employee) {
+      return res.status(404).json({ success: false, code: "EMPLOYEE_NOT_FOUND", message: "Employee not found" });
+    }
+
+    const requestedBranchId = Number(req.body?.branch_id || req.body?.branchId || 0);
+    const branchId = requestedBranchId > 0 ? requestedBranchId : (employee.branch_id || null);
+    const workMinutes = checkOutAt ? Math.max(0, Math.round((checkOutAt.getTime() - checkInAt.getTime()) / 60000)) : 0;
+    const status = checkOutAt ? "checked_out" : "checked_in";
+    const auditNote = `Admin attendance correction: ${reason}`;
+
+    await client.query("BEGIN");
+    const existingResult = await client.query(
+      `
+      SELECT *
+      FROM attendance_logs
+      WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
+      ORDER BY id DESC
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [tenantId, employeeId, attendanceDate]
+    );
+    const before = existingResult.rows[0] || null;
+    let saved;
+
+    if (before) {
+      const updated = await client.query(
+        `
+        UPDATE attendance_logs
+        SET branch_id = COALESCE($4, branch_id),
+            check_in = $5,
+            check_in_at = $5,
+            check_out = $6,
+            check_out_at = $6,
+            attendance_source = 'admin_manual',
+            status = $7,
+            worked_hours = $8,
+            work_minutes = $9,
+            notes = CASE WHEN COALESCE(notes, '') = '' THEN $10 ELSE notes || E'\n' || $10 END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
+        RETURNING *
+        `,
+        [tenantId, employeeId, attendanceDate, branchId, checkInAt, checkOutAt, status, Number((workMinutes / 60).toFixed(2)), workMinutes, auditNote]
+      );
+      saved = updated.rows[0];
+    } else {
+      const inserted = await client.query(
+        `
+        INSERT INTO attendance_logs (
+          tenant_id, employee_id, branch_id, attendance_date,
+          check_in, check_in_at, check_out, check_out_at,
+          attendance_source, status, worked_hours, work_minutes, notes, user_agent, ip_address
+        )
+        VALUES ($1,$2,$3,$4::date,$5,$5,$6,$6,'admin_manual',$7,$8,$9,$10,$11,$12)
+        RETURNING *
+        `,
+        [tenantId, employeeId, branchId, attendanceDate, checkInAt, checkOutAt, status, Number((workMinutes / 60).toFixed(2)), workMinutes, auditNote, req.headers?.["user-agent"] || null, getRequestIp(req)]
+      );
+      saved = inserted.rows[0];
+    }
+
+    await ensureAuditLogTable(client);
+    await client.query(
+      `
+      INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, details, ip_address, user_agent)
+      VALUES ($1,$2,'attendance_manual_upsert','attendance_log',$3,$4::jsonb,$5::inet,$6)
+      `,
+      [
+        tenantId,
+        req.user?.id || null,
+        saved.id,
+        JSON.stringify({
+          employee_id: employeeId,
+          employee_name: employee.full_name || null,
+          attendance_date: attendanceDate,
+          previous_check_in: before?.check_in_at || before?.check_in || null,
+          previous_check_out: before?.check_out_at || before?.check_out || null,
+          check_in: checkInAt.toISOString(),
+          check_out: checkOutAt?.toISOString() || null,
+          reason,
+        }),
+        getRequestIp(req),
+        req.headers?.["user-agent"] || null,
+      ]
+    );
+    await client.query("COMMIT");
+
+    return res.status(before ? 200 : 201).json({ success: true, data: saved, attendance: saved });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[admin-attendance:manual-entry]", { message: error?.message, code: error?.code || null });
+    return res.status(500).json({ success: false, code: "MANUAL_ATTENDANCE_FAILED", message: "Failed to save attendance correction" });
+  } finally {
+    client.release();
+  }
+});
 
 router.delete("/employees/:employeeId/today-attendance", permit("attendance", "delete"), async (req, res) => {
   const client = await db.connect();

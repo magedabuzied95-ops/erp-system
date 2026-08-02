@@ -11,6 +11,7 @@ import {
   FileText,
   Filter,
   Printer,
+  Plus,
   QrCode,
   RefreshCw,
   Search,
@@ -36,6 +37,7 @@ import {
   getAttendanceQrSessions,
   getAttendanceSchedules,
   getBranches,
+  saveManualAttendance,
   updateAttendanceHrSettings,
   updateAttendanceOvertimeApproval,
 } from "../attendanceApi";
@@ -416,6 +418,10 @@ export default function AttendanceCenter() {
   const [reportPayload, setReportPayload] = useState(null);
   const [hrSettings, setHrSettings] = useState(null);
   const [savingHrSettings, setSavingHrSettings] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualError, setManualError] = useState("");
+  const [manualForm, setManualForm] = useState({ employeeId: "", attendanceDate: todayValue(), checkInTime: "", checkOutTime: "", reason: "" });
   const [filters, setFilters] = useState({
     search: "",
     branchId: "",
@@ -583,6 +589,37 @@ export default function AttendanceCenter() {
 
   const printPage = () => window.print();
 
+  const openManualAttendance = () => {
+    setManualForm({ employeeId: filters.employeeId || "", attendanceDate: todayValue(), checkInTime: "", checkOutTime: "", reason: "" });
+    setManualError("");
+    setManualOpen(true);
+  };
+
+  const handleManualAttendanceSubmit = async (event) => {
+    event.preventDefault();
+    if (!manualForm.employeeId || !manualForm.attendanceDate || !manualForm.checkInTime || !manualForm.reason.trim()) {
+      setManualError(isArabic ? "اختر الموظف والتاريخ ووقت الحضور واكتب سبب التصحيح." : "Select the employee, date and check-in time, then enter the correction reason.");
+      return;
+    }
+    setManualSaving(true);
+    setManualError("");
+    try {
+      await saveManualAttendance({
+        employee_id: Number(manualForm.employeeId),
+        attendance_date: manualForm.attendanceDate,
+        check_in_time: manualForm.checkInTime,
+        check_out_time: manualForm.checkOutTime || null,
+        reason: manualForm.reason.trim(),
+      });
+      setManualOpen(false);
+      setRefreshIndex((value) => value + 1);
+    } catch (error) {
+      setManualError(error?.responseBody?.message || error?.message || (isArabic ? "تعذر حفظ التصحيح." : "Failed to save the correction."));
+    } finally {
+      setManualSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-4" dir={isArabic ? "rtl" : "ltr"}>
       <section className="theme-card p-5">
@@ -593,6 +630,10 @@ export default function AttendanceCenter() {
             <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">{pageSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={openManualAttendance} className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-3 text-sm font-black text-emerald-300">
+              <Plus className="h-4 w-4" />
+              {isArabic ? "إضافة حضور / انصراف" : "Add attendance"}
+            </button>
             <button type="button" onClick={() => setRefreshIndex((value) => value + 1)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {text.refresh}
@@ -660,6 +701,32 @@ export default function AttendanceCenter() {
       {activeTab === "reports" ? <ReportsView payload={reportPayload} rows={rows} text={text} onExport={exportRows} /> : null}
 
       {selectedRow ? <DetailsDrawer row={selectedRow} text={text} onClose={() => setSelectedRow(null)} /> : null}
+      {manualOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={() => !manualSaving && setManualOpen(false)}>
+          <form onSubmit={handleManualAttendanceSubmit} onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">{isArabic ? "تصحيح إداري" : "Admin correction"}</div>
+                <h3 className="mt-1 text-2xl font-black text-[var(--text)]">{isArabic ? "إضافة حضور وانصراف" : "Add attendance and checkout"}</h3>
+                <p className="mt-1 text-sm text-[var(--muted)]">{isArabic ? "يتم إنشاء سجل اليوم أو تصحيح السجل الموجود مع حفظ السبب واسم المسؤول." : "Creates the daily record or corrects the existing one with a full audit trail."}</p>
+              </div>
+              <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-[var(--border)] text-[var(--muted)]"><XCircle className="h-5 w-5" /></button>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <Field label={isArabic ? "الموظف" : "Employee"}><NativeSelect value={manualForm.employeeId} onChange={(event) => setManualForm((prev) => ({ ...prev, employeeId: event.target.value }))} required><option value="">{isArabic ? "اختر الموظف" : "Select employee"}</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name}</option>)}</NativeSelect></Field>
+              <Field label={isArabic ? "التاريخ" : "Date"}><NativeInput type="date" value={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, attendanceDate: event.target.value }))} required /></Field>
+              <Field label={isArabic ? "وقت الحضور" : "Check-in time"}><NativeInput type="time" value={manualForm.checkInTime} onChange={(event) => setManualForm((prev) => ({ ...prev, checkInTime: event.target.value }))} required /></Field>
+              <Field label={isArabic ? "وقت الانصراف (اختياري)" : "Checkout time (optional)"}><NativeInput type="time" value={manualForm.checkOutTime} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutTime: event.target.value }))} /></Field>
+              <div className="md:col-span-2"><Field label={isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"}><textarea value={manualForm.reason} onChange={(event) => setManualForm((prev) => ({ ...prev, reason: event.target.value }))} required rows={3} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-500" placeholder={isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"} /></Field></div>
+            </div>
+            {manualError ? <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm font-bold text-rose-300">{manualError}</div> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="h-11 rounded-lg border border-[var(--border)] px-5 text-sm font-black text-[var(--muted)]">{isArabic ? "إلغاء" : "Cancel"}</button>
+              <button type="submit" disabled={manualSaving} className="h-11 rounded-lg bg-emerald-500 px-6 text-sm font-black text-slate-950 disabled:opacity-60">{manualSaving ? (isArabic ? "جارٍ الحفظ..." : "Saving...") : (isArabic ? "حفظ التصحيح" : "Save correction")}</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }
