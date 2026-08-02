@@ -513,7 +513,7 @@ const buildPosCatalogQuery = (query = {}) => {
   const productId = toPositiveInt(query.productId ?? query.product_id);
   const qrToken = clean(query.qr_token ?? query.qrToken ?? query.qr ?? "");
   const sku = clean(query.sku);
-  const limit = Math.min(Math.max(toPositiveInt(query.limit ?? query.per_page ?? query.perPage, 120), 1), 120);
+  const limit = Math.min(Math.max(toPositiveInt(query.limit ?? query.per_page ?? query.perPage, 48), 1), 48);
   const page = Math.max(1, toPositiveInt(query.page, 1));
   const brand = clean(query.brand);
   const manufacturer = clean(query.manufacturer ?? query.manufacturer_name ?? query.manufacturerName);

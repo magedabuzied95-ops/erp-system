@@ -378,7 +378,7 @@ const expandEmployeeProductCardsByColorAndSize = (products = [], filters = {}) =
 };
 
 const buildListParams = ({ search, filters }) => {
-  const params = { limit: 120, inStockOnly: 1 };
+  const params = { limit: 48, inStockOnly: 1 };
   const q = text(search);
   if (q) params.q = q;
   if (filters.category !== "all") params.category = filters.category;

@@ -3720,7 +3720,7 @@ export const getProductsWithVariants = async (req, res) => {
     }
     const page = Math.max(1, Number(req.query.page || 1) || 1);
     const requestedLimit = Number(req.query.limit || 0) || 0;
-    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 120) : null;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 48) : null;
     const offset = limit ? (page - 1) * limit : 0;
     const limitSql = limit ? `LIMIT $${productQueryValues.length + 1} OFFSET $${productQueryValues.length + 2}` : "";
     if (limit) productQueryValues.push(limit, offset);

@@ -49,6 +49,7 @@ test("warehouse catalog forwards its bounded page and active filters to the prod
   assert.match(serviceSource, /\{ manufacturer \}/);
   assert.match(controllerSource, /manufacturer: req\.query\.manufacturer/);
   assert.match(controllerSource, /applied\.manufacturer = rawManufacturer/);
-  assert.match(controllerSource, /route: "GET \/api\/products\/with-variants"[\s\S]*?const limit = requestedLimit > 0 \? Math\.min\(requestedLimit, 120\) : null/);
+  assert.match(source, /const params = \{ limit: 48, inStockOnly: 1 \}/);
+  assert.match(controllerSource, /route: "GET \/api\/products\/with-variants"[\s\S]*?const limit = requestedLimit > 0 \? Math\.min\(requestedLimit, 48\) : null/);
   assert.match(controllerSource, /LEFT JOIN manufacturers m ON m\.id = p\.manufacturer_id/);
 });
