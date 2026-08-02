@@ -31,3 +31,18 @@ test("employee portal updates display audit cards without a page reload", async 
   assert.match(page, /filter\(\(item\) => String\(item\.product_id\) !== String\(product\.product_id\)\)/);
   assert.match(page, /activeTab === "display-audit"/);
 });
+
+test("display audit exposes product, source, and audience navigation", async () => {
+  const [service, panel] = await Promise.all([
+    source("server/services/employeeDisplayAuditService.js"),
+    source("src/modules/employees/components/EmployeeDisplayAuditPanel.jsx"),
+  ]);
+  assert.match(service, /product_group_counts/);
+  assert.match(service, /normalizeProductGroup/);
+  assert.match(panel, /اسنيكرز/);
+  assert.match(panel, /كروكس/);
+  assert.match(panel, /شنط/);
+  assert.match(panel, /شتوي/);
+  assert.match(panel, /<select/);
+  assert.match(panel, /AUDIENCE_TABS/);
+});

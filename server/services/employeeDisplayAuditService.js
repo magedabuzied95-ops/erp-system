@@ -2,6 +2,7 @@ import db from "../database/db.js";
 
 const SOURCE_ORDER = ["imported_vietnam", "mirror_original", "egyptian"];
 const AUDIENCE_ORDER = ["men", "women", "kids"];
+const PRODUCT_GROUP_ORDER = ["sneakers", "crocs", "bags", "winter"];
 const SOURCE_LABELS = { imported_vietnam: "مستورد فيتنامي", mirror_original: "ميرور أوريجنال", egyptian: "مصري" };
 const AUDIENCE_LABELS = { men: "رجالي", women: "حريمي", kids: "أطفال" };
 
@@ -19,6 +20,15 @@ const normalizeAudience = (...values) => {
   if (/(kids|kid|child|children|boy|girl|أطفال|اطفال|طفل)/i.test(text)) return "kids";
   if (/(men|man|male|رجالي|رجال)/i.test(text)) return "men";
   return "men";
+};
+
+const normalizeProductGroup = (value = "") => {
+  const text = String(value || "").trim().toLowerCase();
+  if (/(winter|collection|شتو)/i.test(text)) return "winter";
+  if (/(crocs|croc|كروكس)/i.test(text)) return "crocs";
+  if (/(bag|bags|شنط|شنطة|شنطه)/i.test(text)) return "bags";
+  if (/(sneaker|sneakers|shoe|shoes|slipper|سنيكر|حذاء)/i.test(text)) return "sneakers";
+  return "sneakers";
 };
 
 export const ensureEmployeeDisplayAuditSchema = async (clientOrPool = db) => {
@@ -67,6 +77,7 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
     const source = normalizeSource(row.grade);
     if (!source) continue;
     const audience = normalizeAudience(row.audiences, row.gender);
+    const productGroup = normalizeProductGroup(row.product_type);
     const item = {
       product_id: row.product_id,
       name: row.name || "منتج",
@@ -78,6 +89,7 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
       barcode: row.barcode || "",
       source,
       audience,
+      product_group: productGroup,
       is_displayed: false,
     };
     groups[source].audiences[audience].products.push(item);
@@ -89,7 +101,11 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
     ...groups[source],
     audiences: AUDIENCE_ORDER.map((audience) => groups[source].audiences[audience]).filter((group) => group.count > 0),
   })).filter((section) => section.count > 0);
-  return { total: sections.reduce((sum, section) => sum + section.count, 0), sections };
+  const product_group_counts = Object.fromEntries(PRODUCT_GROUP_ORDER.map((key) => [key, 0]));
+  sections.forEach((section) => section.audiences.forEach((audience) => audience.products.forEach((product) => {
+    product_group_counts[product.product_group] = Number(product_group_counts[product.product_group] || 0) + 1;
+  })));
+  return { total: sections.reduce((sum, section) => sum + section.count, 0), product_group_counts, sections };
 };
 
 export const markEmployeeProductDisplayed = async ({ employee, productId } = {}) => {
