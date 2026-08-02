@@ -135,6 +135,11 @@ export const warmEmployeePayrollPortalMetadataCache = async (clientOrPool = db) 
   await getEmployeeColumns(clientOrPool);
 };
 
+export const refreshEmployeePayrollPortalMetadataCache = async (clientOrPool = db) => {
+  employeeColumnCache.delete("employees");
+  return getEmployeeColumns(clientOrPool);
+};
+
 const optionalEmployeeColumn = (columns, name) =>
   columns.has(name) ? `e.${name}` : `NULL::text`;
 

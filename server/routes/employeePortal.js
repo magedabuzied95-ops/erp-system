@@ -13,6 +13,7 @@ import {
   markEmployeePortalNotificationRead,
   recordEmployeePortalAudit,
   recordEmployeePortalAttendance,
+  refreshEmployeePayrollPortalMetadataCache,
   subscribeEmployeePortalPush,
   unsubscribeEmployeePortalPush,
   updateEmployeeWalletTaskStatus,
@@ -348,6 +349,7 @@ router.patch("/:token/profile", verifyEmployeePortalToken, uploadEmployeeProfile
     }
     await db.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS mobile TEXT`);
     await db.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await refreshEmployeePayrollPortalMetadataCache(db);
     const photoUrl = req.file ? `/uploads/employee-profiles/${req.file.filename}` : clean(employee.photo_url);
     await db.query(
       `UPDATE employees SET mobile = $1, photo_url = COALESCE(NULLIF($2, ''), photo_url), updated_at = NOW() WHERE id = $3 AND tenant_id = $4`,
@@ -358,7 +360,14 @@ router.patch("/:token/profile", verifyEmployeePortalToken, uploadEmployeeProfile
       employee: updatedEmployee,
       timeZone: req.body?.timezone || "Africa/Cairo",
     });
-    return res.json({ success: true, portal });
+    if (portal?.employee_profile && photoUrl) portal.employee_profile.photo_url = photoUrl;
+    if (portal?.employee && photoUrl) portal.employee.photo_url = photoUrl;
+    return res.json({
+      success: true,
+      portal,
+      profile_photo_saved: Boolean(req.file),
+      profile_photo_url: photoUrl,
+    });
   } catch (error) {
     console.error("[employee-payroll-portal] profile update error", error);
     return res.status(500).json({ success: false, message: "تعذر حفظ بيانات الملف الشخصي" });

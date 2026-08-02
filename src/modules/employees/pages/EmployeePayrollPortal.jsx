@@ -1715,7 +1715,15 @@ export default function EmployeePayrollPortal() {
       formData.append("mobile", normalizedMobile);
       formData.append("timezone", browserTimeZone());
       if (profilePhoto) formData.append("profile_photo", profilePhoto);
-      const response = await api.patch(`/employee-portal/${encodeURIComponent(token)}/profile`, formData, { timeoutMs: 30000 });
+      const responseRaw = await fetch(`${API_ORIGIN}/api/employee-portal/${encodeURIComponent(token)}/profile`, {
+        method: "PATCH",
+        body: formData,
+      });
+      const response = await responseRaw.json().catch(() => ({}));
+      if (!responseRaw.ok) throw Object.assign(new Error(response.message || "تعذر حفظ البيانات"), { responseBody: response });
+      if (profilePhoto && (!response.profile_photo_saved || !response.profile_photo_url)) {
+        throw new Error("لم يستلم الخادم ملف الصورة، حاول اختيارها مرة أخرى");
+      }
       if (response.portal) setPortal(response.portal);
       setProfileSettingsOpen(false);
       setPortalNotice("تم حفظ بياناتك بنجاح");
