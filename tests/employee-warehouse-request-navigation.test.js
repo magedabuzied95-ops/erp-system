@@ -19,6 +19,13 @@ test("warehouse request uses a cache-safe direct link and preloads its page", ()
   assert.doesNotMatch(payrollPortalSource, /window\.location\.assign\(`\/employee-portal\/\$\{encodeURIComponent\(token\)\}\/products`\)/);
 });
 
+test("employee identity and quick actions card is rendered on the home tab only", () => {
+  assert.match(
+    payrollPortalSource,
+    /\{showHomeTabSections \? \(\s*<div data-testid="employee-portal-home-card"/
+  );
+});
+
 test("product catalog request starts without an artificial timer", () => {
   assert.match(productsSource, /void loadProducts\(\)/);
   assert.doesNotMatch(productsSource, /setTimeout\(async \(\) =>/);

@@ -3160,7 +3160,8 @@ export default function EmployeePayrollPortal() {
           </div>
         ) : (
           <section className="space-y-2 pb-4">
-            <div className="sticky top-2 z-30 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
+            {showHomeTabSections ? (
+            <div data-testid="employee-portal-home-card" className="sticky top-2 z-30 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
               <div className="flex items-start gap-3">
                 <div className="shrink-0">
                   <EmployeeHeaderAvatar
@@ -3245,6 +3246,7 @@ export default function EmployeePayrollPortal() {
                 ))}
               </div>
             </div>
+            ) : null}
             {showHomeTabSections ? (
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
