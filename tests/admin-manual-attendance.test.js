@@ -22,4 +22,5 @@ test("attendance center exposes the correction form through the admin API", () =
   assert.match(uiSource, /check_out_time/);
   assert.match(uiSource, /check_out_date/);
   assert.match(routeSource, /CHECK_OUT_BEFORE_CHECK_IN/);
+  assert.doesNotMatch(uiSource, /disabled=\{!manualForm\.checkOutTime\}/);
 });
