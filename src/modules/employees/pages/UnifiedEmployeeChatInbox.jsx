@@ -34,6 +34,8 @@ export default function UnifiedEmployeeChatInbox({
     listThreads: () => api.get("/employees/chat/threads"),
     getThread: (threadId) => api.get(`/employees/chat/threads/${encodeURIComponent(threadId)}`),
     sendMessage: (threadId, formData) => api.post(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages`, formData),
+    editMessage: (threadId, messageId, payload) => api.patch(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`, payload),
+    deleteMessage: (threadId, messageId) => api.delete(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`),
     markRead: (threadId) => api.patch(`/employees/chat/threads/${encodeURIComponent(threadId)}/read`, {}),
     emitTyping: (payload) => socket.emit("employee-chat:typing", payload),
     emitStopTyping: (payload) => socket.emit("employee-chat:stop-typing", payload),
@@ -42,6 +44,8 @@ export default function UnifiedEmployeeChatInbox({
         subscribeRealtime("employee-chat:new-message", handlers.onMessage),
         subscribeRealtime("employee-chat:thread-updated", handlers.onThread),
         subscribeRealtime("employee-chat:read", handlers.onRead),
+        subscribeRealtime("employee-chat:message-updated", handlers.onMutation),
+        subscribeRealtime("employee-chat:message-deleted", handlers.onMutation),
         subscribeRealtime("employee-chat:typing", handlers.onTyping),
         subscribeRealtime("employee-chat:stop-typing", handlers.onStopTyping),
       ];

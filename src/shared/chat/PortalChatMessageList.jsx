@@ -1,4 +1,5 @@
-import { ArrowDownCircle, CheckCheck, Loader2, MessageCircle } from "lucide-react";
+import { ArrowDownCircle, CheckCheck, Copy, Loader2, MessageCircle, MoreVertical, Pencil, Reply, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { portalChatMessagePreview, isPortalChatAudioMessage, portalChatTextParts } from "./portalChatUtils";
 import PortalChatAttachment from "./PortalChatAttachment";
@@ -35,6 +36,23 @@ function PortalChatMessageText({ body = "" }) {
   );
 }
 
+const messageDayKey = (value) => {
+  const date = new Date(value || 0);
+  return Number.isFinite(date.getTime()) ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
+};
+
+const messageDayLabel = (value, labels = {}) => {
+  const date = new Date(value || 0);
+  if (!Number.isFinite(date.getTime())) return "";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const key = messageDayKey(date);
+  if (key === messageDayKey(today)) return labels.today || "اليوم";
+  if (key === messageDayKey(yesterday)) return labels.yesterday || "أمس";
+  return new Intl.DateTimeFormat("ar-EG-u-nu-latn", { day: "numeric", month: "long", year: "numeric" }).format(date);
+};
+
 export default function PortalChatMessageList({
   messages = [],
   loading = false,
@@ -50,6 +68,8 @@ export default function PortalChatMessageList({
   typingLabel = "",
   onImageClick,
   onReply,
+  onEdit,
+  onDelete,
   onBeginSwipe,
   onMoveSwipe,
   onEndSwipe,
@@ -58,6 +78,7 @@ export default function PortalChatMessageList({
   className = "",
   style,
 }) {
+  const [activeMenuId, setActiveMenuId] = useState(null);
   const backgroundStyle = style || DEFAULT_BACKGROUND;
 
   const scrollToMessage = (messageId) => {
@@ -72,7 +93,6 @@ export default function PortalChatMessageList({
       style={backgroundStyle}
       onScroll={onScroll}
     >
-      <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-black text-slate-300">{labels.today || "اليوم"}</div>
       {loading ? (
         <div className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-3 py-5 text-sm font-bold text-slate-200">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -81,11 +101,14 @@ export default function PortalChatMessageList({
       ) : messages.length ? (
         messages.map((message, index) => {
           const outgoing = message.sender_type === outgoingSenderType;
+          const deleted = Boolean(message.deleted_at);
+          const showDay = index === 0 || messageDayKey(messages[index - 1]?.created_at) !== messageDayKey(message.created_at);
           const isAudioMessage = isPortalChatAudioMessage(message);
           const hasMessageBody = Boolean(String(message.body || "").trim());
           const voiceMessage = isAudioMessage && !hasMessageBody;
           return (
             <div id={`${messageIdPrefix}-${message.id}`} key={message.id || `${message.sender_type || "sender"}-${message.body || message.attachment_name || ""}-${message.created_at || ""}`}>
+              {showDay ? <div className="mx-auto mb-3 mt-2 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-black text-slate-300">{messageDayLabel(message.created_at, labels)}</div> : null}
               {index === firstUnreadIndex ? (
                 <div className="mx-auto mb-2 w-fit rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-100">
                   {labels.unread || "رسائل غير مقروءة"}
@@ -99,13 +122,33 @@ export default function PortalChatMessageList({
                   onTouchCancel={onEndSwipe}
                   className={`relative touch-pan-y select-none break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(78vw,18.5rem)] px-2 py-1" : "w-fit max-w-[78%] px-3 py-2"} ${outgoing ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
                 >
+                  {!deleted ? (
+                    <div className="absolute end-1 top-1 z-10">
+                      <button
+                        type="button"
+                        onClick={() => setActiveMenuId((current) => String(current) === String(message.id) ? null : message.id)}
+                        className="grid h-7 w-7 place-items-center rounded-full bg-black/10 text-white/70 opacity-70 transition hover:bg-black/20 hover:opacity-100"
+                        aria-label={labels.messageActions || "إجراءات الرسالة"}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                      {String(activeMenuId) === String(message.id) ? (
+                        <div className="absolute end-0 top-8 z-30 min-w-36 overflow-hidden rounded-xl border border-white/10 bg-[#233138] py-1 text-xs font-bold text-white shadow-2xl">
+                          {onReply ? <button type="button" onClick={() => { onReply(message); setActiveMenuId(null); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-white/10"><Reply className="h-3.5 w-3.5" />{labels.reply || "رد"}</button> : null}
+                          {message.body ? <button type="button" onClick={() => { navigator.clipboard?.writeText?.(message.body); setActiveMenuId(null); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-white/10"><Copy className="h-3.5 w-3.5" />{labels.copy || "نسخ"}</button> : null}
+                          {outgoing && message.body && onEdit ? <button type="button" onClick={() => { onEdit(message); setActiveMenuId(null); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-white/10"><Pencil className="h-3.5 w-3.5" />{labels.edit || "تعديل"}</button> : null}
+                          {outgoing && onDelete ? <button type="button" onClick={() => { onDelete(message); setActiveMenuId(null); }} className="flex w-full items-center gap-2 px-3 py-2 text-start text-red-300 hover:bg-white/10"><Trash2 className="h-3.5 w-3.5" />{labels.delete || "حذف لدي الجميع"}</button> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {message.reply_to_message_id ? (
                     <button type="button" onClick={() => scrollToMessage(message.reply_to_message_id)} className="mb-1.5 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
                       <div className="font-black">{message.reply_sender_type === outgoingSenderType ? outgoingLabel : incomingLabel}</div>
                       <div className="truncate">{portalChatMessagePreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name }, labels)}</div>
                     </button>
                   ) : null}
-                  <PortalChatAttachment
+                  {!deleted ? <PortalChatAttachment
                     message={message}
                     compact
                     outgoing={outgoing}
@@ -114,8 +157,8 @@ export default function PortalChatMessageList({
                     read={Boolean(message.read_at)}
                     onImageClick={onImageClick}
                     labels={labels}
-                  />
-                  {message.body ? <PortalChatMessageText body={message.body} /> : null}
+                  /> : null}
+                  {deleted ? <div className="pe-5 italic text-slate-300/70">{labels.deleted || "تم حذف هذه الرسالة"}</div> : message.body ? <PortalChatMessageText body={message.body} /> : null}
                   {!voiceMessage && onReply ? (
                     <button type="button" onClick={() => onReply(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">
                       {labels.reply || "رد"}
@@ -124,6 +167,7 @@ export default function PortalChatMessageList({
                   {!voiceMessage ? (
                     <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
                       <span>{timeFormatter(message.created_at)}</span>
+                      {message.edited_at && !deleted ? <span>{labels.edited || "معدلة"}</span> : null}
                       {outgoing ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
                     </div>
                   ) : null}

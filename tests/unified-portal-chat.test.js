@@ -81,3 +81,22 @@ test("manager employee chat opens as a full-screen mobile conversation", async (
   assert.match(sharedChat, /safe-area-inset-top/);
   assert.match(composer, /safe-area-inset-bottom/);
 });
+
+test("employee chat supports WhatsApp-style search and message management", async () => {
+  const [sharedChat, messageList, employeePortal, employeeRoute, service] = await Promise.all([
+    source("src/shared/chat/SharedPortalChat.jsx"),
+    source("src/shared/chat/PortalChatMessageList.jsx"),
+    source("src/modules/employees/pages/EmployeePayrollPortal.jsx"),
+    source("server/routes/employeePortal.js"),
+    source("server/services/employeeChatService.js"),
+  ]);
+  assert.match(sharedChat, /threadSearch/);
+  assert.match(sharedChat, /messageSearch/);
+  assert.match(messageList, /onEdit/);
+  assert.match(messageList, /onDelete/);
+  assert.match(messageList, /تم حذف هذه الرسالة/);
+  assert.match(employeePortal, /editingChatMessage/);
+  assert.match(employeeRoute, /chat\/messages\/:messageId/);
+  assert.match(service, /employee-chat:message-updated/);
+  assert.match(service, /employee-chat:message-deleted/);
+});

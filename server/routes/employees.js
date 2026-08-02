@@ -9,6 +9,7 @@ import {
   cleanupFakeEmployees,
   createCommissionRule,
   createEmployeePenaltyRecord,
+  deleteEmployeeChatThreadMessageRecord,
   cancelEmployeePenaltyRecord,
   getEmployees,
   getCommissions,
@@ -30,6 +31,7 @@ import {
   updateEmployeePenaltyRecord,
   updateEmployeePayrollSettings,
   updateEmployeeGamificationSettingsRecord,
+  updateEmployeeChatThreadMessageRecord,
   repairMissingManagerPortalTokensRecord,
 } from "../controllers/employeesController.js";
 
@@ -108,6 +110,8 @@ router.patch("/portal-requests/:id", protect, permit("employees", "edit"), revie
 router.get("/chat/threads", protect, permit("employees", "view"), getEmployeeChatThreads);
 router.get("/chat/threads/:threadId", protect, permit("employees", "view"), getEmployeeChatThreadRecord);
 router.post("/chat/threads/:threadId/messages", protect, permit("employees", "edit"), uploadEmployeeChatAttachment, sendEmployeeChatThreadMessageRecord);
+router.patch("/chat/threads/:threadId/messages/:messageId", protect, permit("employees", "edit"), updateEmployeeChatThreadMessageRecord);
+router.delete("/chat/threads/:threadId/messages/:messageId", protect, permit("employees", "edit"), deleteEmployeeChatThreadMessageRecord);
 router.patch("/chat/threads/:threadId/read", protect, permit("employees", "edit"), markEmployeeChatThreadReadRecord);
 router.get("/gamification/settings", protect, permit("employees", "view"), getEmployeeGamificationSettingsRecord);
 router.patch("/gamification/settings", protect, permit("employees", "edit"), updateEmployeeGamificationSettingsRecord);

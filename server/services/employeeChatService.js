@@ -35,6 +35,8 @@ const messageSelect = `
     rm.attachment_type AS reply_attachment_type,
     rm.attachment_name AS reply_attachment_name,
     m.read_at,
+    m.edited_at,
+    m.deleted_at,
     m.created_at
   FROM employee_chat_messages m
   LEFT JOIN employee_chat_messages rm ON rm.id = m.reply_to_message_id
@@ -343,6 +345,81 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
     message: error?.message || String(error),
   }));
   return { thread: updatedThread || { ...thread, last_message_at: message.created_at }, message };
+};
+
+const loadMessageForMutation = async ({ messageId, threadId = null, employeeId = null, tenantId = null, senderType } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const result = await db.query(
+    `
+    SELECT m.*, t.employee_id, t.tenant_id
+    FROM employee_chat_messages m
+    JOIN employee_chat_threads t ON t.id = m.thread_id
+    WHERE m.id = $1
+      AND ($2::bigint IS NULL OR m.thread_id = $2::bigint)
+      AND ($3::bigint IS NULL OR t.employee_id = $3::bigint)
+      AND ($4::bigint IS NULL OR t.tenant_id = $4::bigint)
+      AND m.sender_type = $5
+    LIMIT 1
+    `,
+    [messageId, threadId, employeeId, tenantId, senderType]
+  );
+  const message = result.rows[0];
+  if (!message) throw chatError("Message not found", 404, "message_not_found");
+  if (message.deleted_at) throw chatError("Message was deleted", 409, "message_deleted");
+  return message;
+};
+
+const emitMessageMutation = async (message, eventName) => {
+  const thread = await loadThreadSummary(message.thread_id);
+  emitChatEvent([employeeChatRoom(message.employee_id), adminChatRoom(message.tenant_id)], eventName, {
+    thread,
+    thread_id: message.thread_id,
+    employee_id: message.employee_id,
+    message,
+  });
+  emitChatEvent([adminChatRoom(message.tenant_id)], "employee-chat:thread-updated", { thread });
+  return { thread, message };
+};
+
+const mutateChatMessage = async ({ message, body, remove = false } = {}) => {
+  const normalizedBody = clean(body);
+  if (!remove && !normalizedBody) throw chatError("Message text is required", 400, "message_required");
+  if (!remove && normalizedBody.length > 4000) throw chatError("Message is too long", 400, "message_too_long");
+  const result = await db.query(
+    remove
+      ? `UPDATE employee_chat_messages
+         SET body = '', attachment_url = NULL, attachment_type = NULL, attachment_name = NULL,
+             attachment_size = NULL, attachment_mime = NULL, attachment_duration_seconds = NULL,
+             deleted_at = NOW(), edited_at = NULL
+         WHERE id = $1 RETURNING *`
+      : `UPDATE employee_chat_messages SET body = $2, edited_at = NOW() WHERE id = $1 RETURNING *`,
+    remove ? [message.id] : [message.id, normalizedBody]
+  );
+  return { ...result.rows[0], employee_id: message.employee_id, tenant_id: message.tenant_id };
+};
+
+export const updateEmployeeChatMessage = async ({ employee, messageId, body } = {}) => {
+  const current = await loadMessageForMutation({ messageId, employeeId: employee?.id, senderType: "employee" });
+  const message = await mutateChatMessage({ message: current, body });
+  return emitMessageMutation(message, "employee-chat:message-updated");
+};
+
+export const deleteEmployeeChatMessage = async ({ employee, messageId } = {}) => {
+  const current = await loadMessageForMutation({ messageId, employeeId: employee?.id, senderType: "employee" });
+  const message = await mutateChatMessage({ message: current, remove: true });
+  return emitMessageMutation(message, "employee-chat:message-deleted");
+};
+
+export const updateAdminEmployeeChatMessage = async ({ tenantId = null, threadId, messageId, body } = {}) => {
+  const current = await loadMessageForMutation({ messageId, threadId, tenantId, senderType: "admin" });
+  const message = await mutateChatMessage({ message: current, body });
+  return emitMessageMutation(message, "employee-chat:message-updated");
+};
+
+export const deleteAdminEmployeeChatMessage = async ({ tenantId = null, threadId, messageId } = {}) => {
+  const current = await loadMessageForMutation({ messageId, threadId, tenantId, senderType: "admin" });
+  const message = await mutateChatMessage({ message: current, remove: true });
+  return emitMessageMutation(message, "employee-chat:message-deleted");
 };
 
 export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } = {}) => {

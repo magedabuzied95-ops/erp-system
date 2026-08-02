@@ -24,6 +24,7 @@ import {
   Package2,
   QrCode,
   RefreshCw,
+  Search,
   ReceiptText,
   ShieldCheck,
   Smartphone,
@@ -1408,6 +1409,8 @@ export default function EmployeePayrollPortal() {
   const [chatAttachmentDuration, setChatAttachmentDuration] = useState(0);
   const [chatThread, setChatThread] = useState(null);
   const [replyToChat, setReplyToChat] = useState(null);
+  const [editingChatMessage, setEditingChatMessage] = useState(null);
+  const [chatSearch, setChatSearch] = useState("");
   const [chatImagePreview, setChatImagePreview] = useState("");
   const [chatTyping, setChatTyping] = useState(false);
   const [showChatJump, setShowChatJump] = useState(false);
@@ -1428,6 +1431,12 @@ export default function EmployeePayrollPortal() {
   const [completedExpanded, setCompletedExpanded] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0, displayRefillAlerts: 0 });
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
+  const visibleChatMessages = useMemo(() => {
+    const query = chatSearch.trim().toLocaleLowerCase("ar");
+    if (!query) return chatMessages;
+    return chatMessages.filter((message) => [message.body, message.attachment_name, message.reply_body]
+      .some((value) => String(value || "").toLocaleLowerCase("ar").includes(query)));
+  }, [chatMessages, chatSearch]);
   const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
   const [profileMobile, setProfileMobile] = useState("");
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -2421,6 +2430,11 @@ export default function EmployeePayrollPortal() {
         )
       );
     };
+    const onMutation = (payload = {}) => {
+      const message = payload.message;
+      if (!message?.id) return;
+      setChatMessages((current) => current.map((item) => String(item.id) === String(message.id) ? { ...item, ...message } : item));
+    };
     const onTyping = (payload = {}) => {
       if (payload.sender_type !== "admin") return;
       setChatTyping(true);
@@ -2437,6 +2451,8 @@ export default function EmployeePayrollPortal() {
     chatSocket.on("connect_error", onDisconnect);
     chatSocket.on("employee-chat:new-message", onMessage);
     chatSocket.on("employee-chat:read", onRead);
+    chatSocket.on("employee-chat:message-updated", onMutation);
+    chatSocket.on("employee-chat:message-deleted", onMutation);
     chatSocket.on("employee-chat:typing", onTyping);
     chatSocket.on("employee-chat:stop-typing", onStopTyping);
     chatSocket.connect();
@@ -2447,6 +2463,8 @@ export default function EmployeePayrollPortal() {
       chatSocket.off("connect_error", onDisconnect);
       chatSocket.off("employee-chat:new-message", onMessage);
       chatSocket.off("employee-chat:read", onRead);
+      chatSocket.off("employee-chat:message-updated", onMutation);
+      chatSocket.off("employee-chat:message-deleted", onMutation);
       chatSocket.off("employee-chat:typing", onTyping);
       chatSocket.off("employee-chat:stop-typing", onStopTyping);
       chatSocket.disconnect();
@@ -2523,6 +2541,22 @@ export default function EmployeePayrollPortal() {
   const submitChatMessage = async (event) => {
     event.preventDefault();
     const message = chatBody.trim();
+    if (editingChatMessage) {
+      if (!message || chatSaving) return;
+      try {
+        setChatSaving(true);
+        setChatError("");
+        await api.patch(`/employee-portal/${encodeURIComponent(token)}/chat/messages/${encodeURIComponent(editingChatMessage.id)}`, { body: message });
+        setChatBody("");
+        setEditingChatMessage(null);
+        await loadEmployeeChat({ silent: true });
+      } catch (err) {
+        setChatError(err?.responseBody?.message || err?.message || "تعذر تعديل الرسالة");
+      } finally {
+        setChatSaving(false);
+      }
+      return;
+    }
     if ((!message && !chatAttachment) || chatSaving) return;
     try {
       setChatSaving(true);
@@ -2920,6 +2954,25 @@ export default function EmployeePayrollPortal() {
       setNotificationMessage(err?.responseBody?.message || err?.message || "تعذر إعادة ضبط الإشعارات الآن.");
     } finally {
       setNotificationSaving(false);
+    }
+  };
+
+  const beginEditChatMessage = (message) => {
+    setReplyToChat(null);
+    setChatAttachment(null);
+    setEditingChatMessage(message);
+    setChatBody(message.body || "");
+    window.setTimeout(() => chatInputRef.current?.focus?.(), 30);
+  };
+
+  const deleteChatMessage = async (message) => {
+    if (!message?.id || !window.confirm("حذف هذه الرسالة لدى الجميع؟")) return;
+    try {
+      setChatError("");
+      await api.delete(`/employee-portal/${encodeURIComponent(token)}/chat/messages/${encodeURIComponent(message.id)}`);
+      await loadEmployeeChat({ silent: true });
+    } catch (err) {
+      setChatError(err?.responseBody?.message || err?.message || "تعذر حذف الرسالة");
     }
   };
 
@@ -4097,11 +4150,16 @@ export default function EmployeePayrollPortal() {
                   <h2 className="truncate text-[16px] font-bold leading-5">M1 Store</h2>
                   <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">حساب أعمال</p>
                 </div>
+                <label className="flex h-9 max-w-36 items-center gap-1.5 rounded-full bg-white/10 px-2 text-slate-200">
+                  <Search className="h-4 w-4 shrink-0" />
+                  <input value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="بحث" className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-300" />
+                  {chatSearch ? <button type="button" onClick={() => setChatSearch("")}><X className="h-3.5 w-3.5" /></button> : null}
+                </label>
               </header>
               {chatError ? <div className="mx-4 my-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             </div>
             <PortalChatMessageList
-              messages={chatMessages}
+              messages={visibleChatMessages}
               loading={chatLoading}
               labels={{
                 ...text,
@@ -4123,6 +4181,9 @@ export default function EmployeePayrollPortal() {
               onJumpToBottom={scrollChatToBottom}
               typingLabel={chatTyping ? "الإدارة تكتب الآن..." : ""}
               onImageClick={setChatImagePreview}
+              onReply={setReplyToChat}
+              onEdit={beginEditChatMessage}
+              onDelete={deleteChatMessage}
               onBeginSwipe={beginChatSwipe}
               onMoveSwipe={moveChatSwipe}
               onEndSwipe={endChatSwipe}
@@ -4140,6 +4201,8 @@ export default function EmployeePayrollPortal() {
               setAttachmentDuration={setChatAttachmentDuration}
               replyTo={replyToChat}
               setReplyTo={setReplyToChat}
+              editingMessage={editingChatMessage}
+              setEditingMessage={setEditingChatMessage}
               labels={{
                 ...text,
                 outgoingSenderType: "employee",

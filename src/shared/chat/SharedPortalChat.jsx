@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Loader2, MessageCircle, RefreshCw, UserRound, X } from "lucide-react";
+import { ArrowRight, Loader2, MessageCircle, RefreshCw, Search, UserRound, X } from "lucide-react";
 
 import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../lib/chatState";
 import PortalChatComposer from "./PortalChatComposer";
@@ -92,6 +92,9 @@ export default function SharedPortalChat({
   const [attachment, setAttachment] = useState(null);
   const [attachmentDuration, setAttachmentDuration] = useState(0);
   const [replyTo, setReplyTo] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [threadSearch, setThreadSearch] = useState("");
+  const [messageSearch, setMessageSearch] = useState("");
   const [imagePreview, setImagePreview] = useState("");
   const [typingLabel, setTypingLabel] = useState("");
   const [showJump, setShowJump] = useState(false);
@@ -187,13 +190,25 @@ export default function SharedPortalChat({
         },
         thread: item,
       }));
-    return [...employeeRows, ...threadOnlyRows].sort((left, right) => {
+    const query = threadSearch.trim().toLocaleLowerCase("ar");
+    return [...employeeRows, ...threadOnlyRows].filter(({ employee, thread: employeeThread }) => {
+      if (!query) return true;
+      return [employee?.full_name, employee?.employee_name, employee?.employee_code, employee?.branch_name, employeeThread?.last_message]
+        .some((value) => String(value || "").toLocaleLowerCase("ar").includes(query));
+    }).sort((left, right) => {
       if (left.thread && right.thread) return threadSortValue(right.thread) - threadSortValue(left.thread);
       if (left.thread) return -1;
       if (right.thread) return 1;
       return String(left.employee?.full_name || left.employee?.employee_name || "").localeCompare(String(right.employee?.full_name || right.employee?.employee_name || ""), "ar");
     });
-  }, [employees, normalizedThreads, threadMap]);
+  }, [employees, normalizedThreads, threadMap, threadSearch]);
+
+  const visibleMessages = useMemo(() => {
+    const query = messageSearch.trim().toLocaleLowerCase("ar");
+    if (!query) return messages;
+    return messages.filter((message) => [message.body, message.attachment_name, message.reply_body]
+      .some((value) => String(value || "").toLocaleLowerCase("ar").includes(query)));
+  }, [messageSearch, messages]);
 
   useEffect(() => {
     selectedThreadIdRef.current = activeThreadId || selectedThreadId || "";
@@ -344,6 +359,7 @@ export default function SharedPortalChat({
         if (nextThread?.id) setThreads((current) => mergeChatThreads(current, [nextThread]));
       },
       onRead: refreshActiveThread,
+      onMutation: refreshActiveThread,
       onTyping: (payload = {}) => {
         const threadId = eventThreadId(payload);
         if (threadId && threadId === String(selectedThreadIdRef.current || "")) {
@@ -383,6 +399,8 @@ export default function SharedPortalChat({
     setSelectedEmployeeId(nextEmployeeId);
     setSelectedThreadId(nextThreadId);
     setReplyTo(null);
+    setEditingMessage(null);
+    setMessageSearch("");
     setAttachment(null);
     setAttachmentDuration(0);
     setTypingLabel("");
@@ -412,6 +430,22 @@ export default function SharedPortalChat({
   const submitMessage = async (event) => {
     event.preventDefault();
     const text = body.trim();
+    if (editingMessage) {
+      if (!text || !activeThreadId || !apiAdapter?.editMessage) return;
+      try {
+        setSending(true);
+        setError("");
+        await apiAdapter.editMessage(activeThreadId, editingMessage.id, { body: text });
+        setEditingMessage(null);
+        setBody("");
+        await loadThread(activeThreadId, { silent: true });
+      } catch (err) {
+        setError(err?.responseBody?.message || err?.message || "تعذر تعديل الرسالة");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
     if ((!text && !attachment) || !activeThreadId || !apiAdapter?.sendMessage) return;
     const formData = new FormData();
     if (text) formData.append("body", text);
@@ -443,6 +477,27 @@ export default function SharedPortalChat({
       setError(err?.responseBody?.message || err?.message || "تعذر إرسال الرسالة");
     } finally {
       setSending(false);
+    }
+  };
+
+  const beginEditMessage = (message) => {
+    setReplyTo(null);
+    setAttachment(null);
+    setEditingMessage(message);
+    setBody(message.body || "");
+    window.setTimeout(() => inputRef.current?.focus?.(), 30);
+  };
+
+  const deleteMessage = async (message) => {
+    if (!activeThreadId || !message?.id || !apiAdapter?.deleteMessage) return;
+    if (!window.confirm("حذف هذه الرسالة لدى الجميع؟")) return;
+    try {
+      setError("");
+      await apiAdapter.deleteMessage(activeThreadId, message.id);
+      await loadThread(activeThreadId, { silent: true });
+      await loadThreads();
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر حذف الرسالة");
     }
   };
 
@@ -623,6 +678,11 @@ export default function SharedPortalChat({
 
       <div className={`grid min-h-0 flex-1 md:min-h-[34rem] ${currentPanel ? "xl:grid-cols-[22rem_1fr_20rem] md:grid-cols-[20rem_1fr]" : "md:grid-cols-[22rem_1fr]"}`}>
         <aside className={`${mobileFullScreen && mobileConversationOpen ? "hidden md:flex" : "flex"} min-h-0 min-w-0 flex-col border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l`}>
+          <label className="mx-2 mt-2 flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-[var(--muted)]">
+            <Search className="h-4 w-4 shrink-0" />
+            <input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder="ابحث باسم الموظف أو الرسالة" className="min-w-0 flex-1 bg-transparent text-sm font-bold text-[var(--text)] outline-none" />
+            {threadSearch ? <button type="button" onClick={() => setThreadSearch("")}><X className="h-4 w-4" /></button> : null}
+          </label>
           {loadingThreads && !sidebarRows.length ? (
             <div className="flex items-center justify-center gap-2 p-6 text-sm font-bold text-[var(--muted)]">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -694,13 +754,18 @@ export default function SharedPortalChat({
                     <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || selectedThread?.employee_name || "موظف"}</div>
                     <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">{activeThreadId ? "المحادثة جاهزة" : "لا توجد رسائل حتى الآن"}</div>
                   </div>
+                  <label className="flex h-9 max-w-44 items-center gap-1.5 rounded-full bg-white/10 px-2 text-slate-200">
+                    <Search className="h-4 w-4 shrink-0" />
+                    <input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder="بحث" className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-300" />
+                    {messageSearch ? <button type="button" onClick={() => setMessageSearch("")}><X className="h-3.5 w-3.5" /></button> : null}
+                  </label>
                 </div>
               </div>
               <div className="mx-auto mt-1.5 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-slate-300">
                 {secureNotice}
               </div>
               <PortalChatMessageList
-                messages={messages}
+                messages={visibleMessages}
                 loading={loadingThread}
                 labels={{
                   today: "اليوم",
@@ -723,6 +788,8 @@ export default function SharedPortalChat({
                 typingLabel={typingLabel}
                 onImageClick={setImagePreview}
                 onReply={allowReply ? setReplyTo : null}
+                onEdit={apiAdapter?.editMessage ? beginEditMessage : null}
+                onDelete={apiAdapter?.deleteMessage ? deleteMessage : null}
                 onBeginSwipe={beginSwipe}
                 onMoveSwipe={moveSwipe}
                 onEndSwipe={endSwipe}
@@ -739,6 +806,8 @@ export default function SharedPortalChat({
                 setAttachmentDuration={setAttachmentDuration}
                 replyTo={replyTo}
                 setReplyTo={setReplyTo}
+                editingMessage={editingMessage}
+                setEditingMessage={setEditingMessage}
                 labels={{
                   outgoingSenderType: "admin",
                   you: "الإدارة",

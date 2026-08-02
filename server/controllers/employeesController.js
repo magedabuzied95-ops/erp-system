@@ -28,10 +28,12 @@ import {
   regenerateManagerPortalToken,
 } from "../services/managerPortalService.js";
 import {
+  deleteAdminEmployeeChatMessage,
   getAdminEmployeeChatThread,
   listEmployeeChatThreads,
   markAdminEmployeeChatThreadRead,
   sendAdminEmployeeChatMessage,
+  updateAdminEmployeeChatMessage,
 } from "../services/employeeChatService.js";
 import { sendEmployeePortalPush } from "../services/employeePortalPushService.js";
 
@@ -398,6 +400,31 @@ export const markEmployeeChatThreadReadRecord = async (req, res) => {
   } catch (error) {
     console.error("[employees] chat thread read error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to mark employee chat read" });
+  }
+};
+
+export const updateEmployeeChatThreadMessageRecord = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const result = await updateAdminEmployeeChatMessage({
+      tenantId,
+      threadId: req.params.threadId,
+      messageId: req.params.messageId,
+      body: req.body?.body || req.body?.message || "",
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to update message" });
+  }
+};
+
+export const deleteEmployeeChatThreadMessageRecord = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const result = await deleteAdminEmployeeChatMessage({ tenantId, threadId: req.params.threadId, messageId: req.params.messageId });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to delete message" });
   }
 };
 

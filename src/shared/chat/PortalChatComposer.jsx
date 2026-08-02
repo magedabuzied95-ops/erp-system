@@ -13,6 +13,8 @@ export default function PortalChatComposer({
   setAttachmentDuration,
   replyTo = null,
   setReplyTo,
+  editingMessage = null,
+  setEditingMessage,
   labels = {},
   fileInputRef,
   inputRef,
@@ -57,6 +59,15 @@ export default function PortalChatComposer({
               <button type="button" onClick={() => setReplyTo?.(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-red-200">
                 <X className="h-3.5 w-3.5" />
               </button>
+            </div>
+          ) : null}
+          {editingMessage ? (
+            <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold leading-4 text-white">
+              <div className="min-w-0 flex-1 border-r-2 border-amber-300 pr-2 text-start">
+                <div className="text-amber-200">{labels.editing || "تعديل الرسالة"}</div>
+                <div className="truncate opacity-80">{editingMessage.body}</div>
+              </div>
+              <button type="button" onClick={() => { setEditingMessage?.(null); setBody?.(""); }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-red-200"><X className="h-3.5 w-3.5" /></button>
             </div>
           ) : null}
           {attachment ? (

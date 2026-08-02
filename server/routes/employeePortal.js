@@ -31,7 +31,12 @@ import {
   updateInventoryCountSession,
   upsertInventoryCountItem,
 } from "../services/inventoryCountService.js";
-import { getEmployeeChat, sendEmployeeChatMessage } from "../services/employeeChatService.js";
+import {
+  deleteEmployeeChatMessage,
+  getEmployeeChat,
+  sendEmployeeChatMessage,
+  updateEmployeeChatMessage,
+} from "../services/employeeChatService.js";
 import {
   listDisplayRefillAlertsForEmployee,
   isDisplayRefillSupervisor,
@@ -956,6 +961,28 @@ router.post("/:token/chat/messages", verifyEmployeePortalToken, uploadEmployeeCh
   } catch (error) {
     console.error("[employee-payroll-portal] chat message error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send message" });
+  }
+});
+
+router.patch("/:token/chat/messages/:messageId", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const result = await updateEmployeeChatMessage({
+      employee: req.employeePortalEmployee,
+      messageId: req.params.messageId,
+      body: req.body?.body || req.body?.message || "",
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to update message" });
+  }
+});
+
+router.delete("/:token/chat/messages/:messageId", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const result = await deleteEmployeeChatMessage({ employee: req.employeePortalEmployee, messageId: req.params.messageId });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to delete message" });
   }
 });
 
