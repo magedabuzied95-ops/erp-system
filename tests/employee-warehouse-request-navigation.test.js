@@ -11,6 +11,7 @@ const productsSource = await readFile(
   "utf8"
 );
 const appSource = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+const mainSource = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
 
 test("warehouse request uses a cache-safe direct link and preloads its page", () => {
   assert.match(payrollPortalSource, /import\("\.\/EmployeePortalProducts"\)/);
@@ -26,6 +27,8 @@ test("inventory uses a direct link and remains inside the installed employee app
   assert.match(payrollPortalSource, /href=\{`\$\{employeeFeatureBasePath\}\/\$\{encodeURIComponent\(token\)\}\/inventory`\}/);
   assert.match(appSource, /path="\/employee-app\/:token\/inventory" element=\{<EmployeePortalInventory \/>\}/);
   assert.match(appSource, /path="\/employee-app\/:token\/inventory\/:sessionId" element=\{<EmployeePortalInventory \/>\}/);
+  assert.match(mainSource, /import\("\.\/modules\/employees\/pages\/EmployeePortalInventory\.jsx"\)/);
+  assert.match(mainSource, /path="\/employee-app\/:token\/inventory" element=\{<EmployeePortalInventory \/>\}/);
 });
 
 test("employee identity and quick actions card is rendered on the home tab only", () => {

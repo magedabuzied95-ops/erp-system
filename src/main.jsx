@@ -93,11 +93,18 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
 
 if (isEmployeeAppRoute) {
-  import("./modules/employees/pages/EmployeeAppShell.jsx").then(({ default: EmployeeAppShell }) => {
+  Promise.all([
+    import("./modules/employees/pages/EmployeeAppShell.jsx"),
+    import("./modules/employees/pages/EmployeePortalProducts.jsx"),
+    import("./modules/employees/pages/EmployeePortalInventory.jsx"),
+  ]).then(([{ default: EmployeeAppShell }, { default: EmployeePortalProducts }, { default: EmployeePortalInventory }]) => {
     root.render(
       <ThemeProvider>
         <BrowserRouter>
           <Routes>
+            <Route path="/employee-app/:token/products" element={<EmployeePortalProducts />} />
+            <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
+            <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
             <Route path="/employee-app/*" element={<EmployeeAppShell />} />
           </Routes>
