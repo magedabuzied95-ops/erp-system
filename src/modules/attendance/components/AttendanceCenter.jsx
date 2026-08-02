@@ -421,7 +421,7 @@ export default function AttendanceCenter() {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualSaving, setManualSaving] = useState(false);
   const [manualError, setManualError] = useState("");
-  const [manualForm, setManualForm] = useState({ employeeId: "", attendanceDate: todayValue(), checkInTime: "", checkOutTime: "", reason: "" });
+  const [manualForm, setManualForm] = useState({ employeeId: "", attendanceDate: todayValue(), checkInTime: "", checkOutDate: todayValue(), checkOutTime: "", reason: "" });
   const [filters, setFilters] = useState({
     search: "",
     branchId: "",
@@ -590,7 +590,7 @@ export default function AttendanceCenter() {
   const printPage = () => window.print();
 
   const openManualAttendance = () => {
-    setManualForm({ employeeId: filters.employeeId || "", attendanceDate: todayValue(), checkInTime: "", checkOutTime: "", reason: "" });
+    setManualForm({ employeeId: filters.employeeId || "", attendanceDate: todayValue(), checkInTime: "", checkOutDate: todayValue(), checkOutTime: "", reason: "" });
     setManualError("");
     setManualOpen(true);
   };
@@ -608,6 +608,7 @@ export default function AttendanceCenter() {
         employee_id: Number(manualForm.employeeId),
         attendance_date: manualForm.attendanceDate,
         check_in_time: manualForm.checkInTime,
+        check_out_date: manualForm.checkOutTime ? manualForm.checkOutDate : null,
         check_out_time: manualForm.checkOutTime || null,
         reason: manualForm.reason.trim(),
       });
@@ -714,8 +715,9 @@ export default function AttendanceCenter() {
             </div>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               <Field label={isArabic ? "الموظف" : "Employee"}><NativeSelect value={manualForm.employeeId} onChange={(event) => setManualForm((prev) => ({ ...prev, employeeId: event.target.value }))} required><option value="">{isArabic ? "اختر الموظف" : "Select employee"}</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name}</option>)}</NativeSelect></Field>
-              <Field label={isArabic ? "التاريخ" : "Date"}><NativeInput type="date" value={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, attendanceDate: event.target.value }))} required /></Field>
+              <Field label={isArabic ? "تاريخ الحضور" : "Check-in date"}><NativeInput type="date" value={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, attendanceDate: event.target.value, checkOutDate: prev.checkOutTime ? prev.checkOutDate : event.target.value }))} required /></Field>
               <Field label={isArabic ? "وقت الحضور" : "Check-in time"}><NativeInput type="time" value={manualForm.checkInTime} onChange={(event) => setManualForm((prev) => ({ ...prev, checkInTime: event.target.value }))} required /></Field>
+              <Field label={isArabic ? "تاريخ الانصراف (اختياري)" : "Checkout date (optional)"}><NativeInput type="date" value={manualForm.checkOutDate} min={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutDate: event.target.value }))} disabled={!manualForm.checkOutTime} /></Field>
               <Field label={isArabic ? "وقت الانصراف (اختياري)" : "Checkout time (optional)"}><NativeInput type="time" value={manualForm.checkOutTime} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutTime: event.target.value }))} /></Field>
               <div className="md:col-span-2"><Field label={isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"}><textarea value={manualForm.reason} onChange={(event) => setManualForm((prev) => ({ ...prev, reason: event.target.value }))} required rows={3} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-500" placeholder={isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"} /></Field></div>
             </div>

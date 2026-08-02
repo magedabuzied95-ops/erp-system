@@ -335,6 +335,7 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
     const attendanceDate = dateKey(req.body?.attendance_date || req.body?.attendanceDate);
     const checkInTime = String(req.body?.check_in_time || req.body?.checkInTime || "").trim();
     const checkOutTime = String(req.body?.check_out_time || req.body?.checkOutTime || "").trim();
+    const checkOutDate = dateKey(req.body?.check_out_date || req.body?.checkOutDate || attendanceDate);
     const reason = String(req.body?.reason || "").trim();
 
     if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(attendanceDate) || !checkInTime || !reason) {
@@ -352,12 +353,19 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
 
     let checkOutAt = null;
     if (checkOutTime) {
-      checkOutAt = parseManualAttendanceTimestamp(attendanceDate, checkOutTime);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(checkOutDate)) {
+        return res.status(400).json({ success: false, code: "INVALID_CHECK_OUT_DATE", message: "Invalid checkout date" });
+      }
+      checkOutAt = parseManualAttendanceTimestamp(checkOutDate, checkOutTime);
       if (!checkOutAt) {
         return res.status(400).json({ success: false, code: "INVALID_CHECK_OUT_TIME", message: "Invalid check-out time" });
       }
-      if (checkOutAt <= checkInAt) {
-        checkOutAt = parseManualAttendanceTimestamp(attendanceDate, checkOutTime, true);
+      if (checkOutAt < checkInAt) {
+        return res.status(400).json({
+          success: false,
+          code: "CHECK_OUT_BEFORE_CHECK_IN",
+          message: "Checkout date and time cannot be before check-in",
+        });
       }
     }
 
@@ -449,6 +457,7 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
           employee_id: employeeId,
           employee_name: employee.full_name || null,
           attendance_date: attendanceDate,
+          check_out_date: checkOutTime ? checkOutDate : null,
           previous_check_in: before?.check_in_at || before?.check_in || null,
           previous_check_out: before?.check_out_at || before?.check_out || null,
           check_in: checkInAt.toISOString(),
