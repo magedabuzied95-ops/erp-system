@@ -88,3 +88,11 @@ test("outbox schema enforces idempotency and persistent retry state", async () =
   assert.match(migration, /attempts INTEGER/i);
   assert.match(migration, /status IN \('pending','processing','retry','sent','failed'\)/i);
 });
+
+test("customer delivery resolves email from the linked customer and retry SQL casts attempts", async () => {
+  const source = await readFile(new URL("../server/services/transactionalEmail/orderEmailService.js", import.meta.url), "utf8");
+  assert.match(source, /LEFT JOIN customers c ON c\.id = o\.customer_id AND c\.tenant_id = o\.tenant_id/);
+  assert.match(source, /c\.email AS customer_email/);
+  assert.match(source, /attempts=\$3::integer/);
+  assert.match(source, /POWER\(2, \$3::integer\)/);
+});

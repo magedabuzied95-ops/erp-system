@@ -75,7 +75,13 @@ export const enqueueOrderCreatedEmails = async (client, { tenantId, orderId, cus
 
 const loadOrderEmailData = async (job) => {
   const [orderResult, itemsResult, previousResult, site] = await Promise.all([
-    db.query(`SELECT * FROM orders WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [job.order_id, job.tenant_id]),
+    db.query(`
+      SELECT o.*, c.email AS customer_email
+      FROM orders o
+      LEFT JOIN customers c ON c.id = o.customer_id AND c.tenant_id = o.tenant_id
+      WHERE o.id = $1 AND o.tenant_id = $2
+      LIMIT 1
+    `, [job.order_id, job.tenant_id]),
     db.query(`SELECT * FROM order_items WHERE order_id = $1 AND tenant_id = $2 ORDER BY id ASC`, [job.order_id, job.tenant_id]),
     db.query(`
       SELECT COUNT(*)::int AS count FROM orders
@@ -169,7 +175,9 @@ export const processTransactionalEmailOutbox = async () => {
         const message = safeError(error);
         await db.query(`
           UPDATE transactional_email_outbox
-          SET status=$2, attempts=$3, next_attempt_at=NOW() + (LEAST(60, POWER(2, $3)::int) * INTERVAL '1 minute'), locked_at=NULL, last_error=$4, updated_at=NOW()
+          SET status=$2, attempts=$3::integer,
+              next_attempt_at=NOW() + (LEAST(60, POWER(2, $3::integer)::integer) * INTERVAL '1 minute'),
+              locked_at=NULL, last_error=$4, updated_at=NOW()
           WHERE id=$1
         `, [job.id, failed ? "failed" : "retry", attempts, message]);
         console.warn("[order-email] delivery failed", { outboxId: job.id, orderId: job.order_id, template: job.template_key, attempts, terminal: failed, error: message });
