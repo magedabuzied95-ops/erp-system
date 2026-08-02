@@ -1393,6 +1393,7 @@ const catalogQuery = `
           'color', pv.color,
           'color_group_key', pv.color_group_key,
           'color_sort_order', pv.color_sort_order,
+          'is_storefront_visible', pv.is_storefront_visible,
           'audience', pv.audience,
           'audiences', string_to_array(LOWER(REPLACE(COALESCE(pv.audience, ''), ' ', '')), ','),
           'sku', pv.sku,

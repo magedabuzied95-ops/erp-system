@@ -32,6 +32,16 @@ import { slugifyEdition } from "../utils/mirrorProduct.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { buildProductBaseSlug, generateUniqueProductSlug } from "../utils/productSlug.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
+import { buildCacheKey, invalidateCachePattern } from "../services/cacheService.js";
+
+const invalidateProductStorefrontCache = async (tenantId) => {
+  const scopes = new Set([tenantId || "public", "public"]);
+  await Promise.all(
+    Array.from(scopes).map((scope) =>
+      invalidateCachePattern(buildCacheKey("storefront", `tenant:${scope}`, "*"))
+    )
+  );
+};
 
 export const resolveAdminListCurrentSellingPrice = (row = {}) => resolveCurrentSellingPrice({
   product: row,
@@ -5707,6 +5717,9 @@ export const updateProduct = async (req, res) => {
 
     await client.query("COMMIT");
     transactionStarted = false;
+    await invalidateProductStorefrontCache(tenantId).catch((error) => {
+      console.warn("[products:update] storefront cache invalidation skipped", error?.message || error);
+    });
     console.log("[products:update] transaction commit", {
       productId,
       savedVariantsCount: savedVariants.length,
