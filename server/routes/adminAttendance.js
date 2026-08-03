@@ -6,6 +6,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { ensureStaffTasksSchema } from "../services/staffTasksService.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { calculateAttendanceMetrics } from "../utils/attendanceCalculator.js";
 import { isSuperAdminUser } from "../utils/requestScope.js";
 
 const router = express.Router();
@@ -387,7 +388,68 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
 
     const requestedBranchId = Number(req.body?.branch_id || req.body?.branchId || 0);
     const branchId = requestedBranchId > 0 ? requestedBranchId : (employee.branch_id || null);
-    const workMinutes = checkOutAt ? Math.max(0, Math.round((checkOutAt.getTime() - checkInAt.getTime()) / 60000)) : 0;
+    const shiftResult = await client.query(
+      `
+      SELECT * FROM (
+        SELECT
+          NULL::bigint AS shift_id,
+          ess.id AS schedule_id,
+          ess.shift_name,
+          ess.start_time,
+          ess.end_time,
+          ess.expected_hours,
+          COALESCE(es.allowed_late_minutes, 0) AS allowed_late_minutes,
+          COALESCE(es.overtime_after_minutes, ROUND(ess.expected_hours * 60)::int) AS overtime_after_minutes,
+          0 AS priority
+        FROM employee_shift_schedules ess
+        LEFT JOIN LATERAL (
+          SELECT allowed_late_minutes, overtime_after_minutes
+          FROM employee_shifts
+          WHERE tenant_id = ess.tenant_id AND employee_id = ess.employee_id
+          ORDER BY updated_at DESC, id DESC
+          LIMIT 1
+        ) es ON TRUE
+        WHERE ess.tenant_id = $1 AND ess.employee_id = $2 AND ess.work_date = $3::date
+          AND LOWER(COALESCE(ess.status, 'scheduled')) <> 'cancelled'
+        UNION ALL
+        SELECT
+          es.id AS shift_id,
+          NULL::bigint AS schedule_id,
+          es.shift_name,
+          es.start_time,
+          es.end_time,
+          es.expected_hours,
+          es.allowed_late_minutes,
+          CASE
+            WHEN COALESCE(es.overtime_after_minutes, 0) > 0 THEN es.overtime_after_minutes
+            ELSE ROUND(COALESCE(es.expected_hours, 0) * 60)::int
+          END AS overtime_after_minutes,
+          1 AS priority
+        FROM employee_shifts es
+        WHERE es.tenant_id = $1 AND es.employee_id = $2
+      ) resolved
+      ORDER BY priority, schedule_id DESC NULLS LAST, shift_id DESC NULLS LAST
+      LIMIT 1
+      `,
+      [tenantId, employeeId, attendanceDate]
+    );
+    const resolvedShift = shiftResult.rows[0] || null;
+    const resolvedShiftStartAt = resolvedShift?.start_time
+      ? parseManualAttendanceTimestamp(attendanceDate, String(resolvedShift.start_time).slice(0, 5))
+      : null;
+    let resolvedShiftEndAt = resolvedShift?.end_time
+      ? parseManualAttendanceTimestamp(attendanceDate, String(resolvedShift.end_time).slice(0, 5))
+      : null;
+    if (resolvedShiftStartAt && resolvedShiftEndAt && resolvedShiftEndAt <= resolvedShiftStartAt) {
+      resolvedShiftEndAt = new Date(resolvedShiftEndAt.getTime() + 24 * 60 * 60000);
+    }
+    const metrics = calculateAttendanceMetrics({
+      attendanceDate,
+      checkIn: checkInAt,
+      checkOut: checkOutAt,
+      shift: resolvedShift || {},
+    });
+    const workMinutes = metrics.work_minutes;
     const status = checkOutAt ? "checked_out" : "checked_in";
     const auditNote = `Admin attendance correction: ${reason}`;
 
@@ -419,12 +481,22 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
             status = $7,
             worked_hours = $8,
             work_minutes = $9,
+            late_minutes = $11,
+            early_leave_minutes = $12,
+            overtime_minutes = $13,
+            shift_id = COALESCE($14, shift_id),
+            selected_shift_id = COALESCE($14, selected_shift_id),
+            resolved_shift_start_time = $15,
+            resolved_shift_end_time = $16,
+            shift_resolution_status = $17,
             notes = CASE WHEN COALESCE(notes, '') = '' THEN $10 ELSE notes || E'\n' || $10 END,
             updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
         RETURNING *
         `,
-        [tenantId, employeeId, attendanceDate, branchId, checkInAt, checkOutAt, status, Number((workMinutes / 60).toFixed(2)), workMinutes, auditNote]
+        [tenantId, employeeId, attendanceDate, branchId, checkInAt, checkOutAt, status, Number((workMinutes / 60).toFixed(2)), workMinutes, auditNote,
+          metrics.late_minutes, metrics.early_leave_minutes, metrics.overtime_minutes, resolvedShift?.shift_id || null,
+          resolvedShiftStartAt, resolvedShiftEndAt, resolvedShift ? "matched" : "unresolved"]
       );
       saved = updated.rows[0];
     } else {
@@ -434,13 +506,42 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
           tenant_id, employee_id, branch_id, attendance_date,
           check_in, check_in_at, check_out, check_out_at,
           attendance_source, status, worked_hours, work_minutes, notes, user_agent, ip_address
+          , late_minutes, early_leave_minutes, overtime_minutes, shift_id, selected_shift_id,
+          resolved_shift_start_time, resolved_shift_end_time, shift_resolution_status
         )
-        VALUES ($1,$2,$3,$4::date,$5,$5,$6,$6,'admin_manual',$7,$8,$9,$10,$11,$12)
+        VALUES ($1,$2,$3,$4::date,$5,$5,$6,$6,'admin_manual',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16,$17,$18,$19)
         RETURNING *
         `,
-        [tenantId, employeeId, branchId, attendanceDate, checkInAt, checkOutAt, status, Number((workMinutes / 60).toFixed(2)), workMinutes, auditNote, req.headers?.["user-agent"] || null, getRequestIp(req)]
+        [tenantId, employeeId, branchId, attendanceDate, checkInAt, checkOutAt, status, Number((workMinutes / 60).toFixed(2)), workMinutes, auditNote, req.headers?.["user-agent"] || null, getRequestIp(req),
+          metrics.late_minutes, metrics.early_leave_minutes, metrics.overtime_minutes, resolvedShift?.shift_id || null,
+          resolvedShiftStartAt, resolvedShiftEndAt, resolvedShift ? "matched" : "unresolved"]
       );
       saved = inserted.rows[0];
+    }
+
+    if (checkOutAt && metrics.overtime_minutes > 0) {
+      await client.query(
+        `
+        INSERT INTO attendance_overtime_approvals (
+          tenant_id, employee_id, branch_id, attendance_log_id, attendance_date,
+          overtime_minutes, status, requested_by_user_id, notes
+        )
+        VALUES ($1,$2,$3,$4,$5::date,$6,'pending',$7,$8)
+        ON CONFLICT (attendance_log_id) WHERE attendance_log_id IS NOT NULL DO UPDATE
+        SET overtime_minutes = EXCLUDED.overtime_minutes,
+            status = CASE WHEN attendance_overtime_approvals.status = 'approved' THEN 'approved' ELSE 'pending' END,
+            requested_by_user_id = EXCLUDED.requested_by_user_id,
+            notes = EXCLUDED.notes,
+            updated_at = NOW()
+        `,
+        [tenantId, employeeId, branchId, saved.id, attendanceDate, metrics.overtime_minutes, req.user?.id || null, "Recalculated from admin attendance correction"]
+      );
+    } else {
+      await client.query(
+        `DELETE FROM attendance_overtime_approvals
+         WHERE tenant_id = $1 AND attendance_log_id = $2 AND status <> 'approved'`,
+        [tenantId, saved.id]
+      );
     }
 
     await ensureAuditLogTable(client);

@@ -62,7 +62,10 @@ export const calculateAttendanceMetrics = ({
   const dateBase = attendanceDate ? new Date(`${attendanceDate}T00:00:00`) : inDate || new Date();
   const shiftEndTime = safeShift.end_time || safeShift.endTime || null;
   const shiftStart = combineDateAndTime(dateBase, safeShift.start_time || safeShift.startTime || checkIn);
-  const shiftEnd = combineDateAndTime(dateBase, shiftEndTime);
+  let shiftEnd = combineDateAndTime(dateBase, shiftEndTime);
+  if (shiftStart && shiftEnd && shiftEnd <= shiftStart) {
+    shiftEnd = new Date(shiftEnd.getTime() + 24 * 60 * 60000);
+  }
 
   const allowedLateMinutes = Number(safeShift.allowed_late_minutes || 0);
   const overtimeAfterMinutes = Number(safeShift.overtime_after_minutes || 0);
@@ -80,10 +83,15 @@ export const calculateAttendanceMetrics = ({
   }
 
   let overtimeMinutes = 0;
-  if (shiftEnd && outDate) {
-    const overtimeStart = combineDateAndTime(dateBase, shiftEndTime);
-    const overtimeTrigger = overtimeAfterMinutes > 0 ? new Date(overtimeStart.getTime() + overtimeAfterMinutes * 60000) : overtimeStart;
-    overtimeMinutes = Math.max(0, minutesBetween(overtimeTrigger, outDate));
+  if (outDate) {
+    // `overtime_after_minutes` is the worked-duration threshold (for example
+    // 600 means overtime starts after 10 worked hours), not a delay added to
+    // the scheduled shift end.
+    if (overtimeAfterMinutes > 0) {
+      overtimeMinutes = Math.max(0, workMinutes - overtimeAfterMinutes);
+    } else if (shiftEnd) {
+      overtimeMinutes = Math.max(0, minutesBetween(shiftEnd, outDate));
+    }
   }
 
   return {
