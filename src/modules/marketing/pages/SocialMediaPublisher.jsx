@@ -519,6 +519,22 @@ const isCatalogMediaVariantAvailable = (variant = {}) => {
   const available = variant.available === true || variant.in_stock === true || variant.is_available === true;
   return quantity > 0 || available;
 };
+const isBagCatalogProduct = (product = {}) => {
+  const signal = [
+    product.product_type,
+    product.productType,
+    product.type,
+    product.category,
+    product.category_name,
+    product.department,
+    product.department_name,
+    product.name,
+  ]
+    .map((value) => normalizeTextValue(value).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+  return /(^|\s)(bags?|backpacks?|handbags?|school\s*bags?)(\s|$)|شنط|شنطة|حقيبة|حقائب/i.test(signal);
+};
 const buildCatalogColorMediaItems = (product = {}) => {
   const items = [];
   const seen = new Set();
@@ -539,7 +555,9 @@ const buildCatalogColorMediaItems = (product = {}) => {
     });
   };
 
-  const variants = Array.isArray(product.variants) ? product.variants.filter(isCatalogMediaVariantAvailable) : [];
+  const variants = Array.isArray(product.variants)
+    ? product.variants.filter((variant) => isBagCatalogProduct(product) || isCatalogMediaVariantAvailable(variant))
+    : [];
   variants.forEach((variant) => {
     addItem(
       variant.color || variant.color_name || variant.colour || variant.name || variant.label || "",
@@ -1117,6 +1135,11 @@ export default function SocialMediaPublisher() {
     setAiTemplateFallbackReason("");
     try {
       const productDetails = await loadSelectedCatalogProductDetails(product);
+      if (productDetails?.id) {
+        setSelectedCatalogProduct((current) =>
+          String(current?.id || "") === String(product.id || "") ? productDetails : current
+        );
+      }
       console.warn("[ai-social-caption-product-source]", {
         selected_catalog_product: product,
         product_details: productDetails,
@@ -1406,7 +1429,7 @@ export default function SocialMediaPublisher() {
       const carouselUrls = uniqueTextList(
         selectedCatalogResolvedMediaUrl,
         selectedCatalogMediaItems.map((item) => item.url)
-      );
+      ).slice(0, 10);
       formData.append("media_urls", JSON.stringify(carouselUrls));
     }
     formData.append(

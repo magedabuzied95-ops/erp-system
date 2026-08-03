@@ -29,3 +29,14 @@ test("marketing posts persist and publish the first comment", async () => {
   assert.match(controller, /publishMarketingFirstComment/);
   assert.match(controller, /callMetaComment/);
 });
+
+test("catalog posts publish every color and bags keep zero-stock colors", async () => {
+  const [publisher, service] = await Promise.all([
+    read("src/modules/marketing/pages/SocialMediaPublisher.jsx"),
+    read("server/services/socialPublisherPostsService.js"),
+  ]);
+  assert.match(publisher, /isBagCatalogProduct\(product\) \|\| isCatalogMediaVariantAvailable\(variant\)/);
+  assert.match(publisher, /selectedCatalogMediaItems\.map\(\(item\) => item\.url\)/);
+  assert.match(publisher, /setSelectedCatalogProduct\(\(current\)/);
+  assert.match(service, /isBagProductForPublishing\(product\)\s*\? variants\s*:\s*variants\.filter\(isAvailableVariantForMedia\)/);
+});

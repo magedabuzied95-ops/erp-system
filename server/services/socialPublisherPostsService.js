@@ -248,6 +248,23 @@ const isAvailableVariantForMedia = (variant = {}) => {
   return quantity > 0 || available;
 };
 
+const isBagProductForPublishing = (product = {}) => {
+  const signal = [
+    product.product_type,
+    product.productType,
+    product.type,
+    product.category,
+    product.category_name,
+    product.department,
+    product.department_name,
+    product.name,
+  ]
+    .map((value) => trimString(value).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+  return /(^|\s)(bags?|backpacks?|handbags?|school\s*bags?)(\s|$)|شنط|شنطة|حقيبة|حقائب/i.test(signal);
+};
+
 const resolveSocialPublisherProductUrl = (product = {}) => {
   const slug = trimString(product.canonical_slug || product.slug || "");
   if (slug) return `/shop/product/${slug}`;
@@ -302,7 +319,12 @@ const normalizeSocialPublisherProduct = (product = {}) => {
   const variantMediaUrls = uniqueTextList(
     variants.flatMap((variant) => collectMediaUrls(variant.primary_image_url, variant.variant_image_url, variant.color_image_url, variant.image_url, variant.image, variant.photo_url, variant.thumbnail_url, variant.images, variant.gallery_images, variant.media_urls))
   );
-  const availableVariantMedia = variants.filter(isAvailableVariantForMedia);
+  // Bags are marketed as color collections, so keep their color artwork even
+  // when a specific color is temporarily out of stock. Other departments keep
+  // the existing in-stock-only behavior.
+  const availableVariantMedia = isBagProductForPublishing(product)
+    ? variants
+    : variants.filter(isAvailableVariantForMedia);
   const availableColorEntries = [];
   const seenColorKeys = new Set();
 
