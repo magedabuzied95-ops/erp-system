@@ -129,9 +129,9 @@ export const searchStorefrontProducts = async ({
   brand = "",
   size = "",
   inStock = false,
-  timeoutMs = 15000,
+  timeoutMs = 12000,
 } = {}) => {
-  const response = await api.get("/storefront/products/search", {
+  const response = await api.get("/social-publisher/products/search", {
     params: {
       q: clean(query),
       offset: Math.max(0, Number(offset) || 0),

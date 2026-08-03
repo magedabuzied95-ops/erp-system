@@ -1,5 +1,4 @@
 import db from "../database/db.js";
-import { loadProductsWithVariantsPayload } from "../controllers/productsController.js";
 import { resolveStorefrontPriceBreakdown } from "../../src/shared/lib/storefrontPricing.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { getMetaIntegrationStatus } from "./metaIntegrationService.js";
@@ -722,24 +721,66 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
   return response;
 };
 
-export const searchSocialPublisherProducts = async ({ tenantId, query = "", limit = 20 } = {}) => {
+export const searchSocialPublisherProducts = async ({ tenantId, query = "", limit = 20, offset = 0 } = {}) => {
   await ensureMarketingSchema();
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const safeTenantId = Number(tenantId || 1) || 1;
   const normalizedQuery = trimString(query);
-  const payload = await loadProductsWithVariantsPayload({
-    query: {
-      search: normalizedQuery,
-      limit: safeLimit,
-    },
-    user: {
-      tenant_id: tenantId,
-    },
-    requestId: "social-publisher-products-search",
-  });
-  const products = Array.isArray(payload?.products) ? payload.products : Array.isArray(payload?.data) ? payload.data : [];
+  const searchPattern = `%${normalizedQuery.replace(/[%_]/g, "\\$&")}%`;
+  // Keep this query intentionally small. The full products controller expands
+  // every product and variant before applying the requested page, which makes
+  // the social post linking drawer wait for the entire catalogue.
+  const result = await db.query(
+    `
+      SELECT
+        p.*,
+        COALESCE(variant_summary.total_stock, 0)::numeric AS total_stock,
+        COALESCE(variant_summary.variants, '[]'::jsonb) AS variants,
+        COALESCE(NULLIF(p.image_url, ''), variant_summary.first_image, '') AS product_image_url
+      FROM products p
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(SUM(GREATEST(COALESCE(pv.stock, 0), 0)), 0) AS total_stock,
+          JSONB_AGG(TO_JSONB(pv) ORDER BY pv.id) AS variants,
+          (ARRAY_AGG(NULLIF(pv.image_url, '') ORDER BY pv.id) FILTER (WHERE NULLIF(pv.image_url, '') IS NOT NULL))[1] AS first_image
+        FROM product_variants pv
+        WHERE pv.product_id = p.id
+          AND pv.is_active IS DISTINCT FROM FALSE
+          AND pv.deleted_at IS NULL
+      ) variant_summary ON TRUE
+      WHERE p.tenant_id = $1::bigint
+        AND p.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+        AND (
+          $2::text = ''
+          OR p.name ILIKE $3::text ESCAPE '\\'
+          OR COALESCE(p.sku, '') ILIKE $3::text ESCAPE '\\'
+          OR p.id::text = $2::text
+          OR EXISTS (
+            SELECT 1
+            FROM product_variants search_variant
+            WHERE search_variant.product_id = p.id
+              AND search_variant.deleted_at IS NULL
+              AND (
+                COALESCE(search_variant.sku, '') ILIKE $3::text ESCAPE '\\'
+                OR COALESCE(search_variant.barcode, '') ILIKE $3::text ESCAPE '\\'
+                OR COALESCE(search_variant.article_code, '') ILIKE $3::text ESCAPE '\\'
+              )
+          )
+        )
+      ORDER BY
+        CASE WHEN LOWER(p.name) = LOWER($2::text) THEN 0 WHEN p.name ILIKE ($2::text || '%') THEN 1 ELSE 2 END,
+        p.updated_at DESC NULLS LAST,
+        p.id DESC
+      LIMIT $4 OFFSET $5
+    `,
+    [safeTenantId, normalizedQuery, searchPattern, safeLimit, safeOffset]
+  );
+  const products = Array.isArray(result.rows) ? result.rows : [];
   const normalizedProducts = products.map(normalizeSocialPublisherProduct).filter((product) => product.id);
   console.warn("[social-publisher-products-search]", {
-    tenant: Number(tenantId || 1) || 1,
+    tenant: safeTenantId,
     query: normalizedQuery,
     count: normalizedProducts.length,
     sample: normalizedProducts.slice(0, 2),

@@ -58,14 +58,12 @@ import {
   ShieldCheck,
   Tag,
   RefreshCcw,
-  Moon,
   Trash2,
   Truck,
   Upload,
   User,
   UserRound,
   Users,
-  Sun,
   X,
 } from "lucide-react";
 import { api } from "../shared/api/api";
@@ -1696,7 +1694,6 @@ const CART_KEY = "storefront.cart";
 const WISHLIST_KEY = "storefront.wishlist";
 const RECENT_KEY = "storefront.recent";
 const PROFILE_KEY = "storefront.profile";
-const THEME_KEY = "storefront.theme";
 const storefrontGetCache = new Map();
 const storefrontGetInFlight = new Map();
 const storefrontProductDetailsCache = new Map();
@@ -1825,7 +1822,6 @@ const cleanupStorefrontStorage = () => {
       WISHLIST_KEY,
       RECENT_KEY,
       PROFILE_KEY,
-      THEME_KEY,
     ].forEach((key) => window.localStorage.removeItem(key));
     Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index)).filter(Boolean).forEach((key) => {
       if (STOREFRONT_CACHE_PREFIXES.some((prefix) => key === prefix || key.startsWith(`${prefix}.`) || key.startsWith(`${prefix}:`))) {
@@ -4753,7 +4749,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
+function Header({ cartCount, onCart, onAddToCart, effectiveTheme, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
   const preferredHeaderLogoUrl = headerLogoUrl || brandLogoUrl;
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
   const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
@@ -4894,9 +4890,6 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
     "sf-luxury-header sf-header-v2 sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent",
     themeIsDark ? "" : "border-b border-black/5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]",
   ].join(" ");
-  const themeToggleLabel = themeIsDark
-    ? t("storefront.header.lightMode")
-    : t("storefront.header.darkMode");
   const mobileMenuIsRtl = currentLanguage === "ar";
   const mobileMenuSideClass = mobileMenuIsRtl
     ? "right-0 rounded-l-[1.75rem] border-l shadow-[-24px_0_64px_rgba(28,25,23,0.18)] dark:shadow-[-26px_0_70px_rgba(0,0,0,0.48)]"
@@ -5327,15 +5320,6 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             >
               <Search className="h-5 w-5" />
             </button>
-            <button
-              type="button"
-              onClick={onToggleTheme}
-              className="sf-header-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10"
-              aria-label={themeToggleLabel}
-              title={themeToggleLabel}
-            >
-              {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </button>
             <HeaderAction to="/account" label={t("storefront.header.account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
             <button onClick={onCart} className="sf-header-action sf-cart-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10" aria-label={t("storefront.cart.title")} type="button">
               <ShoppingCart className="h-5 w-5" />
@@ -5399,16 +5383,6 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
                     className="sf-mobile-menu-toolbar-button inline-flex h-9 items-center justify-center rounded-full border border-stone-200 bg-white px-3.5 text-xs font-bold text-stone-700 shadow-sm transition hover:border-[#d4af37]/45 hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/8 dark:text-white dark:shadow-none dark:hover:bg-white/12"
                   >
                     {languageLabel}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onToggleTheme}
-                    className="sf-mobile-menu-toolbar-button inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-stone-200 bg-white px-3.5 text-xs font-bold text-stone-700 shadow-sm transition hover:border-[#d4af37]/45 hover:text-stone-950 active:scale-[0.98] dark:border-[#d4af37]/35 dark:bg-[#d4af37]/12 dark:text-[#f3d77a] dark:shadow-none dark:hover:bg-[#d4af37]/16"
-                    aria-label={themeToggleLabel}
-                    title={themeToggleLabel}
-                  >
-                    {themeIsDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                    <span className="whitespace-nowrap">{themeIsDark ? t("storefront.header.lightMode") : t("storefront.header.darkMode")}</span>
                   </button>
                 </div>
                 <button
@@ -10090,7 +10064,7 @@ function Storefront() {
   const [wishlist, setWishlist] = useState(() => readStorefrontStorage(WISHLIST_KEY, []));
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
   const [profile, setProfile] = useState(() => normalizeStorefrontProfile(readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "", customer_id: "" })));
-  const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
+  const themeMode = "dark";
   const [publicStoreSettings, setPublicStoreSettings] = useState({});
   const [publicStoreSettingsLoading, setPublicStoreSettingsLoading] = useState(true);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
@@ -10105,9 +10079,6 @@ function Storefront() {
   const cartRef = useRef(cart);
   const previousDocumentThemeRef = useRef(null);
   const [cartSyncReady, setCartSyncReady] = useState(false);
-  const toggleThemeMode = useCallback(() => {
-    setThemeMode((current) => (current === "dark" ? "light" : "dark"));
-  }, []);
 
   useEffect(() => {
     setStorefrontSalePricesEnabled(publicStoreSettings);
@@ -10188,7 +10159,6 @@ function Storefront() {
   }, []);
 
   useEffect(() => {
-    writeStorefrontStorage(THEME_KEY, themeMode);
     if (typeof document === "undefined") return;
     const dark = themeMode === "dark";
     const root = document.documentElement;
@@ -10766,7 +10736,6 @@ function Storefront() {
           wishlistCount={wishlistCount}
           onCart={() => navigate("/cart")}
           effectiveTheme={themeMode}
-          onToggleTheme={toggleThemeMode}
           brandName={storefrontBrandSettings.brandName}
           brandTagline={storefrontBrandSettings.brandTagline}
           brandLogoUrl={storefrontBrandSettings.brandLogoUrl}

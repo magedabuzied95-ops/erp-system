@@ -3196,7 +3196,6 @@ export default function AiInboxPwa() {
 
       try {
         const { payload, request_url, fast } = await readListPayload();
-        const settingsPayload = await settingsPromise;
         const rawItems = asArray(payload?.posts || payload?.items || payload?.data?.posts || payload?.data?.items || payload);
         const items = fast ? rawItems.map(normalizeFastSocialCommentItem) : rawItems.map(normalizeSocialPostForPwa);
         setSocialComments((current) => {
@@ -3218,12 +3217,17 @@ export default function AiInboxPwa() {
           };
         });
         setSocialCommentsCursor(fast ? clean(payload?.next_cursor || payload?.data?.next_cursor || "") : "");
-        setSocialReplySettings({
-          generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
-          generic_like_enabled: settingsPayload?.settings?.generic_like_enabled !== false,
-          generic_reply_enabled: settingsPayload?.settings?.generic_reply_enabled !== false,
-          generic_template: clean(settingsPayload?.settings?.generic_template || ""),
-          mode: clean(settingsPayload?.settings?.mode || "manual_approval") || "manual_approval",
+        // Render the posts as soon as their request completes. Reply settings
+        // are independent and must not keep the whole Social Comments screen
+        // in a loading state when that endpoint is slower.
+        void settingsPromise.then((settingsPayload) => {
+          setSocialReplySettings({
+            generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
+            generic_like_enabled: settingsPayload?.settings?.generic_like_enabled !== false,
+            generic_reply_enabled: settingsPayload?.settings?.generic_reply_enabled !== false,
+            generic_template: clean(settingsPayload?.settings?.generic_template || ""),
+            mode: clean(settingsPayload?.settings?.mode || "manual_approval") || "manual_approval",
+          });
         });
         setSocialCommentsDebug({
           request_url,

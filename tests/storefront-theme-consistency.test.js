@@ -10,9 +10,9 @@ const lightStyles = fs.readFileSync("src/storefront/storefront-light.css", "utf8
 const html = fs.readFileSync("index.html", "utf8");
 const main = fs.readFileSync("src/main.jsx", "utf8");
 
-test("storefront light mode is restored before the first browser paint", () => {
-  assert.match(html, /isStorefrontHost[\s\S]*?"storefront\.theme"/);
-  assert.match(html, /storedTheme\s*=\s*JSON\.parse\(storedTheme\)/);
+test("storefront brand theme is identical before the first paint on every browser", () => {
+  assert.match(html, /storedTheme\s*=\s*isStorefrontHost\s*\?\s*"dark"/);
+  assert.doesNotMatch(html, /localStorage\.getItem\(isStorefrontHost\s*\?\s*"storefront\.theme"/);
   assert.match(html, /root\.dataset\.theme\s*=\s*theme/);
   assert.match(html, /root\.style\.backgroundColor\s*=\s*dark\s*\?/);
   assert.match(main, /if \(!document\.documentElement\.dataset\.theme\)/);
@@ -20,6 +20,8 @@ test("storefront light mode is restored before the first browser paint", () => {
 });
 
 test("storefront owns one synchronized light-dark theme state", () => {
+  assert.match(storefrontSource, /const themeMode = "dark"/);
+  assert.doesNotMatch(storefrontSource, /readStorefrontStorage\(THEME_KEY/);
   assert.match(storefrontSource, /root\.classList\.toggle\("dark", dark\)/);
   assert.match(storefrontSource, /body\.classList\.toggle\("dark", dark\)/);
   assert.match(storefrontSource, /body\.classList\.toggle\("storefront-dark", dark\)/);

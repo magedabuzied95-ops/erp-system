@@ -28,7 +28,9 @@
           var path = String(window.location.pathname || "/").toLowerCase();
           var isPortalPath = /^\/(employee|employee-app|employee-portal|manager|manager-portal|pos|inbox)(\/|$)/.test(path);
           var isStorefrontHost = host === "m1store-egy.com" || host === "www.m1store-egy.com" || (host.endsWith(".vercel.app") && !isPortalPath);
-          var storedTheme = localStorage.getItem(isStorefrontHost ? "storefront.theme" : "erp.theme");
+          // The public storefront has one fixed brand theme on every browser.
+          // ERP users can still keep their private workspace preference.
+          var storedTheme = isStorefrontHost ? "dark" : localStorage.getItem("erp.theme");
           try {
             storedTheme = JSON.parse(storedTheme);
           } catch (parseError) {

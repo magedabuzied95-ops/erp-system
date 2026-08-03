@@ -71,7 +71,8 @@ router.get(
       const tenantId = getTenantId(req, req.user?.tenant_id) || 1;
       const q = String(req.query?.q || req.query?.query || "").trim();
       const limit = Number(req.query?.limit || 20);
-      const products = await searchSocialPublisherProducts({ tenantId, query: q, limit });
+      const offset = Number(req.query?.offset || 0);
+      const products = await searchSocialPublisherProducts({ tenantId, query: q, limit, offset });
       res.json({ success: true, data: products });
     } catch (error) {
       console.error("[social-publisher] product search failed", {
