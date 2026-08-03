@@ -414,6 +414,11 @@ const normalizeSocialPublisherProduct = (product = {}) => {
   return {
     id: product.id ?? product.product_id ?? null,
     name: trimString(product.name || product.product_name || ""),
+    product_type: trimString(product.product_type || product.productType || product.type || ""),
+    category: trimString(product.category || product.category_name || ""),
+    category_name: trimString(product.category_name || product.category || ""),
+    department: trimString(product.department || product.department_name || ""),
+    department_name: trimString(product.department_name || product.department || ""),
     image_url: fallbackCoverImage,
     cover_image_url: fallbackCoverImage,
     primary_media_url: primaryMediaUrl,

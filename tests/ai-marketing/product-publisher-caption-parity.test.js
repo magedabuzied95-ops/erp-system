@@ -35,8 +35,10 @@ test("catalog posts publish every color and bags keep zero-stock colors", async 
     read("src/modules/marketing/pages/SocialMediaPublisher.jsx"),
     read("server/services/socialPublisherPostsService.js"),
   ]);
-  assert.match(publisher, /isBagCatalogProduct\(product\) \|\| isCatalogMediaVariantAvailable\(variant\)/);
+  assert.match(publisher, /includeAllBagColors \|\| isCatalogMediaVariantAvailable\(variant\)/);
+  assert.match(publisher, /items\.length && !includeAllBagColors/);
   assert.match(publisher, /selectedCatalogMediaItems\.map\(\(item\) => item\.url\)/);
   assert.match(publisher, /setSelectedCatalogProduct\(\(current\)/);
   assert.match(service, /isBagProductForPublishing\(product\)\s*\? variants\s*:\s*variants\.filter\(isAvailableVariantForMedia\)/);
+  assert.match(service, /product_type:\s*trimString\(product\.product_type/);
 });

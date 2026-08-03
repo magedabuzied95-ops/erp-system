@@ -538,6 +538,7 @@ const isBagCatalogProduct = (product = {}) => {
 const buildCatalogColorMediaItems = (product = {}) => {
   const items = [];
   const seen = new Set();
+  const includeAllBagColors = isBagCatalogProduct(product);
 
   const addItem = (color, sourceValue, source = "") => {
     const colorText = normalizeTextValue(color);
@@ -556,7 +557,7 @@ const buildCatalogColorMediaItems = (product = {}) => {
   };
 
   const variants = Array.isArray(product.variants)
-    ? product.variants.filter((variant) => isBagCatalogProduct(product) || isCatalogMediaVariantAvailable(variant))
+    ? product.variants.filter((variant) => includeAllBagColors || isCatalogMediaVariantAvailable(variant))
     : [];
   variants.forEach((variant) => {
     addItem(
@@ -577,7 +578,9 @@ const buildCatalogColorMediaItems = (product = {}) => {
     );
   });
 
-  if (items.length) {
+  // A zero-stock bag color can exist in the saved color artwork even when it
+  // has no active size variant. Merge those color-level sources for bags.
+  if (items.length && !includeAllBagColors) {
     return items;
   }
 
