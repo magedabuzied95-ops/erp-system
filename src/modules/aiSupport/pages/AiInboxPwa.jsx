@@ -3146,7 +3146,7 @@ export default function AiInboxPwa() {
   }, [headers]);
 
   const loadSocialComments = useCallback(
-    async ({ silent = false, seq = requestSeqRef.current, cursor = "", append = false } = {}) => {
+    async ({ silent = false, cursor = "", append = false } = {}) => {
       if (socialCommentsRequestRef.current && !append) return;
       socialCommentsRequestRef.current = true;
       if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
@@ -3196,9 +3196,7 @@ export default function AiInboxPwa() {
 
       try {
         const { payload, request_url, fast } = await readListPayload();
-        if (seq !== requestSeqRef.current) return;
         const settingsPayload = await settingsPromise;
-        if (seq !== requestSeqRef.current) return;
         const rawItems = asArray(payload?.posts || payload?.items || payload?.data?.posts || payload?.data?.items || payload);
         const items = fast ? rawItems.map(normalizeFastSocialCommentItem) : rawItems.map(normalizeSocialPostForPwa);
         setSocialComments((current) => {
@@ -3235,7 +3233,6 @@ export default function AiInboxPwa() {
           error: "",
         });
       } catch (socialCommentsError) {
-        if (seq !== requestSeqRef.current) return;
         const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
         const message = socialCommentsError?.responseBody?.message || socialCommentsError?.message || "تعذر تحميل منشورات التعليقات";
         setSocialComments((current) => ({
@@ -3268,8 +3265,7 @@ export default function AiInboxPwa() {
     if (!socialCommentsCursor || socialCommentsLoadingMore) return;
     setSocialCommentsLoadingMore(true);
     try {
-      const seq = requestSeqRef.current;
-      await loadSocialComments({ silent: true, seq, cursor: socialCommentsCursor, append: true });
+      await loadSocialComments({ silent: true, cursor: socialCommentsCursor, append: true });
     } finally {
       setSocialCommentsLoadingMore(false);
     }
@@ -3355,7 +3351,7 @@ export default function AiInboxPwa() {
           }
         }).catch(() => {});
         if (tab === "social_comments" && !socialCommentsLoadedRef.current && !socialCommentsRequestRef.current) {
-          void loadSocialComments({ silent, seq });
+          void loadSocialComments({ silent });
         }
 
         if (conversationParam) {
@@ -5513,7 +5509,7 @@ export default function AiInboxPwa() {
                 onRefresh={() => {
                   socialCommentsLoadedRef.current = false;
                   void requestRefresh("manual", { silent: true });
-                  void loadSocialComments({ silent: false, seq: requestSeqRef.current });
+                  void loadSocialComments({ silent: false });
                 }}
                 nextCursor={socialCommentsCursor}
                 onLoadMore={loadMoreSocialComments}

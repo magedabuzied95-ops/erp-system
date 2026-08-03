@@ -12,6 +12,8 @@ test("PWA loads the social feed without blocking on per-post product mappings", 
   assert.match(pwaSource, /include_product_links: 0/);
   assert.match(pwaSource, /timeoutMs: 30000/);
   assert.match(pwaSource, /PostProductLinksDrawer/);
+  assert.doesNotMatch(pwaSource, /loadSocialComments\(\{ silent, seq \}\)/);
+  assert.doesNotMatch(pwaSource, /if \(seq !== requestSeqRef\.current\) return;[\s\S]{0,180}settingsPayload/);
 });
 
 test("saved mappings update every product-link field used by the post card", () => {
