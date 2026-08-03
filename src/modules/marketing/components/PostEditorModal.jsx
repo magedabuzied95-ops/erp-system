@@ -642,7 +642,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
 
   if (type === "instagram") {
     return (
-      <div className="mx-auto w-full max-w-[520px] overflow-hidden rounded-[28px] border border-white/10 bg-[#080b14] shadow-2xl shadow-black/30">
+      <div className="mx-auto w-full max-w-[520px] overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--card)] shadow-2xl shadow-black/30">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[2px]">
@@ -683,7 +683,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
             <span className="font-black text-white">erp.store </span>
             {caption}
           </div>
-          <div className="flex flex-wrap gap-2 text-sm font-semibold text-cyan-200">
+          <div className="flex flex-wrap gap-2 text-sm font-semibold text-[var(--primary)]">
             {hashtags.map((tag) => <span key={tag}>{tag}</span>)}
           </div>
         </div>
@@ -731,9 +731,9 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[620px] overflow-hidden rounded-[28px] border border-white/10 bg-[#101827] shadow-2xl shadow-black/30">
+    <div className="mx-auto w-full max-w-[620px] overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--card)] shadow-2xl shadow-black/30">
       <div className="flex items-center gap-3 px-5 py-4">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-500 text-lg font-black text-white">f</div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--primary)] text-lg font-black text-[var(--primary-contrast)]">f</div>
         <div>
           <div className="text-sm font-black text-white">ERP Store</div>
           <div className="text-xs text-slate-400">{t("marketing.social.preview.sponsoredPublic")}</div>
@@ -742,11 +742,11 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
       <div className="px-5 pb-4">
         <div className="text-lg font-black text-white">{title}</div>
         <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{caption}</div>
-        <div className="mt-3 flex flex-wrap gap-2 text-sm font-semibold text-cyan-200">
+        <div className="mt-3 flex flex-wrap gap-2 text-sm font-semibold text-[var(--primary)]">
           {hashtags.map((tag) => <span key={tag}>{tag}</span>)}
         </div>
       </div>
-      <div className="relative min-h-[340px] bg-slate-950">
+      <div className="relative min-h-[340px] bg-[var(--surface-soft)]">
         {image ? <img src={image} alt={title} className="h-full max-h-[520px] min-h-[340px] w-full object-cover" /> : <EmptyMedia t={t} />}
         {carousel.length > 1 ? (
           <div className="absolute right-4 top-4 rounded-full bg-black/65 px-3 py-1 text-xs font-black text-white backdrop-blur">
@@ -909,7 +909,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
                 onClick={() => selectStorySlide(index)}
                 onKeyDown={(event) => handleSlideKeyDown(event, index)}
                 className={`group overflow-hidden rounded-2xl border p-1 text-left transition ${
-                  index === selectedIndex ? "border-cyan-300/70 bg-cyan-300/10" : "border-white/10 bg-white/[0.04] hover:border-white/25"
+                  index === selectedIndex ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-white/10 bg-white/[0.04] hover:border-white/25"
                 }`}
               >
                 <StoryCreativeFrame slide={slide} total={safeSlides.length} index={index} compact />
@@ -1171,7 +1171,7 @@ export default function PostEditorModal({
                 <select
                   value={form.channel}
                   onChange={(event) => updateChannel(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
+                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
                 >
                   <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
                   <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
@@ -1192,7 +1192,7 @@ export default function PostEditorModal({
                 <input
                   value={form.title || ""}
                   onChange={(event) => updateField("title", event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
+                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                   placeholder={t("marketing.social.placeholders.title")}
                 />
               </label>
@@ -1205,10 +1205,10 @@ export default function PostEditorModal({
                   <select
                     value={captionTone}
                     onChange={(event) => setCaptionTone(event.target.value)}
-                    className="w-full min-w-[220px] rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-white outline-none"
+                    className="w-full min-w-[220px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] outline-none"
                   >
                     {aiToneOptions.map((tone) => (
-                      <option key={tone.id} value={tone.id} className="bg-slate-950">
+                      <option key={tone.id} value={tone.id} className="bg-[var(--surface)]">
                         {tone.label}
                       </option>
                     ))}
@@ -1227,7 +1227,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={regenerateHook}
-                  className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
                   <div className="text-sm font-black text-white">Regenerate Hook</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.hook}</div>
@@ -1235,7 +1235,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={regenerateCta}
-                  className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
                   <div className="text-sm font-black text-white">Regenerate CTA</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.cta}</div>
@@ -1243,7 +1243,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={regenerateHashtags}
-                  className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
                   <div className="text-sm font-black text-white">Regenerate Hashtags</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.hashtags.join(" ")}</div>
@@ -1253,7 +1253,7 @@ export default function PostEditorModal({
 
             <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
-                <ImageIcon className="h-4 w-4 text-cyan-300" />
+                <ImageIcon className="h-4 w-4 text-[var(--primary)]" />
                 {t("marketing.social.media.title")}
               </div>
               <div className="relative">
@@ -1262,7 +1262,7 @@ export default function PostEditorModal({
                   value={form.image_url || ""}
                   onChange={(event) => updateField("image_url", event.target.value)}
                   placeholder="https://..."
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/80 py-3 pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
+                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] py-3 pl-10 pr-4 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                 />
               </div>
               {mediaUrls.length ? (
@@ -1273,7 +1273,7 @@ export default function PostEditorModal({
                       type="button"
                       onClick={() => selectMainImage(url)}
                       className={`group relative aspect-square overflow-hidden rounded-2xl border transition ${
-                        form.image_url === url ? "border-cyan-300 shadow-lg shadow-cyan-500/20" : "border-white/10 hover:border-white/30"
+                        form.image_url === url ? "border-[var(--primary)] shadow-lg" : "border-[var(--border)] hover:border-[var(--primary)]"
                       }`}
                     >
                       <img src={url} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
@@ -1290,7 +1290,7 @@ export default function PostEditorModal({
                 onChange={(event) => updateField("caption", event.target.value)}
                 rows={9}
                 dir="auto"
-                className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
+                className="w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                 placeholder={t("marketing.social.placeholders.caption")}
               />
             </label>
@@ -1301,7 +1301,7 @@ export default function PostEditorModal({
                 <input
                   value={form.product_url || ""}
                   onChange={(event) => updateField("product_url", event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
+                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                   placeholder="https://..."
                 />
               </label>
@@ -1314,16 +1314,16 @@ export default function PostEditorModal({
 
             <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
-                <Hash className="h-4 w-4 text-cyan-300" />
+                <Hash className="h-4 w-4 text-[var(--primary)]" />
                 {t("marketing.social.hashtags")}
               </div>
-              <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 p-2">
+              <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2">
                 {hashtags.map((tag) => (
                   <button
                     key={tag}
                     type="button"
                     onClick={() => syncHashtags(hashtags.filter((item) => item !== tag))}
-                    className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-bold text-cyan-100 transition hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-100"
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-1.5 text-xs font-bold text-[var(--primary)] transition hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-100"
                   >
                     {tag}
                     <X className="h-3 w-3" />
@@ -1339,7 +1339,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={addTag}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white transition hover:bg-cyan-500/10"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -1363,7 +1363,7 @@ export default function PostEditorModal({
                 </button>
               ))}
             </div>
-            <div className="rounded-[30px] border border-white/10 bg-gradient-to-br from-slate-950 via-[#111827] to-slate-950 p-3 shadow-2xl shadow-black/30 md:p-6">
+            <div className="rounded-[30px] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl shadow-black/30 md:p-6">
               <PlatformShell form={form} hashtags={hashtags} type={activePreview} mediaUrls={mediaUrls} t={t} />
             </div>
             {previewMediaUrls.length > 1 ? (
@@ -1395,15 +1395,15 @@ export default function PostEditorModal({
 
           <div className="order-3 space-y-4 border-[var(--border)] bg-[var(--card)] p-4 md:p-5 xl:border-l xl:border-t-0">
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
-              <StatCard icon={Users} label={t("marketing.social.stats.estimatedReach")} value={stats.reach} tone="cyan" />
+              <StatCard icon={Users} label={t("marketing.social.stats.estimatedReach")} value={stats.reach} tone="primary" />
               <StatCard icon={Clock3} label={t("marketing.social.stats.bestPostingTime")} value={stats.time} tone="emerald" />
               <StatCard icon={Target} label={t("marketing.social.stats.suggestedAudience")} value={stats.audience} tone="amber" />
               <StatCard icon={BarChart3} label={t("marketing.social.stats.engagementScore")} value={`${stats.engagement}/100`} tone="rose" />
             </div>
 
-            <div className="space-y-3 rounded-3xl border border-white/10 bg-slate-950/80 p-4">
+            <div className="space-y-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
-                <CalendarClock className="h-4 w-4 text-cyan-300" />
+                <CalendarClock className="h-4 w-4 text-[var(--primary)]" />
                 {t("marketing.calendar.schedule")}
               </div>
               <div className="grid gap-2">
@@ -1416,7 +1416,7 @@ export default function PostEditorModal({
                     key={id}
                     type="button"
                     onClick={() => setScheduledAt(makeSchedulePreset(id))}
-                    className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm font-semibold text-white transition hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-left text-sm font-semibold text-[var(--text)] transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                   >
                     {t(label)}
                   </button>
@@ -1426,7 +1426,7 @@ export default function PostEditorModal({
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(event) => setScheduledAt(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/40"
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none focus:border-[var(--primary)]"
               />
               <div className="text-xs text-slate-400">
                 {t("marketing.calendar.timezone", { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || t("marketing.calendar.localTime") })}
@@ -1434,9 +1434,9 @@ export default function PostEditorModal({
             </div>
 
             {isStoryContent && storyAudio ? (
-              <div className="space-y-3 rounded-3xl border border-cyan-300/15 bg-cyan-300/[0.06] p-4">
+              <div className="space-y-3 rounded-3xl border border-[var(--border)] bg-[var(--primary-soft)] p-4">
                 <div className="flex items-center gap-2 text-sm font-black text-white">
-                  <Music2 className="h-4 w-4 text-cyan-200" />
+                  <Music2 className="h-4 w-4 text-[var(--primary)]" />
                   Suggested Trending Audio
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
@@ -1460,14 +1460,14 @@ export default function PostEditorModal({
               </div>
             ) : null}
 
-            <div className="space-y-3 rounded-3xl border border-white/10 bg-slate-950/80 p-4">
+            <div className="space-y-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
                 <Zap className="h-4 w-4 text-amber-300" />
                 {t("marketing.ai.smartSuggestions")}
               </div>
               {["bestForFacebook", "highEngagementWording", "useFewerHashtags", "addDiscountCta"].map((item) => (
                 <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200">
-                  <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-lg shadow-cyan-400/40" />
+                  <span className="h-2 w-2 rounded-full bg-[var(--primary)]" />
                   {t(`marketing.ai.suggestions.${item}`)}
                 </div>
               ))}
@@ -1476,7 +1476,7 @@ export default function PostEditorModal({
             <div className="hidden gap-3 md:grid">
               {scheduledBadgeLabel ? (
                 <div className="mb-1 flex w-full">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1.5 text-xs font-black text-cyan-100">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-1.5 text-xs font-black text-[var(--primary)]">
                     {scheduledBadgeLabel}
                   </span>
                 </div>
@@ -1509,7 +1509,7 @@ export default function PostEditorModal({
                   type="button"
                   disabled={saving || isTikTokChannel || (!scheduledAt && !form.scheduled_at)}
                   onClick={() => handleSubmit("schedule")}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100 shadow-lg shadow-cyan-500/10 transition hover:-translate-y-0.5 hover:bg-cyan-500/20 disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--primary)] bg-[var(--primary-soft)] px-4 py-3 text-sm font-black text-[var(--primary)] shadow-lg transition hover:-translate-y-0.5 hover:brightness-110 disabled:opacity-60"
                 >
                   <CalendarClock className="h-4 w-4" />
                   {t("marketing.calendar.schedule")}
@@ -1521,7 +1521,7 @@ export default function PostEditorModal({
 
         <div className="sticky bottom-0 z-20 border-t border-[var(--border)] bg-[var(--card)] px-4 py-3 backdrop-blur-md md:hidden">
           {scheduledBadgeLabel ? (
-            <div className="mb-3 inline-flex rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1.5 text-xs font-black text-cyan-100">
+            <div className="mb-3 inline-flex rounded-full border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-1.5 text-xs font-black text-[var(--primary)]">
               {scheduledBadgeLabel}
             </div>
           ) : null}
@@ -1542,7 +1542,7 @@ export default function PostEditorModal({
                 type="button"
                 disabled={saving || isTikTokChannel || (!scheduledAt && !form.scheduled_at)}
                 onClick={() => handleSubmit("schedule")}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100 shadow-lg shadow-cyan-500/10 transition hover:bg-cyan-500/20 disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--primary)] bg-[var(--primary-soft)] px-4 py-3 text-sm font-black text-[var(--primary)] shadow-lg transition hover:brightness-110 disabled:opacity-60"
               >
                 <CalendarClock className="h-4 w-4" />
                 {t("marketing.calendar.schedule")}
@@ -1568,13 +1568,13 @@ export default function PostEditorModal({
 
 function StatCard({ icon: Icon, label, value, tone }) {
   const tones = {
-    cyan: "text-cyan-200 bg-cyan-500/10 border-cyan-500/20",
+    primary: "text-[var(--primary)] bg-[var(--primary-soft)] border-[var(--primary)]",
     emerald: "text-emerald-200 bg-emerald-500/10 border-emerald-500/20",
     amber: "text-amber-200 bg-amber-500/10 border-amber-500/20",
     rose: "text-rose-200 bg-rose-500/10 border-rose-500/20",
   };
   return (
-    <div className={`rounded-3xl border p-4 ${tones[tone] || tones.cyan}`}>
+    <div className={`rounded-3xl border p-4 ${tones[tone] || tones.primary}`}>
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] opacity-80">
         <Icon className="h-4 w-4" />
         {label}
