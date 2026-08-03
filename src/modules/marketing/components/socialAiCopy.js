@@ -1,3 +1,5 @@
+import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
+
 const unique = (items = []) => Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean)));
 
 const cleanText = (value = "") => String(value || "").trim().replace(/\s+/g, " ");
@@ -356,24 +358,32 @@ export const buildSocialAICopy = ({
         "⏳ عرض لفترة محدودة.",
       ].filter(Boolean)
     : [`السعر: ${pricing.currentText}`];
-  const link = firstText(post.product_url, design.product_url, product.url, product.product_url, post.cta_url, design.cta_url) || "";
+  const rawLink = firstText(post.product_url, design.product_url, product.product_url, product.url, post.cta_url, design.cta_url) || "";
+  const link = rawLink ? publicStorefrontUrl(rawLink) : "";
   const hashtags = unique([
     ...buildErpHashtags({ productName, brandName, category: categoryName, gender: genderName, productType: productTypeName }),
     ...normalizeList(post.hashtags || design.hashtags || design.tags),
   ]).slice(0, 5);
-  const caption = [
-    isBackToSchool ? "🎒 موسم العودة إلى المدارس بدأ! 📚" : "NEW COLLECTION",
-    isBackToSchool ? "جهّز أولادك للمدرسة بشنطة عملية ومريحة لكل يوم." : "",
-    hook,
-    body,
-    cta,
-    ...saleLines,
-    sizesLine,
-    colorsLine,
-    stockStatus,
-    link ? `اطلب الآن:\n${link}` : "",
-    hashtags.length ? hashtags.join(" ") : "",
-  ]
+  const captionParts = isBackToSchool
+    ? [
+        "🎒 موسم العودة إلى المدارس بدأ! 📚",
+        `${productName}\nشنطة عملية ومريحة لكل يوم مدرسي.`,
+        ...saleLines,
+        [sizesLine, colorsLine].filter(Boolean).join("\n"),
+        link ? `اطلب الآن: ${link}` : "اطلبها الآن قبل نفاد الكمية.",
+      ]
+    : [
+        "NEW COLLECTION",
+        hook,
+        body,
+        cta,
+        ...saleLines,
+        sizesLine,
+        colorsLine,
+        stockStatus,
+        link ? `اطلب الآن: ${link}` : "",
+      ];
+  const caption = captionParts
     .filter(Boolean)
     .join("\n\n")
     .trim();

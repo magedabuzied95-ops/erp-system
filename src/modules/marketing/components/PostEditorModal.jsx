@@ -23,6 +23,7 @@ import {
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { getCurrentTenant } from "../../../shared/auth/authStorage";
+import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 
 import {
   buildSocialAICopy,
@@ -547,6 +548,10 @@ export const normalizeMarketingPostInput = (post = {}) => {
         ? product.variants
         : [];
   const productName = post.product_name || design.product_name || product.name || post.title || "";
+  const rawProductUrl = post.product_url || design.product_url || product.product_url || product.url || post.cta_url || design.cta_url || "";
+  const productUrl = rawProductUrl
+    ? publicStorefrontUrl(rawProductUrl)
+    : publicStorefrontUrl(`/shop/product/${product.slug || product.canonical_slug || post.product_id || ""}`);
   const price = formatPrice(resolveMarketingEditorPrice({ post, design, product, variants }), design.currency || post.currency || product.currency);
   const color = post.color_name || design.color_name || post.color || product.color || "";
   const size = post.size_name || design.size_name || post.size || product.size || "";
@@ -576,6 +581,8 @@ export const normalizeMarketingPostInput = (post = {}) => {
     image_url: media.heroImage,
     media_urls: media.gallery,
     product_name: productName,
+    product_url: productUrl,
+    cta_url: productUrl,
     price,
     color_name: color,
     size_name: size,

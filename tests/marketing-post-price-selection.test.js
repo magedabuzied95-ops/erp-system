@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const serverSource = await readFile(new URL("../server/controllers/marketingController.js", import.meta.url), "utf8");
 const editorSource = await readFile(new URL("../src/modules/marketing/components/PostEditorModal.jsx", import.meta.url), "utf8");
+const socialCopySource = await readFile(new URL("../src/modules/marketing/components/socialAiCopy.js", import.meta.url), "utf8");
 
 test("marketing posts prefer the ordinary selling price over the sale price", () => {
   assert.match(serverSource, /resolveCurrentSellingPrice/);
@@ -39,4 +40,11 @@ test("social previews use the current tenant name instead of a fixed ERP Store l
 test("bag captions open with a back-to-school seasonal campaign", () => {
   assert.match(serverSource, /موسم العودة إلى المدارس بدأ/);
   assert.match(serverSource, /جهّز أولادك للمدرسة بشنطة عملية ومريحة/);
+});
+
+test("generated captions use a full storefront link without duplicating hashtags", () => {
+  assert.match(socialCopySource, /publicStorefrontUrl\(rawLink\)/);
+  assert.match(socialCopySource, /شنطة عملية ومريحة لكل يوم مدرسي/);
+  assert.doesNotMatch(socialCopySource, /hashtags\.length \? hashtags\.join\(" "\)/);
+  assert.match(editorSource, /product_url: productUrl/);
 });
