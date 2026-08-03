@@ -2294,7 +2294,15 @@ const uniqueValues = (rows = [], key) =>
     )
   );
 
-const buildProductCaption = ({ productName, price, variants = [] }) => {
+const isBackToSchoolProduct = (product = {}) => {
+  const source = [product.name, product.product_name, product.category_name, product.category, product.product_type]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return /(bag|backpack|school\s*bag|شنط|شنطة|حقيبة|حقائب)/i.test(source);
+};
+
+const buildProductCaption = ({ productName, price, variants = [], product = {} }) => {
   const colors = uniqueValues(variants, "color");
   const sizes = uniqueValues(variants, "size");
   const details = [];
@@ -2302,10 +2310,14 @@ const buildProductCaption = ({ productName, price, variants = [] }) => {
   if (sizes.length) details.push(`المقاسات: ${sizes.slice(0, 8).join("، ")}`);
 
   return [
-    "وصل جديد",
+    isBackToSchoolProduct({ ...product, name: productName })
+      ? "🎒 موسم العودة إلى المدارس بدأ! 📚"
+      : "وصل جديد",
     productName,
     "",
-    "متاح الآن بألوان ومقاسات مميزة.",
+    isBackToSchoolProduct({ ...product, name: productName })
+      ? "جهّز أولادك للمدرسة بشنطة عملية ومريحة لكل يوم."
+      : "متاح الآن بألوان ومقاسات مميزة.",
     ...details,
     `السعر يبدأ من: ${price} ج.م`,
     "",
@@ -2369,6 +2381,7 @@ const resolveProductPostData = (productRow = {}, variantRows = [], brandIdentity
       productName,
       price: price || "0",
       variants: variantRows,
+      product: productRow,
     }),
     hashtags: buildProductMarketingHashtags(productRow),
     image_url: mediaUrls[0] || "",

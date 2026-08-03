@@ -35,3 +35,8 @@ test("social previews use the current tenant name instead of a fixed ERP Store l
   assert.doesNotMatch(editorSource, />ERP Store</);
   assert.doesNotMatch(editorSource, />erp\.store</);
 });
+
+test("bag captions open with a back-to-school seasonal campaign", () => {
+  assert.match(serverSource, /موسم العودة إلى المدارس بدأ/);
+  assert.match(serverSource, /جهّز أولادك للمدرسة بشنطة عملية ومريحة/);
+});

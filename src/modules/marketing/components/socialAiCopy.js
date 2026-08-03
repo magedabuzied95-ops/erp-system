@@ -333,6 +333,8 @@ export const buildSocialAICopy = ({
   const categoryName = cleanText(post.category_name || design.category_name || product.category_name || post.category || design.category || product.category);
   const genderName = cleanText(post.gender || design.gender || product.gender || post.audience_gender || design.audience_gender || product.audience_gender);
   const productTypeName = cleanText(post.product_type || design.product_type || product.product_type || post.productType || design.productType || product.productType);
+  const seasonalSource = [productName, categoryName, productTypeName].filter(Boolean).join(" ").toLowerCase();
+  const isBackToSchool = /(bag|backpack|school\s*bag|شنط|شنطة|حقيبة|حقائب)/i.test(seasonalSource);
   const hook = selectedTone.hooks[hookVariant % selectedTone.hooks.length] || selectedTone.hooks[0];
   const body = selectedTone.bodies[hookVariant % selectedTone.bodies.length] || selectedTone.bodies[0];
   const cta = selectedTone.ctas[ctaVariant % selectedTone.ctas.length] || selectedTone.ctas[0];
@@ -360,7 +362,8 @@ export const buildSocialAICopy = ({
     ...normalizeList(post.hashtags || design.hashtags || design.tags),
   ]).slice(0, 5);
   const caption = [
-    "NEW COLLECTION",
+    isBackToSchool ? "🎒 موسم العودة إلى المدارس بدأ! 📚" : "NEW COLLECTION",
+    isBackToSchool ? "جهّز أولادك للمدرسة بشنطة عملية ومريحة لكل يوم." : "",
     hook,
     body,
     cta,
