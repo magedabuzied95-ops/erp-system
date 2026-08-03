@@ -45,6 +45,7 @@ import {
 import { generateSocialPublisherCaption, getProductsWithVariants } from "../../products/services/productsApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import MarketingStudioHeader from "../components/MarketingStudioHeader";
+import { buildSuggestedFirstComment, collectFirstCommentAvailability } from "../lib/suggestedFirstComment";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -445,35 +446,6 @@ const buildErpProductInfo = (product = {}) => {
     stock_line: stockQuantity > 0 ? "متوفر الآن" : "غير متوفر حالياً",
   };
 };
-const collectFirstCommentAvailability = (product = {}) => {
-  const variants = safeArray(product.variants);
-  const activeVariants = variants.filter((variant) => {
-    const quantity = Number(variant?.quantity ?? variant?.stock ?? variant?.stock_quantity ?? variant?.available_quantity ?? 0);
-    const available = variant?.available === true || variant?.in_stock === true;
-    return quantity > 0 || available;
-  });
-  const getVariantText = (...values) => normalizeTextValue(values.find((value) => normalizeTextValue(value)));
-  const sizes = uniqueTextList(
-    activeVariants.map((variant) => getVariantText(variant?.size_name, variant?.size_label, variant?.size, variant?.variant_size, variant?.size_value, variant?.label))
-  );
-  const colors = uniqueTextList(
-    activeVariants.map((variant) => localizeColorName(getVariantText(variant?.color_name, variant?.color_label, variant?.color, variant?.colour, variant?.variant_color)))
-  );
-  const fallbackSizes = uniqueTextList(product.available_sizes, product.sizes);
-  const fallbackColors = uniqueTextList(product.available_colors, product.colors, product.color_names).map((value) => localizeColorName(value)).filter(Boolean);
-  const resolvedSizes = sizes.length ? sizes : fallbackSizes;
-  const resolvedColors = colors.length ? colors : fallbackColors;
-  const stockFromVariants = activeVariants.reduce((sum, variant) => {
-    const quantity = Number(variant?.quantity ?? variant?.stock ?? variant?.stock_quantity ?? variant?.available_quantity ?? 0);
-    return sum + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1);
-  }, 0);
-  const stock = stockFromVariants || Math.max(0, Number(product.stock_quantity ?? product.available_stock ?? product.stock ?? product.quantity ?? 0));
-  return {
-    sizes: resolvedSizes,
-    colors: resolvedColors,
-    stock,
-  };
-};
 const normalizeCatalogMediaUrl = (value = "") => {
   if (!value) return "";
   if (typeof value === "string") return normalizeTextValue(value);
@@ -620,81 +592,6 @@ const buildCatalogFallbackMediaUrl = (product = {}) =>
     product.photo_url,
     product.image
   )[0] || "";
-const buildSuggestedFirstComment = (product = {}, options = {}) => {
-  const pricing = resolveStorefrontPriceBreakdown(product);
-  const availability = collectFirstCommentAvailability(product);
-  const includeLocation = Boolean(options.includeLocation);
-  const includeShipping = Boolean(options.includeShipping);
-  const productUrl = buildFullProductUrl(product.product_url || product.url || "");
-  const sku = normalizeTextValue(product.sku || product.sku_code || product.product_sku || product.skuId || "");
-  const lines = [];
-  const currentPrice = Number(pricing.current_price || pricing.current || 0);
-  const originalPrice = Number(pricing.old_crossed_price || pricing.original_price || pricing.original || 0);
-  const hasSale = Boolean(pricing.sale_active || (currentPrice > 0 && originalPrice > currentPrice));
-
-  if (hasSale && currentPrice > 0) {
-    lines.push(`💰 السعر الآن: ${formatCompactCurrency(currentPrice)} ج.م`);
-    if (originalPrice > currentPrice) {
-      lines.push(`🏷️ قبل الخصم: ${formatCompactCurrency(originalPrice)} ج.م`);
-      const discountPercent = computeDiscountPercent(originalPrice, currentPrice);
-      if (discountPercent) {
-        lines.push(`💸 وفر ${discountPercent}`);
-      }
-    }
-    lines.push("⏳ عرض لفترة محدودة.");
-  } else if (currentPrice > 0) {
-    lines.push(`💰 السعر: ${formatCompactCurrency(currentPrice)} ج.م`);
-  }
-
-  if (availability.sizes.length) {
-    lines.push("");
-    lines.push(`📏 المقاسات: ${availability.sizes.join(" • ")}`);
-  }
-
-  if (sku) {
-    lines.push("");
-    lines.push(`🏷️ كود المنتج: ${sku}`);
-  }
-
-  if (availability.colors.length) {
-    lines.push("");
-    lines.push(`🎨 ${availability.colors.length === 1 ? "اللون" : "الألوان"}: ${availability.colors.join(" • ")}`);
-  }
-
-  if (availability.stock > 0) {
-    lines.push("");
-    lines.push(availability.stock < 5 ? "⚠️ الحالة: الكمية محدودة." : "✅ الحالة: متوفر الآن.");
-  } else {
-    lines.push("");
-    lines.push("❌ الحالة: غير متوفر حالياً.");
-  }
-
-  if (includeShipping) {
-    lines.push("");
-    lines.push("🚚 الشحن: شحن لجميع المحافظات");
-  }
-
-  if (includeLocation) {
-    lines.push("");
-    lines.push("📍 الموقع: دمياط الجديدة");
-  }
-
-  lines.push("");
-  lines.push("💬 للحجز: للحجز أو الاستفسار ابعتلنا رسالة.");
-
-  if (productUrl) {
-    lines.push("");
-    lines.push("🛒 اطلب الآن:");
-    lines.push(productUrl);
-  }
-
-  return lines
-    .map((line) => String(line || "").trim())
-    .filter((line, index, array) => line !== "" || array[index - 1] !== "")
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-};
 const normalizeAiCaptionSections = (result = {}) => {
   const hashtags = uniqueTextList(result.hashtags, result.tags, result.hash_tags, result.keywords).slice(0, 5);
   return {
@@ -1142,13 +1039,14 @@ export default function SocialMediaPublisher() {
     setSelectedCatalogProduct(nextProduct);
     setSelectedCatalogMediaUrl(nextMediaUrl);
     setCreateSource("catalog");
-    setCaption(buildCatalogCaption(nextProduct, { includeLocation, includeShipping }));
+    setCaption("");
     setFirstComment(buildSuggestedFirstComment(nextProduct, { includeLocation, includeShipping }));
     setAiTemplateCaption("");
     setAiTemplateError("");
     setAiTemplateSource("");
     if (!mediaFile) setMediaType("image");
     setProductCatalogOpen(false);
+    void generateNewCollectionCaption({ product: nextProduct, applyToCaption: true, openPreview: false });
   };
 
   const clearCatalogProduct = () => {
@@ -1183,11 +1081,11 @@ export default function SocialMediaPublisher() {
     setAiTemplateFallbackReason("");
   };
 
-  const loadSelectedCatalogProductDetails = async () => {
-    if (!selectedCatalogProduct?.id) return null;
+  const loadSelectedCatalogProductDetails = async (catalogProduct = selectedCatalogProduct) => {
+    if (!catalogProduct?.id) return null;
     const response = await getProductsWithVariants({
       params: {
-        productId: selectedCatalogProduct.id,
+        productId: catalogProduct.id,
         refresh: Date.now(),
       },
       timeoutMs: 30000,
@@ -1195,37 +1093,37 @@ export default function SocialMediaPublisher() {
     console.warn("[ai-social-caption-products-with-variants-raw]", response);
     const products = safeArray(response);
     const resolved =
-      products.find((item) => String(item?.id || item?.product_id || "") === String(selectedCatalogProduct.id)) ||
+      products.find((item) => String(item?.id || item?.product_id || "") === String(catalogProduct.id)) ||
       products[0] ||
       {};
     const normalized = normalizeCatalogProductMetrics({
-      ...selectedCatalogProduct,
+      ...catalogProduct,
       ...resolved,
-      image_url: resolved.image_url || resolved.product_image_url || selectedCatalogProduct.image_url || "",
-      product_url: resolved.product_url || selectedCatalogProduct.product_url || "",
+      image_url: resolved.image_url || resolved.product_image_url || catalogProduct.image_url || "",
+      product_url: resolved.product_url || catalogProduct.product_url || "",
     });
     console.warn("[ai-social-caption-products-with-variants-normalized]", normalized);
     return normalized;
   };
 
-  const generateNewCollectionCaption = async ({ force = false } = {}) => {
-    if (!selectedCatalogProduct?.id) {
+  const generateNewCollectionCaption = async ({ force = false, product = selectedCatalogProduct, applyToCaption = false, openPreview = true } = {}) => {
+    if (!product?.id) {
       toast.error("Select a product first");
       return;
     }
-    setAiTemplateOpen(true);
+    setAiTemplateOpen(openPreview);
     setAiTemplateLoading(true);
     setAiTemplateError("");
     setAiTemplateFallbackReason("");
     try {
-      const productDetails = await loadSelectedCatalogProductDetails();
+      const productDetails = await loadSelectedCatalogProductDetails(product);
       console.warn("[ai-social-caption-product-source]", {
-        selected_catalog_product: selectedCatalogProduct,
+        selected_catalog_product: product,
         product_details: productDetails,
       });
-      const aiContext = buildAiCaptionProductContext(productDetails || selectedCatalogProduct);
+      const aiContext = buildAiCaptionProductContext(productDetails || product);
       const aiPayload = {
-        product_id: selectedCatalogProduct.id,
+        product_id: product.id,
         product_name: aiContext.product_name || "",
         base_price: aiContext.base_price || "",
         sale_price: aiContext.sale_price || "",
@@ -1244,29 +1142,29 @@ export default function SocialMediaPublisher() {
       };
       console.warn("[ai-social-caption-product]", aiPayload);
       console.warn("[ai-social-caption-request]", {
-        selectedCatalogProduct,
+        selectedCatalogProduct: product,
         selectedCatalogProductDetails: productDetails,
         aiContext,
         payload: {
           current: aiContext,
-          product_id: selectedCatalogProduct.id,
+          product_id: product.id,
           template: "new_collection",
           force: Boolean(force),
         },
       });
       const payload = {
         current: aiContext,
-        product_id: selectedCatalogProduct.id,
+        product_id: product.id,
         template: "new_collection",
         force: Boolean(force),
       };
       const result = await generateSocialPublisherCaption(payload, { timeoutMs: 45000 });
       const aiSections = normalizeAiCaptionSections(result || {});
-      const erpInfo = buildErpProductInfo(productDetails || selectedCatalogProduct);
+      const erpInfo = buildErpProductInfo(productDetails || product);
       const nextCaption =
         composeNewCollectionCaption(aiSections, erpInfo, { includeLocation, includeShipping }) ||
         String(result?.caption || "").trim() ||
-        buildCatalogCaption(selectedCatalogProduct, { includeLocation, includeShipping });
+        buildCatalogCaption(product, { includeLocation, includeShipping });
       console.warn("[ai-social-caption-response]", {
         success: String(result?.source || "").toUpperCase() === "OPENAI",
         source: result?.source || "",
@@ -1280,8 +1178,9 @@ export default function SocialMediaPublisher() {
         },
       });
       setAiTemplateCaption(nextCaption);
+      if (applyToCaption) setCaption(nextCaption);
       setAiTemplateSource(String(result?.source || "LOCAL_FALLBACK"));
-      setFirstComment(buildSuggestedFirstComment(productDetails || selectedCatalogProduct, { includeLocation, includeShipping }));
+      setFirstComment(buildSuggestedFirstComment(productDetails || product, { includeLocation, includeShipping }));
       if (String(result?.source || "").toUpperCase() !== "OPENAI") {
         const payloadMissing =
           !aiContext.product_name ||
@@ -1307,6 +1206,7 @@ export default function SocialMediaPublisher() {
       }
     } catch (error) {
       const message = error?.message || "Failed to generate caption";
+      if (applyToCaption) setCaption(buildCatalogCaption(product, { includeLocation, includeShipping }));
       setAiTemplateFallbackReason("ai_request_failed");
       setAiTemplateError(message);
       toast.error(message);

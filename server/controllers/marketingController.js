@@ -13,7 +13,8 @@ import {
   STORY_RENDERER_BUILD,
   STORY_RENDERER_NAME,
 } from "../services/storyImageService.js";
-import { getMetaTokenStatus, refreshMetaTokens } from "../services/metaTokenService.js";
+import { getMetaTokenStatus, refreshMetaTokens, validateMetaToken } from "../services/metaTokenService.js";
+import { callMetaComment, resolveFirstCommentTargets } from "../services/socialPublisherPostsService.js";
 import { refreshMarketingTenantMetaToken } from "../services/metaTokenAutoRefreshService.js";
 import { ensureTrackingForPost } from "../services/marketingAttributionService.js";
 import { ensureProductVariantImagesSchema } from "../services/productVariantImagesService.js";
@@ -118,6 +119,11 @@ const normalizePostRow = (row = {}) => ({
   product_name: row.product_name || "",
   title: row.title || "",
   caption: row.caption || "",
+  first_comment: row.first_comment || "",
+  first_comment_status: row.first_comment_status || null,
+  first_comment_error: row.first_comment_error || null,
+  first_comment_external_id: row.first_comment_external_id || null,
+  first_comment_published_at: row.first_comment_published_at || null,
   hashtags: row.hashtags || "",
   hashtags_list: safeJson(row.hashtags_list, safeJson(row.hashtags, [])),
   image_url: row.image_url || "",
@@ -2679,6 +2685,64 @@ const fetchProductBundle = async (productId, tenantId) => {
   return { product, variants: variantsResult.rows || [] };
 };
 
+const publishMarketingFirstComment = async ({ post, publishResult, settings, tenantId, postId }) => {
+  const comment = String(post?.first_comment || "").trim();
+  if (!comment || !["published", "partial_success"].includes(String(publishResult?.status || "").toLowerCase())) return null;
+
+  let accessToken = "";
+  try {
+    accessToken = validateMetaToken(settings || {}).accessToken || "";
+  } catch {
+    accessToken = "";
+  }
+  if (!accessToken) {
+    const error = "Meta access token is not configured.";
+    await db.query(
+      `UPDATE marketing_posts SET first_comment_status = 'skipped', first_comment_error = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3`,
+      [error, postId, tenantId]
+    );
+    return { status: "skipped", error };
+  }
+
+  const targets = resolveFirstCommentTargets({
+    post: { ...post, platforms: [post.channel || "facebook"] },
+    publishResult,
+  });
+  if (!targets.length) {
+    const error = "No supported post/media id available for first comment.";
+    await db.query(
+      `UPDATE marketing_posts SET first_comment_status = 'skipped', first_comment_error = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3`,
+      [error, postId, tenantId]
+    );
+    return { status: "skipped", error };
+  }
+
+  const results = [];
+  for (const target of targets) {
+    try {
+      const response = await callMetaComment({ targetId: target.targetId, accessToken, message: comment, platform: target.platform });
+      results.push({ ...target, status: "published", commentId: String(response?.id || response?.comment_id || "").trim() });
+    } catch (error) {
+      results.push({ ...target, status: "failed", error: error?.message || "First comment publish failed" });
+    }
+  }
+  const published = results.filter((item) => item.status === "published");
+  const failed = results.filter((item) => item.status === "failed");
+  const status = published.length && !failed.length ? "published" : "failed";
+  const errorMessage = failed.map((item) => `${item.platform}: ${item.error}`).join("; ") || null;
+  const externalId = published.at(-1)?.commentId || published.at(-1)?.targetId || null;
+  await db.query(
+    `
+    UPDATE marketing_posts
+    SET first_comment_status = $1, first_comment_error = $2, first_comment_external_id = $3,
+        first_comment_published_at = $4::timestamp, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $5 AND tenant_id = $6
+    `,
+    [status, errorMessage, externalId, published.length ? new Date().toISOString() : null, postId, tenantId]
+  );
+  return { status, error: errorMessage, results };
+};
+
 const publishAndPersist = async (postId, tenantId) => {
   console.log("[publish] requested channel", { post_id: postId, tenant_id: tenantId });
   const postResult = await db.query(
@@ -2704,6 +2768,7 @@ const publishAndPersist = async (postId, tenantId) => {
   const settings = await getSettingsRow(tenantId);
   const result = await publishPostService(post, settings);
   await saveLinksForPublishedPost({ post, publishResult: result });
+  await publishMarketingFirstComment({ post, publishResult: result, settings, tenantId, postId });
 
   const updated = await db.query(
     `
@@ -5205,6 +5270,7 @@ export const createPost = async (req, res) => {
         template_id,
         title,
         caption,
+        first_comment,
         hashtags,
         image_url,
         media_urls,
@@ -5212,7 +5278,7 @@ export const createPost = async (req, res) => {
         status,
         scheduled_at
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13)
       RETURNING *
       `,
       [
@@ -5222,6 +5288,7 @@ export const createPost = async (req, res) => {
         payload.template_id || null,
         payload.title || "",
         payload.caption || "",
+        payload.first_comment || payload.firstComment || "",
         payload.hashtags || "",
         payload.image_url || "",
         JSON.stringify(normalizeMediaUrls(payload.media_urls, payload.image_url)),
@@ -5252,14 +5319,19 @@ export const updatePost = async (req, res) => {
         template_id = $3,
         title = $4,
         caption = $5,
-        hashtags = $6,
-        image_url = $7,
-        media_urls = $8::jsonb,
-        channel = $9,
-        status = $10,
-        scheduled_at = $11,
+        first_comment = $6,
+        first_comment_status = CASE WHEN first_comment IS DISTINCT FROM $6 THEN NULL ELSE first_comment_status END,
+        first_comment_error = CASE WHEN first_comment IS DISTINCT FROM $6 THEN NULL ELSE first_comment_error END,
+        first_comment_external_id = CASE WHEN first_comment IS DISTINCT FROM $6 THEN NULL ELSE first_comment_external_id END,
+        first_comment_published_at = CASE WHEN first_comment IS DISTINCT FROM $6 THEN NULL ELSE first_comment_published_at END,
+        hashtags = $7,
+        image_url = $8,
+        media_urls = $9::jsonb,
+        channel = $10,
+        status = $11,
+        scheduled_at = $12,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12 AND tenant_id = $13
+      WHERE id = $13 AND tenant_id = $14
       RETURNING *
       `,
       [
@@ -5268,6 +5340,7 @@ export const updatePost = async (req, res) => {
         payload.template_id || null,
         payload.title || "",
         payload.caption || "",
+        payload.first_comment || payload.firstComment || "",
         payload.hashtags || "",
         payload.image_url || "",
         JSON.stringify(normalizeMediaUrls(payload.media_urls, payload.image_url)),

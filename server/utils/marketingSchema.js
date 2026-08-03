@@ -86,6 +86,11 @@ const statements = [
     template_id BIGINT NULL REFERENCES marketing_post_templates(id) ON DELETE SET NULL,
     title TEXT NOT NULL DEFAULT '',
     caption TEXT NOT NULL DEFAULT '',
+    first_comment TEXT NOT NULL DEFAULT '',
+    first_comment_status VARCHAR(30) NULL,
+    first_comment_error TEXT NULL,
+    first_comment_external_id TEXT NULL,
+    first_comment_published_at TIMESTAMP NULL,
     hashtags TEXT NOT NULL DEFAULT '',
     image_url TEXT NOT NULL DEFAULT '',
     media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -114,7 +119,12 @@ const statements = [
   `,
   `
   ALTER TABLE IF EXISTS marketing_posts
-    ADD COLUMN IF NOT EXISTS media_urls JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ADD COLUMN IF NOT EXISTS media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS first_comment TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS first_comment_status VARCHAR(30) NULL,
+    ADD COLUMN IF NOT EXISTS first_comment_error TEXT NULL,
+    ADD COLUMN IF NOT EXISTS first_comment_external_id TEXT NULL,
+    ADD COLUMN IF NOT EXISTS first_comment_published_at TIMESTAMP NULL;
   `,
   `
   ALTER TABLE IF EXISTS marketing_posts

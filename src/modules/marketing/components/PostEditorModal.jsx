@@ -32,10 +32,12 @@ import {
   socialToneOptions,
   stripInternalSectionLabels,
 } from "./socialAiCopy";
+import { buildSuggestedFirstComment } from "../lib/suggestedFirstComment";
 
 const defaultPost = {
   title: "",
   caption: "",
+  first_comment: "",
   hashtags: "",
   image_url: "",
   media_urls: [],
@@ -569,6 +571,8 @@ export const normalizeMarketingPostInput = (post = {}) => {
   );
   const caption = normalizeAICaption(post, design, product, variants);
   const aiTone = post.ai_tone || design.ai_tone || defaultSocialTone;
+  const firstCommentProduct = { ...post, ...product, variants, product_url: productUrl };
+  const firstComment = String(post.first_comment || design.first_comment || "").trim() || buildSuggestedFirstComment(firstCommentProduct);
 
   return {
     ...defaultPost,
@@ -577,6 +581,7 @@ export const normalizeMarketingPostInput = (post = {}) => {
     variants,
     title: post.title || design.title || productName || defaultPost.title,
     caption,
+    first_comment: firstComment,
     hashtags: unique(hashtags).join(" "),
     image_url: media.heroImage,
     media_urls: media.gallery,
@@ -1324,6 +1329,21 @@ export default function PostEditorModal({
                 dir="auto"
                 className="w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                 placeholder={t("marketing.social.placeholders.caption")}
+              />
+            </label>
+
+            <label className="space-y-2 rounded-3xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
+              <span className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
+                <span>التعليق الأول المقترح</span>
+                <span className="normal-case tracking-normal text-slate-500">نفس تعليق البابلشر</span>
+              </span>
+              <textarea
+                value={form.first_comment || ""}
+                onChange={(event) => updateField("first_comment", event.target.value)}
+                rows={9}
+                dir="auto"
+                className="w-full resize-y rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-emerald-400"
+                placeholder="سيتم توليد التعليق من بيانات المنتج"
               />
             </label>
 

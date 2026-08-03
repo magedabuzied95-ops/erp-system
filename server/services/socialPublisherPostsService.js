@@ -96,7 +96,7 @@ const parseMetaPayload = async (response) => {
 const metaErrorMessage = (payload = {}, fallback = "Meta Graph API request failed") =>
   payload?.error?.message || payload?.message || fallback;
 
-const callMetaComment = async ({ targetId, accessToken, message, platform }) => {
+export const callMetaComment = async ({ targetId, accessToken, message, platform }) => {
   const endpoint = `${META_GRAPH_API_BASE_URL}/${encodeURIComponent(trimString(targetId))}/comments`;
   console.log("[social-publisher-first-comment]", {
     platform,
@@ -715,7 +715,7 @@ export const searchSocialPublisherProducts = async ({ tenantId, query = "", limi
   return normalizedProducts;
 };
 
-const resolveFirstCommentTargets = ({ post = {}, publishResult = {} } = {}) => {
+export const resolveFirstCommentTargets = ({ post = {}, publishResult = {} } = {}) => {
   const platformResults = publishResult?.platform_publish_results || {};
   const singlePlatformTarget = (platform) => {
     const normalizedPlatform = trimString(platform).toLowerCase();
