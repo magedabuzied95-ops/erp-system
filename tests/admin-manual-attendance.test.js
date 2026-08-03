@@ -14,11 +14,28 @@ test("manual attendance route is tenant scoped, audited and does not duplicate a
   assert.match(routeSource, /reason.*required/s);
 });
 
-test("daily attendance defaults to today and groups results with filtered totals", () => {
-  assert.match(uiSource, /startDate: todayValue\(\)/);
+test("a real attendance log overrides generated weekly or monthly off status", () => {
+  assert.match(routeSource, /attendance_source = 'admin_manual'/);
+  const controllerSource = fs.readFileSync(new URL("../server/controllers/attendanceController.js", import.meta.url), "utf8");
+  assert.match(controllerSource, /if \(log\) \{\s*if \(lateMinutes > 0\) status = "late"/s);
+  assert.match(controllerSource, /\} else if \(leave\) status = "on_leave"/);
+});
+
+test("daily attendance defaults to the current month and groups results with filtered totals", () => {
+  assert.match(uiSource, /startDate: monthStartValue\(\)/);
+  assert.match(uiSource, /endDate: todayValue\(\)/);
   assert.match(uiSource, /groupedRows/);
   assert.match(uiSource, /إجماليات النتائج الحالية/);
   assert.match(uiSource, /totals\.payrollImpact/);
+});
+
+test("manual attendance stays visible and all attendance dates are day-first", () => {
+  assert.match(uiSource, /setActiveTab\("daily"\)/);
+  assert.match(uiSource, /employeeId: String\(manualForm\.employeeId\)/);
+  assert.match(uiSource, /startDate: !prev\.startDate \|\| manualForm\.attendanceDate < prev\.startDate/);
+  assert.match(uiSource, /function DayFirstDateInput/);
+  assert.match(uiSource, /placeholder="DD\/MM\/YYYY"/);
+  assert.match(uiSource, /formatDayFirstDate\(date\)/);
 });
 
 test("attendance center exposes the correction form through the admin API", () => {

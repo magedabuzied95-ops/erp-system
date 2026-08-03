@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   Activity,
@@ -47,6 +47,22 @@ const monthStartValue = () => {
   const date = new Date();
   date.setDate(1);
   return date.toISOString().slice(0, 10);
+};
+const formatDayFirstDate = (value) => {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : "";
+};
+const parseDayFirstDate = (value) => {
+  const match = String(value || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return "";
+  const [, day, month, year] = match;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() + 1 !== Number(month) || date.getUTCDate() !== Number(day)) return "";
+  return `${year}-${month}-${day}`;
+};
+const dayFirstDraft = (value) => {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join("/");
 };
 const safeArray = (value) => (Array.isArray(value) ? value : Array.isArray(value?.rows) ? value.rows : Array.isArray(value?.data) ? value.data : []);
 const numberValue = (value) => {
@@ -311,6 +327,71 @@ function NativeInput(props) {
   return <input {...props} className={`h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)] ${props.className || ""}`} />;
 }
 
+function DayFirstDateInput({ value, onChange, min, max, required = false }) {
+  const [draft, setDraft] = useState(() => formatDayFirstDate(value));
+  const pickerRef = useRef(null);
+
+  useEffect(() => setDraft(formatDayFirstDate(value)), [value]);
+
+  const emit = (nextValue) => onChange?.({ target: { value: nextValue } });
+  const commitDraft = (nextDraft) => {
+    if (!nextDraft) {
+      emit("");
+      return;
+    }
+    const parsed = parseDayFirstDate(nextDraft);
+    if (parsed && (!min || parsed >= min) && (!max || parsed <= max)) emit(parsed);
+  };
+
+  return (
+    <div className="relative" dir="ltr">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        required={required}
+        placeholder="DD/MM/YYYY"
+        aria-label="DD/MM/YYYY"
+        onChange={(event) => {
+          const nextDraft = dayFirstDraft(event.target.value);
+          setDraft(nextDraft);
+          commitDraft(nextDraft);
+        }}
+        onBlur={() => setDraft(formatDayFirstDate(value))}
+        className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 pe-11 text-center text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)]"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          const picker = pickerRef.current;
+          if (!picker) return;
+          try {
+            if (typeof picker.showPicker === "function") picker.showPicker();
+            else picker.click();
+          } catch {
+            picker.click();
+          }
+        }}
+        className="absolute end-1 top-1 grid h-8 w-8 place-items-center rounded-md text-[var(--muted)] hover:bg-[var(--card)]"
+        aria-label="Open calendar"
+      >
+        <CalendarDays className="h-4 w-4" />
+      </button>
+      <input
+        ref={pickerRef}
+        type="date"
+        value={value || ""}
+        min={min}
+        max={max}
+        onChange={(event) => emit(event.target.value)}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="pointer-events-none absolute h-px w-px opacity-0"
+      />
+    </div>
+  );
+}
+
 function NativeSelect(props) {
   return <select {...props} className={`h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)] ${props.className || ""}`} />;
 }
@@ -426,7 +507,7 @@ export default function AttendanceCenter() {
     search: "",
     branchId: "",
     employeeId: "",
-    startDate: todayValue(),
+    startDate: monthStartValue(),
     endDate: todayValue(),
     status: "",
     source: "",
@@ -613,6 +694,13 @@ export default function AttendanceCenter() {
         reason: manualForm.reason.trim(),
       });
       setManualOpen(false);
+      setActiveTab("daily");
+      setFilters((prev) => ({
+        ...prev,
+        employeeId: String(manualForm.employeeId),
+        startDate: !prev.startDate || manualForm.attendanceDate < prev.startDate ? manualForm.attendanceDate : prev.startDate,
+        endDate: !prev.endDate || manualForm.attendanceDate > prev.endDate ? manualForm.attendanceDate : prev.endDate,
+      }));
       setRefreshIndex((value) => value + 1);
     } catch (error) {
       setManualError(error?.responseBody?.message || error?.message || (isArabic ? "تعذر حفظ التصحيح." : "Failed to save the correction."));
@@ -652,8 +740,8 @@ export default function AttendanceCenter() {
           <Field label={text.search}><div className="relative"><Search className="pointer-events-none absolute start-3 top-3 h-4 w-4 text-[var(--muted)]" /><NativeInput value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} className="w-full ps-9" /></div></Field>
           <Field label={text.branch}><NativeSelect value={filters.branchId} onChange={(event) => updateFilter("branchId", event.target.value)}><option value="">{text.allBranches}</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || branch.branch_name}</option>)}</NativeSelect></Field>
           <Field label={text.employee}><NativeSelect value={filters.employeeId} onChange={(event) => updateFilter("employeeId", event.target.value)}><option value="">{text.allEmployees}</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name}</option>)}</NativeSelect></Field>
-          <Field label={text.startDate}><NativeInput type="date" value={filters.startDate} onChange={(event) => updateFilter("startDate", event.target.value)} /></Field>
-          <Field label={text.endDate}><NativeInput type="date" value={filters.endDate} onChange={(event) => updateFilter("endDate", event.target.value)} /></Field>
+          <Field label={text.startDate}><DayFirstDateInput value={filters.startDate} max={filters.endDate} onChange={(event) => updateFilter("startDate", event.target.value)} /></Field>
+          <Field label={text.endDate}><DayFirstDateInput value={filters.endDate} min={filters.startDate} onChange={(event) => updateFilter("endDate", event.target.value)} /></Field>
           <Field label={text.status}><NativeSelect value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="">{text.allStatuses}</option>{Object.entries(text.statusLabels).filter(([key]) => key !== "still_working").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</NativeSelect></Field>
           <Field label={text.source}><NativeSelect value={filters.source} onChange={(event) => updateFilter("source", event.target.value)}><option value="">{text.allSources}</option><option value="qr">QR</option><option value="qr_branch">QR Branch</option><option value="manual">Manual</option><option value="imported">Imported</option></NativeSelect></Field>
         </div>
@@ -715,9 +803,9 @@ export default function AttendanceCenter() {
             </div>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               <Field label={isArabic ? "الموظف" : "Employee"}><NativeSelect value={manualForm.employeeId} onChange={(event) => setManualForm((prev) => ({ ...prev, employeeId: event.target.value }))} required><option value="">{isArabic ? "اختر الموظف" : "Select employee"}</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name}</option>)}</NativeSelect></Field>
-              <Field label={isArabic ? "تاريخ الحضور" : "Check-in date"}><NativeInput type="date" value={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, attendanceDate: event.target.value, checkOutDate: prev.checkOutTime ? prev.checkOutDate : event.target.value }))} required /></Field>
+              <Field label={isArabic ? "تاريخ الحضور" : "Check-in date"}><DayFirstDateInput value={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, attendanceDate: event.target.value, checkOutDate: prev.checkOutTime ? prev.checkOutDate : event.target.value }))} required /></Field>
               <Field label={isArabic ? "وقت الحضور" : "Check-in time"}><NativeInput type="time" value={manualForm.checkInTime} onChange={(event) => setManualForm((prev) => ({ ...prev, checkInTime: event.target.value }))} required /></Field>
-              <Field label={isArabic ? "تاريخ الانصراف (اختياري)" : "Checkout date (optional)"}><NativeInput type="date" value={manualForm.checkOutDate} min={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutDate: event.target.value }))} /></Field>
+              <Field label={isArabic ? "تاريخ الانصراف (اختياري)" : "Checkout date (optional)"}><DayFirstDateInput value={manualForm.checkOutDate} min={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutDate: event.target.value }))} /></Field>
               <Field label={isArabic ? "وقت الانصراف (اختياري)" : "Checkout time (optional)"}><NativeInput type="time" value={manualForm.checkOutTime} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutTime: event.target.value }))} /></Field>
               <div className="md:col-span-2"><Field label={isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"}><textarea value={manualForm.reason} onChange={(event) => setManualForm((prev) => ({ ...prev, reason: event.target.value }))} required rows={3} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-500" placeholder={isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"} /></Field></div>
             </div>
@@ -844,7 +932,7 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
     <tr key={`${row.employee_id}-${row.attendance_date}-${row.status}`} onClick={() => onSelect(row)} className="cursor-pointer hover:bg-[var(--surface)]">
       <td className={`px-3 ${dense ? "py-2" : "py-4"}`}><div className="table-cell-stack"><div className="font-black text-[var(--text)]">{row.employee_name}</div><div className="text-xs text-[var(--muted)]">{row.employee_code}</div></div></td>
       <td className="px-3 py-2">{row.branch_name || "-"}</td>
-      <td className="px-3 py-2" dir="ltr">{row.attendance_date}</td>
+      <td className="px-3 py-2" dir="ltr">{formatDayFirstDate(String(row.attendance_date || "").slice(0, 10)) || row.attendance_date}</td>
       <td className="px-3 py-2" dir="ltr">{formatTime(row.check_in_time)}</td>
       <td className="px-3 py-2" dir="ltr">{formatTime(row.check_out_time)}</td>
       <td className="px-3 py-2" dir="ltr">{row.worked_hours}</td>
@@ -862,7 +950,7 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
       {groupedRows.length ? groupedRows.map(([date, dateRows]) => (
         <div key={date} className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
           <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            <div className="inline-flex items-center gap-2 font-black text-[var(--text)]"><CalendarDays className="h-4 w-4 text-[var(--primary)]" />{date}</div>
+            <div className="inline-flex items-center gap-2 font-black text-[var(--text)]" dir="ltr"><CalendarDays className="h-4 w-4 text-[var(--primary)]" />{formatDayFirstDate(date) || date}</div>
             <span className="rounded-full bg-[var(--card)] px-3 py-1 text-xs font-black text-[var(--muted)]">{dateRows.length} {isArabic ? "موظف" : "employees"}</span>
           </div>
           <div className="overflow-auto">

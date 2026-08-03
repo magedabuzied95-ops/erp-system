@@ -3641,14 +3641,15 @@ const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeG
       const lateMinutes = centerNumber(log?.late_minutes);
       const earlyLeaveMinutes = centerNumber(log?.early_leave_minutes);
       let status = "present";
-      if (leave) status = "on_leave";
+      if (log) {
+        if (lateMinutes > 0) status = "late";
+        else if (missingMinutes > 0) status = "missing_hours";
+        else if (earlyLeaveMinutes > 0) status = "early_leave";
+      } else if (leave) status = "on_leave";
       else if (holiday) status = "holiday";
       else if (!weeklyExpected) status = "weekly_off";
       else if (!expectedDate) status = "monthly_off";
-      else if (!log) status = "absent";
-      else if (lateMinutes > 0) status = "late";
-      else if (missingMinutes > 0) status = "missing_hours";
-      else if (earlyLeaveMinutes > 0) status = "early_leave";
+      else status = "absent";
 
       const dailyRate = centerNumber(employee.salary) / Math.max(1, centerNumber(employee.working_days_per_month, 26));
       const hourlyRate = dailyRate / Math.max(0.1, centerNumber(employee.daily_work_hours, 8));
