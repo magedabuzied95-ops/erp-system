@@ -1,10 +1,30 @@
 const toDate = (value) => (value ? new Date(value) : null);
+const ATTENDANCE_TIMEZONE = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
 
 const pad = (value) => String(value).padStart(2, "0");
 
 const minutesBetween = (start, end) => {
   if (!start || !end) return 0;
   return Math.max(0, Math.round((toDate(end).getTime() - toDate(start).getTime()) / 60000));
+};
+
+const timeZoneOffsetMs = (date, timeZone) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const zonedAsUtc = Date.UTC(
+    Number(values.year), Number(values.month) - 1, Number(values.day),
+    Number(values.hour), Number(values.minute), Number(values.second)
+  );
+  return zonedAsUtc - date.getTime();
 };
 
 const combineDateAndTime = (dateValue, timeValue) => {
@@ -15,14 +35,16 @@ const combineDateAndTime = (dateValue, timeValue) => {
     const parsedTime = toDate(timeValue);
     if (parsedTime && !Number.isNaN(parsedTime.getTime())) return parsedTime;
   }
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return null;
+  const dateKey = typeof dateValue === "string"
+    ? String(dateValue).slice(0, 10)
+    : new Date(dateValue).toISOString().slice(0, 10);
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return null;
   const [hours = 0, minutes = 0, seconds = 0] = rawTime
     .split(":")
     .map((part) => Number(part || 0));
-  const combined = new Date(date);
-  combined.setHours(hours, minutes, seconds, 0);
-  return combined;
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+  return new Date(utcGuess.getTime() - timeZoneOffsetMs(utcGuess, ATTENDANCE_TIMEZONE));
 };
 
 export const normalizeWorkingDays = (workingDays) => {
@@ -59,7 +81,7 @@ export const calculateAttendanceMetrics = ({
   const safeShift = shift || {};
   const inDate = toDate(checkIn);
   const outDate = toDate(checkOut);
-  const dateBase = attendanceDate ? new Date(`${attendanceDate}T00:00:00`) : inDate || new Date();
+  const dateBase = attendanceDate || inDate || new Date();
   const shiftEndTime = safeShift.end_time || safeShift.endTime || null;
   const shiftStart = combineDateAndTime(dateBase, safeShift.start_time || safeShift.startTime || checkIn);
   let shiftEnd = combineDateAndTime(dateBase, shiftEndTime);

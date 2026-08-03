@@ -21,5 +21,6 @@ test("overtime threshold is measured from worked duration", () => {
     shift: { start_time: "15:00:00", end_time: "01:00:00", allowed_late_minutes: 15, overtime_after_minutes: 600 },
   });
   assert.equal(result.work_minutes, 770);
+  assert.equal(result.early_leave_minutes, 0);
   assert.equal(result.overtime_minutes, 170);
 });
