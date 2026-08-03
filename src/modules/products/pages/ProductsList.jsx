@@ -2714,12 +2714,19 @@ function ProductsList() {
 
     try {
       setMarketingSaving(true);
+      const publishPayload = { ...payload, channel: "all" };
       const saved = marketingEditorPost?.id
-        ? await updateMarketingPost(marketingEditorPost.id, payload)
-        : await createMarketingPost({ ...payload, status: "draft" });
+        ? await updateMarketingPost(marketingEditorPost.id, publishPayload)
+        : await createMarketingPost({ ...publishPayload, status: "draft" });
       const published = await publishMarketingPost(saved.id);
       if (published?.status === "failed") {
         toast.error(published.error_message || t("products.marketing.metaNotConnected", "Meta account is not connected yet."));
+        return;
+      }
+      if (published?.status === "partial_success") {
+        toast.error(published.error_message || "تم النشر على منصة واحدة وتعذر النشر على المنصة الأخرى.");
+        setMarketingEditorOpen(false);
+        refreshProducts();
         return;
       }
       toast.success(t("common.update"));

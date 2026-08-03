@@ -2392,7 +2392,10 @@ const resolveProductPostData = (productRow = {}, variantRows = [], brandIdentity
     hashtags: buildProductMarketingHashtags(productRow),
     image_url: mediaUrls[0] || "",
     media_urls: mediaUrls,
-    channel: "facebook",
+    // Product catalog posts are intended for both connected Meta feeds.
+    // Keeping this on `facebook` silently bypasses Instagram even though the
+    // publisher supports the combined `all` channel.
+    channel: "all",
   }, brandIdentity);
 };
 

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const serverSource = await readFile(new URL("../server/controllers/marketingController.js", import.meta.url), "utf8");
 const editorSource = await readFile(new URL("../src/modules/marketing/components/PostEditorModal.jsx", import.meta.url), "utf8");
+const productsListSource = await readFile(new URL("../src/modules/products/pages/ProductsList.jsx", import.meta.url), "utf8");
 const socialCopySource = await readFile(new URL("../src/modules/marketing/components/socialAiCopy.js", import.meta.url), "utf8");
 
 test("marketing posts prefer the ordinary selling price over the sale price", () => {
@@ -47,4 +48,14 @@ test("generated captions use a full storefront link without duplicating hashtags
   assert.match(socialCopySource, /شنطة عملية ومريحة لكل يوم مدرسي/);
   assert.doesNotMatch(socialCopySource, /hashtags\.length \? hashtags\.join\(" "\)/);
   assert.match(editorSource, /product_url: productUrl/);
+});
+
+test("product-generated marketing posts target Facebook and Instagram", () => {
+  const generatedProductPost = serverSource.slice(
+    serverSource.indexOf("const resolveProductPostData"),
+    serverSource.indexOf("const getProductStoryCreative")
+  );
+  assert.match(generatedProductPost, /channel: "all"/);
+  assert.doesNotMatch(generatedProductPost, /channel: "facebook"/);
+  assert.match(productsListSource, /const publishPayload = \{ \.\.\.payload, channel: "all" \}/);
 });
