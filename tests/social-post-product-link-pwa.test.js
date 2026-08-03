@@ -7,10 +7,11 @@ const panelSource = readFileSync(new URL("../src/modules/aiSupport/components/So
 const routesSource = readFileSync(new URL("../server/routes/socialComments.js", import.meta.url), "utf8");
 const linksServiceSource = readFileSync(new URL("../server/services/socialPostProductLinksV2Service.js", import.meta.url), "utf8");
 
-test("PWA reloads social posts with their persisted product links", () => {
-  assert.match(pwaSource, /include_product_links=1/);
-  assert.match(pwaSource, /include_product_links: 1/);
+test("PWA loads the social feed without blocking on per-post product mappings", () => {
+  assert.match(pwaSource, /include_product_links=0/);
+  assert.match(pwaSource, /include_product_links: 0/);
   assert.match(pwaSource, /timeoutMs: 30000/);
+  assert.match(pwaSource, /PostProductLinksDrawer/);
 });
 
 test("saved mappings update every product-link field used by the post card", () => {
