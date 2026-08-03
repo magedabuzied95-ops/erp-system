@@ -73,8 +73,14 @@ const normalizeHashtagToken = (value = "") =>
     .replace(/[^\p{L}\p{N}]+/gu, "")
     .trim();
 
-const buildErpHashtags = ({ brandName = "", category = "", gender = "", productType = "" } = {}) => {
-  const tags = [brandName, category, gender, productType, "M1Store"]
+const buildErpHashtags = ({ brandName = "", category = "", gender = "", productType = "", productName = "" } = {}) => {
+  const source = [productName, category, productType].filter(Boolean).join(" ").toLowerCase();
+  const contextualTags = /(bag|backpack|school\s*bag|شنط|شنطة|حقيبة|حقائب)/i.test(source)
+    ? ["bags", "backpack", "شنط", "شنط ظهر"]
+    : /(shoe|sneaker|trainer|حذاء|كوتشي|جزمة)/i.test(source)
+      ? ["shoes", "sneakers", "footwear"]
+      : [];
+  const tags = [...contextualTags, brandName, category, gender, productType, "M1Store"]
     .map(normalizeHashtagToken)
     .filter(Boolean)
     .map((item) => `#${item}`);
@@ -260,40 +266,33 @@ const fallbackProductLabel = (productName = "") => cleanText(productName) || "ا
 export const resolveSocialPricing = ({ post = {}, design = {}, product = {} } = {}) => {
   const currency = firstText(design.currency, post.currency, product.currency) || "EGP";
   const current = firstNumber(
+    post.current_selling_price,
+    design.current_selling_price,
+    product.current_selling_price,
+    post.purchase_selling_price,
+    design.purchase_selling_price,
+    product.purchase_selling_price,
+    post.selling_price,
+    design.selling_price,
+    product.selling_price,
+    post.regular_price,
+    design.regular_price,
+    product.regular_price,
     post.current_price,
     design.current_price,
     product.current_price,
-    post.sale_price,
-    design.sale_price,
-    product.sale_price,
     post.price,
     design.price,
     product.price
   );
-  const original = firstNumber(
-    post.original_price,
-    design.original_price,
-    product.original_price,
-    post.compare_price,
-    design.compare_price,
-    product.compare_price,
-    post.regular_price,
-    design.regular_price,
-    product.regular_price,
-    post.list_price,
-    design.list_price,
-    product.list_price
-  );
-  const hasSale = Boolean(current && original && original > current);
-  const discountPercent = hasSale ? Math.max(1, Math.round(((original - current) / original) * 100)) : 0;
   return {
     currency,
     current,
-    original: hasSale ? original : null,
-    hasSale,
-    discountPercent,
+    original: null,
+    hasSale: false,
+    discountPercent: 0,
     currentText: formatPrice(current, currency),
-    originalText: hasSale ? formatPrice(original, currency) : "",
+    originalText: "",
   };
 };
 
@@ -357,7 +356,7 @@ export const buildSocialAICopy = ({
     : [`السعر: ${pricing.currentText}`];
   const link = firstText(post.product_url, design.product_url, product.url, product.product_url, post.cta_url, design.cta_url) || "";
   const hashtags = unique([
-    ...buildErpHashtags({ brandName, category: categoryName, gender: genderName, productType: productTypeName }),
+    ...buildErpHashtags({ productName, brandName, category: categoryName, gender: genderName, productType: productTypeName }),
     ...normalizeList(post.hashtags || design.hashtags || design.tags),
   ]).slice(0, 5);
   const caption = [

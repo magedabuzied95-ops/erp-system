@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { getCurrentTenant } from "../../../shared/auth/authStorage";
 
 import {
   buildSocialAICopy,
@@ -238,20 +239,14 @@ const positivePrice = (value) => {
   return Number.isFinite(number) && number > 0 ? number : 0;
 };
 
-const rowSaleIsActive = (row = {}, now = new Date()) => {
-  const enabled = row.sale_price_enabled === true || String(row.sale_price_enabled || "").toLowerCase() === "true";
-  if (!enabled || positivePrice(row.sale_price) <= 0) return false;
-  const startsAt = row.sale_start_at ? new Date(row.sale_start_at) : null;
-  const endsAt = row.sale_end_at ? new Date(row.sale_end_at) : null;
-  return !(startsAt && !Number.isNaN(startsAt.getTime()) && startsAt > now)
-    && !(endsAt && !Number.isNaN(endsAt.getTime()) && endsAt < now);
-};
-
 export const resolveMarketingEditorPrice = ({ post = {}, design = {}, product = {}, variants = [] } = {}) => {
   const rowPrice = (row = {}) => {
-    const regular = [row.selling_price, row.price, row.regular_price].map(positivePrice).find(Boolean) || 0;
-    const sale = positivePrice(row.sale_price);
-    return rowSaleIsActive(row) ? sale : regular || sale;
+    const manualPrice = row.manual_price_override_active === true || String(row.manual_price_override_active || "").toLowerCase() === "true"
+      ? row.manual_selling_price
+      : 0;
+    return [manualPrice, row.current_selling_price, row.purchase_selling_price, row.selling_price, row.regular_price, row.price, row.sale_price]
+      .map(positivePrice)
+      .find(Boolean) || 0;
   };
   const catalogPrices = [rowPrice(product), ...variants.map(rowPrice)].filter(Boolean);
   return catalogPrices.length ? Math.min(...catalogPrices) : post.price ?? design.price ?? "";
@@ -440,14 +435,28 @@ export const buildStoryCreativeSlides = ({ item = {}, form = {}, mediaUrls = [] 
   });
 };
 
-const buildFallbackHashtags = ({ productName, color, size, strategyType, contentType }) =>
-  unique([
-    "#fashion",
+const productHashtagCategory = (productName = "") => {
+  const source = String(productName || "").toLowerCase();
+  if (/(bag|backpack|school\s*bag|شنط|شنطة|حقيبة|حقائب)/i.test(source)) return "bag";
+  if (/(shoe|sneaker|trainer|حذاء|كوتشي|جزمة)/i.test(source)) return "shoes";
+  return "generic";
+};
+
+const buildFallbackHashtags = ({ productName, color, size, strategyType, contentType }) => {
+  const category = productHashtagCategory(productName);
+  const categoryTags = category === "bag"
+    ? ["#bags", "#backpack", "#شنط", "#شنط_ظهر"]
+    : category === "shoes"
+      ? ["#shoes", "#sneakers", "#footwear"]
+      : ["#M1Store"];
+  return unique([
+    ...categoryTags,
     contentType === "story" ? "#story" : "#new_arrival",
     strategyType === "last_size" ? "#last_piece" : "",
     color ? `#${color}` : "",
     size ? `#size_${size}` : "",
   ].map(normalizeHash)).slice(0, 8);
+};
 
 const buildFallbackCaption = ({ productName, price, color, size, cta }) => {
   const details = [color, size ? `Size ${size}` : ""].filter(Boolean).join(" | ");
@@ -547,8 +556,12 @@ export const normalizeMarketingPostInput = (post = {}) => {
   const cta = (post.content_type || design.content_type) === "story" ? "View details" : post.cta || design.cta || "Shop now";
   const media = normalizePostMedia({ post, design, product, variants, variantId, color, size });
   const audio = resolveStoryAudio(post, design);
-  const hashtags = parseHashtags(post.hashtags || design.hashtags || design.tags || post.metadata?.hashtags)
-    .concat(buildFallbackHashtags({ productName, color, size, strategyType: post.strategy_type, contentType: post.content_type }));
+  const contextualHashtags = buildFallbackHashtags({ productName, color, size, strategyType: post.strategy_type, contentType: post.content_type });
+  const staleTags = productHashtagCategory(productName) === "bag" ? new Set(["#shoes", "#sneakers", "#footwear", "#fashion"]) : new Set();
+  const hashtags = contextualHashtags.concat(
+    parseHashtags(post.hashtags || design.hashtags || design.tags || post.metadata?.hashtags)
+      .filter((tag) => !staleTags.has(tag.toLowerCase()))
+  );
   const caption = normalizeAICaption(post, design, product, variants);
   const aiTone = post.ai_tone || design.ai_tone || defaultSocialTone;
 
@@ -634,6 +647,18 @@ const captionBank = {
 };
 
 const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
+  const currentTenant = getCurrentTenant() || {};
+  const tenantSettings = currentTenant.settings || {};
+  const storeName = [
+    currentTenant.companyName,
+    currentTenant.company_name,
+    tenantSettings["general.company_name"],
+    tenantSettings["storefront.store_name"],
+    currentTenant.name,
+    form.store_name,
+    form.storeName,
+    "M1 Store",
+  ].map((value) => String(value || "").trim()).find(Boolean) || "M1 Store";
   const image = form.image_url;
   const carousel = uniqueMediaUrls([image, ...mediaUrls]);
   const thumbnailUrls = uniqueMediaUrls(mediaUrls, [image]);
@@ -649,7 +674,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
               <div className="h-full w-full rounded-full bg-slate-950" />
             </div>
             <div>
-              <div className="text-sm font-black text-white">erp.store</div>
+              <div className="text-sm font-black text-white">{storeName}</div>
               <div className="text-xs text-slate-400">{t("marketing.social.preview.sponsored")}</div>
             </div>
           </div>
@@ -680,7 +705,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
           </div>
           <div className="text-sm font-bold text-white">{t("marketing.social.preview.likesCount")}</div>
           <div className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
-            <span className="font-black text-white">erp.store </span>
+            <span className="font-black text-white">{storeName} </span>
             {caption}
           </div>
           <div className="flex flex-wrap gap-2 text-sm font-semibold text-[var(--primary)]">
@@ -714,7 +739,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
           <div className="absolute left-5 right-5 top-9 flex items-center gap-3">
             <div className="h-9 w-9 rounded-full border border-white/30 bg-white/20" />
             <div>
-              <div className="text-sm font-black text-white">erp.store</div>
+              <div className="text-sm font-black text-white">{storeName}</div>
               <div className="text-xs text-white/70">{t("marketing.social.preview.now")}</div>
             </div>
           </div>
@@ -735,7 +760,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
       <div className="flex items-center gap-3 px-5 py-4">
         <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--primary)] text-lg font-black text-[var(--primary-contrast)]">f</div>
         <div>
-          <div className="text-sm font-black text-white">ERP Store</div>
+          <div className="text-sm font-black text-white">{storeName}</div>
           <div className="text-xs text-slate-400">{t("marketing.social.preview.sponsoredPublic")}</div>
         </div>
       </div>

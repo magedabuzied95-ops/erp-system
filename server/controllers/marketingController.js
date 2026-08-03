@@ -17,6 +17,7 @@ import { getMetaTokenStatus, refreshMetaTokens } from "../services/metaTokenServ
 import { refreshMarketingTenantMetaToken } from "../services/metaTokenAutoRefreshService.js";
 import { ensureTrackingForPost } from "../services/marketingAttributionService.js";
 import { ensureProductVariantImagesSchema } from "../services/productVariantImagesService.js";
+import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 import {
   commentMatchesRule,
   normalizeKeywords,
@@ -2327,20 +2328,34 @@ const marketingSaleIsActive = (row = {}, now = new Date()) => {
   return true;
 };
 
-export const resolveMarketingRowPrice = (row = {}, now = new Date()) => {
-  const regularPrice = [row.selling_price, row.price, row.regular_price]
+export const resolveMarketingRowPrice = (row = {}, productRow = null) => {
+  const resolved = productRow
+    ? resolveCurrentSellingPrice({ product: productRow, variant: row }).value
+    : resolveCurrentSellingPrice({ product: row }).value;
+  return [resolved, row.current_selling_price, row.purchase_selling_price, row.selling_price, row.regular_price, row.price, row.sale_price]
     .map(marketingPriceNumber)
     .find((value) => value > 0) || 0;
-  const salePrice = marketingPriceNumber(row.sale_price);
-  if (marketingSaleIsActive(row, now)) return salePrice;
-  return regularPrice || salePrice;
+};
+
+const buildProductMarketingHashtags = (productRow = {}) => {
+  const source = [productRow.name, productRow.category_name, productRow.category, productRow.product_type]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/(bag|backpack|school\s*bag|شنط|شنطة|حقيبة|حقائب)/i.test(source)) {
+    return "#bags #backpack #شنط #شنط_ظهر #new_arrival";
+  }
+  if (/(shoe|sneaker|trainer|حذاء|كوتشي|جزمة)/i.test(source)) {
+    return "#shoes #sneakers #footwear #new_arrival #shopping";
+  }
+  return "#new_arrival #shopping #M1Store";
 };
 
 const resolveProductPostData = (productRow = {}, variantRows = [], brandIdentity = {}) => {
   const productName = productRow.name || "New product";
   const priceCandidates = [
     resolveMarketingRowPrice(productRow),
-    ...variantRows.map((variant) => resolveMarketingRowPrice(variant)),
+    ...variantRows.map((variant) => resolveMarketingRowPrice(variant, productRow)),
   ]
     .map((value) => Number(value))
     .filter((value) => Number.isFinite(value) && value > 0);
@@ -2355,7 +2370,7 @@ const resolveProductPostData = (productRow = {}, variantRows = [], brandIdentity
       price: price || "0",
       variants: variantRows,
     }),
-    hashtags: "#fashion #shoes #new_arrival #shopping",
+    hashtags: buildProductMarketingHashtags(productRow),
     image_url: mediaUrls[0] || "",
     media_urls: mediaUrls,
     channel: "facebook",
@@ -2365,7 +2380,7 @@ const resolveProductPostData = (productRow = {}, variantRows = [], brandIdentity
 const getProductStoryCreative = (productRow = {}, variantRows = [], brandIdentity = {}) => {
   const generated = resolveProductPostData(productRow, variantRows, brandIdentity);
   const storyImageUrls = collectProductStoryImageUrls(productRow, variantRows);
-  const price = resolveMarketingRowPrice(productRow) || variantRows.map((variant) => resolveMarketingRowPrice(variant)).find(Boolean) || "";
+  const price = resolveMarketingRowPrice(productRow) || variantRows.map((variant) => resolveMarketingRowPrice(variant, productRow)).find(Boolean) || "";
   return {
     title: productRow.name || generated.title || "Product Story",
     caption: [productRow.name || generated.title, price ? `${price} ج.م` : "", "اطلبه الآن"].filter(Boolean).join("\n"),

@@ -5,11 +5,11 @@ import { readFile } from "node:fs/promises";
 const serverSource = await readFile(new URL("../server/controllers/marketingController.js", import.meta.url), "utf8");
 const editorSource = await readFile(new URL("../src/modules/marketing/components/PostEditorModal.jsx", import.meta.url), "utf8");
 
-test("marketing posts use sale price only for an enabled active sale", () => {
-  assert.match(serverSource, /marketingSaleIsActive/);
-  assert.match(serverSource, /row\.sale_price_enabled === true/);
-  assert.match(serverSource, /\[row\.selling_price, row\.price, row\.regular_price\]/);
-  assert.match(serverSource, /if \(marketingSaleIsActive\(row, now\)\) return salePrice/);
+test("marketing posts prefer the ordinary selling price over the sale price", () => {
+  assert.match(serverSource, /resolveCurrentSellingPrice/);
+  assert.match(serverSource, /row\.purchase_selling_price/);
+  assert.doesNotMatch(serverSource, /customOriginalPrice/);
+  assert.doesNotMatch(serverSource, /if \(marketingSaleIsActive\(row, now\)\) return salePrice/);
 });
 
 test("the editor recalculates catalog price instead of trusting stale post price", () => {
@@ -21,4 +21,17 @@ test("the editor recalculates catalog price instead of trusting stale post price
 test("the marketing editor uses the application theme tokens", () => {
   assert.match(editorSource, /bg-\[var\(--card\)\] text-\[var\(--text\)\]/);
   assert.match(editorSource, /bg-\[var\(--primary\)\] text-\[var\(--primary-contrast\)\]/);
+});
+
+test("bag posts receive bag hashtags instead of shoe hashtags", () => {
+  assert.match(serverSource, /#bags #backpack #شنط #شنط_ظهر #new_arrival/);
+  assert.doesNotMatch(serverSource, /hashtags: "#fashion #shoes #new_arrival #shopping"/);
+  assert.match(editorSource, /productHashtagCategory/);
+});
+
+test("social previews use the current tenant name instead of a fixed ERP Store label", () => {
+  assert.match(editorSource, /getCurrentTenant/);
+  assert.match(editorSource, /currentTenant\.companyName/);
+  assert.doesNotMatch(editorSource, />ERP Store</);
+  assert.doesNotMatch(editorSource, />erp\.store</);
 });
