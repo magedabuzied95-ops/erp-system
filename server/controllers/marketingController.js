@@ -2312,14 +2312,35 @@ const buildProductCaption = ({ productName, price, variants = [] }) => {
   ].join("\n");
 };
 
+const marketingPriceNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+};
+
+const marketingSaleIsActive = (row = {}, now = new Date()) => {
+  const enabled = row.sale_price_enabled === true || String(row.sale_price_enabled || "").toLowerCase() === "true";
+  if (!enabled || marketingPriceNumber(row.sale_price) <= 0) return false;
+  const startsAt = row.sale_start_at ? new Date(row.sale_start_at) : null;
+  const endsAt = row.sale_end_at ? new Date(row.sale_end_at) : null;
+  if (startsAt && !Number.isNaN(startsAt.getTime()) && startsAt > now) return false;
+  if (endsAt && !Number.isNaN(endsAt.getTime()) && endsAt < now) return false;
+  return true;
+};
+
+export const resolveMarketingRowPrice = (row = {}, now = new Date()) => {
+  const regularPrice = [row.selling_price, row.price, row.regular_price]
+    .map(marketingPriceNumber)
+    .find((value) => value > 0) || 0;
+  const salePrice = marketingPriceNumber(row.sale_price);
+  if (marketingSaleIsActive(row, now)) return salePrice;
+  return regularPrice || salePrice;
+};
+
 const resolveProductPostData = (productRow = {}, variantRows = [], brandIdentity = {}) => {
   const productName = productRow.name || "New product";
   const priceCandidates = [
-    productRow.sale_price,
-    productRow.price,
-    ...variantRows
-      .map((variant) => variant.sale_price ?? variant.price)
-      .filter((value) => value !== undefined && value !== null),
+    resolveMarketingRowPrice(productRow),
+    ...variantRows.map((variant) => resolveMarketingRowPrice(variant)),
   ]
     .map((value) => Number(value))
     .filter((value) => Number.isFinite(value) && value > 0);
@@ -2344,7 +2365,7 @@ const resolveProductPostData = (productRow = {}, variantRows = [], brandIdentity
 const getProductStoryCreative = (productRow = {}, variantRows = [], brandIdentity = {}) => {
   const generated = resolveProductPostData(productRow, variantRows, brandIdentity);
   const storyImageUrls = collectProductStoryImageUrls(productRow, variantRows);
-  const price = productRow.sale_price || productRow.price || variantRows.find((variant) => variant.sale_price || variant.price)?.sale_price || variantRows.find((variant) => variant.price)?.price || "";
+  const price = resolveMarketingRowPrice(productRow) || variantRows.map((variant) => resolveMarketingRowPrice(variant)).find(Boolean) || "";
   return {
     title: productRow.name || generated.title || "Product Story",
     caption: [productRow.name || generated.title, price ? `${price} ج.م` : "", "اطلبه الآن"].filter(Boolean).join("\n"),

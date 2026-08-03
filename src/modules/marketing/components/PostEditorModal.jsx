@@ -233,6 +233,30 @@ const formatPrice = (price, currency = "EGP") => {
     : cleanPrice;
 };
 
+const positivePrice = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+};
+
+const rowSaleIsActive = (row = {}, now = new Date()) => {
+  const enabled = row.sale_price_enabled === true || String(row.sale_price_enabled || "").toLowerCase() === "true";
+  if (!enabled || positivePrice(row.sale_price) <= 0) return false;
+  const startsAt = row.sale_start_at ? new Date(row.sale_start_at) : null;
+  const endsAt = row.sale_end_at ? new Date(row.sale_end_at) : null;
+  return !(startsAt && !Number.isNaN(startsAt.getTime()) && startsAt > now)
+    && !(endsAt && !Number.isNaN(endsAt.getTime()) && endsAt < now);
+};
+
+export const resolveMarketingEditorPrice = ({ post = {}, design = {}, product = {}, variants = [] } = {}) => {
+  const rowPrice = (row = {}) => {
+    const regular = [row.selling_price, row.price, row.regular_price].map(positivePrice).find(Boolean) || 0;
+    const sale = positivePrice(row.sale_price);
+    return rowSaleIsActive(row) ? sale : regular || sale;
+  };
+  const catalogPrices = [rowPrice(product), ...variants.map(rowPrice)].filter(Boolean);
+  return catalogPrices.length ? Math.min(...catalogPrices) : post.price ?? design.price ?? "";
+};
+
 const cleanStoryText = (value, fallback = "") => String(value ?? "").trim() || fallback;
 
 const FALLBACK_STORY_AUDIO = {
@@ -514,7 +538,7 @@ export const normalizeMarketingPostInput = (post = {}) => {
         ? product.variants
         : [];
   const productName = post.product_name || design.product_name || product.name || post.title || "";
-  const price = formatPrice(post.price ?? design.price ?? product.price ?? product.sale_price, design.currency || post.currency || product.currency);
+  const price = formatPrice(resolveMarketingEditorPrice({ post, design, product, variants }), design.currency || post.currency || product.currency);
   const color = post.color_name || design.color_name || post.color || product.color || "";
   const size = post.size_name || design.size_name || post.size || product.size || "";
   const availableSizes = normalizeStorySizes(post.available_sizes || design.available_sizes);
@@ -1121,10 +1145,10 @@ export default function PostEditorModal({
 
   return (
     <div className="fixed inset-0 z-[1500] flex items-stretch justify-center overflow-hidden bg-black/75 p-0 backdrop-blur-md transition-opacity duration-200 md:items-center md:p-4">
-      <div className="flex h-[100dvh] w-full max-w-[1480px] animate-[fadeIn_180ms_ease-out] flex-col overflow-hidden rounded-none border border-white/10 bg-[#0b1020] shadow-2xl shadow-black/50 ring-1 ring-cyan-400/10 md:h-auto md:max-h-[96vh] md:rounded-[30px]">
-        <div className="flex flex-col gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
+      <div className="flex h-[100dvh] w-full max-w-[1480px] animate-[fadeIn_180ms_ease-out] flex-col overflow-hidden rounded-none border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/50 ring-1 ring-[var(--primary)]/20 md:h-auto md:max-h-[96vh] md:rounded-[30px]">
+        <div className="flex flex-col gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold text-cyan-200">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
               <Megaphone className="h-4 w-4" />
               {title || t("marketing.social.editorTitle")}
             </div>
@@ -1133,14 +1157,14 @@ export default function PostEditorModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition hover:border-cyan-400/30 hover:bg-cyan-400/10 hover:text-cyan-100"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="grid min-h-0 flex-1 overflow-y-auto overflow-x-hidden lg:grid-cols-[390px_minmax(0,1fr)] xl:grid-cols-[410px_minmax(520px,1fr)_310px]">
-          <div className="order-1 space-y-5 border-b border-white/10 p-4 md:p-5 lg:border-b-0 lg:border-r">
+          <div className="order-1 space-y-5 border-b border-[var(--border)] bg-[var(--card)] p-4 md:p-5 lg:border-b-0 lg:border-r">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.posts.headers.channel")}</span>
@@ -1174,7 +1198,7 @@ export default function PostEditorModal({
               </label>
             </div>
 
-            <div className="rounded-3xl border border-cyan-500/15 bg-cyan-500/[0.04] p-4 shadow-lg shadow-cyan-950/10">
+            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-soft)] p-4 shadow-[var(--shadow-card)]">
               <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <label className="space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Tone</span>
@@ -1193,7 +1217,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={() => generateFullCaption(captionTone)}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-cyan-100 transition hover:bg-cyan-500/10"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-2 text-xs font-bold text-[var(--primary)] transition hover:brightness-110"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
                   Generate
@@ -1324,15 +1348,15 @@ export default function PostEditorModal({
 
           </div>
 
-          <div className="order-2 min-w-0 space-y-4 border-b border-white/10 bg-[#070b16] p-4 md:p-5 lg:border-b-0 lg:border-r">
-            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/70 p-1">
+          <div className="order-2 min-w-0 space-y-4 border-b border-[var(--border)] bg-[var(--surface-soft)] p-4 md:p-5 lg:border-b-0 lg:border-r">
+            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-1">
               {visiblePreviewTabs.map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActivePreview(tab.id)}
                   className={`shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition ${
-                    activePreview === tab.id ? "bg-cyan-400 text-black shadow-lg shadow-cyan-500/20" : "text-slate-300 hover:bg-white/5 hover:text-white"
+                    activePreview === tab.id ? "bg-[var(--primary)] text-[var(--primary-contrast)] shadow-lg" : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]"
                   }`}
                 >
                   {t(tab.labelKey)}
@@ -1369,7 +1393,7 @@ export default function PostEditorModal({
             ) : null}
           </div>
 
-          <div className="order-3 space-y-4 bg-white/[0.03] p-4 md:p-5 xl:border-l xl:border-t-0">
+          <div className="order-3 space-y-4 border-[var(--border)] bg-[var(--card)] p-4 md:p-5 xl:border-l xl:border-t-0">
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
               <StatCard icon={Users} label={t("marketing.social.stats.estimatedReach")} value={stats.reach} tone="cyan" />
               <StatCard icon={Clock3} label={t("marketing.social.stats.bestPostingTime")} value={stats.time} tone="emerald" />
@@ -1495,7 +1519,7 @@ export default function PostEditorModal({
           </div>
         </div>
 
-        <div className="sticky bottom-0 z-20 border-t border-white/10 bg-[#0b1020]/96 px-4 py-3 backdrop-blur-md md:hidden">
+        <div className="sticky bottom-0 z-20 border-t border-[var(--border)] bg-[var(--card)] px-4 py-3 backdrop-blur-md md:hidden">
           {scheduledBadgeLabel ? (
             <div className="mb-3 inline-flex rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1.5 text-xs font-black text-cyan-100">
               {scheduledBadgeLabel}
