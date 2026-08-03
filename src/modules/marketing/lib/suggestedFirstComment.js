@@ -98,7 +98,7 @@ export const buildSuggestedFirstComment = (product = {}, options = {}) => {
   if (availability.colors.length) lines.push("", `🎨 ${availability.colors.length === 1 ? "اللون" : "الألوان"}: ${availability.colors.join(" • ")}`);
   lines.push("", availability.stock > 0 ? (availability.stock < 5 ? "⚠️ الحالة: الكمية محدودة." : "✅ الحالة: متوفر الآن.") : "❌ الحالة: غير متوفر حالياً.");
   if (options.includeShipping !== false) lines.push("", "🚚 الشحن: شحن لجميع المحافظات");
-  if (options.includeLocation !== false) lines.push("", "📍 الموقع: دمياط الجديدة");
+  if (options.includeLocation !== false) lines.push("", "📍 الموقع: دمياط الجديدة، شارع البشبيشي، بجوار الفرنسية جروب");
   lines.push("", "💬 للحجز: للحجز أو الاستفسار ابعتلنا رسالة.");
   if (productUrl) lines.push("", "🛒 اطلب الآن:", productUrl);
 

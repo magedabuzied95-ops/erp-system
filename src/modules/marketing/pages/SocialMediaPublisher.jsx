@@ -319,7 +319,7 @@ const buildCatalogCaption = (product = {}, options = {}) => {
   }
   lines.push(stockQuantity > 0 ? "متوفر الآن" : "غير متوفر حالياً", "اطلب الآن");
   if (includeLocation) {
-    lines.push("دمياط الجديدة");
+    lines.push("دمياط الجديدة، شارع البشبيشي، بجوار الفرنسية جروب");
   }
   if (includeShipping) {
     lines.push("شحن لجميع المحافظات");
@@ -696,7 +696,7 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}, options = {}
     }
     if (includeLocation) {
       lines.push("");
-      lines.push("دمياط الجديدة");
+      lines.push("دمياط الجديدة، شارع البشبيشي، بجوار الفرنسية جروب");
     }
     if (includeShipping) {
       lines.push("");
