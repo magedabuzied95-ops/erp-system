@@ -14,7 +14,7 @@ test("employee display audit stays independent from display refill alerts", asyn
     source("server/routes/employeePortal.js"),
   ]);
   assert.match(service, /is_displayed/);
-  assert.match(service, /COALESCE\(p\.is_displayed, FALSE\) = FALSE/);
+  assert.match(service, /employee_product_display_states/);
   assert.match(service, /COALESCE\(pv\.stock, 0\) > 0/);
   assert.match(service, /jsonb_agg\(/);
   assert.match(service, /color_group_key/);
@@ -34,8 +34,59 @@ test("display audit groups non-empty source and audience sections", async () => 
 test("employee portal updates display audit cards without a page reload", async () => {
   const page = await source("src/modules/employees/pages/EmployeePayrollPortal.jsx");
   assert.match(page, /markDisplayAuditProduct/);
-  assert.match(page, /filter\(\(item\) => String\(item\.product_id\) !== String\(product\.product_id\)\)/);
+  assert.match(page, /audience: targetAudience/);
+  assert.match(page, /display_stage_key: targetStage/);
+  assert.match(page, /String\(color\.display_stage_key \|\| ""\) !== targetStage/);
   assert.match(page, /activeTab === "display-audit"/);
+});
+
+test("special sizes are an independent audience and start from the smallest qualifying stocked size", () => {
+  const variants = [37, 41, 45, 46, 47, 49].map((size, index) => ({
+    variant_id: index + 1,
+    color_group_key: "wide-range",
+    color: "Black",
+    size: String(size),
+    stock: 1,
+  }));
+  const special = resolveDisplayAuditColorsForAudience({
+    variants,
+    audience: "special",
+    productGroup: "sneakers",
+    productAudiences: ["women", "men"],
+  });
+  assert.equal(special[0].size, "46");
+  assert.equal(special[0].display_stage_key, "special-46-plus");
+
+  const fortySevenOnly = resolveDisplayAuditColorsForAudience({
+    variants: [{ variant_id: 1, color_group_key: "only", color: "White", size: "47", stock: 1 }],
+    audience: "special",
+    productGroup: "sneakers",
+    productAudiences: ["men"],
+  });
+  assert.equal(fortySevenOnly[0].size, "47");
+});
+
+test("size 46 alone is not special and special sizes do not apply outside sneakers", () => {
+  const variants = [{ variant_id: 1, color_group_key: "only", color: "Black", size: "46", stock: 1 }];
+  assert.deepEqual(resolveDisplayAuditColorsForAudience({ variants, audience: "special", productGroup: "sneakers", productAudiences: ["men"] }), []);
+  assert.deepEqual(resolveDisplayAuditColorsForAudience({
+    variants: [...variants, { variant_id: 2, color_group_key: "only", color: "Black", size: "48", stock: 1 }],
+    audience: "special",
+    productGroup: "bags",
+    productAudiences: ["men"],
+  }), []);
+});
+
+test("display audit persists each audience and stage independently", async () => {
+  const [service, routes, panel] = await Promise.all([
+    source("server/services/employeeDisplayAuditService.js"),
+    source("server/routes/employeePortal.js"),
+    source("src/modules/employees/components/EmployeeDisplayAuditPanel.jsx"),
+  ]);
+  assert.match(service, /UNIQUE \(product_id, audience_key, display_stage_key\)/);
+  assert.match(service, /ON CONFLICT \(product_id, audience_key, display_stage_key\)/);
+  assert.match(routes, /audience: req\.body\?\.audience/);
+  assert.match(panel, /key: "special", label: "خاص"/);
 });
 
 test("display audit exposes product, source, and audience navigation", async () => {

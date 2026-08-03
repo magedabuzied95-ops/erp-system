@@ -1,10 +1,10 @@
 import db from "../database/db.js";
 
 const SOURCE_ORDER = ["imported_vietnam", "mirror_original", "egyptian"];
-const AUDIENCE_ORDER = ["men", "women", "kids"];
+const AUDIENCE_ORDER = ["men", "women", "kids", "special"];
 const PRODUCT_GROUP_ORDER = ["sneakers", "crocs", "bags", "winter"];
 const SOURCE_LABELS = { imported_vietnam: "مستورد فيتنامي", mirror_original: "ميرور أوريجنال", egyptian: "مصري" };
-const AUDIENCE_LABELS = { men: "رجالي", women: "حريمي", kids: "أطفال" };
+const AUDIENCE_LABELS = { men: "رجالي", women: "حريمي", kids: "أطفال", special: "خاص" };
 
 const normalizeSource = (value = "") => {
   const text = String(value || "").trim().toLowerCase();
@@ -48,6 +48,31 @@ export const resolveDisplayAuditColorsForAudience = ({ variants = [], audience, 
   const ranges = DISPLAY_SIZE_RANGES[audience] || [];
   const colors = [];
   for (const colorVariants of byColor.values()) {
+    if (audience === "special") {
+      if (productGroup !== "sneakers") continue;
+      const sortedSpecial = [...colorVariants]
+        .filter((variant) => numericSize(variant.size) !== null)
+        .sort((left, right) => numericSize(left.size) - numericSize(right.size) || Number(left.variant_id || 0) - Number(right.variant_id || 0));
+      const hasAbove46 = sortedSpecial.some((variant) => numericSize(variant.size) > 46);
+      if (!hasAbove46) continue;
+      const selected = sortedSpecial.find((variant) => numericSize(variant.size) === 46)
+        || sortedSpecial.find((variant) => numericSize(variant.size) >= 47);
+      if (!selected) continue;
+      colors.push({
+        variant_id: selected.variant_id,
+        color_group_key: selected.color_group_key || "",
+        color_sort_order: Number(selected.color_sort_order || 0),
+        color: selected.color || "-",
+        size: selected.size || "-",
+        stock: Number(selected.stock || 0),
+        sku: selected.sku || productSku || "",
+        barcode: selected.barcode || "",
+        image_url: selected.image_url || productImageUrl || "",
+        display_stage_key: "special-46-plus",
+        display_stage_label: "مقاسات خاصة 46+",
+      });
+      continue;
+    }
     const explicitAudienceText = colorVariants.map((variant) => variant.audience).filter(Boolean);
     const colorAudiences = explicitAudienceText.length ? normalizeDisplayAuditAudiences(explicitAudienceText) : productAudiences;
     if (!colorAudiences.includes(audience)) continue;
@@ -99,6 +124,21 @@ const normalizeProductGroup = (value = "") => {
 export const ensureEmployeeDisplayAuditSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS is_displayed BOOLEAN NOT NULL DEFAULT FALSE`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_products_display_audit ON products (tenant_id, is_displayed, is_active) WHERE status = 'active'`);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_product_display_states (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT,
+      product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      audience_key TEXT NOT NULL,
+      display_stage_key TEXT NOT NULL DEFAULT '',
+      is_displayed BOOLEAN NOT NULL DEFAULT TRUE,
+      displayed_by_employee_id BIGINT,
+      displayed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (product_id, audience_key, display_stage_key)
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_product_display_states_lookup ON employee_product_display_states (tenant_id, product_id, audience_key, display_stage_key, is_displayed)`);
 };
 
 export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
@@ -108,7 +148,17 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
        p.id AS product_id, p.name, p.sku AS product_sku, p.image_url AS product_image_url,
        p.grade, p.gender, p.product_type, p.is_displayed,
        COALESCE((SELECT jsonb_agg(pa.audience ORDER BY pa.audience) FROM product_audiences pa WHERE pa.product_id = p.id), '[]'::jsonb) AS audiences,
-       selected.variants
+       selected.variants,
+       COALESCE((
+         SELECT jsonb_agg(jsonb_build_object(
+           'audience_key', state.audience_key,
+           'display_stage_key', state.display_stage_key,
+           'is_displayed', state.is_displayed
+         ))
+         FROM employee_product_display_states state
+         WHERE state.product_id = p.id
+           AND ($1::bigint IS NULL OR state.tenant_id = $1::bigint)
+       ), '[]'::jsonb) AS display_states
      FROM products p
      JOIN LATERAL (
        SELECT jsonb_agg(
@@ -134,7 +184,6 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
      WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
        AND p.is_active IS DISTINCT FROM FALSE
        AND LOWER(COALESCE(p.status, 'active')) = 'active'
-       AND COALESCE(p.is_displayed, FALSE) = FALSE
      ORDER BY LOWER(COALESCE(p.grade, '')), LOWER(COALESCE(p.name, '')), p.id`,
     [employee?.tenant_id || null]
   );
@@ -147,11 +196,15 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
   }]));
 
   for (const row of result.rows) {
+    if (row.is_displayed === true) continue;
     const source = normalizeSource(row.grade);
     if (!source) continue;
     const audiences = normalizeDisplayAuditAudiences(row.audiences, row.gender);
     const productGroup = normalizeProductGroup(row.product_type);
-    for (const audience of audiences) {
+    const candidateAudiences = productGroup === "sneakers" ? [...audiences, "special"] : audiences;
+    const displayStates = Array.isArray(row.display_states) ? row.display_states : [];
+    let rowAdded = false;
+    for (const audience of candidateAudiences) {
       const colors = resolveDisplayAuditColorsForAudience({
         variants: Array.isArray(row.variants) ? row.variants : [],
         audience,
@@ -161,7 +214,13 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
         productSku: row.product_sku,
       });
       if (!colors.length) continue;
-      const firstColor = colors[0];
+      const pendingColors = colors.filter((color) => !displayStates.some((state) =>
+        state?.is_displayed !== false
+        && state?.audience_key === audience
+        && String(state?.display_stage_key || "") === String(color.display_stage_key || "")
+      ));
+      if (!pendingColors.length) continue;
+      const firstColor = pendingColors[0];
       const item = {
         product_id: row.product_id,
         name: row.name || "منتج",
@@ -171,7 +230,7 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
         stock: Number(firstColor.stock || 0),
         sku: firstColor.sku || row.product_sku || "",
         barcode: firstColor.barcode || "",
-        colors,
+        colors: pendingColors,
         source,
         audience,
         product_group: productGroup,
@@ -179,8 +238,9 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
       };
       groups[source].audiences[audience].products.push(item);
       groups[source].audiences[audience].count += 1;
+      rowAdded = true;
     }
-    groups[source].count += 1;
+    if (rowAdded) groups[source].count += 1;
   }
 
   const sections = SOURCE_ORDER.map((source) => ({
@@ -195,19 +255,35 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
   return { total: sections.reduce((sum, section) => sum + section.count, 0), product_group_counts, sections };
 };
 
-export const markEmployeeProductDisplayed = async ({ employee, productId } = {}) => {
+export const markEmployeeProductDisplayed = async ({ employee, productId, audience, displayStageKey = "" } = {}) => {
   await ensureEmployeeDisplayAuditSchema(db);
-  const result = await db.query(
-    `UPDATE products SET is_displayed = TRUE, updated_at = NOW()
-     WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-     RETURNING id, is_displayed`,
+  const audienceKey = AUDIENCE_ORDER.includes(String(audience || "")) ? String(audience) : "";
+  if (!audienceKey) {
+    const error = new Error("Display audience is required");
+    error.status = 400;
+    error.code = "display_audience_required";
+    throw error;
+  }
+  const product = await db.query(
+    `SELECT id FROM products WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint) LIMIT 1`,
     [productId, employee?.tenant_id || null]
   );
-  if (!result.rows[0]) {
+  if (!product.rows[0]) {
     const error = new Error("Product not found");
     error.status = 404;
     error.code = "product_not_found";
     throw error;
   }
-  return { product_id: result.rows[0].id, is_displayed: true };
+  await db.query(
+    `INSERT INTO employee_product_display_states (
+       tenant_id, product_id, audience_key, display_stage_key, is_displayed, displayed_by_employee_id, displayed_at, updated_at
+     ) VALUES ($1,$2,$3,$4,TRUE,$5,NOW(),NOW())
+     ON CONFLICT (product_id, audience_key, display_stage_key) DO UPDATE SET
+       is_displayed = TRUE,
+       displayed_by_employee_id = EXCLUDED.displayed_by_employee_id,
+       displayed_at = NOW(),
+       updated_at = NOW()`,
+    [employee?.tenant_id || null, productId, audienceKey, String(displayStageKey || ""), employee?.id || null]
+  );
+  return { product_id: Number(productId), audience: audienceKey, display_stage_key: String(displayStageKey || ""), is_displayed: true };
 };

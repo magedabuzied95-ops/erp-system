@@ -1623,14 +1623,27 @@ export default function EmployeePayrollPortal() {
 
   const markDisplayAuditProduct = useCallback(async (product) => {
     if (!token || !product?.product_id) return;
+    const targetAudience = String(product.audience || "");
+    const targetStage = String(product.display_stage_key || "");
+    const savingKey = `${product.product_id}:${targetAudience}:${targetStage}`;
     try {
-      setDisplayAuditSavingId(String(product.product_id));
+      setDisplayAuditSavingId(savingKey);
       setDisplayAuditError("");
-      await api.patch(`/employee-portal/${encodeURIComponent(token)}/display-audit/${encodeURIComponent(product.product_id)}/displayed`, {});
+      await api.patch(`/employee-portal/${encodeURIComponent(token)}/display-audit/${encodeURIComponent(product.product_id)}/displayed`, {
+        audience: targetAudience,
+        display_stage_key: targetStage,
+      });
       setDisplayAudit((current) => {
         const sections = safeArray(current.sections).map((section) => {
           const audiences = safeArray(section.audiences).map((audience) => {
-            const products = safeArray(audience.products).filter((item) => String(item.product_id) !== String(product.product_id));
+            if (audience.key !== targetAudience) return audience;
+            const products = safeArray(audience.products).flatMap((item) => {
+              if (String(item.product_id) !== String(product.product_id)) return [item];
+              const colors = safeArray(item.colors).filter((color) => String(color.display_stage_key || "") !== targetStage);
+              if (!colors.length) return [];
+              const firstColor = colors[0];
+              return [{ ...item, ...firstColor, colors }];
+            });
             return { ...audience, products, count: products.length };
           }).filter((audience) => audience.count > 0);
           const uniqueProductIds = new Set(
@@ -1638,12 +1651,18 @@ export default function EmployeePayrollPortal() {
           );
           return { ...section, audiences, count: uniqueProductIds.size };
         }).filter((section) => section.count > 0);
-        const productGroup = product.product_group || "sneakers";
-        const productGroupCounts = { ...(current.product_group_counts || {}) };
-        productGroupCounts[productGroup] = Math.max(0, Number(productGroupCounts[productGroup] || 0) - 1);
+        const remainingProducts = sections.flatMap((section) => safeArray(section.audiences).flatMap((audience) => safeArray(audience.products)));
+        const productGroupCounts = {};
+        remainingProducts.forEach((item) => {
+          const key = item.product_group || "sneakers";
+          if (!productGroupCounts[key]) productGroupCounts[key] = new Set();
+          productGroupCounts[key].add(String(item.product_id));
+        });
+        const normalizedProductGroupCounts = Object.fromEntries(Object.entries(productGroupCounts).map(([key, ids]) => [key, ids.size]));
+        const uniqueRemainingBySource = sections.reduce((sum, section) => sum + Number(section.count || 0), 0);
         return {
-          total: Math.max(0, Number(current.total || 0) - 1),
-          product_group_counts: productGroupCounts,
+          total: uniqueRemainingBySource,
+          product_group_counts: normalizedProductGroupCounts,
           sections,
         };
       });

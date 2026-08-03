@@ -25,6 +25,7 @@ const AUDIENCE_TABS = [
   { key: "men", label: "رجالي" },
   { key: "women", label: "حريمي" },
   { key: "kids", label: "أطفال" },
+  { key: "special", label: "خاص" },
 ];
 const KIDS_STAGE_PANELS = [
   { key: "kids-22-26", label: "بيبي", range: "22–26" },
@@ -78,7 +79,8 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
   ), [expandedSelectedProducts]);
 
   const renderProductCard = (product) => {
-    const saving = String(savingId) === String(product.product_id);
+    const stateKey = `${product.product_id}:${product.audience}:${product.display_stage_key || ""}`;
+    const saving = String(savingId) === stateKey;
     const colorKey = `${product.color_group_key || product.variant_id || product.color || "color"}:${product.display_stage_key || product.size || "size"}`;
     return <article key={`${product.product_id}:${colorKey}`} className="grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
       <div className="h-[74px] w-[74px] overflow-hidden rounded-xl bg-slate-100">{product.image_url ? <img src={product.image_url} alt={product.name} loading="lazy" className="h-full w-full object-cover" /> : <PackageCheck className="m-5 h-8 w-8 text-slate-300" />}</div>
@@ -121,7 +123,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
           <ChevronDown className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-slate-500" />
         </div> : null}
 
-        {availableAudiences.length ? <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-2xl bg-slate-100 p-1.5">
+        {availableAudiences.length ? <div className={`mt-3 grid gap-1.5 rounded-2xl bg-slate-100 p-1.5 ${availableAudiences.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
           {availableAudiences.map((audience) => <button key={audience.key} type="button" onClick={() => setAudienceKey(audience.key)} className={`rounded-xl px-2 py-2 text-xs font-black ${audienceKey === audience.key ? "bg-slate-950 text-white shadow-sm" : "text-slate-600"}`}>{audience.label} <span dir="ltr">({audience.count})</span></button>)}
         </div> : null}
       </section>

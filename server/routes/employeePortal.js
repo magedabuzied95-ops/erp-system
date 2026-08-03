@@ -646,7 +646,12 @@ router.patch("/:token/display-audit/:productId/displayed", async (req, res) => {
   try {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
-    const product = await markEmployeeProductDisplayed({ employee, productId: req.params.productId });
+    const product = await markEmployeeProductDisplayed({
+      employee,
+      productId: req.params.productId,
+      audience: req.body?.audience,
+      displayStageKey: req.body?.display_stage_key || req.body?.displayStageKey || "",
+    });
     return res.json({ success: true, product });
   } catch (error) {
     console.error("[employee-display-audit] update error", error);
