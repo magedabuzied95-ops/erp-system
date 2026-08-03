@@ -2604,13 +2604,19 @@ const collectVariantMediaUrls = (variantRows = []) =>
     ])
   );
 
-const collectProductMarketingMediaUrls = (productRow = {}, variantRows = []) =>
-  uniqueList([
-    ...collectVariantMediaUrls(variantRows),
+const collectProductMarketingMediaUrls = (productRow = {}, variantRows = []) => {
+  const colorMediaUrls = collectVariantMediaUrls(variantRows);
+  if (colorMediaUrls.length) return colorMediaUrls;
+
+  // The product cover identifies the model in the ERP catalog, but it is not
+  // another color and must not be appended to a color carousel. Use it only
+  // as a fallback for legacy products that have no color-level artwork.
+  return uniqueList([
     productRow.image_url,
     productRow.product_image_url,
     ...collectGalleryMediaUrls(productRow, []),
   ]);
+};
 
 const fetchProductBundle = async (productId, tenantId) => {
   await ensureProductVariantImagesSchema();

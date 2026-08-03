@@ -31,9 +31,10 @@ test("marketing posts persist and publish the first comment", async () => {
 });
 
 test("catalog posts publish every color and bags keep zero-stock colors", async () => {
-  const [publisher, service] = await Promise.all([
+  const [publisher, service, marketingController] = await Promise.all([
     read("src/modules/marketing/pages/SocialMediaPublisher.jsx"),
     read("server/services/socialPublisherPostsService.js"),
+    read("server/controllers/marketingController.js"),
   ]);
   assert.match(publisher, /includeAllBagColors \|\| isCatalogMediaVariantAvailable\(variant\)/);
   assert.match(publisher, /items\.length && !includeAllBagColors/);
@@ -41,4 +42,5 @@ test("catalog posts publish every color and bags keep zero-stock colors", async 
   assert.match(publisher, /setSelectedCatalogProduct\(\(current\)/);
   assert.match(service, /isBagProductForPublishing\(product\)\s*\? variants\s*:\s*variants\.filter\(isAvailableVariantForMedia\)/);
   assert.match(service, /product_type:\s*trimString\(product\.product_type/);
+  assert.match(marketingController, /if \(colorMediaUrls\.length\) return colorMediaUrls/);
 });
