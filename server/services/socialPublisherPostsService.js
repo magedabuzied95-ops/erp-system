@@ -71,6 +71,7 @@ const normalizeSocialPublisherPostRow = (row = {}) => ({
   first_comment_external_id: row.first_comment_external_id || null,
   first_comment_published_at: row.first_comment_published_at || null,
   media_url: row.media_url || "",
+  media_urls: uniqueTextList([row.media_url, ...parseJsonArray(row.media_urls, [])]),
   media_type: normalizeMediaType(row.media_type),
   platforms: normalizePlatforms(row.platforms),
   publish_settings: normalizePublishSettings(row.publish_settings),
@@ -437,6 +438,7 @@ export const createSocialPublisherPostRow = async ({
   caption = "",
   firstComment = "",
   mediaUrl = "",
+  mediaUrls = [],
   mediaType = "image",
   platforms = [],
   publishSettings = {},
@@ -455,6 +457,7 @@ export const createSocialPublisherPostRow = async ({
       caption,
       first_comment,
       media_url,
+      media_urls,
       media_type,
       platforms,
       publish_settings,
@@ -463,7 +466,7 @@ export const createSocialPublisherPostRow = async ({
       published_at,
       error_message
     )
-    VALUES ($1::integer, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::timestamp, $10::timestamp, $11)
+    VALUES ($1::integer, $2, $3, $4, $5::jsonb, $6, $7::jsonb, $8::jsonb, $9, $10::timestamp, $11::timestamp, $12)
     RETURNING *
     `,
     [
@@ -471,6 +474,7 @@ export const createSocialPublisherPostRow = async ({
       trimString(caption),
       trimString(firstComment),
       trimString(mediaUrl),
+      JSON.stringify(uniqueTextList([mediaUrl, ...parseJsonArray(mediaUrls, [])])),
       normalizeMediaType(mediaType),
       JSON.stringify(normalizePlatforms(platforms)),
       JSON.stringify(normalizedPublishSettings),
@@ -930,7 +934,7 @@ export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
     ...post,
     channel: resolveChannel(post.platforms),
     image_url: post.media_url || "",
-    media_urls: post.media_url ? [post.media_url] : [],
+    media_urls: uniqueTextList([post.media_url, ...(post.media_urls || [])]),
   };
 
   let publishResult = null;

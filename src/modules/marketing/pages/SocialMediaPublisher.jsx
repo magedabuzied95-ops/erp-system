@@ -424,6 +424,7 @@ const buildErpProductInfo = (product = {}) => {
   const stockQuantity = Number(resolved.stock_quantity ?? resolved.available_stock ?? resolved.stock ?? 0);
   const productUrl = buildFullProductUrl(resolved.product_url || product.product_url || "");
   return {
+    product_name: normalizeTextValue(product.name || product.product_name || ""),
     brand: normalizeTextValue(product.brand_name || product.brand || product.manufacturer_name || product.manufacturer || ""),
     category: normalizeTextValue(product.category_name || product.category || product.department || ""),
     product_type: normalizeTextValue(product.product_type || product.productType || product.type || ""),
@@ -714,14 +715,21 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}, options = {}
     gender: erpInfo.gender,
     productType: erpInfo.product_type,
   });
-  const lines = ["NEW COLLECTION"];
+  const productSignal = [erpInfo.product_name, erpInfo.category, erpInfo.product_type].filter(Boolean).join(" ").toLowerCase();
+  const isSchoolBag = /(bag|backpack|school\s*bag|شنط|شنطة|حقيبة|حقائب)/i.test(productSignal);
+  const lines = [isSchoolBag ? "🎒 استعدوا لموسم العودة إلى المدارس 📚" : "NEW COLLECTION"];
 
-  if (hook) {
+  if (isSchoolBag) {
+    lines.push("");
+    lines.push(`${erpInfo.product_name || "شنط المدارس"} — عملية، مريحة، ومتاحة بألوان مميزة.`);
+  }
+
+  if (hook && !isSchoolBag) {
     lines.push("");
     lines.push(hook);
   }
 
-  if (body) {
+  if (body && !isSchoolBag) {
     lines.push("");
     lines.push(body);
   }
@@ -786,7 +794,7 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}, options = {}
     }
   }
 
-  if (cta) {
+  if (cta && !isSchoolBag) {
     lines.push("");
     lines.push(cta);
   }
@@ -1495,6 +1503,11 @@ export default function SocialMediaPublisher() {
     }
     if (!mediaFile && selectedCatalogResolvedMediaUrl) {
       formData.append("media_url", selectedCatalogResolvedMediaUrl);
+      const carouselUrls = uniqueTextList(
+        selectedCatalogResolvedMediaUrl,
+        selectedCatalogMediaItems.map((item) => item.url)
+      );
+      formData.append("media_urls", JSON.stringify(carouselUrls));
     }
     formData.append(
       "publish_settings",

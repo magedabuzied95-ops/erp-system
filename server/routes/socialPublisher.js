@@ -146,6 +146,14 @@ router.post(
       const caption = String(req.body?.caption || "").trim();
       const firstComment = String(req.body?.first_comment || req.body?.firstComment || "").trim();
       const mediaUrl = resolveMediaUrl(req);
+      const mediaUrls = (() => {
+        try {
+          const parsed = JSON.parse(String(req.body?.media_urls || "[]"));
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })();
       const mediaType = resolveMediaType(req);
       const platforms = req.body?.platforms || [];
       const scheduledAt = req.body?.scheduled_at || req.body?.scheduledAt || null;
@@ -161,6 +169,7 @@ router.post(
         caption,
         firstComment,
         mediaUrl,
+        mediaUrls,
         mediaType,
         platforms,
         publishSettings,
