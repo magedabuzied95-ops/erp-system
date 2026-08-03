@@ -10,6 +10,7 @@ import {
 } from "./socialCommentPrivateReplyService.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { renderOfficialSocialPublicReply } from "./socialAutomationSettingsService.js";
+import { savePostProductLinksV2 } from "./socialPostProductLinksV2Service.js";
 
 const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -1719,6 +1720,20 @@ export const saveLinksForPublishedPost = async ({ post, publishResult, createdBy
       mediaId: candidate.mediaId,
       productId: post.product_id,
       createdBy,
+    });
+    await savePostProductLinksV2({
+      tenantId: post.tenant_id,
+      platform: candidate.platform,
+      postId: candidate.postId,
+      postLinkKey: candidate.postId,
+      post: {
+        post_id: candidate.postId,
+        platform_post_id: candidate.postId,
+        canonical_post_id: candidate.postId,
+        media_id: candidate.mediaId || null,
+      },
+      productIds: [post.product_id],
+      primaryProductId: post.product_id,
     });
     if (row) rows.push(row);
   }

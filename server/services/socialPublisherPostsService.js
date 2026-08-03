@@ -5,6 +5,7 @@ import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { getMetaIntegrationStatus } from "./metaIntegrationService.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { publishPost as publishMetaPost } from "./socialPublisherService.js";
+import { saveLinksForPublishedPost } from "./marketingCommentAutomationService.js";
 
 const trimString = (value) => String(value || "").trim();
 const TIKTOK_PUBLISHING_NOT_CONNECTED_MESSAGE = "TikTok publishing is not connected yet.";
@@ -64,6 +65,7 @@ const normalizePublishSettings = (value = {}) => {
 const normalizeSocialPublisherPostRow = (row = {}) => ({
   id: row.id,
   tenant_id: row.tenant_id,
+  product_id: row.product_id || null,
   caption: row.caption || "",
   first_comment: row.first_comment || "",
   first_comment_status: row.first_comment_status || null,
@@ -462,6 +464,7 @@ export const listSocialPublisherPosts = async ({ tenantId, limit = 20 } = {}) =>
 
 export const createSocialPublisherPostRow = async ({
   tenantId,
+  productId = null,
   caption = "",
   firstComment = "",
   mediaUrl = "",
@@ -481,6 +484,7 @@ export const createSocialPublisherPostRow = async ({
     `
     INSERT INTO social_publisher_posts (
       tenant_id,
+      product_id,
       caption,
       first_comment,
       media_url,
@@ -493,11 +497,12 @@ export const createSocialPublisherPostRow = async ({
       published_at,
       error_message
     )
-    VALUES ($1::integer, $2, $3, $4, $5::jsonb, $6, $7::jsonb, $8::jsonb, $9, $10::timestamp, $11::timestamp, $12)
+    VALUES ($1::integer, $2::bigint, $3, $4, $5, $6::jsonb, $7, $8::jsonb, $9::jsonb, $10, $11::timestamp, $12::timestamp, $13)
     RETURNING *
     `,
     [
       tenantId,
+      Number(productId) || null,
       trimString(caption),
       trimString(firstComment),
       trimString(mediaUrl),
@@ -980,6 +985,23 @@ export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
   const publishedAt = publishSucceeded ? publishResult?.published_at || new Date().toISOString() : null;
 
   if (publishSucceeded) {
+    try {
+      await saveLinksForPublishedPost({
+        post: {
+          ...post,
+          tenant_id: tenantId,
+          product_id: post.product_id,
+          channel: resolveChannel(post.platforms),
+        },
+        publishResult,
+      });
+    } catch (error) {
+      console.error("[social-publisher-product-link]", {
+        social_publisher_post_id: id,
+        product_id: post.product_id || null,
+        error: error?.message || "Automatic product linking failed",
+      });
+    }
     try {
       await publishFirstCommentIfNeeded({
         tenantId,

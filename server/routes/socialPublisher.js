@@ -143,6 +143,7 @@ router.post(
   async (req, res) => {
     try {
       const tenantId = getTenantId(req, req.user?.tenant_id) || 1;
+      const productId = Number(req.body?.product_id || req.body?.productId || 0) || null;
       const caption = String(req.body?.caption || "").trim();
       const firstComment = String(req.body?.first_comment || req.body?.firstComment || "").trim();
       const mediaUrl = resolveMediaUrl(req);
@@ -166,6 +167,7 @@ router.post(
       }
       const post = await createSocialPublisherPostRow({
         tenantId,
+        productId,
         caption,
         firstComment,
         mediaUrl,

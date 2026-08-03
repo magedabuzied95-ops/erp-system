@@ -170,6 +170,7 @@ const statements = [
   CREATE TABLE IF NOT EXISTS social_publisher_posts (
     id SERIAL PRIMARY KEY,
     tenant_id INTEGER NOT NULL DEFAULT 1,
+    product_id BIGINT NULL,
     caption TEXT NOT NULL DEFAULT '',
     first_comment TEXT NOT NULL DEFAULT '',
     first_comment_status VARCHAR(30) NULL,
@@ -191,6 +192,7 @@ const statements = [
   `,
   `
   ALTER TABLE IF EXISTS social_publisher_posts
+    ADD COLUMN IF NOT EXISTS product_id BIGINT NULL,
     ADD COLUMN IF NOT EXISTS media_type VARCHAR(20) NOT NULL DEFAULT 'image',
     ADD COLUMN IF NOT EXISTS media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS first_comment TEXT NOT NULL DEFAULT '',
