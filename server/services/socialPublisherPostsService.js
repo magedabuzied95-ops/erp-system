@@ -735,6 +735,8 @@ export const searchSocialPublisherProducts = async ({ tenantId, query = "", limi
     `
       SELECT
         p.*,
+        COALESCE(NULLIF(p.selling_price, 0), variant_summary.selling_price, NULLIF(p.price, 0), 0)::numeric AS selling_price,
+        COALESCE(NULLIF(p.regular_price, 0), NULLIF(p.selling_price, 0), variant_summary.selling_price, NULLIF(p.price, 0), 0)::numeric AS regular_price,
         COALESCE(variant_summary.total_stock, 0)::numeric AS total_stock,
         COALESCE(variant_summary.variants, '[]'::jsonb) AS variants,
         COALESCE(NULLIF(p.image_url, ''), variant_summary.first_image, '') AS product_image_url
@@ -742,6 +744,7 @@ export const searchSocialPublisherProducts = async ({ tenantId, query = "", limi
       LEFT JOIN LATERAL (
         SELECT
           COALESCE(SUM(GREATEST(COALESCE(pv.stock, 0), 0)), 0) AS total_stock,
+          MAX(COALESCE(NULLIF(pv.purchase_selling_price, 0), NULLIF(pv.selling_price, 0), NULLIF(pv.regular_price, 0), NULLIF(pv.price, 0))) AS selling_price,
           JSONB_AGG(TO_JSONB(pv) ORDER BY pv.id) AS variants,
           (ARRAY_AGG(NULLIF(pv.image_url, '') ORDER BY pv.id) FILTER (WHERE NULLIF(pv.image_url, '') IS NOT NULL))[1] AS first_image
         FROM product_variants pv
