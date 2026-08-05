@@ -42,12 +42,15 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
+import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
+import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import TranscriptMessage from "../components/TranscriptMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
 import PostProductLinksDrawer from "../components/socialAutomation/PostProductLinksDrawer.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
+import EnhancedPwaOrderComposer from "../components/PwaOrderComposer";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 import "./AiInboxPwa.css";
@@ -3986,6 +3989,8 @@ export default function AiInboxPwa() {
     ) || null
     );
   }, [conversationParam, conversations]);
+  const currentAgent = useMemo(() => getCurrentUser() || {}, []);
+  const aiIntegration = useAIInboxAnalysis(selectedConversation, products, currentAgent);
   const selectedConversationRouteId = useMemo(
     () => {
       const identifiers = conversationIdentifiers(selectedConversation || {});
@@ -5036,6 +5041,17 @@ export default function AiInboxPwa() {
           customer_address: options.customer_address || "",
           governorate: options.governorate || "",
           city_area: options.city_area || "",
+          variant_id: options.variant_id || "",
+          shipping_provider: options.shipping_provider || "",
+          shipping_city_id: options.shipping_city_id || "",
+          shipping_zone_id: options.shipping_zone_id || "",
+          shipping_district_id: options.shipping_district_id || "",
+          district_id: options.district_id || "",
+          street_address: options.street_address || "",
+          building_number: options.building_number || "",
+          floor_number: options.floor_number || "",
+          apartment_number: options.apartment_number || "",
+          landmark: options.landmark || "",
           notes: options.notes || "",
           reserve: false,
           reserve_minutes: 20,
@@ -6393,15 +6409,18 @@ export default function AiInboxPwa() {
 
           {isConversationMode ? (
             contentScreen ? (
-              <OptimizedTranscript
-                conversation={selectedConversation}
-                rows={selectedTranscriptRows}
-                loadingOlder={olderLoading}
-                onLoadOlder={loadOlderMessages}
-                olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
-                onReplyComment={sendLeadCommentReply}
-                onPrivateMessage={sendLeadPrivateMessage}
-              />
+              <>
+                <AIInboxAnalysisPanel analysis={aiIntegration.analysis} copilot={aiIntegration.copilot} loading={aiIntegration.loading} cacheHit={aiIntegration.cacheHit} onTrack={aiIntegration.track} flags={aiIntegration.flags} />
+                <OptimizedTranscript
+                  conversation={selectedConversation}
+                  rows={selectedTranscriptRows}
+                  loadingOlder={olderLoading}
+                  onLoadOlder={loadOlderMessages}
+                  olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
+                  onReplyComment={sendLeadCommentReply}
+                  onPrivateMessage={sendLeadPrivateMessage}
+                />
+              </>
             ) : loading ? (
               <div className="grid min-h-60 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
@@ -6578,12 +6597,11 @@ export default function AiInboxPwa() {
           sending={productSending}
           selectedConversation={selectedConversation}
         />
-        <PwaOrderComposer
+        <EnhancedPwaOrderComposer
           open={orderComposerOpen}
           conversation={selectedConversation || {}}
-          products={products}
-          loading={productLoading}
           busy={orderComposerBusy}
+          headers={headers}
           onClose={() => setOrderComposerOpen(false)}
           onSubmit={createDraftOrder}
         />
@@ -6601,6 +6619,7 @@ export default function AiInboxPwa() {
           customer={customerDrawer.customer}
           customerId={customerDrawer.customerId}
           context={customerDrawer.context}
+          aiAnalysis={aiIntegration.analysis}
           title="Customer 360"
         />
       </div>

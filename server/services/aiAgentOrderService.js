@@ -769,7 +769,8 @@ export const createAiOrderDraft = async (payload = {}) => {
     throw Object.assign(new Error("Product match confidence is too low"), { status: 409, code: "LOW_CONFIDENCE", product });
   }
   const quantity = Math.max(1, integer(payload.quantity, 1));
-  const selectedVariant = payload.variant || selectVariant(product, { size: payload.size, color: payload.color });
+  const requestedVariantId = numberOrNull(payload.variant_id ?? payload.variantId);
+  const selectedVariant = payload.variant || (requestedVariantId ? (product.variants || []).find((item) => numberOrNull(item.id ?? item.variant_id) === requestedVariantId) : null) || selectVariant(product, { size: payload.size, color: payload.color });
   const allowOutOfStockDraft = payload.allow_out_of_stock_draft === true || payload.metadata?.allow_out_of_stock_draft === true;
   console.log("draft_stock_source", {
     tenantId,
@@ -880,6 +881,16 @@ export const createAiOrderDraft = async (payload = {}) => {
         customer_address: text(payload.customer_address || payload.address),
         governorate: text(payload.governorate),
         city_area: text(payload.city_area || payload.area),
+        shipping_provider: text(payload.shipping_provider || payload.shippingProvider),
+        shipping_city_id: text(payload.shipping_city_id || payload.shippingCityId),
+        shipping_zone_id: text(payload.shipping_zone_id || payload.shippingZoneId),
+        shipping_district_id: text(payload.shipping_district_id || payload.shippingDistrictId),
+        district_id: text(payload.district_id || payload.districtId),
+        street_address: text(payload.street_address || payload.streetAddress || payload.customer_address),
+        building_number: text(payload.building_number || payload.buildingNumber),
+        floor_number: text(payload.floor_number || payload.floorNumber),
+        apartment_number: text(payload.apartment_number || payload.apartmentNumber),
+        landmark: text(payload.landmark),
         delivery_notes: text(payload.delivery_notes),
         notes: text(payload.notes || `AI order draft from ${channel}`),
         ai_agent_session_id: text(payload.session_id || conversationId),
