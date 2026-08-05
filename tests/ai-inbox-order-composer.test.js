@@ -7,6 +7,8 @@ const pwaInbox = readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa
 const routes = readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
 const pwaComposer = readFileSync(new URL("../src/modules/aiSupport/components/PwaOrderComposer.jsx", import.meta.url), "utf8");
 const orderService = readFileSync(new URL("../server/services/aiAgentOrderService.js", import.meta.url), "utf8");
+const productPicker = readFileSync(new URL("../src/modules/aiSupport/components/ProductCardPicker.jsx", import.meta.url), "utf8");
+const pwaStyles = readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.css", import.meta.url), "utf8");
 
 test("AI Inbox exposes an in-conversation order composer", () => {
   assert.match(inbox, /function InboxOrderComposer/);
@@ -48,4 +50,12 @@ test("PWA order composer uses the visual catalog and Bosta hierarchy", () => {
 
 test("AI draft persists Bosta-ready shipping fields", () => {
   for (const field of ["shipping_provider", "shipping_city_id", "shipping_zone_id", "shipping_district_id", "district_id", "street_address", "building_number", "floor_number", "apartment_number", "landmark"]) assert.match(orderService, new RegExp(`${field}: text\\(payload\\.${field}`));
+});
+
+test("PWA product picker exposes POS filters and theme-aware dark styling", () => {
+  assert.match(productPicker, /SmartPosFilters/);
+  for (const filter of ["gender", "productType", "grade", "manufacturer", "filterColor", "filterSize", "stockFilter"]) assert.match(productPicker, new RegExp(filter));
+  assert.match(productPicker, /ai-pwa-product-picker--dark/);
+  assert.match(pwaStyles, /\.ai-pwa-product-picker--dark/);
+  assert.match(pwaStyles, /\.ai-pwa-pos-filter-trigger/);
 });

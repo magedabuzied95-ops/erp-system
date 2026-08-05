@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, Loader2, Search, ShoppingBag, Square, X } from "lucide-react";
+import { CheckCircle2, Loader2, Search, ShoppingBag, SlidersHorizontal, Square, X } from "lucide-react";
 
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
+import SmartPosFilters from "../../pos/components/SmartPosFilters";
+import { useTheme } from "../../../theme/useTheme";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -120,6 +122,11 @@ const productTypeValues = (product = {}) =>
       variant.product_type_name,
     ]),
   ]);
+
+const productGradeValues = (product = {}) => uniqueTextValues([product.grade, product.product_grade, product.quality_grade, ...asArray(product.variants).map((variant) => variant.grade || variant.product_grade)]);
+const productManufacturerValues = (product = {}) => uniqueTextValues([product.manufacturer_id, product.manufacturer, product.manufacturer_name]);
+const productStock = (product = {}) => asArray(product.variants).reduce((sum, variant) => sum + Math.max(0, Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? 0) || 0), 0) || Math.max(0, Number(product.total_stock ?? product.stock ?? product.available_stock ?? 0) || 0);
+const optionRows = (values = []) => uniqueTextValues(values).map((value) => ({ id: value, name: value }));
 
 const buildAvailableBySizeUrl = ({
   sizes = [],
@@ -296,6 +303,7 @@ const matchesQuery = (product = {}, query = "") => {
 };
 
 export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, mode = "" }) {
+  const { theme } = useTheme();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -303,6 +311,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [search, setSearch] = useState("");
   const [brand, setBrand] = useState("all");
   const [category, setCategory] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [gender, setGender] = useState("all");
+  const [productType, setProductType] = useState("all");
+  const [grade, setGrade] = useState("all");
+  const [manufacturer, setManufacturer] = useState("all");
+  const [filterColor, setFilterColor] = useState("all");
+  const [filterSize, setFilterSize] = useState("all");
+  const [stockFilter, setStockFilter] = useState("in_stock");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
@@ -317,6 +333,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const previousOpenRef = useRef(false);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   const inlineFullscreenMode = mode === "inlineFullscreen" || !isDesktopViewport;
+  const darkMode = theme === "dark";
 
   useEffect(() => {
     if (!open) return undefined;
@@ -346,10 +363,18 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return products.filter((product) => {
       if (brand !== "all" && lower(product.brand || product.brand_name) !== lower(brand)) return false;
       if (category !== "all" && lower(product.category || product.category_name) !== lower(category)) return false;
+      if (gender !== "all" && !productGenderValues(product).map(lower).includes(lower(gender))) return false;
+      if (productType !== "all" && !productTypeValues(product).map(lower).includes(lower(productType))) return false;
+      if (grade !== "all" && !productGradeValues(product).map(lower).includes(lower(grade))) return false;
+      if (manufacturer !== "all" && !productManufacturerValues(product).map(lower).includes(lower(manufacturer))) return false;
+      if (filterColor !== "all" && !productColors(product).map(lower).includes(lower(filterColor))) return false;
+      if (filterSize !== "all" && !productSizes(product).map(lower).includes(lower(filterSize))) return false;
+      if (stockFilter === "in_stock" && productStock(product) <= 0) return false;
+      if (stockFilter === "out_of_stock" && productStock(product) > 0) return false;
       if (!matchesQuery(product, searchValue)) return false;
       return true;
     });
-  }, [brand, category, products, search]);
+  }, [brand, category, filterColor, filterSize, gender, grade, manufacturer, productType, products, search, stockFilter]);
 
   const sizeLinkFilteredProducts = useMemo(() => {
     if (!sizeMode) return [];
@@ -411,6 +436,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
   const brandOptions = useMemo(() => uniqueTextValues(products.map((product) => product.brand || product.brand_name)), [products]);
   const categoryOptions = useMemo(() => uniqueTextValues(products.map((product) => product.category || product.category_name)), [products]);
+  const posCategoryOptions = useMemo(() => optionRows(categoryOptions), [categoryOptions]);
+  const posBrandOptions = useMemo(() => optionRows(brandOptions), [brandOptions]);
+  const posGenderOptions = useMemo(() => optionRows(products.flatMap((product) => productGenderValues(product))), [products]);
+  const posTypeOptions = useMemo(() => optionRows(products.flatMap((product) => productTypeValues(product))), [products]);
+  const posGradeOptions = useMemo(() => optionRows(products.flatMap((product) => productGradeValues(product))), [products]);
+  const posManufacturerOptions = useMemo(() => optionRows(products.flatMap((product) => productManufacturerValues(product))), [products]);
+  const posColorOptions = useMemo(() => optionRows(products.flatMap((product) => productColors(product))), [products]);
+  const posSizeOptions = useMemo(() => optionRows(products.flatMap((product) => productSizes(product))), [products]);
+  const activeFilterCount = [brand, category, gender, productType, grade, manufacturer, filterColor, filterSize].filter((value) => value !== "all").length + (stockFilter !== "all" ? 1 : 0);
+  const resetPosFilters = useCallback(() => { setBrand("all"); setCategory("all"); setGender("all"); setProductType("all"); setGrade("all"); setManufacturer("all"); setFilterColor("all"); setFilterSize("all"); setStockFilter("in_stock"); }, []);
   const typeOptions = useMemo(() => uniqueTextValues(products.flatMap((product) => productTypeValues(product))), [products]);
   const genderOptions = useMemo(() => ["all", "men", "women", "kids"], []);
 
@@ -767,8 +802,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
   const content = (
     <div
-      className={inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}
-      style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 2147483647, isolation: "isolate" }}
+      className={`ai-pwa-product-picker ${darkMode ? "ai-pwa-product-picker--dark" : "ai-pwa-product-picker--light"} ${inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}`}
+      style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 2147482000, isolation: "isolate" }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
@@ -856,6 +891,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 </select>
               </label>
             </div>
+
+            <button type="button" onClick={() => setFiltersOpen(true)} className="ai-pwa-pos-filter-trigger inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-black transition">
+              <SlidersHorizontal className="h-4 w-4" />
+              فلاتر POS الذكية
+              {activeFilterCount ? <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] text-emerald-950">{activeFilterCount}</span> : null}
+            </button>
 
             <div className={inlineFullscreenMode ? "min-h-0 flex-1 overflow-y-auto pr-1 pb-24" : "min-h-0 flex-1 overflow-y-auto pr-1"}>
               {loading ? (
@@ -1138,6 +1179,38 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
           </div>
         </div>
       </section>
+      <SmartPosFilters
+        open={filtersOpen}
+        categoryOptions={posCategoryOptions}
+        selectedCategoryId={category}
+        onCategoryChange={setCategory}
+        smartFilterOptions={{ gender: posGenderOptions, productType: posTypeOptions, grade: posGradeOptions }}
+        selectedGender={gender}
+        onGenderChange={setGender}
+        selectedProductType={productType}
+        onProductTypeChange={setProductType}
+        selectedGrade={grade}
+        onGradeChange={setGrade}
+        brandOptions={posBrandOptions}
+        selectedBrandId={brand}
+        onBrandChange={setBrand}
+        manufacturerOptions={posManufacturerOptions}
+        selectedManufacturerId={manufacturer}
+        onManufacturerChange={setManufacturer}
+        colorOptions={posColorOptions}
+        selectedColor={filterColor}
+        onColorChange={setFilterColor}
+        sizeOptions={posSizeOptions}
+        selectedSize={filterSize}
+        onSizeChange={setFilterSize}
+        stockOptions={[{ id: "in_stock", name: "متاح بالمخزون" }, { id: "out_of_stock", name: "غير متاح" }]}
+        selectedStock={stockFilter}
+        onStockChange={setStockFilter}
+        activeSmartFilterCount={activeFilterCount}
+        onApply={() => setFiltersOpen(false)}
+        onReset={resetPosFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
     </div>
   );
   return inlineFullscreenMode ? content : createPortal(content, document.body);
