@@ -1404,9 +1404,33 @@ const mergeConversationSummaryRefresh = (currentConversation = {}, nextConversat
     currentMessages.length,
     nextMessages.length
   );
+  const currentIdentityName = clean(currentConversation.customer_name || currentConversation.customer_profile?.name || "");
+  const refreshedIdentityName = clean(nextConversation.customer_name || nextConversation.customer_profile?.name || "");
+  const isUsefulIdentityName = (value = "") => {
+    const candidate = clean(value);
+    if (!candidate || /^\+?[\d\s()-]+$/.test(candidate)) return false;
+    return !["customer", "whatsapp customer", "عميل", "مستخدم واتساب"].includes(candidate.toLowerCase());
+  };
+  const stableCustomerName = isUsefulIdentityName(refreshedIdentityName)
+    ? refreshedIdentityName
+    : isUsefulIdentityName(currentIdentityName)
+      ? currentIdentityName
+      : refreshedIdentityName || currentIdentityName;
+  const stableCustomerAvatarUrl = clean(
+    nextConversation.customer_avatar_url ||
+    nextConversation.customer_profile?.avatar_url ||
+    nextConversation.channel_metadata?.customer_avatar_url ||
+    currentConversation.customer_avatar_url ||
+    currentConversation.customer_profile?.avatar_url ||
+    currentConversation.channel_metadata?.customer_avatar_url ||
+    ""
+  );
 
   return {
     ...currentConversation,
+    ...nextConversation,
+    customer_name: stableCustomerName,
+    customer_avatar_url: stableCustomerAvatarUrl,
     unread_count: nextUnreadCount,
     unseen_count: nextConversation.unseen_count ?? currentConversation.unseen_count ?? nextUnreadCount,
     pending_count: nextConversation.pending_count ?? currentConversation.pending_count ?? nextUnreadCount,
@@ -1422,10 +1446,17 @@ const mergeConversationSummaryRefresh = (currentConversation = {}, nextConversat
     channel_metadata: {
       ...(currentConversation.channel_metadata || {}),
       ...(nextConversation.channel_metadata || {}),
+      ...(stableCustomerAvatarUrl ? { customer_avatar_url: stableCustomerAvatarUrl } : {}),
       last_message: nextConversation.channel_metadata?.last_message ?? currentConversation.channel_metadata?.last_message ?? nextPreview,
       unread_count: nextConversation.channel_metadata?.unread_count ?? currentConversation.channel_metadata?.unread_count ?? nextUnreadCount,
       pending_count: nextConversation.channel_metadata?.pending_count ?? currentConversation.channel_metadata?.pending_count ?? nextUnreadCount,
       unseen_count: nextConversation.channel_metadata?.unseen_count ?? currentConversation.channel_metadata?.unseen_count ?? nextUnreadCount,
+    },
+    customer_profile: {
+      ...(currentConversation.customer_profile || {}),
+      ...(nextConversation.customer_profile || {}),
+      ...(stableCustomerName ? { name: stableCustomerName } : {}),
+      ...(stableCustomerAvatarUrl ? { avatar_url: stableCustomerAvatarUrl } : {}),
     },
     messages: currentConversation.messages,
     older_messages_available: currentConversation.older_messages_available,

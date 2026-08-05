@@ -116,8 +116,50 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
+import { syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 
 const router = express.Router();
+const whatsappProfileSyncState = new Map();
+const WHATSAPP_PROFILE_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+
+const scheduleMissingWhatsappProfileSync = ({ tenantId, conversations = [] } = {}) => {
+  const missingProfiles = (Array.isArray(conversations) ? conversations : []).filter((conversation) => {
+    const channel = String(conversation?.channel || conversation?.source || "").toLowerCase();
+    const avatarUrl = String(conversation?.customer_avatar_url || conversation?.customer_profile?.avatar_url || "").trim();
+    return channel === "whatsapp" && !avatarUrl;
+  });
+  if (!tenantId || missingProfiles.length === 0) return;
+
+  const now = Date.now();
+  const current = whatsappProfileSyncState.get(Number(tenantId)) || {};
+  if (current.running || now - Number(current.lastStartedAt || 0) < WHATSAPP_PROFILE_SYNC_COOLDOWN_MS) return;
+  whatsappProfileSyncState.set(Number(tenantId), { running: true, lastStartedAt: now });
+
+  void syncWhatsappCustomerProfilePictures({
+    tenantId: Number(tenantId),
+    limit: Math.min(100, Math.max(20, missingProfiles.length)),
+    force: false,
+  })
+    .then((result) => {
+      if (Number(result?.updated || 0) > 0) {
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+          tenant_id: Number(tenantId),
+          reason: "whatsapp_profiles_updated",
+          updated: Number(result.updated || 0),
+          at: new Date().toISOString(),
+        });
+      }
+    })
+    .catch((error) => {
+      console.warn("[ai-inbox:whatsapp-profile-sync-failed]", {
+        tenantId: Number(tenantId),
+        message: error?.message || String(error),
+      });
+    })
+    .finally(() => {
+      whatsappProfileSyncState.set(Number(tenantId), { running: false, lastStartedAt: now });
+    });
+};
 const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
 const SOCIAL_COMMENTS_DEBUG = process.env.NODE_ENV !== "production" || ["1", "true", "yes", "on"].includes(String(process.env.SOCIAL_COMMENTS_DEBUG || process.env.AI_SUPPORT_SOCIAL_COMMENTS_DEBUG || "").toLowerCase());
 const perfLog = (...args) => {
@@ -2488,6 +2530,7 @@ router.get("/conversations", protect, permit("settings", "view"), async (req, re
       messageLimit: req.query?.message_limit,
       summaryOnly: true,
     });
+    scheduleMissingWhatsappProfileSync({ tenantId, conversations: inbox.conversations });
     return res.json({ success: true, ...inbox });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox conversations");

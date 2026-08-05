@@ -2087,6 +2087,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       s.thread_kind AS thread_kind,
       s.customer_name AS session_customer_name,
       c.customer_name AS channel_customer_name,
+      p.display_name AS profile_display_name,
+      p.customer_name AS profile_customer_name,
+      p.first_name AS profile_first_name,
+      p.last_name AS profile_last_name,
+      p.profile_pic_url AS profile_avatar_url,
       s.customer_avatar_url AS session_customer_avatar_url,
       s.last_message AS session_last_message,
       s.last_ai_reply_draft,
@@ -2130,6 +2135,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
           )
       ) AS unread_count,
       m.latest_message_id,
+      m.latest_message_customer_name,
+      m.latest_message_customer_avatar_url,
       m.customer_message,
       m.message_text,
       m.ai_answer,
@@ -2157,10 +2164,23 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       cm.comment_created_time AS latest_comment_created_time,
       cm.comment_id AS latest_comment_id
     FROM ai_support_sessions s
-    LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.channel = s.channel AND c.external_conversation_id = s.session_id
+    LEFT JOIN LATERAL (
+      SELECT channel_conversation.*
+      FROM ai_channel_conversations channel_conversation
+      WHERE channel_conversation.tenant_id = s.tenant_id
+        AND channel_conversation.external_conversation_id = s.session_id
+      ORDER BY
+        CASE WHEN channel_conversation.channel = s.channel THEN 0 ELSE 1 END,
+        COALESCE(channel_conversation.last_message_at, channel_conversation.updated_at) DESC,
+        channel_conversation.id DESC
+      LIMIT 1
+    ) c ON TRUE
+    LEFT JOIN ai_customer_profiles p ON p.id = c.customer_profile_id AND p.tenant_id = s.tenant_id
     LEFT JOIN LATERAL (
       SELECT
         msg.id AS latest_message_id,
+        msg.customer_name AS latest_message_customer_name,
+        msg.customer_avatar_url AS latest_message_customer_avatar_url,
         msg.customer_message,
         msg.message_text,
         msg.ai_answer,
@@ -2302,10 +2322,29 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     }));
     const customerName = isCommentThread
       ? text(readableCommenterName || "مستخدم فيسبوك")
-      : resolveConversationDisplayName({ conversation, customerName: conversation.customer_name || "" });
+      : resolveConversationDisplayName({
+          conversation,
+          customerName: text(
+            conversation.profile_display_name ||
+            conversation.profile_customer_name ||
+            [conversation.profile_first_name, conversation.profile_last_name].filter(Boolean).join(" ") ||
+            conversation.latest_message_customer_name ||
+            conversation.channel_customer_name ||
+            conversation.session_customer_name ||
+            ""
+          ),
+        });
     const customerAvatarUrl = isCommentThread
       ? latestCommenterAvatarUrl
-      : text(conversation.customer_avatar_url || conversation.session_customer_avatar_url || "");
+      : text(
+          conversation.customer_avatar_url ||
+          conversation.session_customer_avatar_url ||
+          conversation.profile_avatar_url ||
+          conversation.latest_message_customer_avatar_url ||
+          existingChannelMetadata.customer_avatar_url ||
+          existingChannelMetadata.profile_pic_url ||
+          ""
+        );
     const postFullPicture = text(
       conversation.latest_comment_post_full_picture ||
       existingChannelMetadata.post_full_picture ||
