@@ -293,7 +293,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
           "overview.activePos"
         )
       : [{}],
-    getRecentInvoices({ tenantId, limit: 6 }),
+    getRecentInvoices({ tenantId, limit: 6, todayOnly: filters.range === "today" }),
   ]);
 
   const t = today[0] || {};
@@ -868,7 +868,7 @@ export const getAiInsights = async ({ tenantId = null } = {}) => {
   return insights;
 };
 
-export const getRecentInvoices = async ({ tenantId = null, limit = 8 } = {}) => {
+export const getRecentInvoices = async ({ tenantId = null, limit = 8, todayOnly = false } = {}) => {
   if (!(await tableExists("orders"))) return [];
   const params = [Number(limit) || 8];
   const ordersTenant = tenantClause("o", tenantId, params);
@@ -877,6 +877,7 @@ export const getRecentInvoices = async ({ tenantId = null, limit = 8 } = {}) => 
     SELECT o.id, o.invoice_number, o.customer_name, COALESCE(o.total_amount, o.total, 0) AS total, o.payment_status, o.created_at
     FROM orders o
     WHERE 1=1 ${ordersTenant}
+      ${todayOnly ? `AND o.created_at >= ${daySql}` : ""}
       ${personalOrderClause("o")}
     ORDER BY o.created_at DESC
     LIMIT $1

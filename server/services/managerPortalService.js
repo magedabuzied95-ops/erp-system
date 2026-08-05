@@ -728,6 +728,14 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {} } =
   if (!canViewProfitForManager(manager) && overview?.today) {
     overview.today.profit = null;
   }
+  if (Array.isArray(overview?.recentInvoices)) {
+    overview.recentInvoices = await Promise.all(
+      overview.recentInvoices.slice(0, 5).map(async (invoice) => {
+        const detail = await getManagerPortalInvoiceDetail({ manager, invoiceId: invoice.id }).catch(() => null);
+        return detail || invoice;
+      })
+    );
+  }
 
   return {
     generated_at: new Date().toISOString(),

@@ -918,6 +918,7 @@ export default function ManagerPortal() {
   const hasMoreLeads = mobileAlertBuckets.leads.length > visibleLeads.length;
   const visibleLowStock = showMoreLowStock ? [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock] : [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].slice(0, 3);
   const hasMoreLowStock = [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].length > visibleLowStock.length;
+  const todayInvoices = Array.isArray(dashboard?.overview?.recentInvoices) ? dashboard.overview.recentInvoices.slice(0, 5) : [];
   const setTaskExpanded = (taskId, expanded) => {
     setExpandedTaskIds((current) => ({ ...current, [taskId]: expanded }));
   };
@@ -939,8 +940,6 @@ export default function ManagerPortal() {
           { label: "الفواتير اليوم", value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "cyan", emphasis: true },
           { label: "الحضور الآن", value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "blue" },
           { label: "اعتمادات معلقة", value: formatNumber(pendingInventoryApprovalsCount || 0), icon: CheckCircle2, tone: "amber" },
-          { label: "العملاء الساخنون", value: formatNumber(mobileAlertBuckets.leads.length || 0), icon: Bot, tone: "red" },
-          { label: "المخزون المنخفض", value: formatNumber((mobileAlertBuckets.lowStock.length || 0) + (mobileAlertBuckets.refillAlerts.length || 0)), icon: Package, tone: "slate" },
         ]
       : []
   ), [
@@ -948,9 +947,6 @@ export default function ManagerPortal() {
     dashboard?.invoice_count,
     dashboard?.active_employees_now,
     isMobilePortal,
-    mobileAlertBuckets.leads.length,
-    mobileAlertBuckets.lowStock.length,
-    mobileAlertBuckets.refillAlerts.length,
     pendingInventoryApprovalsCount,
   ]);
   const selectedChatThread = managerChatState.thread || null;
@@ -2118,104 +2114,41 @@ export default function ManagerPortal() {
                 </>
               )}
 
-              {isMobilePortal ? (
-              <div className="manager-portal-mobile-quick-grid grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => scrollToManagerSection(liveFeedSectionRef)}
-                  className="manager-portal-quick-card flex min-h-[4.75rem] items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0b1120] px-3 py-2.5 text-right text-white shadow-[0_12px_24px_rgba(2,6,23,0.18)]"
-                >
-                    <div className="min-w-0 text-right">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">الإشعارات المباشرة</div>
-                      <div className="mt-1 truncate text-sm font-black leading-5 text-white">تنبيهات</div>
-                    </div>
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
-                      {formatNumber(visibleLiveFeed.length || 0)}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scrollToManagerSection(stockAlertsSectionRef)}
-                    className="manager-portal-quick-card flex min-h-[4.75rem] items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0b1120] px-3 py-2.5 text-right text-white shadow-[0_12px_24px_rgba(2,6,23,0.18)]"
-                  >
-                    <div className="min-w-0 text-right">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">تنبيهات المخزون</div>
-                      <div className="mt-1 truncate text-sm font-black leading-5 text-white">عرض</div>
-                    </div>
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
-                      {formatNumber((mobileAlertBuckets.refillAlerts.length || 0) + (mobileAlertBuckets.lowStock.length || 0))}
-                    </span>
-                  </button>
-                </div>
-              ) : null}
-
-              {mobileAlertBuckets.operationalEvents.length || !isMobilePortal ? (
+              {todayInvoices.length || !isMobilePortal ? (
                 <section ref={liveFeedSectionRef} className="scroll-mt-28">
-                  <Card title="الإشعارات المباشرة" subtitle="آخر ٥ تنبيهات" icon={Bell} compact bodyClassName="space-y-2">
-                    {mobileAlertBuckets.operationalEvents.length ? (
+                  <Card title="فواتير اليوم" subtitle="آخر ٥ فواتير" icon={ClipboardList} compact bodyClassName="space-y-2">
+                    {todayInvoices.length ? (
                       <div className="space-y-2">
-                        {mobileAlertBuckets.operationalEvents.map((event) => (
-                          <button
-                            key={event.key}
-                            type="button"
-                            onClick={() => event.kind === "invoice" && event.invoiceId ? void openInvoiceDetail(event.invoiceId) : undefined}
-                            className="flex w-full items-start justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right transition hover:border-slate-700 hover:shadow-sm"
-                          >
-                            <div className="min-w-0">
-                              <div className="text-sm font-black text-white">{event.title}</div>
-                              <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">{event.detail || "لا توجد تفاصيل إضافية"}</div>
+                        {todayInvoices.map((invoice) => (
+                          <article key={`today-invoice-${invoice.id}`} className="rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-black text-white">فاتورة {portalText(invoice.invoice_number || invoice.id || "")}</div>
+                                <div className="mt-1 text-xs font-semibold text-slate-400">{portalText(invoice.customer_name || "عميل نقدي")} · {formatDateTime(invoice.created_at)}</div>
+                              </div>
+                              <div className="shrink-0 text-left">
+                                <div className="text-sm font-black text-emerald-300">{formatCurrency(invoice.total || 0)}</div>
+                                <div className="mt-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[10px] font-black text-amber-200">{paymentMethodLabel(invoice.payment_method || invoice.payment_type)}</div>
+                              </div>
                             </div>
-                            <div className="shrink-0 text-right">
-                              {event.kind ? <div className="mb-1 flex justify-end"><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${event.kind === "invoice" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : event.tone === "amber" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : event.tone === "red" ? "border-rose-400/30 bg-rose-400/10 text-rose-200" : "border-slate-700 bg-slate-900 text-slate-200"}`}>{event.kind === "invoice" ? "فاتورة" : event.kind === "lead" ? "عميل" : event.kind === "task" ? "مهمة" : "حدث"}</span></div> : null}
-                              <StatusPill tone={event.tone || "slate"} value={formatDateTime(event.timestamp)} />
+                            <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
+                              {(invoice.items || []).map((item) => (
+                                <div key={item.id || `${invoice.id}-${item.product_id}-${item.variant_id}`} className="flex items-center gap-2">
+                                  {item.image_url ? <img src={item.image_url} alt="" className="h-12 w-12 shrink-0 rounded-xl border border-slate-700 bg-white object-cover" loading="lazy" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900"><Package className="h-5 w-5 text-slate-400" /></div>}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate text-xs font-black text-white">{portalText(item.product_name || "منتج")}</div>
+                                    <div className="mt-0.5 truncate text-[11px] font-bold text-slate-400">{[portalText(item.color || ""), portalText(item.size || ""), `${formatNumber(item.quantity || 0)} قطعة`].filter(Boolean).join(" · ")}</div>
+                                  </div>
+                                  <div className="shrink-0 text-xs font-black text-white">{formatCurrency(item.line_total || item.price || 0)}</div>
+                                </div>
+                              ))}
                             </div>
-                          </button>
+                          </article>
                         ))}
                       </div>
                     ) : (
-                      <EmptyState compact title="لا توجد إشعارات بعد" body="ستظهر هنا الفواتير والمهام والتنبيهات المباشرة فور وصولها." />
+                      <EmptyState compact title="لا توجد فواتير اليوم" body="ستظهر هنا آخر خمس فواتير بمجرد تسجيلها." />
                     )}
-                  </Card>
-                </section>
-              ) : null}
-
-              {mobileAlertBuckets.lowStock.length || mobileAlertBuckets.refillAlerts.length ? (
-                <section ref={stockAlertsSectionRef} className="scroll-mt-28">
-                  <Card title="تنبيهات المخزون" subtitle="إعادة العرض والمخزون المنخفض" icon={Package} compact bodyClassName="space-y-2">
-                    <div className="space-y-2">
-                      {mobileAlertBuckets.refillAlerts.slice(0, 3).map((alert) => (
-                        <button
-                          key={`refill-${alert.id}`}
-                          type="button"
-                          onClick={openInventoryApprovals}
-                          className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right transition hover:border-slate-700 hover:shadow-sm"
-                        >
-                          <div className="min-w-0">
-                            <div className="line-clamp-2 font-black leading-5 text-white">إعادة عرض منتج: <InlineName className="line-clamp-2 align-bottom">{portalText(alert.product_name || "منتج")}</InlineName></div>
-                            <div className="mt-1 truncate text-xs font-bold text-slate-400">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
-                          </div>
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
-                            {formatNumber(1)}
-                          </span>
-                        </button>
-                      ))}
-                      {mobileAlertBuckets.lowStock.slice(0, 3).map((item) => (
-                        <button
-                          key={`low-${item.id}-${item.name}`}
-                          type="button"
-                          onClick={openInventoryApprovals}
-                          className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right transition hover:border-slate-700 hover:shadow-sm"
-                        >
-                          <div className="min-w-0">
-                            <div className="line-clamp-2 font-black leading-5 text-white">مطلوب إعادة طلب: <InlineName className="line-clamp-2 align-bottom">{portalText(item.name || "منتج")}</InlineName></div>
-                            <div className="mt-1 text-xs font-bold text-slate-400">{formatNumber(item.stock || 0)} قطعة متبقية</div>
-                          </div>
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
-                            {formatNumber(item.stock || 0)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
                   </Card>
                 </section>
               ) : null}
