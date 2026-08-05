@@ -55,7 +55,7 @@ import { safeSetLocalStorage } from "../../../utils/safeStorage";
 import { useTheme } from "../../../theme/useTheme";
 import "./ManagerPortal.m1.css";
 
-const TABS = ["today", "staff", "tasks", "sales", "chat", "more"];
+const TABS = ["today", "staff", "tasks", "sales", "chat", "notifications", "more"];
 const STORAGE_KEY = "manager.portal.active.tab";
 const DEFAULT_NOTIFICATION_SETTINGS = {
   messages: { sound: true, toast: true, push: true },
@@ -619,6 +619,7 @@ export default function ManagerPortal() {
     tasks: "Task Management",
     sales: "Manager Sales",
     chat: "Employee Chat",
+    notifications: "إعدادات التنبيه",
     more: "Manager Portal",
   };
   const [loading, setLoading] = useState(true);
@@ -1762,7 +1763,7 @@ export default function ManagerPortal() {
                   activeTab === tab ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "bg-white text-slate-700"
                 }`}
               >
-                <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد"}</span>
+                <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : tab === "notifications" ? "إعدادات التنبيه" : "المزيد"}</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
             ))}
@@ -2887,35 +2888,12 @@ export default function ManagerPortal() {
                     <div>غير المقروء: {formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
                 </Card>
-                <Card title="روابط سريعة" subtitle="روابط سريعة" icon={ChevronRight} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {[
-                      ["اليوم", "today"],
-                      ["الفريق", "staff"],
-                      ["المهام", "tasks"],
-                      ["المبيعات", "sales"],
-                      ["المحادثة", "chat"],
-                    ].map(([label, tab]) => (
-                      <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`inline-flex items-center justify-between rounded-2xl border border-slate-200 bg-white text-right font-black text-slate-800 transition hover:border-slate-300 hover:bg-slate-100 ${isMobilePortal ? "px-3 py-2.5 text-[13px]" : "px-3 py-3 text-sm"}`}>
-                        <span>{label}</span>
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    ))}
-                  </div>
-                </Card>
-                <Card title="سجل الإشعارات" subtitle="سجل الإشعارات" icon={Bell}>
-                  <div className="space-y-2">
-                    {notifications.slice(0, 3).length ? notifications.slice(0, 3).map((item) => (
-                      <div key={`history-${item.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
-                        <div className="font-black text-slate-950">{portalText(item.title || item.type || "إشعار")}</div>
-                        <div className="mt-1 line-clamp-2 text-xs text-slate-500">{portalText(item.message || item.body || "")}</div>
-                        <div className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.created_at)}</div>
-                      </div>
-                    )) : <EmptyState title="لا يوجد سجل حديث" body="ستظهر آخر الإشعارات هنا عندما تتوفر." />}
-                  </div>
-                </Card>
               </div>
+            </div>
+          ) : null}
 
+          {activeTab === "notifications" ? (
+            <div className="space-y-4">
               <Card title="إعدادات التنبيه" subtitle="إعدادات الإشعارات" icon={Bell}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.entries(settings).map(([category, config]) => (
@@ -3135,18 +3113,18 @@ export default function ManagerPortal() {
       </div>
 
       <nav className="manager-bottom-nav-safe-padding manager-bottom-nav-shell fixed inset-x-3 z-40 mx-auto max-w-2xl rounded-[1.4rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] shadow-2xl shadow-slate-900/30 lg:hidden">
-        <div className="grid grid-cols-6 gap-0.5 px-1.5 py-1.5">
+        <div className="grid grid-cols-7 gap-0.5 px-1.5 py-1.5">
           {TABS.map((tab) => {
             const active = activeTab === tab;
-            const label = tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد";
-            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : Bell;
+            const label = tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : tab === "notifications" ? "التنبيهات" : "المزيد";
+            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : tab === "notifications" ? Bell : Megaphone;
             const Icon = icon;
             return (
               <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[10px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap">
                   {label}
-                  {tab === "more" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-[1.2] text-white">{formatNumber(unreadCount)}</span> : null}
+                  {tab === "notifications" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-[1.2] text-white">{formatNumber(unreadCount)}</span> : null}
                 </span>
               </button>
             );
