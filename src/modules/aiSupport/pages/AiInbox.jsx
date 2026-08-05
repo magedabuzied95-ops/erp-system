@@ -2647,6 +2647,7 @@ function ManualReplyComposer({
           <button type="button" title="Emoji picker coming soon" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">☺</button>
           <textarea
             ref={textareaRef}
+            data-ai-inbox-composer="true"
             dir={isRtlText(value) ? "rtl" : "auto"}
             value={value}
             onChange={(event) => {
@@ -3987,6 +3988,17 @@ export default function AiInbox() {
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
+  useEffect(() => {
+    const handleCustomerAction = () => {
+      window.setTimeout(() => {
+        const editor = document.querySelector('[data-ai-inbox-composer="true"]');
+        editor?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        editor?.focus?.();
+      }, 80);
+    };
+    window.addEventListener("m1:ai-inbox-customer-action", handleCustomerAction);
+    return () => window.removeEventListener("m1:ai-inbox-customer-action", handleCustomerAction);
+  }, []);
   const [editingAiDraft, setEditingAiDraft] = useState(false);
   const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);

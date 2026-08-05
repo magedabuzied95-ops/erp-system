@@ -1978,6 +1978,7 @@ function PwaReplyEditor({ value = "", onChange, placeholder = "Type a reply" }) 
       spellCheck
       dir="auto"
       data-placeholder={placeholder}
+      data-ai-inbox-composer="true"
       onInput={(event) => onChange?.(String(event.currentTarget.innerText || "").replace(/\u00a0/g, " "))}
       className="ai-pwa-reply-editor max-h-28 min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
     />
@@ -3003,6 +3004,20 @@ export default function AiInboxPwa() {
   const [leadFilter, setLeadFilter] = useState("new");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
+
+  useEffect(() => {
+    const handleCustomerAction = (event) => {
+      const mode = clean(event?.detail?.mode || "chat");
+      if (["reply", "private_reply"].includes(mode)) setComposerMode("reply");
+      window.setTimeout(() => {
+        const editor = document.querySelector('[data-ai-inbox-composer="true"]');
+        editor?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        editor?.focus?.();
+      }, 80);
+    };
+    window.addEventListener("m1:ai-inbox-customer-action", handleCustomerAction);
+    return () => window.removeEventListener("m1:ai-inbox-customer-action", handleCustomerAction);
+  }, []);
   const [isFullscreenConversation, setIsFullscreenConversation] = useState(false);
   const [editingAiDraft, setEditingAiDraft] = useState(false);
   const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowUpRight,
   Bot,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
+import "./Customer360Drawer.css";
 
 const clean = (value = "") => String(value ?? "").trim();
 
@@ -76,7 +78,7 @@ const statusTone = (value = "") => {
 const metricCard = (label, value) => (
   <div className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
     <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-    <div className="mt-1 text-sm font-black text-slate-900">{value || "—"}</div>
+    <div className="mt-1 text-sm font-black text-slate-900">{value === null || value === undefined || value === "" ? "—" : value}</div>
   </div>
 );
 
@@ -95,7 +97,7 @@ const TabButton = ({ active, children, onClick }) => (
 const fallbackCustomerProfile = (customer = {}, context = {}) => {
   const profile = customer?.customer_profile || customer?.profile || {};
   return {
-    id: context.customerId || profile.id || customer.customer_profile_id || customer.profile_id || "",
+    id: profile.id || customer.id || customer.customer_id || customer.customer_profile_id || customer.profile_id || context.customerId || "",
     name:
       customer.customer_name ||
       profile.name ||
@@ -153,6 +155,7 @@ export default function Customer360Drawer({
   title = "Customer 360",
   initialTab = "summary",
 }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(false);
   const [loadingTab, setLoadingTab] = useState("");
@@ -229,11 +232,35 @@ export default function Customer360Drawer({
   const purchasedProducts = profileData.products?.purchased || [];
   const wishlistProducts = profileData.products?.wishlist || [];
   const status = clean(profileData.status || context.status || "");
+  const resolvedCustomerId = clean(profileData.id || customerId || customer?.customer_profile_id || customer?.profile_id || "");
+  const resolvedConversationId = clean(customer?.session_id || customer?.conversation_id || customer?.conversation_key || context.conversationId || "");
+  const returnToConversation = (mode = "chat") => {
+    onClose?.();
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("m1:ai-inbox-customer-action", { detail: { mode } }));
+    }, 60);
+  };
+  const openSystemPath = (path = "") => {
+    if (!path) return;
+    onClose?.();
+    navigate(path);
+  };
+  const orderPath = (order = {}) => clean(order.id || order.order_id) ? `/orders/${encodeURIComponent(clean(order.id || order.order_id))}` : "/orders";
+  const productPath = (product = {}) => clean(product.id || product.product_id) ? `/products/${encodeURIComponent(clean(product.id || product.product_id))}` : "/products";
+  const quickActions = [
+    { label: "Open Chat", Icon: MessageCircle, action: () => returnToConversation("chat") },
+    { label: "Reply", Icon: MessageSquareText, action: () => returnToConversation("reply") },
+    { label: "Private Reply", Icon: Bot, action: () => returnToConversation("private_reply") },
+    { label: "Create Lead", Icon: Users2, action: () => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
+    { label: "Create Order", Icon: ShoppingBag, action: () => openSystemPath(`/create-order${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
+    { label: "Assign Agent", Icon: Handshake, action: () => openSystemPath(`/admin/ai-inbox${resolvedConversationId ? `?conversation_id=${encodeURIComponent(resolvedConversationId)}&action=assign` : ""}`) },
+    { label: "Open Customer Profile", Icon: ExternalLink, action: () => openSystemPath(`/customers${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
+  ];
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80]">
+    <div className="m1-customer-360 fixed inset-0 z-[80]">
       <button type="button" aria-label="Close customer drawer" onClick={onClose} className="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" />
       <aside className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-[#F8FAFC] shadow-[0_24px_80px_rgba(15,23,42,0.24)] sm:w-[460px] lg:w-[520px]">
         <div className="sticky top-0 z-10 border-b border-[#E2E8F0] bg-white/95 px-4 py-4 backdrop-blur">
@@ -302,18 +329,11 @@ export default function Customer360Drawer({
               <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Quick Actions</div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {[
-                    ["Open Chat", MessageCircle],
-                    ["Reply", MessageSquareText],
-                    ["Private Reply", Bot],
-                    ["Create Lead", Users2],
-                    ["Create Order", ShoppingBag],
-                    ["Assign Agent", Handshake],
-                    ["Open Customer Profile", ExternalLink],
-                  ].map(([label, Icon]) => (
+                  {quickActions.map(({ label, Icon, action }) => (
                     <button
                       key={label}
                       type="button"
+                      onClick={action}
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
                     >
                       <Icon className="h-4 w-4" />
@@ -368,7 +388,7 @@ export default function Customer360Drawer({
                   </div>
                   <div className="mt-2 flex items-center justify-between text-sm text-slate-700">
                     <span>{clean(order.amount || order.total_amount || order.total || "—")} EGP</span>
-                    <button type="button" className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-[11px] font-black text-slate-700">
+                    <button type="button" onClick={() => openSystemPath(orderPath(order))} className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-[11px] font-black text-slate-700">
                       Open Order <ArrowUpRight className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -397,7 +417,7 @@ export default function Customer360Drawer({
                           <div className="mt-1 text-xs text-slate-500">{clean(product.price || product.final_price || product.sale_price || "") ? `${clean(product.price || product.final_price || product.sale_price)} EGP` : "Price unavailable"}</div>
                           <div className="mt-1 text-xs text-slate-500">{clean(product.stock || product.stock_status || "—")}</div>
                         </div>
-                        <button type="button" className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-[11px] font-black text-slate-700">
+                        <button type="button" onClick={() => openSystemPath(productPath(product))} className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-[11px] font-black text-slate-700">
                           Open Product <ExternalLink className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -452,19 +472,19 @@ export default function Customer360Drawer({
 
         <div className="sticky bottom-0 border-t border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur">
           <div className="flex gap-2 overflow-x-auto">
-            <button type="button" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white">
+            <button type="button" onClick={() => returnToConversation("chat")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white">
               <MessageCircle className="h-4 w-4" />
               Open Chat
             </button>
-            <button type="button" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+            <button type="button" onClick={() => returnToConversation("reply")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               <MessageSquareText className="h-4 w-4" />
               Reply
             </button>
-            <button type="button" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+            <button type="button" onClick={() => returnToConversation("private_reply")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               <Bot className="h-4 w-4" />
               Private Reply
             </button>
-            <button type="button" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+            <button type="button" onClick={() => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               <Users2 className="h-4 w-4" />
               Create Lead
             </button>

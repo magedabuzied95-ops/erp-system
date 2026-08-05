@@ -759,6 +759,33 @@ const getCustomerById = async (id, tenantId) => {
   return result.rows[0] ? normalizeCustomerRow(result.rows[0]) : null;
 };
 
+const getCustomerByIdentifier = async (identifier, tenantId) => {
+  const rawIdentifier = String(identifier || "").trim();
+  const directCustomer = /^\d+$/.test(rawIdentifier) ? await getCustomerById(rawIdentifier, tenantId) : null;
+  if (directCustomer) return directCustomer;
+
+  const columns = await ensureCustomerSchema();
+  const selectSql = buildSelectSql(columns);
+  const phoneColumns = [columns.phoneColumn, columns.mobileColumn, columns.whatsappColumn].filter(Boolean);
+  const phoneVariants = getPhoneSearchVariants(identifier);
+  if (!selectSql || phoneColumns.length === 0 || phoneVariants.length === 0) return null;
+
+  const params = [phoneVariants];
+  const phoneMatch = phoneColumns.map((column) => `${phoneSqlDigits(column)} = ANY($1::text[])`).join(" OR ");
+  if (columns.tenantIdColumn) params.push(tenantId);
+  const result = await pool.query(
+    `
+    ${selectSql}
+    WHERE (${phoneMatch})
+      ${columns.tenantIdColumn ? "AND ($2::bigint IS NULL OR tenant_id = $2::bigint)" : ""}
+    ORDER BY updated_at DESC NULLS LAST, id DESC
+    LIMIT 1
+    `,
+    params
+  );
+  return result.rows[0] ? normalizeCustomerRow(result.rows[0]) : null;
+};
+
 const getUsableCustomerOrderCounts = async ({ customerIds = [], tenantId = null } = {}) => {
   const ids = [...new Set((Array.isArray(customerIds) ? customerIds : []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
   if (ids.length === 0 || !(await tableExists("orders"))) {
@@ -824,6 +851,7 @@ const getCustomerOrdersData = async (customerId, tenantId) => {
   }
 
   const hasTenantId = await columnExists("orders", "tenant_id");
+  const hasStatus = await columnExists("orders", "status");
   const hasItems = await tableExists("order_items");
   const where = ["o.customer_id = $1"];
   const params = [customerId];
@@ -837,6 +865,8 @@ const getCustomerOrdersData = async (customerId, tenantId) => {
     `
     SELECT
       COUNT(*)::int AS total_orders,
+      ${hasStatus ? "COUNT(*) FILTER (WHERE LOWER(COALESCE(o.status, '')) IN ('completed','complete','delivered','done','paid'))::int" : "0::int"} AS completed_orders,
+      ${hasStatus ? "COUNT(*) FILTER (WHERE LOWER(COALESCE(o.status, '')) IN ('cancelled','canceled','void','refunded','returned'))::int" : "0::int"} AS cancelled_orders,
       COALESCE(SUM(COALESCE(o.total_amount, 0)), 0) AS total_spend,
       COALESCE(AVG(COALESCE(o.total_amount, 0)), 0) AS average_order,
       MAX(o.created_at) AS last_visit
@@ -903,9 +933,12 @@ const getCustomerOrdersData = async (customerId, tenantId) => {
   return {
     metrics: {
       totalOrders: Number(metrics.total_orders || 0),
+      completedOrders: Number(metrics.completed_orders || 0),
+      cancelledOrders: Number(metrics.cancelled_orders || 0),
       totalSpend: Number(metrics.total_spend || 0),
       averageOrder: Number(metrics.average_order || 0),
       lastVisit: metrics.last_visit || null,
+      lastOrderAt: metrics.last_visit || null,
     },
     orders: ordersResult.rows.map((order) => ({
       id: order.id,
@@ -2326,13 +2359,13 @@ export const getCustomerOrders = async (req, res) => {
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const { id } = req.params;
-    const customer = await getCustomerById(id, tenantId);
+    const customer = await getCustomerByIdentifier(id, tenantId);
 
     if (!customer) {
       return res.status(404).json({ success: false, message: "Customer not found" });
     }
 
-    const ordersData = await getCustomerOrdersData(id, tenantId);
+    const ordersData = await getCustomerOrdersData(customer.id, tenantId);
     return res.status(200).json({
       success: true,
       data: ordersData.orders,
@@ -2399,15 +2432,15 @@ export const getCustomerProfile = async (req, res) => {
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const { id } = req.params;
-    const customer = await getCustomerById(id, tenantId);
+    const customer = await getCustomerByIdentifier(id, tenantId);
 
     if (!customer) {
       return res.status(404).json({ success: false, message: "Customer not found" });
     }
 
     const [ordersData, loyalty] = await Promise.all([
-      getCustomerOrdersData(id, tenantId),
-      getCustomerLoyaltyData(id, tenantId, customer),
+      getCustomerOrdersData(customer.id, tenantId),
+      getCustomerLoyaltyData(customer.id, tenantId, customer),
     ]);
 
     const notes = [

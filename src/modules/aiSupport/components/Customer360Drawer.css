@@ -1,0 +1,46 @@
+.m1-customer-360 aside {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+.m1-customer-360 aside > div,
+.m1-customer-360 aside [class*="bg-white"],
+.m1-customer-360 aside [class*="bg-slate-50"] {
+  background-color: var(--card) !important;
+}
+
+.m1-customer-360 aside [class*="border-[#E2E8F0]"],
+.m1-customer-360 aside [class*="border-slate-2"] {
+  border-color: var(--border) !important;
+}
+
+.m1-customer-360 aside :where([class*="text-slate-900"], [class*="text-slate-700"]) {
+  color: var(--text) !important;
+}
+
+.m1-customer-360 aside :where([class*="text-slate-600"], [class*="text-slate-500"]) {
+  color: var(--muted) !important;
+}
+
+.m1-customer-360 aside button {
+  box-shadow: none !important;
+}
+
+.m1-customer-360 aside button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.m1-customer-360 aside .bg-slate-900 {
+  background: var(--primary) !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
+}
+
+html[data-theme="dark"] .m1-customer-360 aside {
+  box-shadow: -18px 0 60px rgba(0, 0, 0, 0.45) !important;
+}
+
+html[data-theme="dark"] .m1-customer-360 aside [class*="shadow-"] {
+  box-shadow: none !important;
+}
