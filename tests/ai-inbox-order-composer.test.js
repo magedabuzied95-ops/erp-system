@@ -54,7 +54,14 @@ test("AI draft persists Bosta-ready shipping fields", () => {
 
 test("PWA product picker exposes POS filters and theme-aware dark styling", () => {
   assert.match(productPicker, /SmartPosFilters/);
-  for (const filter of ["gender", "productType", "grade", "manufacturer", "filterColor", "filterSize", "stockFilter"]) assert.match(productPicker, new RegExp(filter));
+  for (const filter of ["gender", "productType", "grade", "brand", "manufacturer"]) assert.match(productPicker, new RegExp(filter));
+  assert.match(productPicker, /toggleMultiFilter\(setGender/);
+  assert.match(productPicker, /toggleMultiFilter\(setBrand/);
+  assert.match(productPicker, /toggleMultiFilter\(setManufacturer/);
+  assert.match(productPicker, /name: value, count/);
+  assert.doesNotMatch(productPicker, /categoryOptions=\{posCategoryOptions\}/);
+  assert.doesNotMatch(productPicker, /colorOptions=\{posColorOptions\}/);
+  assert.doesNotMatch(productPicker, /stockOptions=\{/);
   assert.match(productPicker, /ai-pwa-product-picker--dark/);
   assert.match(pwaStyles, /\.ai-pwa-product-picker--dark/);
   assert.match(pwaStyles, /\.ai-pwa-pos-filter-trigger/);

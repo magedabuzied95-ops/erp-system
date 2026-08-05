@@ -126,7 +126,21 @@ const productTypeValues = (product = {}) =>
 const productGradeValues = (product = {}) => uniqueTextValues([product.grade, product.product_grade, product.quality_grade, ...asArray(product.variants).map((variant) => variant.grade || variant.product_grade)]);
 const productManufacturerValues = (product = {}) => uniqueTextValues([product.manufacturer_id, product.manufacturer, product.manufacturer_name]);
 const productStock = (product = {}) => asArray(product.variants).reduce((sum, variant) => sum + Math.max(0, Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? 0) || 0), 0) || Math.max(0, Number(product.total_stock ?? product.stock ?? product.available_stock ?? 0) || 0);
-const optionRows = (values = []) => uniqueTextValues(values).map((value) => ({ id: value, name: value }));
+const optionRows = (values = []) => {
+  const counts = new Map();
+  values.map(clean).filter(Boolean).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+  return [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right, "ar"))
+    .map(([value, count]) => ({ id: value, name: value, count }));
+};
+
+const toggleMultiFilter = (setter, value) => {
+  setter((current) => {
+    if (value === "all") return [];
+    const normalized = String(value);
+    return current.includes(normalized) ? current.filter((item) => item !== normalized) : [...current, normalized];
+  });
+};
 
 const buildAvailableBySizeUrl = ({
   sizes = [],
@@ -309,16 +323,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [brand, setBrand] = useState("all");
+  const [brand, setBrand] = useState([]);
   const [category, setCategory] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [gender, setGender] = useState("all");
+  const [gender, setGender] = useState([]);
   const [productType, setProductType] = useState("all");
   const [grade, setGrade] = useState("all");
-  const [manufacturer, setManufacturer] = useState("all");
-  const [filterColor, setFilterColor] = useState("all");
-  const [filterSize, setFilterSize] = useState("all");
-  const [stockFilter, setStockFilter] = useState("in_stock");
+  const [manufacturer, setManufacturer] = useState([]);
+  const filterColor = "all";
+  const filterSize = "all";
+  const stockFilter = "in_stock";
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
@@ -361,12 +375,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const filteredProducts = useMemo(() => {
     const searchValue = clean(search);
     return products.filter((product) => {
-      if (brand !== "all" && lower(product.brand || product.brand_name) !== lower(brand)) return false;
+      if (brand.length && !brand.map(lower).includes(lower(product.brand || product.brand_name))) return false;
       if (category !== "all" && lower(product.category || product.category_name) !== lower(category)) return false;
-      if (gender !== "all" && !productGenderValues(product).map(lower).includes(lower(gender))) return false;
+      if (gender.length && !gender.some((value) => productGenderValues(product).map(lower).includes(lower(value)))) return false;
       if (productType !== "all" && !productTypeValues(product).map(lower).includes(lower(productType))) return false;
       if (grade !== "all" && !productGradeValues(product).map(lower).includes(lower(grade))) return false;
-      if (manufacturer !== "all" && !productManufacturerValues(product).map(lower).includes(lower(manufacturer))) return false;
+      if (manufacturer.length && !manufacturer.some((value) => productManufacturerValues(product).map(lower).includes(lower(value)))) return false;
       if (filterColor !== "all" && !productColors(product).map(lower).includes(lower(filterColor))) return false;
       if (filterSize !== "all" && !productSizes(product).map(lower).includes(lower(filterSize))) return false;
       if (stockFilter === "in_stock" && productStock(product) <= 0) return false;
@@ -436,16 +450,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
   const brandOptions = useMemo(() => uniqueTextValues(products.map((product) => product.brand || product.brand_name)), [products]);
   const categoryOptions = useMemo(() => uniqueTextValues(products.map((product) => product.category || product.category_name)), [products]);
-  const posCategoryOptions = useMemo(() => optionRows(categoryOptions), [categoryOptions]);
   const posBrandOptions = useMemo(() => optionRows(brandOptions), [brandOptions]);
   const posGenderOptions = useMemo(() => optionRows(products.flatMap((product) => productGenderValues(product))), [products]);
   const posTypeOptions = useMemo(() => optionRows(products.flatMap((product) => productTypeValues(product))), [products]);
   const posGradeOptions = useMemo(() => optionRows(products.flatMap((product) => productGradeValues(product))), [products]);
   const posManufacturerOptions = useMemo(() => optionRows(products.flatMap((product) => productManufacturerValues(product))), [products]);
-  const posColorOptions = useMemo(() => optionRows(products.flatMap((product) => productColors(product))), [products]);
-  const posSizeOptions = useMemo(() => optionRows(products.flatMap((product) => productSizes(product))), [products]);
-  const activeFilterCount = [brand, category, gender, productType, grade, manufacturer, filterColor, filterSize].filter((value) => value !== "all").length + (stockFilter !== "all" ? 1 : 0);
-  const resetPosFilters = useCallback(() => { setBrand("all"); setCategory("all"); setGender("all"); setProductType("all"); setGrade("all"); setManufacturer("all"); setFilterColor("all"); setFilterSize("all"); setStockFilter("in_stock"); }, []);
+  const activeFilterCount = brand.length + gender.length + manufacturer.length + [productType, grade].filter((value) => value !== "all").length;
+  const resetPosFilters = useCallback(() => { setBrand([]); setGender([]); setProductType("all"); setGrade("all"); setManufacturer([]); }, []);
   const typeOptions = useMemo(() => uniqueTextValues(products.flatMap((product) => productTypeValues(product))), [products]);
   const genderOptions = useMemo(() => ["all", "men", "women", "kids"], []);
 
@@ -871,16 +882,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               />
             </label>
 
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Brand</span>
-                <select value={brand} onChange={(event) => setBrand(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
-                  <option value="all">الكل</option>
-                  {brandOptions.map((item) => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
-                </select>
-              </label>
+            <div className="grid gap-2">
               <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Category</span>
                 <select value={category} onChange={(event) => setCategory(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
@@ -1181,31 +1183,19 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       </section>
       <SmartPosFilters
         open={filtersOpen}
-        categoryOptions={posCategoryOptions}
-        selectedCategoryId={category}
-        onCategoryChange={setCategory}
         smartFilterOptions={{ gender: posGenderOptions, productType: posTypeOptions, grade: posGradeOptions }}
         selectedGender={gender}
-        onGenderChange={setGender}
+        onGenderChange={(value) => toggleMultiFilter(setGender, value)}
         selectedProductType={productType}
         onProductTypeChange={setProductType}
         selectedGrade={grade}
         onGradeChange={setGrade}
         brandOptions={posBrandOptions}
         selectedBrandId={brand}
-        onBrandChange={setBrand}
+        onBrandChange={(value) => toggleMultiFilter(setBrand, value)}
         manufacturerOptions={posManufacturerOptions}
         selectedManufacturerId={manufacturer}
-        onManufacturerChange={setManufacturer}
-        colorOptions={posColorOptions}
-        selectedColor={filterColor}
-        onColorChange={setFilterColor}
-        sizeOptions={posSizeOptions}
-        selectedSize={filterSize}
-        onSizeChange={setFilterSize}
-        stockOptions={[{ id: "in_stock", name: "متاح بالمخزون" }, { id: "out_of_stock", name: "غير متاح" }]}
-        selectedStock={stockFilter}
-        onStockChange={setStockFilter}
+        onManufacturerChange={(value) => toggleMultiFilter(setManufacturer, value)}
         activeSmartFilterCount={activeFilterCount}
         onApply={() => setFiltersOpen(false)}
         onReset={resetPosFilters}
