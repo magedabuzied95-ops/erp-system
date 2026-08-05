@@ -4055,14 +4055,18 @@ export default function AiInbox() {
 
   const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
     const customerProfile = customer?.customer_profile || customer?.profile || {};
+    const channelMetadata = customer?.channel_metadata || {};
     const customerId = clean(
-      customer.customer_profile_id ||
-        customer.customerProfileId ||
+      customer.customer_id ||
+        customer.erp_customer_id ||
+        customer.phone ||
+        customerProfile.phone ||
+        channelMetadata.resolved_phone ||
+        channelMetadata.phone ||
         customer.external_customer_id ||
-        customerProfile.id ||
-        customer.id ||
+        customer.session_id ||
+        customer.conversation_id ||
         customer.commenter_id ||
-        customer.profile_id ||
         ""
     );
     setCustomerDrawer({

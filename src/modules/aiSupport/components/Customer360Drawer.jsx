@@ -97,7 +97,7 @@ const TabButton = ({ active, children, onClick }) => (
 const fallbackCustomerProfile = (customer = {}, context = {}) => {
   const profile = customer?.customer_profile || customer?.profile || {};
   return {
-    id: profile.id || customer.id || customer.customer_id || customer.customer_profile_id || customer.profile_id || context.customerId || "",
+    id: customer.customer_id || customer.id || context.customerId || profile.id || customer.customer_profile_id || customer.profile_id || "",
     name:
       customer.customer_name ||
       profile.name ||
