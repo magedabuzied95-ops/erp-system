@@ -2929,6 +2929,86 @@ function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, 
   );
 }
 
+function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, onClose, onSubmit }) {
+  const profile = conversation?.customer_profile || {};
+  const [productId, setProductId] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [governorate, setGovernorate] = useState("");
+  const [cityArea, setCityArea] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const firstProduct = asArray(products)[0] || null;
+    setProductId(clean(firstProduct?.product_id || firstProduct?.id));
+    setQuantity(1);
+    setSize(clean(conversation?.channel_metadata?.last_size || profile.preferred_size || ""));
+    setColor(clean(conversation?.channel_metadata?.last_color || ""));
+    setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
+    setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
+    setCustomerAddress(clean(profile.address || conversation?.customer_address || ""));
+    setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
+    setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
+    setNotes("");
+  }, [conversation?.session_id, open, products]);
+
+  if (!open) return null;
+  const selectedProduct = asArray(products).find((item) => clean(item.product_id || item.id) === clean(productId)) || null;
+  const unitPrice = Number(selectedProduct?.final_price || selectedProduct?.price || selectedProduct?.sale_price || 0) || 0;
+  const stock = Number(selectedProduct?.total_stock ?? selectedProduct?.stock ?? 0) || 0;
+  const safeQuantity = Math.max(1, Number(quantity) || 1);
+  const canSubmit = Boolean(selectedProduct) && safeQuantity <= stock && !busy;
+  return (
+    <div className="fixed inset-0 z-[140] flex justify-end bg-slate-950/75 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
+      <section dir="rtl" className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#111512] p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">AI Inbox Order</div>
+            <h2 className="mt-1 text-2xl font-black text-white">إنشاء طلب من المحادثة</h2>
+            <p className="mt-1 text-sm text-slate-400">راجع بيانات العميل والمنتج قبل إنشاء المسودة. لن يُخصم المخزون قبل تأكيد الطلب.</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.06] text-white"><XCircle className="h-5 w-5" /></button>
+        </div>
+
+        <div className="mt-5 space-y-5">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="mb-3 flex items-center gap-2 font-black text-white"><User className="h-4 w-4 text-emerald-300" />بيانات العميل</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="اسم العميل" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="رقم الهاتف" inputMode="tel" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={governorate} onChange={(e) => setGovernorate(e.target.value)} placeholder="المحافظة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={cityArea} onChange={(e) => setCityArea(e.target.value)} placeholder="المنطقة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <textarea value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} placeholder="العنوان بالتفصيل" className="min-h-20 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none sm:col-span-2" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="mb-3 flex items-center gap-2 font-black text-white"><ShoppingBag className="h-4 w-4 text-amber-300" />المنتج والمخزون</div>
+            <select value={productId} onChange={(e) => setProductId(e.target.value)} className="h-12 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-black text-white outline-none">
+              <option value="">اختر منتجًا من المنتجات المطابقة</option>
+              {asArray(products).map((product) => <option key={product.product_id || product.id} value={product.product_id || product.id}>{product.name || product.title} — المتاح {Number(product.total_stock ?? product.stock ?? 0) || 0}</option>)}
+            </select>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="المقاس" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="اللون" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} min="1" type="number" placeholder="الكمية" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+            </div>
+            {selectedProduct ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black"><span className={safeQuantity <= stock ? "text-emerald-100" : "text-rose-200"}>المخزون: {stock} — المطلوب: {safeQuantity}</span><span className="text-white">الإجمالي: {money(unitPrice * safeQuantity)}</span></div> : null}
+          </div>
+
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="ملاحظات الطلب" className="min-h-20 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none" />
+          <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, { quantity: safeQuantity, size, color, customer_name: customerName, customer_phone: customerPhone, customer_address: customerAddress, governorate, city_area: cityArea, notes })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading, onRefresh, onTakeover, onUseText, onCreateDraft, onPaymentAction }) {
   const intent = plan.intent || {};
   const lead = plan.lead || {};
@@ -3986,6 +4066,7 @@ export default function AiInbox() {
   const [toolsTab, setToolsTab] = useState("customer");
   const [profileOpen, setProfileOpen] = useState(false);
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
+  const [orderComposerOpen, setOrderComposerOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   useEffect(() => {
@@ -6562,12 +6643,22 @@ export default function AiInbox() {
         tenant_id: tenantId,
         product_id: product.product_id || product.id,
         product,
+        quantity: options.quantity || 1,
+        size: options.size || "",
+        color: options.color || "",
+        customer_name: options.customer_name || "",
+        customer_phone: options.customer_phone || "",
+        customer_address: options.customer_address || "",
+        governorate: options.governorate || "",
+        city_area: options.city_area || "",
+        notes: options.notes || "",
         reserve: options.reserve !== false,
         reserve_minutes: options.reserve_minutes || 20,
       }, { headers });
       const paymentAction = asArray(payload.payment_actions).find((item) => item.key === "cash_on_delivery") || null;
       if (paymentAction?.message) setReplyText(paymentAction.message);
       setToast({ tone: "emerald", text: `Draft order ${payload.order?.invoice_number || payload.order?.id || ""} created` });
+      setOrderComposerOpen(false);
       await loadAll();
       await loadSalesCloser();
     } catch (err) {
@@ -8034,6 +8125,7 @@ export default function AiInbox() {
                     onAssignNameChange={updateAssignName}
                     onAction={updateConversationAction}
                   />
+                  <button type="button" onClick={() => setOrderComposerOpen(true)} className="mb-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 shadow-[0_14px_35px_rgba(52,211,153,0.18)]"><ShoppingCart className="h-5 w-5" />إنشاء طلب من المحادثة</button>
 
                   <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -8262,6 +8354,14 @@ export default function AiInbox() {
           </aside>
         </section>
       </div>
+      <InboxOrderComposer
+        open={orderComposerOpen}
+        conversation={selectedConversation || {}}
+        products={recommendations.sessionId === selectedConversation?.session_id ? recommendations.products : []}
+        busy={loading}
+        onClose={() => setOrderComposerOpen(false)}
+        onSubmit={createDraftFromProduct}
+      />
     </div>
   );
 }

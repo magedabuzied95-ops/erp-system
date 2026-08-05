@@ -4231,8 +4231,11 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
       conversation_id: conversation.session_id,
       session_id: conversation.session_id,
       channel: conversation.channel || conversation.source || "facebook_messenger",
-      customer_name: conversation.customer_name || conversation.first_name || "Meta customer",
+      customer_name: req.body?.customer_name || conversation.customer_name || conversation.first_name || "Meta customer",
       customer_phone: req.body?.customer_phone || conversation.customer_profile?.phone || conversation.external_customer_id || "",
+      customer_address: req.body?.customer_address || conversation.customer_profile?.address || "",
+      governorate: req.body?.governorate || conversation.customer_profile?.governorate || "",
+      city_area: req.body?.city_area || conversation.customer_profile?.city_area || conversation.customer_profile?.area || "",
       external_customer_id: conversation.external_customer_id || "",
       original_customer_message: latestCustomerMessage,
       message: latestCustomerMessage || selectedProduct.name || selectedProduct.title,
@@ -4250,7 +4253,7 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
         sales_intent: intent,
         allow_missing_phone: true,
       },
-      notes: "AI Sales Closer draft from live Meta inbox",
+      notes: req.body?.notes || "AI Sales Closer draft from live Meta inbox",
     });
     let reservation = null;
     if (req.body?.reserve !== false) {
