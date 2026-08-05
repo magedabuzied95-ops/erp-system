@@ -730,7 +730,7 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {} } =
   }
   if (Array.isArray(overview?.recentInvoices)) {
     overview.recentInvoices = await Promise.all(
-      overview.recentInvoices.slice(0, 5).map(async (invoice) => {
+      overview.recentInvoices.map(async (invoice) => {
         const detail = await getManagerPortalInvoiceDetail({ manager, invoiceId: invoice.id }).catch(() => null);
         return detail || invoice;
       })

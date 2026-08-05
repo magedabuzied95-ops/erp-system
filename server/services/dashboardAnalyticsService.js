@@ -293,7 +293,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
           "overview.activePos"
         )
       : [{}],
-    getRecentInvoices({ tenantId, limit: 6, todayOnly: filters.range === "today" }),
+    getRecentInvoices({ tenantId, limit: filters.range === "today" ? 500 : 6, todayOnly: filters.range === "today" }),
   ]);
 
   const t = today[0] || {};

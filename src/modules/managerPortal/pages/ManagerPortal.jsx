@@ -918,7 +918,7 @@ export default function ManagerPortal() {
   const hasMoreLeads = mobileAlertBuckets.leads.length > visibleLeads.length;
   const visibleLowStock = showMoreLowStock ? [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock] : [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].slice(0, 3);
   const hasMoreLowStock = [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].length > visibleLowStock.length;
-  const todayInvoices = Array.isArray(dashboard?.overview?.recentInvoices) ? dashboard.overview.recentInvoices.slice(0, 5) : [];
+  const todayInvoices = Array.isArray(dashboard?.overview?.recentInvoices) ? dashboard.overview.recentInvoices : [];
   const setTaskExpanded = (taskId, expanded) => {
     setExpandedTaskIds((current) => ({ ...current, [taskId]: expanded }));
   };
@@ -2116,7 +2116,7 @@ export default function ManagerPortal() {
 
               {todayInvoices.length || !isMobilePortal ? (
                 <section ref={liveFeedSectionRef} className="scroll-mt-28">
-                  <Card title="فواتير اليوم" subtitle="آخر ٥ فواتير" icon={ClipboardList} compact bodyClassName="space-y-2">
+                  <Card title="فواتير اليوم" subtitle={`${formatNumber(todayInvoices.length)} فاتورة اليوم`} icon={ClipboardList} compact bodyClassName="space-y-2">
                     {todayInvoices.length ? (
                       <div className="space-y-2">
                         {todayInvoices.map((invoice) => (
@@ -2147,7 +2147,7 @@ export default function ManagerPortal() {
                         ))}
                       </div>
                     ) : (
-                      <EmptyState compact title="لا توجد فواتير اليوم" body="ستظهر هنا آخر خمس فواتير بمجرد تسجيلها." />
+                      <EmptyState compact title="لا توجد فواتير اليوم" body="ستظهر هنا جميع فواتير اليوم بمجرد تسجيلها." />
                     )}
                   </Card>
                 </section>
