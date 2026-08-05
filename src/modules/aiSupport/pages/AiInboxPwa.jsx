@@ -25,6 +25,7 @@ import {
   Send,
   ShieldBan,
   ShoppingBag,
+  ShoppingCart,
   SlidersHorizontal,
   Sparkles,
   Sun,
@@ -102,6 +103,172 @@ const isGenericCustomerName = (value = "") => {
 };
 const firstUsefulCustomerName = (...values) =>
   values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
+
+function PwaOrderComposerLegacy({ open, conversation = {}, products = [], loading = false, busy = false, onClose, onSubmit }) {
+  const profile = conversation?.customer_profile || {};
+  const [productId, setProductId] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [governorate, setGovernorate] = useState("");
+  const [cityArea, setCityArea] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const firstProduct = asArray(products)[0] || null;
+    setProductId(clean(firstProduct?.product_id || firstProduct?.id));
+    setQuantity(1);
+    setSize(clean(conversation?.channel_metadata?.last_size || profile.preferred_size || ""));
+    setColor(clean(conversation?.channel_metadata?.last_color || ""));
+    setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
+    setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
+    setCustomerAddress(clean(profile.address || conversation?.customer_address || ""));
+    setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
+    setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
+    setNotes("");
+  }, [conversation?.session_id, open, products]);
+
+  if (!open || typeof document === "undefined") return null;
+  const selectedProduct = asArray(products).find((item) => clean(item.product_id || item.id) === clean(productId)) || null;
+  const unitPrice = Number(selectedProduct?.final_price || selectedProduct?.price || selectedProduct?.sale_price || 0) || 0;
+  const stock = Number(selectedProduct?.total_stock ?? selectedProduct?.stock ?? selectedProduct?.available_stock ?? 0) || 0;
+  const safeQuantity = Math.max(1, Number(quantity) || 1);
+  const canSubmit = Boolean(selectedProduct) && safeQuantity <= stock && !busy;
+
+  return createPortal(
+    <div className="ai-pwa-order-composer fixed inset-0 z-[200] flex items-end bg-slate-950/70 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
+      <section dir="rtl" className="ai-pwa-order-composer__panel max-h-[94dvh] w-full overflow-y-auto rounded-t-[30px] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 shadow-2xl">
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">AI Inbox Order</div>
+            <h2 className="mt-1 text-xl font-black text-slate-950">إنشاء طلب من المحادثة</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-black text-slate-700" aria-label="إغلاق">×</button>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 text-sm font-black text-slate-900">بيانات العميل</div>
+            <div className="grid grid-cols-2 gap-2">
+              <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="اسم العميل" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
+              <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="رقم الهاتف" inputMode="tel" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
+              <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder="المحافظة" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
+              <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder="المنطقة" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
+              <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} placeholder="العنوان بالتفصيل" className="col-span-2 min-h-20 rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 text-sm font-black text-slate-900">المنتج والمخزون</div>
+            <select value={productId} onChange={(event) => setProductId(event.target.value)} disabled={loading} className="h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none disabled:opacity-60">
+              <option value="">{loading ? "جاري تحميل المنتجات..." : "اختر المنتج"}</option>
+              {asArray(products).map((product) => <option key={product.product_id || product.id} value={product.product_id || product.id}>{product.name || product.title} — المتاح {Number(product.total_stock ?? product.stock ?? product.available_stock ?? 0) || 0}</option>)}
+            </select>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <input value={size} onChange={(event) => setSize(event.target.value)} placeholder="المقاس" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
+              <input value={color} onChange={(event) => setColor(event.target.value)} placeholder="اللون" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
+              <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))} min="1" type="number" placeholder="الكمية" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
+            </div>
+            {selectedProduct ? <div className={`mt-3 rounded-xl p-3 text-xs font-black ${safeQuantity <= stock ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-700"}`}><div className="flex justify-between gap-2"><span>المتاح: {stock} — المطلوب: {safeQuantity}</span><span>الإجمالي: {formatCurrency(unitPrice * safeQuantity)}</span></div>{safeQuantity > stock ? <div className="mt-1">الكمية المطلوبة أكبر من المخزون المتاح.</div> : null}</div> : null}
+          </div>
+
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="ملاحظات الطلب" className="min-h-20 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm outline-none" />
+          <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, { quantity: safeQuantity, size, color, customer_name: customerName, customer_phone: customerPhone, customer_address: customerAddress, governorate, city_area: cityArea, notes })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-white shadow-lg disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
+function PwaOrderComposer({ open, conversation = {}, products = [], loading = false, busy = false, onClose, onSubmit }) {
+  const profile = conversation?.customer_profile || {};
+  const [productId, setProductId] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [governorate, setGovernorate] = useState("");
+  const [cityArea, setCityArea] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const firstProduct = asArray(products)[0] || null;
+    setProductId(clean(firstProduct?.product_id || firstProduct?.id));
+    setQuantity(1);
+    setSize(clean(conversation?.channel_metadata?.last_size || profile.preferred_size || ""));
+    setColor(clean(conversation?.channel_metadata?.last_color || ""));
+    setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
+    setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
+    setCustomerAddress(clean(profile.address || conversation?.customer_address || ""));
+    setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
+    setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
+    setNotes("");
+  }, [conversation?.session_id, open, products]);
+
+  if (!open || typeof document === "undefined") return null;
+  const selectedProduct = asArray(products).find((item) => clean(item.product_id || item.id) === clean(productId)) || null;
+  const unitPrice = Number(selectedProduct?.final_price || selectedProduct?.price || selectedProduct?.sale_price || 0) || 0;
+  const stock = Number(selectedProduct?.total_stock ?? selectedProduct?.stock ?? selectedProduct?.available_stock ?? 0) || 0;
+  const safeQuantity = Math.max(1, Number(quantity) || 1);
+  const canSubmit = Boolean(selectedProduct) && safeQuantity <= stock && !busy;
+
+  return createPortal(
+    <div className="ai-pwa-order-composer fixed inset-0 z-[200] flex items-end bg-slate-950/70 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
+      <section dir="rtl" className="ai-pwa-order-composer__panel max-h-[94dvh] w-full overflow-y-auto rounded-t-[30px] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 shadow-2xl">
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">AI Inbox Order</div>
+            <h2 className="mt-1 text-xl font-black text-slate-950">إنشاء طلب من المحادثة</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-black text-slate-700" aria-label="إغلاق">×</button>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 text-sm font-black text-slate-900">بيانات العميل</div>
+            <div className="grid grid-cols-2 gap-2">
+              <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="اسم العميل" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
+              <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="رقم الهاتف" inputMode="tel" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
+              <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder="المحافظة" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
+              <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder="المنطقة" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
+              <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} placeholder="العنوان بالتفصيل" className="col-span-2 min-h-20 rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 text-sm font-black text-slate-900">المنتج والمخزون</div>
+            <select value={productId} onChange={(event) => setProductId(event.target.value)} disabled={loading} className="h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none disabled:opacity-60">
+              <option value="">{loading ? "جاري تحميل المنتجات..." : "اختر المنتج"}</option>
+              {asArray(products).map((product) => <option key={product.product_id || product.id} value={product.product_id || product.id}>{product.name || product.title} — المتاح {Number(product.total_stock ?? product.stock ?? product.available_stock ?? 0) || 0}</option>)}
+            </select>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <input value={size} onChange={(event) => setSize(event.target.value)} placeholder="المقاس" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
+              <input value={color} onChange={(event) => setColor(event.target.value)} placeholder="اللون" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
+              <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))} min="1" type="number" placeholder="الكمية" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
+            </div>
+            {selectedProduct ? <div className={`mt-3 rounded-xl p-3 text-xs font-black ${safeQuantity <= stock ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-700"}`}><div className="flex justify-between gap-2"><span>المتاح: {stock} — المطلوب: {safeQuantity}</span><span>الإجمالي: {formatCurrency(unitPrice * safeQuantity)}</span></div>{safeQuantity > stock ? <div className="mt-1">الكمية المطلوبة أكبر من المخزون المتاح.</div> : null}</div> : null}
+          </div>
+
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="ملاحظات الطلب" className="min-h-20 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm outline-none" />
+          <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, { quantity: safeQuantity, size, color, customer_name: customerName, customer_phone: customerPhone, customer_address: customerAddress, governorate, city_area: cityArea, notes })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-white shadow-lg disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
 const customerIdentifier = (...values) => {
   const value = values.map((item) => clean(item)).find(Boolean) || "";
   return value
@@ -3026,6 +3193,8 @@ export default function AiInboxPwa() {
   const [aiToggling, setAiToggling] = useState(false);
   const [leadActionLoading, setLeadActionLoading] = useState("");
   const [productSheetOpen, setProductSheetOpen] = useState(false);
+  const [orderComposerOpen, setOrderComposerOpen] = useState(false);
+  const [orderComposerBusy, setOrderComposerBusy] = useState(false);
   const [productSending, setProductSending] = useState(false);
   const [availableBySizePickerConfig, setAvailableBySizePickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false });
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
@@ -3556,6 +3725,11 @@ export default function AiInboxPwa() {
     if (!productSheetOpen) return;
     void loadProducts({ force: true });
   }, [loadProducts, productSheetOpen]);
+
+  useEffect(() => {
+    if (!orderComposerOpen) return;
+    void loadProducts({ force: true });
+  }, [loadProducts, orderComposerOpen]);
 
   useEffect(() => {
     if (pollRef.current) {
@@ -4844,6 +5018,40 @@ export default function AiInboxPwa() {
     [headers, patchConversation, selectedConversation, tenantId]
   );
 
+  const createDraftOrder = useCallback(async (product, options = {}) => {
+    if (!selectedConversation?.session_id || !product) return;
+    setOrderComposerBusy(true);
+    try {
+      const payload = await api.post(
+        aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/create-draft-order"),
+        {
+          tenant_id: tenantId,
+          product_id: product.product_id || product.id,
+          product,
+          quantity: options.quantity || 1,
+          size: options.size || "",
+          color: options.color || "",
+          customer_name: options.customer_name || "",
+          customer_phone: options.customer_phone || "",
+          customer_address: options.customer_address || "",
+          governorate: options.governorate || "",
+          city_area: options.city_area || "",
+          notes: options.notes || "",
+          reserve: false,
+          reserve_minutes: 20,
+        },
+        { headers, perfComponent: "AiInboxPwa.createDraftOrder" }
+      );
+      setOrderComposerOpen(false);
+      toast.success(`تم إنشاء مسودة الطلب ${payload?.order?.invoice_number || payload?.order?.id || ""}`.trim());
+      void requestRefresh("manual", { silent: true });
+    } catch (createError) {
+      toast.error(createError?.responseBody?.message || createError?.message || "تعذر إنشاء مسودة الطلب");
+    } finally {
+      setOrderComposerBusy(false);
+    }
+  }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
+
   const openAvailableBySizePicker = useCallback(() => {
     setAvailableBySizePickerConfig({ open: true, sizeMode: true, allowMultiple: true });
   }, []);
@@ -6025,6 +6233,10 @@ export default function AiInboxPwa() {
                     <PackagePlus className="h-4 w-4" />
                     Send Product
                   </button>
+                  <button type="button" onClick={() => { setOrderComposerOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+                    <ShoppingCart className="h-4 w-4" />
+                    إنشاء طلب من المحادثة
+                  </button>
                   <button type="button" onClick={() => { setComposerMode("note"); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
                     <Sparkles className="h-4 w-4" />
                     Internal Note
@@ -6076,6 +6288,15 @@ export default function AiInboxPwa() {
                   </label>
                 </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOrderComposerOpen(true)}
+                  disabled={quickActionBusy || orderComposerBusy}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-black text-amber-800 disabled:opacity-50"
+                >
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                  إنشاء طلب
+                </button>
                 <button
                   type="button"
                   onClick={() => setProductSheetOpen(true)}
@@ -6356,6 +6577,15 @@ export default function AiInboxPwa() {
           onSend={sendProductCards}
           sending={productSending}
           selectedConversation={selectedConversation}
+        />
+        <PwaOrderComposer
+          open={orderComposerOpen}
+          conversation={selectedConversation || {}}
+          products={products}
+          loading={productLoading}
+          busy={orderComposerBusy}
+          onClose={() => setOrderComposerOpen(false)}
+          onSubmit={createDraftOrder}
         />
         <ProductCardPicker
           open={availableBySizePickerConfig.open}

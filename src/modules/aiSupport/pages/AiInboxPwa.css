@@ -145,6 +145,74 @@ html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-100:hover {
   background: var(--surface-raised) !important;
 }
 
+/* Order composer is portalled to document.body, so inherit the app theme explicitly. */
+.ai-pwa-order-composer {
+  color: var(--text);
+}
+
+.ai-pwa-order-composer__panel {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+}
+
+.ai-pwa-order-composer :where(.bg-white) {
+  background-color: var(--surface) !important;
+}
+
+.ai-pwa-order-composer :where(.bg-slate-50) {
+  background-color: var(--surface-soft) !important;
+}
+
+.ai-pwa-order-composer :where(.bg-slate-100, .bg-slate-200) {
+  background-color: var(--card-soft) !important;
+}
+
+.ai-pwa-order-composer :where(.text-slate-900, .text-slate-950) {
+  color: var(--text) !important;
+}
+
+.ai-pwa-order-composer :where(.text-slate-700, .text-slate-800) {
+  color: var(--text-secondary) !important;
+}
+
+.ai-pwa-order-composer :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: var(--muted) !important;
+}
+
+.ai-pwa-order-composer :where(.border-slate-100, .border-slate-200, .border-slate-300) {
+  border-color: var(--border) !important;
+}
+
+.ai-pwa-order-composer input,
+.ai-pwa-order-composer textarea,
+.ai-pwa-order-composer select {
+  color: var(--text) !important;
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  caret-color: var(--primary);
+}
+
+.ai-pwa-order-composer input::placeholder,
+.ai-pwa-order-composer textarea::placeholder {
+  color: var(--muted) !important;
+  opacity: 0.9;
+}
+
+.ai-pwa-order-composer option {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+html[data-theme="dark"] .ai-pwa-order-composer {
+  background-color: color-mix(in srgb, #020617 78%, transparent) !important;
+}
+
+html[data-theme="light"] .ai-pwa-order-composer {
+  background-color: color-mix(in srgb, #0f172a 46%, transparent) !important;
+}
+
 /* Product picker is portalled to document.body on mobile, so it needs its own theme scope. */
 .ai-pwa-product-sheet {
   color: var(--text);
