@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { emitStaffTaskEvent } from "../utils/socket.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
+import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 import { createNotification } from "./notificationsService.js";
 import { sendOverdueEmployeePortalTaskPushes, sendTaskAssignedPush, sendTaskOverduePush, sendTaskUpdatedPush } from "./employeePortalPushService.js";
 import { enqueueStaffTaskEmail, processStaffTaskEmailQueue } from "./staffTaskEmailNotificationService.js";
@@ -953,7 +954,9 @@ const TASK_PRIORITY_LABELS_AR = {
   critical: "عالية جدًا",
 };
 
-const repairTaskText = (value = "") => repairCorruptedArabicValue(value || "");
+// Older task records can contain either known corrupted fragments or full
+// Windows-1256/UTF-8 mojibake. Repair both formats only in the API payload.
+const repairTaskText = (value = "") => repairArabicMojibakeText(repairCorruptedArabicValue(value || ""));
 
 const normalizeTaskRow = (row = {}) => ({
   id: row.id,
