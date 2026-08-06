@@ -173,7 +173,7 @@ const ensureProductClassificationSchemaNow = async () => {
     await client.query(`
       UPDATE product_classification_options o
       SET is_active = FALSE,
-          deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+          deleted_at = COALESCE(o.deleted_at, CURRENT_TIMESTAMP),
           updated_at = CURRENT_TIMESTAMP
       FROM product_classification_groups g
       WHERE o.group_id = g.id
