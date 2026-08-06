@@ -3375,7 +3375,7 @@ export default function AiInboxPwa() {
       if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
       setSocialCommentsDebug((current) => ({ ...current, error: "" }));
 
-      const postsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=200&include_product_links=0`;
+      const postsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=200&include_product_links=1`;
       const fastRequestUrl = `/api/social-comments/fast-list?tenant_id=${encodeURIComponent(tenantId)}&limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
       const perfLabel = "AiInboxPwa.socialCommentsPosts";
       if (DEBUG_SOCIAL_PERF) console.time(perfLabel);
@@ -3392,9 +3392,9 @@ export default function AiInboxPwa() {
         if (!cursor) {
           try {
             const payload = await api.get("/social-comments/posts", {
-              // Keep the feed request lightweight. Product mappings are loaded by
-              // PostProductLinksDrawer when the user opens the linking action.
-              params: { tenant_id: tenantId, limit: 200, include_product_links: 0 },
+              // Include persisted mappings so a product linked to a post remains
+              // visibly linked after the PWA is reopened or refreshed.
+              params: { tenant_id: tenantId, limit: 200, include_product_links: 1 },
               headers,
               timeoutMs: 30000,
               perfComponent: "AiInboxPwa.socialCommentsPosts",
