@@ -5,12 +5,30 @@ export const CLASSIFICATION_FIELDS = {
   grade: "grade",
 };
 
+export const CANONICAL_PRODUCT_TYPE_OPTIONS = Object.freeze([
+  { value: "crocs", label: "Crocs", label_ar: "Crocs", label_en: "Crocs", sort_order: 1 },
+  { value: "bags", label: "Bags", label_ar: "Bags", label_en: "Bags", sort_order: 2 },
+  { value: "sneakers", label: "Sneakers", label_ar: "Sneakers", label_en: "Sneakers", sort_order: 3 },
+  { value: "winter_collection", label: "كولكشن الشتوي", label_ar: "كولكشن الشتوي", label_en: "Winter Collection", sort_order: 4 },
+  { value: "slippers", label: "Slippers", label_ar: "Slippers", label_en: "Slippers", sort_order: 5 },
+]);
+
 export const normalizeClassificationValue = (value) =>
   String(value ?? "")
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, "_")
     .replace(/[^a-z0-9_]/g, "");
+
+export const normalizeCanonicalProductType = (value, fallback = "sneakers") => {
+  const normalized = normalizeClassificationValue(value);
+  if (!normalized) return fallback;
+  if (["crocs", "croc"].includes(normalized)) return "crocs";
+  if (["bags", "bag", "handbag", "backpack", "tote", "tote_bag", "shoulder_bag", "crossbody_bag"].includes(normalized)) return "bags";
+  if (["slippers", "slipper", "slides", "slide", "sandals", "sandal"].includes(normalized)) return "slippers";
+  if (["winter_collection", "wintercollection", "winter"].includes(normalized)) return "winter_collection";
+  return "sneakers";
+};
 
 export const buildFieldOptions = (
   groups = [],
@@ -19,6 +37,13 @@ export const buildFieldOptions = (
   { includeInactive = false, includeCurrentValue = true } = {}
 ) => {
   const group = groups.find((item) => String(item.key || "") === String(fieldKey || ""));
+  if (String(fieldKey || "") === CLASSIFICATION_FIELDS.productType) {
+    const source = group?.options || [];
+    return CANONICAL_PRODUCT_TYPE_OPTIONS.map((canonical) => {
+      const saved = source.find((option) => normalizeClassificationValue(option.value) === canonical.value);
+      return { ...canonical, ...(saved || {}), value: canonical.value, is_active: true };
+    });
+  }
   const options = (group?.options || [])
     .filter((option) => includeInactive || option.is_active !== false)
     .map((option) => ({

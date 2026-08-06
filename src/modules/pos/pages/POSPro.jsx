@@ -46,7 +46,7 @@ import { displayPublicOrderNumber } from "../../../shared/utils/publicOrderNumbe
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import {
   classificationGroupsToFieldOptions,
-  normalizeClassificationValue,
+  normalizeCanonicalProductType,
 } from "../../products/lib/productClassifications";
 import {
   getLoyaltyCustomerById,
@@ -1390,7 +1390,11 @@ const getProductSmartFilterValue = (product, field, options = []) => {
     grade: [product?.grade, product?.product_grade, firstVariant.grade, firstVariant.product_grade],
   };
 
-  return resolveSmartFilterMatch((aliases[field] || []).find((value) => String(value || "").trim()), options);
+  const rawValue = (aliases[field] || []).find((value) => String(value || "").trim());
+  if (field === "productType") {
+    return normalizeCanonicalProductType(rawValue);
+  }
+  return resolveSmartFilterMatch(rawValue, options);
 };
 
 const getPosSizeDisplayLabel = (product = {}, size = "") => {
