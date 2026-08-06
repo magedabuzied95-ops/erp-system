@@ -349,41 +349,41 @@ html[data-theme="dark"] .ai-pwa-product-sheet option {
 }
 
 .ai-inbox-pwa .ai-pwa-message--ai {
-  background: #eff6ff !important;
-  color: #172554 !important;
-  --tw-ring-color: #bfdbfe !important;
+  background: var(--primary-soft) !important;
+  color: var(--text) !important;
+  --tw-ring-color: color-mix(in srgb, var(--primary) 42%, var(--border)) !important;
 }
 
 .ai-inbox-pwa .ai-pwa-message--ai .ai-pwa-message-meta {
-  color: #0369a1 !important;
+  color: var(--primary) !important;
 }
 
 .ai-inbox-pwa .ai-pwa-message--ai .ai-pwa-message-body {
-  color: #172554 !important;
+  color: var(--text) !important;
 }
 
 .ai-inbox-pwa .ai-pwa-message--ai a {
-  color: #0369a1 !important;
-  text-decoration-color: rgba(3, 105, 161, 0.35) !important;
+  color: var(--primary) !important;
+  text-decoration-color: color-mix(in srgb, var(--primary) 48%, transparent) !important;
 }
 
 .ai-inbox-pwa .ai-pwa-message--staff {
-  background: #0f172a !important;
-  color: #f8fafc !important;
-  --tw-ring-color: #334155 !important;
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface-raised)) !important;
+  color: var(--text) !important;
+  --tw-ring-color: color-mix(in srgb, var(--primary) 46%, var(--border)) !important;
 }
 
 .ai-inbox-pwa .ai-pwa-message--staff .ai-pwa-message-meta {
-  color: #cbd5e1 !important;
+  color: var(--primary) !important;
 }
 
 .ai-inbox-pwa .ai-pwa-message--staff .ai-pwa-message-body {
-  color: #f8fafc !important;
+  color: var(--text) !important;
 }
 
 .ai-inbox-pwa .ai-pwa-message--staff a {
-  color: #67e8f9 !important;
-  text-decoration-color: rgba(103, 232, 249, 0.45) !important;
+  color: var(--primary) !important;
+  text-decoration-color: color-mix(in srgb, var(--primary) 48%, transparent) !important;
 }
 
 .ai-inbox-pwa .ai-pwa-message--failed {
