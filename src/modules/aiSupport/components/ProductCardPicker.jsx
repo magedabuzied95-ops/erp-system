@@ -346,7 +346,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [selectedLinkMaxPrice, setSelectedLinkMaxPrice] = useState("");
   const previousOpenRef = useRef(false);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
-  const inlineFullscreenMode = mode === "inlineFullscreen" || !isDesktopViewport;
+  // The order composer uses the same dark product surface as POS, including the
+  // shared SmartPosFilters drawer, instead of the lightweight PWA list.
+  const posPickerMode = mode === "pos";
+  const inlineFullscreenMode = mode === "inlineFullscreen" || (!isDesktopViewport && !posPickerMode);
   const darkMode = theme === "dark";
 
   useEffect(() => {
@@ -821,8 +824,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     >
       <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
       <section
-        className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
-        style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: "85dvh", margin: 0, borderRadius: "1.35rem" }}
+        className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : posPickerMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-slate-950 text-white" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
+        style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: posPickerMode ? "100dvh" : "85dvh", margin: 0, borderRadius: posPickerMode ? 0 : "1.35rem" }}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -959,7 +962,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </div>
                 )
               ) : visibleProducts.length ? (
-                <div className="grid gap-2">
+                <div className={posPickerMode ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
                   {visibleProducts.slice(0, 80).map((product) => {
                     const isActive = String(product.product_id || product.id || "") === String(selectedProduct?.product_id || selectedProduct?.id || "");
                     const isSelected = selectedProductIds.includes(String(product.product_id || product.id || ""));

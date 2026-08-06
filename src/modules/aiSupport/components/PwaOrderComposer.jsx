@@ -88,6 +88,6 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
         </div>
       </section>
     </div>
-    <ProductCardPicker open={pickerOpen} mode="inlineFullscreen" onClose={() => setPickerOpen(false)} onSubmit={async (cards) => { setProduct(list(cards)[0] || null); setPickerOpen(false); }} />
+    <ProductCardPicker open={pickerOpen} mode="pos" onClose={() => setPickerOpen(false)} onSubmit={async (cards) => { setProduct(list(cards)[0] || null); setPickerOpen(false); }} />
   </>, document.body);
 }
