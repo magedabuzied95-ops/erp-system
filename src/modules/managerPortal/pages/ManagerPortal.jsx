@@ -2181,26 +2181,6 @@ export default function ManagerPortal() {
                 </Card>
               ) : null}
 
-              <Card title="الإشعارات المباشرة" subtitle="الإشعارات المباشرة" icon={Bell}>
-                {visibleLiveFeed.length ? (
-                  <div className="space-y-2">
-                    {visibleLiveFeed.map((item) => (
-                      <div key={`feed-${item.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate font-black text-slate-950">{portalText(item.title || notificationTypeLabel(item))}</div>
-                            <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">{portalText(item.message || item.body || "لا توجد تفاصيل")}</div>
-                          </div>
-                          <StatusPill tone={item.is_read ? "slate" : "blue"} value={formatDateTime(item.created_at)} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState compact title="لا توجد إشعارات مباشرة" body="ستظهر رسائل الموظفين والمهام والمبيعات هنا فور وصولها." />
-                )}
-              </Card>
-
               {mobileAlertBuckets.aiInsights.length || mobileAlertBuckets.lowStock.length || mobileAlertBuckets.refillAlerts.length || mobileAlertBuckets.leads.length || mobileAlertBuckets.operationalEvents.length ? null : (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-500 shadow-sm">
                   لا توجد تنبيهات إضافية حالياً
@@ -2915,42 +2895,6 @@ export default function ManagerPortal() {
         </section>
 
         <aside className="hidden space-y-3 lg:block">
-          <Card title="الإشعارات المباشرة" subtitle="الإشعارات المباشرة" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
-            <div data-testid="notifications-panel" />
-            <div className="space-y-1.5">
-              {visibleLiveFeed.length ? visibleLiveFeed.map((item) => {
-                const isEmployeeMessage = categoryFromNotification(item) === "employee_chat";
-                const isInvoiceNotification = categoryFromNotification(item) === "sales" && (item.metadata?.invoice_id || item.metadata?.order_id || item.entity_id);
-                return (
-                <div key={item.id} data-testid={`notification-${item.id}`} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600" : "border-slate-300 bg-white text-slate-950 shadow-sm ring-1 ring-sky-100"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-slate-950">{portalText(isEmployeeMessage ? item.metadata?.employee_name || item.title || "رسالة موظف" : item.title || notificationTypeLabel(item))}</div>
-                      <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600">{portalText(item.message || item.body || "لا توجد تفاصيل")}</div>
-                      <div className="mt-1 text-[11px] font-bold text-slate-500">{formatDateTime(item.created_at)}</div>
-                    </div>
-                    <StatusPill tone={item.is_read ? "slate" : "blue"} value={notificationTypeLabel(item)} />
-                  </div>
-                  {isEmployeeMessage ? (
-                    <button type="button" onClick={() => void openNotification(item)} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white">
-                      فتح المحادثة
-                    </button>
-                  ) : null}
-                  {isInvoiceNotification ? (
-                    <button type="button" onClick={() => void openNotification(item)} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white">
-                      عرض الفاتورة
-                    </button>
-                  ) : null}
-                </div>
-              );}) : <EmptyState title="لا توجد إشعارات" body="ستظهر هنا الإشعارات الحية عند وصولها." />}
-            </div>
-            {hasMoreNotifications ? (
-              <button type="button" onClick={() => setShowMoreNotifications((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
-                {showMoreNotifications ? "عرض أقل" : "عرض المزيد"}
-              </button>
-            ) : null}
-          </Card>
-
           {visibleAiInsights.length ? (
             <Card title="التنبيهات الذكية" subtitle="التنبيهات الذكية" icon={Bot} compact bodyClassName="space-y-2">
               <div className="space-y-1.5">
