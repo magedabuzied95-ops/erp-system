@@ -536,6 +536,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS handoff_to_human BOOLEAN DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS sentiment TEXT`);
@@ -2168,6 +2169,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       s.last_escalation_keyword,
       s.escalated_at,
       s.updated_at,
+      s.is_favorite,
       COALESCE(c.ai_enabled, s.ai_enabled, TRUE) AS ai_enabled,
       COALESCE(c.channel, s.channel, s.source) AS channel,
       c.external_customer_id,
@@ -2441,15 +2443,16 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     const summaryStaffMessage = text(conversation.staff_message || "");
     const summaryMessageText = text(conversation.message_text || conversation.customer_message || conversation.ai_answer || conversation.staff_message || conversation.session_last_message || "");
     const summaryPreviewMessage = summaryCustomerMessage || summaryAiAnswer || summaryStaffMessage || summaryMessageText || conversation.session_last_message || "";
-    return {
-      session_id: canonicalSessionId || conversation.session_id,
-      conversation_id: canonicalSessionId || conversation.session_id,
-      conversation_key: canonicalSessionId || conversation.conversation_key || conversation.session_id,
-      source: conversation.source || channel || "web_chat",
-      channel,
+      return {
+        session_id: canonicalSessionId || conversation.session_id,
+        conversation_id: canonicalSessionId || conversation.session_id,
+        conversation_key: canonicalSessionId || conversation.conversation_key || conversation.session_id,
+        source: conversation.source || channel || "web_chat",
+        channel,
       direction: summaryDirection || conversation.direction || conversation.message_direction || "",
-      status: conversation.conversation_status || "ai_active",
-      conversation_status: conversation.conversation_status || "ai_active",
+        status: conversation.conversation_status || "ai_active",
+        conversation_status: conversation.conversation_status || "ai_active",
+        is_favorite: conversation.is_favorite === true,
         thread_kind: conversation.thread_kind || "",
         assigned_to: conversation.assigned_user_id || conversation.assigned_user_name
           ? { id: conversation.assigned_user_id || null, name: conversation.assigned_user_name || "" }

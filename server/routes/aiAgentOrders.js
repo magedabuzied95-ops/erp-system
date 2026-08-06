@@ -106,6 +106,7 @@ import {
   appendManualAiSupportReply,
   clearAiReplySuggestionDraft,
   assignAiSupportConversation,
+  updateAiSupportConversationFavorite,
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
   markAiSupportConversationRead,
@@ -5710,6 +5711,45 @@ router.patch("/conversations/:conversationId/ai-enabled", protect, permit("setti
     return res.json({ success: true, conversation });
   } catch (error) {
     return sendError(res, error, "Failed to update conversation AI toggle");
+  }
+});
+
+router.patch("/inbox/:conversationId/favorite", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  const channel = envText(req.body?.channel || req.query?.channel || "");
+  const rawIsFavorite = req.body?.is_favorite;
+  const requestedIsFavorite = (() => {
+    if (typeof rawIsFavorite === "boolean") return rawIsFavorite;
+    if (typeof rawIsFavorite === "number") return rawIsFavorite === 1;
+    const normalized = envText(rawIsFavorite).toLowerCase();
+    if (["1", "true", "yes", "y", "on", "enabled", "active", "star"].includes(normalized)) return true;
+    if (["0", "false", "no", "off", "disabled", "inactive", "unstar"].includes(normalized)) return false;
+    return null;
+  })();
+
+  if (requestedIsFavorite === null) {
+    return sendError(res, Object.assign(new Error("is_favorite is required"), { status: 400 }), "Failed to update conversation favorite");
+  }
+
+  try {
+    const conversation = await updateAiSupportConversationFavorite({
+      tenantId,
+      sessionId: conversationId,
+      channel,
+      isFavorite: requestedIsFavorite,
+      actorUserId: req.user?.id || null,
+      source: "ai_inbox",
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "conversation_favorite_changed",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    return sendError(res, error, "Failed to update conversation favorite");
   }
 });
 

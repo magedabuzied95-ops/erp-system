@@ -33,6 +33,7 @@ import {
   PanelRightOpen,
   Paperclip,
   PlayCircle,
+  Star,
   RefreshCw,
   Radio,
   Ruler,
@@ -521,6 +522,11 @@ const filters = [
   { key: "messages", label: "Messages" },
   { key: "comments", label: "Comments" },
   { key: "needs_reply", label: "Needs Reply" },
+];
+
+const FAVORITE_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "favorites", label: "Favorites" },
 ];
 
 const MESSAGE_PLATFORM_FILTERS = [
@@ -1651,7 +1657,7 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360 }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
@@ -1672,6 +1678,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   const lastActivity = relativeTime(item.last_message_at || item.last_activity_at || item.updated_at);
   const postTime = isCommentThread ? commentThreadPostTime(item) : "";
   const unreadCount = Number(item.unread_count || item.unread || 0);
+  const isFavorite = item.is_favorite === true || clean(item.is_favorite).toLowerCase() === "true";
   const containerTone =
     active
       ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
@@ -1790,7 +1797,20 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                 </>
               )}
             </div>
-            <span className="shrink-0 text-[11px] font-bold text-slate-500">{lastActivity}</span>
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleFavorite?.(item);
+                }}
+                className="inline-flex h-5 items-center justify-center rounded-md px-1 text-slate-500 transition hover:text-amber-300 hover:bg-white/10"
+                aria-label={isFavorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
+              >
+                <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current text-amber-300" : "text-slate-500"}`} />
+              </button>
+              <span className="text-[11px] font-bold text-slate-500">{lastActivity}</span>
+            </div>
           </div>
           {isCommentThread ? (
             <div className="mt-2 flex gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
@@ -1900,7 +1920,7 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360 }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
@@ -1913,6 +1933,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
   const postTitle = commentThreadDisplayName(item);
   const commentPreview = commentThreadLastComment(item) || "No comments yet";
   const unreadCount = Number(item.unread_count || item.unread || 0);
+  const isFavorite = item.is_favorite === true || clean(item.is_favorite).toLowerCase() === "true";
   const containerTone = active
     ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_18px_45px_rgba(8,145,178,0.16)]"
     : unreadCount || unseen || liveMeta
@@ -2012,7 +2033,20 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                 </>
               )}
             </div>
-            <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleFavorite?.(item);
+                }}
+                className="inline-flex h-5 items-center justify-center rounded-md px-1 text-slate-500 transition hover:text-amber-300 hover:bg-white/10"
+                aria-label={isFavorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
+              >
+                <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current text-amber-300" : "text-slate-500"}`} />
+              </button>
+              <span className="text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+            </div>
           </div>
               {inboxKind === "comment" ? (
             <div className="mt-2 space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
@@ -4037,6 +4071,7 @@ export default function AiInbox() {
   const [commentPlatformFilter, setCommentPlatformFilter] = useState("all");
   const [leadFilter, setLeadFilter] = useState("all");
   const [leadSort, setLeadSort] = useState("recent");
+  const [favoriteFilter, setFavoriteFilter] = useState("all");
   const [channelFilter, setChannelFilter] = useState("all");
   const [mobileView, setMobileView] = useState("list");
   const [search, setSearch] = useState("");
@@ -4550,9 +4585,18 @@ export default function AiInbox() {
       if (leadFilter === "needs_human") return needsHumanAttention(conversation);
       return temperature === leadFilter;
     };
+    const matchesFavoriteFilter = (conversation = {}) => {
+      if (favoriteFilter === "all") return true;
+      const isFavorite = conversation?.is_favorite === true || clean(conversation?.is_favorite).toLowerCase() === "true";
+      return isFavorite;
+    };
     const sortValue = (conversation = {}) => {
       const score = conversationLeadScore(conversation);
       const updatedAt = new Date(conversation.last_message_at || conversation.last_activity_at || conversation.updated_at || conversation.created_at || 0).getTime();
+      const favoriteRank = conversation.is_favorite === true || clean(conversation.is_favorite).toLowerCase() === "true" ? 1 : 0;
+      if (leadSort === "favorites_first") {
+        return { primary: favoriteRank, secondary: updatedAt };
+      }
       return leadSort === "lead_score_desc"
         ? { primary: score, secondary: updatedAt }
         : { primary: updatedAt, secondary: score };
@@ -4581,7 +4625,7 @@ export default function AiInbox() {
       }
       return true;
     };
-    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesChannelFilter).sort((a, b) => {
+    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesChannelFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
@@ -4589,7 +4633,7 @@ export default function AiInbox() {
       return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter]);
+  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -5171,6 +5215,34 @@ export default function AiInbox() {
       setUnseenSessions((current) => current.filter((id) => id !== nextConversationId));
     }
   }, [openSocialCommentThread]);
+  const toggleConversationFavorite = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    const conversationIdentifier = clean(item?.conversation_key || sessionId);
+    if (!sessionId || !conversationIdentifier) return;
+    const previousFavorite = item?.is_favorite === true || clean(item?.is_favorite).toLowerCase() === "true";
+    const nextFavorite = !previousFavorite;
+    patchConversation(conversationIdentifier, (conversation) => ({ ...conversation, is_favorite: nextFavorite }));
+    try {
+      const payload = await api.patch(
+        aiAgentInboxEndpoint(sessionId, "/favorite"),
+        { tenant_id: tenantId, is_favorite: nextFavorite },
+        { headers, perfComponent: "AiInbox.toggleFavorite" }
+      );
+      const updatedConversation = payload?.conversation || {};
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        ...updatedConversation,
+        is_favorite: updatedConversation.is_favorite === undefined ? nextFavorite : Boolean(updatedConversation.is_favorite),
+      }));
+      setToast({
+        tone: nextFavorite ? "emerald" : "amber",
+        text: nextFavorite ? "تمت إضافة المحادثة إلى المفضلة." : "تمت إزالة المحادثة من المفضلة.",
+      });
+    } catch (err) {
+      patchConversation(conversationIdentifier, (conversation) => ({ ...conversation, is_favorite: previousFavorite }));
+      setToast({ tone: "rose", text: err?.message || "فشل تحديث حالة المفضلة." });
+    }
+  }, [api, headers, patchConversation, setToast, tenantId]);
   useEffect(() => {
     if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
@@ -7227,8 +7299,20 @@ export default function AiInbox() {
 	                      <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
 	                        <option value="recent">الأحدث</option>
 	                        <option value="lead_score_desc">أعلى درجة للعميل أولًا</option>
+	                        <option value="favorites_first">المفضلة أولاً</option>
 	                      </select>
 	                    </label>
+	                      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+  <Star className="h-4 w-4 text-amber-300" />
+  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المفضلة</span>
+  <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
+    {FAVORITE_FILTERS.map((item) => (
+      <option key={item.key} value={item.key}>
+        {item.label}
+      </option>
+    ))}
+  </select>
+</label>
 	                  </div>
 	                </div>
 	              ) : null}
@@ -7248,6 +7332,7 @@ export default function AiInbox() {
 	                            unseen={unseenSessions.includes(itemKey)}
 	                            active={selectedConversation?.conversation_key === itemKey}
 	                            onSelect={handleSelectConversation}
+	                            onToggleFavorite={toggleConversationFavorite}
 	                          />
 	                        );
 	                      })}
@@ -7587,8 +7672,20 @@ export default function AiInbox() {
               <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
                 <option value="recent">الأحدث</option>
                 <option value="lead_score_desc">الأعلى في درجة العميل</option>
+                <option value="favorites_first">المفضلة أولاً</option>
               </select>
             </label>
+              <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+  <Star className="h-4 w-4 text-amber-300" />
+  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المفضلة</span>
+  <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
+    {FAVORITE_FILTERS.map((item) => (
+      <option key={item.key} value={item.key}>
+        {item.label}
+      </option>
+    ))}
+  </select>
+</label>
           </div>
           <div className="mt-3 flex flex-col gap-3">
             <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
@@ -8318,8 +8415,20 @@ export default function AiInbox() {
                       <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
                         <option value="recent">الأحدث</option>
                         <option value="lead_score_desc">الأعلى في درجة العميل</option>
+                        <option value="favorites_first">المفضلة أولاً</option>
                       </select>
                     </label>
+                      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+  <Star className="h-4 w-4 text-amber-300" />
+  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المفضلة</span>
+  <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
+    {FAVORITE_FILTERS.map((item) => (
+      <option key={item.key} value={item.key}>
+        {item.label}
+      </option>
+    ))}
+  </select>
+</label>
                   </div>
 	                </div>
 	                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
@@ -8328,15 +8437,16 @@ export default function AiInbox() {
                     <div className="space-y-2 pr-1">
                       {filteredConversations.map((item) => {
                         const itemKey = item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`;
-                        return (
-                          <ConversationListItem
-                            key={itemKey}
-                            item={item}
-                            unseen={unseenSessions.includes(itemKey)}
-                            active={selectedConversation?.conversation_key === itemKey}
-                            onSelect={handleSelectConversation}
-                            onOpenCustomer360={openCustomerDrawer}
-                          />
+	                          return (
+	                            <ConversationListItem
+	                              key={itemKey}
+	                              item={item}
+	                              unseen={unseenSessions.includes(itemKey)}
+	                              active={selectedConversation?.conversation_key === itemKey}
+	                              onSelect={handleSelectConversation}
+	                              onOpenCustomer360={openCustomerDrawer}
+	                              onToggleFavorite={toggleConversationFavorite}
+	                            />
                         );
                       })}
                     </div>

@@ -732,19 +732,20 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
   if (!schemaReadyPromise) {
     schemaReadyPromise = (async () => {
       await clientOrPool.query(`
-        CREATE TABLE IF NOT EXISTS ai_support_sessions (
-          id BIGSERIAL PRIMARY KEY,
-          tenant_id BIGINT NOT NULL,
-          user_id BIGINT NULL,
-          session_id TEXT NOT NULL,
+      CREATE TABLE IF NOT EXISTS ai_support_sessions (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id BIGINT NOT NULL,
+        user_id BIGINT NULL,
+        session_id TEXT NOT NULL,
           source VARCHAR(80) NOT NULL DEFAULT 'admin_console',
           status VARCHAR(40) NOT NULL DEFAULT 'ai_active',
           channel TEXT NOT NULL DEFAULT 'web_chat',
-          thread_kind TEXT NOT NULL DEFAULT 'dm',
-          ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-          customer_name TEXT NOT NULL DEFAULT '',
-          customer_avatar_url TEXT NOT NULL DEFAULT '',
-          last_message TEXT NOT NULL DEFAULT '',
+        thread_kind TEXT NOT NULL DEFAULT 'dm',
+        ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
+        customer_name TEXT NOT NULL DEFAULT '',
+        customer_avatar_url TEXT NOT NULL DEFAULT '',
+        last_message TEXT NOT NULL DEFAULT '',
           assigned_user_id BIGINT NULL,
           assigned_user_name TEXT NOT NULL DEFAULT '',
           takeover_started_at TIMESTAMP NULL,
@@ -1251,6 +1252,77 @@ export const updateAiSupportConversationAiEnabled = async ({
     channel: safeChannel || channelResult.rows[0]?.channel || sessionResult.rows[0]?.channel || resolvedChannels[0] || "",
     session_id: safeSessionId,
     external_conversation_id: safeSessionId,
+  };
+};
+
+export const updateAiSupportConversationFavorite = async ({
+  tenantId,
+  sessionId,
+  channel = "",
+  isFavorite = false,
+  actorUserId = null,
+  source = "admin_console",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeChannel = normalizeConversationChannel(channel);
+  if (!safeTenantId || !safeSessionId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
+  }
+  await ensureAiSupportLogSchema();
+
+  const conversationReference = parseConversationReference({ sessionId: safeSessionId, channel: safeChannel });
+  const safeSessionCandidates = [...new Set([
+    conversationReference.sessionId,
+    conversationReference.baseSessionId,
+    safeSessionId,
+    ...conversationReference.lookupSessionIds,
+  ].filter(Boolean))];
+  const safeFavorite = isFavorite === true;
+  const resolvedChannel = conversationReference.channel || safeChannel || "web_chat";
+
+  const result = await db.query(
+    `
+    INSERT INTO ai_support_sessions (
+      tenant_id,
+      user_id,
+      session_id,
+      source,
+      channel,
+      is_favorite
+    )
+    VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::text, $6::boolean)
+    ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+      channel = COALESCE(EXCLUDED.channel, ai_support_sessions.channel),
+      is_favorite = EXCLUDED.is_favorite,
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [safeTenantId, numberOrNull(actorUserId), safeSessionId, toText(source, "admin_console"), resolvedChannel, safeFavorite]
+  );
+
+  if (result.rows[0]) {
+    return { ...(result.rows[0] || {}), is_favorite: safeFavorite, channel: resolvedChannel, session_id: safeSessionId, external_conversation_id: safeSessionId };
+  }
+
+  const fallback = await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET is_favorite = $3::boolean,
+        updated_at = NOW()
+    WHERE tenant_id = $1::bigint
+      AND session_id = ANY($2::text[])
+    RETURNING *
+    `,
+    [safeTenantId, safeSessionCandidates, safeFavorite]
+  );
+
+  return (fallback.rows[0] || null) || {
+    tenant_id: safeTenantId,
+    session_id: safeSessionId,
+    external_conversation_id: safeSessionId,
+    channel: resolvedChannel,
+    is_favorite: safeFavorite,
   };
 };
 
