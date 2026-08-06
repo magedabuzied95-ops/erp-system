@@ -21,33 +21,56 @@ const absoluteTime = (value) => {
   });
 };
 
-const attachmentType = (attachment = {}) => clean(attachment.type || attachment.media_type || attachment.message_type || "").toLowerCase();
-const attachmentUrl = (attachment = {}) => clean(attachment.url || attachment.image_url || attachment.media_url || attachment.attachment_url || attachment.file_url || "");
+const attachmentType = (attachment = {}) => clean(attachment.type || attachment.media_type || attachment.message_type || attachment.mime_type || attachment.metadata?.media_type || attachment.metadata?.mime_type || "").toLowerCase();
+const attachmentUrl = (attachment = {}) => clean(
+  attachment.url ||
+    attachment.image_url ||
+    attachment.media_url ||
+    attachment.attachment_url ||
+    attachment.file_url ||
+    attachment.link ||
+    attachment.payload?.url ||
+    attachment.payload?.image_url ||
+    attachment.media?.url ||
+    attachment.media?.image?.src ||
+    attachment.metadata?.url ||
+    attachment.metadata?.media_url ||
+    attachment.metadata?.image_url ||
+    ""
+);
+
+const messageAttachments = (message = {}) => [
+  ...asArray(message.visual_attachments),
+  ...asArray(message.visualAttachments),
+  ...asArray(message.attachments),
+  ...asArray(message.metadata?.visual_attachments),
+  ...asArray(message.metadata?.attachments),
+  ...asArray(message.channel_metadata?.visual_attachments),
+  ...asArray(message.channel_metadata?.attachments),
+];
+
+const uniqueUrls = (values = []) => [...new Set(values.map((value) => clean(value)).filter(Boolean))];
 
 const imageUrlsForMessage = (message = {}) =>
-  [
+  uniqueUrls([
     message.image_url,
     !["audio", "voice", "ptt", "video", "document", "file"].includes(clean(message.message_type).toLowerCase()) ? message.media_url : "",
     message.attachment_url,
     message.file_url,
     message.preview_url,
     message.thumbnail_url,
-    ...asArray(message.visual_attachments)
+    ...messageAttachments(message)
       .filter((attachment) => !["audio", "voice", "ptt", "video", "document", "file"].includes(attachmentType(attachment)))
       .map((attachment) => attachmentUrl(attachment)),
-  ]
-    .map((value) => clean(value))
-    .filter(Boolean);
+  ]);
 
 const typedMediaUrls = (message = {}, types = []) =>
-  [
+  uniqueUrls([
     ...(types.includes(clean(message.message_type).toLowerCase()) ? [message.media_url, message.attachment_url, message.file_url] : []),
-    ...asArray(message.visual_attachments)
+    ...messageAttachments(message)
       .filter((attachment) => types.includes(attachmentType(attachment)))
       .map((attachment) => attachmentUrl(attachment)),
-  ]
-    .map((value) => clean(value))
-    .filter(Boolean);
+  ]);
 
 const commentThreadPostTitle = (message = {}) =>
   clean(
