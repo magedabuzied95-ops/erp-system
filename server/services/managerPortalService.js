@@ -19,6 +19,7 @@ import {
 import { listRecentDisplayRefillAlerts } from "./displayRefillAlertService.js";
 import { getRolePermissions } from "./rolesService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
+import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 
 const tokenBytes = 32;
 const DEFAULT_MANAGER_PORTAL_APP_URL = "https://erp-system-ten-green.vercel.app";
@@ -34,6 +35,14 @@ const numberOrNull = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 };
 const jsonObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+const repairManagerPortalPayload = (value) => {
+  if (typeof value === "string") return repairArabicMojibakeText(value);
+  if (Array.isArray(value)) return value.map(repairManagerPortalPayload);
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, repairManagerPortalPayload(item)]));
+  }
+  return value;
+};
 const toBool = (value) => value === true || value === "true" || value === "1" || value === 1;
 const isManagerRole = (role = "") => {
   const normalized = lower(role).replace(/[\s_-]+/g, "_");
@@ -848,8 +857,8 @@ export const getManagerPortalTasks = async ({ manager = {} } = {}) => {
   const taskDashboard = await getStaffTaskDashboard({ tenantId, branchId });
   return {
     summary: taskDashboard?.summary || {},
-    tasks: taskDashboard?.recentTasks || [],
-    history: taskDashboard?.history || [],
+    tasks: repairManagerPortalPayload(taskDashboard?.recentTasks || []),
+    history: repairManagerPortalPayload(taskDashboard?.history || []),
   };
 };
 
