@@ -410,6 +410,53 @@ const sparklinePoints = (values = [], width = 120, height = 36) => {
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(" ");
 };
+const compactDayNumber = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "-" : new Intl.DateTimeFormat("ar-EG", { day: "numeric" }).format(date);
+};
+const MobileSalesChart = ({ points = [], valueKey = "revenue", formatValue = formatNumber, label = "القيمة", tone = "amber" }) => {
+  const rows = Array.isArray(points) ? points : [];
+  const values = rows.map((item) => Math.max(0, Number(item?.[valueKey] || 0)));
+  const max = Math.max(...values, 1);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  const topIndex = values.indexOf(Math.max(...values));
+  const average = rows.length ? total / rows.length : 0;
+  const accent = tone === "cyan" ? "bg-cyan-400" : "bg-amber-400";
+  const accentSoft = tone === "cyan" ? "bg-cyan-300/25" : "bg-amber-300/25";
+  const first = rows[0]?.day;
+  const middle = rows[Math.floor(rows.length / 2)]?.day;
+  const last = rows[rows.length - 1]?.day;
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-800 bg-black/20 px-3 pb-2.5 pt-3" dir="rtl">
+      <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-bold text-slate-400">
+        <span>أعلى قيمة: <b className="text-slate-100">{formatValue(max)}</b></span>
+        <span>متوسط يومي: <b className="text-slate-100">{formatValue(average)}</b></span>
+      </div>
+      <div className="relative h-24" role="img" aria-label={`شارت ${label} اليومي`}>
+        <div className="pointer-events-none absolute inset-x-0 top-0 border-t border-dashed border-slate-700/80" />
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-slate-700/70" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-slate-700/80" />
+        <div className="relative flex h-full items-end gap-px" dir="ltr">
+          {rows.map((item, index) => {
+            const value = values[index];
+            const height = value ? Math.max(8, Math.round((value / max) * 100)) : 3;
+            const isTop = index === topIndex && value > 0;
+            return (
+              <div key={`${item?.day || index}`} className="group flex h-full min-w-0 flex-1 items-end" title={`${formatShortDay(item?.day)}: ${formatValue(value)}`}>
+                <div className={`w-full rounded-t-sm transition ${isTop ? accent : value ? accentSoft : "bg-slate-700/70"}`} style={{ height: `${height}%` }} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-slate-500">
+        <span>يوم {compactDayNumber(first)}</span>
+        <span>يوم {compactDayNumber(middle)}</span>
+        <span>يوم {compactDayNumber(last)}</span>
+      </div>
+    </div>
+  );
+};
 const normalizeAlertKey = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const uniqueBySignature = (items = [], getSignature, seen = new Set()) => {
   const nextSeen = seen;
@@ -2396,15 +2443,7 @@ export default function ManagerPortal() {
                           </div>
                         </div>
                       </div>
-                      <svg viewBox="0 0 120 36" className="mt-3 h-11 w-full" preserveAspectRatio="none" aria-hidden="true">
-                        <defs>
-                          <linearGradient id="salesSparkFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#d0a632" stopOpacity="0.42" />
-                            <stop offset="100%" stopColor="#d0a632" stopOpacity="0" />
-                          </linearGradient>
-                        </defs>
-                        <polyline fill="none" stroke="#d0a632" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(salesTrendValues, 120, 36)} />
-                      </svg>
+                      <MobileSalesChart points={trend7d} valueKey="revenue" formatValue={formatCurrency} label="الإيراد" tone="amber" />
                     </div>
 
                     <div className="rounded-[1.4rem] border border-slate-800 bg-[#07111f] p-4 shadow-[0_16px_30px_rgba(2,6,23,0.14)]">
@@ -2419,9 +2458,7 @@ export default function ManagerPortal() {
                           <div className="mt-0.5 text-sm font-black text-white">{formatNumber(Math.max(...trend7d.map((item) => Number(item.orders || 0)), 0))}</div>
                         </div>
                       </div>
-                      <svg viewBox="0 0 120 36" className="mt-3 h-11 w-full" preserveAspectRatio="none" aria-hidden="true">
-                        <polyline fill="none" stroke="#d0a632" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(invoiceTrendValues, 120, 36)} />
-                      </svg>
+                      <MobileSalesChart points={trend7d} valueKey="orders" formatValue={formatNumber} label="الفواتير" tone="cyan" />
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
