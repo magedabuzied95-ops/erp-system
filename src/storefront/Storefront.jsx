@@ -700,21 +700,24 @@ const storefrontHomeStateFromResponse = (response, { loading = false } = {}) => 
 
 const useStorefrontHome = () => {
   const requestSequenceRef = useRef(0);
-  const [state, setState] = useState({
-    loading: true,
-    error: "",
-    hero: null,
-    mirrorProducts: [],
-    collections: [],
+  const initialHomeRef = useRef(null);
+  if (initialHomeRef.current === null) {
+    const memoryHome = storefrontGetCache.get(STOREFRONT_HOME_REQUEST_URL)?.data;
+    initialHomeRef.current = memoryHome || readPersistedStorefrontHome() || false;
+  }
+  const initialHome = initialHomeRef.current || null;
+  const [state, setState] = useState(() => {
+    if (initialHome) return storefrontHomeStateFromResponse(initialHome);
+    return { loading: true, error: "", hero: null, mirrorProducts: [], collections: [] };
   });
 
   useEffect(() => {
     let cancelled = false;
     const requestId = ++requestSequenceRef.current;
-    setState({ loading: true, error: "", hero: null, mirrorProducts: [], collections: [] });
+    if (!initialHome) setState({ loading: true, error: "", hero: null, mirrorProducts: [], collections: [] });
     cachedStorefrontGet(STOREFRONT_HOME_REQUEST_URL, {
       ttlMs: STOREFRONT_HOME_CACHE_TTL_MS,
-      forceRefresh: true,
+      forceRefresh: Boolean(initialHome),
       persist: true,
     })
       .then((json) => {
@@ -1908,6 +1911,15 @@ const prefetchStorefrontProductDetails = (identifier) => {
     storefrontPrefetchedDetails.delete(key);
     return null;
   });
+};
+const readPersistedStorefrontHome = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(STOREFRONT_HOME_PERSISTED_CACHE_KEY) || "null");
+    return cached?.data || null;
+  } catch {
+    return null;
+  }
 };
 const extractProductPayload = (payload = {}) => {
   const hasIdentity = (candidate) =>

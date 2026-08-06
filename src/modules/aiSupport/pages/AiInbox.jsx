@@ -133,7 +133,7 @@ const formatDisplayPrice = (...values) => {
 const isSocialDebugEnabled = () => import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
 const socialDebugLog = (...args) => {
   if (!isSocialDebugEnabled()) return;
-  // eslint-disable-next-line no-console
+
   console.log(...args);
 };
 const ENABLE_SOCIAL_FAST_CENTER = true;
@@ -1274,7 +1274,7 @@ const resolveExternalSocialPostUrl = (item = {}) => {
 
 const buildSocialCommentsCenterUrl = (item = {}, tenantId = "") => {
   const params = new URLSearchParams();
-  const postId = clean(item?.post_link_key || item?.postLinkKey || item?.post_id || item?.conversation_post_id || item?.thread_post_id || item?.conversation_id || item?.id || socialCommentIdentity(item) || "");
+  const postId = clean(item?.post_link_key || item?.postLinkKey || item?.post_id || item?.conversation_post_id || item?.thread_post_id || item?.conversation_id || item?.id || "");
   const commentId = clean(item?.comment_id || item?.external_comment_id || item?.provider_comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || "");
   const platform = clean(item?.platform || item?.source_platform || item?.channel || item?.source || "");
   const pageId = clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || "");
@@ -1570,14 +1570,6 @@ function CommentAutomationBadges({ automationState = {} }) {
           </Pill>
         );
       })}
-      <Customer360Drawer
-        open={customerDrawer.open}
-        onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
-        customer={customerDrawer.customer}
-        customerId={customerDrawer.customerId}
-        context={customerDrawer.context}
-        title="Customer 360"
-      />
     </div>
   );
 }
@@ -2563,9 +2555,8 @@ function ManualReplyComposer({
   onApproveAiSuggestion,
   onDismissAiSuggestion,
 }) {
-  if (!conversation) return null;
-  const status = conversation.conversation_status || conversation.status || "ai_active";
-  const canSendLive = conversation.live_sending_available === true || isCommentConversation;
+  const status = conversation?.conversation_status || conversation?.status || "ai_active";
+  const canSendLive = conversation?.live_sending_available === true || isCommentConversation;
   const submitLabel = isCommentConversation ? "إرسال الرد" : "إرسال الآن";
   const submitTitle = isCommentConversation ? "إرسال رد علني على الكومنت" : "Send now through Meta";
   const textareaRef = useRef(null);
@@ -2586,6 +2577,7 @@ function ManualReplyComposer({
   useEffect(() => {
     resizeTextarea();
   }, [value]);
+  if (!conversation) return null;
   if (status === "closed") {
     return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
   }
@@ -3009,7 +3001,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   );
 }
 
-function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading, onRefresh, onTakeover, onUseText, onCreateDraft, onPaymentAction }) {
+function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading, onRefresh, onTakeover, onUseText, onCreateDraft, onPaymentAction, onOpenProductPicker }) {
   const intent = plan.intent || {};
   const lead = plan.lead || {};
   const actions = asArray(plan.suggested_actions);
@@ -3032,7 +3024,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
     { key: "escalate_human", label: "Escalate to human", enabled: true, action: onTakeover },
     { key: "draft_order", label: "Draft order", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: false }) },
     { key: "reserve_stock", label: "Reserve stock", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: true }) },
-    { key: "available_by_size", label: "المتاح بالمقاس", enabled: true, action: () => openProductCardPicker({ sizeMode: true, allowMultiple: true }) },
+    { key: "available_by_size", label: "المتاح بالمقاس", enabled: true, action: () => onOpenProductPicker?.({ sizeMode: true, allowMultiple: true }) },
     { key: "payment_link", label: "Send payment link", enabled: true, action: () => onPaymentAction?.("payment_link") },
     { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "هتابع معاك أول ما يتوفر المقاس المناسب.") },
   ];
@@ -7128,7 +7120,7 @@ export default function AiInbox() {
         onSave={saveReplyCorrection}
       />
       <div className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0 md:p-0" : "flex h-[100dvh] w-full min-w-0 flex-col gap-2 overflow-hidden p-2 md:p-3"}`}>
-        {process.env.NODE_ENV !== "production" ? (
+        {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
           </div>
@@ -8235,6 +8227,7 @@ export default function AiInbox() {
                       onUseText={setReplyText}
                       onCreateDraft={createDraftFromProduct}
                       onPaymentAction={usePaymentAction}
+                      onOpenProductPicker={openProductCardPicker}
                     />
                     <RecommendationsPanel
                       products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}

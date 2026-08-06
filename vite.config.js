@@ -92,10 +92,15 @@ export default defineConfig(({ mode }) => {
           chunkFileNames: `assets/[name]-[hash]-${buildVersion}.js`,
           manualChunks(id) {
             if (!id.includes("node_modules")) return undefined;
-            if (/[\\/]node_modules[\\/](react|react-dom|react-router-dom)[\\/]/.test(id)) return "react";
+            if (/[\\/]node_modules[\\/]react[\\/]/.test(id)) return "react";
+            if (/[\\/]node_modules[\\/]react-dom[\\/]/.test(id)) return "react-dom";
+            if (/[\\/]node_modules[\\/](react-router|react-router-dom)[\\/]/.test(id)) return "react-router";
             if (/[\\/]node_modules[\\/]recharts[\\/]/.test(id)) return "charts";
-            if (/[\\/]node_modules[\\/](jspdf|jspdf-autotable|html2canvas)[\\/]/.test(id)) return "invoices";
-            if (/[\\/]node_modules[\\/](xlsx|file-saver)[\\/]/.test(id)) return "exports";
+            if (/[\\/]node_modules[\\/]jspdf[\\/]/.test(id)) return "jspdf";
+            if (/[\\/]node_modules[\\/]jspdf-autotable[\\/]/.test(id)) return "jspdf-autotable";
+            if (/[\\/]node_modules[\\/]html2canvas[\\/]/.test(id)) return "html2canvas";
+            if (/[\\/]node_modules[\\/]xlsx[\\/]/.test(id)) return "xlsx";
+            if (/[\\/]node_modules[\\/]file-saver[\\/]/.test(id)) return "file-saver";
             if (/[\\/]node_modules[\\/](react-qr-barcode-scanner|html5-qrcode)[\\/]/.test(id)) return "qr-scanner";
             if (/[\\/]node_modules[\\/](qrcode\.react|react-qr-code)[\\/]/.test(id)) return "qr";
             if (/[\\/]node_modules[\\/]react-select[\\/]/.test(id)) return "select";

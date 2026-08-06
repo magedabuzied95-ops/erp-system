@@ -45,6 +45,7 @@ import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import TranscriptMessage from "../components/TranscriptMessage";
+import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
 import PostProductLinksDrawer from "../components/socialAutomation/PostProductLinksDrawer.jsx";
@@ -3991,6 +3992,7 @@ export default function AiInboxPwa() {
   }, [conversationParam, conversations]);
   const currentAgent = useMemo(() => getCurrentUser() || {}, []);
   const aiIntegration = useAIInboxAnalysis(selectedConversation, products, currentAgent);
+  const trackAIRecommendation = aiIntegration.track;
   const selectedConversationRouteId = useMemo(
     () => {
       const identifiers = conversationIdentifiers(selectedConversation || {});
@@ -4846,14 +4848,16 @@ export default function AiInboxPwa() {
 
   const handleEditAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionText) return;
+    trackAIRecommendation({ id: activeAiSuggestionKey, title: "AI reply draft", confidence: activeAiReplyConfidence.score }, "Manual Override");
     setComposerMode("reply");
     setEditingAiDraft(true);
     setDismissedAiSuggestionKey("");
     setComposerText(activeAiSuggestionText);
-  }, [activeAiSuggestionText]);
+  }, [activeAiReplyConfidence.score, activeAiSuggestionKey, activeAiSuggestionText, trackAIRecommendation]);
 
   const handleApproveAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionText) return;
+    trackAIRecommendation({ id: activeAiSuggestionKey, title: "AI reply draft", confidence: activeAiReplyConfidence.score }, "Suggestion Accepted");
     setComposerMode("reply");
     setComposerText(activeAiSuggestionText);
     void sendManualReply(activeAiSuggestionText, {
@@ -4863,13 +4867,14 @@ export default function AiInboxPwa() {
         approved_ai_reply: true,
       },
     });
-  }, [activeAiSuggestionText, sendManualReply]);
+  }, [activeAiReplyConfidence.score, activeAiSuggestionKey, activeAiSuggestionText, sendManualReply, trackAIRecommendation]);
 
   const handleDismissAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionKey) return;
+    trackAIRecommendation({ id: activeAiSuggestionKey, title: "AI reply draft", confidence: activeAiReplyConfidence.score }, "Suggestion Rejected");
     setEditingAiDraft(false);
     setDismissedAiSuggestionKey(activeAiSuggestionKey);
-  }, [activeAiSuggestionKey]);
+  }, [activeAiReplyConfidence.score, activeAiSuggestionKey, trackAIRecommendation]);
 
   const sendProductCards = useCallback(
     async (cards = []) => {
@@ -5645,6 +5650,9 @@ export default function AiInboxPwa() {
   }, [installPrompt]);
 
   const contentScreen = isConversationMode && Boolean(selectedConversation);
+  const selectedAnalysisCustomerId = clean(selectedConversation?.customer_profile_id || selectedConversation?.customerProfileId || selectedConversation?.external_customer_id || selectedConversation?.customer_profile?.id || selectedConversation?.id || "");
+  const drawerAnalysisCustomerId = clean(customerDrawer.customerId || customerDrawer.customer?.customer_profile_id || customerDrawer.customer?.customerProfileId || customerDrawer.customer?.external_customer_id || customerDrawer.customer?.customer_profile?.id || customerDrawer.customer?.id || "");
+  const customerDrawerAnalysis = selectedAnalysisCustomerId && selectedAnalysisCustomerId === drawerAnalysisCustomerId ? aiIntegration.analysis : null;
   const fullscreenConversation = Boolean(isFullscreenConversation && contentScreen);
   const showComposer = contentScreen;
   const selectedMetaLabel = getConversationSourceLabel(selectedConversation || {});
@@ -6410,7 +6418,7 @@ export default function AiInboxPwa() {
           {isConversationMode ? (
             contentScreen ? (
               <>
-                <AIInboxAnalysisPanel analysis={aiIntegration.analysis} copilot={aiIntegration.copilot} loading={aiIntegration.loading} cacheHit={aiIntegration.cacheHit} onTrack={aiIntegration.track} flags={aiIntegration.flags} />
+                <AIInboxAnalysisPanel key={selectedConversation?.session_id || selectedConversation?.conversation_key} analysis={aiIntegration.analysis} copilot={aiIntegration.copilot} loading={aiIntegration.loading} cacheHit={aiIntegration.cacheHit} onTrack={aiIntegration.track} flags={aiIntegration.flags} />
                 <OptimizedTranscript
                   conversation={selectedConversation}
                   rows={selectedTranscriptRows}
@@ -6471,7 +6479,7 @@ export default function AiInboxPwa() {
                   Internal note mode
                 </div>
               ) : null}
-              {Boolean(activeAiReplyValidation.violationsCount || activeAiReplyValidation.warningsCount || activeAiReplyValidation.details.length) ? (
+              {activeAiReplyValidation.violationsCount || activeAiReplyValidation.warningsCount || activeAiReplyValidation.details.length ? (
                 <div className={`mb-2 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${activeAiReplyValidation.violationsCount > 0 ? "border-amber-300/40 bg-amber-50 text-amber-900" : activeAiReplyValidation.warningsCount > 0 ? "border-slate-200 bg-slate-50 text-slate-700" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-black uppercase tracking-[0.14em]">AI draft validation</span>
@@ -6483,7 +6491,7 @@ export default function AiInboxPwa() {
                   {activeAiReplyValidation.details.length ? <div className="mt-1.5 space-y-1">{activeAiReplyValidation.details.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
                 </div>
               ) : null}
-              {Boolean(activeAiReplyConfidence.reasonsCount || activeAiReplyConfidence.riskFlagsCount || activeAiReplyConfidence.score) ? (
+              {activeAiReplyConfidence.reasonsCount || activeAiReplyConfidence.riskFlagsCount || activeAiReplyConfidence.score ? (
                 <div className={`mb-2 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${activeAiReplyConfidence.tone === "rose" ? "border-rose-300/40 bg-rose-50 text-rose-900" : activeAiReplyConfidence.tone === "amber" ? "border-amber-300/40 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-black uppercase tracking-[0.14em]">Confidence engine</span>
@@ -6619,7 +6627,7 @@ export default function AiInboxPwa() {
           customer={customerDrawer.customer}
           customerId={customerDrawer.customerId}
           context={customerDrawer.context}
-          aiAnalysis={aiIntegration.analysis}
+          aiAnalysis={customerDrawerAnalysis}
           title="Customer 360"
         />
       </div>

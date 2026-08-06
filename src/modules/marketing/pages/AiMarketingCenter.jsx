@@ -1181,6 +1181,7 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
   const statusInfo = getQueueStatusInfo(item, { source: "card", queueType, publishing });
   const normalizedStatus = statusInfo.normalizedStatus;
   const displayStatus = statusInfo.displayStatus;
+  const isGenerating = ["queued", "generating_copy", "generating_image", "uploading"].includes(normalizedStatus);
   const isArchived = normalizedStatus === "archived";
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
@@ -1231,7 +1232,7 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
           <ScheduleBadge item={item} />
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
-          <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
+          <button type="button" onClick={onPreview} disabled={isGenerating || generatingStoryAsset} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
           <button type="button" onClick={onHistory} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
             <History className="h-4 w-4" />
             History

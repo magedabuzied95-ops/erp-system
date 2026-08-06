@@ -6,12 +6,12 @@ const createSource = readFileSync(new URL("../src/modules/products/pages/CreateP
 const editSource = readFileSync(new URL("../src/modules/products/pages/ProductEdit.jsx", import.meta.url), "utf8");
 
 test("create product blocks every populated color without an audience", () => {
-  assert.match(createSource, /!normalizeProductAudienceValue\(group\.audience\)/);
+  assert.match(createSource, /getProductAudienceValues\(\{ audience: group\.audience \}\)\.length === 0/);
   assert.match(createSource, /يجب تحديد الجمهور للون/);
   assert.match(createSource, /setVariantNotice\(message\)/);
 });
 
 test("edit product blocks every populated color without an audience", () => {
-  assert.match(editSource, /normalizedGroups\.find\(\(group\) => !normalizeProductAudienceValue\(group\.audience\)\)/);
+  assert.match(editSource, /getProductAudienceValues\(\{ audience: group\.audience \}\)\.length === 0/);
   assert.match(editSource, /يجب تحديد الجمهور للون/);
 });

@@ -2455,7 +2455,9 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         upsertedProductIds: safeProductIds,
         returnedProductIds: [],
       }));
-    } catch {}
+    } catch {
+      // Optional mapping cleanup must not mask the primary operation.
+    }
     if (platformPostId) {
       const candidateIdentityRowsResult = await client.query(
         `
@@ -2913,7 +2915,9 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       upsertedProductIds: safeProductIds,
       returnedProductIds: strictSaveResponse.productIds,
     }));
-  } catch {}
+  } catch {
+    // Optional mapping cleanup must not mask the primary operation.
+  }
   console.info("SOCIAL_PRODUCT_LINK_REMOVE_CLEANUP_TRACE", {
     selected_post_id: selectedIdentity,
     canonical_post_id: platformPostId,

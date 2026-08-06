@@ -62,7 +62,7 @@ const useDebouncedValue = (value, delay = FILTER_DEBOUNCE_MS) => {
 };
 
 const normalizeFilterText = (value = "") => String(value ?? "").trim();
-const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, "")).replace(/['\u2019]/g, "'");
+const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/(?:\u0640|\u200c|\u200d|\u200e|\u200f)/g, "").replace(/\p{M}+/gu, "")).replace(/['\u2019]/g, "'");
 const normalizeStorefrontAudienceValue = (value = "") => {
   const normalized = normalizeAudienceFilterKey(value);
   if (["men", "man", "male", "mens", "men's", "رجالي", "رجال"].includes(normalized)) return "men";
@@ -90,7 +90,7 @@ const storefrontGenderSwitchOptions = [
   { value: "kids", label: "أطفال" },
 ];
 const normalizeStorefrontSearchTerm = (value = "") =>
-  normalizeStorefrontAudienceValue(value) || normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, ""));
+  normalizeStorefrontAudienceValue(value) || normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/(?:\u0640|\u200c|\u200d|\u200e|\u200f)/g, "").replace(/\p{M}+/gu, ""));
 const productListingAudienceValues = (product = {}) => {
   const seen = new Set();
   const visit = (value) => {
@@ -121,7 +121,7 @@ const productListingAudienceValues = (product = {}) => {
 };
 const splitFacetValues = (value = "") =>
   String(value ?? "")
-    .split(/[,\|/]+/)
+    .split(/[,|/]+/)
     .map((item) => normalizeFilterText(item))
     .filter(Boolean);
 const parseNumberValue = (value) => {
@@ -182,7 +182,7 @@ const normalizeBrandFacetText = (value = "") =>
   normalizeFilterKey(
     String(value ?? "")
       .normalize("NFKD")
-      .replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "")
+      .replace(/(?:\u0640|\u200c|\u200d|\u200e|\u200f)/g, "")
       .replace(/\p{M}+/gu, "")
   ).replace(/\s+/g, " ").trim();
 const deriveKnownBrandLabel = (value = "") => {

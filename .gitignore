@@ -29,3 +29,17 @@ Thumbs.db
 .vscode/
 .idea/
 instances.json
+.vercel
+.env*
+backups/
+output/
+tmp/
+services/
+.codex-deploy*.zip
+.codex-monitoring*.log
+backups/
+output/
+tmp/
+services/
+.codex-deploy*.zip
+.codex-monitoring*.log

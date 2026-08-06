@@ -16,7 +16,7 @@ test("storefront home uses its aggregated payload instead of four duplicate prod
 
 test("storefront product listing avoids the 500-product no-cache bootstrap", () => {
   const source = readFileSync(new URL("../src/storefront/pages/StorefrontProductListingPage.jsx", import.meta.url), "utf8");
-  assert.match(source, /limit:\s*80/);
+  assert.match(source, /SEO_PAGE_SIZE = 24/);
   assert.doesNotMatch(source, /limit:\s*500/);
   assert.doesNotMatch(source, /useProducts\(productsApiParams,\s*\{\s*ttlMs:\s*0\s*\}\)/);
 });

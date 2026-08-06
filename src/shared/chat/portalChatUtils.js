@@ -58,7 +58,7 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
 
 const cleanText = (value = "") => String(value ?? "").trim();
 const PORTAL_CHAT_URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>]+/gi;
-const PORTAL_CHAT_URL_TRAILING_PUNCTUATION = /[.,!?;:\]\)}\u060c\u061b\u061f]+$/u;
+const PORTAL_CHAT_URL_TRAILING_PUNCTUATION = new RegExp(String.raw`[.,!?;:\]\)}\u060c\u061b\u061f]+$`, "u");
 
 export const portalChatTextParts = (value = "") => {
   const text = String(value ?? "");

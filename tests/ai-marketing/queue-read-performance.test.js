@@ -17,7 +17,7 @@ test("queue reads do not render story assets or run per-row database hydration",
     serviceSource.indexOf("const imageFromGalleryItem")
   );
   assert.doesNotMatch(listBody, /hydrateQueueStoryForRender|validateLastPieceQueueItem|ensureQueueStoryRenderedAsset/);
-  assert.match(listBody, /LEFT JOIN product_variants/);
+  assert.match(listBody, /LEFT JOIN LATERAL[\s\S]*FROM product_variants candidate/);
   assert.match(listBody, /result\.rows\.map/);
 });
 

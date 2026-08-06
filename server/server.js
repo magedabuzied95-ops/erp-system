@@ -8,7 +8,7 @@ import path from "path";
 import http from "http";
 
 import process from "node:process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 
 import { Server }
@@ -1396,6 +1396,52 @@ app.use(express.json({
     req.rawBody = Buffer.from(buf);
   },
 }));
+
+app.get("/runtime-config.json", (req, res) => {
+  const enabled = (name) => String(process.env[name] || "false").trim().toLowerCase() === "true";
+  const config = {
+    version: 1,
+    featureFlags: {
+      AI_ENABLED: enabled("AI_ENABLED"),
+      COPILOT_ENABLED: enabled("COPILOT_ENABLED"),
+      DECISION_ENABLED: enabled("DECISION_ENABLED"),
+      LEARNING_ENABLED: enabled("LEARNING_ENABLED"),
+    },
+    monitoring: { endpoint: "/api/monitoring/events" },
+  };
+  const body = JSON.stringify(config);
+  const etag = `"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`;
+  if (req.headers["if-none-match"] === etag) return res.status(304).end();
+  return res.set("Cache-Control", "no-cache").set("ETag", etag).type("application/json").send(body);
+});
+
+app.post("/api/monitoring/events", async (req, res) => {
+  const events = Array.isArray(req.body?.events) ? req.body.events.slice(0, 50) : [];
+  if (!events.length) return res.status(400).json({ delivered: false, error: "events_required" });
+  const safeEvents = events.map((event) => ({
+    event: String(event?.event || "unknown").slice(0, 100),
+    level: String(event?.level || "info").slice(0, 20),
+    stage: String(event?.stage || "").slice(0, 100),
+    timestamp: Number(event?.timestamp || Date.now()),
+  }));
+  const deliveryId = randomUUID();
+  const upstream = String(process.env.MONITORING_HTTP_ENDPOINT || "").trim();
+  if (upstream) {
+    try {
+      const response = await fetch(upstream, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(process.env.MONITORING_HTTP_TOKEN ? { Authorization: `Bearer ${process.env.MONITORING_HTTP_TOKEN}` } : {}) },
+        body: JSON.stringify({ deliveryId, service: startupServiceName, events: safeEvents }),
+      });
+      if (!response.ok) return res.status(502).json({ delivered: false, deliveryId });
+    } catch {
+      return res.status(502).json({ delivered: false, deliveryId });
+    }
+  } else {
+    console.info("[client-monitoring]", { deliveryId, count: safeEvents.length, events: safeEvents });
+  }
+  return res.status(202).json({ delivered: true, deliveryId, count: safeEvents.length });
+});
 
 app.use((req, res, next) => {
   if (

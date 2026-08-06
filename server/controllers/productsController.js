@@ -167,7 +167,7 @@ const normalizeOptionalForeignKey = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-const normalizeCopiedText = (value = "") => String(value ?? "").replace(/\u0000/g, "").trim();
+const normalizeCopiedText = (value = "") => Array.from(String(value ?? "")).filter((character) => character.charCodeAt(0) !== 0).join("").trim();
 
 const asciiSkuText = (value = "") =>
   String(value || "")
@@ -4068,7 +4068,6 @@ export const getProductByQrToken = async (req, res) => {
     await ensureProductVariantSchema();
     await ensureProductVariantManufacturerColumn();
     await ensureProductVariantImagesSchema();
-    await ensureProductColorArticleCodeSchema(client);
     await ensureProductColorArticleCodeSchema();
     await ensureInventorySchema();
     await ensureProductQrTokens();
@@ -5018,7 +5017,7 @@ export const updateProduct = async (req, res) => {
       wholesalePriceProvided,
     ].some(Boolean);
     const normalizedRegularPrice = basePriceProvided
-      ? toPriceValue(selling_price ?? req.body?.sellingPrice ?? regular_price ?? price)
+      ? toPriceValue(req.body?.selling_price ?? req.body?.sellingPrice ?? regular_price ?? price)
       : null;
     const rawSalePrice = sale_price ?? salePrice ?? offer_price;
     const salePriceClearRequested =
@@ -6632,6 +6631,7 @@ export const updateVariant = async (req, res) => {
       branch_id,
       edition_name,
       edition_slug,
+      is_storefront_visible,
     } = req.body || {};
     const normalizedManufacturerId = normalizeOptionalForeignKey(manufacturer_id);
     const normalizedManufacturerIds = normalizeIncomingManufacturerIds(manufacturer_ids, normalizedManufacturerId);

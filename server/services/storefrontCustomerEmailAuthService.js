@@ -293,7 +293,9 @@ export const registerStorefrontCustomerEmailAuth = async ({ tenantId = null, nam
   } catch (error) {
     try {
       await client.query("ROLLBACK");
-    } catch {}
+    } catch {
+      // Session cleanup is best-effort when the backing table is unavailable.
+    }
     if (isUniqueEmailConflictError(error)) {
       const emailConflictError = buildEmailConflictError();
       logEvent("CUSTOMER_EMAIL_AUTH_REGISTER_EMAIL_CONFLICT", {
@@ -314,7 +316,9 @@ export const registerStorefrontCustomerEmailAuth = async ({ tenantId = null, nam
   } finally {
     try {
       client.release();
-    } catch {}
+    } catch {
+      // Session cleanup is best-effort when the backing table is unavailable.
+    }
   }
 };
 

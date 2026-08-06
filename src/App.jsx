@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import MainLayout from "./shared/layouts/MainLayout";
 import { api } from "./shared/api/api";
 import { setCurrency } from "./shared/lib/currency";
+import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlagProvider";
 
 /* ======================================================
    AUTH
@@ -376,6 +377,7 @@ function App() {
   }
 
   return (
+    <FeatureFlagProvider>
     <TenantProvider>
     <DebugErrorBoundary title="Application screen crashed">
     <Suspense fallback={<RouteSkeleton />}>
@@ -1580,6 +1582,7 @@ function App() {
     </Suspense>
     </DebugErrorBoundary>
     </TenantProvider>
+    </FeatureFlagProvider>
   );
 }
 

@@ -90,6 +90,7 @@ export default function PortalChatMessageList({
 }) {
   const [activeMessage, setActiveMessage] = useState(null);
   const [actionAnchor, setActionAnchor] = useState(null);
+  const [activeMenuId, setActiveMenuId] = useState(null);
   const backgroundStyle = style || DEFAULT_BACKGROUND;
 
   const scrollToMessage = (messageId) => {

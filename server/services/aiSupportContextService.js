@@ -2371,6 +2371,7 @@ const hydrateProductsWithStorefrontImages = async (products = [], req = null) =>
 };
 
 const searchProducts = async ({ tenantId, message, intent, req = null, memory = null }) => {
+  const traceChannel = toText(req?.body?.channel || req?.body?.metadata?.channel || req?.body?.metadata?.source || "");
   const [productColumns, variantColumns] = await Promise.all([getColumns("products"), getColumns("product_variants")]);
   const productNameExpr = columnExpr("p", productColumns, ["name", "title", "name_en", "name_ar", "title_en", "title_ar"], "''");
   const productNameColumns = columnList("p", productColumns, ["name", "title", "name_ar", "name_en", "title_ar", "title_en"]);
@@ -5284,7 +5285,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
   });
   console.log("[conversation-memory-v2]", {
     conversationId: identity.sessionId,
-    channel: traceChannel || text(req?.body?.channel || ""),
+    channel: traceChannel || toText(req?.body?.channel || ""),
     original: message,
     normalizedText: normalizeProductMatchText(message),
     memoryBeforeSummary: summarizeConversationMemoryV2(conversationMemory?.preferences?.aiConversationMemoryV2 || conversationMemory?.aiConversationMemoryV2 || null),

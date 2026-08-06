@@ -40,7 +40,7 @@ const compare = ({ actual, op, expected }) => {
     case "truthy":
       return Boolean(actual);
     case "falsy":
-      return !Boolean(actual);
+      return !actual;
     case "exists":
       return actual !== undefined && actual !== null && actual !== "";
     case "notExists":

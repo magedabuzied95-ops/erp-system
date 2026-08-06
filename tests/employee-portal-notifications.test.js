@@ -64,7 +64,7 @@ test("installed employee portal exposes and repairs its push subscription", () =
   assert.match(portal, /subscription\.unsubscribe\(\)/);
   assert.match(portal, /applicationServerKey:\s*urlBase64ToUint8Array\(publicKey\)/);
   assert.match(portal, /notificationsReady/);
-  assert.match(serviceWorker, /employee-portal-shell-v7/);
+  assert.match(serviceWorker, /employee-portal-shell-v8/);
 });
 
 test("shared shortage alerts use employee-specific read receipts", () => {
@@ -89,7 +89,7 @@ test("display refill alerts are assigned to the POS seller while Maged can super
   assert.match(refill, /COALESCE\(employee_id, 0\) = COALESCE\(\$4::bigint, 0\)/);
   assert.match(refill, /export const isDisplayRefillSupervisor/);
   assert.match(refill, /\(maged\|ماجد\)/);
-  assert.match(refill, /\$6::boolean = TRUE/);
+  assert.match(refill, /\$4::boolean = TRUE/);
   assert.match(routes, /includeAll: isDisplayRefillSupervisor\(employee\)/);
 });
 

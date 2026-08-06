@@ -1537,7 +1537,7 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
       amount_paid_now: normalizeInvoiceMoney(order.amount_due_now || order.paid_amount),
       exchange_difference: normalizeInvoiceMoney(order.exchange_difference),
     },
-    exchange: Boolean(order.exchange_mode) ? {
+    exchange: order.exchange_mode ? {
       original_order_id: order.original_order_id || null,
       invoice_number: order.exchange_invoice_number || "",
       new_items_total: normalizeInvoiceMoney(order.new_order_total || order.total),
@@ -2705,7 +2705,7 @@ export const createOrder = async (req, res) => {
       if (!personalCustomer) {
         return res.status(400).json({ success: false, message: "Selected customer was not found for PERSONAL transactions" });
       }
-      if (!Boolean(personalCustomer.allow_personal_transactions)) {
+      if (!personalCustomer.allow_personal_transactions) {
         return res.status(400).json({ success: false, message: "Selected customer is not allowed to use PERSONAL transactions" });
       }
       if (!resolvedPersonalSettlementType) {
@@ -4130,7 +4130,7 @@ const getPosRecentOrders = async (req, res) => {
       returned_at: order.returned_at || null,
       is_returned: Boolean(order.is_returned),
       is_refunded: Boolean(order.is_refunded),
-      refund_summary: Boolean(order.is_refunded) ? "refunded" : Boolean(order.is_returned) ? "returned" : "active",
+      refund_summary: order.is_refunded ? "refunded" : order.is_returned ? "returned" : "active",
     }));
 
     return res.status(200).json({

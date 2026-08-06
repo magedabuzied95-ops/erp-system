@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowUpRight,
@@ -13,7 +13,6 @@ import {
   MessageSquareText,
   ShoppingBag,
   Sparkles,
-  Star,
   User,
   Users2,
   X,
@@ -25,6 +24,15 @@ import "./Customer360Drawer.css";
 const clean = (value = "") => String(value ?? "").trim();
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
+
+const CUSTOMER_TABS = [
+  { key: "summary", label: "Summary" },
+  { key: "activity", label: "Activity" },
+  { key: "timeline", label: "Timeline" },
+  { key: "orders", label: "Orders" },
+  { key: "products", label: "Products" },
+  { key: "insights", label: "AI Insights" },
+];
 
 const formatDateTime = (value = "") => {
   if (!value) return "Unknown";
@@ -117,6 +125,10 @@ const fallbackCustomerProfile = (customer = {}, context = {}) => {
       customer.profile_pic_url ||
       "",
     platform: clean(customer.platform || profile.source_channel || context.platform || "facebook").toLowerCase(),
+    phone: clean(customer.phone || customer.phone_number || profile.phone || profile.phone_number || context.phone || ""),
+    email: clean(customer.email || profile.email || context.email || ""),
+    city: clean(customer.city || profile.city || profile.address?.city || context.city || ""),
+    tier: clean(customer.customer_tier || profile.customer_tier || profile.tier || context.customerTier || "Standard"),
     status: clean(customer.customer_status || profile.customer_status || context.status || ""),
     last_active_at:
       customer.last_activity_at ||
@@ -154,6 +166,7 @@ export default function Customer360Drawer({
   context = {},
   title = "Customer 360",
   initialTab = "summary",
+  aiAnalysis = null,
 }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -212,17 +225,7 @@ export default function Customer360Drawer({
     };
   }, [context, customer, customerId, customerProfile, open]);
 
-  const tabs = useMemo(
-    () => [
-      { key: "summary", label: "Summary" },
-      { key: "activity", label: "Activity" },
-      { key: "timeline", label: "Timeline" },
-      { key: "orders", label: "Orders" },
-      { key: "products", label: "Products" },
-      { key: "insights", label: "AI Insights" },
-    ],
-    []
-  );
+  const tabs = CUSTOMER_TABS;
 
   const metrics = profileData.metrics || {};
   const currentActivity = profileData.currentActivity || [];
@@ -234,6 +237,8 @@ export default function Customer360Drawer({
   const status = clean(profileData.status || context.status || "");
   const resolvedCustomerId = clean(profileData.id || customerId || customer?.customer_profile_id || customer?.profile_id || "");
   const resolvedConversationId = clean(customer?.session_id || customer?.conversation_id || customer?.conversation_key || context.conversationId || "");
+  const crmIntelligence = aiAnalysis?.crm || null;
+  const lifetimeSpend = crmIntelligence?.metrics?.lifetimeSpend ?? metrics.totalSpend ?? context.totalSpend;
   const returnToConversation = (mode = "chat") => {
     onClose?.();
     window.setTimeout(() => {
@@ -276,11 +281,23 @@ export default function Customer360Drawer({
               <div className="min-w-0">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{title}</div>
                 <div className="mt-1 truncate text-lg font-black text-slate-900">{profileData.name || "Customer"}</div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-600">
+                  {profileData.phone ? <span>{profileData.phone}</span> : null}
+                  {profileData.email ? <span>{profileData.email}</span> : null}
+                  {profileData.city ? <span>{profileData.city}</span> : null}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${badgeClassByPlatform(profileData.platform)}`}>{sourceLabelByPlatform(profileData.platform)}</span>
                   <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${statusTone(status || context.aiStatus || "new")}`}>{status || context.aiStatus || "New"}</span>
+                  <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{profileData.tier}</span>
                   <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${statusTone(context.handlingMode || "human")}`}>{clean(context.handlingMode || "Human Takeover")}</span>
                   <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{relativeTime(profileData.last_active_at)}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                  <span><strong className="text-slate-700">Lifetime spend:</strong> {lifetimeSpend ? `${lifetimeSpend} EGP` : "—"}</span>
+                  <span><strong className="text-slate-700">Orders:</strong> {crmIntelligence?.metrics?.totalOrders ?? metrics.totalOrders ?? orders.length}</span>
+                  <span><strong className="text-slate-700">Since:</strong> {formatDateTime(profileData.customer_since)}</span>
+                  <span><strong className="text-slate-700">Channel:</strong> {sourceLabelByPlatform(profileData.platform)}</span>
                 </div>
               </div>
             </div>
@@ -320,15 +337,15 @@ export default function Customer360Drawer({
                 {metricCard("Loyalty Points", metrics.loyaltyPoints ?? context.loyaltyPoints ?? 0)}
                 {metricCard("Customer Since", formatDateTime(profileData.customer_since || context.customerSince || ""))}
               </div>
-              <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Summary</div>
-                <div className="mt-2 text-sm leading-7 text-slate-700">
-                  {profileData.summary || "No customer summary available yet."}
-                </div>
-              </div>
+              {crmIntelligence ? <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500"><Sparkles className="h-4 w-4" />AI Summary</div>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+                  {crmIntelligence.summary.map((item) => <li key={item} className="flex gap-2"><span aria-hidden="true">•</span><span>{item}</span></li>)}
+                </ul>
+              </div> : null}
               <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Quick Actions</div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Customer communication and workflow actions">
                   {quickActions.map(({ label, Icon, action }) => (
                     <button
                       key={label}
@@ -342,6 +359,27 @@ export default function Customer360Drawer({
                   ))}
                 </div>
               </div>
+              {crmIntelligence ? <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Customer Preferences</div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {[
+                    ["Preferred Categories", crmIntelligence.preferences.favoriteCategory],
+                    ["Favorite Brands", crmIntelligence.preferences.favoriteBrand],
+                    ["Sizes", crmIntelligence.preferences.favoriteSize],
+                    ["Colors", crmIntelligence.preferences.favoriteColor],
+                    ["Budget", crmIntelligence.preferences.budgetRange],
+                    ["Reply Style", crmIntelligence.preferences.replyStyle],
+                    ...(crmIntelligence.preferences.preferredChannel ? [["Preferred Channel", crmIntelligence.preferences.preferredChannel]] : []),
+                    ...(crmIntelligence.preferences.preferredPurchaseTime ? [["Purchase Time", crmIntelligence.preferences.preferredPurchaseTime]] : []),
+                    ...(crmIntelligence.preferences.favoritePaymentMethod ? [["Payment Method", crmIntelligence.preferences.favoritePaymentMethod]] : []),
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
+                      <div className="mt-1 truncate text-sm font-black text-slate-900" title={value}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div> : null}
             </div>
           ) : null}
 
@@ -428,41 +466,39 @@ export default function Customer360Drawer({
             </div>
           ) : null}
 
-          {activeTab === "insights" ? (
+          {activeTab === "insights" && crmIntelligence ? (
             <div className="space-y-3">
               <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">AI Insights</div>
-                <div className="mt-3 grid gap-3">
+                <div className="mt-3 grid gap-2">
                   <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Customer usually buys</div>
-                    <div className="mt-1 text-sm font-black text-slate-900">{clean(context.preferredProducts || context.favoriteCategory || "Not enough data")}</div>
-                  </div>
-                  <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Typical budget</div>
-                    <div className="mt-1 text-sm font-black text-slate-900">{clean(context.typicalBudget || context.budget || "—")}</div>
-                  </div>
-                  <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Preferred colors</div>
-                    <div className="mt-1 text-sm font-black text-slate-900">{clean(context.preferredColors || "—")}</div>
-                  </div>
-                  <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Preferred sizes</div>
-                    <div className="mt-1 text-sm font-black text-slate-900">{clean(context.preferredSizes || "—")}</div>
-                  </div>
-                  <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Last interaction</div>
-                    <div className="mt-1 text-sm font-black text-slate-900">{clean(context.lastInteraction || profileData.platform || "—")}</div>
-                  </div>
-                  <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Suggested reply style</div>
-                    <div className="mt-1 text-sm font-black text-slate-900">{clean(context.replyStyle || "Friendly")}</div>
-                  </div>
-                  <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Confidence</div>
-                    <div className="mt-1 flex items-center gap-2 text-sm font-black text-slate-900">
-                      <Star className="h-4 w-4 text-amber-500" />
-                      {clean(context.confidence || 0)}%
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Customer Health</div>
+                        <span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${crmIntelligence.health.color}`}>{crmIntelligence.health.badge}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Customer Score</div>
+                        <div className="mt-1 text-lg font-black text-slate-900">{crmIntelligence.score.score} / 100</div>
+                        <div className="text-[11px] font-black text-slate-500">Grade {crmIntelligence.score.grade}</div>
+                      </div>
                     </div>
+                  </div>
+                  <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Purchase Probability</div>
+                    <div className="mt-1 text-lg font-black text-slate-900">{crmIntelligence.purchase.probability}%</div>
+                    <div className="text-[11px] text-slate-500">{crmIntelligence.purchase.confidence} confidence</div>
+                    <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                      {crmIntelligence.purchase.reasons.map((reason) => <li key={reason}>✓ {reason}</li>)}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Recommended Action</div>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <div className="text-sm font-black text-slate-900">{crmIntelligence.nextAction.title}</div>
+                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2 py-1 text-[10px] font-black uppercase text-slate-600">{crmIntelligence.nextAction.priority}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">{crmIntelligence.nextAction.reason}</div>
                   </div>
                 </div>
               </div>

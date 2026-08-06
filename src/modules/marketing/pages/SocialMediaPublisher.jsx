@@ -230,7 +230,7 @@ const normalizeListValue = (value) => {
       // Fall through to split text.
     }
     return text
-      .split(/[\,\n|]+/)
+      .split(/[,\n|]+/)
       .map(normalizeTextValue)
       .filter(Boolean);
   }
@@ -269,7 +269,7 @@ const localizeColorName = (value = "") => {
   if (!text) return "";
   const arabicMatch = text.match(/[\u0600-\u06ff]+/);
   if (arabicMatch) return arabicMatch[0];
-  const normalized = text.toLowerCase().replace(/[(){}\[\]]/g, " ").replace(/[_\-/]+/g, " ").replace(/\s+/g, " ").trim();
+  const normalized = text.toLowerCase().replace(/[(){}]|\[|\]/g, " ").replace(/[_/-]+/g, " ").replace(/\s+/g, " ").trim();
   const direct = COLOR_NAME_MAP[normalized] || COLOR_NAME_MAP[normalized.replace(/\s+/g, "")];
   if (direct) return direct;
   const firstToken = normalized.split(" ")[0];

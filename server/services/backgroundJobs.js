@@ -1094,7 +1094,7 @@ export const registerBackgroundJobHandlers = () => {
         correlation_id: correlationId,
         timeout_ms: null,
         retry_count: job?.attemptsMade || 1,
-        send_ms: new Date().getTime() - privateReplySendStartedAt.getTime(),
+        send_ms: Math.max(0, Date.now() - new Date(row.automation_state?.latency?.private_reply_send_started_at || row.automation_state?.private_reply_send_started_at || Date.now()).getTime()),
       });
       row.automation_state = withSocialCommentLatencyState({
         row,
@@ -1194,7 +1194,7 @@ export const registerBackgroundJobHandlers = () => {
         correlation_id: correlationId,
         timeout_ms: null,
         retry_count: job?.attemptsMade || 1,
-        send_ms: new Date().getTime() - privateReplySendStartedAt.getTime(),
+        send_ms: Math.max(0, Date.now() - new Date(row.automation_state?.latency?.private_reply_send_started_at || row.automation_state?.private_reply_send_started_at || Date.now()).getTime()),
         message: error?.message || String(error || ""),
       });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {

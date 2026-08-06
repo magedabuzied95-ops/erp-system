@@ -1556,7 +1556,7 @@ export default function ManagerPortal() {
     const proofUrl = taskProofUrl(task);
     const completed = isTaskCompleted(task);
     const expanded = isTaskExpanded(task);
-    const toggleExpanded = () => setTaskExpanded(task.id, !Boolean(expandedTaskIds[task.id]));
+    const toggleExpanded = () => setTaskExpanded(task.id, !expandedTaskIds[task.id]);
 
     if (isMobilePortal) {
       return (

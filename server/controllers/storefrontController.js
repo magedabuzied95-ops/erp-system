@@ -1100,7 +1100,7 @@ const STOREFRONT_KNOWN_BRAND_PREFIXES = [
 const normalizeBrandFacetText = (value = "") =>
   queryText(value)
     .normalize("NFKD")
-    .replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "")
+    .replace(/(?:\u0640|\u200c|\u200d|\u200e|\u200f)/g, "")
     .replace(/\p{M}+/gu, "")
     .toLowerCase()
     .trim();

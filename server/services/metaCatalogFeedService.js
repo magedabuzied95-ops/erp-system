@@ -163,24 +163,28 @@ const queryMetaCatalogRows = async () => {
 
 // Keep this priority in parity with resolveProductDetailsPricing in ProductDetails.jsx.
 // Meta intentionally ignores all sale_price fields, including stale variant values.
-export const resolveMetaCatalogCurrentPrice = (row = {}) => resolveCurrentSellingPrice({
-  product: {
+export const resolveMetaCatalogCurrentPrice = (row = {}) => {
+  const product = {
     manual_selling_price: row.product_manual_selling_price,
     manual_price_override_active: row.product_manual_price_override_active,
     purchase_selling_price: row.product_purchase_selling_price,
     selling_price: row.product_selling_price,
     price: row.product_price,
     regular_price: row.product_regular_price,
-  },
-  variant: {
+  };
+  const variant = {
     manual_selling_price: row.variant_manual_selling_price,
     manual_price_override_active: row.variant_manual_price_override_active,
     purchase_selling_price: row.variant_purchase_selling_price,
     selling_price: row.variant_selling_price,
     price: row.variant_price,
     regular_price: row.variant_regular_price,
-  },
-}).value;
+  };
+  const resolved = resolveCurrentSellingPrice({ product, variant });
+  const productLegacy = numberValue(product.selling_price) || numberValue(product.price) || numberValue(product.regular_price);
+  if (resolved.source === "variant_legacy_price" && productLegacy) return productLegacy;
+  return resolved.value;
+};
 
 const enabledFlag = (value) =>
   value === true || value === 1 || String(value || "").trim().toLowerCase() === "true";

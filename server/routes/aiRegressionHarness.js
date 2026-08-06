@@ -419,8 +419,8 @@ const extractCustomerNameCandidate = (message = "") => {
   if (!text) return "";
   if (/^ط£ظƒط¯\s+ط§ظ„ط£ظˆط±ط¯ط±$/i.test(text)) return "";
   const patterns = [
-    /^(?:ط§ط³ظ…ظٹ|ط§ظ†ط§|ط£ظ†ط§|ط§ظ„ط§ط³ظ…|name)\s*[:\-]?\s*([^\d]{2,40})$/i,
-    /(?:ط§ط³ظ…ظٹ|ط§ظ†ط§|ط£ظ†ط§|ط§ظ„ط§ط³ظ…|name)\s*[:\-]?\s*([^\d]{2,40})/i,
+    /^(?:ط§ط³ظ…ظٹ|ط§ظ†ط§|ط£ظ†ط§|ط§ظ„ط§ط³ظ…|name)\s*[:-]?\s*([^\d]{2,40})$/i,
+    /(?:ط§ط³ظ…ظٹ|ط§ظ†ط§|ط£ظ†ط§|ط§ظ„ط§ط³ظ…|name)\s*[:-]?\s*([^\d]{2,40})/i,
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);

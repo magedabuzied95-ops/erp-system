@@ -659,6 +659,7 @@ const orderConfirmationActionLabel = (action = "") => {
 export const sendOrderConfirmation = async (order = {}) => {
   await ensureWhatsappOrderConfirmationSchema();
   const current = order?.id ? await loadOrderById(order.id) : order;
+  const messageTenantId = tenantIdForMessage(current, current);
   const phone = normalizeEgyptPhone(current?.customer_phone || current?.phone || current?.whatsapp || current?.mobile);
   const reason = !current?.id
     ? "order_missing"
@@ -690,7 +691,6 @@ export const sendOrderConfirmation = async (order = {}) => {
   });
   if (!shouldSend) return { sent: false, reason };
   let message = "";
-  const messageTenantId = tenantIdForMessage(current, current);
   const orderRef = orderNumber(current);
   let result = null;
   let deliveryMode = "link";
@@ -921,6 +921,7 @@ export const sendPaymentReviewNotification = async (order = {}) => {
 export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
   await ensureWhatsappOrderConfirmationSchema();
   const current = order?.id ? await loadOrderById(order.id) : order;
+  const messageTenantId = tenantIdForMessage(current, current);
   const phone = normalizeEgyptPhone(current?.customer_phone || current?.phone || current?.whatsapp || current?.mobile);
   const invoiceNumber = text(current?.invoice_number);
   const invoiceUrl = invoiceNumber ? buildPublicInvoiceUrl(invoiceNumber) : "";

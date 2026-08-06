@@ -273,7 +273,7 @@ const getCorruptedArabicRepairPattern = () => {
   const keys = [...map.keys()]
     .filter((key) =>
       CORRUPTED_ARABIC_MARKERS.some((marker) => key.includes(marker)) ||
-      /[\u00e2\u064b\u06ba\u0637\u0638]/.test(key)
+      /(?:\u00e2|\u064b|\u06ba|\u0637|\u0638)/.test(key)
     )
     .sort((a, b) => b.length - a.length);
   corruptedArabicRepairPattern = new RegExp(keys.map(escapeRegExp).join("|"), "g");
@@ -755,11 +755,7 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.FAQ;
     confidence = 0.82;
     reason = "faq_keyword";
-  } else if (detectGreetingMessage(messageText)) {
-    intent = AI_INTENTS.GREETING;
-    confidence = 0.72;
-    reason = "greeting_keyword";
-  } else if (brands.length || categories.length || messageText.length >= 3) {
+  } else if (messageText.length >= 3) {
     intent = AI_INTENTS.PRODUCT_SEARCH;
     confidence = brands.length || categories.length ? 0.78 : 0.5;
     reason = brands.length ? "brand_entity" : "text_product_query";
@@ -9713,7 +9709,7 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
     channel,
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
-    customerName: ["facebook_messenger", "facebook", "messenger"].includes(alias)
+    customerName: ["facebook_messenger", "facebook", "messenger"].includes(channel)
       ? resolveMessengerConversationDisplayName({
           customerName: "",
           customerProfile: {
@@ -10085,8 +10081,8 @@ const logRouteMessageThroughAiError = ({
     error_message: text(error?.message || response?.message || ""),
     stack_first_line: text(error?.stack || "").split("\n")[0] || "",
     response_shape_keys: Object.keys(response || error?.responseBody || {}),
-    product_cards_count: Array.isArray(response?.product_cards || error?.responseBody?.product_cards) ? (response?.product_cards || error?.responseBody?.product_cards).length : 0,
-    image_cards_count: Array.isArray(response?.image_cards || response?.responseBody?.image_cards || error?.responseBody?.visual_attachments) ? (response?.image_cards || response?.responseBody?.image_cards || error?.responseBody?.visual_attachments).length : 0,
+    product_cards_count: Array.isArray(response?.product_cards || error?.responseBody?.product_cards) ? (response?.product_cards || error?.responseBody?.product_cards || []).length : 0,
+    image_cards_count: Array.isArray(response?.image_cards || response?.responseBody?.image_cards || error?.responseBody?.visual_attachments) ? (response?.image_cards || response?.responseBody?.image_cards || error?.responseBody?.visual_attachments || []).length : 0,
   });
 };
 
@@ -10138,12 +10134,12 @@ const sendReasoningRecoveryReply = async ({
     { limit: 6 }
   );
   const selectedReplyText = reasoningText || text(fallbackProductCards?.[0]?.name || fallbackProductCards?.[0]?.title || "");
-  const generatedImageCardsCount = countItems(
+  const generatedImageCardsCount = asArray(
     reasoningReply?.image_cards ||
       reasoningReply?.visual_attachments ||
       reasoningReply?.channel_reply?.image_cards ||
       reasoningReply?.channel_reply?.visual_attachments
-  );
+  ).length;
   const fallbackReplyUsed = !text(reasoningText) || text(selectedReplyText) !== text(reasoningText);
   const failureReason = !reasoningReply
     ? "unified_reply_request_failed"
@@ -12794,7 +12790,7 @@ const loadFullProductForImageFlow = async ({ tenantId, productId } = {}) => {
   }
 };
 
-const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, baseCard = {}, includeOtherColors = false } = {}) => {
+const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, baseCard = {}, includeOtherColors = false, wantsAllImages = false } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
   const viewed = new Set(Array.isArray(memory.viewedImageUrls) ? memory.viewedImageUrls.map(imageIdentity).filter(Boolean) : []);
   const selectedColor = text(memory.selectedColor || baseCard.color).toLowerCase();
@@ -13717,7 +13713,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       message,
       text: finalCardIntroText,
       detectedIntent,
-      metadata: { ...metadata, ...finalCardMetadata, intro: true, replyPipelineId: productCardsPipelineId, replyType: "product_search", force_reply_text_passthrough: v2ProductPresentationIntent },
+      metadata: { ...metadata, ...finalCardMetadata, intro: true, replyPipelineId: productCardsPipelineId, replyType: "product_search", force_reply_text_passthrough: Boolean(metadata?.v2_product_presentation_intent) },
     });
   }
   const result = await sendMetaInboxOutboundMessage({
@@ -17390,21 +17386,25 @@ const handleHumanHandoffIfMatched = async ({ config, message } = {}) => {
 };
 
 const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
+  let activeProductId = "";
+  let activeVariantId = "";
+  let activeModelFamily = "";
+  let handlerError = "";
+  let duplicateReason = "";
+  let familyCardsBeforeFilter = [];
+  let familyCardsAfterFilter = [];
+  let familyCards = [];
+  let includedProducts = [];
+  let rejectedProducts = [];
   try {
     const messageText = message.message_text || "";
     const keyword = detectMoreImagesRequest(messageText);
     if (!keyword || isColorQuestionMessage(messageText)) return null;
     const memory = getConversationMemory(message.external_conversation_id) || {};
-    let activeProductId = text(memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || memory.lastProductCard?.id || "");
-    let activeVariantId = text(memory.activeVariantId || memory.selectedVariantId || memory.lastProductCard?.variant_id || "");
-    let activeModelFamily = canonicalModelFamilyLabel(memory.activeTopic || memory.last_model_family || memory.lastProductQuery || memory.lastProductCard?.model_family || memory.lastProductCard?.family || memory.lastProductCard?.name || "");
+    activeProductId = text(memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || memory.lastProductCard?.id || "");
+    activeVariantId = text(memory.activeVariantId || memory.selectedVariantId || memory.lastProductCard?.variant_id || "");
+    activeModelFamily = canonicalModelFamilyLabel(memory.activeTopic || memory.last_model_family || memory.lastProductQuery || memory.lastProductCard?.model_family || memory.lastProductCard?.family || memory.lastProductCard?.name || "");
     const requestedModelFamily = canonicalModelFamilyLabel(messageText || activeModelFamily || memory.lastProductCard?.name || "");
-    let handlerError = "";
-    let duplicateReason = "";
-    let familyCardsBeforeFilter = [];
-    let familyCardsAfterFilter = [];
-    let includedProducts = [];
-    let rejectedProducts = [];
     let context = resolveContextProductCard({ message, allowAmbiguous: true });
     let baseCard = context.card;
     if (!baseCard) {
@@ -17428,7 +17428,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|كل\s+الصور|كل\s+الألوان|كل\s+الالوان)/i.test(text(messageText))
     );
     const modelNameSearch = Boolean(detectModelNameSearch(messageText) || modelFamily);
-    let familyCards = [];
+    familyCards = [];
     if (modelNameSearch) {
       const familyQuery = text(activeTopic || modelFamily || baseCard?.name || messageText);
       const familyProducts = await searchAiOrderProducts({
@@ -22327,10 +22327,13 @@ export const sendMetaInboxOutboundMessage = async ({
         let messengerTemplateSucceeded = false;
         if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && productImageUrl) {
           try {
-            const templateResult = await postMetaPageMessage({
-              config: { ...config, channel: normalizedChannel },
-              payload: buildMessengerGenericTemplatePayload({ recipientId: safeRecipientId, product }),
+            const templateResponse = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: json(buildMessengerGenericTemplatePayload({ recipientId: safeRecipientId, product })),
             });
+            const templateResult = await templateResponse.json().catch(() => ({}));
+            if (!templateResponse.ok) throw Object.assign(new Error(templateResult?.error?.message || "Messenger product card failed"), { status: templateResponse.status, responseBody: templateResult });
             imageResults.push(templateResult);
             imageMessageId = templateResult?.message_id || "";
             cardDelivered = true;

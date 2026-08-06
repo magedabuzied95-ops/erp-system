@@ -284,7 +284,7 @@ const normalizeColorComparable = (value = "") =>
     .toLowerCase()
     .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
     .replace(/[أإآ]/g, "ا")
-    .replace(/[&+\/\\|]/g, " ")
+    .replace(/[&+/\\|]/g, " ")
     .replace(/\b(and|with)\b/g, " ")
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")

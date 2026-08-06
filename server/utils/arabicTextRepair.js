@@ -55,7 +55,7 @@ const getCorruptedArabicRepairPattern = () => {
   const keys = [...map.keys()]
     .filter((key) =>
       CORRUPTED_ARABIC_MARKERS.some((marker) => key.includes(marker)) ||
-      /[\u00e2\u064b\u06ba\u0637\u0638]/.test(key)
+      /(?:\u00e2|\u064b|\u06ba|\u0637|\u0638)/.test(key)
     )
     .sort((a, b) => b.length - a.length);
 

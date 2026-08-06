@@ -655,8 +655,8 @@ const isMetaPageRateLimitError = (error = null) => {
   return /\(#?80001\)|too many calls to this page account/i.test(message);
 };
 
-const COMBINING_MARKS_RE = /[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]/g;
-const ZERO_WIDTH_RE = /[\u200c\u200d\ufeff]/g;
+const COMBINING_MARKS_RE = /\p{M}/gu;
+const ZERO_WIDTH_RE = /(?:\u200c|\u200d|\ufeff)/g;
 const NON_TEXT_RE = /[^\p{L}\p{N}\s]+/gu;
 const EMOJI_ONLY_RE = /^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Emoji}\s]+$/u;
 
@@ -2995,7 +2995,7 @@ const executeSocialCommentAutomationRuntime = async ({
       reason: text(productContext?.sibling_match_reason || productContext?.reason || ""),
     });
   }
-  const baseProductContext = Boolean(productContext?.found) ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
+  const baseProductContext = productContext?.found ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
   const effectiveProductContext = await resolveAutomationDisplayPriceContext({
     tenantId: safeTenantId,
     productContext: baseProductContext,
@@ -5699,7 +5699,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       ? "no_product"
       : automationRuntimeResult?.duplicate_skipped || dedupeResult === "duplicate_comment_automation"
         ? "duplicate"
-        : Boolean(automationConfig?.enabled)
+        : automationConfig?.enabled
           ? "disabled"
           : automationRuntimeApplied
             ? "no_private_reply"
@@ -7729,7 +7729,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     const shouldQueuePrivateReply = privateReplyEligible && legacyPathEnabled && !["queued", "sending", "sent"].includes(privateReplyStatus);
     const enqueueSkipReason = !hasProductContext
       ? "no_product"
-      : Boolean(automationConfig?.enabled)
+      : automationConfig?.enabled
         ? "disabled"
         : !privateReplyEligible
           ? "no_private_reply"
@@ -8498,7 +8498,7 @@ export const testSocialCommentAutomationRuntime = async ({ tenantId = null, plat
   return {
     success: true,
     dry_run: true,
-    config: config || resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId }),
+    config: config || { settings: previewRotationSettings },
     post: post || null,
     product: product || null,
     product_link: text(websiteLinks?.product_link || templateContext.product_link || ""),

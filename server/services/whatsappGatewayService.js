@@ -1063,7 +1063,6 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
   };
 
   const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
-  try {
     console.info("[whatsapp:interactive-payload-built]", {
       file: "server/services/whatsappGatewayService.js",
       function: "sendOrderConfirmationInteractiveMessage",
@@ -1133,9 +1132,6 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
       ...listResult,
       delivery_mode: "interactive_list",
     };
-  } catch (error) {
-    throw error;
-  }
 };
 
 export const buildOrderConfirmationMessage = (order = {}) => {
@@ -1296,7 +1292,7 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
   } catch (error) {
     console.warn("[whatsapp:order-confirmation-buttons-fallback]", {
       order_id: order?.id || null,
-      order_number: orderNumber(order),
+      order_number: order.public_order_number || order.display_order_number || order.order_number || order.id || null,
       error_message: error?.message || String(error),
       error_status: error?.status || "",
       error_response_raw: truncateText(error?.responseRaw || error?.responseBody || error?.data?.raw || "", 500),
@@ -3433,7 +3429,7 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     console.info("[whatsapp:inbox-skipped]", {
       reason: "group_chat",
       remoteJid,
-      phone,
+      phone: message.phone || "",
       messageId: externalMessageId,
       instance,
     });
@@ -4332,6 +4328,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
 };
 
 export const triggerWhatsappAiAutoReply = async (message = {}) => {
+  let outboundPlan = null;
   if (String(process.env.WHATSAPP_AI_AUTO_REPLY).toLowerCase() === "false") {
     console.log("[whatsapp:ai-auto-reply-disabled]");
     return { triggered: false, sent: false, reason: "ai_auto_reply_disabled" };
@@ -4481,7 +4478,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
       sessionId: normalizeWhatsappSessionId(generated.sessionId, message.phone),
-      clientRequestId: message.trace_id || traceId || generated.sessionId,
+      clientRequestId: message.trace_id || generated.sessionId,
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
@@ -4557,7 +4554,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
       sessionId: normalizeWhatsappSessionId(generated.sessionId, message.phone),
-      clientRequestId: message.trace_id || traceId || generated.sessionId,
+      clientRequestId: message.trace_id || generated.sessionId,
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
@@ -4650,7 +4647,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         removed_count: beforeCardDedupe - dedupedOutboundCards.length,
       });
     }
-    const outboundPlan = buildWhatsappOutboundPlan({
+    outboundPlan = buildWhatsappOutboundPlan({
       message,
       aiPayload: generated.aiPayload || {},
       replyText: generated.replyText || "",
@@ -5051,7 +5048,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       const transcriptPayload = {
         tenantId: generated.tenantId,
         sessionId: outboundSessionId,
-        clientRequestId: message.trace_id || traceId || outboundPlan.inbound_message_id || generated.sessionId,
+        clientRequestId: message.trace_id || outboundPlan.inbound_message_id || generated.sessionId,
         answer: finalReplyText || generated.replyText || summarizeWhatsappProductCards(sendableImageCards),
         messageType: sendableImageCards.length ? "product_card" : "text",
         confidence: generated.aiPayload?.confidence || 0,
@@ -5209,7 +5206,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
       sessionId: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
-      clientRequestId: message.trace_id || traceId || outboundPlan.inbound_message_id || generated.sessionId,
+      clientRequestId: message.trace_id || outboundPlan?.inbound_message_id || generated.sessionId,
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
@@ -5256,7 +5253,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     });
     await failTrace(message.trace_id, error, { phase: "send_to_whatsapp", sessionId: generated.sessionId });
     console.info("[ai-auto-reply] stage=outbound_saved", {
-      conversation_id: outboundPlan.conversation_id,
+      conversation_id: outboundPlan?.conversation_id || generated.sessionId,
       sent: false,
       transcript_saved: true,
       reason: summary.causeMessage ? `${summary.message} / cause: ${summary.causeMessage}` : summary.message,

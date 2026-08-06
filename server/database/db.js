@@ -180,7 +180,9 @@ export const withReadOnlyDbSession = async (fn = async () => {}, context = {}) =
   try {
     try {
       await client.query("ROLLBACK");
-    } catch {}
+    } catch {
+      // No transaction may be active on a newly acquired connection.
+    }
 
     const sessionContext = {
       ...getDbQueryContext(),
@@ -198,12 +200,16 @@ export const withReadOnlyDbSession = async (fn = async () => {}, context = {}) =
     } finally {
       try {
         await client.query("ROLLBACK");
-      } catch {}
+      } catch {
+        // The connection may already have rolled back after a query failure.
+      }
     }
   } finally {
     try {
       client.release();
-    } catch {}
+    } catch {
+      // Pool cleanup is best-effort after a connection failure.
+    }
   }
 };
 

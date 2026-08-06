@@ -85,7 +85,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const marginX = isBagLabel ? 0.8 * bagScale : clamp(widthMm * 0.02, 1.25, 2.25);
   const contentWidth = widthMm - marginX * 2;
   const compact = heightMm <= 36 || widthMm <= 28;
-  let nameFontSize = isBagLabel ? 11.5 * bagScale : compact ? 7 : clamp(widthMm * 0.19, 9, 10.4);
+  let nameFontSize = isBagLabel ? 9 * bagScale : compact ? 7 : clamp(widthMm * 0.19, 9, 10.4);
   const detailFontSize = isBagLabel ? 7.5 * bagScale : compact ? 5.7 : clamp(widthMm * 0.17, 7.5, 9);
   const priceFontSize = isBagLabel ? 9.5 * bagScale : compact ? 6.5 : clamp(widthMm * 0.245, 11, 13);
   const barcodeTextFontSize = isBagLabel ? 5.5 * bagScale : compact ? 5 : clamp(widthMm * 0.14, 5.5, 7);
@@ -97,7 +97,7 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(nameFontSize);
   if (isBagLabel) {
-    const minimumBagNameFontSize = 11.5;
+    const minimumBagNameFontSize = 10;
     while (nameFontSize > minimumBagNameFontSize && doc.splitTextToSize(String(content.name || "Product"), contentWidth).length > 2) {
       nameFontSize -= 0.25;
       doc.setFontSize(nameFontSize);
@@ -107,16 +107,16 @@ export const buildProductLabelPdfLayout = (doc, content, widthMm, heightMm) => {
   const nameLines = fitLines(doc, content.name, contentWidth, 2);
   const nameBaselines = nameLines.map((_, index) => topY + nameLineHeight * (index + 1));
   const nameBottom = nameBaselines[nameBaselines.length - 1] || topY;
-  const priceY = nameBottom + priceLineHeight + (isBagLabel ? 0.15 * bagScale : compact ? 0.35 : 0.55);
-  const fieldY = priceY + detailLineHeight + (isBagLabel ? 0.2 * bagScale : compact ? 0.45 : 1.35);
+  const priceY = nameBottom + priceLineHeight + (isBagLabel ? 0.06 * bagScale : compact ? 0.35 : 0.55);
+  const fieldY = priceY + detailLineHeight + (isBagLabel ? 0.1 * bagScale : compact ? 0.45 : 1.35);
   const articleY = content.article
-    ? fieldY + articleFontSize * PT_TO_MM * 1.05 + (isBagLabel ? 0.05 * bagScale : 0.2)
+    ? fieldY + articleFontSize * PT_TO_MM * 1.05 + (isBagLabel ? 0 : 0.2)
     : null;
   const barcodeTextGap = isBagLabel ? 1.9 * bagScale : compact ? 2.3 : 2.8;
   const bottomMargin = isBagLabel ? 0.8 * bagScale : compact ? 1.6 : 2.2;
   const barcodeTextY = heightMm - bottomMargin;
   const barcodeBottom = barcodeTextY - barcodeTextGap;
-  const minimumBarcodeTop = (articleY || fieldY) + (isBagLabel ? 0.45 * bagScale : 1.2);
+  const minimumBarcodeTop = (articleY || fieldY) + (isBagLabel ? 0.3 * bagScale : 1.2);
   const desiredBarcodeHeight = isBagLabel
     ? 8.5 * bagScale
     : compact

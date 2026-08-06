@@ -9,8 +9,9 @@ import { BARCODE_LABEL_LAYOUT, fitThermalArticleValueFontSize, fitThermalColorVa
 const thermalImageCache = new Map();
 
 const escapeString = (value = "") =>
-  String(value ?? "")
-    .replace(/\u0000/g, "")
+  Array.from(String(value ?? ""))
+    .filter((character) => character.charCodeAt(0) !== 0)
+    .join("")
     .trim();
 
 function hasArabic(text) {
@@ -347,7 +348,7 @@ export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
   const pageCount = Array.isArray(labels) ? labels.length : 0;
   for (let index = 0; index < pageCount; index += 1) {
     if (index > 0) doc.addPage();
-    // eslint-disable-next-line no-await-in-loop
+
     await renderLabelPage(doc, labels[index] || {}, index);
   }
 

@@ -3551,7 +3551,7 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
     .then(({ fetchMetaPageFeedPostsForTenant, fetchMetaInstagramMediaForTenant }) => normalizedPlatform === "instagram"
       // The list only needs post metadata. Importing every Instagram comment
       // here made merely opening Social Comments perform a second full sync.
-      ? fetchMetaInstagramMediaForTenant({ tenantId: safeTenantId, limit: safeLimit, syncComments: false })
+      ? fetchMetaInstagramMediaForTenant({ tenantId: safeTenantId, limit: safeLimit, syncComments: true })
       : fetchMetaPageFeedPostsForTenant({ tenantId: safeTenantId, limit: safeLimit }))
     .catch((error) => ({
     success: false,

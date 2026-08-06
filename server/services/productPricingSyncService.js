@@ -45,19 +45,8 @@ const pricingSignalScoreSql = `
 `;
 
 export const syncProductPricingFromVariants = async (client, { productId, tenantId = null, variantId = null } = {}) => {
-  console.log(`[pricing-sync] entered productId=${productId}`, {
-    productId: productId ?? null,
-    tenantId: tenantId ?? null,
-    variantId: variantId ?? null,
-  });
   const numericProductId = Number(productId || 0);
   if (!Number.isInteger(numericProductId) || numericProductId <= 0) {
-    console.log("[pricing-sync] early return", {
-      reason: "invalid_product_id",
-      productId: productId ?? null,
-      tenantId: tenantId ?? null,
-      variantId: variantId ?? null,
-    });
     return 0;
   }
 
@@ -72,7 +61,6 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       cost_price,
       purchase_price,
       selling_price,
-      purchase_selling_price,
       price,
       regular_price,
       sale_price,
@@ -87,12 +75,6 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
   );
   const productRow = productResult.rows?.[0] || null;
   if (!productRow) {
-    console.log("[pricing-sync] early return", {
-      reason: "product_not_found",
-      productId: numericProductId,
-      tenantId: tenantId ?? null,
-      variantId: variantId ?? null,
-    });
     return 0;
   }
 
@@ -120,7 +102,6 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       cost_price,
       purchase_price,
       selling_price,
-      purchase_selling_price,
       regular_price,
       price,
       sale_price,
@@ -142,12 +123,6 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
   );
   const variantRow = variantResult.rows?.[0] || null;
   if (!variantRow) {
-    console.log("[pricing-sync] early return", {
-      reason: "variant_not_found",
-      productId: numericProductId,
-      tenantId: tenantId ?? null,
-      variantId: Number.isInteger(Number(variantId)) && Number(variantId) > 0 ? Number(variantId) : null,
-    });
     return 0;
   }
 
@@ -189,7 +164,14 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.cost_price,
     productRow.average_cost
   );
-  const nextSellingPrice = pickPositiveMoney(variantRow.purchase_selling_price, productRow.purchase_selling_price);
+  const nextSellingPrice = pickPositiveMoney(
+    variantRow.selling_price,
+    variantRow.regular_price,
+    variantRow.price,
+    productRow.selling_price,
+    productRow.regular_price,
+    productRow.price
+  );
   const nextRegularPrice = pickPositiveMoney(
     variantRow.regular_price,
     variantRow.price,
@@ -206,12 +188,10 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.regular_price,
     productRow.selling_price
   );
-  const productSalePriceEnabled = toBoolean(productRow.sale_price_enabled, false);
   const variantSalePriceEnabled = toBoolean(variantRow.sale_price_enabled, false);
-  const hasExistingProductSalePrice = hasPositiveMoneyValue(productRow.sale_price);
   const hasValidVariantSalePrice = variantSalePriceEnabled && hasPositiveMoneyValue(variantRow.sale_price);
-  let nextSalePrice = hasValidVariantSalePrice ? variantRow.sale_price : productRow.sale_price;
-  let nextSalePriceEnabled = hasValidVariantSalePrice ? true : productRow.sale_price_enabled;
+  let nextSalePrice = hasValidVariantSalePrice ? variantRow.sale_price : 0;
+  let nextSalePriceEnabled = hasValidVariantSalePrice;
   const copiedCostFields = {
     last_purchase_cost: nextLastPurchaseCost,
     last_purchase_price: pickPositiveMoney(
@@ -231,81 +211,11 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     purchase_price: nextPurchasePrice,
   };
 
-  console.log("[product-pricing-sync] selected source variant", {
-    productId: numericProductId,
-    tenantId: tenantId ?? null,
-    requestedVariantId: Number.isInteger(Number(variantId)) && Number(variantId) > 0 ? Number(variantId) : null,
-    selectedVariantId: variantRow.id,
-    selectedVariantPricing: {
-      last_purchase_cost: variantRow.last_purchase_cost ?? null,
-      last_purchase_price: variantRow.last_purchase_price ?? null,
-      average_cost: variantRow.average_cost ?? null,
-      cost_price: variantRow.cost_price ?? null,
-      purchase_price: variantRow.purchase_price ?? null,
-      selling_price: variantRow.selling_price ?? null,
-      regular_price: variantRow.regular_price ?? null,
-      price: variantRow.price ?? null,
-      sale_price: variantRow.sale_price ?? null,
-      sale_price_enabled: variantRow.sale_price_enabled ?? null,
-    },
-    copiedPricing: {
-      last_purchase_cost: nextLastPurchaseCost,
-      average_cost: nextAverageCost,
-      cost_price: nextCostPrice,
-      purchase_price: nextPurchasePrice,
-      selling_price: nextSellingPrice,
-      regular_price: nextRegularPrice,
-      price: nextPrice,
-      sale_price: nextSalePrice,
-      sale_price_enabled: nextSalePriceEnabled,
-    },
-    salePricePreservation: {
-      current_product_sale_price: productRow.sale_price ?? null,
-      current_product_sale_price_enabled: productRow.sale_price_enabled ?? null,
-      variant_sale_price: variantRow.sale_price ?? null,
-      variant_sale_price_enabled: variantRow.sale_price_enabled ?? null,
-      hasExistingProductSalePrice,
-      hasValidVariantSalePrice,
-      productSalePriceEnabled,
-    },
-  });
-  console.log("[product-pricing-sync] copiedCostFields", {
-    productId: numericProductId,
-    tenantId: tenantId ?? null,
-    copiedCostFields,
-  });
-
   const finalHasValidVariantSale = toBoolean(variantRow.sale_price_enabled, false) && hasPositiveMoneyValue(variantRow.sale_price);
   if (!finalHasValidVariantSale) {
-    nextSalePrice = productRow.sale_price;
-    nextSalePriceEnabled = productRow.sale_price_enabled;
+    nextSalePrice = 0;
+    nextSalePriceEnabled = false;
   }
-
-  console.log("[product-pricing-sync] final update pricing payload", {
-    productId: numericProductId,
-    tenantId: tenantId ?? null,
-    existingProductPricing: {
-      sale_price: productRow.sale_price ?? null,
-      sale_price_enabled: productRow.sale_price_enabled ?? null,
-    },
-    selectedVariantPricing: {
-      sale_price: variantRow.sale_price ?? null,
-      sale_price_enabled: variantRow.sale_price_enabled ?? null,
-    },
-    hasValidVariantSale: finalHasValidVariantSale,
-    copiedPricing: {
-      last_purchase_cost: nextLastPurchaseCost,
-      last_purchase_price: copiedCostFields.last_purchase_price,
-      average_cost: nextAverageCost,
-      cost_price: nextCostPrice,
-      purchase_price: nextPurchasePrice,
-      selling_price: nextSellingPrice,
-      regular_price: nextRegularPrice,
-      price: nextPrice,
-      sale_price: nextSalePrice,
-      sale_price_enabled: nextSalePriceEnabled,
-    },
-  });
 
   const updateResult = await client.query(
     `
@@ -316,12 +226,14 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       average_cost = $3,
       cost_price = $4,
       purchase_price = $5,
-      purchase_selling_price = $6,
-      sale_price = $7,
-      sale_price_enabled = $8,
+      selling_price = $6,
+      regular_price = $7,
+      price = $8,
+      sale_price = $9,
+      sale_price_enabled = $10,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $9
-      AND ($10::bigint IS NULL OR tenant_id = $10::bigint OR tenant_id IS NULL)
+    WHERE id = $11
+      AND ($12::bigint IS NULL OR tenant_id = $12::bigint OR tenant_id IS NULL)
     `,
     [
       nextLastPurchaseCost,
@@ -330,47 +242,14 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       nextCostPrice,
       nextPurchasePrice,
       nextSellingPrice,
+      nextRegularPrice,
+      nextPrice,
       nextSalePrice,
       nextSalePriceEnabled,
       numericProductId,
       tenantId,
     ]
   );
-
-  console.log("[product-pricing-sync] updated product pricing", {
-    productId: numericProductId,
-    tenantId: tenantId ?? null,
-    rowCount: updateResult.rowCount || 0,
-    copiedPricing: {
-      last_purchase_cost: nextLastPurchaseCost,
-      last_purchase_price: copiedCostFields.last_purchase_price,
-      average_cost: nextAverageCost,
-      cost_price: nextCostPrice,
-      purchase_price: nextPurchasePrice,
-      selling_price: nextSellingPrice,
-      regular_price: nextRegularPrice,
-      price: nextPrice,
-      sale_price: nextSalePrice,
-      sale_price_enabled: nextSalePriceEnabled,
-    },
-  });
-
-  const afterSyncResult = await client.query(
-    `
-    SELECT id, sale_price, sale_price_enabled
-    FROM products
-    WHERE id = $1
-      AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
-    LIMIT 1
-    `,
-    [numericProductId, tenantId]
-  );
-
-  console.log("DB_SALE_PRICE_AFTER_PRODUCT_PRICING_SYNC", {
-    productId: numericProductId,
-    tenantId: tenantId ?? null,
-    db: afterSyncResult.rows[0] || null,
-  });
 
   return updateResult.rowCount || 0;
 };

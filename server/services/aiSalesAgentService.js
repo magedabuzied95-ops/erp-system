@@ -1,4 +1,4 @@
-﻿import db from "../database/db.js";
+import db from "../database/db.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPerfContext } from "../utils/perfDebug.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -417,24 +417,24 @@ const DEFAULT_SETTINGS = {
   ai_assistant_global_enabled: true,
   reply_length: "balanced",
   sales_pressure: "medium",
-  allowed_phrases: ["ط£ظٹظˆظ‡ ظٹط§ ظپظ†ط¯ظ…", "طھظ…ط§ظ…", "ط§ط®طھظٹط§ط± ط­ظ„ظˆ", "ط£ط±ط´ط­ظ„ظƒ"],
-  preferred_phrases: ["ط£ظٹظˆظ‡ ظٹط§ ظپظ†ط¯ظ…", "طھظ…ط§ظ…", "ط§ط®طھظٹط§ط± ط­ظ„ظˆ", "ط£ط±ط´ط­ظ„ظƒ"],
+  allowed_phrases: ["ط£ظٹظˆظ‡ ظٹط§ ظپظ†ط¯ظ…", "طھظ…ط§ظ…", "ط§ط®طھظٹط§ط± ط\u00adظ„ظˆ", "ط£ط±ط´ط\u00adظ„ظƒ"],
+  preferred_phrases: ["ط£ظٹظˆظ‡ ظٹط§ ظپظ†ط¯ظ…", "طھظ…ط§ظ…", "ط§ط®طھظٹط§ط± ط\u00adظ„ظˆ", "ط£ط±ط´ط\u00adظ„ظƒ"],
   forbidden_phrases: ["ط£ظ†ط§ ظ…ط³ط§ط¹ط¯ ط°ظƒظٹ", "ظƒظ†ظ…ظˆط°ط¬ ظ„ط؛ظˆظٹ", "ظ„ط§ ط£ط³طھط·ظٹط¹"],
   allow_auto_draft_creation: true,
   require_human_approval_before_confirm: false,
   allow_discount_promises: false,
   max_discount_percent: 0,
-  cod_availability_text: "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…طھط§ط­ ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© ظˆط³ظٹط§ط³ط© ط§ظ„ط´ط­ظ†.",
-  exchange_return_policy_text: "ط§ظ„ط§ط³طھط¨ط¯ط§ظ„ ط£ظˆ ط§ظ„ط§ط³طھط±ط¬ط§ط¹ ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظˆط­ط§ظ„ط© ط§ظ„ظ…ظ†طھط¬.",
-  delivery_policy_text: "ط§ظ„طھظˆطµظٹظ„ ط¨ظٹطھط­ط¯ط¯ ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط© ظˆظٹطھط£ظƒط¯ ظ‚ط¨ظ„ ط§ظ„ط´ط­ظ†.",
+  cod_availability_text: "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…طھط§ط\u00ad ط\u00adط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© ظˆط³ظٹط§ط³ط© ط§ظ„ط´ط\u00adظ†.",
+  exchange_return_policy_text: "ط§ظ„ط§ط³طھط¨ط¯ط§ظ„ ط£ظˆ ط§ظ„ط§ط³طھط±ط¬ط§ط¹ ط\u00adط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظˆط\u00adط§ظ„ط© ط§ظ„ظ…ظ†طھط¬.",
+  delivery_policy_text: "ط§ظ„طھظˆطµظٹظ„ ط¨ظٹطھط\u00adط¯ط¯ ط\u00adط³ط¨ ط§ظ„ظ…ط\u00adط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط© ظˆظٹطھط£ظƒط¯ ظ‚ط¨ظ„ ط§ظ„ط´ط\u00adظ†.",
   followups_enabled: true,
   followup_cooldown_hours: 24,
   abandoned_followup_minutes: 45,
   max_followups_per_customer: 3,
   stop_followups_after_rejection: true,
   followup_templates: [
-    "ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ط§ظ„ظ…ظˆط¯ظٹظ„طں ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…طھط§ط­.",
-    "ظ„ظˆ ظ…ط­طھط§ط¬ ط¨ط¯ط§ط¦ظ„ ظ‚ط±ظٹط¨ط© ظ…ظ† ظ†ظپط³ ط§ظ„ط´ظƒظ„ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ…ظٹط²ط§ظ†ظٹط©.",
+    "ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ط§ظ„ظ…ظˆط¯ظٹظ„طں ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…طھط§ط\u00ad.",
+    "ظ„ظˆ ظ…ط\u00adطھط§ط¬ ط¨ط¯ط§ط¦ظ„ ظ‚ط±ظٹط¨ط© ظ…ظ† ظ†ظپط³ ط§ظ„ط´ظƒظ„ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ…ظٹط²ط§ظ†ظٹط©.",
   ],
   confidence_threshold: 0.62,
   auto_order_threshold: 0.84,
@@ -460,7 +460,7 @@ const OBJECTION_RULES = [
   { type: "quality", terms: ["ط®ط§ظ…طھظ‡", "ط§ظ„ط®ط§ظ…ط©", "quality", "material"], action: "quality_value" },
   { type: "authenticity", terms: ["ط£طµظ„ظٹ", "ط§طµظ„ظٹ", "original", "authentic"], action: "policy_context" },
   { type: "exchange", terms: ["ط§ط³طھط¨ط¯ط§ظ„", "ط§ط³طھط±ط¬ط§ط¹", "ظٹظ†ظپط¹ ط§ط³طھط¨ط¯ط§ظ„", "return", "exchange"], action: "policy_context" },
-  { type: "delivery_cost", terms: ["ط§ظ„طھظˆطµظٹظ„ ط¨ظƒط§ظ…", "ط´ط­ظ† ط¨ظƒط§ظ…", "delivery cost"], action: "shipping_context" },
+  { type: "delivery_cost", terms: ["ط§ظ„طھظˆطµظٹظ„ ط¨ظƒط§ظ…", "ط´ط\u00adظ† ط¨ظƒط§ظ…", "delivery cost"], action: "shipping_context" },
   { type: "delivery_eta", terms: ["ظ‡ظٹظˆطµظ„ ط§ظ…طھظ‰", "ظٹظˆطµظ„ ط§ظ…طھظ‰", "delivery time"], action: "shipping_context" },
   { type: "sizes", terms: ["ظ…ظ‚ط§ط³ط§طھ طھط§ظ†ظٹط©", "ظ…ظ‚ط§ط³ طھط§ظ†ظٹ", "sizes"], action: "variant_suggestions" },
   { type: "cheaper", terms: ["ظپظٹظ‡ ط£ط±ط®طµ", "ظپظٹظ‡ ط§ط±ط®طµ", "ط§ط±ط®طµ", "cheaper"], action: "cheaper_alternatives" },
@@ -469,10 +469,10 @@ const OBJECTION_RULES = [
 ];
 
 const RESPONSE_VARIANTS = {
-  opener: ["طھظ…ط§ظ…", "ط¨طµ", "ط­ط§ط¶ط±", "ط¬ظ…ظٹظ„"],
-  softAvailability: ["ط§ظ„ظ…طھط§ط­ ظ…ظ†ظ‡ ظƒظˆظٹط³ ط¯ظ„ظˆظ‚طھظٹ", "ظپظٹظ‡ ظ…ظ†ظ‡ ظ…ظ‚ط§ط³ط§طھ ط´ط؛ط§ظ„ط©", "ط®ظ„ظٹظ†ظٹ ط£ط¸ط¨ط·ظ„ظƒ ط§ظ„ظ…طھط§ط­ ظ…ظ†ظ‡"],
-  value: ["ط®ط§ظ…طھظ‡ ط¹ظ…ظ„ظٹط© ظˆط´ظƒظ„ظ‡ ط´ظٹظƒ ظپظٹ ط§ظ„ظ„ط¨ط³", "ظ…طھظˆظپط± ط¨ط³ط¹ط± ظˆط§ط¶ط­ ظˆظ…ظ†ط§ط³ط¨", "ط§ط®طھظٹط§ط± ظ…ط¶ظ…ظˆظ† ظ„ظˆ ط¹ط§ظٹط² ط­ط§ط¬ط© طھط¹ظٹط´ ظ…ط¹ط§ظƒ"],
-  close: ["طھط­ط¨ ط£ط´ظˆظپظ„ظƒ ظ…ظ‚ط§ط³ظƒطں", "ظ…ظ‚ط§ط³ظƒ ظƒط§ظ…طں", "طھط­ط¨ ط£ط´ظˆظپظƒ ط§ظ„ط£ظ„ظˆط§ظ† ظˆط§ظ„ظ…ظ‚ط§ط³ط§طھطں"],
+  opener: ["طھظ…ط§ظ…", "ط¨طµ", "ط\u00adط§ط¶ط±", "ط¬ظ…ظٹظ„"],
+  softAvailability: ["ط§ظ„ظ…طھط§ط\u00ad ظ…ظ†ظ‡ ظƒظˆظٹط³ ط¯ظ„ظˆظ‚طھظٹ", "ظپظٹظ‡ ظ…ظ†ظ‡ ظ…ظ‚ط§ط³ط§طھ ط´ط؛ط§ظ„ط©", "ط®ظ„ظٹظ†ظٹ ط£ط¸ط¨ط·ظ„ظƒ ط§ظ„ظ…طھط§ط\u00ad ظ…ظ†ظ‡"],
+  value: ["ط®ط§ظ…طھظ‡ ط¹ظ…ظ„ظٹط© ظˆط´ظƒظ„ظ‡ ط´ظٹظƒ ظپظٹ ط§ظ„ظ„ط¨ط³", "ظ…طھظˆظپط± ط¨ط³ط¹ط± ظˆط§ط¶ط\u00ad ظˆظ…ظ†ط§ط³ط¨", "ط§ط®طھظٹط§ط± ظ…ط¶ظ…ظˆظ† ظ„ظˆ ط¹ط§ظٹط² ط\u00adط§ط¬ط© طھط¹ظٹط´ ظ…ط¹ط§ظƒ"],
+  close: ["طھط\u00adط¨ ط£ط´ظˆظپظ„ظƒ ظ…ظ‚ط§ط³ظƒطں", "ظ…ظ‚ط§ط³ظƒ ظƒط§ظ…طں", "طھط\u00adط¨ ط£ط´ظˆظپظƒ ط§ظ„ط£ظ„ظˆط§ظ† ظˆط§ظ„ظ…ظ‚ط§ط³ط§طھطں"],
 };
 
 const pick = (items = [], seed = "") => {
@@ -811,8 +811,8 @@ export const detectSalesObjection = (message = "") => {
 
 const sentimentFromMessage = (message = "") => {
   const normalized = lower(message);
-  if (["ط´ظƒظˆظ‰", "ط²ط¹ظ„ط§ظ†", "ظˆط­ط´", "ظ…ط´ظƒظ„ط©", "ط؛ط§ظ„ظٹ ط¬ط¯ط§", "ظ…ط´ ط¹ط§ط¬ط¨"].some((term) => normalized.includes(term))) return "negative";
-  if (["طھظ…ط§ظ…", "ط­ظ„ظˆ", "ظ‡ط§ط®ط¯ظ‡", "ظ…ظ…طھط§ط²", "ط¬ط§ظ…ط¯"].some((term) => normalized.includes(term))) return "positive";
+  if (["ط´ظƒظˆظ‰", "ط²ط¹ظ„ط§ظ†", "ظˆط\u00adط´", "ظ…ط´ظƒظ„ط©", "ط؛ط§ظ„ظٹ ط¬ط¯ط§", "ظ…ط´ ط¹ط§ط¬ط¨"].some((term) => normalized.includes(term))) return "negative";
+  if (["طھظ…ط§ظ…", "ط\u00adظ„ظˆ", "ظ‡ط§ط®ط¯ظ‡", "ظ…ظ…طھط§ط²", "ط¬ط§ظ…ط¯"].some((term) => normalized.includes(term))) return "positive";
   return "neutral";
 };
 
@@ -1766,15 +1766,15 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
       const maxDiscount = numeric(settings.max_discount_percent, 0);
       return {
         answer: maxDiscount > 0
-          ? `${opener}طŒ ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط®طµظ… ظ„ط­ط¯ ${maxDiscount}% ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`
-          : `${opener}طŒ ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¹ط±ط¶ ظ…طھط§ط­ ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`,
+          ? `${opener}طŒ ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط®طµظ… ظ„ط\u00adط¯ ${maxDiscount}% ط\u00adط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`
+          : `${opener}طŒ ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¹ط±ط¶ ظ…طھط§ط\u00ad ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`,
         needs_human_support: false,
         suggested_actions: ["show_similar_products"],
         objection_type: objection.type,
       };
     }
     return {
-      answer: `${opener}طŒ ط§ظ„ظ†ظ‚ط·ط© ط¯ظٹ ظ…ط­طھط§ط¬ط© طھط£ظƒظٹط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ط¹ط´ط§ظ† ظ†ط¯ظٹظƒ ط£ظپط¶ظ„ ط­ظ„ ظ…ط¶ط¨ظˆط·. ظ‡ط­ظˆظ‘ظ„ظƒ ظ„ط­ط¯ ظٹط±ط§ط¬ط¹ظ‡ط§ ظ…ط¹ط§ظƒ.`,
+      answer: `${opener}طŒ ط§ظ„ظ†ظ‚ط·ط© ط¯ظٹ ظ…ط\u00adطھط§ط¬ط© طھط£ظƒظٹط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ط¹ط´ط§ظ† ظ†ط¯ظٹظƒ ط£ظپط¶ظ„ ط\u00adظ„ ظ…ط¶ط¨ظˆط·. ظ‡ط\u00adظˆظ‘ظ„ظƒ ظ„ط\u00adط¯ ظٹط±ط§ط¬ط¹ظ‡ط§ ظ…ط¹ط§ظƒ.`,
       needs_human_support: true,
       suggested_actions: ["contact_support"],
       objection_type: objection.type,
@@ -1782,7 +1782,7 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
   }
   if (objection.action === "cheaper_alternatives") {
     return {
-      answer: `${opener}طŒ ظپط§ظ‡ظ…ظƒ. ${name} ظ‚ظٹظ…طھظ‡ ط­ظ„ظˆط©طŒ ط¨ط³ ط£ظ‚ط¯ط± ط£ط±ط´ط­ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµ ط¨ظ†ظپط³ ط§ظ„ظ„ظˆظƒ طھظ‚ط±ظٹط¨ظ‹ط§. ظ…ظ‚ط§ط³ظƒ ظƒط§ظ…طں`,
+      answer: `${opener}طŒ ظپط§ظ‡ظ…ظƒ. ${name} ظ‚ظٹظ…طھظ‡ ط\u00adظ„ظˆط©طŒ ط¨ط³ ط£ظ‚ط¯ط± ط£ط±ط´ط\u00adظ„ظƒ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµ ط¨ظ†ظپط³ ط§ظ„ظ„ظˆظƒ طھظ‚ط±ظٹط¨ظ‹ط§. ظ…ظ‚ط§ط³ظƒ ظƒط§ظ…طں`,
       needs_human_support: false,
       suggested_actions: ["show_similar_products"],
       objection_type: objection.type,
@@ -1790,7 +1790,7 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
   }
   if (objection.action === "variant_suggestions") {
     return {
-      answer: `${opener}طŒ ط£ط´ظٹظƒظ„ظƒ ط¹ظ„ظ‰ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط­ط©. ظ‚ظˆظ„ظ‘ظٹ ظ…ظ‚ط§ط³ظƒ ط§ظ„ط£ط³ط§ط³ظٹ ظˆظ„ظˆ ظٹظ†ظپط¹ ظ…ط¹ط§ظƒ ظ…ظ‚ط§ط³ ظ‚ط±ظٹط¨ ظ…ظ†ظ‡.`,
+      answer: `${opener}طŒ ط£ط´ظٹظƒظ„ظƒ ط¹ظ„ظ‰ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط\u00adط©. ظ‚ظˆظ„ظ‘ظٹ ظ…ظ‚ط§ط³ظƒ ط§ظ„ط£ط³ط§ط³ظٹ ظˆظ„ظˆ ظٹظ†ظپط¹ ظ…ط¹ط§ظƒ ظ…ظ‚ط§ط³ ظ‚ط±ظٹط¨ ظ…ظ†ظ‡.`,
       needs_human_support: false,
       suggested_actions: ["choose_size"],
       objection_type: objection.type,
@@ -1798,12 +1798,12 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
   }
   const line =
     objection.action === "quality_value"
-      ? `${name} ط®ط§ظ…طھظ‡ ط¹ظ…ظ„ظٹط© ظˆظ…ظ†ط§ط³ط¨ ظ„ظ„ط¨ط³ ط§ظ„ظٹظˆظ…ظٹطŒ ظˆط§ظ„ط£ظ‡ظ… ط¥ظ† ط§ظ„ظ…ظ‚ط§ط³ ظ„ظˆ ظ…ط¶ط¨ظˆط· ظ‡ظٹط¯ظٹظƒ ط´ظƒظ„ ط­ظ„ظˆ ظپظٹ ط§ظ„ط±ط¬ظ„.`
+      ? `${name} ط®ط§ظ…طھظ‡ ط¹ظ…ظ„ظٹط© ظˆظ…ظ†ط§ط³ط¨ ظ„ظ„ط¨ط³ ط§ظ„ظٹظˆظ…ظٹطŒ ظˆط§ظ„ط£ظ‡ظ… ط¥ظ† ط§ظ„ظ…ظ‚ط§ط³ ظ„ظˆ ظ…ط¶ط¨ظˆط· ظ‡ظٹط¯ظٹظƒ ط´ظƒظ„ ط\u00adظ„ظˆ ظپظٹ ط§ظ„ط±ط¬ظ„.`
       : objection.action === "shipping_context"
-        ? "ط§ظ„طھظˆطµظٹظ„ ط¨ظٹطھط­ط³ط¨ ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©طŒ ظˆط§ط¨ط¹طھظ„ظٹ ظ…ظ†ط·ظ‚طھظƒ ط£ظ‚ظˆظ„ظƒ ط§ظ„ط£ظ†ط³ط¨."
+        ? "ط§ظ„طھظˆطµظٹظ„ ط¨ظٹطھط\u00adط³ط¨ ط\u00adط³ط¨ ط§ظ„ظ…ط\u00adط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©طŒ ظˆط§ط¨ط¹طھظ„ظٹ ظ…ظ†ط·ظ‚طھظƒ ط£ظ‚ظˆظ„ظƒ ط§ظ„ط£ظ†ط³ط¨."
         : objection.action === "payment_context"
-          ? "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…طھط§ط­ ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© ظˆط­ط§ظ„ط© ط§ظ„ط¹ظ…ظٹظ„طŒ ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ…ظƒ ظˆظ…ظ†ط·ظ‚طھظƒ ظˆظ†ط£ظƒط¯ظ‡ط§."
-          : "ط§ظ„ط³ظٹط§ط³ط© ط¨طھطھط£ظƒط¯ ط­ط³ط¨ ط­ط§ظ„ط© ط§ظ„ظ…ظ†طھط¬ ظˆط§ظ„ط·ظ„ط¨طŒ ط£ظ‚ط¯ط± ط£ظˆطµظ„ظƒ ط¨ظپط±ظٹظ‚ ط§ظ„ط¯ط¹ظ… ظ„ظˆ ظ…ط­طھط§ط¬ طھظپط§طµظٹظ„ ط¯ظ‚ظٹظ‚ط©.";
+          ? "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…طھط§ط\u00ad ط\u00adط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© ظˆط\u00adط§ظ„ط© ط§ظ„ط¹ظ…ظٹظ„طŒ ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ…ظƒ ظˆظ…ظ†ط·ظ‚طھظƒ ظˆظ†ط£ظƒط¯ظ‡ط§."
+          : "ط§ظ„ط³ظٹط§ط³ط© ط¨طھطھط£ظƒط¯ ط\u00adط³ط¨ ط\u00adط§ظ„ط© ط§ظ„ظ…ظ†طھط¬ ظˆط§ظ„ط·ظ„ط¨طŒ ط£ظ‚ط¯ط± ط£ظˆطµظ„ظƒ ط¨ظپط±ظٹظ‚ ط§ظ„ط¯ط¹ظ… ظ„ظˆ ظ…ط\u00adطھط§ط¬ طھظپط§طµظٹظ„ ط¯ظ‚ظٹظ‚ط©.";
   return {
     answer: `${opener}طŒ ${line}`,
     needs_human_support: false,
@@ -3148,6 +3148,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       const lastMessagePreview = conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "";
       const unreadCount = Math.max(0, numeric(conversation.unread_count, 0));
       const conversationSessionId = canonicalInboxConversationSessionId(conversation);
+      const channel = canonicalInboxChannel(conversation.channel || conversation.source || "web_chat") || "web_chat";
       return {
         session_id: conversationSessionId || conversation.session_id,
         conversation_id: conversationSessionId || conversation.session_id,
@@ -3313,9 +3314,9 @@ const followupSuggestedMessage = (task = {}, settings = DEFAULT_SETTINGS) => {
   const template = asArray(settings.followup_templates).find(Boolean) || DEFAULT_SETTINGS.followup_templates[0];
   if (text(task.manual_message)) return text(task.manual_message);
   if (text(payload.suggested_message || payload.followup_message)) return text(payload.suggested_message || payload.followup_message);
-  if (productName) return `ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ظ€ ${productName}طں ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…طھط§ط­ ظˆط£ظ‚ظˆظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„.`;
+  if (productName) return `ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ظ€ ${productName}طں ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…طھط§ط\u00ad ظˆط£ظ‚ظˆظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط\u00adظ‚ظٹظ‚ظٹ ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„.`;
   if (text(template)) return text(template);
-  return "ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ط§ظ„ظ…ظ†طھط¬طں ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆ ط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨ ظˆط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط­ ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„.";
+  return "ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ط§ظ„ظ…ظ†طھط¬طں ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆ ط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨ ظˆط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط\u00ad ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„.";
 };
 
 const normalizeFollowupTask = (row = {}, settings = DEFAULT_SETTINGS) => {
@@ -4269,18 +4270,18 @@ const extractSalesIntent = (message = "") => {
   const value = lower(message);
   const has = (terms = []) => terms.some((term) => value.includes(lower(term)));
   if (has(["hi", "hello", "hey", "ط§ظ„ط³ظ„ط§ظ…", "ط§ط²ظٹظƒ", "ط§ظ‡ظ„ط§", "ط£ظ‡ظ„ط§"])) return "greeting";
-  if (has(["human", "agent", "admin", "ظƒظ„ظ…", "ظ…ظˆط¸ظپ", "ط­ط¯ ظٹط±ط¯", "ط´ظƒظˆظ‰"])) return "human_support";
+  if (has(["human", "agent", "admin", "ظƒظ„ظ…", "ظ…ظˆط¸ظپ", "ط\u00adط¯ ظٹط±ط¯", "ط´ظƒظˆظ‰"])) return "human_support";
   if (has(["order", "invoice", "tracking", "ظپظٹظ† ط§ظ„ط§ظˆط±ط¯ط±", "ط·ظ„ط¨", "ط§ظˆط±ط¯ط±", "ظپط§طھظˆط±ط©"])) return "order_follow_up";
   if (has(["price", "how much", "ط¨ظƒط§ظ…", "ط³ط¹ط±", "ظƒط§ظ…", "ط®طµظ…"])) return "pricing_question";
-  if (has(["available", "stock", "ظ…طھط§ط­", "ظ…ظˆط¬ظˆط¯", "ظ…طھظˆظپط±", "ط®ظ„طµ"])) return "availability";
+  if (has(["available", "stock", "ظ…طھط§ط\u00ad", "ظ…ظˆط¬ظˆط¯", "ظ…طھظˆظپط±", "ط®ظ„طµ"])) return "availability";
   if (has(["size", "color", "colour", "ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "ط§ظ„ظˆط§ظ†", "ط£ظ„ظˆط§ظ†"])) return "size_color_request";
   if (has(["show", "want", "need", "ط¹ط§ظٹط²", "ط¹ط§ظٹط²ط©", "ظ…ظˆط¯ظٹظ„", "ظƒظˆطھط´ظٹ", "ط´ظˆط²", "ط´ظ†ط·ط©", "ط¬ط²ظ…ط©"])) return "product_search";
   return "general_sales";
 };
 
 const quantityWords = new Map([
-  ["ظˆط§ط­ط¯", 1],
-  ["ظˆط§ط­ط¯ط©", 1],
+  ["ظˆط§ط\u00adط¯", 1],
+  ["ظˆط§ط\u00adط¯ط©", 1],
   ["ظ‚ط·ط¹ط©", 1],
   ["ط§طھظ†ظٹظ†", 2],
   ["ط§ط«ظ†ظٹظ†", 2],
@@ -4299,7 +4300,7 @@ const firstNumber = (value = "") => {
 
 const parseSalesCloserQuantity = (message = "") => {
   const normalized = lower(message);
-  const explicit = normalized.match(/(?:qty|quantity|ط¹ط¯ط¯|ظƒظ…ظٹط©|ط¹ط§ظٹط²|ط¹ط§ظٹط²ط©|ط®ط¯|ظ‡ط§ط®ط¯|ط§ط­ط¬ط²)\s*(\d{1,3})/i);
+  const explicit = normalized.match(/(?:qty|quantity|ط¹ط¯ط¯|ظƒظ…ظٹط©|ط¹ط§ظٹط²|ط¹ط§ظٹط²ط©|ط®ط¯|ظ‡ط§ط®ط¯|ط§ط\u00adط¬ط²)\s*(\d{1,3})/i);
   if (explicit) return Math.max(1, int(explicit[1], 1));
   for (const [word, count] of quantityWords.entries()) {
     if (normalized.includes(lower(word))) return count;
@@ -4317,9 +4318,9 @@ const parseSalesCloserSize = (message = "") => {
 
 const parseSalesCloserBudget = (message = "") => {
   const value = text(message);
-  const explicit = value.match(/(?:budget|ظ…ظٹط²ط§ظ†ظٹط©|ظپظٹ ط­ط¯ظˆط¯|ظ„ط­ط¯|طھط­طھ|ط§ظ‚ظ„ ظ…ظ†|ط£ظ‚ظ„ ظ…ظ†)\s*(\d{2,7})/i);
+  const explicit = value.match(/(?:budget|ظ…ظٹط²ط§ظ†ظٹط©|ظپظٹ ط\u00adط¯ظˆط¯|ظ„ط\u00adط¯|طھط\u00adطھ|ط§ظ‚ظ„ ظ…ظ†|ط£ظ‚ظ„ ظ…ظ†)\s*(\d{2,7})/i);
   if (explicit) return int(explicit[1], 0);
-  return /(?:budget|ظ…ظٹط²ط§ظ†ظٹط©|ظپظٹ ط­ط¯ظˆط¯|ظ„ط­ط¯|طھط­طھ|ط§ظ‚ظ„ ظ…ظ†|ط£ظ‚ظ„ ظ…ظ†)/i.test(value) ? firstNumber(value) : 0;
+  return /(?:budget|ظ…ظٹط²ط§ظ†ظٹط©|ظپظٹ ط\u00adط¯ظˆط¯|ظ„ط\u00adط¯|طھط\u00adطھ|ط§ظ‚ظ„ ظ…ظ†|ط£ظ‚ظ„ ظ…ظ†)/i.test(value) ? firstNumber(value) : 0;
 };
 
 const parseSalesCloserColor = (message = "") => {
@@ -4327,14 +4328,14 @@ const parseSalesCloserColor = (message = "") => {
   const colors = [
     ["black", ["black", "ط§ط³ظˆط¯", "ط£ط³ظˆط¯"]],
     ["white", ["white", "ط§ط¨ظٹط¶", "ط£ط¨ظٹط¶"]],
-    ["red", ["red", "ط§ط­ظ…ط±", "ط£ط­ظ…ط±"]],
+    ["red", ["red", "ط§ط\u00adظ…ط±", "ط£ط\u00adظ…ط±"]],
     ["blue", ["blue", "ط§ط²ط±ظ‚", "ط£ط²ط±ظ‚"]],
     ["green", ["green", "ط§ط®ط¶ط±", "ط£ط®ط¶ط±"]],
     ["beige", ["beige", "ط¨ظٹط¬"]],
     ["grey", ["gray", "grey", "ط±ظ…ط§ط¯ظٹ", "ط±طµط§طµظٹ"]],
     ["brown", ["brown", "ط¨ظ†ظٹ"]],
     ["pink", ["pink", "ظˆط±ط¯ظٹ", "ط¨ظٹظ†ظƒ"]],
-    ["navy", ["navy", "ظƒط­ظ„ظٹ"]],
+    ["navy", ["navy", "ظƒط\u00adظ„ظٹ"]],
   ];
   return colors.find(([, aliases]) => aliases.some((alias) => value.includes(lower(alias))))?.[0] || "";
 };
@@ -4356,8 +4357,8 @@ export const parseAiSalesCloserIntent = ({ message = "", products = [], conversa
     size: parseSalesCloserSize(message) || text(conversation.customer_profile?.preferred_size),
     quantity: parseSalesCloserQuantity(message),
     budget: parseSalesCloserBudget(message),
-    urgency: has(["ط¯ظ„ظˆظ‚طھظٹ", "ط­ط§ظ„ط§", "ط§ظ„ظ†ظ‡ط§ط±ط¯ط©", "ظ…ط³طھط¹ط¬ظ„", "now", "urgent", "today"]) ? "urgent" : has(["ط¨ط¹ط¯ظٹظ†", "later"]) ? "low" : "normal",
-    purchase_intent: has(["ظ‡ط§ط®ط¯ظ‡", "ظ‡ط§ط®ط¯", "ط§ط·ظ„ط¨", "ط£ط·ظ„ط¨", "ط§ظˆط±ط¯ط±", "ط£ظˆط±ط¯ط±", "ط§ط­ط¬ط²", "ط£ط­ط¬ط²", "ط§ط¨ط¹طھ ظ„ظٹظ†ظƒ", "checkout", "order", "reserve", "buy"]) ? "high" : has(["ط¨ظƒط§ظ…", "ط³ط¹ط±", "ظ…طھط§ط­", "ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "price", "available"]) ? "medium" : "low",
+    urgency: has(["ط¯ظ„ظˆظ‚طھظٹ", "ط\u00adط§ظ„ط§", "ط§ظ„ظ†ظ‡ط§ط±ط¯ط©", "ظ…ط³طھط¹ط¬ظ„", "now", "urgent", "today"]) ? "urgent" : has(["ط¨ط¹ط¯ظٹظ†", "later"]) ? "low" : "normal",
+    purchase_intent: has(["ظ‡ط§ط®ط¯ظ‡", "ظ‡ط§ط®ط¯", "ط§ط·ظ„ط¨", "ط£ط·ظ„ط¨", "ط§ظˆط±ط¯ط±", "ط£ظˆط±ط¯ط±", "ط§ط\u00adط¬ط²", "ط£ط\u00adط¬ط²", "ط§ط¨ط¹طھ ظ„ظٹظ†ظƒ", "checkout", "order", "reserve", "buy"]) ? "high" : has(["ط¨ظƒط§ظ…", "ط³ط¹ط±", "ظ…طھط§ط\u00ad", "ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "price", "available"]) ? "medium" : "low",
     requested_payment: has(["ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…", "ظƒط§ط´", "cod", "cash on delivery"]) ? "cod" : has(["ظ„ظٹظ†ظƒ ط¯ظپط¹", "payment link", "visa", "card"]) ? "online" : "",
   };
   intent.confidence = clamp(
@@ -4398,7 +4399,7 @@ const extractShoppingTerms = (message = "") =>
       .replace(/[^\p{L}\p{N}\s-]/gu, " ")
       .split(/\s+/)
       .filter((term) => term.length > 1)
-      .filter((term) => !["ط¹ط§ظٹط²", "ط¹ط§ظٹط²ط©", "ط¨ظƒط§ظ…", "ظƒط§ظ…", "ط³ط¹ط±", "ظ…طھط§ط­", "ظ…ظˆط¬ظˆط¯", "ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "price", "size", "color", "available"].includes(lower(term)))
+      .filter((term) => !["ط¹ط§ظٹط²", "ط¹ط§ظٹط²ط©", "ط¨ظƒط§ظ…", "ظƒط§ظ…", "ط³ط¹ط±", "ظ…طھط§ط\u00ad", "ظ…ظˆط¬ظˆط¯", "ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "price", "size", "color", "available"].includes(lower(term)))
   ).slice(0, 8);
 
 export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } = {}) => {
@@ -4804,11 +4805,11 @@ export const buildAiSalesCloserPlan = async ({ tenantId, conversationId, product
     memory,
     followup: {
       ten_minute_message: primaryProduct
-        ? `ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ظ€ ${primaryProduct.name || primaryProduct.title}طں ط£ظ‚ط¯ط± ط£ط­ط¬ط²ظ‡ظˆظ„ظƒ ظ…ط¤ظ‚طھط§ ظˆط£ط¬ظ‡ط² ط§ظ„ط·ظ„ط¨.`
-        : "ظ„ط³ظ‡ ظ…ط­طھط§ط¬ ظ…ط³ط§ط¹ط¯ط© ظپظٹ ط§ط®طھظٹط§ط± ط§ظ„ظ…ظ†طھط¬طں ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ظˆط£ط±ط´ط­ظ„ظƒ ط§ظ„ظ…طھط§ط­.",
-      abandoned_cart_message: "ظ„ظˆ ط­ط§ط¨ط¨ ظ†ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ط¹ظ†ظˆط§ظ†طŒ ظˆط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط­ ظ‚ط¨ظ„ ط§ظ„طھط£ظƒظٹط¯.",
+        ? `ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ظ€ ${primaryProduct.name || primaryProduct.title}طں ط£ظ‚ط¯ط± ط£ط\u00adط¬ط²ظ‡ظˆظ„ظƒ ظ…ط¤ظ‚طھط§ ظˆط£ط¬ظ‡ط² ط§ظ„ط·ظ„ط¨.`
+        : "ظ„ط³ظ‡ ظ…ط\u00adطھط§ط¬ ظ…ط³ط§ط¹ط¯ط© ظپظٹ ط§ط®طھظٹط§ط± ط§ظ„ظ…ظ†طھط¬طں ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ظˆط£ط±ط´ط\u00adظ„ظƒ ط§ظ„ظ…طھط§ط\u00ad.",
+      abandoned_cart_message: "ظ„ظˆ ط\u00adط§ط¨ط¨ ظ†ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ط¹ظ†ظˆط§ظ†طŒ ظˆط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط\u00ad ظ‚ط¨ظ„ ط§ظ„طھط£ظƒظٹط¯.",
       low_stock_message: primaryProduct && stockCount(primaryProduct) > 0 && stockCount(primaryProduct) <= 3
-        ? `ط¨ط§ظ‚ظٹ ${stockCount(primaryProduct)} ط¨ط³ ظ…ظ† ${primaryProduct.name || primaryProduct.title}. ط£ظ‚ط¯ط± ط£ط­ط¬ط²ظ‡ظˆظ„ظƒ ظ…ط¤ظ‚طھط§.`
+        ? `ط¨ط§ظ‚ظٹ ${stockCount(primaryProduct)} ط¨ط³ ظ…ظ† ${primaryProduct.name || primaryProduct.title}. ط£ظ‚ط¯ط± ط£ط\u00adط¬ط²ظ‡ظˆظ„ظƒ ظ…ط¤ظ‚طھط§.`
         : "",
     },
   };
@@ -4825,16 +4826,16 @@ const buildArabicAiSalesAnswer = ({ intent, products = [], conversation = {} } =
     const urgency = stock > 0 && stock <= 3 ? " - ط§ظ„ظƒظ…ظٹط© ظ‚ظ„ظٹظ„ط©" : "";
     return `${index + 1}. ${product.name || product.title}${price ? ` - ${price} ط¬ظ†ظٹظ‡` : ""}${product.size ? ` - ط§ظ„ظ…ظ‚ط§ط³ط§طھ: ${product.size}` : ""}${product.color ? ` - ط§ظ„ط£ظ„ظˆط§ظ†: ${product.color}` : ""}${urgency}`;
   });
-  if (intent === "greeting") return `ط£ظ‡ظ„ط§ ${greeting}ظ†ظˆط±طھظ†ط§. طھط­ط¨ ط£ط³ط§ط¹ط¯ظƒ ظپظٹ ظ…ظˆط¯ظٹظ„ ظ…ط¹ظٹظ†طŒ ظ…ظ‚ط§ط³طŒ ظ„ظˆظ†طŒ ط£ظˆ ط³ط¹ط±طں`;
-  if (intent === "human_support") return "طھظ…ط§ظ…طŒ ظ‡ط­ظˆظ‘ظ„ ط§ظ„ظ…ط­ط§ط¯ط«ط© ظ„ط­ط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ظٹط±ط§ط¬ط¹ ظ…ط¹ط§ظƒ ط§ظ„طھظپط§طµظٹظ„. ط§ط¨ط¹طھظ„ظٹ ط¨ط³ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط§ظ„ظ…ط´ظƒظ„ط© ط¨ط§ط®طھطµط§ط±.";
-  if (intent === "order_follow_up") return "ط£ظƒظٹط¯. ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ط§ظ„ظ…ط³ط¬ظ„ ط¹ظ„ظ‰ ط§ظ„ط·ظ„ط¨طŒ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ط­ط§ظ„ط©.";
-  if (!products.length) return "ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظˆط¯ظٹظ„ ط£ظˆ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬ ط£ظˆ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨طں ظ‡ط·ظ„ط¹ظ„ظƒ ط£ظ‚ط±ط¨ ط§ظ„ظ…طھط§ط­ ظ…ظ† ط§ظ„ظ…ط®ط²ظˆظ†.";
+  if (intent === "greeting") return `ط£ظ‡ظ„ط§ ${greeting}ظ†ظˆط±طھظ†ط§. طھط\u00adط¨ ط£ط³ط§ط¹ط¯ظƒ ظپظٹ ظ…ظˆط¯ظٹظ„ ظ…ط¹ظٹظ†طŒ ظ…ظ‚ط§ط³طŒ ظ„ظˆظ†طŒ ط£ظˆ ط³ط¹ط±طں`;
+  if (intent === "human_support") return "طھظ…ط§ظ…طŒ ظ‡ط\u00adظˆظ‘ظ„ ط§ظ„ظ…ط\u00adط§ط¯ط«ط© ظ„ط\u00adط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ظٹط±ط§ط¬ط¹ ظ…ط¹ط§ظƒ ط§ظ„طھظپط§طµظٹظ„. ط§ط¨ط¹طھظ„ظٹ ط¨ط³ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط§ظ„ظ…ط´ظƒظ„ط© ط¨ط§ط®طھطµط§ط±.";
+  if (intent === "order_follow_up") return "ط£ظƒظٹط¯. ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ط§ظ„ظ…ط³ط¬ظ„ ط¹ظ„ظ‰ ط§ظ„ط·ظ„ط¨طŒ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ط\u00adط§ظ„ط©.";
+  if (!products.length) return "ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظˆط¯ظٹظ„ ط£ظˆ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬ ط£ظˆ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨طں ظ‡ط·ظ„ط¹ظ„ظƒ ط£ظ‚ط±ط¨ ط§ظ„ظ…طھط§ط\u00ad ظ…ظ† ط§ظ„ظ…ط®ط²ظˆظ†.";
   if (["pricing_question", "availability", "size_color_request", "product_search"].includes(intent)) {
     return [
-      `${greeting}ط§ظ„ظ…طھط§ط­ ط¹ظ†ط¯ظ†ط§ ط­ط§ظ„ظٹط§:`,
+      `${greeting}ط§ظ„ظ…طھط§ط\u00ad ط¹ظ†ط¯ظ†ط§ ط\u00adط§ظ„ظٹط§:`,
       ...productLines,
       primary?.product_url ? `طھظ‚ط¯ط± طھط´ظˆظپ ط§ظ„طھظپط§طµظٹظ„ ظ…ظ† ظ‡ظ†ط§: ${primary.product_url}` : "",
-      "طھط­ط¨ ط£ط«ط¨طھظ„ظƒ ظ…ظ‚ط§ط³ ط£ظˆ ط£ط·ظ„ط¹ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ظ‚ط±ظٹط¨ط©طں",
+      "طھط\u00adط¨ ط£ط«ط¨طھظ„ظƒ ظ…ظ‚ط§ط³ ط£ظˆ ط£ط·ظ„ط¹ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ظ‚ط±ظٹط¨ط©طں",
     ].filter(Boolean).join("\n");
   }
   return [
@@ -4907,28 +4908,28 @@ const commerceReplyForIntent = (intent = "", productContext = null, detectedSize
     const sizes = Array.isArray(productContext.sizes) ? productContext.sizes.map((size) => String(size)) : [];
     if (detectedSize && sizes.length) {
       return sizes.includes(String(detectedSize))
-        ? `ط£ظٹظˆظ‡  ظ…ظ‚ط§ط³ ${detectedSize} ظ…طھط§ط­ ط­ط§ظ„ظٹط§ ظپظٹ ${productContext.name}.`
-        : `ظ„ظ„ط£ط³ظپ ظ…ظ‚ط§ط³ ${detectedSize} ظ…ط´ ط¸ط§ظ‡ط± ظ…طھط§ط­ ط­ط§ظ„ظٹط§ ظپظٹ ${productContext.name}.`;
+        ? `ط£ظٹظˆظ‡  ظ…ظ‚ط§ط³ ${detectedSize} ظ…طھط§ط\u00ad ط\u00adط§ظ„ظٹط§ ظپظٹ ${productContext.name}.`
+        : `ظ„ظ„ط£ط³ظپ ظ…ظ‚ط§ط³ ${detectedSize} ظ…ط´ ط¸ط§ظ‡ط± ظ…طھط§ط\u00ad ط\u00adط§ظ„ظٹط§ ظپظٹ ${productContext.name}.`;
     }
     if (intent === "PRICE_INQUIRY" && price) {
-      return `ط³ط¹ط± ${productContext.name} ط­ط§ظ„ظٹط§ ${price} ط¬ظ†ظٹظ‡ `;
+      return `ط³ط¹ط± ${productContext.name} ط\u00adط§ظ„ظٹط§ ${price} ط¬ظ†ظٹظ‡ `;
     }
     if (intent === "AVAILABILITY_INQUIRY") {
       return productContext.inStock
-        ? `ط£ظٹظˆظ‡  ${productContext.name} ظ…طھظˆظپط± ط­ط§ظ„ظٹط§.`
-        : `ظ„ظ„ط£ط³ظپ ${productContext.name} ط؛ظٹط± ظ…طھظˆظپط± ط­ط§ظ„ظٹط§.`;
+        ? `ط£ظٹظˆظ‡  ${productContext.name} ظ…طھظˆظپط± ط\u00adط§ظ„ظٹط§.`
+        : `ظ„ظ„ط£ط³ظپ ${productContext.name} ط؛ظٹط± ظ…طھظˆظپط± ط\u00adط§ظ„ظٹط§.`;
     }
     if (intent === "SIZE_INQUIRY" && productContext.sizes?.length) {
-      return `ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط­ط© ط­ط§ظ„ظٹط§ ظ„ظ€ ${productContext.name}: ${productContext.sizes.join(", ")} `;
+      return `ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط\u00adط© ط\u00adط§ظ„ظٹط§ ظ„ظ€ ${productContext.name}: ${productContext.sizes.join(", ")} `;
     }
   }
   switch (intent) {
     case "SIZE_INQUIRY":
       return "ط£ظƒظٹط¯  ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ„ظٹ ط¨طھظ„ط¨ط³ظ‡ ط¹ط§ط¯ط© ط£ظˆ ط·ظˆظ„ ط§ظ„ظ‚ط¯ظ… ظˆط£ظ†ط§ ط£ط³ط§ط¹ط¯ظƒ طھط®طھط§ط± ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ…ظ†ط§ط³ط¨.";
     case "PRICE_INQUIRY":
-      return "ط£ظƒظٹط¯  ظ‡ظ‚ظˆظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط­ط§ظ„ظٹ ظˆط§ظ„ظ…طھط§ط­ ط¯ظ„ظˆظ‚طھظٹ.";
+      return "ط£ظƒظٹط¯  ظ‡ظ‚ظˆظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط\u00adط§ظ„ظٹ ظˆط§ظ„ظ…طھط§ط\u00ad ط¯ظ„ظˆظ‚طھظٹ.";
     case "AVAILABILITY_INQUIRY":
-      return "ط«ط§ظ†ظٹط© ظˆط§ط­ط¯ط© ط£طھط£ظƒط¯ظ„ظƒ ظ…ظ† ط§ظ„طھظˆظپط± ط§ظ„ط­ط§ظ„ظٹ ظˆط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط­ط© ";
+      return "ط«ط§ظ†ظٹط© ظˆط§ط\u00adط¯ط© ط£طھط£ظƒط¯ظ„ظƒ ظ…ظ† ط§ظ„طھظˆظپط± ط§ظ„ط\u00adط§ظ„ظٹ ظˆط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط\u00adط© ";
     default:
       return "";
   }
@@ -4954,8 +4955,8 @@ const correctionTypeHintForIntent = ({ intent = "", salesIntent = "", message = 
   const normalizedMessage = lower(message);
   if (normalizedIntent.includes("size_color_request")) return "colors_basic";
   if (normalizedIntent.includes("price") || normalizedSalesIntent.includes("price") || /ط³ط¹ط±|price|cost/.test(normalizedMessage)) return "wrong_price";
-  if (normalizedIntent.includes("availability") || normalizedSalesIntent.includes("availability") || /ظ…ظˆط¬ظˆط¯|ظ…طھط§ط­|stock|availability/.test(normalizedMessage)) return "wrong_stock";
-  if (/(policy|return|exchange|shipping|delivery|cod|payment)/.test(normalizedIntent) || /(policy|return|exchange|shipping|delivery|cod|payment|ط´ط­ظ†|ط§ط³طھط¨ط¯ط§ظ„|ط§ط³طھط±ط¬ط§ط¹|ط¯ظپط¹)/.test(normalizedMessage)) return "wrong_policy";
+  if (normalizedIntent.includes("availability") || normalizedSalesIntent.includes("availability") || /ظ…ظˆط¬ظˆط¯|ظ…طھط§ط\u00ad|stock|availability/.test(normalizedMessage)) return "wrong_stock";
+  if (/(policy|return|exchange|shipping|delivery|cod|payment)/.test(normalizedIntent) || /(policy|return|exchange|shipping|delivery|cod|payment|ط´ط\u00adظ†|ط§ط³طھط¨ط¯ط§ظ„|ط§ط³طھط±ط¬ط§ط¹|ط¯ظپط¹)/.test(normalizedMessage)) return "wrong_policy";
   return "other";
 };
 
@@ -4964,7 +4965,7 @@ const SAFE_AUTO_REPLY_INTENTS = new Set(["greeting", "price_question", "size_fol
 const normalizeSafetyText = (value = "") =>
   lower(value)
     .normalize("NFKD")
-    .replace(/[\u064b-\u065f\u0670\u0640\u200c\u200d\u200e\u200f]/g, "")
+    .replace(/(?:\p{M}|\u0640|\u200c|\u200d|\u200e|\u200f)/gu, "")
     .replace(/\p{M}+/gu, "")
     .replace(/[أإآ]/g, "ا")
     .replace(/ى/g, "ي")
@@ -5012,22 +5013,22 @@ const shadowIntentProfile = (intent = "", salesIntent = "", message = "") => {
   if (/(order|tracking|order_status|order_follow_up|ط·آ§ط¸ث†ط·آ±ط·آ¯ط·آ±|ط·ع¾ط·ع¾ط·آ¨ط·آ¹)/.test(normalizedIntent) || /(order|tracking|ط·آ§ط¸ث†ط·آ±ط·آ¯ط·آ±|ط·ع¾ط·ع¾ط·آ¨ط·آ¹)/.test(normalizedMessage)) {
     return { minConfidence: 80, suppressMissingFacts: new Set() };
   }
-  if (/(price|cost|ط·آ³ط·آ¹ط·آ±|ط¸ئ’ط¸â€¦|ط·آ¨ط¸ئ’ط·آ§ط¸â€¦|ط·ط›ط·آ§ط¸â€‍ط¸ظ¹|ط·آ§ط·آ±ط·آ®ط·آµ)/.test(normalizedIntent) || /(price|cost|ط·آ³ط·آ¹ط·آ±|ط¸ئ’ط¸â€¦|ط·آ¨ط¸ئ’ط·آ§ط¸â€¦|ط·ط›ط·آ§ط¸â€‍ط¸ظ¹|ط·آ§ط·آ±ط·آ®ط·آµ)/.test(normalizedMessage)) {
+  if (/(price|cost|ط·آ³ط·آ¹ط·آ±|ط¸ئ’ط¸â€¦|ط·آ¨ط¸ئ’ط·آ§ط¸â€¦|ط·ط›ط·آ§ط¸â€\u200dط¸ظ¹|ط·آ§ط·آ±ط·آ®ط·آµ)/.test(normalizedIntent) || /(price|cost|ط·آ³ط·آ¹ط·آ±|ط¸ئ’ط¸â€¦|ط·آ¨ط¸ئ’ط·آ§ط¸â€¦|ط·ط›ط·آ§ط¸â€\u200dط¸ظ¹|ط·آ§ط·آ±ط·آ®ط·آµ)/.test(normalizedMessage)) {
     return INTENT_SHADOW_PROFILES.price_question;
   }
   if (/(size|ط¸â€¦ط¸â€ڑط·آ§ط·آ³|measure|fit)/.test(normalizedIntent) || /(size|ط¸â€¦ط¸â€ڑط·آ§ط·آ³)/.test(normalizedMessage)) {
     return INTENT_SHADOW_PROFILES.size_followup;
   }
-  if (/(availability|available|stock|ط¸â€¦ط·ع¾ط·آ§ط·آ­|ط¸â€¦ط¸ث†ط·آ¬ط¸ث†ط·آ¯|inventory)/.test(normalizedIntent) || /(availability|available|stock|ط¸â€¦ط·ع¾ط·آ§ط·آ­|ط¸â€¦ط¸ث†ط·آ¬ط¸ث†ط·آ¯)/.test(normalizedMessage)) {
+  if (/(availability|available|stock|ط¸â€¦ط·ع¾ط·آ§ط·آ\u00ad|ط¸â€¦ط¸ث†ط·آ¬ط¸ث†ط·آ¯|inventory)/.test(normalizedIntent) || /(availability|available|stock|ط¸â€¦ط·ع¾ط·آ§ط·آ\u00ad|ط¸â€¦ط¸ث†ط·آ¬ط¸ث†ط·آ¯)/.test(normalizedMessage)) {
     return INTENT_SHADOW_PROFILES.availability;
   }
-  if (/(shipping|delivery|ط·آ´ط·آ­ط¸â€ |ط·ع¾ط¸ث†ط·آµط¸ظ¹ط¸â€‍)/.test(normalizedIntent) || /(shipping|delivery|ط·آ´ط·آ­ط¸â€ |ط·ع¾ط¸ث†ط·آµط¸ظ¹ط¸â€‍)/.test(normalizedMessage)) {
+  if (/(shipping|delivery|ط·آ´ط·آ\u00adط¸â€\u00a0|ط·ع¾ط¸ث†ط·آµط¸ظ¹ط¸â€\u200d)/.test(normalizedIntent) || /(shipping|delivery|ط·آ´ط·آ\u00adط¸â€\u00a0|ط·ع¾ط¸ث†ط·آµط¸ظ¹ط¸â€\u200d)/.test(normalizedMessage)) {
     return INTENT_SHADOW_PROFILES.shipping_basic;
   }
-  if (/(return|exchange|policy|ط·آ§ط·آ³ط·ع¾ط·آ¨ط·آ¯ط·آ§ط¸â€‍|ط·آ§ط·آ³ط·ع¾ط·آ±ط·آ¬ط·آ§ط·آ¹)/.test(normalizedIntent) || /(return|exchange|policy|ط·آ§ط·آ³ط·ع¾ط·آ¨ط·آ¯ط·آ§ط¸â€‍|ط·آ§ط·آ³ط·ع¾ط·آ±ط·آ¬ط·آ§ط·آ¹)/.test(normalizedMessage)) {
+  if (/(return|exchange|policy|ط·آ§ط·آ³ط·ع¾ط·آ¨ط·آ¯ط·آ§ط¸â€\u200d|ط·آ§ط·آ³ط·ع¾ط·آ±ط·آ¬ط·آ§ط·آ¹)/.test(normalizedIntent) || /(return|exchange|policy|ط·آ§ط·آ³ط·ع¾ط·آ¨ط·آ¯ط·آ§ط¸â€\u200d|ط·آ§ط·آ³ط·ع¾ط·آ±ط·آ¬ط·آ§ط·آ¹)/.test(normalizedMessage)) {
     return INTENT_SHADOW_PROFILES.return_policy_basic;
   }
-  if (/(color|colors|colour|colours|ط¸â€‍ط¸ث†ط¸â€ |ط·آ§ط¸â€‍ط¸ث†ط·آ§ط¸â€ |ط·آ£ط¸â€‍ط¸ث†ط·آ§ط¸â€ )/.test(normalizedIntent) || /(color|colors|colour|colours|ط¸â€‍ط¸ث†ط¸â€ |ط·آ§ط¸â€‍ط¸ث†ط·آ§ط¸â€ |ط·آ£ط¸â€‍ط¸ث†ط·آ§ط¸â€ )/.test(normalizedMessage)) {
+  if (/(color|colors|colour|colours|ط¸â€\u200dط¸ث†ط¸â€\u00a0|ط·آ§ط¸â€\u200dط¸ث†ط·آ§ط¸â€\u00a0|ط·آ£ط¸â€\u200dط¸ث†ط·آ§ط¸â€\u00a0)/.test(normalizedIntent) || /(color|colors|colour|colours|ط¸â€\u200dط¸ث†ط¸â€\u00a0|ط·آ§ط¸â€\u200dط¸ث†ط·آ§ط¸â€\u00a0|ط·آ£ط¸â€\u200dط¸ث†ط·آ§ط¸â€\u00a0)/.test(normalizedMessage)) {
     return INTENT_SHADOW_PROFILES.colors_basic;
   }
   if (/(cod|cash on delivery|cash)/.test(normalizedIntent) || /(cod|cash on delivery|cash)/.test(normalizedMessage)) {
@@ -5036,7 +5037,7 @@ const shadowIntentProfile = (intent = "", salesIntent = "", message = "") => {
   if (/(payment|ط¯ظپط¹|ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…|ط·ط±ظ‚ ط§ظ„ط¯ظپط¹)/.test(normalizedIntent) || /(payment|ط¯ظپط¹|ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…|ط·ط±ظ‚ ط§ظ„ط¯ظپط¹)/.test(normalizedMessage)) {
     return INTENT_SHADOW_PROFILES.payment_basic;
   }
-  if (/(greeting|hello|hi|ط·آ³ط¸â€‍ط·آ§ط¸â€¦|ط·آ§ط¸â€،ط¸â€‍ط·آ§|ط·آ£ط¸â€،ط¸â€‍ط·آ§)/.test(normalizedIntent) || /^(hi|hello|ط·آ³ط¸â€‍ط·آ§ط¸â€¦|ط·آ§ط¸â€،ط¸â€‍ط·آ§|ط·آ£ط¸â€،ط¸â€‍ط·آ§)$/i.test(normalizedMessage)) {
+  if (/(greeting|hello|hi|ط·آ³ط¸â€\u200dط·آ§ط¸â€¦|ط·آ§ط¸â€،ط¸â€\u200dط·آ§|ط·آ£ط¸â€،ط¸â€\u200dط·آ§)/.test(normalizedIntent) || /^(hi|hello|ط·آ³ط¸â€\u200dط·آ§ط¸â€¦|ط·آ§ط¸â€،ط¸â€\u200dط·آ§|ط·آ£ط¸â€،ط¸â€\u200dط·آ§)$/i.test(normalizedMessage)) {
     return INTENT_SHADOW_PROFILES.greeting;
   }
   return { minConfidence: 80, suppressMissingFacts: new Set() };
@@ -5049,8 +5050,8 @@ const normalizeShadowIntent = ({ intent = "", salesIntent = "", message = "" } =
   if (/greeting|hello|hi|ط³ظ„ط§ظ…|ط§ظ‡ظ„ط§|ط£ظ‡ظ„ط§/.test(normalizedIntent) || /^(hi|hello|ط³ظ„ط§ظ…|ط§ظ‡ظ„ط§|ط£ظ‡ظ„ط§)$/i.test(normalizedMessage)) return "greeting";
   if (/price|cost|ظƒظ…|ط¨ظƒط§ظ…|ط³ط¹ط±|ط؛ط§ظ„ظٹ|ط§ط±ط®طµ|objection/.test(normalizedIntent) || /price|cost|ظƒظ…|ط¨ظƒط§ظ…|ط³ط¹ط±|ط؛ط§ظ„ظٹ|ط§ط±ط®طµ/.test(normalizedMessage)) return "price_question";
   if (/size|ظ…ظ‚ط§ط³|measure|fit|size_check|size_followup/.test(normalizedIntent) || /size|ظ…ظ‚ط§ط³/.test(normalizedMessage)) return "size_followup";
-  if (/availability|available|stock|ظ…طھط§ط­|ظ…ظˆط¬ظˆط¯|inventory/.test(normalizedIntent) || /availability|available|stock|ظ…طھط§ط­|ظ…ظˆط¬ظˆط¯/.test(normalizedMessage)) return "availability";
-  if (/shipping|delivery|ط´ط­ظ†|طھظˆطµظٹظ„/.test(normalizedIntent) || /shipping|delivery|ط´ط­ظ†|طھظˆطµظٹظ„/.test(normalizedMessage)) return "shipping_basic";
+  if (/availability|available|stock|ظ…طھط§ط\u00ad|ظ…ظˆط¬ظˆط¯|inventory/.test(normalizedIntent) || /availability|available|stock|ظ…طھط§ط\u00ad|ظ…ظˆط¬ظˆط¯/.test(normalizedMessage)) return "availability";
+  if (/shipping|delivery|ط´ط\u00adظ†|طھظˆطµظٹظ„/.test(normalizedIntent) || /shipping|delivery|ط´ط\u00adظ†|طھظˆطµظٹظ„/.test(normalizedMessage)) return "shipping_basic";
   if (/return|exchange|policy|ط§ط³طھط¨ط¯ط§ظ„|ط§ط³طھط±ط¬ط§ط¹/.test(normalizedIntent) || /return|exchange|policy|ط§ط³طھط¨ط¯ط§ظ„|ط§ط³طھط±ط¬ط§ط¹/.test(normalizedMessage)) return "return_policy_basic";
   if (/color|colors|colour|colours|ظ„ظˆظ†|ط§ظ„ظˆط§ظ†|ط£ظ„ظˆط§ظ†/.test(normalizedIntent) || /color|colors|colour|colours|ظ„ظˆظ†|ط§ظ„ظˆط§ظ†|ط£ظ„ظˆط§ظ†/.test(normalizedMessage)) return "colors_basic";
   if (/cod|cash on delivery|cash/.test(normalizedIntent) || /cod|cash on delivery|cash/.test(normalizedMessage)) return "cod_basic";
@@ -5311,7 +5312,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   });
   const guarded = guardAIReply({
     reply: escalation.shouldEscalate
-      ? "ظˆط§ط¶ط­ ط¥ظ† ظپظٹظ‡ ظ…ط´ظƒظ„ط© ظ…ط­طھط§ط¬ط© ظ…طھط§ط¨ط¹ط© ظ…ظ† ط£ط­ط¯ ط£ظپط±ط§ط¯ ط§ظ„ظپط±ظٹظ‚. ظ‡ط­ظˆظ‘ظ„ ط§ظ„ظ…ط­ط§ط¯ط«ط© ظ„ظ…ظˆط¸ظپ ظٹط³ط§ط¹ط¯ظƒ ظپظˆط±ظ‹ط§ "
+      ? "ظˆط§ط¶ط\u00ad ط¥ظ† ظپظٹظ‡ ظ…ط´ظƒظ„ط© ظ…ط\u00adطھط§ط¬ط© ظ…طھط§ط¨ط¹ط© ظ…ظ† ط£ط\u00adط¯ ط£ظپط±ط§ط¯ ط§ظ„ظپط±ظٹظ‚. ظ‡ط\u00adظˆظ‘ظ„ ط§ظ„ظ…ط\u00adط§ط¯ط«ط© ظ„ظ…ظˆط¸ظپ ظٹط³ط§ط¹ط¯ظƒ ظپظˆط±ظ‹ط§ "
       : humanizedReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) || buildArabicAiSalesAnswer({ intent: salesIntent, products: recommendations.products, conversation }),
     intent,
     productContext,
@@ -5682,8 +5683,8 @@ const productLineAr = (product = {}) => {
   const price = realProductPrice(product);
   const stock = stockCount(product);
   if (!name) return "";
-  const pricePart = price > 0 ? `ط³ط¹ط±ظ‡ ${price} ط¬ظ†ظٹظ‡` : "ط§ظ„ط³ط¹ط± ظ…ط­طھط§ط¬ ظٹطھط£ظƒط¯ ظ…ظ† ط§ظ„ظ…ظ†طھط¬";
-  const stockPart = stock > 0 ? "ظˆظ…طھط§ط­ ط­ط§ظ„ظٹط§" : "ظˆظ…ط´ ط¸ط§ظ‡ط± ظ…طھط§ط­ ط­ط§ظ„ظٹط§";
+  const pricePart = price > 0 ? `ط³ط¹ط±ظ‡ ${price} ط¬ظ†ظٹظ‡` : "ط§ظ„ط³ط¹ط± ظ…ط\u00adطھط§ط¬ ظٹطھط£ظƒط¯ ظ…ظ† ط§ظ„ظ…ظ†طھط¬";
+  const stockPart = stock > 0 ? "ظˆظ…طھط§ط\u00ad ط\u00adط§ظ„ظٹط§" : "ظˆظ…ط´ ط¸ط§ظ‡ط± ظ…طھط§ط\u00ad ط\u00adط§ظ„ظٹط§";
   return `${name} ${pricePart} ${stockPart}`;
 };
 
@@ -5693,9 +5694,9 @@ const draftLineAr = (draft = {}) => {
   const price = numeric(item.price || item.sale_price || draft.total_amount || draft.total, 0);
   const stockStatus = text(item.stock_status || draft.ai_agent_metadata?.stock_status);
   return [
-    productName ? `ط§ظ„ظ…ط³ظˆط¯ط© ط¹ظ„ظ‰ ${productName}` : "ظپظٹظ‡ ظ…ط³ظˆط¯ط© ط£ظˆط±ط¯ط± ظ…ظپطھظˆط­ط©",
+    productName ? `ط§ظ„ظ…ط³ظˆط¯ط© ط¹ظ„ظ‰ ${productName}` : "ظپظٹظ‡ ظ…ط³ظˆط¯ط© ط£ظˆط±ط¯ط± ظ…ظپطھظˆط\u00adط©",
     price > 0 ? `ط¨ط³ط¹ط± ${price} ط¬ظ†ظٹظ‡` : "",
-    stockStatus === "stock_conflict" ? "ط¨ط³ ط§ظ„ظ…ط®ط²ظˆظ† ظ…ط­طھط§ط¬ ظ…ط±ط§ط¬ط¹ط© ظ‚ط¨ظ„ ط§ظ„طھط£ظƒظٹط¯" : "",
+    stockStatus === "stock_conflict" ? "ط¨ط³ ط§ظ„ظ…ط®ط²ظˆظ† ظ…ط\u00adطھط§ط¬ ظ…ط±ط§ط¬ط¹ط© ظ‚ط¨ظ„ ط§ظ„طھط£ظƒظٹط¯" : "",
   ].filter(Boolean).join(" ");
 };
 
@@ -5703,7 +5704,7 @@ const detectSuggestedReplyIntent = ({ message = "", conversation = {}, products 
   const normalized = lower(message);
   if (conversation.customer_sentiment === "negative" || ["ط²ط¹ظ„ط§ظ†", "ظ…ط´ظƒظ„ط©", "ط´ظƒظˆظ‰", "ط§طھط£ط®ط±", "ط؛ظ„ط·"].some((term) => normalized.includes(term))) return "apologize";
   if (["ط؛ط§ظ„ظٹ", "ط®طµظ…", "ط§ط®ط± ط³ط¹ط±", "ط¢ط®ط± ط³ط¹ط±", "expensive", "discount"].some((term) => normalized.includes(lower(term)))) return "handle_objection";
-  if (drafts.length || ["ط§ط´طھط±ظٹ", "ط§ط·ظ„ط¨", "ط§ظˆط±ط¯ط±", "ط£ظˆط±ط¯ط±", "ظ‡ط§ط®ط¯ظ‡", "ط§ط­ط¬ط²"].some((term) => normalized.includes(lower(term)))) return "close_sale";
+  if (drafts.length || ["ط§ط´طھط±ظٹ", "ط§ط·ظ„ط¨", "ط§ظˆط±ط¯ط±", "ط£ظˆط±ط¯ط±", "ظ‡ط§ط®ط¯ظ‡", "ط§ط\u00adط¬ط²"].some((term) => normalized.includes(lower(term)))) return "close_sale";
   if (!products.length || ["ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "ط±ظ‚ظ…", "ط¹ظ†ظˆط§ظ†", "ظ…ظ†ط·ظ‚ط©"].some((term) => normalized.includes(lower(term)))) return "ask_missing_info";
   if (conversation.conversation_status === "human_takeover") return "handoff_note";
   return "answer_question";
@@ -5713,8 +5714,8 @@ const buildMissingInfoReply = ({ products = [], profile = {} } = {}) => {
   const product = products.find((item) => stockCount(item) > 0) || products[0] || null;
   if (!product) return "ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظˆط¯ظٹظ„ ط£ظˆ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬ ط§ظ„ظ„ظٹ طھظ‚طµط¯ظ‡طŒ ظˆظ…ط¹ط§ظ‡ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨طں";
   const missingSize = !text(profile.preferred_size);
-  if (missingSize) return `طھظ…ط§ظ…طŒ ${productLineAr(product)}. طھط­ط¨ ط£ظ†ظ‡ظٹ ظ…ظ‚ط§ط³ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ط¸ط¨ط؟`;
-  return `طھظ…ط§ظ…طŒ ${productLineAr(product)}. طھط­ط¨ ط£ظ†ظ‡ظٹ ظ„ظˆظ† ط£ظˆ ظپط§ط±ظٹط§ظ†طھ ط¹ط´ط§ظ† ظ†ط£ظƒط¯ ط§ظ„ظ…طھط§ط­ ظ‚ط¨ظ„ ط§ظ„طھط³ط¬ظٹظ„طں`;
+  if (missingSize) return `طھظ…ط§ظ…طŒ ${productLineAr(product)}. طھط\u00adط¨ ط£ظ†ظ‡ظٹ ظ…ظ‚ط§ط³ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط\u00ad ط¨ط§ظ„ط¸ط¨ط؟`;
+  return `طھظ…ط§ظ…طŒ ${productLineAr(product)}. طھط\u00adط¨ ط£ظ†ظ‡ظٹ ظ„ظˆظ† ط£ظˆ ظپط§ط±ظٹط§ظ†طھ ط¹ط´ط§ظ† ظ†ط£ظƒط¯ ط§ظ„ظ…طھط§ط\u00ad ظ‚ط¨ظ„ ط§ظ„طھط³ط¬ظٹظ„طں`;
 };
 
 const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS } = {}) => {
@@ -5736,26 +5737,26 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
       intent,
       confidence: 0.82,
       suggestions: [
-        "ط­ظ‚ظƒ ط¹ظ„ظٹط§طŒ ط®ظ„ظٹظ†ظٹ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظˆط¶ظˆط¹ ط®ط·ظˆط© ط¨ط®ط·ظˆط© ظˆظ†ط­ظ„ظ‡ط§ ط¨ط£ط³ط±ط¹ ط´ظƒظ„. ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ط£ظˆط±ط¯ط± ط£ظˆ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„طں",
-        "ظ…طھط£ط³ظپظٹظ† ط¹ظ„ظ‰ ط§ظ„ظ„ظٹ ط­طµظ„. ط§ط¨ط¹طھظ„ظٹ طھظپط§طµظٹظ„ ط§ظ„ظ…ط´ظƒظ„ط© ظˆط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ظˆط£ظ†ط§ ظ‡طھط§ط¨ط¹ظ‡ط§ ظ…ط¹ ط§ظ„ظپط±ظٹظ‚ ط­ط§ظ„ط§.",
-        "طھظ…ط§ظ…طŒ ط£ظ†ط§ ظ…ط¹ط§ظƒ ظ„ط­ط¯ ظ…ط§ ظ†ط­ظ„ظ‡ط§. ظ…ط­طھط§ط¬ ط¨ط³ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ط­ط§ظ„ط© ط¨ط¯ظ‚ط©.",
+        "ط\u00adظ‚ظƒ ط¹ظ„ظٹط§طŒ ط®ظ„ظٹظ†ظٹ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظˆط¶ظˆط¹ ط®ط·ظˆط© ط¨ط®ط·ظˆط© ظˆظ†ط\u00adظ„ظ‡ط§ ط¨ط£ط³ط±ط¹ ط´ظƒظ„. ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ط£ظˆط±ط¯ط± ط£ظˆ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„طں",
+        "ظ…طھط£ط³ظپظٹظ† ط¹ظ„ظ‰ ط§ظ„ظ„ظٹ ط\u00adطµظ„. ط§ط¨ط¹طھظ„ظٹ طھظپط§طµظٹظ„ ط§ظ„ظ…ط´ظƒظ„ط© ظˆط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ظˆط£ظ†ط§ ظ‡طھط§ط¨ط¹ظ‡ط§ ظ…ط¹ ط§ظ„ظپط±ظٹظ‚ ط\u00adط§ظ„ط§.",
+        "طھظ…ط§ظ…طŒ ط£ظ†ط§ ظ…ط¹ط§ظƒ ظ„ط\u00adط¯ ظ…ط§ ظ†ط\u00adظ„ظ‡ط§. ظ…ط\u00adطھط§ط¬ ط¨ط³ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ط\u00adط§ظ„ط© ط¨ط¯ظ‚ط©.",
       ],
     };
   }
 
   if (intent === "handle_objection") {
     const priceReply = primaryLine
-      ? `ظپط§ظ‡ظ…ظƒطŒ ${primaryLine}. ط§ظ„ط³ط¹ط± ط¯ظ‡ ظ‡ظˆ ط§ظ„ط³ط¹ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ط§ظ„ط¸ط§ظ‡ط± ط¹ظ†ط¯ظ†ط§ ط­ط§ظ„ظٹط§طŒ ظˆظ…ظ‚ط¯ط±ط´ ط£ظˆط¹ط¯ ط¨ط®طµظ… ط؛ظٹط± ظ„ظ…ط§ ظٹطھط£ظƒط¯ ظ…ظ† ط§ظ„ط¥ط¯ط§ط±ط©. طھط­ط¨ ط£ط±ط´ط­ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµطں`
-      : "ظپط§ظ‡ظ…ظƒطŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظˆط¯ظٹظ„ ط§ظ„ظ„ظٹ طھظ‚طµط¯ظ‡ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ظˆط£ظ‚ظˆظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµ ظ…طھط§ط­ط©.";
+      ? `ظپط§ظ‡ظ…ظƒطŒ ${primaryLine}. ط§ظ„ط³ط¹ط± ط¯ظ‡ ظ‡ظˆ ط§ظ„ط³ط¹ط± ط§ظ„ط\u00adظ‚ظٹظ‚ظٹ ط§ظ„ط¸ط§ظ‡ط± ط¹ظ†ط¯ظ†ط§ ط\u00adط§ظ„ظٹط§طŒ ظˆظ…ظ‚ط¯ط±ط´ ط£ظˆط¹ط¯ ط¨ط®طµظ… ط؛ظٹط± ظ„ظ…ط§ ظٹطھط£ظƒط¯ ظ…ظ† ط§ظ„ط¥ط¯ط§ط±ط©. طھط\u00adط¨ ط£ط±ط´ط\u00adظ„ظƒ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµطں`
+      : "ظپط§ظ‡ظ…ظƒطŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظˆط¯ظٹظ„ ط§ظ„ظ„ظٹ طھظ‚طµط¯ظ‡ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط\u00adظ‚ظٹظ‚ظٹ ظˆط£ظ‚ظˆظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµ ظ…طھط§ط\u00adط©.";
     return {
       intent,
       confidence: primaryProduct ? 0.8 : 0.6,
       suggestions: [
         canDiscount && primaryLine
-          ? `ظپط§ظ‡ظ…ظƒطŒ ${primaryLine}. ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¹ط±ط¶ ط£ظˆ ط®طµظ… ظ…طھط§ط­ ظ‚ط¨ظ„ ظ…ط§ ظ†ط£ظƒط¯ ط§ظ„ط£ظˆط±ط¯ط±.`
+          ? `ظپط§ظ‡ظ…ظƒطŒ ${primaryLine}. ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¹ط±ط¶ ط£ظˆ ط®طµظ… ظ…طھط§ط\u00ad ظ‚ط¨ظ„ ظ…ط§ ظ†ط£ظƒط¯ ط§ظ„ط£ظˆط±ط¯ط±.`
           : priceReply,
-        "ظ„ظˆ ط§ظ„ط³ط¹ط± ط£ط¹ظ„ظ‰ ظ…ظ† ط§ظ„ظ…ظٹط²ط§ظ†ظٹط©طŒ ظ‚ظˆظ„ظ‘ظٹ ط§ظ„ط±ظٹظ†ط¬ ط§ظ„ظ…ظ†ط§ط³ط¨ ظˆط£ظ†ط§ ط£ط·ظ„ط¹ظ„ظƒ ط£ظ‚ط±ط¨ ط¨ط¯ط§ط¦ظ„ ظ…طھط§ط­ط© ط¨ط³ط¹ط± ط£ظ‚ظ„.",
-        primaryLine ? `ط§ظ„ظ…ظˆط¯ظٹظ„ ط¯ظ‡ ظ‚ظٹظ…طھظ‡ ظپظٹ ط®ط§ظ…طھظ‡ ظˆط´ظƒظ„ظ‡طŒ ط¨ط³ ظ„ظˆ ط¹ط§ظٹط² ط­ط§ط¬ط© ط§ظ‚طھطµط§ط¯ظٹط© ط£ظƒطھط± ط£ظ‚ط¯ط± ط£ظˆط±ظٹظƒ ط§ط®طھظٹط§ط±ط§طھ ظ‚ط±ظٹط¨ط©.` : "ط­ط¯ط¯ظ„ظٹ ط§ظ„ط´ظƒظ„ ط£ظˆ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬طŒ ظˆط£ظ†ط§ ط£ط±ط´ط­ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ظ…ظ†ط§ط³ط¨ط© ظ„ظ„ظ…ظٹط²ط§ظ†ظٹط©.",
+        "ظ„ظˆ ط§ظ„ط³ط¹ط± ط£ط¹ظ„ظ‰ ظ…ظ† ط§ظ„ظ…ظٹط²ط§ظ†ظٹط©طŒ ظ‚ظˆظ„ظ‘ظٹ ط§ظ„ط±ظٹظ†ط¬ ط§ظ„ظ…ظ†ط§ط³ط¨ ظˆط£ظ†ط§ ط£ط·ظ„ط¹ظ„ظƒ ط£ظ‚ط±ط¨ ط¨ط¯ط§ط¦ظ„ ظ…طھط§ط\u00adط© ط¨ط³ط¹ط± ط£ظ‚ظ„.",
+        primaryLine ? `ط§ظ„ظ…ظˆط¯ظٹظ„ ط¯ظ‡ ظ‚ظٹظ…طھظ‡ ظپظٹ ط®ط§ظ…طھظ‡ ظˆط´ظƒظ„ظ‡طŒ ط¨ط³ ظ„ظˆ ط¹ط§ظٹط² ط\u00adط§ط¬ط© ط§ظ‚طھطµط§ط¯ظٹط© ط£ظƒطھط± ط£ظ‚ط¯ط± ط£ظˆط±ظٹظƒ ط§ط®طھظٹط§ط±ط§طھ ظ‚ط±ظٹط¨ط©.` : "ط\u00adط¯ط¯ظ„ظٹ ط§ظ„ط´ظƒظ„ ط£ظˆ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬طŒ ظˆط£ظ†ط§ ط£ط±ط´ط\u00adظ„ظƒ ط¨ط¯ط§ط¦ظ„ ظ…ظ†ط§ط³ط¨ط© ظ„ظ„ظ…ظٹط²ط§ظ†ظٹط©.",
       ],
     };
   }
@@ -5765,8 +5766,8 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
       intent,
       confidence: drafts.length ? 0.86 : 0.72,
       suggestions: [
-        draftLine ? `${draftLine}. طھط­ط¨ ط£ط£ظƒط¯ظ„ظƒ ط§ظ„ط¨ظٹط§ظ†ط§طھ ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„طں` : "طھظ…ط§ظ…طŒ ط¹ط´ط§ظ† ط£ط³ط¬ظ„ ط§ظ„ط·ظ„ط¨ ظ…ط­طھط§ط¬ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظˆط§ظ„ظ…ظ‚ط§ط³/ط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨.",
-        "ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ظ…ظ†ط·ظ‚ط©طŒ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط­ ظˆط§ظ„ط³ط¹ط± ط§ظ„ظ†ظ‡ط§ط¦ظٹ ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.",
+        draftLine ? `${draftLine}. طھط\u00adط¨ ط£ط£ظƒط¯ظ„ظƒ ط§ظ„ط¨ظٹط§ظ†ط§طھ ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„طں` : "طھظ…ط§ظ…طŒ ط¹ط´ط§ظ† ط£ط³ط¬ظ„ ط§ظ„ط·ظ„ط¨ ظ…ط\u00adطھط§ط¬ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظˆط§ظ„ظ…ظ‚ط§ط³/ط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨.",
+        "ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ظ…ظ†ط·ظ‚ط©طŒ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط\u00ad ظˆط§ظ„ط³ط¹ط± ط§ظ„ظ†ظ‡ط§ط¦ظٹ ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.",
         primaryLine ? `${primaryLine}. ظ„ظˆ ظ…ظ†ط§ط³ط¨ظƒطŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظˆظ†ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨.` : "طھظ…ط§ظ…طŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ†طھط¬ ط§ظ„ظ…ط·ظ„ظˆط¨ ظ…ط¹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ظˆظ†ظƒظ…ظ„ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط·ظ„ط¨.",
       ],
     };
@@ -5778,8 +5779,8 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
       confidence: primaryProduct ? 0.7 : 0.55,
       suggestions: [
         buildMissingInfoReply({ products, profile }),
-        "ظ…ظ…ظƒظ† طھط­ط¯ط¯ظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ„ظٹ ظ…ط­طھط§ط¬ظ‡طں ظ‡ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط­ ظˆط§ظ„ط³ط¹ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ظ‚ط¨ظ„ ط£ظٹ طھط£ظƒظٹط¯.",
-        lastAi ? "ط®ظ„ظٹظ†ط§ ظ†ط£ظƒط¯ ط§ظ„طھظپط§طµظٹظ„ ط§ظ„ط£ظˆظ„: ط§ظ„ظ…ظ‚ط§ط³طŒ ط§ظ„ظ„ظˆظ†طŒ ظˆط§ظ„ظ…ظ†ط·ظ‚ط© ط¹ط´ط§ظ† ط£ظ‚ط¯ط± ط£ط±ط¯ ط¹ظ„ظٹظƒ ط¨ط¯ظ‚ط©." : "ط§ط¨ط¹طھظ„ظٹ طھظپط§طµظٹظ„ ط£ظƒطھط± ط¹ظ† ط§ظ„ظ…ظ†طھط¬ ط§ظ„ظ…ط·ظ„ظˆط¨ ط£ظˆ طµظˆط±ط© ظ„ظ‡طŒ ظˆط£ظ†ط§ ط£ط·ظ„ط¹ظ„ظƒ ط§ظ„ط£ظ‚ط±ط¨ ظ…ظ† ط§ظ„ظ…طھط§ط­.",
+        "ظ…ظ…ظƒظ† طھط\u00adط¯ط¯ظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ„ظٹ ظ…ط\u00adطھط§ط¬ظ‡طں ظ‡ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط\u00ad ظˆط§ظ„ط³ط¹ط± ط§ظ„ط\u00adظ‚ظٹظ‚ظٹ ظ‚ط¨ظ„ ط£ظٹ طھط£ظƒظٹط¯.",
+        lastAi ? "ط®ظ„ظٹظ†ط§ ظ†ط£ظƒط¯ ط§ظ„طھظپط§طµظٹظ„ ط§ظ„ط£ظˆظ„: ط§ظ„ظ…ظ‚ط§ط³طŒ ط§ظ„ظ„ظˆظ†طŒ ظˆط§ظ„ظ…ظ†ط·ظ‚ط© ط¹ط´ط§ظ† ط£ظ‚ط¯ط± ط£ط±ط¯ ط¹ظ„ظٹظƒ ط¨ط¯ظ‚ط©." : "ط§ط¨ط¹طھظ„ظٹ طھظپط§طµظٹظ„ ط£ظƒطھط± ط¹ظ† ط§ظ„ظ…ظ†طھط¬ ط§ظ„ظ…ط·ظ„ظˆط¨ ط£ظˆ طµظˆط±ط© ظ„ظ‡طŒ ظˆط£ظ†ط§ ط£ط·ظ„ط¹ظ„ظƒ ط§ظ„ط£ظ‚ط±ط¨ ظ…ظ† ط§ظ„ظ…طھط§ط\u00ad.",
       ],
     };
   }
@@ -5789,9 +5790,9 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
       intent,
       confidence: 0.72,
       suggestions: [
-        "ط£ظ†ط§ ظ…ط¹ط§ظƒ ط¯ظ„ظˆظ‚طھظٹ ط¨ط¯ظ„ ط§ظ„ط±ط¯ ط§ظ„ط¢ظ„ظٹ. ظ‚ظˆظ„ظ‘ظٹ ظ…ط­طھط§ط¬ ظ†ط±ط§ط¬ط¹ ط¥ظٹظ‡ ط¨ط§ظ„ط¸ط¨ط· ظˆط£ظ†ط§ ط£طھط§ط¨ط¹ظ‡ط§ ظ…ط¹ط§ظƒ.",
-        primaryLine ? `ط±ط§ط¬ط¹طھ ط§ظ„ظ…ط­ط§ط¯ط«ط©طŒ ${primaryLine}. طھط­ط¨ ط£ظƒظ…ظ„ظƒ ط¹ظ„ظ‰ ظ†ظپط³ ط§ظ„ظ…ظ†طھط¬ ظˆظ„ط§ طھط´ظˆظپ ط¨ط¯ط§ط¦ظ„طں` : "ط±ط§ط¬ط¹طھ ط§ظ„ظ…ط­ط§ط¯ط«ط©طŒ ظ…ط­طھط§ط¬ ظ…ظ†ظƒ ط¨ط³ طھظˆط¶ط­ ط§ظ„ظ…ظ†طھط¬ ط£ظˆ ط§ظ„ط·ظ„ط¨ ط§ظ„ظ„ظٹ ظ†ظƒظ…ظ„ ط¹ظ„ظٹظ‡.",
-        "طھظ…ط§ظ…طŒ ظ‡ظƒظ…ظ„ ظ…ط¹ط§ظƒ ظٹط¯ظˆظٹ. ظ„ظˆ ظپظٹظ‡ ظ…ظ‚ط§ط³ ط£ظˆ ظ„ظˆظ† ظ…ط¹ظٹظ† ط§ط¨ط¹طھظ‡ظˆظ„ظٹ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط­.",
+        "ط£ظ†ط§ ظ…ط¹ط§ظƒ ط¯ظ„ظˆظ‚طھظٹ ط¨ط¯ظ„ ط§ظ„ط±ط¯ ط§ظ„ط¢ظ„ظٹ. ظ‚ظˆظ„ظ‘ظٹ ظ…ط\u00adطھط§ط¬ ظ†ط±ط§ط¬ط¹ ط¥ظٹظ‡ ط¨ط§ظ„ط¸ط¨ط· ظˆط£ظ†ط§ ط£طھط§ط¨ط¹ظ‡ط§ ظ…ط¹ط§ظƒ.",
+        primaryLine ? `ط±ط§ط¬ط¹طھ ط§ظ„ظ…ط\u00adط§ط¯ط«ط©طŒ ${primaryLine}. طھط\u00adط¨ ط£ظƒظ…ظ„ظƒ ط¹ظ„ظ‰ ظ†ظپط³ ط§ظ„ظ…ظ†طھط¬ ظˆظ„ط§ طھط´ظˆظپ ط¨ط¯ط§ط¦ظ„طں` : "ط±ط§ط¬ط¹طھ ط§ظ„ظ…ط\u00adط§ط¯ط«ط©طŒ ظ…ط\u00adطھط§ط¬ ظ…ظ†ظƒ ط¨ط³ طھظˆط¶ط\u00ad ط§ظ„ظ…ظ†طھط¬ ط£ظˆ ط§ظ„ط·ظ„ط¨ ط§ظ„ظ„ظٹ ظ†ظƒظ…ظ„ ط¹ظ„ظٹظ‡.",
+        "طھظ…ط§ظ…طŒ ظ‡ظƒظ…ظ„ ظ…ط¹ط§ظƒ ظٹط¯ظˆظٹ. ظ„ظˆ ظپظٹظ‡ ظ…ظ‚ط§ط³ ط£ظˆ ظ„ظˆظ† ظ…ط¹ظٹظ† ط§ط¨ط¹طھظ‡ظˆظ„ظٹ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط\u00ad.",
       ],
     };
   }
@@ -5800,9 +5801,9 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
     intent,
     confidence: primaryProduct ? 0.76 : 0.58,
     suggestions: [
-      primaryLine ? `${primaryLine}. طھط­ط¨ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ظˆط§ظ„ط£ظ„ظˆط§ظ† ط§ظ„ظ…طھط§ط­ط© ظ…ظ†ظ‡طں` : "ظ…ظ…ظƒظ† طھظˆط¶ط­ظ„ظٹ ط§ظ„ظ…ظ†طھط¬ ط£ظˆ طھط¨ط¹طھ طµظˆط±طھظ‡ ط¹ط´ط§ظ† ط£ط±ط¯ ط¹ظ„ظٹظƒ ط¨ط¯ظ‚ط©طں",
-      "طھظ…ط§ظ…طŒ ط£ظ‚ط¯ط± ط£ط³ط§ط¹ط¯ظƒ. ظ…ط­طھط§ط¬ ط£ط¹ط±ظپ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط£ظˆ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ط§ظ„ظ„ظٹ ط¨طھط¯ظˆط± ط¹ظ„ظٹظ‡ط§.",
-      stockedProducts[1] ? `ظƒظ…ط§ظ† ظپظٹظ‡ ط¨ط¯ظٹظ„ ظ…طھط§ط­: ${productLineAr(stockedProducts[1])}. طھط­ط¨ ط£ظ‚ط§ط±ظ†ظ‡ظ… ظ„ظƒطں` : "ظ„ظˆ طھط­ط¨طŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ظˆط§ظ„ظ…ظ‚ط§ط³ ظˆط£ظ†ط§ ط£ط±ط´ط­ظ„ظƒ ط£ظپط¶ظ„ ط§ظ„ظ…طھط§ط­.",
+      primaryLine ? `${primaryLine}. طھط\u00adط¨ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ظˆط§ظ„ط£ظ„ظˆط§ظ† ط§ظ„ظ…طھط§ط\u00adط© ظ…ظ†ظ‡طں` : "ظ…ظ…ظƒظ† طھظˆط¶ط\u00adظ„ظٹ ط§ظ„ظ…ظ†طھط¬ ط£ظˆ طھط¨ط¹طھ طµظˆط±طھظ‡ ط¹ط´ط§ظ† ط£ط±ط¯ ط¹ظ„ظٹظƒ ط¨ط¯ظ‚ط©طں",
+      "طھظ…ط§ظ…طŒ ط£ظ‚ط¯ط± ط£ط³ط§ط¹ط¯ظƒ. ظ…ط\u00adطھط§ط¬ ط£ط¹ط±ظپ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط£ظˆ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ط§ظ„ظ„ظٹ ط¨طھط¯ظˆط± ط¹ظ„ظٹظ‡ط§.",
+      stockedProducts[1] ? `ظƒظ…ط§ظ† ظپظٹظ‡ ط¨ط¯ظٹظ„ ظ…طھط§ط\u00ad: ${productLineAr(stockedProducts[1])}. طھط\u00adط¨ ط£ظ‚ط§ط±ظ†ظ‡ظ… ظ„ظƒطں` : "ظ„ظˆ طھط\u00adط¨طŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ظˆط§ظ„ظ…ظ‚ط§ط³ ظˆط£ظ†ط§ ط£ط±ط´ط\u00adظ„ظƒ ط£ظپط¶ظ„ ط§ظ„ظ…طھط§ط\u00ad.",
     ],
   };
 };

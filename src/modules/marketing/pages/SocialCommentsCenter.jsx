@@ -283,6 +283,7 @@ function SocialCommentsCenter() {
         customerName: clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || ""),
     },
   });
+  }, []);
 
 const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   clean(left.id) === clean(right.id) &&
@@ -306,7 +307,6 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   clean(left.product_id) === clean(right.product_id) &&
   clean(left.product_name) === clean(right.product_name) &&
   Boolean(left.unread) === Boolean(right.unread);
-  }, []);
 
   const selectedPostIdentity = useMemo(() => socialPostIdentity(selectedPost || {}), [selectedPost]);
   const routeSelection = useMemo(

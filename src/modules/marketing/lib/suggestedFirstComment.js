@@ -43,7 +43,7 @@ const localizeColor = (value) => {
   if (!clean) return "";
   const arabic = clean.match(/[\u0600-\u06ff]+/);
   if (arabic) return arabic[0];
-  const normalized = clean.toLowerCase().replace(/[(){}\[\]]/g, " ").replace(/[_\-/]+/g, " ").replace(/\s+/g, " ").trim();
+  const normalized = clean.toLowerCase().replace(/[(){}]|\[|\]/g, " ").replace(/[_/-]+/g, " ").replace(/\s+/g, " ").trim();
   return COLOR_NAMES[normalized] || COLOR_NAMES[normalized.replace(/\s+/g, "")] || COLOR_NAMES[normalized.split(" ")[0]] || clean;
 };
 const fullUrl = (value) => {

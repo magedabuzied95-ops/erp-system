@@ -906,8 +906,8 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`
         UPDATE ai_support_sessions
         SET session_id = CASE
-          WHEN NULLIF(regexp_replace(regexp_replace(lower(session_id), '^whatsapp:', ''), '\D', '', 'g'), '') IS NOT NULL
-            THEN 'whatsapp:' || NULLIF(regexp_replace(regexp_replace(lower(session_id), '^whatsapp:', ''), '\D', '', 'g'), '')
+          WHEN NULLIF(regexp_replace(regexp_replace(lower(session_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+            THEN 'whatsapp:' || NULLIF(regexp_replace(regexp_replace(lower(session_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '')
           ELSE session_id
         END
         WHERE lower(channel) = 'whatsapp'
@@ -917,8 +917,8 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`
         UPDATE ai_channel_conversations
         SET external_conversation_id = CASE
-          WHEN NULLIF(regexp_replace(regexp_replace(lower(external_conversation_id), '^whatsapp:', ''), '\D', '', 'g'), '') IS NOT NULL
-            THEN 'whatsapp:' || NULLIF(regexp_replace(regexp_replace(lower(external_conversation_id), '^whatsapp:', ''), '\D', '', 'g'), '')
+          WHEN NULLIF(regexp_replace(regexp_replace(lower(external_conversation_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+            THEN 'whatsapp:' || NULLIF(regexp_replace(regexp_replace(lower(external_conversation_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '')
           ELSE external_conversation_id
         END
         WHERE lower(channel) = 'whatsapp'

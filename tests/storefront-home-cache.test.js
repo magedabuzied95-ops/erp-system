@@ -5,9 +5,9 @@ import { readFile } from "node:fs/promises";
 test("storefront home hydrates from persistent cache and refreshes in the background", async () => {
   const source = await readFile(new URL("../src/storefront/Storefront.jsx", import.meta.url), "utf8");
 
-  assert.match(source, /STOREFRONT_HOME_REQUEST_URL = "\/storefront\/home\?catalog=mirror-v2"/);
-  assert.match(source, /STOREFRONT_HOME_PERSISTED_CACHE_KEY = "storefront\.home\.bootstrap\.v2"/);
-  assert.match(source, /return memoryHome \|\| readPersistedStorefrontHome\(\)/);
+  assert.match(source, /catalog=mirror-v3/);
+  assert.match(source, /STOREFRONT_HOME_PERSISTED_CACHE_KEY = "storefront\.home\.bootstrap\.v3\.mirror_original"/);
+  assert.match(source, /memoryHome \|\| readPersistedStorefrontHome\(\)/);
   assert.match(source, /forceRefresh: Boolean\(initialHome\)/);
   assert.match(source, /persist: true/);
   assert.match(source, /if \(!initialHome\) setState/);

@@ -11,6 +11,7 @@
     "dev:all": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"./scripts/dev-all.ps1\"",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "node scripts/run-production-tests.mjs",
     "i18n:audit": "node scripts/audit-arabic-locales.mjs && node scripts/find-hardcoded-jsx.mjs",
     "preview": "vite preview",
     "db:setup": "node server/scripts/dbSetup.js",

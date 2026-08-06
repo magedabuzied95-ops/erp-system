@@ -1452,7 +1452,7 @@ const aiSupportChatLogContext = (req, response = {}, status = null, error = null
   stack_first_line: toText(error?.stack || "").split("\n")[0] || "",
   response_shape_keys: Object.keys(response || {}),
   product_cards_count: Array.isArray(response?.product_cards) ? response.product_cards.length : 0,
-  image_cards_count: Array.isArray(response?.image_cards || response?.visual_attachments) ? (response?.image_cards || response?.visual_attachments).length : 0,
+  image_cards_count: Array.isArray(response?.image_cards || response?.visual_attachments) ? (response?.image_cards || response?.visual_attachments || []).length : 0,
 });
 
 const sendAiSupportChannelResponse = async (req, res, response = {}, status = 200) =>

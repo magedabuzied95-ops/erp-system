@@ -1259,12 +1259,12 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
         AND (
           candidate.id = q.variant_id
           OR candidate.id = CASE
-            WHEN COALESCE(q.design_json->>'variant_id', '') ~ '^\d+$'
+            WHEN COALESCE(q.design_json->>'variant_id', '') ~ '^[0-9]+$'
               THEN (q.design_json->>'variant_id')::bigint
             ELSE NULL
           END
           OR candidate.id = CASE
-            WHEN COALESCE(q.design_json->'slides'->0->>'variant_id', '') ~ '^\d+$'
+            WHEN COALESCE(q.design_json->'slides'->0->>'variant_id', '') ~ '^[0-9]+$'
               THEN (q.design_json->'slides'->0->>'variant_id')::bigint
             ELSE NULL
           END
@@ -1284,7 +1284,7 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
       ORDER BY
         (candidate.id = q.variant_id) DESC,
         (candidate.id = CASE
-          WHEN COALESCE(q.design_json->>'variant_id', '') ~ '^\d+$'
+          WHEN COALESCE(q.design_json->>'variant_id', '') ~ '^[0-9]+$'
             THEN (q.design_json->>'variant_id')::bigint
           ELSE NULL
         END) DESC,
@@ -5629,7 +5629,9 @@ export const deleteAiMarketingQueueItem = async (tenantId, id) => {
   } catch (error) {
     try {
       await client.query("ROLLBACK");
-    } catch {}
+    } catch {
+      // The transaction may already be rolled back after a query failure.
+    }
     throw error;
   } finally {
     client.release();

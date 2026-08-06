@@ -43,13 +43,13 @@ const extractSizes = (reply = "") => {
   const sizePatterns = [
     /\b(?:xxs|xs|s|m|l|xl|xxl|xxxl)\b/gi,
     /\b(?:\d{2,3})\b/g,
-    /(?:مقاس|size)\s*[:\-]?\s*([a-z0-9./-]+)/gi,
+    /(?:مقاس|size)\s*[:-]?\s*([a-z0-9./-]+)/gi,
   ];
   const sizes = [];
   for (const pattern of sizePatterns) {
     let match;
     while ((match = pattern.exec(value))) {
-      sizes.push(text(match[1] || match[0]).replace(/^(?:مقاس|size)\s*[:\-]?\s*/i, ""));
+      sizes.push(text(match[1] || match[0]).replace(/^(?:مقاس|size)\s*[:-]?\s*/i, ""));
     }
   }
   return [...new Set(sizes.map(normalizeSize).filter(Boolean))].slice(0, 10);

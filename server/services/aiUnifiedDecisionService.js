@@ -200,7 +200,7 @@ const normalizeColorComparable = (value = "") =>
     .replace(/[\u0623\u0625\u0622]/g, "\u0627")
     .replace(/\u0649/g, "\u064a")
     .replace(/\u0629/g, "\u0647")
-    .replace(/[&+\/\\|]/g, " ")
+    .replace(/[&+/\\|]/g, " ")
     .replace(/\b(and|with)\b/g, " ")
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")

@@ -17,6 +17,7 @@ import { pushAIEvent } from "./aiEventLogger.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import {
   loadAiConversationMemory,
   updateAiConversationMemory,
@@ -910,7 +911,7 @@ const productTraceSummary = (product = {}) => ({
   confidence: product?.relevance_confidence ?? product?.confidence ?? product?.score_breakdown?.confidence ?? product?.score ?? product?.intent_match_score ?? product?.visual_match_score ?? null,
   strong_reason_count: product?.score_breakdown?.strong_reason_count ?? product?.strong_reason_count ?? (
     Array.isArray(product?.relevance_reasons || product?.reasons || product?.match_reasons)
-      ? (product?.relevance_reasons || product?.reasons || product?.match_reasons).length
+      ? (product?.relevance_reasons || product?.reasons || product?.match_reasons || []).length
       : null
   ),
   reasons: product?.relevance_reasons || product?.reasons || product?.score_breakdown?.reasons || product?.match_reasons || [],
@@ -987,12 +988,12 @@ const addAiPayloadTraceSteps = async ({ traceId, aiPayload, messageText, replyTe
       rejected_product_ids: filtered.map((product) => product?.id || product?.product_id || product?.productId).filter(Boolean),
       reject_reasons: filtered.map((product) => product?.reject_reason || product?.rejected_reason || product?.reason || product?.score_breakdown?.reject_reason || "").filter(Boolean),
       confidence: aiPayload?.decision_gate?.confidence ?? selected[0]?.relevance_confidence ?? selected[0]?.confidence ?? selected[0]?.score_breakdown?.confidence ?? aiPayload?.confidence ?? null,
-      strong_reason_count: selected[0]?.score_breakdown?.strong_reason_count ?? selected[0]?.strong_reason_count ?? (Array.isArray(selected[0]?.relevance_reasons || selected[0]?.reasons) ? (selected[0]?.relevance_reasons || selected[0]?.reasons).length : null),
+      strong_reason_count: selected[0]?.score_breakdown?.strong_reason_count ?? selected[0]?.strong_reason_count ?? (Array.isArray(selected[0]?.relevance_reasons || selected[0]?.reasons) ? (selected[0]?.relevance_reasons || selected[0]?.reasons || []).length : null),
       reasons: selected[0]?.relevance_reasons || selected[0]?.reasons || selected[0]?.score_breakdown?.reasons || [],
       strong_reasons: selected.map((product) => ({
         id: product?.id || product?.product_id || product?.productId || null,
         confidence: product?.relevance_confidence ?? product?.confidence ?? product?.score_breakdown?.confidence ?? null,
-        strong_reason_count: product?.score_breakdown?.strong_reason_count ?? product?.strong_reason_count ?? (Array.isArray(product?.relevance_reasons || product?.reasons) ? (product?.relevance_reasons || product?.reasons).length : null),
+        strong_reason_count: product?.score_breakdown?.strong_reason_count ?? product?.strong_reason_count ?? (Array.isArray(product?.relevance_reasons || product?.reasons) ? (product?.relevance_reasons || product?.reasons || []).length : null),
         reasons: product?.relevance_reasons || product?.reasons || product?.score_breakdown?.reasons || product?.match_reasons || [],
         reject_reason: product?.reject_reason || product?.rejected_reason || product?.score_breakdown?.reject_reason || "",
       })),

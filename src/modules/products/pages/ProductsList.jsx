@@ -2251,7 +2251,7 @@ function ProductsList() {
 
   const handleToggleOfferStory = async (row) => {
     if (!row?.id) return;
-    const nextOfferStory = !Boolean(row.is_offer_story);
+    const nextOfferStory = !row.is_offer_story;
     try {
       const response = await updateProductStatus(row.id, { is_offer_story: nextOfferStory });
       const snapshot = response?.db_snapshot || response?.product || response?.data || response || null;
@@ -2268,7 +2268,7 @@ function ProductsList() {
 
   const handleTogglePosFavorite = async (row) => {
     if (!row?.id) return;
-    const nextPosFavorite = !Boolean(row.is_pos_favorite);
+    const nextPosFavorite = !row.is_pos_favorite;
     try {
       const response = await toggleProductPosFavorite(row.id, nextPosFavorite);
       const snapshot = response?.db_snapshot || response?.product || response?.data || response || null;

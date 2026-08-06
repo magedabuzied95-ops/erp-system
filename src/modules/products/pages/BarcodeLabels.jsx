@@ -1498,6 +1498,10 @@ function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, pr
   if (template === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100) {
     return <PremiumRetailLabel item={item} printSettings={printSettings} preview={preview} />;
   }
+  return <StandardLabelCard item={item} printSettings={printSettings} />;
+}
+
+function StandardLabelCard({ item, printSettings }) {
   const { t } = useTranslation();
   const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
@@ -1980,6 +1984,10 @@ function PrintLabel({ item, printSettings, template = LABEL_TEMPLATE_STANDARD })
   if (template === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100) {
     return <PremiumRetailLabel item={item} printSettings={printSettings} print />;
   }
+  return <StandardPrintLabel item={item} printSettings={printSettings} />;
+}
+
+function StandardPrintLabel({ item, printSettings }) {
   const { t } = useTranslation();
   const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);

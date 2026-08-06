@@ -4466,7 +4466,7 @@ router.patch(
             details: "Cash must use cash drawer/safe, Vodafone Cash and InstaPay must use wallet accounts, and Bank/Visa must use bank or card settlement accounts.",
           });
         }
-        if (nextPaymentStatus === "partial" && (nextPaidAmount <= 0 || nextPaidAmount >= Number(purchase.total ?? 0) || nextPaidAmount >= Number(body.total ?? purchase.total ?? 0))) {
+        if (nextPaymentStatus === "partial" && (nextPaidAmount <= 0 || nextPaidAmount >= Number(purchase.total ?? 0) || nextPaidAmount >= Number(req.body?.total ?? purchase.total ?? 0))) {
           await client.query("ROLLBACK");
           transactionStarted = false;
           return res.status(400).json({

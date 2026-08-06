@@ -234,12 +234,16 @@ export const requestCustomerOtp = async ({ tenantId = null, phone = "" } = {}) =
   } catch (error) {
     try {
       await client.query("ROLLBACK");
-    } catch {}
+    } catch {
+      // Session cleanup is best-effort when the backing table is unavailable.
+    }
     throw error;
   } finally {
     try {
       client.release();
-    } catch {}
+    } catch {
+      // Session cleanup is best-effort when the backing table is unavailable.
+    }
   }
 
   try {
@@ -379,7 +383,9 @@ export const verifyCustomerOtp = async ({ tenantId = null, phone = "", otp = "" 
   } catch (error) {
     try {
       await client.query("ROLLBACK");
-    } catch {}
+    } catch {
+      // Token cleanup is best-effort after authentication failure.
+    }
     otpLog("verify-failed", {
       tenant_id: safeTenantId,
       phone_suffix: normalizedPhone.slice(-4),
@@ -389,7 +395,9 @@ export const verifyCustomerOtp = async ({ tenantId = null, phone = "", otp = "" 
   } finally {
     try {
       client.release();
-    } catch {}
+    } catch {
+      // Token cleanup is best-effort after authentication failure.
+    }
   }
 };
 
