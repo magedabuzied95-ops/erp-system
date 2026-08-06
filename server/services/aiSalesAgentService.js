@@ -2317,6 +2317,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       return ["new", "contacted", "interested", "won"].includes(key) ? key : "new";
     };
 
+    const systemCustomersByPhone = await loadSystemCustomersByPhone({ tenantId, conversations: summaryResult.rows });
     const conversations = normalizeAndMergeInboxConversations(summaryResult.rows.map((conversation) => {
     const summaryMessage = conversation.latest_message_id
       ? summarizeInboxMessage(normalizeInboxMessage({
@@ -2351,6 +2352,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       });
     const channel = canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "web_chat") || "web_chat";
     const canonicalSessionId = canonicalInboxConversationSessionId(conversation);
+    const systemCustomer = conversationPhoneKeys(conversation)
+      .map((key) => systemCustomersByPhone.get(key))
+      .find(Boolean);
     const isCommentThread =
       ["facebook_comment", "instagram_comment", "tiktok_comment"].includes(channel) ||
       lower(conversation.thread_kind || conversation.channel_thread_kind || conversation.channel_metadata?.thread_kind || "") === "comment";
@@ -2382,7 +2386,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       sessionId: canonicalSessionId,
       externalConversationId: conversation.external_conversation_id,
     }));
-    const customerName = isCommentThread
+    const customerName = systemCustomer?.name || (isCommentThread
       ? text(readableCommenterName || "مستخدم فيسبوك")
       : resolveConversationDisplayName({
           conversation,
@@ -2395,7 +2399,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
             conversation.session_customer_name ||
             ""
           ),
-        });
+        }));
     const customerAvatarUrl = isCommentThread
       ? latestCommenterAvatarUrl
       : text(
@@ -2466,6 +2470,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         returned_to_ai_at: conversation.returned_to_ai_at,
         closed_at: conversation.closed_at,
         customer_name: customerName,
+        erp_customer_id: systemCustomer?.id || null,
+        erp_customer_name: systemCustomer?.name || "",
         customer_avatar_url: customerAvatarUrl,
         commenter_name: latestCommenterName || customerName,
         commenter_profile_picture_url: latestCommenterAvatarUrl,
@@ -2504,6 +2510,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         },
         channel_metadata: channelMetadata,
         customer_profile: {
+          id: systemCustomer?.id || null,
           name: customerName,
           avatar_url: customerAvatarUrl,
           phone: text(conversation.profile_phone || existingChannelMetadata.resolved_phone || existingChannelMetadata.phone || conversation.external_customer_id || ""),
