@@ -1847,7 +1847,7 @@ export default function ManagerPortal() {
             </div>
           ) : null}
 
-          {activeTab !== "sales" ? (isMobilePortal ? (
+          {activeTab === "today" ? (isMobilePortal ? (
             <header className="manager-portal-hero manager-portal-mobile-hero mt-2 rounded-[1.45rem] border border-slate-800 bg-[#050816] p-3 shadow-[0_14px_30px_rgba(2,6,23,0.22)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
