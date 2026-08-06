@@ -3390,6 +3390,11 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
   const sessionId = normalizeWhatsappSessionId(message.raw?.external_conversation_id || message.raw?.conversation_id || message.remoteJid || message.phone, message.phone);
   const customerName = text(message.senderName);
   const body = text(message.text);
+  const visualAttachments = Array.isArray(message.visualAttachments)
+    ? message.visualAttachments
+    : Array.isArray(message.visual_attachments)
+      ? message.visual_attachments
+      : [];
   const receivedAt = message.timestamp || new Date().toISOString();
   const externalMessageId = text(message.messageId);
   const instance = text(message.instance || "");
@@ -3554,11 +3559,11 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, dedupe_key,
       provider_message_id, whatsapp_instance, remote_jid, resolved_reply_jid, resolved_phone, source_path, insert_source
     )
-    VALUES ($1, $2, $3::text, 'whatsapp', $4::text, $5::text, $5::text, $5::text, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', 'ai_status:pending', 'customer', $6::text, $7::text, $8::text, $9::text, $10::text, $11::text, $12::text, $13::text, $14::text)
+    VALUES ($1, $2, $3::text, 'whatsapp', $4::text, $5::text, $5::text, $5::text, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, $15::jsonb, '[]'::jsonb, '', 'ai_status:pending', 'customer', $6::text, $7::text, $8::text, $9::text, $10::text, $11::text, $12::text, $13::text, $14::text)
     ON CONFLICT DO NOTHING
     RETURNING *
     `,
-    [session.rows[0]?.id || null, tenantId, sessionId, customerName, body, externalMessageId, dedupeKey, externalMessageId, instance, remoteJid, resolvedReplyJid, resolvedPhone, "whatsapp_webhook", "whatsapp_webhook"]
+    [session.rows[0]?.id || null, tenantId, sessionId, customerName, body, externalMessageId, dedupeKey, externalMessageId, instance, remoteJid, resolvedReplyJid, resolvedPhone, "whatsapp_webhook", "whatsapp_webhook", JSON.stringify(visualAttachments)]
   );
 
   if (!inserted.rows[0]) {
@@ -4297,7 +4302,10 @@ export const handleIncomingWebhook = async (payload = {}) => {
   }
 
   try {
-    const inbox = await saveWhatsappIncomingToAiInbox(normalized);
+    const inbox = await saveWhatsappIncomingToAiInbox({
+      ...normalized,
+      visualAttachments: mediaDescriptor.visualAttachments,
+    });
     await setTraceInboundMessage(trace, inbox?.message?.id || null);
     await addTraceStep(trace, "inbox_saved", {
       session_id: inbox?.session_id || `whatsapp:${normalized.phone}`,
