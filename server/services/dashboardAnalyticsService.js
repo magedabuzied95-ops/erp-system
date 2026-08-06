@@ -405,13 +405,17 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
 
 export const getSalesTrend = async ({ tenantId = null, days = 14, filters = {} } = {}) => {
   if (!(await tableExists("orders"))) return [];
-  const params = [filters.range === "7d" ? 7 : filters.range === "month" ? 31 : Number(days) || 14];
+  const isCalendarMonth = filters.range === "month";
+  const params = isCalendarMonth ? [] : [filters.range === "7d" ? 7 : Number(days) || 14];
   const ordersTenant = tenantClause("o", tenantId, params);
   const ordersBranch = branchClause("o", filters, params);
+  const bucketStart = isCalendarMonth
+    ? "date_trunc('month', CURRENT_DATE)::date"
+    : "(CURRENT_DATE - ($1::int - 1) * INTERVAL '1 day')::date";
   return safeQuery(
     `
     WITH buckets AS (
-      SELECT generate_series((CURRENT_DATE - ($1::int - 1) * INTERVAL '1 day')::date, CURRENT_DATE, INTERVAL '1 day')::date AS day
+      SELECT generate_series(${bucketStart}, CURRENT_DATE, INTERVAL '1 day')::date AS day
     )
     SELECT
       b.day,

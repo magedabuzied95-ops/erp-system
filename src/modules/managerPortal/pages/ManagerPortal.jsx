@@ -1800,7 +1800,7 @@ export default function ManagerPortal() {
             </div>
           ) : null}
 
-          {isMobilePortal ? (
+          {activeTab !== "sales" ? (isMobilePortal ? (
             <header className="manager-portal-hero manager-portal-mobile-hero mt-2 rounded-[1.45rem] border border-slate-800 bg-[#050816] p-3 shadow-[0_14px_30px_rgba(2,6,23,0.22)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -1879,7 +1879,7 @@ export default function ManagerPortal() {
                 </div>
               </div>
             </header>
-          )}
+          )) : null}
 
           {showInstallCard ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm">
@@ -2357,7 +2357,7 @@ export default function ManagerPortal() {
                     <div className="min-w-0">
                       <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">ملخص المبيعات</div>
                       <div className="mt-1 text-lg font-black text-white">ملخص المبيعات</div>
-                      <div className="mt-1 text-sm font-semibold leading-6 text-slate-300">مبيعات اليوم والفواتير والنمو في بطاقات مختصرة.</div>
+                      <div className="mt-1 text-sm font-semibold leading-6 text-slate-300">مبيعات الشهر والفواتير والنمو في بطاقات مختصرة.</div>
                     </div>
                     <div className={`shrink-0 rounded-2xl border px-3 py-2 text-left ${salesGrowthPercent >= 0 ? "border-emerald-400/20 bg-emerald-400/10" : "border-rose-400/20 bg-rose-400/10"}`}>
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">النمو</div>
@@ -2366,7 +2366,7 @@ export default function ManagerPortal() {
                   </div>
                   <div className="mt-4 grid grid-cols-3 gap-2">
                     <div className="rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2.5 text-right">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">مبيعات اليوم</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">مبيعات الشهر</div>
                       <div className="mt-1 text-[16px] font-black leading-none text-white">{mobileSalesSummary.sales}</div>
                     </div>
                     <div className="rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2.5 text-right">
@@ -2385,7 +2385,7 @@ export default function ManagerPortal() {
                     <div className="rounded-[1.4rem] border border-slate-800 bg-[#07111f] p-4 shadow-[0_16px_30px_rgba(2,6,23,0.14)]">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">٧ أيام</div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">الشهر الحالي</div>
                           <div className="mt-1 text-lg font-black text-white">الإيراد</div>
                           <div className="mt-1 text-sm font-semibold text-slate-300">{formatCurrency(trend7d.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</div>
                         </div>
@@ -2410,7 +2410,7 @@ export default function ManagerPortal() {
                     <div className="rounded-[1.4rem] border border-slate-800 bg-[#07111f] p-4 shadow-[0_16px_30px_rgba(2,6,23,0.14)]">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">٧ أيام</div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">الشهر الحالي</div>
                           <div className="mt-1 text-lg font-black text-white">الفواتير</div>
                           <div className="mt-1 text-sm font-semibold text-slate-300">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))} فاتورة</div>
                         </div>
@@ -2597,16 +2597,16 @@ export default function ManagerPortal() {
                 </Card>
               </div>
 
-              <Card title="اتجاه آخر ٧ أيام" subtitle="الإيراد والفواتير" icon={Clock3}>
+              <Card title="اتجاه الشهر الحالي" subtitle="الإيراد والفواتير" icon={Clock3}>
                 {trend7d.length ? (
                   <div className="space-y-4">
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                       <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                        <div className="text-xs font-black text-slate-500">إيراد ٧ أيام</div>
+                        <div className="text-xs font-black text-slate-500">إيراد الشهر</div>
                         <div className="mt-1 text-xl font-black text-slate-950">{formatCurrency(trend7d.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                        <div className="text-xs font-black text-slate-500">فواتير ٧ أيام</div>
+                        <div className="text-xs font-black text-slate-500">فواتير الشهر</div>
                         <div className="mt-1 text-xl font-black text-slate-950">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
@@ -2638,7 +2638,7 @@ export default function ManagerPortal() {
                     </div>
                   </div>
                 ) : (
-                  <EmptyState title="لا يوجد اتجاه ٧ أيام" body="سيظهر الاتجاه اليومي بعد توفر فواتير حديثة." />
+                  <EmptyState title="لا يوجد اتجاه للشهر الحالي" body="سيظهر الاتجاه اليومي بعد توفر فواتير خلال الشهر." />
                 )}
               </Card>
 

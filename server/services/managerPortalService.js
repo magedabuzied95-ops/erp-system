@@ -856,6 +856,7 @@ export const getManagerPortalTasks = async ({ manager = {} } = {}) => {
 export const getManagerPortalSales = async ({ manager = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
+  const monthFilters = { branchId, range: "month" };
   const hasOrders = await tableExists("orders");
   const hasOrderItems = await tableExists("order_items");
   const hasProducts = await tableExists("products");
@@ -866,10 +867,10 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
   const hasAiAgentStatusColumn = await columnExists("orders", "ai_agent_status");
 
   const [overview, trend7d, hourly, topProducts, recentInvoices, aiInsights, comparisonRows, sellerRows, categoryRows, brandRows, customerConversionRows, aiConversionRows] = await Promise.all([
-    getDashboardOverview({ tenantId, filters: { branchId } }),
-    getSalesTrend({ tenantId, filters: { branchId, range: "7d" }, days: 7 }),
-    getHourlySales({ tenantId, filters: { branchId } }),
-    getTopProducts({ tenantId, filters: { branchId } }),
+    getDashboardOverview({ tenantId, filters: monthFilters }),
+    getSalesTrend({ tenantId, filters: monthFilters, days: 31 }),
+    getHourlySales({ tenantId, filters: monthFilters }),
+    getTopProducts({ tenantId, filters: monthFilters }),
     tableExists("orders").then((exists) => (exists ? safeQuery(
       `
       SELECT id, invoice_number, customer_name, COALESCE(total_amount, total, 0) AS total, payment_status, created_at
@@ -887,17 +888,17 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
       ? safeQuery(
           `
           SELECT
-            COALESCE(SUM(CASE WHEN o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day' THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS today_sales,
-            COUNT(*) FILTER (WHERE o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day')::int AS today_orders,
-            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day'), 0) AS today_aov,
-            COALESCE(SUM(CASE WHEN o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS yesterday_sales,
-            COUNT(*) FILTER (WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE)::int AS yesterday_orders,
-            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE), 0) AS yesterday_aov
+            COALESCE(SUM(CASE WHEN o.created_at >= date_trunc('month', CURRENT_DATE) AND o.created_at < CURRENT_DATE + INTERVAL '1 day' THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS today_sales,
+            COUNT(*) FILTER (WHERE o.created_at >= date_trunc('month', CURRENT_DATE) AND o.created_at < CURRENT_DATE + INTERVAL '1 day')::int AS today_orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= date_trunc('month', CURRENT_DATE) AND o.created_at < CURRENT_DATE + INTERVAL '1 day'), 0) AS today_aov,
+            COALESCE(SUM(CASE WHEN o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND o.created_at < date_trunc('month', CURRENT_DATE) THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS yesterday_sales,
+            COUNT(*) FILTER (WHERE o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND o.created_at < date_trunc('month', CURRENT_DATE))::int AS yesterday_orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND o.created_at < date_trunc('month', CURRENT_DATE)), 0) AS yesterday_aov
           FROM orders o
           WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
             ${branchId ? "AND o.branch_id = $2::bigint" : ""}
             AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
-            AND o.created_at >= CURRENT_DATE - INTERVAL '1 day'
+            AND o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
             AND o.created_at < CURRENT_DATE + INTERVAL '1 day'
           `,
           branchId ? [tenantId, branchId] : [tenantId],
@@ -915,7 +916,7 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
           FROM orders o
           LEFT JOIN employees e ON e.id = o.sales_employee_id
           WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
-            AND o.created_at >= NOW() - INTERVAL '30 days'
+            AND o.created_at >= date_trunc('month', CURRENT_DATE)
             ${branchId ? "AND o.branch_id = $2::bigint" : ""}
             AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
           GROUP BY COALESCE(o.sales_employee_id, o.seller_user_id, o.created_by)::text, COALESCE(NULLIF(e.full_name, ''), NULLIF(o.seller_name, ''), 'Unassigned seller')
@@ -938,7 +939,7 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
           LEFT JOIN products p ON p.id = oi.product_id
           LEFT JOIN categories c ON c.id = p.category_id
           WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
-            AND o.created_at >= NOW() - INTERVAL '30 days'
+            AND o.created_at >= date_trunc('month', CURRENT_DATE)
             ${branchId ? "AND o.branch_id = $2::bigint" : ""}
             AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
           GROUP BY COALESCE(NULLIF(c.name, ''), NULLIF(p.product_type, ''), 'Uncategorized')
@@ -961,7 +962,7 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
           LEFT JOIN products p ON p.id = oi.product_id
           LEFT JOIN brands b ON b.id = p.brand_id
           WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
-            AND o.created_at >= NOW() - INTERVAL '30 days'
+            AND o.created_at >= date_trunc('month', CURRENT_DATE)
             ${branchId ? "AND o.branch_id = $2::bigint" : ""}
             AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
           GROUP BY COALESCE(NULLIF(b.name, ''), 'Unbranded')
@@ -987,7 +988,7 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
             )::numeric / NULLIF(COUNT(*), 0) * 100, 2), 0) AS online_order_share
           FROM orders o
           WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
-            AND o.created_at >= NOW() - INTERVAL '30 days'
+            AND o.created_at >= date_trunc('month', CURRENT_DATE)
             ${branchId ? "AND o.branch_id = $2::bigint" : ""}
             AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
           `,
@@ -1002,13 +1003,13 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
             SELECT s.session_id
             FROM ai_support_sessions s
             WHERE ($1::bigint IS NULL OR s.tenant_id = $1::bigint)
-              AND s.created_at >= NOW() - INTERVAL '30 days'
+              AND s.created_at >= date_trunc('month', CURRENT_DATE)
           ),
           converted AS (
             SELECT DISTINCT o.ai_agent_conversation_id AS session_id
             FROM orders o
             WHERE ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
-              AND o.created_at >= NOW() - INTERVAL '30 days'
+              AND o.created_at >= date_trunc('month', CURRENT_DATE)
               AND o.ai_agent_status = 'confirmed'
               AND COALESCE(o.ai_agent_conversation_id, '') <> ''
           )
