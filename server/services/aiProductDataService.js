@@ -1,3 +1,5 @@
+import { normalizeProductTypeValue } from "./productClassificationsService.js";
+
 const DEFAULT_MODEL = "gpt-5.4";
 const GENERIC_MODEL_NAMES = new Set(["shoe", "shoes", "sneaker", "sneakers", "trainer", "trainers", "footwear", "product", "model"]);
 const FORBIDDEN_PLACEHOLDERS = [
@@ -149,12 +151,11 @@ const inferProductType = (context = {}) => {
     .join(" ")
     .toLowerCase();
 
-  if (/sneaker|shoe|trainer|footwear|boot|\u062d\u0630\u0627\u0621|\u0643\u0648\u062a\u0634\u064a|\u062c\u0632\u0645\u0629/.test(source)) return "sneaker";
-  if (/slipper|slide|sandal|\u0634\u0628\u0634\u0628|\u0635\u0646\u062f\u0644/.test(source)) return "slipper";
-  if (/bag|backpack|tote|\u062d\u0642\u064a\u0628\u0629|\u0634\u0646\u0637\u0629/.test(source)) return "bag";
-  if (/shirt|tee|top|\u062a\u064a\u0634\u064a\u0631\u062a|\u0642\u0645\u064a\u0635/.test(source)) return "top";
-  if (/pants|jeans|trouser|\u0628\u0646\u0637\u0644\u0648\u0646/.test(source)) return "pants";
-  return cleanText(context.product_type || context.productType || context.category || "product");
+  if (/crocs|croc|\u0643\u0631\u0648\u0643\u0633/.test(source)) return "crocs";
+  if (/slipper|slide|sandal|\u0634\u0628\u0634\u0628|\u0635\u0646\u062f\u0644/.test(source)) return "slippers";
+  if (/bag|backpack|tote|\u062d\u0642\u064a\u0628\u0629|\u0634\u0646\u0637\u0629/.test(source)) return "bags";
+  if (/winter|\u0634\u062a\u0648\u064a/.test(source)) return "winter_collection";
+  return normalizeProductTypeValue(context.product_type || context.productType || context.category || "", "sneakers");
 };
 
 const generateFallbackDescriptions = (context = {}) => {
@@ -227,7 +228,7 @@ const buildFallbackSuggestion = (input = {}, reason = "TEXT_FALLBACK") => {
       seo_keywords: generated.seo_keywords,
       canonical_slug: generated.canonical_slug || slugify(nameEn),
       suggested_category: cleanText(current.category),
-      suggested_product_type: productType,
+      suggested_product_type: normalizeProductTypeValue(productType, "sneakers"),
       gender: cleanText(current.gender),
       grade: cleanText(current.grade),
       dominant_colors: colors,
@@ -300,8 +301,10 @@ const normalizeAiSuggestion = (raw = {}, fallback = {}, context = {}) => {
       seo_keywords: sanitizeList(suggestions.seo_keywords || suggestions.keywords).join(", ") || fallbackSuggestions.seo_keywords,
       canonical_slug: cleanText(suggestions.canonical_slug || suggestions.slug) || slugify(nameEn),
       suggested_category: cleanText(suggestions.suggested_category || suggestions.category) || fallbackSuggestions.suggested_category,
-      suggested_product_type:
+      suggested_product_type: normalizeProductTypeValue(
         cleanText(suggestions.suggested_product_type || suggestions.product_type) || fallbackSuggestions.suggested_product_type,
+        "sneakers"
+      ),
       gender: cleanText(suggestions.gender) || fallbackSuggestions.gender,
       grade: cleanText(suggestions.grade) || fallbackSuggestions.grade,
       dominant_colors: normalizeList(suggestions.dominant_colors || suggestions.colors || fallbackSuggestions.dominant_colors),
@@ -367,7 +370,7 @@ Return strict JSON only using this shape:
     "seo_keywords": ["keyword"],
     "canonical_slug": "",
     "suggested_category": "",
-    "suggested_product_type": "",
+    "suggested_product_type": "crocs/bags/sneakers/winter_collection/slippers only",
     "gender": "",
     "grade": "mirror/original/local/import/premium/unknown",
     "dominant_colors": ["color"],
@@ -389,6 +392,7 @@ Return strict JSON only using this shape:
 
 Image recognition requirements:
 - Identify visible dominant colors, silhouette, product type, target gender, fashion category, brand cues, and model details.
+- suggested_product_type must be exactly one of: crocs, bags, sneakers, winter_collection, slippers. Never invent a new product type.
 - Your highest-priority task is finding the exact commercial model name, not merely its brand or product type.
 - Use web search. Search the official brand website/catalog first using the brand plus any supplied article code, SKU, visible text, colorway, and distinctive construction details.
 - If no official result exists, search reputable professional retailers and established product databases. Prefer sources showing the same silhouette, panels, sole, branding placement, and color blocking.

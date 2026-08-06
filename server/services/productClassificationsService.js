@@ -6,6 +6,24 @@ let productClassificationSchemaEnsured = false;
 
 const normalizeText = (value) => String(value ?? "").trim();
 
+const CANONICAL_PRODUCT_TYPES = new Set(["crocs", "bags", "sneakers", "winter_collection", "slippers"]);
+
+export const normalizeProductTypeValue = (value, fallback = "") => {
+  const raw = normalizeText(value);
+  if (!raw) return fallback;
+  const normalized = raw
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z0-9_\u0600-\u06ff]/g, "");
+
+  if (["crocs", "croc", "كروكس"].includes(normalized)) return "crocs";
+  if (["bags", "bag", "handbag", "backpack", "tote", "tote_bag", "shoulder_bag", "crossbody_bag", "شنطة", "حقائب"].includes(normalized)) return "bags";
+  if (["slippers", "slipper", "slides", "slide", "sandals", "sandal", "شبشب", "شباشب", "سليبر", "سليبرز"].includes(normalized)) return "slippers";
+  if (["winter_collection", "wintercollection", "winter", "كولكشن_الشتوي", "كولكشنشتوي"].includes(normalized)) return "winter_collection";
+  if (["sneakers", "sneaker", "shoes", "shoe", "running_shoes", "runningshoes", "footwear", "trainer", "trainers", "product"].includes(normalized)) return "sneakers";
+  return CANONICAL_PRODUCT_TYPES.has(normalized) ? normalized : fallback;
+};
+
 const normalizeKey = (value) =>
   String(value ?? "")
     .trim()
@@ -153,6 +171,28 @@ const ensureProductClassificationSchemaNow = async () => {
         )
     `);
     await client.query(`
+      UPDATE product_classification_options o
+      SET is_active = FALSE,
+          deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+          updated_at = CURRENT_TIMESTAMP
+      FROM product_classification_groups g
+      WHERE o.group_id = g.id
+        AND LOWER(TRIM(g.key)) = 'product_type'
+        AND LOWER(TRIM(o.value)) NOT IN ('crocs', 'bags', 'sneakers', 'winter_collection', 'slippers')
+        AND o.deleted_at IS NULL
+    `);
+    await client.query(`
+      UPDATE products
+      SET product_type = CASE
+        WHEN LOWER(TRIM(COALESCE(product_type, ''))) IN ('crocs', 'croc') THEN 'crocs'
+        WHEN LOWER(TRIM(COALESCE(product_type, ''))) IN ('bags', 'bag', 'handbag', 'backpack', 'tote', 'tote_bag', 'shoulder_bag', 'crossbody_bag') THEN 'bags'
+        WHEN LOWER(TRIM(COALESCE(product_type, ''))) IN ('slippers', 'slipper', 'slides', 'slide', 'sandals', 'sandal') THEN 'slippers'
+        WHEN LOWER(TRIM(COALESCE(product_type, ''))) IN ('winter_collection', 'winter collection', 'wintercollection', 'winter') THEN 'winter_collection'
+        ELSE 'sneakers'
+      END
+      WHERE LOWER(TRIM(COALESCE(product_type, ''))) NOT IN ('crocs', 'bags', 'sneakers', 'winter_collection', 'slippers')
+    `);
+    await client.query(`
       DO $$
       BEGIN
         IF NOT EXISTS (
@@ -287,6 +327,10 @@ export const buildClassificationLookup = (groups = []) => {
 export const normalizeClassificationInput = async (groupKey, value) => {
   const raw = normalizeText(value);
   if (!raw) return "";
+
+  if (normalizeKey(groupKey) === "product_type") {
+    return normalizeProductTypeValue(raw, "sneakers");
+  }
 
   const options = await fetchProductClassificationOptions(groupKey, { includeInactive: true });
   const lookup = buildClassificationLookup([{ options }]);
