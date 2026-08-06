@@ -107,6 +107,8 @@ const fallbackCustomerProfile = (customer = {}, context = {}) => {
   return {
     id: customer.customer_id || customer.id || context.customerId || profile.id || customer.customer_profile_id || customer.profile_id || "",
     name:
+      customer.erp_customer_name ||
+      customer.name ||
       customer.customer_name ||
       profile.name ||
       profile.display_name ||

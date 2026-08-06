@@ -2022,6 +2022,68 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   };
 };
 
+const customerPhoneKeys = (value = "") => {
+  const digits = text(value).replace(/\D/g, "");
+  if (!digits) return [];
+  return [...new Set([digits, digits.slice(-10)].filter((item) => item.length >= 8))];
+};
+
+const conversationPhoneKeys = (conversation = {}) => {
+  const metadata = conversation.channel_metadata || {};
+  const profile = conversation.customer_profile || {};
+  return [...new Set([
+    conversation.phone,
+    conversation.customer_phone,
+    conversation.external_customer_id,
+    profile.phone,
+    metadata.phone,
+    metadata.customer_phone,
+    metadata.resolved_phone,
+    metadata.remote_jid,
+    conversation.session_id,
+  ].flatMap(customerPhoneKeys))];
+};
+
+const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {}) => {
+  const phoneKeys = [...new Set(conversations.flatMap(conversationPhoneKeys))];
+  if (!tenantId || !phoneKeys.length) return new Map();
+
+  try {
+    const columnsResult = await db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'customers'`
+    );
+    const columns = new Set(columnsResult.rows.map((row) => text(row.column_name)));
+    const nameColumn = columns.has("name") ? "name" : columns.has("customer_name") ? "customer_name" : "";
+    const phoneColumns = ["phone", "mobile", "phone_number", "mobile_number"].filter((column) => columns.has(column));
+    if (!nameColumn || !phoneColumns.length) return new Map();
+
+    const phoneSelects = phoneColumns.map((column) => `c.${column}::text AS ${column}`);
+    const phoneMatches = phoneColumns.map((column) => `RIGHT(REGEXP_REPLACE(COALESCE(c.${column}::text, ''), '\\D', '', 'g'), 10) = ANY($2::text[])`);
+    const tenantClause = columns.has("tenant_id") ? "AND (c.tenant_id = $1 OR c.tenant_id IS NULL)" : "";
+    const result = await db.query(
+      `
+      SELECT c.id, c.${nameColumn}::text AS customer_name, ${phoneSelects.join(", ")}
+      FROM customers c
+      WHERE (${phoneMatches.join(" OR ")})
+        ${tenantClause}
+      `,
+      [tenantId, phoneKeys.map((key) => key.slice(-10))]
+    );
+    const customersByPhone = new Map();
+    for (const row of result.rows) {
+      const name = text(row.customer_name);
+      if (!name) continue;
+      for (const column of phoneColumns) {
+        for (const key of customerPhoneKeys(row[column])) customersByPhone.set(key, { id: row.id, name });
+      }
+    }
+    return customersByPhone;
+  } catch (error) {
+    console.warn("ai_inbox_system_customer_lookup_failed", { tenant_id: tenantId, message: error?.message || "Customer lookup failed" });
+    return new Map();
+  }
+};
+
 export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 50, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
@@ -2958,6 +3020,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     salesJourneyEventsByConversation.set(row.conversation_id, list);
   });
 
+  const systemCustomersByPhone = await loadSystemCustomersByPhone({ tenantId, conversations });
   const enrichedStartedAt = Date.now();
   const enriched = await Promise.all(conversations.map(async (conversation) => {
     const memories = summaryOnly ? [] : (memoriesByProfile.get(conversation.profile_id) || []);
@@ -2970,6 +3033,23 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     const hydratedConversation = await hydrateMessengerInboxConversation({ tenantId, conversation });
     if (hydratedConversation && hydratedConversation !== conversation) {
       Object.assign(conversation, hydratedConversation);
+    }
+    const systemCustomer = conversationPhoneKeys(conversation)
+      .map((key) => systemCustomersByPhone.get(key))
+      .find(Boolean);
+    if (systemCustomer?.name) {
+      Object.assign(conversation, {
+        customer_id: systemCustomer.id,
+        erp_customer_id: systemCustomer.id,
+        erp_customer_name: systemCustomer.name,
+        customer_name: systemCustomer.name,
+        customer_profile: {
+          ...(conversation.customer_profile || {}),
+          id: systemCustomer.id,
+          name: systemCustomer.name,
+          display_name: systemCustomer.name,
+        },
+      });
     }
     const leadType = leadTypeFrom({
       memoryScore: conversation.memory_score,
