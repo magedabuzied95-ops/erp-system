@@ -3937,6 +3937,8 @@ function BarcodeQueueBulkModal({
 
 const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, concealCost, sellingPrice, salePrice, displaySku, actions, onColorImagesClick, t, language }) {
   const visibleActions = (actions || []).slice(0, 4);
+  const overflowActions = (actions || []).slice(4);
+  const [moreOpen, setMoreOpen] = useState(false);
   const productType = getProductTypeValue(row);
   const category = isMeaningfulCategory(row.category) ? String(row.category).trim() : "";
 
@@ -4055,7 +4057,64 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
             </button>
           );
         })}
+        {overflowActions.length ? (
+          <button
+            type="button"
+            onClick={() => setMoreOpen((current) => !current)}
+            className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
+              moreOpen
+                ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-100"
+                : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"
+            }`}
+            aria-expanded={moreOpen}
+            aria-label={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
+          >
+            <MoreHorizontal size={18} />
+          </button>
+        ) : null}
       </div>
+      {moreOpen && overflowActions.length ? (
+        <div className="mt-2 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/20 p-2">
+          {overflowActions.map((action) => {
+            const Icon = action.icon;
+            const actionClassName = `inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
+              action.tone === "danger"
+                ? "border-red-300/20 bg-red-500/10 text-red-200"
+                : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"
+            }`;
+            const actionContent = <><Icon size={14} /><span className="truncate">{action.inlineLabel || action.label}</span></>;
+            if (action.href && !action.disabled) {
+              return (
+                <Link
+                  key={action.key}
+                  to={action.href}
+                  onClick={(event) => {
+                    setMoreOpen(false);
+                    handleNavigableActionClick(event, action.onClick);
+                  }}
+                  className={actionClassName}
+                >
+                  {actionContent}
+                </Link>
+              );
+            }
+            return (
+              <button
+                key={action.key}
+                type="button"
+                onClick={() => {
+                  setMoreOpen(false);
+                  action.onClick?.();
+                }}
+                disabled={action.disabled}
+                className={actionClassName}
+              >
+                {actionContent}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </article>
   );
 });
