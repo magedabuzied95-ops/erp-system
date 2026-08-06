@@ -28,6 +28,7 @@ import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
 import { buildReplyCorrectionContextSource, searchRelevantCorrections, ensureCorrectionMemorySchema } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
+import { getPhoneSearchVariants, phoneSqlDigits } from "../utils/phoneSearch.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -2023,9 +2024,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
 };
 
 const customerPhoneKeys = (value = "") => {
-  const digits = text(value).replace(/\D/g, "");
-  if (!digits) return [];
-  return [...new Set([digits, digits.slice(-10)].filter((item) => item.length >= 8))];
+  return getPhoneSearchVariants(value).filter((item) => item.length >= 8);
 };
 
 const conversationPhoneKeys = (conversation = {}) => {
@@ -2054,11 +2053,11 @@ const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {})
     );
     const columns = new Set(columnsResult.rows.map((row) => text(row.column_name)));
     const nameColumn = columns.has("name") ? "name" : columns.has("customer_name") ? "customer_name" : "";
-    const phoneColumns = ["phone", "mobile", "phone_number", "mobile_number"].filter((column) => columns.has(column));
+    const phoneColumns = ["phone", "mobile", "phone_number", "mobile_number", "whatsapp", "whatsapp_number"].filter((column) => columns.has(column));
     if (!nameColumn || !phoneColumns.length) return new Map();
 
     const phoneSelects = phoneColumns.map((column) => `c.${column}::text AS ${column}`);
-    const phoneMatches = phoneColumns.map((column) => `RIGHT(REGEXP_REPLACE(COALESCE(c.${column}::text, ''), '\\D', '', 'g'), 10) = ANY($2::text[])`);
+    const phoneMatches = phoneColumns.map((column) => `${phoneSqlDigits(`c.${column}`)} = ANY($2::text[])`);
     const tenantClause = columns.has("tenant_id") ? "AND (c.tenant_id = $1 OR c.tenant_id IS NULL)" : "";
     const result = await db.query(
       `
@@ -2067,7 +2066,7 @@ const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {})
       WHERE (${phoneMatches.join(" OR ")})
         ${tenantClause}
       `,
-      [tenantId, phoneKeys.map((key) => key.slice(-10))]
+      [tenantId, phoneKeys]
     );
     const customersByPhone = new Map();
     for (const row of result.rows) {
