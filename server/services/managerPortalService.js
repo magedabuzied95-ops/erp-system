@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights } from "./dashboardAnalyticsService.js";
+import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
 import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment } from "./staffTasksService.js";
 import {
   listEmployeeChatThreads,
@@ -668,28 +669,44 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {} } =
     listRecentDisplayRefillAlerts({ limit: 20 }).then((rows) => rows.filter((row) => (tenantId ? numberOrNull(row.tenant_id) === tenantId || row.tenant_id === null : true) && (branchId ? numberOrNull(row.branch_id) === branchId : true))),
     tableExists("orders").then(async (ordersExist) => {
       if (!ordersExist) return [];
-      const hasPaymentMethod = await columnExists("orders", "payment_method");
-      if (!hasPaymentMethod) return [];
+      const [hasPaymentMethod, hasPaymentBreakdown, hasTotalAmount, hasTotal] = await Promise.all([
+        columnExists("orders", "payment_method"),
+        columnExists("orders", "payment_breakdown"),
+        columnExists("orders", "total_amount"),
+        columnExists("orders", "total"),
+      ]);
+      if (!hasPaymentMethod && !hasPaymentBreakdown) return [];
+      const totalExpr = hasTotalAmount && hasTotal
+        ? "COALESCE(o.total_amount, o.total, 0)"
+        : hasTotalAmount
+        ? "COALESCE(o.total_amount, 0)"
+        : hasTotal
+        ? "COALESCE(o.total, 0)"
+        : "0";
       const params = [];
       const tenantClause = tenantId ? (params.push(tenantId), ` AND o.tenant_id = $${params.length}`) : "";
       const branchClause = branchId ? (params.push(branchId), ` AND o.branch_id = $${params.length}`) : "";
-      return safeQuery(
+      // Distribute each included sale's real payment allocations (orders.payment_breakdown)
+      // across its actual payment methods. A split payment (دفع مقسم) is never treated as a
+      // payment method: every allocation is aggregated into its real method. Orders without
+      // stored allocations fall back to their single payment_method. The WHERE clause is
+      // unchanged, so report inclusion/exclusion (cancelled/canceled/void) is preserved.
+      const distributionRows = await safeQuery(
         `
         SELECT
-          COALESCE(NULLIF(LOWER(TRIM(COALESCE(o.payment_method, ''))), ''), 'unknown') AS method,
-          COUNT(*)::int AS count,
-          COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS total
+          ${hasPaymentMethod ? "o.payment_method" : "NULL"} AS payment_method,
+          ${totalExpr} AS total_amount,
+          ${hasPaymentBreakdown ? "o.payment_breakdown" : "'[]'::jsonb"} AS payment_breakdown
         FROM orders o
         WHERE o.created_at >= date_trunc('day', NOW())
           AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
           ${tenantClause}
           ${branchClause}
-        GROUP BY COALESCE(NULLIF(LOWER(TRIM(COALESCE(o.payment_method, ''))), ''), 'unknown')
-        ORDER BY total DESC, count DESC
         `,
         params,
         []
       );
+      return aggregatePaymentDistribution(distributionRows);
     }).catch(() => []),
     safeQuery(
       `

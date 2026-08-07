@@ -2206,7 +2206,7 @@ export default function ManagerPortal() {
                     {paymentBreakdown.map((row) => (
                       <div key={row.method} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800">
                         <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{paymentMethodLabel(row.method)}</span>
-                        <span className="text-slate-950">{formatCurrency(row.total || 0)} · {formatNumber(row.count || 0)}</span>
+                        <span className="inline-flex items-center gap-2 text-slate-950"><span className="font-black">{formatCurrency(row.total || 0)}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{formatNumber(row.count || 0)} عملية</span></span>
                       </div>
                     ))}
                   </div>

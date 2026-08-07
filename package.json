@@ -31,6 +31,7 @@
     "test:messenger-shopping": "node --test tests/messenger-guided-shopping/*.test.js",
     "test:meta-catalog": "node --test tests/meta-catalog/*.test.js",
     "test:storefront-seo": "node --test tests/storefront-seo/*.test.js",
+    "test:manager-portal": "node --test tests/manager-portal/*.test.js",
     "migrate:merchant-policies": "node server/scripts/migrateMerchantPolicySettings.js",
     "start": "npm --prefix \"./server\" run start"
   },
