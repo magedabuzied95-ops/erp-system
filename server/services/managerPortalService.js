@@ -795,7 +795,7 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
 export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
-  const [taskDashboard, salesRows, attendanceRows] = await Promise.all([
+  const [taskDashboard, salesRows, attendanceRows, advanceRows] = await Promise.all([
     getStaffTaskDashboard({ tenantId, branchId }),
     tableExists("orders").then(async (ordersExist) => {
       if (!ordersExist) return [];
@@ -842,22 +842,48 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
       branchId ? [tenantId, branchId] : [tenantId],
       []
     ),
+    tableExists("employee_advances").then((advancesExist) => {
+      if (!advancesExist) return [];
+      return safeQuery(
+        `
+        SELECT
+          ea.employee_id,
+          COALESCE(SUM(GREATEST(COALESCE(ea.remaining_amount, ea.amount, 0), 0)), 0) AS outstanding_advance
+        FROM employee_advances ea
+        WHERE ($1::bigint IS NULL OR ea.tenant_id = $1::bigint)
+          AND LOWER(COALESCE(ea.deduction_status, 'pending')) NOT IN ('settled', 'deducted', 'cancelled', 'canceled')
+          AND LOWER(COALESCE(ea.status, 'pending')) NOT IN ('settled', 'deducted', 'cancelled', 'canceled')
+        GROUP BY ea.employee_id
+        `,
+        [tenantId],
+        []
+      );
+    }).catch(() => []),
   ]);
 
   const salesByEmployee = new Map(salesRows.map((row) => [String(row.employee_id), row]));
   const attendanceByEmployee = new Map(attendanceRows.map((row) => [String(row.employee_id), row]));
+  const advancesByEmployee = new Map(advanceRows.map((row) => [String(row.employee_id), row]));
 
   const staff = (taskDashboard?.byEmployee || []).map((row) => {
     const sales = salesByEmployee.get(String(row.employee_id)) || {};
     const attendance = attendanceByEmployee.get(String(row.employee_id)) || {};
-    const shiftDurationHours = row.check_in_time && attendance.check_out_at ? Math.max(0, (new Date(attendance.check_out_at).getTime() - new Date(row.check_in_time).getTime()) / 36e5) : 0;
+    const advances = advancesByEmployee.get(String(row.employee_id)) || {};
+    const checkInTime = attendance.check_in_at || attendance.check_in || row.check_in_time || null;
+    const checkOutTime = attendance.check_out_at || attendance.check_out || null;
+    const attendanceStatus = attendance.status || row.attendance_status || "absent";
+    const shiftEndTime = checkOutTime || (checkInTime ? new Date() : null);
+    const shiftDurationHours = checkInTime && shiftEndTime
+      ? Math.max(0, (new Date(shiftEndTime).getTime() - new Date(checkInTime).getTime()) / 36e5)
+      : 0;
     return {
       ...row,
-      attendance_status: attendance.status || row.attendance_status || "absent",
-      check_in_time: attendance.check_in_at || attendance.check_in || row.check_in_time || null,
-      check_out_time: attendance.check_out_at || attendance.check_out || null,
+      attendance_status: attendanceStatus,
+      check_in_time: checkInTime,
+      check_out_time: checkOutTime,
       late_minutes: Number(attendance.late_minutes || 0),
       shift_duration_hours: Number(shiftDurationHours.toFixed(2)),
+      outstanding_advance: Number(advances.outstanding_advance || 0),
       sales_today: Number(sales.sales_total || 0),
       invoices_count: Number(sales.invoice_count || 0),
       expected_commission: null,

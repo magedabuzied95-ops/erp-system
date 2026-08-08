@@ -2375,7 +2375,7 @@ export default function ManagerPortal() {
                       </div>
                     </div>
 
-                    <div className="mt-2 grid grid-cols-3 gap-2">
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
                         <div className="text-[10px] font-black text-slate-500">الفواتير</div>
                         <div className="mt-0.5 text-sm font-black text-slate-950">{formatNumber(employee.invoices_count || 0)}</div>
@@ -2387,6 +2387,10 @@ export default function ManagerPortal() {
                       <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
                         <div className="text-[10px] font-black text-slate-500">آخر نشاط</div>
                         <div className="mt-0.5 truncate text-sm font-black text-slate-950">{formatTime(employee.last_activity)}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
+                        <div className="text-[10px] font-black text-slate-500">السلف المتبقية</div>
+                        <div className="mt-0.5 truncate text-sm font-black text-slate-950">{formatCurrency(employee.outstanding_advance || 0)}</div>
                       </div>
                     </div>
                   </div>
@@ -2402,6 +2406,7 @@ export default function ManagerPortal() {
                       <div>الوردية: {Number(employee.shift_duration_hours || 0).toFixed(2)} ساعة</div>
                       <div>الفواتير: {formatNumber(employee.invoices_count || 0)}</div>
                       <div>آخر نشاط: {formatDateTime(employee.last_activity)}</div>
+                      <div>السلف المتبقية: {formatCurrency(employee.outstanding_advance || 0)}</div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">العمولة المتوقعة {employee.expected_commission == null ? "غير متاحة" : formatCurrency(employee.expected_commission || 0)}</Badge>
