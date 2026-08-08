@@ -786,10 +786,24 @@ export default function EmployeePortalInventory() {
     const matchesSize = selectedFilterSize === "all" || clean(normalized.size) === clean(selectedFilterSize);
     return matchesInventoryBaseFilters(record) && matchesSize;
   }, [matchesInventoryBaseFilters, selectedFilterSize]);
-  const filteredLookupResults = useMemo(
-    () => lookupResults.filter(matchesInventoryFilters),
-    [lookupResults, matchesInventoryFilters]
-  );
+  const filteredLookupResults = useMemo(() => {
+    const normalizedQuery = clean(lookupQuery).toLowerCase();
+    const exactCodes = (record) => [
+      record.article_code,
+      record.variant_article_code,
+      record.barcode,
+      record.variant_barcode,
+      record.product_barcode,
+      record.product_article_code,
+      record.sku,
+      record.variant_sku,
+      record.product_sku,
+    ].map((value) => clean(value).toLowerCase()).filter(Boolean);
+    const hasExactCodeMatch = normalizedQuery && lookupResults.some((record) => exactCodes(record).includes(normalizedQuery));
+    return hasExactCodeMatch
+      ? lookupResults.filter((record) => exactCodes(record).includes(normalizedQuery))
+      : lookupResults.filter(matchesInventoryFilters);
+  }, [lookupQuery, lookupResults, matchesInventoryFilters]);
   const lookupGroups = useMemo(() => groupVariants(filteredLookupResults), [filteredLookupResults]);
   const availableSizes = useMemo(() => {
     const filteredBaseRecords = inventoryCatalogSource.filter(matchesInventoryBaseFilters);
@@ -1165,11 +1179,6 @@ export default function EmployeePortalInventory() {
       ? `زيادة: ${Math.abs(differenceTotal)}`
       : `عجز: ${Math.abs(differenceTotal)}`;
 
-  const handleManualAddProduct = useCallback(() => {
-    lookupInputRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-    lookupInputRef.current?.focus?.();
-  }, []);
-
   return (
     <div dir="rtl" className="employee-portal-workspace employee-portal-inventory min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4">
       <style>{`
@@ -1232,7 +1241,7 @@ export default function EmployeePortalInventory() {
           }
         }
       `}</style>
-      <div className="inventory-wrap mx-auto flex w-full max-w-6xl flex-col gap-4">
+      <div className="inventory-wrap mx-auto flex w-full max-w-6xl flex-col gap-2.5 sm:gap-4">
         <EmployeePortalNavControls
           onBack={() => {
             if (canNavigateEmployeePortalBack()) navigate(-1);
@@ -1243,15 +1252,15 @@ export default function EmployeePortalInventory() {
           className="px-0"
         />
 
-        <section className="rounded-[2rem] border border-white/70 bg-white/95 p-3 shadow-2xl shadow-slate-200/60 backdrop-blur sm:p-4">
+        <section className="rounded-2xl border border-white/70 bg-white/95 p-2.5 shadow-xl shadow-slate-200/50 backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-2xl">
           <div className="inventory-wrap flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-emerald-700">
+              <div className="hidden items-center gap-2 text-emerald-700 sm:flex">
                 <Warehouse className="h-5 w-5" />
                 <span className="text-xs font-black uppercase tracking-[0.18em]">بوابة الموظف</span>
               </div>
-              <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">الجرد</h1>
-              <div className="mt-2 inline-flex max-w-3xl rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold leading-5 text-sky-800 sm:text-sm">
+              <h1 className="text-xl font-black tracking-tight text-slate-950 sm:mt-2 sm:text-3xl">الجرد</h1>
+              <div className="mt-2 hidden max-w-3xl rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold leading-5 text-sky-800 sm:inline-flex sm:text-sm">
                 تُرسل كميات الجرد للمراجعة قبل الاعتماد النهائي.
               </div>
             </div>
@@ -1365,7 +1374,7 @@ export default function EmployeePortalInventory() {
             </div>
           </aside>
 
-          <main className="inventory-wrap rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur">
+          <main className="inventory-wrap rounded-2xl border border-white/70 bg-white/95 p-2.5 shadow-xl shadow-slate-200/50 backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-2xl">
             {!session && sessionLoading ? (
               <div className="flex min-h-[420px] items-center justify-center gap-2 text-sm font-black text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1380,7 +1389,7 @@ export default function EmployeePortalInventory() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-2.5 sm:space-y-4">
                 <div className="inventory-wrap flex min-w-0 flex-col gap-2 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-2.5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -1389,7 +1398,7 @@ export default function EmployeePortalInventory() {
                         {sessionStatusLabels[session.status] || session.status}
                       </span>
                     </div>
-                    <div className="mt-1 text-sm font-semibold text-slate-500">
+                    <div className="mt-0.5 text-xs font-semibold text-slate-500 sm:mt-1 sm:text-sm">
                       {session.branch_name || "الفرع"}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
                     </div>
                   </div>
@@ -1450,13 +1459,13 @@ export default function EmployeePortalInventory() {
                   </div>
                 ) : null}
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
                   <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-black text-slate-600">
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">المنتجات: {groupedItems.length}</span>
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">الكمية: {countedTotal}</span>
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">الفروقات: {differenceTotal}</span>
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-black text-slate-500">
+                  <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-black text-slate-500 sm:mt-3">
                     <span>{countedTotal} قطعة معدودة</span>
                     <span>{progressPercent}%</span>
                   </div>
@@ -1534,16 +1543,7 @@ export default function EmployeePortalInventory() {
                       <Camera className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleManualAddProduct}
-                      disabled={!isEditable}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 disabled:opacity-60"
-                    >
-                      <Plus className="h-4 w-4" />
-                      إضافة منتج يدويًا
-                    </button>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">
                     {lookupLoading ? (
                       <div className="inline-flex items-center gap-2 text-sm font-black text-slate-500">
                         <Loader2 className="h-4 w-4 animate-spin" />

@@ -202,6 +202,7 @@ const findExactInventoryLookupRow = (rows = [], query = "") => {
       row.barcode,
       row.sku,
       row.article_code,
+      row.product_article_code,
       row.product_barcode,
       row.product_sku,
     ].some((value) => clean(value).toLowerCase() === normalizedSearch)) || null

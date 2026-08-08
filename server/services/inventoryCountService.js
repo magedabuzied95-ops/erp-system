@@ -238,6 +238,7 @@ const buildInventoryCountLookupSelects = async (client, { variantAlias = "v", pr
 
   return {
     productCodeExpr: firstAvailableColumnExpr(productAlias, productColumns, ["product_code", "code"], "''"),
+    productArticleCodeExpr: firstAvailableColumnExpr(productAlias, productColumns, ["article_code"], "''"),
     variantCodeExpr: firstAvailableColumnExpr(variantAlias, variantColumns, ["product_code", "code"], "''"),
     productBarcodeLabelExpr: firstAvailableColumnExpr(productAlias, productColumns, ["barcode_label"], "''"),
     variantBarcodeLabelExpr: firstAvailableColumnExpr(variantAlias, variantColumns, ["barcode_label"], "''"),
@@ -1198,9 +1199,9 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
   const executeSearch = async (searchText) => {
     const like = `%${searchText}%`;
     const exactVariantParts = buildExactMatchParts("v", variantColumns, ["barcode", "sku", "article_code", "product_code", "code", "barcode_label"], "$2");
-    const exactProductParts = buildExactMatchParts("p", productColumns, ["barcode", "sku", "product_code", "code", "barcode_label"], "$2");
+    const exactProductParts = buildExactMatchParts("p", productColumns, ["barcode", "sku", "article_code", "product_code", "code", "barcode_label"], "$2");
     const likeVariantParts = buildLikeMatchParts("v", variantColumns, ["barcode", "sku", "article_code", "product_code", "code", "barcode_label"], "$3");
-    const likeProductParts = buildLikeMatchParts("p", productColumns, ["barcode", "sku", "product_code", "code", "barcode_label"], "$3");
+    const likeProductParts = buildLikeMatchParts("p", productColumns, ["barcode", "sku", "article_code", "product_code", "code", "barcode_label"], "$3");
     const exactMatchParts = [...exactVariantParts, ...exactProductParts];
     const likeMatchParts = [...likeVariantParts, ...likeProductParts];
     const colorGroupIdentitySql = `
@@ -1259,6 +1260,7 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         p.name AS product_name,
         p.sku AS product_sku,
         p.barcode AS product_barcode,
+        ${lookupSelects.productArticleCodeExpr} AS product_article_code,
         ${lookupSelects.productCodeExpr} AS product_code,
         ${lookupSelects.productBarcodeLabelExpr} AS product_barcode_label,
         v.color,
@@ -1310,6 +1312,7 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
       row.article_code,
       row.variant_code,
       row.product_barcode,
+      row.product_article_code,
       row.product_sku,
       row.product_code,
       row.product_barcode_label,
@@ -1328,6 +1331,7 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         [exactRow.variant_code, "variant.code"],
         [exactRow.variant_barcode_label, "variant.barcode_label"],
         [exactRow.product_barcode, "product.barcode"],
+        [exactRow.product_article_code, "product.article_code"],
         [exactRow.product_sku, "product.sku"],
         [exactRow.product_code, "product.product_code"],
         [exactRow.product_code, "product.code"],
