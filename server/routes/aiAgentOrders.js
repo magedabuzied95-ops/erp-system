@@ -117,7 +117,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { syncEvolutionChatsToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
+import { syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 
 const router = express.Router();
 const whatsappProfileSyncState = new Map();
@@ -2552,6 +2552,19 @@ router.get("/conversations/:conversationId/messages", protect, permit("settings"
   try {
     const tenantId = toTenantId(req);
     const conversationId = decodeRouteId(req.params.conversationId);
+    if (String(conversationId).toLowerCase().startsWith("whatsapp:")) {
+      await syncEvolutionConversationMessagesToAiInbox({
+        tenantId,
+        conversationId,
+        limit: req.query?.limit || 50,
+      }).catch((error) => {
+        console.warn("[whatsapp:conversation-history-sync-error]", {
+          tenantId,
+          conversationId,
+          message: error?.message || String(error),
+        });
+      });
+    }
     const payload = await loadAiInboxMessages({
       tenantId,
       conversationId,

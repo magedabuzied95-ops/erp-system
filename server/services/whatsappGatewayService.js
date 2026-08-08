@@ -324,7 +324,11 @@ const evolutionFetch = async (path, options = {}) => {
 
 const evolutionChatLastMessageText = (chat = {}) => {
   const lastMessage = chat?.lastMessage || chat?.last_message || {};
-  const message = lastMessage?.message || {};
+  return evolutionMessageText(lastMessage) || text(chat?.lastMessageText || chat?.last_message || "");
+};
+
+const evolutionMessageText = (record = {}) => {
+  const message = record?.message || {};
   return text(
     message?.conversation ||
     message?.extendedTextMessage?.text ||
@@ -335,10 +339,92 @@ const evolutionChatLastMessageText = (chat = {}) => {
     (message?.videoMessage ? "[فيديو]" : "") ||
     (message?.audioMessage ? "[رسالة صوتية]" : "") ||
     (message?.documentMessage ? "[ملف]" : "") ||
-    chat?.lastMessageText ||
-    chat?.last_message ||
     ""
   );
+};
+
+export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, conversationId, limit = 50 } = {}) => {
+  const safeTenantId = Number(tenantId);
+  const sessionId = normalizeWhatsappSessionId(conversationId);
+  const phone = normalizeWhatsappPhone(sessionId);
+  if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || !sessionId || !phone || provider() !== "evolution") {
+    return { scanned: 0, synced: 0, skipped: true };
+  }
+  const remoteJid = `${phone}@s.whatsapp.net`;
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 50));
+  const payload = await evolutionFetch(`/chat/findMessages/${encodeURIComponent(instanceName())}`, {
+    method: "POST",
+    body: JSON.stringify({ where: { key: { remoteJid } }, page: 1, offset: safeLimit }),
+  });
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.messages?.records)
+      ? payload.messages.records
+      : Array.isArray(payload?.records)
+        ? payload.records
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+  const records = rows.flatMap((record) => {
+    const providerMessageId = text(record?.key?.id || record?.id);
+    const messageText = evolutionMessageText(record);
+    if (!providerMessageId || !messageText) return [];
+    const rawTimestamp = Number(record?.messageTimestamp || record?.timestamp || 0);
+    const createdAt = rawTimestamp > 0
+      ? new Date(rawTimestamp > 1e12 ? rawTimestamp : rawTimestamp * 1000).toISOString()
+      : new Date().toISOString();
+    return [{
+      provider_message_id: providerMessageId,
+      message_text: messageText,
+      from_me: record?.key?.fromMe === true || record?.fromMe === true,
+      message_type: text(record?.messageType || record?.message_type || "text"),
+      created_at: createdAt,
+    }];
+  });
+  if (!records.length) return { scanned: rows.length, synced: 0 };
+
+  await ensureAiSupportLogSchema();
+  const result = await db.query(
+    `
+    INSERT INTO ai_support_messages (
+      session_ref_id, tenant_id, session_id, channel, customer_name, last_message,
+      message_text, customer_message, ai_answer, sender_type, manual_message,
+      staff_message, external_message_id, provider_message_id, dedupe_key,
+      whatsapp_instance, remote_jid, resolved_reply_jid, resolved_phone,
+      source_path, insert_source, message_type, created_at, updated_at
+    )
+    SELECT s.id, $1, $2, 'whatsapp', COALESCE(s.customer_name, ''), r.message_text,
+           r.message_text,
+           CASE WHEN r.from_me THEN '' ELSE r.message_text END,
+           CASE WHEN r.from_me THEN r.message_text ELSE '' END,
+           CASE WHEN r.from_me THEN 'staff' ELSE 'customer' END,
+           r.from_me,
+           CASE WHEN r.from_me THEN r.message_text ELSE '' END,
+           r.provider_message_id, r.provider_message_id,
+           'evolution-history:' || $3::text || ':' || r.provider_message_id,
+           $3, $4, $4, $5,
+           'evolution_history_recovery', 'evolution_history_recovery', r.message_type,
+           r.created_at::timestamptz, r.created_at::timestamptz
+    FROM jsonb_to_recordset($6::jsonb) AS r(
+      provider_message_id text, message_text text, from_me boolean,
+      message_type text, created_at text
+    )
+    JOIN ai_support_sessions s ON s.tenant_id = $1 AND s.session_id = $2
+    WHERE NOT EXISTS (
+      SELECT 1 FROM ai_support_messages existing
+      WHERE existing.tenant_id = $1
+        AND existing.channel = 'whatsapp'
+        AND existing.whatsapp_instance = $3
+        AND existing.remote_jid = $4
+        AND existing.provider_message_id = r.provider_message_id
+    )
+    RETURNING id
+    `,
+    [safeTenantId, sessionId, instanceName(), remoteJid, phone, JSON.stringify(records)]
+  );
+  const synced = result.rowCount || 0;
+  console.info("[whatsapp:conversation-history-sync]", { tenantId: safeTenantId, sessionId, scanned: rows.length, synced });
+  return { scanned: rows.length, synced };
 };
 
 export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = {}) => {
