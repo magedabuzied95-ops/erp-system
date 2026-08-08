@@ -4,6 +4,42 @@
   font-family: var(--font-ar) !important;
 }
 
+/* Inventory approvals follows the shared M1 surfaces instead of the legacy navy screen. */
+.inventory-approvals-page {
+  background: var(--bg) !important;
+  background-image: radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 24%) !important;
+  color: var(--text) !important;
+}
+
+.inventory-approvals-page :where(header, section > div, [class*="rounded-"][class*="bg-white/5"]) {
+  border-color: var(--border) !important;
+}
+
+.inventory-approvals-page .manager-inventory-panel {
+  background: var(--surface) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.inventory-approvals-page .manager-inventory-stat {
+  background: var(--surface) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.inventory-approvals-page .manager-inventory-stat[data-tone="sky"] {
+  background: var(--primary-soft) !important;
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border)) !important;
+  color: var(--primary) !important;
+}
+
+html[data-theme="light"] .inventory-approvals-page .manager-inventory-stat[data-tone="sky"] {
+  color: var(--primary-active) !important;
+}
+
 .manager-portal-shell :where(h1, h2, h3, h4, button, input, select, textarea) {
   font-family: inherit !important;
 }

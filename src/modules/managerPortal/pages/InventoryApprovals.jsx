@@ -22,6 +22,7 @@ import toast from "react-hot-toast";
 import { managerPortalApi } from "../services/managerPortalApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import "./ManagerPortal.m1.css";
 
 const resolveStoredToken = () => {
   if (typeof window === "undefined") return "";
@@ -240,7 +241,7 @@ export default function InventoryApprovalsPage() {
 
   if (!token) {
     return (
-      <main dir="rtl" className="min-h-[100dvh] bg-[linear-gradient(180deg,#0f172a_0%,#111827_55%,#0b1220_100%)] px-4 py-6 text-white">
+      <main dir="rtl" className="manager-portal-shell inventory-approvals-page min-h-[100dvh] px-4 py-6">
         <div className="mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
           <div className="flex items-center gap-3">
             <ClipboardList className="h-8 w-8 text-amber-300" />
@@ -263,9 +264,9 @@ export default function InventoryApprovalsPage() {
   }
 
   return (
-    <main dir="rtl" className="min-h-[100dvh] overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.16),_transparent_30%),radial-gradient(circle_at_85%_0%,_rgba(245,158,11,0.12),_transparent_18%),linear-gradient(180deg,#0f172a_0%,#111827_46%,#0b1220_100%)] px-3 py-3 text-white sm:px-4 sm:py-4">
+    <main dir="rtl" className="manager-portal-shell inventory-approvals-page min-h-[100dvh] overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4">
       <div className="mx-auto max-w-[96rem] space-y-4">
-        <header className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur sm:rounded-[2rem] sm:p-5">
+        <header className="manager-inventory-panel rounded-[1.5rem] border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur sm:rounded-[2rem] sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="hidden text-xs font-black uppercase tracking-[0.22em] text-slate-400 sm:block">مركز اعتماد الجرد</div>
@@ -303,7 +304,7 @@ export default function InventoryApprovalsPage() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
+          <div className="manager-inventory-panel rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
             <form onSubmit={handleSearch} className="mb-4">
               <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">بحث</label>
               <div className="flex gap-2">
@@ -354,7 +355,7 @@ export default function InventoryApprovalsPage() {
                           <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDateTime(session.created_at)}</span>
                         </div>
                       </div>
-                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${statusTone(session.status)}`}>
+                      <span className={`manager-portal-status-pill rounded-full border px-2.5 py-1 text-[11px] font-black ${statusTone(session.status)}`}>
                         {session.status === "pending_review" ? "قيد المراجعة" : session.status === "rejected" ? "مرفوض" : session.status === "completed" ? "مكتمل" : session.status}
                       </span>
                     </div>
@@ -374,7 +375,7 @@ export default function InventoryApprovalsPage() {
             </div>
           </div>
 
-          <div ref={detailRef} className="scroll-mt-3 rounded-[1.5rem] border border-white/10 bg-white/5 p-3 shadow-xl backdrop-blur sm:rounded-[2rem] sm:p-4">
+          <div ref={detailRef} className="manager-inventory-panel scroll-mt-3 rounded-[1.5rem] border border-white/10 bg-white/5 p-3 shadow-xl backdrop-blur sm:rounded-[2rem] sm:p-4">
             {selectedLoading ? (
               <div className="flex min-h-[28rem] items-center justify-center text-slate-300">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -393,7 +394,7 @@ export default function InventoryApprovalsPage() {
                       <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {formatDateTime(selectedSession.created_at)}</span>
                     </div>
                   </div>
-                  <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone(selectedSession.status)}`}>
+                  <span className={`manager-portal-status-pill rounded-full border px-3 py-1 text-xs font-black ${statusTone(selectedSession.status)}`}>
                     {selectedSession.status === "pending_review" ? "في انتظار موافقة المدير" : selectedSession.status === "rejected" ? "مرفوض" : selectedSession.status === "completed" ? "مكتمل" : selectedSession.status}
                   </span>
                 </div>
@@ -575,7 +576,7 @@ function StatCard({ title, value, icon: Icon, tone = "sky" }) {
     sky: "from-sky-400/15 to-sky-500/5 text-sky-100 border-sky-300/20",
   };
   return (
-    <div className={`rounded-2xl border bg-gradient-to-br p-3 shadow-xl backdrop-blur sm:rounded-[1.75rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
+    <div data-tone={tone} className={`manager-inventory-stat rounded-2xl border bg-gradient-to-br p-3 shadow-xl backdrop-blur sm:rounded-[1.75rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] font-black leading-4 opacity-70 sm:text-xs sm:uppercase sm:tracking-[0.18em]">{title}</div>
@@ -595,7 +596,7 @@ function InfoStat({ title, value, icon: Icon, tone = "sky" }) {
     sky: "border-sky-300/20 bg-sky-500/10 text-sky-100",
   };
   return (
-    <div className={`rounded-2xl border p-3 sm:rounded-[1.5rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
+    <div data-tone={tone} className={`manager-inventory-stat rounded-2xl border p-3 sm:rounded-[1.5rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] font-black leading-4 opacity-70 sm:text-xs sm:uppercase sm:tracking-[0.16em]">{title}</div>
