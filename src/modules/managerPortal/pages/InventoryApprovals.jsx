@@ -97,6 +97,24 @@ export default function InventoryApprovalsPage() {
 
   const selectedSession = selectedApproval?.session || null;
   const selectedItems = Array.isArray(selectedApproval?.items) ? selectedApproval.items : [];
+  const sortedSelectedItems = useMemo(() => {
+    const collator = new Intl.Collator(["ar", "en"], { numeric: true, sensitivity: "base" });
+    return selectedItems
+      .map((item, index) => ({ item, index }))
+      .sort((left, right) => {
+        const leftSize = itemSize(left.item);
+        const rightSize = itemSize(right.item);
+        if (!leftSize && rightSize) return 1;
+        if (leftSize && !rightSize) return -1;
+        const sizeOrder = collator.compare(leftSize, rightSize);
+        if (sizeOrder) return sizeOrder;
+        const productOrder = collator.compare(text(left.item.product_name, ""), text(right.item.product_name, ""));
+        if (productOrder) return productOrder;
+        const colorOrder = collator.compare(itemColor(left.item), itemColor(right.item));
+        return colorOrder || left.index - right.index;
+      })
+      .map(({ item }) => item);
+  }, [selectedItems]);
   const sessionSummary = useMemo(() => {
     const totals = selectedItems.reduce((acc, item) => {
       const system = Number(item.system_quantity || item.expected_qty || 0);
@@ -384,7 +402,7 @@ export default function InventoryApprovalsPage() {
                 </section>
 
                 <div className="mt-4 space-y-2 md:hidden">
-                  {selectedItems.length ? selectedItems.map((item) => {
+                  {sortedSelectedItems.length ? sortedSelectedItems.map((item) => {
                     const system = Number(item.system_quantity || item.expected_qty || 0);
                     const counted = Number(item.counted_quantity || item.actual_qty || 0);
                     const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
@@ -434,7 +452,7 @@ export default function InventoryApprovalsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedItems.length ? selectedItems.map((item) => {
+                        {sortedSelectedItems.length ? sortedSelectedItems.map((item) => {
                           const system = Number(item.system_quantity || item.expected_qty || 0);
                           const counted = Number(item.counted_quantity || item.actual_qty || 0);
                           const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
