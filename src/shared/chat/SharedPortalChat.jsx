@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Loader2, MessageCircle, RefreshCw, Search, UserRound, X } from "lucide-react";
 
 import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../lib/chatState";
+import { resolveEmployeeProfileImageUrl } from "../lib/imageUrls";
 import PortalChatComposer from "./PortalChatComposer";
 import PortalChatMessageList from "./PortalChatMessageList";
 import PortalChatContactInfo from "./PortalChatContactInfo";
@@ -754,7 +755,10 @@ export default function SharedPortalChat({
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
                         {employee.photo_url ? (
-                          <img src={employee.photo_url} alt={employee.full_name || employee.employee_name || ""} className="h-full w-full object-cover" loading="lazy" />
+                          <>
+                            <img src={resolveEmployeeProfileImageUrl(employee.photo_url)} alt={employee.full_name || employee.employee_name || ""} className="h-full w-full object-cover" loading="lazy" onError={(event) => { event.currentTarget.classList.add("hidden"); event.currentTarget.nextElementSibling?.classList.remove("hidden"); }} />
+                            <UserRound className="hidden h-5 w-5" />
+                          </>
                         ) : (
                           <UserRound className="h-5 w-5" />
                         )}
@@ -800,7 +804,12 @@ export default function SharedPortalChat({
                   ) : null}
                   <button type="button" onClick={() => setContactInfoOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-start hover:bg-white/5" aria-label="فتح معلومات الموظف">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
-                      {selectedEmployeeRecord.photo_url ? <img src={selectedEmployeeRecord.photo_url} alt="" className="h-full w-full object-cover" /> : <UserRound className="h-4 w-4" />}
+                      {selectedEmployeeRecord.photo_url ? (
+                        <>
+                          <img src={resolveEmployeeProfileImageUrl(selectedEmployeeRecord.photo_url)} alt="" className="h-full w-full object-cover" onError={(event) => { event.currentTarget.classList.add("hidden"); event.currentTarget.nextElementSibling?.classList.remove("hidden"); }} />
+                          <UserRound className="hidden h-4 w-4" />
+                        </>
+                      ) : <UserRound className="h-4 w-4" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || selectedThread?.employee_name || "موظف"}</div>
@@ -893,7 +902,7 @@ export default function SharedPortalChat({
                 contact={{
                   name: selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || "موظف",
                   phone: selectedEmployeeRecord.phone || selectedEmployeeRecord.mobile || "",
-                  avatar: selectedEmployeeRecord.photo_url || selectedEmployeeRecord.image_url || "",
+                  avatar: resolveEmployeeProfileImageUrl(selectedEmployeeRecord.photo_url || selectedEmployeeRecord.image_url || ""),
                   about: selectedEmployeeRecord.branch_name || "موظف M1 Store",
                 }}
                 messages={messages}
