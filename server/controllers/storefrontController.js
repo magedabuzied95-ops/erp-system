@@ -2698,7 +2698,7 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   ]);
   let usedTenantFallback = false;
   if (!result.rows.length && tenantId !== null) {
-    result = await perf.step("sql_main", () => queryProducts(null, "", "", filters, false, 80, 0);
+    result = await queryProducts(null, "", "", filters, false, 80, 0);
     usedTenantFallback = result.rows.length > 0;
   }
   if (!mirrorResult.rows.length && tenantId !== null) {
@@ -3054,7 +3054,7 @@ export const listProducts = async (req, res) => {
           excluded_due_to_is_storefront_visible: excludedDueToVisibility,
         });
       }
-      let result = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
+      let result = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset);
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
         const fallback = await perf.step("sql_fallback_1", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
@@ -3167,13 +3167,13 @@ export const listProducts = async (req, res) => {
       params: error?.params || [],
     });
     res.status(500).json({ success: false, message: "Failed to load products" });
-  }
   } finally {
     if (perf.enabled) {
       perf.set("cache_lookup", cacheDiag?.cache_lookup_ms ?? 0);
       perf.set("cache_write", cacheDiag?.cache_write_ms ?? 0);
       perf.end({ cache: cacheDiag?.cache ?? "unknown" });
     }
+  }
 };
 
 export const visualSearchProducts = async (req, res) => {
