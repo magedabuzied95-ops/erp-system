@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  ClipboardCheck,
   ClipboardList,
   Copy,
   Download,
@@ -56,7 +57,7 @@ import { safeSetLocalStorage } from "../../../utils/safeStorage";
 import { useTheme } from "../../../theme/useTheme";
 import "./ManagerPortal.m1.css";
 
-const TABS = ["today", "staff", "tasks", "sales", "chat", "more"];
+const TABS = ["today", "staff", "tasks", "sales", "chat", "inventory", "more"];
 const STORAGE_KEY = "manager.portal.active.tab";
 const DEFAULT_NOTIFICATION_SETTINGS = {
   messages: { sound: true, toast: true, push: true },
@@ -1903,12 +1904,12 @@ export default function ManagerPortal() {
                 key={tab}
                 type="button"
                 data-testid={`sidebar-tab-${tab}`}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)}
                 className={`flex w-full items-center justify-between rounded-2xl px-3 py-3 text-sm font-black transition ${
                   activeTab === tab ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "bg-white text-slate-700"
                 }`}
               >
-                <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : tab === "notifications" ? "إعدادات التنبيه" : "المزيد"}</span>
+                <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : tab === "inventory" ? "الجرد" : tab === "notifications" ? "إعدادات التنبيه" : "المزيد"}</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
             ))}
@@ -3153,19 +3154,20 @@ export default function ManagerPortal() {
       </div>
 
       <nav className="manager-bottom-nav-safe-padding manager-bottom-nav-shell fixed inset-x-3 z-40 mx-auto max-w-2xl rounded-[1.4rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] shadow-2xl shadow-slate-900/30 lg:hidden">
-        <div className="grid grid-cols-6 gap-0.5 px-1.5 py-1.5">
+        <div className="grid grid-cols-7 gap-0.5 px-1.5 py-1.5">
           {TABS.map((tab) => {
             const active = activeTab === tab;
-            const label = tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد";
-            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : Settings;
+            const label = tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : tab === "inventory" ? "الجرد" : "المزيد";
+            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : tab === "inventory" ? ClipboardCheck : Settings;
             const Icon = icon;
             return (
-              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[10px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
+              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)} className={`relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-1.5 text-[9px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap">
                   {label}
                   {tab === "more" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-[1.2] text-white">{formatNumber(unreadCount)}</span> : null}
                 </span>
+                {tab === "inventory" && pendingInventoryApprovalsCount > 0 ? <span className="absolute -top-1 right-0 min-w-4 rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{formatNumber(pendingInventoryApprovalsCount)}</span> : null}
               </button>
             );
           })}
