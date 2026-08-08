@@ -515,24 +515,24 @@ export default function Customer360Drawer({
                 ["Purchased", purchasedProducts],
                 ["Wishlist", wishlistProducts],
               ].map(([label, list]) => (
-                <div key={label} className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
+                <div key={label} className="m1-customer-products-section rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
                   <div className="mt-3 space-y-2">
                     {list.length ? list.slice(0, 3).map((product, index) => (
-                      <div key={product.id || product.product_id || index} className="flex items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-2.5">
-                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white">
+                      <div key={product.id || product.product_id || index} className="m1-customer-product-card flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-2.5">
+                        <div className="m1-customer-product-image h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
                           {product.image_url ? <img src={product.image_url} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-black text-slate-900">{clean(product.name || product.title || product.product_name || "Product")}</div>
-                          <div className="mt-1 text-xs text-slate-500">{clean(product.price || product.final_price || product.sale_price || "") ? `${clean(product.price || product.final_price || product.sale_price)} EGP` : "Price unavailable"}</div>
-                          <div className="mt-1 text-xs text-slate-500">{[product.department, product.category, product.color, product.size ? `Size ${product.size}` : ""].filter(Boolean).join(" · ") || "Product details unavailable"}</div>
+                          <div className="truncate text-sm font-black text-[var(--text)]">{clean(product.name || product.title || product.product_name || "Product")}</div>
+                          <div className="mt-1 text-xs font-semibold text-[var(--text-secondary)]">{clean(product.price || product.final_price || product.sale_price || "") ? `${clean(product.price || product.final_price || product.sale_price)} EGP` : "Price unavailable"}</div>
+                          <div className="mt-1 text-xs text-[var(--muted)]">{[product.department, product.category, product.color, product.size ? `Size ${product.size}` : ""].filter(Boolean).join(" · ") || "Product details unavailable"}</div>
                         </div>
-                        <button type="button" onClick={() => openSystemPath(productPath(product))} className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-[11px] font-black text-slate-700">
+                        <button type="button" onClick={() => openSystemPath(productPath(product))} className="m1-customer-product-action inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-black text-[var(--text)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]">
                           Open Product <ExternalLink className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                    )) : <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-white p-4 text-sm text-slate-500">No products in this section.</div>}
+                    )) : <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">No products in this section.</div>}
                   </div>
                 </div>
               ))}

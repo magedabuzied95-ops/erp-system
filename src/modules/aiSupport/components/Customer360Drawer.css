@@ -44,3 +44,29 @@ html[data-theme="dark"] .m1-customer-360 aside {
 html[data-theme="dark"] .m1-customer-360 aside [class*="shadow-"] {
   box-shadow: none !important;
 }
+
+.m1-customer-360 .m1-customer-products-section {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+
+.m1-customer-360 .m1-customer-product-card {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.m1-customer-360 .m1-customer-product-image,
+.m1-customer-360 .m1-customer-product-action {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .m1-customer-360 .m1-customer-product-card {
+  background: #f7f7f5 !important;
+}
+
+html[data-theme="dark"] .m1-customer-360 .m1-customer-product-card {
+  background: #191917 !important;
+}
