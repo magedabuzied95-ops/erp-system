@@ -1284,7 +1284,14 @@ const reconcileCustomerInvoicePayments = async (clientOrPool, { tenantId, custom
   await ensureCustomerPaymentsSchema(clientOrPool);
   const ordersResult = await clientOrPool.query(
     `
-    SELECT id, COALESCE(total_amount, total, 0)::numeric AS total_amount
+    SELECT
+      id,
+      COALESCE(total_amount, total, 0)::numeric AS total_amount,
+      COALESCE((
+        SELECT SUM((entry->>'amount')::numeric)
+        FROM jsonb_array_elements(COALESCE(payment_breakdown, '[]'::jsonb)) entry
+        WHERE LOWER(COALESCE(entry->>'method', entry->>'payment_method', '')) NOT IN ('credit_sale', 'exchange_credit', 'return_credit')
+      ), 0)::numeric AS initial_paid_amount
     FROM orders
     WHERE tenant_id = $1
       AND customer_id = $2
@@ -1312,13 +1319,13 @@ const reconcileCustomerInvoicePayments = async (clientOrPool, { tenantId, custom
   );
 
   let orderIndex = 0;
-  let orderRemaining = Number(ordersResult.rows[0]?.total_amount || 0);
+  let orderRemaining = Math.max(0, Number(ordersResult.rows[0]?.total_amount || 0) - Number(ordersResult.rows[0]?.initial_paid_amount || 0));
   for (const paymentRow of paymentsResult.rows) {
     let paymentRemaining = Number(paymentRow.amount || 0);
     while (paymentRemaining > 0.009 && orderIndex < ordersResult.rows.length) {
       if (orderRemaining <= 0.009) {
         orderIndex += 1;
-        orderRemaining = Number(ordersResult.rows[orderIndex]?.total_amount || 0);
+        orderRemaining = Math.max(0, Number(ordersResult.rows[orderIndex]?.total_amount || 0) - Number(ordersResult.rows[orderIndex]?.initial_paid_amount || 0));
         continue;
       }
       const allocatedAmount = Number(Math.min(paymentRemaining, orderRemaining).toFixed(2));
@@ -1337,14 +1344,21 @@ const reconcileCustomerInvoicePayments = async (clientOrPool, { tenantId, custom
   await clientOrPool.query(
     `
     UPDATE orders o
-    SET paid_amount = allocation.paid_amount,
+    SET paid_amount = allocation.initial_paid_amount + allocation.paid_amount,
         payment_status = CASE
-          WHEN allocation.paid_amount >= COALESCE(o.total_amount, o.total, 0) - 0.009 THEN 'paid'
-          WHEN allocation.paid_amount > 0.009 THEN 'partially_paid'
+          WHEN allocation.initial_paid_amount + allocation.paid_amount >= COALESCE(o.total_amount, o.total, 0) - 0.009 THEN 'paid'
+          WHEN allocation.initial_paid_amount + allocation.paid_amount > 0.009 THEN 'partially_paid'
           ELSE 'unpaid'
         END
     FROM (
-      SELECT target.id AS order_id, COALESCE(SUM(cpa.amount), 0)::numeric AS paid_amount
+      SELECT
+        target.id AS order_id,
+        COALESCE((
+          SELECT SUM((entry->>'amount')::numeric)
+          FROM jsonb_array_elements(COALESCE(target.payment_breakdown, '[]'::jsonb)) entry
+          WHERE LOWER(COALESCE(entry->>'method', entry->>'payment_method', '')) NOT IN ('credit_sale', 'exchange_credit', 'return_credit')
+        ), 0)::numeric AS initial_paid_amount,
+        COALESCE(SUM(cpa.amount), 0)::numeric AS paid_amount
       FROM orders target
       LEFT JOIN customer_payment_allocations cpa ON cpa.order_id = target.id
       WHERE target.tenant_id = $1

@@ -413,6 +413,7 @@ function CartSidebar({
   const [discountLoyaltyOpen, setDiscountLoyaltyOpen] = useState(false);
   const [invoiceDiscountOpen, setInvoiceDiscountOpen] = useState(false);
   const [splitPaymentOpen, setSplitPaymentOpen] = useState(false);
+  const [deferSplitRemainder, setDeferSplitRemainder] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   useEffect(() => {
@@ -458,7 +459,8 @@ function CartSidebar({
   const totalPaid = personalPaymentActive || creditSaleActive ? 0 : appliedCredit + methodTotal;
   const remainingAmount = personalPaymentActive || creditSaleActive ? totalAmount : Math.max(0, totalAmount - totalPaid);
   const hasPaymentBreakdown = appliedCredit > 0 || methodTotal > 0;
-  const paymentMismatch = personalPaymentActive || creditSaleActive ? false : Math.abs(totalAmount - totalPaid) > 0.009;
+  const partialCreditActive = normalizedPaymentMode === "split" && deferSplitRemainder && hasSelectedCustomer && totalPaid > 0.009 && remainingAmount > 0.009;
+  const paymentMismatch = personalPaymentActive || creditSaleActive || partialCreditActive ? false : Math.abs(totalAmount - totalPaid) > 0.009;
   const selectedMethod = normalizedPaymentMode === "split"
     ? (["cash", "card", "wallet", "vodafone_cash"].includes(activeSplitMethod) ? activeSplitMethod : "cash")
     : normalizedPaymentMode === "instapay"
@@ -502,6 +504,7 @@ function CartSidebar({
     setVodafoneCashAmount?.(0);
     if (setPersonalSettlementType) setPersonalSettlementType("");
     if (setPersonalNote) setPersonalNote("");
+    setDeferSplitRemainder(false);
   };
   const setMethodAmount = (method, value, options = {}) => {
     const parsed = Math.max(0, Number(value || 0));
@@ -538,6 +541,7 @@ function CartSidebar({
     setPaymentMode?.(appliedCredit > 0 || otherTotal > 0 ? "split" : selected?.paymentMode || method);
   };
   const selectFullPayment = (method) => {
+    setDeferSplitRemainder(false);
     setActiveSplitMethod?.(method);
     if (method === "personal") {
       clearPaymentMethods();
@@ -554,6 +558,7 @@ function CartSidebar({
   };
   const openSplitPayment = () => {
     setCustomerWalletAmount?.(0);
+    setDeferSplitRemainder(false);
     setPaymentMode?.("split");
     setSplitPaymentOpen(true);
   };
@@ -1058,7 +1063,7 @@ function CartSidebar({
         <div className="pos-checkout-actions sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur sm:grid-cols-3">
           <button
             type="button"
-            onClick={onCheckout}
+            onClick={() => onCheckout?.(partialCreditActive ? { partialCredit: true } : {})}
             disabled={checkoutLoading || cart.length === 0 || paymentMismatch || editRefundSelectionMissing}
             title={
               editRefundSelectionMissing
@@ -1141,6 +1146,9 @@ function CartSidebar({
         appliedCredit={appliedCredit}
         methodAmounts={methodAmounts}
         paymentMethods={paymentMethods}
+        hasSelectedCustomer={hasSelectedCustomer}
+        deferRemainder={deferSplitRemainder}
+        onDeferRemainderChange={setDeferSplitRemainder}
         onClose={() => setSplitPaymentOpen(false)}
         onSetMethodAmount={(method, value) => setMethodAmount(method, value, { manual: true })}
         onFillMethod={selectPaymentMethod}
@@ -2708,6 +2716,9 @@ function SplitPaymentSheet({
   appliedCredit,
   methodAmounts,
   paymentMethods,
+  hasSelectedCustomer,
+  deferRemainder,
+  onDeferRemainderChange,
   onClose,
   onSetMethodAmount,
   onFillMethod,
@@ -2718,6 +2729,7 @@ function SplitPaymentSheet({
   const splitRemaining = Math.max(0, Number(totalAmount || 0) - splitTotalPaid);
   const splitOverpaid = Math.max(0, splitTotalPaid - Number(totalAmount || 0));
   const isMatched = splitRemaining <= 0.009 && splitOverpaid <= 0.009 && Math.abs(splitTotalPaid - Number(totalAmount || 0)) <= 0.009;
+  const canSaveAsPartialCredit = Boolean(hasSelectedCustomer && deferRemainder && splitTotalPaid > 0.009 && splitRemaining > 0.009 && splitOverpaid <= 0.009);
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <section className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-3xl border border-white/10 bg-zinc-950 p-4 text-white shadow-2xl shadow-black/60 sm:rounded-3xl" dir="auto">
@@ -2786,6 +2798,23 @@ function SplitPaymentSheet({
                 : posLabel("cart.emptySplitWarning", "Complete the split so remaining reaches zero before creating the order.")}
             </div>
           ) : null}
+          {splitRemaining > 0.009 ? (
+            <label className={`mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-3 ${deferRemainder ? "border-amber-300/40 bg-amber-400/10" : "border-white/10 bg-white/[0.03]"}`}>
+              <span>
+                <span className="block text-sm font-black text-white">تسجيل الباقي آجل</span>
+                <span className="mt-0.5 block text-[11px] font-bold text-zinc-400">
+                  {hasSelectedCustomer ? `سيُسجل ${formatCurrency(splitRemaining)} مديونية على العميل` : "اختر العميل أولًا لتسجيل المديونية"}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={Boolean(deferRemainder)}
+                disabled={!hasSelectedCustomer || splitTotalPaid <= 0.009}
+                onChange={(event) => onDeferRemainderChange?.(event.target.checked)}
+                className="h-5 w-5 accent-amber-400"
+              />
+            </label>
+          ) : null}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -2799,10 +2828,10 @@ function SplitPaymentSheet({
           <button
             type="button"
             onClick={onClose}
-            disabled={!isMatched}
+            disabled={!isMatched && !canSaveAsPartialCredit}
             className="min-h-12 rounded-2xl bg-emerald-500 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isMatched ? posLabel("cart.done", "Done") : posLabel("cart.remainingAmount", "Remaining")}
+            {isMatched ? posLabel("cart.done", "Done") : canSaveAsPartialCredit ? "حفظ العربون والباقي آجل" : posLabel("cart.remainingAmount", "Remaining")}
           </button>
         </div>
       </section>

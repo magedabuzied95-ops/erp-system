@@ -3033,7 +3033,7 @@ export const createOrder = async (req, res) => {
       ? Number(Number(exchange_difference || computedTotal - exchangeCreditAmount).toFixed(2))
       : 0;
     const receivedAmount = isCreditSaleTransaction
-      ? 0
+      ? Math.max(0, Number(paid_amount || 0) || 0)
       : exchangeMode
       ? Math.max(0, Number.isFinite(Number(paid_amount)) ? Number(paid_amount) : amountDueNow)
       : Number.isFinite(Number(paid_amount)) && Number(paid_amount) > 0 ? Number(paid_amount) : computedTotal;
@@ -3571,7 +3571,7 @@ export const createOrder = async (req, res) => {
       .filter((payment) => normalizeMoneyPaymentMethod(payment.method || payment.payment_method) === "cash")
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 
-    if (!isPersonalTransaction && !isCreditSaleTransaction) {
+    if (!isPersonalTransaction && (!isCreditSaleTransaction || receivedAmount > 0.009)) {
       markOrderStep("create payment transaction", { order_id: order.id, payment_method: payment_method || "cash", amount: receivedAmount });
       await timedCheckout(checkoutTiming, "payment_treasury_update_ms", async () => {
         await client.query(

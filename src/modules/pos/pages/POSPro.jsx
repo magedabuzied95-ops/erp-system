@@ -5500,6 +5500,7 @@ function POSPro() {
     const paymobTerminalCheckout = options?.paymobTerminal === true;
     const paymobTerminalConfirmed = options?.paymobTerminalConfirmed === true;
     const creditSaleCheckout = options?.creditSale === true;
+    const partialCreditCheckout = options?.partialCredit === true;
     const terminalConfirmedAmount = paymobTerminalConfirmed
       ? Math.max(0, Number(options?.terminalAmount || paymobTerminalState?.amount || 0))
       : 0;
@@ -5601,7 +5602,7 @@ function POSPro() {
         return null;
       }
     }
-    if (isCreditSaleTransaction && (!customer || !customer.id)) {
+    if ((isCreditSaleTransaction || partialCreditCheckout) && (!customer || !customer.id)) {
       toast.error("اختر عميلًا أولًا قبل البيع الآجل.");
       return null;
     }
@@ -5626,8 +5627,12 @@ function POSPro() {
       toast.error("Payment total cannot exceed amount due now");
       return null;
     }
-    if (!isPersonalTransaction && !isCreditSaleTransaction && !paymobTerminalCheckout && !paymobTerminalConfirmed && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
+    if (!isPersonalTransaction && !isCreditSaleTransaction && !partialCreditCheckout && !paymobTerminalCheckout && !paymobTerminalConfirmed && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
       toast.error(`Payment mismatch. Remaining: ${formatCurrency(Math.max(0, paymentTarget - enteredPaymentTotal))}`);
+      return null;
+    }
+    if (partialCreditCheckout && (enteredPaymentTotal <= 0.009 || enteredPaymentTotal >= paymentTarget - 0.009)) {
+      toast.error("أدخل عربونًا أقل من إجمالي الفاتورة، وسيُسجل الباقي آجلًا.");
       return null;
     }
     if ((isPersonalTransaction || isCreditSaleTransaction) && (paymobTerminalCheckout || paymobTerminalConfirmed)) {
@@ -5824,7 +5829,7 @@ function POSPro() {
         customer_name: invoiceCustomer.name,
         customer_id: customerId || null,
         customer_phone: customer?.phone || "",
-        payment_method: isPersonalTransaction ? "personal" : (creditSaleCheckout ? "credit_sale" : (paymobTerminalConfirmed ? "card" : paymentMode)),
+        payment_method: isPersonalTransaction ? "personal" : ((creditSaleCheckout || partialCreditCheckout) ? "credit_sale" : (paymobTerminalConfirmed ? "card" : paymentMode)),
         payment_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         paymob_terminal_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         subtotal: cartTotals.subtotal,
@@ -5846,7 +5851,7 @@ function POSPro() {
         paid_amount: checkoutPaymentSummary.paidAmount,
         change_amount: checkoutPaymentSummary.changeAmount,
         status: checkoutPaymentSummary.paymentStatus,
-        payment_status: creditSaleCheckout ? "unpaid" : checkoutPaymentSummary.paymentStatus,
+        payment_status: creditSaleCheckout ? "unpaid" : partialCreditCheckout ? "partially_paid" : checkoutPaymentSummary.paymentStatus,
         branch_id: checkoutBranchId,
         cash_amount: payloadCashAmount,
         card_amount: payloadCardAmount,

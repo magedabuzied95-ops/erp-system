@@ -17,6 +17,9 @@ test("customer payments are stored separately from loyalty wallet adjustments", 
   assert.match(controller, /payment_status = CASE/);
   assert.match(controller, /'partially_paid'/);
   assert.match(controller, /'paid'/);
+  assert.match(controller, /initial_paid_amount/);
+  assert.match(controller, /jsonb_array_elements\(COALESCE\(payment_breakdown/);
+  assert.match(controller, /allocation\.initial_paid_amount \+ allocation\.paid_amount/);
 });
 
 test("customer statement has a professional payment workflow", () => {

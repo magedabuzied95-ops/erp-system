@@ -21,6 +21,17 @@ test("POS checkout rejects a paid invoice whose split breakdown is incomplete", 
   assert.match(ordersControllerSource, /submittedCollectedAmount[\s\S]*receivedAmount/);
 });
 
+test("POS supports a deposit with the remaining balance saved as customer credit", () => {
+  assert.match(cartSource, /تسجيل الباقي آجل/);
+  assert.match(cartSource, /partialCreditActive/);
+  assert.match(cartSource, /partialCredit:\s*true/);
+  assert.match(posSource, /partialCreditCheckout/);
+  assert.match(posSource, /partialCreditCheckout \? "partially_paid"/);
+  assert.match(posSource, /\(creditSaleCheckout \|\| partialCreditCheckout\) \? "credit_sale"/);
+  assert.match(ordersControllerSource, /isCreditSaleTransaction[\s\S]*Math\.max\(0, Number\(paid_amount \|\| 0\) \|\| 0\)/);
+  assert.match(ordersControllerSource, /!isCreditSaleTransaction \|\| receivedAmount > 0\.009/);
+});
+
 test("POS invoice edit treats an outstanding balance as an extra payment even when total is unchanged", () => {
   assert.match(
     ordersControllerSource,
