@@ -28,6 +28,7 @@ import {
   Printer,
   RefreshCw,
   Search,
+  Settings,
   Shield,
   ShoppingCart,
   Smartphone,
@@ -55,7 +56,7 @@ import { safeSetLocalStorage } from "../../../utils/safeStorage";
 import { useTheme } from "../../../theme/useTheme";
 import "./ManagerPortal.m1.css";
 
-const TABS = ["today", "staff", "tasks", "sales", "chat", "notifications", "more"];
+const TABS = ["today", "staff", "tasks", "sales", "chat", "more"];
 const STORAGE_KEY = "manager.portal.active.tab";
 const DEFAULT_NOTIFICATION_SETTINGS = {
   messages: { sound: true, toast: true, push: true },
@@ -2925,6 +2926,23 @@ export default function ManagerPortal() {
 
           {activeTab === "more" ? (
             <div className="space-y-4">
+              <Card title="الإعدادات" subtitle="المزيد" icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <button type="button" onClick={() => setActiveTab("notifications")} className="relative flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-500"><Bell className="h-6 w-6" /></span>
+                    <span className="text-sm font-black">التنبيهات</span>
+                    {unreadCount > 0 ? <span className="absolute left-3 top-3 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">{formatNumber(unreadCount)}</span> : null}
+                  </button>
+                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-500/15 text-slate-500">{theme.mode === "dark" ? <SunMedium className="h-6 w-6" /> : <Moon className="h-6 w-6" />}</span>
+                    <span className="text-sm font-black">المظهر</span>
+                  </button>
+                  <button type="button" onClick={() => void loadAll({ silent: true })} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-500"><RefreshCw className={`h-6 w-6 ${refreshing ? "animate-spin" : ""}`} /></span>
+                    <span className="text-sm font-black">تحديث البيانات</span>
+                  </button>
+                </div>
+              </Card>
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card title="الملف الشخصي" subtitle="ملف المدير" icon={Building2} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
@@ -2948,6 +2966,10 @@ export default function ManagerPortal() {
 
           {activeTab === "notifications" ? (
             <div className="space-y-4">
+              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                <Settings className="h-4 w-4" />
+                الرجوع إلى الإعدادات
+              </button>
               <Card title="إعدادات التنبيه" subtitle="إعدادات الإشعارات" icon={Bell}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.entries(settings).map(([category, config]) => (
@@ -3131,18 +3153,18 @@ export default function ManagerPortal() {
       </div>
 
       <nav className="manager-bottom-nav-safe-padding manager-bottom-nav-shell fixed inset-x-3 z-40 mx-auto max-w-2xl rounded-[1.4rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] shadow-2xl shadow-slate-900/30 lg:hidden">
-        <div className="grid grid-cols-7 gap-0.5 px-1.5 py-1.5">
+        <div className="grid grid-cols-6 gap-0.5 px-1.5 py-1.5">
           {TABS.map((tab) => {
             const active = activeTab === tab;
-            const label = tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : tab === "notifications" ? "التنبيهات" : "المزيد";
-            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : tab === "notifications" ? Bell : Megaphone;
+            const label = tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد";
+            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : Settings;
             const Icon = icon;
             return (
               <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[10px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap">
                   {label}
-                  {tab === "notifications" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-[1.2] text-white">{formatNumber(unreadCount)}</span> : null}
+                  {tab === "more" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-[1.2] text-white">{formatNumber(unreadCount)}</span> : null}
                 </span>
               </button>
             );
