@@ -532,30 +532,31 @@ const useBodyScrollLock = (locked) => {
     return lockBodyScroll();
   }, [locked]);
 };
+const buildStorefrontProductsRequestUrl = (params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const safeKey = String(key || "").trim();
+    if (!safeKey || value === undefined || value === null || value === "" || value === false) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null && item !== "" && item !== false) query.append(safeKey, item === true ? "1" : String(item));
+      });
+      return;
+    }
+    query.set(safeKey, value === true ? "1" : String(value));
+  });
+  if (!query.has("sort")) query.set("sort", "newest");
+  query.set("_last_piece_scope", "product");
+  const queryString = query.toString();
+  return `/storefront/products${queryString ? `?${queryString}` : ""}`;
+};
 const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } = {}) => {
   const queryKey = JSON.stringify(params);
   const offerStoryValue = String(params?.offer_story ?? params?.offerStory ?? "").trim().toLowerCase();
   const hasOfferStoryFilter = Boolean(offerStoryValue && !["0", "false", "no", "off"].includes(offerStoryValue));
   const effectiveTtlMs = hasOfferStoryFilter ? 0 : ttlMs;
-  const queryString = useMemo(() => {
-    const query = new URLSearchParams();
-    const queryParams = JSON.parse(queryKey || "{}");
-    Object.entries(queryParams).forEach(([key, value]) => {
-      const safeKey = String(key || "").trim();
-      if (!safeKey || value === undefined || value === null || value === "" || value === false) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => {
-          if (item !== undefined && item !== null && item !== "" && item !== false) query.append(safeKey, item === true ? "1" : String(item));
-        });
-        return;
-      }
-      query.set(safeKey, value === true ? "1" : String(value));
-    });
-    if (!queryParams.sort) query.set("sort", "newest");
-    query.set("_last_piece_scope", "product");
-    return query.toString();
-  }, [queryKey]);
-  const requestUrl = `/storefront/products${queryString ? `?${queryString}` : ""}`;
+  const requestUrl = useMemo(() => buildStorefrontProductsRequestUrl(JSON.parse(queryKey || "{}")), [queryKey]);
+  const queryString = requestUrl.split("?")[1] || "";
   const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs: effectiveTtlMs });
   const [state, setState] = useState(() => {
     const initialProducts = extractStorefrontProductsFromResponse(cachedProductsData);
@@ -1752,6 +1753,9 @@ const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS, forceRe
   storefrontGetInFlight.set(url, request);
   return request;
 };
+const prefetchStorefrontProducts = (params = {}) =>
+  cachedStorefrontGet(buildStorefrontProductsRequestUrl(params), { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS })
+    .catch(() => null);
 const extractStorefrontProductsFromResponse = (response) => {
   const normalizePriceAliases = (product = {}) => {
     if (!product || typeof product !== "object") return product;
@@ -10849,6 +10853,7 @@ export {
   uniqueClassificationOptions,
   useBodyScrollLock,
   useProducts,
+  prefetchStorefrontProducts,
   useStorefrontGenderClassifications,
   variantColorKey,
   variantColorName,

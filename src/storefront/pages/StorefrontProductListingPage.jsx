@@ -32,6 +32,7 @@ import {
   sortStorefrontColorCardsByModel,
   useBodyScrollLock,
   useProducts,
+  prefetchStorefrontProducts,
   normalizeFilterKey,
 } from "../Storefront";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
@@ -681,6 +682,17 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     else next.set("page", String(pageNumber));
     return `${listingPagePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
+  }, [page]);
+
+  useEffect(() => {
+    if (loading || page >= totalPages) return;
+    const nextPageParams = { ...backendFilterState, offset: page * SEO_PAGE_SIZE };
+    void prefetchStorefrontProducts(nextPageParams);
+  }, [backendFilterState, loading, page, totalPages]);
 
   useEffect(() => {
     if (!seoCategory || typeof document === "undefined") return undefined;
