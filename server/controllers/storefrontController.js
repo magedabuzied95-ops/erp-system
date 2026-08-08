@@ -23,6 +23,7 @@ import { understandProductImageForSearch } from "../services/openaiSupportServic
 import { searchAiVisualProductsPro } from "../services/aiVisualSearchProService.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 import { buildCacheKey, getOrSetCache, invalidateCachePattern } from "../services/cacheService.js";
+import { createPerfTrace } from "../utils/storefrontPerf.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
 import {
   ensureWhatsappOrderConfirmationSchema,
@@ -2697,7 +2698,7 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   ]);
   let usedTenantFallback = false;
   if (!result.rows.length && tenantId !== null) {
-    result = await queryProducts(null, "", "", filters, false, 80, 0);
+    result = await perf.step("sql_main", () => queryProducts(null, "", "", filters, false, 80, 0);
     usedTenantFallback = result.rows.length > 0;
   }
   if (!mirrorResult.rows.length && tenantId !== null) {
@@ -2960,20 +2961,22 @@ const storefrontQualityAliases = (quality = "") => {
 
 export const listProducts = async (req, res) => {
   const startedAt = Date.now();
+  const perf = createPerfTrace("products");
+  const cacheDiag = perf.enabled ? {} : undefined;
   try {
     console.log("[storefront-products-hit]", req.originalUrl || req.url || "", req.query || {});
     res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
-    await ensureStorefrontSchema();
-    await ensureProductVariantImagesSchema();
+    await perf.step("ensure_storefront_schema", () => ensureStorefrontSchema());
+    await perf.step("ensure_variant_images_schema", () => ensureProductVariantImagesSchema());
     const tenantId = tenantFromRequest(req);
-    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const pricingSettings = await perf.step("pricing_settings", () => loadStorefrontPricingSettings(tenantId));
     const payload = await getOrSetCache(storefrontCacheKey(tenantId, "products", req.query || {}), 120, async () => {
-      const normalizedQuery = normalizeStorefrontProductsQuery(req.query || {});
+      const normalizedQuery = perf.sync("normalize_query", () => normalizeStorefrontProductsQuery(req.query || {}));
       const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch, largeSizes } = normalizedQuery;
-      const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);
-      const productType = await getActiveClassificationFilterAliases("product_type", normalizedQuery.productType);
-      const grade = await getActiveClassificationFilterAliases("grade", normalizedQuery.grade);
-      const quality = storefrontQualityAliases(normalizedQuery.quality);
+      const genderAliases = await perf.step("alias_gender", () => getClassificationFilterAliases("gender", normalizedQuery.gender));
+      const productType = await perf.step("alias_product_type", () => getActiveClassificationFilterAliases("product_type", normalizedQuery.productType));
+      const grade = await perf.step("alias_grade", () => getActiveClassificationFilterAliases("grade", normalizedQuery.grade));
+      const quality = perf.sync("alias_quality", () => storefrontQualityAliases(normalizedQuery.quality));
       const genderSource = normalizedQuery.gender || audienceSearch;
       const gender = normalizeProductAudiences(genderAliases, genderSource);
       const effectiveSaleOnly = saleOnly && saleModeEnabled(pricingSettings) && !pricingSettings.enable_fake_compare_price;
@@ -3051,10 +3054,10 @@ export const listProducts = async (req, res) => {
           excluded_due_to_is_storefront_visible: excludedDueToVisibility,
         });
       }
-      let result = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset);
+      let result = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallback = await perf.step("sql_fallback_1", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
         if (fallback.rows.length) {
           result = fallback;
           usedTenantFallback = true;
@@ -3063,9 +3066,9 @@ export const listProducts = async (req, res) => {
       if (effectiveOfferStoryOnly && !result.rows.length) {
         const isDbOfferStory = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
         const isDbStorefrontVisible = (value) => value === true || value === 1 || value === undefined || value === null || String(value || "").trim() === "" || String(value || "").toLowerCase() === "true";
-        let relaxedResult = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset);
+        let relaxedResult = await perf.step("sql_fallback_2", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
         if (!relaxedResult.rows.length && tenantId !== null) {
-          relaxedResult = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset);
+          relaxedResult = await perf.step("sql_fallback_3", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
         }
         const relaxedRows = relaxedResult.rows.filter((row) => isDbOfferStory(row.is_offer_story) && isDbStorefrontVisible(row.is_storefront_visible));
         if (relaxedRows.length) {
@@ -3079,9 +3082,9 @@ export const listProducts = async (req, res) => {
           });
         }
       }
-      let products = result.rows.map((row) => normalizeProduct(row, pricingSettings));
+      let products = perf.sync("normalize_products", () => result.rows.map((row) => normalizeProduct(row, pricingSettings)));
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallback = await perf.step("sql_fallback_4", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
         const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
         if (fallbackProducts.some((product) => product.total_stock > 0)) {
           products = fallbackProducts;
@@ -3089,13 +3092,14 @@ export const listProducts = async (req, res) => {
         }
       }
       const rawProductCount = products.length;
-      const hydratedProducts = await scrubInactiveClassifications(await hydrateProductsWithImages(products, { compact: true }));
-      const expandedProducts = groupingMode === "none" ? hydratedProducts : expandProductsToColorCards(hydratedProducts);
+      const imagedProducts = await perf.step("hydrate_images", () => hydrateProductsWithImages(products, { compact: true }));
+      const hydratedProducts = await perf.step("scrub_classifications", () => scrubInactiveClassifications(imagedProducts));
+      const expandedProducts = perf.sync("color_expansion", () => (groupingMode === "none" ? hydratedProducts : expandProductsToColorCards(hydratedProducts)));
       if (randomSeed) {
         console.log("[storefront-shuffle-before]", expandedProducts.map((product) => storefrontCardId(product)));
       }
-      const sortedExpandedProducts = shouldOrderAfterExpansion ? sortStorefrontCards(expandedProducts, sort, randomSeed) : expandedProducts;
-      const orderedExpandedProducts = keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly || Boolean(size));
+      const sortedExpandedProducts = perf.sync("sort_cards", () => (shouldOrderAfterExpansion ? sortStorefrontCards(expandedProducts, sort, randomSeed) : expandedProducts));
+      const orderedExpandedProducts = perf.sync("offer_ordering", () => keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly || Boolean(size)));
       const categoryProducts = largeSizes
         ? orderedExpandedProducts.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
             const variantSize = Number(variant.size ?? variant.size_value);
@@ -3105,7 +3109,7 @@ export const listProducts = async (req, res) => {
       if (randomSeed) {
         console.log("[storefront-shuffle-after]", orderedExpandedProducts.map((product) => storefrontCardId(product)));
       }
-      let pagedProducts = categoryProducts.slice(offset, offset + limit);
+      let pagedProducts = perf.sync("pagination", () => categoryProducts.slice(offset, offset + limit));
       let usedOrderingFallback = false;
       if (!pagedProducts.length && categoryProducts.length) {
         const fallbackOffset = Math.min(offset, Math.max(0, categoryProducts.length - limit));
@@ -3148,7 +3152,7 @@ export const listProducts = async (req, res) => {
         grouping_mode: groupingMode,
         random_seed: randomSeed || undefined,
       };
-    });
+    }, cacheDiag);
     if (ERP_PERF_DEBUG) console.log("[erp-perf] storefront.products", { total_ms: Date.now() - startedAt, rows: payload.products?.length || 0, limit: payload.limit });
     res.json(payload);
   } catch (error) {
@@ -3164,6 +3168,12 @@ export const listProducts = async (req, res) => {
     });
     res.status(500).json({ success: false, message: "Failed to load products" });
   }
+  } finally {
+    if (perf.enabled) {
+      perf.set("cache_lookup", cacheDiag?.cache_lookup_ms ?? 0);
+      perf.set("cache_write", cacheDiag?.cache_write_ms ?? 0);
+      perf.end({ cache: cacheDiag?.cache ?? "unknown" });
+    }
 };
 
 export const visualSearchProducts = async (req, res) => {

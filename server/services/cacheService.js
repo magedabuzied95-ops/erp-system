@@ -84,11 +84,25 @@ export const setCache = async (key, value, ttlSeconds = DEFAULT_TTL_SECONDS) => 
   return value;
 };
 
-export const getOrSetCache = async (key, ttlSeconds, loader) => {
+// `diagnostics` is optional and undefined for every normal caller. When supplied it
+// receives timing only. Caching semantics are unchanged; no single-flight is added here.
+export const getOrSetCache = async (key, ttlSeconds, loader, diagnostics) => {
+  const lookupStart = diagnostics ? process.hrtime.bigint() : null;
   const cached = await getCache(key);
-  if (cached !== null && cached !== undefined) return cached;
+  if (diagnostics) {
+    diagnostics.cache_lookup_ms = Number((Number(process.hrtime.bigint() - lookupStart) / 1e6).toFixed(1));
+  }
+  if (cached !== null && cached !== undefined) {
+    if (diagnostics) diagnostics.cache = "hit";
+    return cached;
+  }
+  if (diagnostics) diagnostics.cache = "miss";
   const value = await loader();
+  const writeStart = diagnostics ? process.hrtime.bigint() : null;
   await setCache(key, value, ttlSeconds);
+  if (diagnostics) {
+    diagnostics.cache_write_ms = Number((Number(process.hrtime.bigint() - writeStart) / 1e6).toFixed(1));
+  }
   return value;
 };
 
