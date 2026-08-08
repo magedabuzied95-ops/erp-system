@@ -254,15 +254,18 @@ export default function Customer360Drawer({
   };
   const orderPath = (order = {}) => clean(order.id || order.order_id) ? `/orders/${encodeURIComponent(clean(order.id || order.order_id))}` : "/orders";
   const productPath = (product = {}) => clean(product.id || product.product_id) ? `/products/${encodeURIComponent(clean(product.id || product.product_id))}` : "/products";
-  const quickActions = [
+  const communicationActions = [
     { label: "Open Chat", Icon: MessageCircle, action: () => returnToConversation("chat") },
     { label: "Reply", Icon: MessageSquareText, action: () => returnToConversation("reply") },
     { label: "Private Reply", Icon: Bot, action: () => returnToConversation("private_reply") },
     { label: "Create Lead", Icon: Users2, action: () => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
+  ];
+  const workflowActions = [
     { label: "Create Order", Icon: ShoppingBag, action: () => openSystemPath(`/create-order${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
     { label: "Assign Agent", Icon: Handshake, action: () => openSystemPath(`/admin/ai-inbox${resolvedConversationId ? `?conversation_id=${encodeURIComponent(resolvedConversationId)}&action=assign` : ""}`) },
     { label: "Open Customer Profile", Icon: ExternalLink, action: () => openSystemPath(`/customers${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
   ];
+  const quickActions = [...communicationActions, ...workflowActions];
 
   if (!open) return null;
 
@@ -347,13 +350,26 @@ export default function Customer360Drawer({
               </div> : null}
               <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Quick Actions</div>
-                <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Customer communication and workflow actions">
+                <div className="mt-3 hidden grid-cols-2 gap-2 sm:grid" role="group" aria-label="Customer communication and workflow actions">
                   {quickActions.map(({ label, Icon, action }) => (
                     <button
                       key={label}
                       type="button"
                       onClick={action}
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden" role="group" aria-label="Additional customer workflow actions">
+                  {workflowActions.map(({ label, Icon, action }, index) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={action}
+                      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-700 shadow-sm ${index === workflowActions.length - 1 ? "col-span-2" : ""}`}
                     >
                       <Icon className="h-4 w-4" />
                       {label}
@@ -509,20 +525,20 @@ export default function Customer360Drawer({
         </div>
 
         <div className="sticky bottom-0 border-t border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur">
-          <div className="flex gap-2 overflow-x-auto">
-            <button type="button" onClick={() => returnToConversation("chat")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white">
+          <div className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2 sm:overflow-x-auto">
+            <button type="button" onClick={() => returnToConversation("chat")} className="inline-flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-slate-900 px-1 text-[10px] font-black text-white sm:h-11 sm:flex-row sm:gap-2 sm:px-4 sm:text-sm">
               <MessageCircle className="h-4 w-4" />
               Open Chat
             </button>
-            <button type="button" onClick={() => returnToConversation("reply")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+            <button type="button" onClick={() => returnToConversation("reply")} className="inline-flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#E2E8F0] bg-white px-1 text-[10px] font-black text-slate-700 shadow-sm sm:h-11 sm:flex-row sm:gap-2 sm:px-4 sm:text-sm">
               <MessageSquareText className="h-4 w-4" />
               Reply
             </button>
-            <button type="button" onClick={() => returnToConversation("private_reply")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+            <button type="button" onClick={() => returnToConversation("private_reply")} className="inline-flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#E2E8F0] bg-white px-1 text-center text-[10px] font-black leading-3 text-slate-700 shadow-sm sm:h-11 sm:flex-row sm:gap-2 sm:px-4 sm:text-sm">
               <Bot className="h-4 w-4" />
               Private Reply
             </button>
-            <button type="button" onClick={() => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+            <button type="button" onClick={() => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`)} className="inline-flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#E2E8F0] bg-white px-1 text-center text-[10px] font-black leading-3 text-slate-700 shadow-sm sm:h-11 sm:flex-row sm:gap-2 sm:px-4 sm:text-sm">
               <Users2 className="h-4 w-4" />
               Create Lead
             </button>
