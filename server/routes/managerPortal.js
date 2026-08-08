@@ -14,6 +14,7 @@ import {
   getManagerPortalInventoryApprovalSession,
   getManagerPortalSales,
   getManagerPortalStaff,
+  reviewManagerPortalAdvanceRequest,
   getManagerPortalStockAlerts,
   markManagerPortalChatRead,
   markManagerPortalNotificationRead,
@@ -304,6 +305,23 @@ router.get("/:token/staff", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] staff error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load staff" });
+  }
+});
+
+router.patch("/:token/advance-requests/:requestId", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const request = await reviewManagerPortalAdvanceRequest({
+      manager,
+      requestId: req.params.requestId,
+      status: req.body?.status,
+      adminNote: req.body?.admin_note || "",
+    });
+    return res.json({ success: true, request });
+  } catch (error) {
+    console.error("[manager-portal] advance request review error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to review advance request" });
   }
 });
 

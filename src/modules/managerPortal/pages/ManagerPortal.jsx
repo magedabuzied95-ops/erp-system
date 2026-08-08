@@ -773,6 +773,7 @@ export default function ManagerPortal() {
   const [me, setMe] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [staff, setStaff] = useState(null);
+  const [advanceRequestReviewingId, setAdvanceRequestReviewingId] = useState("");
   const [tasks, setTasks] = useState(null);
   const [sales, setSales] = useState(null);
   const [stockAlerts, setStockAlerts] = useState(null);
@@ -870,6 +871,7 @@ export default function ManagerPortal() {
     ].includes(permission));
   }, [me]);
   const staffList = staff?.staff || [];
+  const advanceRequests = Array.isArray(staff?.advance_requests) ? staff.advance_requests : [];
   const queryEmployeeId = searchParams.get("employee_id") || searchParams.get("employeeId") || "";
   const managerChatApiAdapter = useMemo(() => ({
     listThreads: () => managerPortalApi.chat(token),
@@ -1699,6 +1701,19 @@ export default function ManagerPortal() {
     navigate(`/manager-portal/${encodeURIComponent(token)}/inventory-approvals`);
   };
 
+  const reviewAdvanceRequest = async (requestId, status) => {
+    setAdvanceRequestReviewingId(String(requestId));
+    try {
+      await managerPortalApi.reviewAdvanceRequest(token, requestId, { status });
+      await reloadTabData("staff");
+      toast.success(status === "approved" ? "تم اعتماد السلفة وإضافتها للموظف" : "تم رفض طلب السلفة");
+    } catch (reviewError) {
+      toast.error(reviewError?.responseBody?.message || reviewError?.message || "تعذر تحديث طلب السلفة");
+    } finally {
+      setAdvanceRequestReviewingId("");
+    }
+  };
+
   const renderTaskCard = (task) => {
     const note = taskNotes[task.id] || "";
     const statusMeta = taskStatusMeta(task);
@@ -2340,6 +2355,43 @@ export default function ManagerPortal() {
 
           {activeTab === "staff" ? (
             <div className="space-y-2 sm:space-y-3">
+              <section className="rounded-2xl border border-amber-300/60 bg-amber-50 p-3 text-right shadow-sm dark:border-amber-400/20 dark:bg-amber-400/[0.07]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[15px] font-black text-slate-950 dark:text-white">اعتماد السلف</div>
+                    <div className="mt-0.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">طلبات الموظفين التي تنتظر قرار المدير</div>
+                  </div>
+                  <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-amber-400 px-2.5 py-1 text-xs font-black text-slate-950">
+                    {formatNumber(advanceRequests.length)}
+                  </span>
+                </div>
+
+                {advanceRequests.length ? (
+                  <div className="mt-3 space-y-2">
+                    {advanceRequests.map((request) => {
+                      const reviewing = advanceRequestReviewingId === String(request.id);
+                      return (
+                        <div key={request.id} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-black text-slate-950 dark:text-white">{portalText(request.employee_name || "موظف")}</div>
+                              <div className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">{formatDateTime(request.created_at)}</div>
+                            </div>
+                            <div className="shrink-0 text-base font-black text-amber-700 dark:text-amber-300">{formatCurrency(request.amount || 0)}</div>
+                          </div>
+                          {request.message ? <div className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-600 dark:bg-black/20 dark:text-slate-300">{portalText(request.message)}</div> : null}
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "rejected")} className="rounded-xl border border-rose-300 px-3 py-2.5 text-xs font-black text-rose-700 disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-300">رفض</button>
+                            <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "approved")} className="rounded-xl bg-emerald-500 px-3 py-2.5 text-xs font-black text-white disabled:opacity-50">{reviewing ? "جارٍ التنفيذ..." : "اعتماد السلفة"}</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-dashed border-slate-300 px-3 py-4 text-center text-xs font-bold text-slate-500 dark:border-white/10 dark:text-slate-400">لا توجد طلبات سلف قيد المراجعة</div>
+                )}
+              </section>
               {staffList.length ? staffList.map((employee) => (
                 isMobilePortal ? (
                   <div

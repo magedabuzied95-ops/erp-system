@@ -20,6 +20,7 @@ import {
 } from "./inventoryCountService.js";
 import { listRecentDisplayRefillAlerts } from "./displayRefillAlertService.js";
 import { getRolePermissions } from "./rolesService.js";
+import { listEmployeePortalRequests, reviewEmployeePortalRequest } from "./employeePayrollPortalService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 
@@ -801,7 +802,7 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
 export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
-  const [taskDashboard, salesRows, attendanceRows, advanceRows] = await Promise.all([
+  const [taskDashboard, salesRows, attendanceRows, advanceRows, pendingPortalRequests] = await Promise.all([
     getStaffTaskDashboard({ tenantId, branchId }),
     tableExists("orders").then(async (ordersExist) => {
       if (!ordersExist) return [];
@@ -871,6 +872,7 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
         []
       );
     }).catch(() => []),
+    listEmployeePortalRequests({ tenantId, status: "pending", limit: 200 }).catch(() => []),
   ]);
 
   const salesByEmployee = new Map(salesRows.map((row) => [String(row.employee_id), row]));
@@ -905,12 +907,46 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
     };
   });
 
+  const staffEmployeeIds = new Set(staff.map((employee) => String(employee.employee_id)));
+  const advanceRequests = (pendingPortalRequests || []).filter((request) => (
+    clean(request.request_type).toLowerCase() === "advance"
+    && staffEmployeeIds.has(String(request.employee_id))
+  ));
+
   return {
     summary: taskDashboard?.summary || {},
     staff,
+    advance_requests: advanceRequests,
     recent_tasks: taskDashboard?.recentTasks || [],
     history: taskDashboard?.history || [],
   };
+};
+
+export const reviewManagerPortalAdvanceRequest = async ({ manager = {}, requestId, status, adminNote = "" } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const requestedStatus = clean(status).toLowerCase();
+  if (!["approved", "rejected"].includes(requestedStatus)) {
+    const error = new Error("Status must be approved or rejected");
+    error.status = 400;
+    throw error;
+  }
+
+  const staffState = await getManagerPortalStaff({ manager });
+  const request = (staffState.advance_requests || []).find((item) => String(item.id) === String(requestId));
+  if (!request) {
+    const error = new Error("Advance request not found or already reviewed");
+    error.status = 404;
+    throw error;
+  }
+
+  return reviewEmployeePortalRequest({
+    tenantId,
+    requestId,
+    status: requestedStatus,
+    adminNote,
+    reviewedBy: manager.user_id || manager.id || null,
+    createAdvance: requestedStatus === "approved",
+  });
 };
 
 export const getManagerPortalTasks = async ({ manager = {} } = {}) => {
