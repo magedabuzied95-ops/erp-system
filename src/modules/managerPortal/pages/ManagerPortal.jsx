@@ -2567,6 +2567,9 @@ export default function ManagerPortal() {
                         <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">إجمالي الفواتير</div>
                         <div className="mt-1 text-sm font-black text-slate-950">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))}</div>
                       </div>
+                      {canViewProfit ? (
+                        <DailyProfitCard token={token} salesData={sales} canView={canViewProfit} />
+                      ) : null}
                       <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-3 py-3 shadow-sm">
                         <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">أفضل يوم</div>
                         <div className="mt-1 text-sm font-black text-slate-950">
