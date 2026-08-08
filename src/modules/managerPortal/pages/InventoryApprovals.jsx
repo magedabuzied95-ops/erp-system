@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -84,6 +84,7 @@ export default function InventoryApprovalsPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  const detailRef = useRef(null);
   const lastPortalUrl = typeof window !== "undefined" ? String(window.localStorage.getItem("manager_portal_last_url") || "").trim() : "";
 
   const selectedSession = selectedApproval?.session || null;
@@ -152,6 +153,13 @@ export default function InventoryApprovalsPage() {
     await loadApprovals();
   };
 
+  const selectSession = (sessionId) => {
+    setSelectedSessionId(String(sessionId));
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches) {
+      window.setTimeout(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    }
+  };
+
   const handleApprove = async () => {
     if (!token || !selectedSessionId) return;
     try {
@@ -218,18 +226,18 @@ export default function InventoryApprovalsPage() {
   }
 
   return (
-    <main dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.16),_transparent_30%),radial-gradient(circle_at_85%_0%,_rgba(245,158,11,0.12),_transparent_18%),linear-gradient(180deg,#0f172a_0%,#111827_46%,#0b1220_100%)] px-4 py-4 text-white">
+    <main dir="rtl" className="min-h-[100dvh] overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.16),_transparent_30%),radial-gradient(circle_at_85%_0%,_rgba(245,158,11,0.12),_transparent_18%),linear-gradient(180deg,#0f172a_0%,#111827_46%,#0b1220_100%)] px-3 py-3 text-white sm:px-4 sm:py-4">
       <div className="mx-auto max-w-[96rem] space-y-4">
-        <header className="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
+        <header className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur sm:rounded-[2rem] sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">مركز اعتماد الجرد</div>
-              <h1 className="mt-2 text-3xl font-black">اعتمادات الجرد</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+              <div className="hidden text-xs font-black uppercase tracking-[0.22em] text-slate-400 sm:block">مركز اعتماد الجرد</div>
+              <h1 className="text-2xl font-black sm:mt-2 sm:text-3xl">اعتمادات الجرد</h1>
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-300 sm:mt-2 sm:text-sm sm:leading-6">
                 راجع الجلسات قيد المراجعة، وافق على الفروقات أو ارفضها مع سبب واضح قبل تعديل المخزون.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={() => loadApprovals(selectedSessionId)}
@@ -250,7 +258,7 @@ export default function InventoryApprovalsPage() {
           </div>
         </header>
 
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
           <StatCard title="جردات بانتظار المراجعة" value={summary.pending_review_count || 0} icon={ClipboardList} tone="amber" />
           <StatCard title="جردات مرفوضة" value={summary.rejected_count || 0} icon={X} tone="rose" />
           <StatCard title="جردات مكتملة اليوم" value={summary.completed_today_count || 0} icon={CheckCircle2} tone="emerald" />
@@ -290,7 +298,7 @@ export default function InventoryApprovalsPage() {
                   <button
                     key={session.id}
                     type="button"
-                    onClick={() => setSelectedSessionId(String(session.id))}
+                    onClick={() => selectSession(session.id)}
                     className={`w-full rounded-3xl border p-4 text-right transition ${
                       String(selectedSessionId) === String(session.id)
                         ? "border-amber-300/40 bg-amber-400/10"
@@ -329,7 +337,7 @@ export default function InventoryApprovalsPage() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
+          <div ref={detailRef} className="scroll-mt-3 rounded-[1.5rem] border border-white/10 bg-white/5 p-3 shadow-xl backdrop-blur sm:rounded-[2rem] sm:p-4">
             {selectedLoading ? (
               <div className="flex min-h-[28rem] items-center justify-center text-slate-300">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -360,14 +368,42 @@ export default function InventoryApprovalsPage() {
                   </div>
                 ) : null}
 
-                <section className="mt-4 grid gap-3 sm:grid-cols-4">
+                <section className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
                   <InfoStat title="عدد الأصناف" value={sessionSummary.items || 0} icon={Package} tone="sky" />
                   <InfoStat title="إجمالي الزيادة" value={sessionSummary.increase || 0} icon={TrendingUp} tone="emerald" />
                   <InfoStat title="إجمالي العجز" value={sessionSummary.shortage || 0} icon={TrendingDown} tone="rose" />
                   <InfoStat title="إجمالي الفروقات" value={sessionSummary.total || 0} icon={ClipboardList} tone="amber" />
                 </section>
 
-                <div className="mt-4 overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/45">
+                <div className="mt-4 space-y-2 md:hidden">
+                  {selectedItems.length ? selectedItems.map((item) => {
+                    const system = Number(item.system_quantity || item.expected_qty || 0);
+                    const counted = Number(item.counted_quantity || item.actual_qty || 0);
+                    const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
+                    return (
+                      <article key={`mobile-${item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`}`} className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-black leading-5 text-white">{text(item.product_name, "منتج")}</h3>
+                            {(text(item.color, "") || text(item.size, "")) ? (
+                              <p className="mt-1 text-xs text-slate-400">{[text(item.color, ""), text(item.size, "")].filter(Boolean).join(" • ")}</p>
+                            ) : null}
+                          </div>
+                          <span className={`shrink-0 rounded-xl px-2.5 py-1 text-sm font-black ${diff > 0 ? "bg-emerald-500/15 text-emerald-300" : diff < 0 ? "bg-rose-500/15 text-rose-300" : "bg-white/5 text-slate-300"}`}>
+                            {diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded-xl bg-white/5 p-2"><span className="text-slate-400">السيستم</span><strong className="mr-2 text-white">{formatNumber(system)}</strong></div>
+                          <div className="rounded-xl bg-white/5 p-2"><span className="text-slate-400">الفعلي</span><strong className="mr-2 text-white">{formatNumber(counted)}</strong></div>
+                        </div>
+                        {item.reason || item.notes ? <p className="mt-2 text-xs leading-5 text-slate-300">{[item.reason, item.notes].map((value) => text(value, "")).filter(Boolean).join(" — ")}</p> : null}
+                      </article>
+                    );
+                  }) : <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-400">لا توجد أصناف داخل الجرد.</div>}
+                </div>
+
+                <div className="mt-4 hidden overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/45 md:block">
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-right text-sm">
                       <thead className="bg-white/5 text-xs uppercase tracking-[0.18em] text-slate-300">
@@ -409,19 +445,13 @@ export default function InventoryApprovalsPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/inventory/count/${selectedSessionId}`)}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
-                  >
-                    فتح الجرد
-                  </button>
-                  <div className="flex flex-wrap items-center gap-2">
+                <div className="sticky bottom-2 z-20 mt-4 rounded-2xl border border-white/10 bg-slate-950/90 p-2 shadow-2xl backdrop-blur sm:static sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
                     <button
                       type="button"
                       onClick={openRejectDialog}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400"
+                      disabled={selectedSession.status !== "pending_review"}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-500 px-3 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40 sm:rounded-2xl sm:px-4"
                     >
                       <X className="h-4 w-4" />
                       رفض
@@ -430,7 +460,7 @@ export default function InventoryApprovalsPage() {
                       type="button"
                       onClick={() => void handleApprove()}
                       disabled={approving || selectedSession.status !== "pending_review"}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 py-3 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl sm:px-4"
                     >
                       {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       موافقة واعتماد
@@ -500,13 +530,13 @@ function StatCard({ title, value, icon: Icon, tone = "sky" }) {
     sky: "from-sky-400/15 to-sky-500/5 text-sky-100 border-sky-300/20",
   };
   return (
-    <div className={`rounded-[1.75rem] border bg-gradient-to-br p-4 shadow-xl backdrop-blur ${toneClasses[tone] || toneClasses.sky}`}>
+    <div className={`rounded-2xl border bg-gradient-to-br p-3 shadow-xl backdrop-blur sm:rounded-[1.75rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.18em] opacity-70">{title}</div>
-          <div className="mt-2 text-3xl font-black">{formatNumber(value)}</div>
+          <div className="text-[10px] font-black leading-4 opacity-70 sm:text-xs sm:uppercase sm:tracking-[0.18em]">{title}</div>
+          <div className="mt-1 text-2xl font-black sm:mt-2 sm:text-3xl">{formatNumber(value)}</div>
         </div>
-        <Icon className="h-6 w-6 opacity-90" />
+        <Icon className="h-5 w-5 shrink-0 opacity-90 sm:h-6 sm:w-6" />
       </div>
     </div>
   );
@@ -520,11 +550,11 @@ function InfoStat({ title, value, icon: Icon, tone = "sky" }) {
     sky: "border-sky-300/20 bg-sky-500/10 text-sky-100",
   };
   return (
-    <div className={`rounded-[1.5rem] border p-4 ${toneClasses[tone] || toneClasses.sky}`}>
+    <div className={`rounded-2xl border p-3 sm:rounded-[1.5rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.16em] opacity-70">{title}</div>
-          <div className="mt-2 text-2xl font-black">{formatNumber(value)}</div>
+          <div className="text-[10px] font-black leading-4 opacity-70 sm:text-xs sm:uppercase sm:tracking-[0.16em]">{title}</div>
+          <div className="mt-1 text-xl font-black sm:mt-2 sm:text-2xl">{formatNumber(value)}</div>
         </div>
         <Icon className="h-5 w-5 opacity-90" />
       </div>
