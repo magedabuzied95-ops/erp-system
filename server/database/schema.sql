@@ -507,6 +507,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_count_items_inventory_count_id ON inven
     total_spent NUMERIC(12,2) NOT NULL DEFAULT 0,
     total_orders INTEGER NOT NULL DEFAULT 0,
     preferred_sizes JSONB NOT NULL DEFAULT '{}'::jsonb,
+    purchase_preferences JSONB NOT NULL DEFAULT '{}'::jsonb,
     loyalty_updated_at TIMESTAMP NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

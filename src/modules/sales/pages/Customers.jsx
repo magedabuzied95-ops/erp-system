@@ -1631,6 +1631,27 @@ function TimelineItem({ item }) {
   );
 }
 
+function PreferenceChips({ title, items = [], tone = "emerald", ltr = false }) {
+  if (!items.length) return null;
+  const tones = {
+    emerald: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
+    cyan: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
+    amber: "border-amber-300/20 bg-amber-400/10 text-amber-100",
+  };
+  return (
+    <div>
+      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{title}</div>
+      <div className="mt-2 flex flex-wrap gap-2" dir={ltr ? "ltr" : "rtl"}>
+        {items.map((item) => (
+          <span key={item.value} className={`rounded-full border px-3 py-1.5 text-xs font-black ${tones[tone] || tones.emerald}`}>
+            {item.value}{Number(item.count || 0) > 0 ? ` · ${Number(item.count)}` : ""}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CustomerStatementDrawer({
   customer,
   metrics,
@@ -1673,6 +1694,10 @@ function CustomerStatementDrawer({
     metrics?.lastVisit ||
     customer?.updated_at ||
     customer?.created_at;
+  const purchasePreferences = customer?.purchase_preferences || {};
+  const preferredDepartments = Array.isArray(purchasePreferences.departments) ? purchasePreferences.departments : [];
+  const preferredCategories = Array.isArray(purchasePreferences.categories) ? purchasePreferences.categories : [];
+  const preferredSizes = Array.isArray(purchasePreferences.sizeBreakdown) ? purchasePreferences.sizeBreakdown : [];
 
   return (
     <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-4 py-6 text-white sm:px-6" dir="rtl">
@@ -1750,6 +1775,21 @@ function CustomerStatementDrawer({
             <div className={`mt-2 text-2xl font-black ${currentBalance > 0 ? "text-rose-100" : "text-emerald-100"}`}>{formatMoney(currentBalance)} ج.م</div>
           </div>
         </div>
+
+        {(preferredDepartments.length || preferredCategories.length || preferredSizes.length) ? (
+          <section className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.06] p-4">
+            <div className="flex items-center gap-2 text-sm font-black text-emerald-100">
+              <Sparkles className="h-4 w-4" />
+              تفضيلات الشراء التلقائية
+            </div>
+            <p className="mt-1 text-xs font-semibold text-zinc-400">تتحدث من الطلبات الفعلية لتجهيز عروض مناسبة للعميل.</p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <PreferenceChips title="الأقسام" items={preferredDepartments} tone="emerald" />
+              <PreferenceChips title="التصنيفات" items={preferredCategories} tone="cyan" />
+              <PreferenceChips title="المقاسات" items={preferredSizes} tone="amber" ltr />
+            </div>
+          </section>
+        ) : null}
 
         {paymentDialogOpen ? (
           <div

@@ -75,6 +75,10 @@ const normalizeCustomerRow = (row = {}) => ({
   credit_balance: Number(row.credit_balance ?? row.wallet_balance ?? row.balance ?? 0),
   loyalty_points: Number(row.loyalty_points ?? 0),
   loyalty_tier: row.loyalty_tier ?? row.tier ?? "Bronze",
+  purchase_preferences:
+    row.purchase_preferences && typeof row.purchase_preferences === "object"
+      ? row.purchase_preferences
+      : {},
   allow_personal_transactions: Boolean(row.allow_personal_transactions ?? row.allowPersonalTransactions ?? false),
   total_orders: Number(row.total_orders ?? row.orders_count ?? row.invoices_count ?? 0),
   orders_count: Number(row.orders_count ?? row.total_orders ?? row.invoices_count ?? 0),
@@ -161,6 +165,7 @@ const getCustomerColumns = async () => {
           allowPersonalTransactionsColumn: columns.includes("allow_personal_transactions") ? "allow_personal_transactions" : null,
           walletBalanceColumn: columns.includes("wallet_balance") ? "wallet_balance" : null,
           loyaltyPointsColumn: columns.includes("loyalty_points") ? "loyalty_points" : null,
+          purchasePreferencesColumn: columns.includes("purchase_preferences") ? "purchase_preferences" : null,
           statusColumn: columns.includes("status") ? "status" : null,
           createdAtColumn: columns.includes("created_at") ? "created_at" : null,
           updatedAtColumn: columns.includes("updated_at") ? "updated_at" : null,
@@ -202,6 +207,7 @@ const buildSelectSql = (columns) => {
   const marketingSourceExpr = columns.marketingSourceColumn || "''";
   const marketingPlatformExpr = columns.marketingPlatformColumn || "''";
   const attributionTypeExpr = columns.attributionTypeColumn || "''";
+  const purchasePreferencesExpr = columns.purchasePreferencesColumn || "'{}'::jsonb";
 
   return `
     SELECT
@@ -218,6 +224,7 @@ const buildSelectSql = (columns) => {
       ${balanceExpr} AS wallet_balance,
       ${balanceExpr} AS credit_balance,
       ${loyaltyExpr} AS loyalty_points,
+      ${purchasePreferencesExpr} AS purchase_preferences,
       ${loyaltyTierExpr} AS loyalty_tier,
       ${totalOrdersExpr} AS total_orders,
       ${statusExpr} AS status,
@@ -343,6 +350,9 @@ const ensureCustomerSchema = async () => {
   }
   if (!columns.allowPersonalTransactionsColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS allow_personal_transactions BOOLEAN NOT NULL DEFAULT FALSE`);
+  }
+  if (!columns.purchasePreferencesColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS purchase_preferences JSONB NOT NULL DEFAULT '{}'::jsonb`);
   }
 
   if (missingStatements.length > 0) {
@@ -894,38 +904,101 @@ const getCustomerOrdersData = async (customerId, tenantId) => {
     params
   );
 
-  let favorites = { topCategory: "Not enough data", productType: "Not enough data", sizes: [], colors: [] };
+  let favorites = {
+    topCategory: "Not enough data",
+    productType: "Not enough data",
+    sizes: [],
+    colors: [],
+    departments: [],
+    categories: [],
+    productTypes: [],
+    sizeBreakdown: [],
+    colorBreakdown: [],
+  };
   if (hasItems) {
     try {
-      const favoritesResult = await pool.query(
+      const preferencesResult = await pool.query(
         `
-        SELECT
-          COALESCE(p.category, p.category_name, p.main_category_name, oi.category, 'Not enough data') AS top_category,
-          COALESCE(p.product_type, p.type, oi.product_type, 'Not enough data') AS product_type,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT COALESCE(oi.size, pv.size)), NULL) AS sizes,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT COALESCE(oi.color, pv.color)), NULL) AS colors
-        FROM orders o
-        LEFT JOIN order_items oi ON oi.order_id = o.id
-        LEFT JOIN products p ON p.id = oi.product_id
-        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
-        WHERE ${where.join(" AND ")}
-        GROUP BY top_category, product_type
-        ORDER BY COUNT(*) DESC
-        LIMIT 1
+        WITH purchased AS (
+          SELECT
+            GREATEST(COALESCE(oi.quantity, 1) - COALESCE(oi.returned_quantity, 0), 0)::int AS quantity,
+            NULLIF(TRIM(COALESCE(c.name, '')), '') AS category,
+            NULLIF(TRIM(COALESCE(p.grade, '')), '') AS department,
+            NULLIF(TRIM(COALESCE(p.product_type, '')), '') AS product_type,
+            NULLIF(TRIM(COALESCE(pv.size, '')), '') AS size,
+            NULLIF(TRIM(COALESCE(pv.color, '')), '') AS color
+          FROM orders o
+          JOIN order_items oi ON oi.order_id = o.id
+          LEFT JOIN products p ON p.id = oi.product_id
+          LEFT JOIN categories c ON c.id = p.category_id
+          LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+          WHERE ${where.join(" AND ")}
+            ${hasStatus ? "AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled','canceled','void','refunded')" : ""}
+        ), preference_rows AS (
+          SELECT 'department'::text AS kind, department AS value, SUM(quantity)::int AS purchase_count FROM purchased WHERE department IS NOT NULL AND quantity > 0 GROUP BY department
+          UNION ALL
+          SELECT 'category', category, SUM(quantity)::int FROM purchased WHERE category IS NOT NULL AND quantity > 0 GROUP BY category
+          UNION ALL
+          SELECT 'product_type', product_type, SUM(quantity)::int FROM purchased WHERE product_type IS NOT NULL AND quantity > 0 GROUP BY product_type
+          UNION ALL
+          SELECT 'size', size, SUM(quantity)::int FROM purchased WHERE size IS NOT NULL AND quantity > 0 GROUP BY size
+          UNION ALL
+          SELECT 'color', color, SUM(quantity)::int FROM purchased WHERE color IS NOT NULL AND quantity > 0 GROUP BY color
+        )
+        SELECT kind, value, purchase_count
+        FROM preference_rows
+        ORDER BY kind, purchase_count DESC, value ASC
         `,
         params
       );
-      const row = favoritesResult.rows[0];
-      if (row) {
-        favorites = {
-          topCategory: row.top_category || "Not enough data",
-          productType: row.product_type || "Not enough data",
-          sizes: Array.isArray(row.sizes) ? row.sizes.filter(Boolean).slice(0, 5) : [],
-          colors: Array.isArray(row.colors) ? row.colors.filter(Boolean).slice(0, 5) : [],
-        };
+      const byKind = (kind) => preferencesResult.rows
+        .filter((row) => row.kind === kind && row.value)
+        .map((row) => ({ value: row.value, count: Number(row.purchase_count || 0) }))
+        .slice(0, 8);
+      const departments = byKind("department");
+      const categories = byKind("category");
+      const productTypes = byKind("product_type");
+      const sizeBreakdown = byKind("size");
+      const colorBreakdown = byKind("color");
+      favorites = {
+        topCategory: categories[0]?.value || departments[0]?.value || productTypes[0]?.value || "Not enough data",
+        productType: productTypes[0]?.value || "Not enough data",
+        sizes: sizeBreakdown.map((item) => item.value).slice(0, 5),
+        colors: colorBreakdown.map((item) => item.value).slice(0, 5),
+        departments,
+        categories,
+        productTypes,
+        sizeBreakdown,
+        colorBreakdown,
+        updatedAt: new Date().toISOString(),
+        source: "completed_customer_orders",
+      };
+
+      await pool.query(
+        `UPDATE customers
+         SET purchase_preferences = $2::jsonb,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [customerId, JSON.stringify(favorites)]
+      );
+
+      const topSize = sizeBreakdown[0]?.value || "";
+      if (topSize && await tableExists("ai_customer_profiles")) {
+        const customerPhoneResult = await pool.query(`SELECT phone FROM customers WHERE id = $1 LIMIT 1`, [customerId]);
+        const customerPhone = normalizePhoneValue(customerPhoneResult.rows[0]?.phone || "");
+        if (customerPhone) {
+          const phoneVariants = getPhoneSearchVariants(customerPhone);
+          await pool.query(
+            `UPDATE ai_customer_profiles
+             SET preferred_size = $3, updated_at = CURRENT_TIMESTAMP
+             WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+               AND regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = ANY($2::text[])`,
+            [tenantId, phoneVariants, topSize]
+          );
+        }
       }
-    } catch {
-      favorites = { topCategory: "Not enough data", productType: "Not enough data", sizes: [], colors: [] };
+    } catch (error) {
+      console.warn("[customers] purchase preference refresh failed", error?.message || error);
     }
   }
 
@@ -2485,7 +2558,7 @@ export const getCustomerProfile = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        customer,
+        customer: { ...customer, purchase_preferences: ordersData.favorites },
         metrics: ordersData.metrics,
         orders: ordersData.orders,
         favorites: ordersData.favorites,

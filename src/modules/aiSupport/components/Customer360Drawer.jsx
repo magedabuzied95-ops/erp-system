@@ -154,6 +154,7 @@ const fallbackCustomerProfile = (customer = {}, context = {}) => {
       wishlist: safeArray(profile.wishlist_products || context.wishlistProducts),
     },
     insights: context.insights || {},
+    purchasePreferences: profile.purchase_preferences || customer.purchase_preferences || context.purchasePreferences || {},
     timeline: safeArray(context.timeline),
     currentActivity: safeArray(context.currentActivity),
   };
@@ -213,6 +214,7 @@ export default function Customer360Drawer({
             favoriteCategory: data.favorites?.topCategory || current.insights?.favoriteCategory || "",
             totalSpend: data.metrics?.totalSpend || current.metrics?.totalSpend || 0,
           },
+          purchasePreferences: data.favorites || data.customer?.purchase_preferences || current.purchasePreferences || {},
           notes: safeArray(data.notes),
         }));
       } catch {
@@ -236,6 +238,12 @@ export default function Customer360Drawer({
   const viewedProducts = profileData.products?.viewed || [];
   const purchasedProducts = profileData.products?.purchased || [];
   const wishlistProducts = profileData.products?.wishlist || [];
+  const purchasePreferences = profileData.purchasePreferences || {};
+  const preferredDepartments = safeArray(purchasePreferences.departments);
+  const preferredCategories = safeArray(purchasePreferences.categories);
+  const preferredSizes = safeArray(purchasePreferences.sizeBreakdown).length
+    ? safeArray(purchasePreferences.sizeBreakdown)
+    : safeArray(purchasePreferences.sizes).map((value) => ({ value, count: 0 }));
   const status = clean(profileData.status || context.status || "");
   const resolvedCustomerId = clean(profileData.id || customerId || customer?.customer_profile_id || customer?.profile_id || "");
   const resolvedConversationId = clean(customer?.session_id || customer?.conversation_id || customer?.conversation_key || context.conversationId || "");
@@ -342,6 +350,41 @@ export default function Customer360Drawer({
                 {metricCard("Loyalty Points", metrics.loyaltyPoints ?? context.loyaltyPoints ?? 0)}
                 {metricCard("Customer Since", formatDateTime(profileData.customer_since || context.customerSince || ""))}
               </div>
+              {(preferredDepartments.length || preferredCategories.length || preferredSizes.length) ? (
+                <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]" dir="rtl">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                    <ShoppingBag className="h-4 w-4 text-emerald-600" />
+                    تفضيلات الشراء المسجلة تلقائيًا
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">مستخرجة من مشتريات العميل الفعلية لاستخدامها في العروض الموجهة.</p>
+                  <div className="mt-3 space-y-3">
+                    {preferredDepartments.length ? (
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">القسم</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {preferredDepartments.map((item) => <span key={item.value} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800">{item.value}{item.count ? ` · ${item.count}` : ""}</span>)}
+                        </div>
+                      </div>
+                    ) : null}
+                    {preferredCategories.length ? (
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">التصنيف</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {preferredCategories.map((item) => <span key={item.value} className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-black text-sky-800">{item.value}{item.count ? ` · ${item.count}` : ""}</span>)}
+                        </div>
+                      </div>
+                    ) : null}
+                    {preferredSizes.length ? (
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">المقاسات</div>
+                        <div className="mt-2 flex flex-wrap gap-2" dir="ltr">
+                          {preferredSizes.map((item) => <span key={item.value} className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-900">{item.value}{item.count ? ` · ${item.count}` : ""}</span>)}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               {crmIntelligence ? <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                 <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500"><Sparkles className="h-4 w-4" />AI Summary</div>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
