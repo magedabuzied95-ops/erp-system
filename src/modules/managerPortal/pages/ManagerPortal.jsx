@@ -2355,7 +2355,7 @@ export default function ManagerPortal() {
 
           {activeTab === "staff" ? (
             <div className="space-y-2 sm:space-y-3">
-              <section className="rounded-2xl border border-amber-300/60 bg-amber-50 p-3 text-right shadow-sm dark:border-amber-400/20 dark:bg-amber-400/[0.07]">
+              <section className="manager-advance-panel rounded-2xl border p-3 text-right shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-[15px] font-black text-slate-950 dark:text-white">اعتماد السلف</div>
@@ -2371,7 +2371,7 @@ export default function ManagerPortal() {
                     {advanceRequests.map((request) => {
                       const reviewing = advanceRequestReviewingId === String(request.id);
                       return (
-                        <div key={request.id} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                        <div key={request.id} className="manager-advance-request-card rounded-xl border p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="truncate text-sm font-black text-slate-950 dark:text-white">{portalText(request.employee_name || "موظف")}</div>
@@ -2389,7 +2389,7 @@ export default function ManagerPortal() {
                     })}
                   </div>
                 ) : (
-                  <div className="mt-3 rounded-xl border border-dashed border-slate-300 px-3 py-4 text-center text-xs font-bold text-slate-500 dark:border-white/10 dark:text-slate-400">لا توجد طلبات سلف قيد المراجعة</div>
+                  <div className="manager-advance-empty mt-3 rounded-xl border border-dashed px-3 py-4 text-center text-xs font-bold text-slate-500 dark:text-slate-400">لا توجد طلبات سلف قيد المراجعة</div>
                 )}
               </section>
               {staffList.length ? staffList.map((employee) => (

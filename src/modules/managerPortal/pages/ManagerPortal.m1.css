@@ -61,6 +61,27 @@ html[data-theme="light"] .inventory-approvals-page .manager-inventory-stat[data-
   color: var(--topbar-text) !important;
 }
 
+/* Advance approvals use the shared M1 gold/neutral palette in both themes. */
+.manager-portal-shell .manager-advance-panel {
+  background: var(--surface) !important;
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--primary) 7%, var(--surface)), var(--surface)) !important;
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border)) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.manager-portal-shell .manager-advance-request-card {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.manager-portal-shell .manager-advance-empty {
+  background: var(--surface-soft) !important;
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border)) !important;
+  color: var(--muted) !important;
+}
+
 /* Manager home: keep utility controls and timestamps inside the M1 palette. */
 .manager-portal-shell .manager-refresh-button {
   background: var(--surface-raised) !important;
