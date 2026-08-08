@@ -4276,6 +4276,7 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
         saleModeEnabled={saleModeEnabled}
         sizeLimit={4}
         eagerImage={index < columnCount}
+        priorityImage={index === 0}
       />
     );
   }, [columnCount, onAddToCart, saleModeEnabled, toggleWishlist, wishlist]);
@@ -5837,7 +5838,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
   );
 }
 
-const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
+const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, priorityImage = false, imagePreset = "grid" }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const product = useMemo(() => groupedProduct || rawProduct || {}, [groupedProduct, rawProduct]);
@@ -6173,6 +6174,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.18] md:group-active/product:scale-[1.12] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
                 style={{ backfaceVisibility: "hidden" }}
                 loading={eagerImage ? "eager" : "lazy"}
+                fetchPriority={priorityImage ? "high" : undefined}
                 decoding="async"
                 width="360"
                 height="432"
@@ -6353,6 +6355,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     prev.density === next.density &&
     prev.sizeLimit === next.sizeLimit &&
     prev.eagerImage === next.eagerImage &&
+    prev.priorityImage === next.priorityImage &&
     prev.imagePreset === next.imagePreset
   );
 });
