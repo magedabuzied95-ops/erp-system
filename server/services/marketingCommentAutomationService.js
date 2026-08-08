@@ -1703,11 +1703,19 @@ export const saveLinksForPublishedPost = async ({ post, publishResult, createdBy
   const candidates = [];
 
   const addCandidate = (platform, value, mediaId = null) => {
-    const postId = nullableString(value);
-    if (!postId) return;
+    const postIds = Array.isArray(value)
+      ? value.map(nullableString).filter(Boolean)
+      : trimString(value).split(",").map(nullableString).filter(Boolean);
+    if (!postIds.length) return;
     const normalizedPlatform = platform === "instagram" ? "instagram" : "facebook";
-    if (candidates.some((item) => item.platform === normalizedPlatform && item.postId === postId)) return;
-    candidates.push({ platform: normalizedPlatform, postId, mediaId: nullableString(mediaId) });
+    for (const postId of postIds) {
+      if (candidates.some((item) => item.platform === normalizedPlatform && item.postId === postId)) continue;
+      candidates.push({
+        platform: normalizedPlatform,
+        postId,
+        mediaId: normalizedPlatform === "instagram" ? postId : nullableString(mediaId),
+      });
+    }
   };
 
   const platformId = (value = {}) =>
