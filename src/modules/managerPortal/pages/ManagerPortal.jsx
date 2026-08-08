@@ -1205,7 +1205,11 @@ export default function ManagerPortal() {
       const nextNotifications = settledValue(notificationsRes);
       const nextApprovals = settledValue(approvalsRes);
 
-      if (nextMe) setMe(normalizeManagerPortalPayload("me", nextMe?.manager || nextMe?.data?.manager || null));
+      if (nextMe) {
+        const managerPayload = nextMe?.manager || nextMe?.data?.manager || null;
+        const permissions = nextMe?.permissions || nextMe?.data?.permissions || managerPayload?.permissions || [];
+        setMe(normalizeManagerPortalPayload("me", managerPayload ? { ...managerPayload, permissions } : null));
+      }
       if (nextDashboard) setDashboard(normalizeManagerPortalPayload("dashboard", nextDashboard?.dashboard || null));
       if (nextNotifications) {
         setNotifications(normalizeManagerPortalPayload("notifications", Array.isArray(nextNotifications?.notifications) ? nextNotifications.notifications : []));
