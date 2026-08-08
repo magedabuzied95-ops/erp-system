@@ -5611,6 +5611,22 @@ html[dir="ltr"] .ltr\:text-left {
   font-family: var(--app-font), "Inter", "Segoe UI", sans-serif;
 }
 
+/* Composite controls own their surface on the wrapper (search bars, icon fields, etc.).
+   Keep the native text control transparent so it does not render as a rectangle inside it. */
+:where(input, textarea)[class*="bg-transparent"] {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+:where(input, textarea)[class*="bg-transparent"]:-webkit-autofill,
+:where(input, textarea)[class*="bg-transparent"]:-webkit-autofill:hover,
+:where(input, textarea)[class*="bg-transparent"]:-webkit-autofill:focus {
+  -webkit-text-fill-color: currentColor;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
 html[dir="rtl"] :where(input[type="number"], input[type="tel"], input[type="email"], input[inputmode="numeric"], input[inputmode="decimal"], .numeric, .tabular-nums) {
   direction: ltr;
   text-align: left;
