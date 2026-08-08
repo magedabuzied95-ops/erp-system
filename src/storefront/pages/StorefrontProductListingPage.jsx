@@ -640,8 +640,21 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     [debouncedFilterState]
   );
   const catalogFiltersWithoutGender = useMemo(
-    () => ({ ...catalogFilters, gender: "" }),
-    [catalogFilters]
+    () => ({
+      ...catalogFilters,
+      // These filters are already applied before backend pagination. Reapplying
+      // them to a 24-card page can drop a card and leave the page short.
+      gender: "",
+      category: "",
+      brand: "",
+      productType: "",
+      grade: "",
+      quality: "",
+      sizes: selectedSizes.length === 1 ? [] : catalogFilters.sizes,
+      saleView: false,
+      inStock: false,
+    }),
+    [catalogFilters, selectedSizes.length]
   );
   const hasActiveCatalogFilters = Boolean(
     debouncedFilterState.gender ||
@@ -662,9 +675,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     () => {
       const base = hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFiltersWithoutGender) : catalogProducts;
       const typed = bagType ? base.filter((product) => normalizeFilterKey(product.bag_type || product.bagType) === bagType) : base;
-      return seoCategory?.largeSizes ? typed.filter((product) => productHasLargeAvailableSize(product, seoCategory.largeSizes)) : typed;
+      return typed;
     },
-    [bagType, catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters, seoCategory]
+    [bagType, catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
   );
   const pagedFilteredProducts = filteredProducts;
   const orderedFilteredProducts = useMemo(
