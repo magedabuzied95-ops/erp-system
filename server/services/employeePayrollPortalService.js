@@ -9,6 +9,7 @@ import { listStaffTasks, updateStaffTaskStatus } from "./staffTasksService.js";
 import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "./attendanceShiftResolver.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { emitToRooms } from "../utils/socket.js";
+import { ensureAccountingSchema, recordCashDrawerEvent } from "./accountingService.js";
 
 const tokenBytes = 32;
 
@@ -22,6 +23,12 @@ const toAttendanceMinutes = (value) => {
 };
 
 const clean = (value = "") => String(value || "").trim();
+const normalizeAdvancePaymentMethod = (value = "") => {
+  const normalized = clean(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (["vodafone", "vodafone_cash", "wallet", "فودافون", "فودافون_كاش"].includes(normalized)) return "vodafone_cash";
+  if (["insta", "instapay", "insta_pay", "انستا", "انستاباي"].includes(normalized)) return "instapay";
+  return "cash";
+};
 const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
 const employeePortalDebugEnabled = () =>
   ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_EMPLOYEE_PORTAL || "").toLowerCase());
@@ -270,6 +277,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS admin_note TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS reviewed_by BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NOT NULL DEFAULT 'cash'`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_status ON employee_portal_requests (tenant_id, employee_id, status, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_created ON employee_portal_requests (tenant_id, employee_id, created_at DESC, id DESC)`);
   await clientOrPool.query(`
@@ -442,6 +450,8 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS employee_portal_request_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NOT NULL DEFAULT 'cash'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_advances_portal_request ON employee_advances (employee_portal_request_id) WHERE employee_portal_request_id IS NOT NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_advances_employee_status ON employee_advances (tenant_id, employee_id, deduction_status)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_advances_employee_created ON employee_advances (tenant_id, employee_id, created_at DESC, id DESC)`);
@@ -2096,12 +2106,12 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
   const result = await db.query(
     `
     INSERT INTO employee_portal_requests (
-      tenant_id, employee_id, request_type, amount, request_date, end_date, message, status, created_at, updated_at
+      tenant_id, employee_id, request_type, amount, payment_method, request_date, end_date, message, status, created_at, updated_at
     )
-    VALUES ($1,$2,$3,$4,NULLIF($5, '')::date,NULLIF($6, '')::date,$7,'pending',NOW(),NOW())
-    RETURNING id, request_type, amount, request_date, end_date, message, status, created_at
+    VALUES ($1,$2,$3,$4,$5,NULLIF($6, '')::date,NULLIF($7, '')::date,$8,'pending',NOW(),NOW())
+    RETURNING id, request_type, amount, payment_method, request_date, end_date, message, status, created_at
     `,
-    [employee.tenant_id, employee.id, requestType, amount, requestDate, endDate, message]
+    [employee.tenant_id, employee.id, requestType, amount, requestType === "advance" ? normalizeAdvancePaymentMethod(data.payment_method || data.paymentMethod) : "cash", requestDate, endDate, message]
   );
   const request = result.rows[0];
   await recordEmployeePortalAudit({
@@ -3046,16 +3056,79 @@ export const grantEmployeeAdminReward = async ({ tenantId = null, employeeId, ti
   return reward;
 };
 
-const createAdvanceFromPortalRequest = async ({ request, reviewedBy = null } = {}) => {
+const createAdvanceFromPortalRequest = async ({ request, reviewedBy = null, clientOrPool = db } = {}) => {
   if (!request || request.request_type !== "advance" || clean(request.status) !== "approved" || toNumber(request.amount) <= 0) return null;
-  const result = await db.query(
+  await ensureAccountingSchema();
+  const queryClient = clientOrPool;
+  await queryClient.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS source VARCHAR(80) NULL`);
+  await queryClient.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
+  await queryClient.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NOT NULL DEFAULT 'cash'`);
+  await queryClient.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
+
+  const existing = await queryClient.query(
+    `SELECT * FROM employee_advances WHERE employee_portal_request_id = $1 LIMIT 1`,
+    [request.id]
+  );
+  if (existing.rows[0]) return existing.rows[0];
+
+  const employeeResult = await queryClient.query(
+    `SELECT id, full_name, employee_code, branch_id FROM employees WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL) LIMIT 1`,
+    [request.employee_id, request.tenant_id]
+  );
+  const employee = employeeResult.rows[0];
+  if (!employee) {
+    const error = new Error("Employee not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const paymentMethod = normalizeAdvancePaymentMethod(request.payment_method);
+  let shift = null;
+  if (paymentMethod === "cash") {
+    const shiftResult = await queryClient.query(
+      `
+      SELECT *
+      FROM cash_drawer_shifts
+      WHERE tenant_id = $1
+        AND branch_id = $2
+        AND status = 'open'
+      ORDER BY opened_at DESC, id DESC
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [request.tenant_id, employee.branch_id]
+    );
+    shift = shiftResult.rows[0] || null;
+    if (!shift) {
+      const error = new Error("لا توجد وردية كاش مفتوحة في فرع الموظف");
+      error.status = 409;
+      throw error;
+    }
+  }
+
+  const notes = clean(request.admin_note || request.message || `Approved wallet advance request #${request.id}`);
+  const expenseResult = await queryClient.query(
+    `
+    INSERT INTO expenses (
+      tenant_id, title, amount, expense_type, category, payment_method,
+      branch_id, employee_id, expense_date, notes, status, approved_by,
+      approved_at, paid_at, paid_by, source, shift_id, created_by, created_at, updated_at
+    )
+    VALUES ($1,$2,$3,'employee_advance','employee_advance',$4,$5,$6,CURRENT_DATE,$7,'paid',$8,NOW(),NOW(),$8,'employee_portal',$9,$8,NOW(),NOW())
+    RETURNING *
+    `,
+    [request.tenant_id, `Employee advance - ${employee.full_name || employee.employee_code || employee.id}`, toNumber(request.amount), paymentMethod, employee.branch_id, employee.id, notes, reviewedBy, shift?.id || null]
+  );
+  const expense = expenseResult.rows[0];
+
+  const result = await queryClient.query(
     `
     INSERT INTO employee_advances (
       tenant_id, employee_id, amount, deducted_amount, remaining_amount,
-      deduction_month, deduction_status, status, notes, employee_portal_request_id,
-      created_by, created_at, updated_at
+      deduction_month, deduction_status, status, notes, expense_id, employee_portal_request_id,
+      payment_method, shift_id, created_by, created_at, updated_at
     )
-    VALUES ($1,$2,$3,0,$3,to_char(CURRENT_DATE, 'YYYY-MM'),'pending','active',$4,$5,$6,NOW(),NOW())
+    VALUES ($1,$2,$3,0,$3,to_char(CURRENT_DATE, 'YYYY-MM'),'pending','active',$4,$5,$6,$7,$8,$9,NOW(),NOW())
     ON CONFLICT (employee_portal_request_id) WHERE employee_portal_request_id IS NOT NULL
     DO UPDATE SET updated_at = NOW()
     RETURNING *
@@ -3064,11 +3137,27 @@ const createAdvanceFromPortalRequest = async ({ request, reviewedBy = null } = {
       request.tenant_id,
       request.employee_id,
       toNumber(request.amount),
-      clean(request.admin_note || request.message || `Approved wallet advance request #${request.id}`),
+      notes,
+      expense.id,
       request.id,
+      paymentMethod,
+      shift?.id || null,
       reviewedBy,
     ]
   );
+  if (paymentMethod === "cash") {
+    await recordCashDrawerEvent(queryClient, {
+      tenantId: request.tenant_id,
+      branchId: employee.branch_id,
+      shiftId: shift.id,
+      createdBy: reviewedBy || shift.opened_by_user_id || shift.opened_by,
+      eventType: "expense_cash",
+      sourceType: "employee_advance",
+      sourceId: expense.id,
+      amount: toNumber(request.amount),
+      requireOpenShift: true,
+    });
+  }
   return result.rows[0] || null;
 };
 
@@ -3182,20 +3271,40 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
     error.status = 400;
     throw error;
   }
-  const result = await db.query(
-    `
-    UPDATE employee_portal_requests
-    SET status = $3,
-        admin_note = $4,
-        reviewed_by = $5,
-        reviewed_at = NOW(),
-        updated_at = NOW()
-    WHERE id::text = $1::text
-      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-    RETURNING *
-    `,
-    [requestId, tenantId, nextStatus, clean(adminNote), reviewedBy]
-  );
+  const reviewClient = createAdvance && nextStatus === "approved" ? await db.connect() : null;
+  let result;
+  try {
+    if (reviewClient) await reviewClient.query("BEGIN");
+    const queryClient = reviewClient || db;
+    result = await queryClient.query(
+      `
+      UPDATE employee_portal_requests
+      SET status = $3,
+          admin_note = $4,
+          reviewed_by = $5,
+          reviewed_at = NOW(),
+          updated_at = NOW()
+      WHERE id::text = $1::text
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      RETURNING *
+      `,
+      [requestId, tenantId, nextStatus, clean(adminNote), reviewedBy]
+    );
+    if (!result.rows[0]) {
+      const error = new Error("Request not found");
+      error.status = 404;
+      throw error;
+    }
+    if (reviewClient && result.rows[0].request_type === "advance") {
+      result.rows[0].created_advance = await createAdvanceFromPortalRequest({ request: result.rows[0], reviewedBy, clientOrPool: reviewClient });
+    }
+    if (reviewClient) await reviewClient.query("COMMIT");
+  } catch (error) {
+    if (reviewClient) await reviewClient.query("ROLLBACK").catch(() => null);
+    throw error;
+  } finally {
+    reviewClient?.release();
+  }
   if (!result.rows[0]) {
     const error = new Error("Request not found");
     error.status = 404;
@@ -3216,7 +3325,7 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
   let advance = null;
   let vacation = null;
   if (createAdvance && request.request_type === "advance" && request.status === "approved") {
-    advance = await createAdvanceFromPortalRequest({ request, reviewedBy });
+    advance = request.created_advance || await createAdvanceFromPortalRequest({ request, reviewedBy });
   }
   if (["vacation", "leave"].includes(request.request_type) && request.status === "approved") {
     vacation = await createVacationFromPortalRequest({

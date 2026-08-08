@@ -2376,6 +2376,7 @@ export default function ManagerPortal() {
                             <div className="min-w-0">
                               <div className="truncate text-sm font-black text-slate-950 dark:text-white">{portalText(request.employee_name || "موظف")}</div>
                               <div className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">{formatDateTime(request.created_at)}</div>
+                              <div className="mt-1 text-[11px] font-black text-amber-700 dark:text-amber-300">{request.payment_method === "vodafone_cash" ? "فودافون كاش" : request.payment_method === "instapay" ? "إنستاباي" : "كاش من وردية الفرع"}</div>
                             </div>
                             <div className="shrink-0 text-base font-black text-amber-700 dark:text-amber-300">{formatCurrency(request.amount || 0)}</div>
                           </div>

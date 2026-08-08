@@ -1367,6 +1367,7 @@ export default function EmployeePayrollPortal() {
   const [attendanceSaving, setAttendanceSaving] = useState("");
   const [requestType, setRequestType] = useState("vacation");
   const [requestAmount, setRequestAmount] = useState("");
+  const [requestPaymentMethod, setRequestPaymentMethod] = useState("cash");
   const [requestDate, setRequestDate] = useState("");
   const [requestEndDate, setRequestEndDate] = useState("");
   const [requestMessage, setRequestMessage] = useState("");
@@ -3219,6 +3220,7 @@ export default function EmployeePayrollPortal() {
       const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/requests`, {
         request_type: requestType,
         amount: requestType === "advance" ? requestAmount : undefined,
+        payment_method: requestType === "advance" ? requestPaymentMethod : undefined,
         request_date: requestDate || undefined,
         end_date: requestType === "vacation" ? requestEndDate || undefined : undefined,
         message: requestMessage,
@@ -3227,6 +3229,7 @@ export default function EmployeePayrollPortal() {
       });
       if (response.portal) setPortal(response.portal);
       setRequestAmount("");
+      setRequestPaymentMethod("cash");
       setRequestDate("");
       setRequestEndDate("");
       setRequestMessage("");
@@ -4225,7 +4228,23 @@ export default function EmployeePayrollPortal() {
               </div>
               <div className="mt-3 grid gap-2">
                 {requestType === "advance" ? (
-                  <input value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} type="number" min="0" step="0.01" placeholder={text.amount} className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                  <>
+                    <input value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} type="number" min="0" step="0.01" placeholder={text.amount} className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                    <div>
+                      <div className="mb-2 text-xs font-black text-slate-600">طريقة استلام السلفة</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          ["cash", "كاش"],
+                          ["vodafone_cash", "فودافون كاش"],
+                          ["instapay", "إنستاباي"],
+                        ].map(([value, label]) => (
+                          <button key={value} type="button" onClick={() => setRequestPaymentMethod(value)} className={`min-h-11 rounded-2xl border px-2 text-[11px] font-black ${requestPaymentMethod === value ? "border-amber-400 bg-amber-400 text-slate-950" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 ) : null}
                 <div className="grid grid-cols-2 gap-2">
                   <input value={requestDate} onChange={(event) => setRequestDate(event.target.value)} type="date" aria-label={text.requestDate} className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
@@ -4253,6 +4272,7 @@ export default function EmployeePayrollPortal() {
                     <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
                       <div>{text.requestType}: <span>{requestTypeLabel(item, text)}</span></div>
                       <div>{text.requestDate}: <DateSafe>{formatEmployeePortalDate(item.request_date || item.created_at, language)}</DateSafe></div>
+                      {String(item.request_type || "").toLowerCase() === "advance" ? <div>الاستلام: <span>{item.payment_method === "vodafone_cash" ? "فودافون كاش" : item.payment_method === "instapay" ? "إنستاباي" : "كاش"}</span></div> : null}
                     </div>
                       {item.amount ? <div className="mt-1 text-xs font-black text-slate-600" dir="ltr">{money(item.amount)}</div> : null}
                       {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
