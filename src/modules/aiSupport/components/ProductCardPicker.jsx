@@ -355,7 +355,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [selectedLinkBrand, setSelectedLinkBrand] = useState("all");
   const [selectedLinkMinPrice, setSelectedLinkMinPrice] = useState("");
   const [selectedLinkMaxPrice, setSelectedLinkMaxPrice] = useState("");
-  const [previewCollapsed, setPreviewCollapsed] = useState(false);
+  const [previewCollapsed, setPreviewCollapsed] = useState(true);
   const previousOpenRef = useRef(false);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   // The order composer uses the same dark product surface as POS, including the
@@ -483,6 +483,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const openedNow = open && !previousOpenRef.current;
     previousOpenRef.current = open;
     if (!openedNow) return;
+    setPreviewCollapsed(true);
     if (sizeMode) {
       setSelectedProductId("");
       setSelectedProductIds([]);
@@ -1089,7 +1090,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 </div>
                   </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
+                <div className="rounded-2xl border border-white/10 bg-[#22221e] p-3">
                   <div className="text-sm font-black text-white">إرسال محددات المقاس</div>
                   <div className="mt-2 text-xs font-semibold leading-6 text-slate-400">
                     المنتجات الظاهرة في القائمة هي فقط التي لديها stock فعلي لهذا المقاس. لا حاجة لاختيار لون أو مقاس لكل منتج.
@@ -1138,23 +1139,23 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   {previewCollapsed ? "إظهار معاينة المنتج" : "إخفاء معاينة المنتج"}
                 </button>
                 <div className={previewCollapsed ? "hidden" : "space-y-3"}>
-                <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
+                <div className="flex items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#1d1d1a] p-3">
                   {activeImage ? (
-                    <img src={activeImage} alt={selectedProduct.name || "منتج"} className="aspect-[16/10] w-full object-cover" loading="lazy" />
+                    <img src={activeImage} alt={selectedProduct.name || "منتج"} className="h-24 w-24 shrink-0 rounded-2xl border border-white/10 bg-white object-cover" loading="lazy" />
                   ) : (
-                    <div className="grid aspect-[16/10] w-full place-items-center bg-white/[0.05]">
-                      <ShoppingBag className="h-12 w-12 text-slate-500" />
+                    <div className="grid h-24 w-24 shrink-0 place-items-center rounded-2xl bg-white/[0.05]">
+                      <ShoppingBag className="h-8 w-8 text-stone-500" />
                     </div>
                   )}
-                  <div className="p-3">
-                    <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Selected product</div>
-                    <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{selectedProduct.name || selectedProduct.product_name || "منتج"}</div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-slate-400">
+                  <div className="min-w-0 flex-1 py-1">
+                    <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-stone-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-[#d4af37]"}>Selected product</div>
+                    <div className={inlineFullscreenMode ? "mt-1 truncate text-base font-black text-stone-900" : "mt-1 truncate text-base font-black text-white"}>{selectedProduct.name || selectedProduct.product_name || "منتج"}</div>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] font-bold text-stone-400">
                       {selectedProduct.brand || selectedProduct.brand_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.brand || selectedProduct.brand_name}</span> : null}
                       {selectedProduct.category || selectedProduct.category_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.category || selectedProduct.category_name}</span> : null}
                       {productBarcode(selectedProduct) ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">باركود: {productBarcode(selectedProduct)}</span> : null}
                     </div>
-                    {activePrice > 0 ? <div className="mt-2 text-base font-black text-emerald-100">{money(activePrice)}</div> : null}
+                    {activePrice > 0 ? <div className="mt-2 text-sm font-black text-emerald-200">{money(activePrice)}</div> : null}
                   </div>
                 </div>
 
@@ -1178,7 +1179,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                               }
                             }}
                             className={`min-h-10 rounded-full border px-4 py-2 text-sm font-black transition ${
-                              active ? "border-cyan-300/30 bg-cyan-300 text-slate-950" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]"
+                              active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
                             }`}
                           >
                             {color}
@@ -1191,7 +1192,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
+                <div className="rounded-2xl border border-white/10 bg-[#22221e] p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-black text-white">المقاس</div>
                     <div className="text-[11px] font-bold text-slate-500">المقاسات المتاحة فقط</div>
@@ -1206,7 +1207,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             type="button"
                             onClick={() => setSelectedSize(size)}
                             className={`min-h-12 rounded-2xl border px-3 py-2 text-right transition ${
-                              active ? "border-cyan-300/30 bg-cyan-300 text-slate-950" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]"
+                              active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
                             }`}
                           >
                             <div className="text-xl font-black leading-none">{size}</div>
