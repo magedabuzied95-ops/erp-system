@@ -5838,7 +5838,7 @@ function POSPro() {
         loyalty_points_redeemed: loyaltyUnavailable ? 0 : Number(loyaltyValidation?.applied_points || loyaltyRedeemPoints || 0),
         loyalty_discount_amount: loyaltyUnavailable ? 0 : Number(loyaltyValidation?.applied_amount || 0),
         wallet_amount: payloadCustomerWalletAmount,
-        full_wallet_redemption_only: paymentMode === "customer_wallet" && payloadCustomerWalletAmount >= Number(amountDueNow || 0),
+        full_wallet_redemption_only: !isCreditSaleTransaction && paymentMode === "customer_wallet" && payloadCustomerWalletAmount >= Number(amountDueNow || 0),
         tax_amount: 0,
         tax_rate: 0,
         service_fee: cartTotals.serviceFee,
@@ -6137,7 +6137,7 @@ function POSPro() {
         amount_due_now: amountDueNow,
         exchange_difference: exchangeDifference,
         payment: {
-          method: paymentMode,
+          method: payload.payment_method,
           paymentStatus: checkoutPaymentSummary.paymentStatus,
           paidAmount: checkoutPaymentSummary.paidAmount,
           dueAmount: checkoutPaymentSummary.dueAmount,
@@ -7431,7 +7431,18 @@ function POSPro() {
     checkoutActionRef.current = handleCheckout;
   }, [handleCheckout]);
   const handleCheckoutAction = useCallback((options = {}) => checkoutActionRef.current(options), []);
-  const handleCreditSaleCheckout = useCallback(() => handleCheckoutAction({ creditSale: true }), [handleCheckoutAction]);
+  const handleCreditSaleCheckout = useCallback(() => {
+    // A deferred sale must never inherit a previously selected collection
+    // method or amount. The checkout payload also enforces zero collected.
+    setPaymentMode("credit_sale");
+    setCashAmount(0);
+    setCardAmount(0);
+    setWalletAmount(0);
+    setVodafoneCashAmount(0);
+    setCustomerWalletAmount(0);
+    setActiveSplitMethod("cash");
+    return handleCheckoutAction({ creditSale: true });
+  }, [handleCheckoutAction]);
   const paymentAreaRenderCountRef = useRef(0);
   useEffect(() => {
     if (!import.meta.env.DEV) return;
