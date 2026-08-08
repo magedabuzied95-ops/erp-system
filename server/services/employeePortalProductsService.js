@@ -520,18 +520,22 @@ const buildPosCatalogQuery = (query = {}) => {
   const gender = clean(query.gender);
   const productType = clean(query.product_type ?? query.productType ?? query.type);
   const grade = clean(query.grade ?? query.category);
+  const size = clean(query.size ?? query.selectedSize ?? query.selected_size);
+  const hasSizeFilter = size && lower(size) !== "all";
   return {
     ...(directSearch ? { search: directSearch } : {}),
     ...(productId ? { productId } : {}),
     ...(qrToken ? { qr_token: qrToken } : {}),
     ...(sku ? { sku } : {}),
-    limit,
+    limit: hasSizeFilter ? Math.min(Math.max(toPositiveInt(query.limit, 500), 1), 500) : limit,
     page,
     ...(brand && brand.toLowerCase() !== "all" ? { brand } : {}),
     ...(manufacturer && manufacturer.toLowerCase() !== "all" ? { manufacturer } : {}),
     ...(gender && gender.toLowerCase() !== "all" ? { gender } : {}),
     ...(productType && productType.toLowerCase() !== "all" ? { product_type: productType } : {}),
     ...(grade && grade.toLowerCase() !== "all" ? { grade } : {}),
+    ...(hasSizeFilter ? { size } : {}),
+    inStockOnly: query.inStockOnly ?? query.in_stock_only ?? 1,
   };
 };
 

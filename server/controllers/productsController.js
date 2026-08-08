@@ -3732,6 +3732,37 @@ export const getProductsWithVariants = async (req, res) => {
       productSearchClause ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${productSearchClause}` : "",
       productFiltersClause.sql ? `${scopeClause.whereSql || productSearchClause ? "AND" : "WHERE"} ${productFiltersClause.sql}` : "",
     ].filter(Boolean).join("\n");
+    const requestedSize = String(req.query.size ?? req.query.selectedSize ?? req.query.selected_size ?? "").trim();
+    if (requestedSize && requestedSize.toLowerCase() !== "all") {
+      productQueryValues.push(requestedSize);
+      const sizeToken = `$${productQueryValues.length}`;
+      productWhereSql = [
+        productWhereSql,
+        `${productWhereSql ? "AND" : "WHERE"} EXISTS (
+          SELECT 1
+          FROM product_variants size_variant
+          WHERE size_variant.product_id = p.id
+            AND size_variant.is_active IS DISTINCT FROM FALSE
+            AND size_variant.deleted_at IS NULL
+            AND LOWER(TRIM(COALESCE(size_variant.size, ''))) = LOWER(TRIM(${sizeToken}))
+            AND COALESCE(size_variant.stock, 0) > 0
+        )`,
+      ].filter(Boolean).join("\n");
+    }
+    const inStockOnly = ["1", "true", "yes", "on"].includes(String(req.query.inStockOnly ?? req.query.in_stock_only ?? "").trim().toLowerCase());
+    if (inStockOnly && !requestedSize) {
+      productWhereSql = [
+        productWhereSql,
+        `${productWhereSql ? "AND" : "WHERE"} EXISTS (
+          SELECT 1
+          FROM product_variants stock_variant
+          WHERE stock_variant.product_id = p.id
+            AND stock_variant.is_active IS DISTINCT FROM FALSE
+            AND stock_variant.deleted_at IS NULL
+            AND COALESCE(stock_variant.stock, 0) > 0
+        )`,
+      ].filter(Boolean).join("\n");
+    }
     const requestedProductId = Number(req.query.productId ?? req.query.product_id ?? 0);
     if (Number.isFinite(requestedProductId) && requestedProductId > 0) {
       productQueryValues.push(requestedProductId);
@@ -3742,7 +3773,9 @@ export const getProductsWithVariants = async (req, res) => {
     }
     const page = Math.max(1, Number(req.query.page || 1) || 1);
     const requestedLimit = Number(req.query.limit || 0) || 0;
-    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 48) : null;
+    const isEmployeePortalCatalog = String(req.originalUrl || "").includes("employee-portal-products");
+    const limitCap = isEmployeePortalCatalog && requestedSize ? 500 : 48;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, limitCap) : null;
     const offset = limit ? (page - 1) * limit : 0;
     const limitSql = limit ? `LIMIT $${productQueryValues.length + 1} OFFSET $${productQueryValues.length + 2}` : "";
     if (limit) productQueryValues.push(limit, offset);
@@ -3938,7 +3971,9 @@ export const loadProductsWithVariantsPayload = async ({ query = {}, user = null,
   const mockReq = {
     id: requestId,
     method: "GET",
-    originalUrl: "/api/products/with-variants",
+    originalUrl: requestId === "employee-portal-products"
+      ? "/api/products/with-variants?source=employee-portal-products"
+      : "/api/products/with-variants",
     query,
     user,
   };

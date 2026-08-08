@@ -377,8 +377,9 @@ const expandEmployeeProductCardsByColorAndSize = (products = [], filters = {}) =
   return cards;
 };
 
-const buildListParams = ({ search, filters }) => {
-  const params = { limit: 48, inStockOnly: 1 };
+const buildListParams = ({ search, filters, selectedSize = "all" }) => {
+  const hasSizeFilter = isActiveSizeFilter(selectedSize);
+  const params = { limit: hasSizeFilter ? 500 : 48, inStockOnly: 1 };
   const q = text(search);
   if (q) params.q = q;
   if (filters.category !== "all") params.category = filters.category;
@@ -386,6 +387,7 @@ const buildListParams = ({ search, filters }) => {
   if (filters.brand !== "all") params.brand = filters.brand;
   if (filters.manufacturer !== "all") params.manufacturer = filters.manufacturer;
   if (filters.gender !== "all") params.gender = filters.gender;
+  if (hasSizeFilter) params.size = text(selectedSize);
   return params;
 };
 
@@ -924,7 +926,7 @@ export default function EmployeePortalProducts() {
       try {
         setLoading(true);
         setError("");
-        const response = await getEmployeePortalProducts(token, buildListParams({ search: deferredSearch, filters }));
+        const response = await getEmployeePortalProducts(token, buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize }));
         if (cancelled) return;
         setProducts(normalizeEmployeePosCatalog(response?.products));
         setEmployee(response?.employee || null);
@@ -942,7 +944,7 @@ export default function EmployeePortalProducts() {
     return () => {
       cancelled = true;
     };
-  }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.manufacturer, filters.gender, filters.inStockOnly]);
+  }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.manufacturer, filters.gender, filters.inStockOnly, selectedFilterSize]);
 
   useEffect(() => {
     lookupDoneRef.current = false;
