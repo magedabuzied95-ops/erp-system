@@ -4001,13 +4001,6 @@ export default function AiInboxPwa() {
     },
     [selectedConversation]
   );
-  const inboxFilterItems = useMemo(
-    () => [
-      { key: "all", label: "All" },
-      { key: "needs_reply", label: "Needs Reply" },
-    ],
-    []
-  );
   const socialPostIdentity = useCallback((item = {}) => {
     const safeItem = item || {};
     return clean(
@@ -6368,20 +6361,6 @@ export default function AiInboxPwa() {
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400"
                 />
               </label>
-              {tab === "conversations" ? (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {inboxFilterItems.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setFilter(item.key)}
-                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
               {tab === "conversations" ? (
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {MESSAGE_PLATFORM_FILTERS.map((item) => (
