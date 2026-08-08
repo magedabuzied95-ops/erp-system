@@ -3172,6 +3172,7 @@ export default function AiInboxPwa() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [messagePlatformFilter, setMessagePlatformFilter] = useState("all");
+  const lastRequestedMessagePlatformRef = useRef("all");
   const [leadFilter, setLeadFilter] = useState("new");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
@@ -3510,7 +3511,17 @@ export default function AiInboxPwa() {
           params: {
             tenant_id: tenantId,
             search: debouncedSearch,
-            limit: 100,
+            channel_filter:
+              messagePlatformFilter === "messenger"
+                ? "facebook_messenger"
+                : messagePlatformFilter === "instagram"
+                  ? "instagram"
+                  : messagePlatformFilter === "whatsapp"
+                    ? "whatsapp"
+                    : messagePlatformFilter === "web"
+                      ? "web_chat"
+                      : "",
+            limit: 200,
             message_limit: conversationParam ? 50 : 20,
           },
           headers,
@@ -3617,7 +3628,7 @@ export default function AiInboxPwa() {
         }
       }
     },
-    [conversationParam, debouncedSearch, headers, loadSocialComments, pageVisible, tab, tenantId, updateUrlState]
+    [conversationParam, debouncedSearch, headers, loadSocialComments, messagePlatformFilter, pageVisible, tab, tenantId, updateUrlState]
   );
 
   const requestRefresh = useCallback(
@@ -3690,6 +3701,12 @@ export default function AiInboxPwa() {
       requestRefreshRef.current = null;
     };
   }, [requestRefresh]);
+
+  useEffect(() => {
+    if (lastRequestedMessagePlatformRef.current === messagePlatformFilter) return;
+    lastRequestedMessagePlatformRef.current = messagePlatformFilter;
+    requestRefresh("platform_filter", { silent: false, force: true });
+  }, [messagePlatformFilter, requestRefresh]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
