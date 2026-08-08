@@ -3740,10 +3740,11 @@ export default function AiInboxPwa() {
       window.clearInterval(pollRef.current);
       pollRef.current = null;
     }
-    if (!pageVisible || socketHealthy) return undefined;
+    if (!pageVisible) return undefined;
+    const pollIntervalMs = socketHealthy ? 60000 : 24000;
     pollRef.current = window.setInterval(() => {
       requestRefresh("polling", { silent: true });
-    }, 24000);
+    }, pollIntervalMs);
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
     };
