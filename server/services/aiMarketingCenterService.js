@@ -15,6 +15,7 @@ import { getPublicBackendUrl } from "../utils/publicUrl.js";
 import { getSetting } from "./settingsService.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
 import { resolveSaleModePrice } from "./saleModeService.js";
+import { saveLinksForPublishedPost } from "./marketingCommentAutomationService.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -3191,6 +3192,26 @@ const persistQueuePublishResult = async ({ tenantId, id, item, result, platformR
   const normalized = updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : null;
   if (normalized) {
     if (nextQueueStatus === "published") {
+      try {
+        await saveLinksForPublishedPost({
+          post: {
+            ...normalized,
+            tenant_id: tenantId,
+            product_id: normalized.product_id || item?.product_id || null,
+            channel: "all",
+          },
+          publishResult: {
+            ...result,
+            platform_publish_results: platformResults,
+          },
+        });
+      } catch (error) {
+        console.error("[ai-marketing-product-link]", {
+          queue_id: id,
+          product_id: normalized.product_id || item?.product_id || null,
+          error: error?.message || "Automatic product linking failed",
+        });
+      }
       await db.query(`UPDATE ai_marketing_catalog_coverage SET published_at = COALESCE(published_at, CURRENT_TIMESTAMP) WHERE tenant_id = $1 AND queue_id = $2`, [tenantId, id]);
     }
     await appendQueueTimeline({

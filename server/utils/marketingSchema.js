@@ -185,6 +185,9 @@ const statements = [
     status VARCHAR(30) NOT NULL DEFAULT 'draft',
     scheduled_at TIMESTAMP NULL,
     published_at TIMESTAMP NULL,
+    platform_post_id TEXT NULL,
+    external_post_id TEXT NULL,
+    platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
     error_message TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -205,6 +208,9 @@ const statements = [
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',
     ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
     ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS platform_post_id TEXT NULL,
+    ADD COLUMN IF NOT EXISTS external_post_id TEXT NULL,
+    ADD COLUMN IF NOT EXISTS platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS error_message TEXT NULL;
   `,
   `

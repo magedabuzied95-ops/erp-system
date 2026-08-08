@@ -1079,6 +1079,9 @@ export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
       status = $1,
       published_at = $2::timestamp,
       error_message = $3,
+      platform_post_id = $6::text,
+      external_post_id = $7::text,
+      platform_publish_results = $8::jsonb,
       updated_at = CURRENT_TIMESTAMP
     WHERE tenant_id = $4::integer
       AND id = $5::bigint
@@ -1090,6 +1093,9 @@ export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
       errorMessage,
       tenantId,
       id,
+      publishResult?.platform_post_id || publishResult?.external_post_id || null,
+      publishResult?.external_post_id || publishResult?.platform_post_id || null,
+      JSON.stringify(publishResult?.platform_publish_results || {}),
     ]
   );
 

@@ -1695,21 +1695,31 @@ export const savePostProductLinks = async ({ businessId, platform, postId, media
 };
 
 export const saveLinksForPublishedPost = async ({ post, publishResult, createdBy }) => {
-  if (!post?.product_id) return [];
-  const platformResults = publishResult?.platform_publish_results || {};
+  const productId = post?.product_id || post?.productId || post?.design_json?.product_id || post?.metadata?.product_id || null;
+  if (!productId) return [];
+  const platformResults = publishResult?.platform_publish_results || publishResult?.platformResults || {};
   const rows = [];
-  const requestedChannel = trimString(post.channel || "facebook").toLowerCase();
+  const requestedChannel = trimString(post.channel || post.platform || "facebook").toLowerCase();
   const candidates = [];
 
-  if (platformResults.facebook?.platform_post_id) {
-    candidates.push({ platform: "facebook", postId: platformResults.facebook.platform_post_id });
-  }
-  if (platformResults.instagram?.platform_post_id) {
-    candidates.push({ platform: "instagram", postId: platformResults.instagram.platform_post_id, mediaId: platformResults.instagram.platform_post_id });
-  }
+  const addCandidate = (platform, value, mediaId = null) => {
+    const postId = nullableString(value);
+    if (!postId) return;
+    const normalizedPlatform = platform === "instagram" ? "instagram" : "facebook";
+    if (candidates.some((item) => item.platform === normalizedPlatform && item.postId === postId)) return;
+    candidates.push({ platform: normalizedPlatform, postId, mediaId: nullableString(mediaId) });
+  };
+
+  const platformId = (value = {}) =>
+    value?.platform_post_id || value?.external_post_id || value?.post_id || value?.media_id || value?.id || null;
+
+  addCandidate("facebook", platformId(platformResults.facebook));
+  const instagramId = platformId(platformResults.instagram);
+  addCandidate("instagram", instagramId, instagramId);
   if (!candidates.length && (publishResult?.platform_post_id || publishResult?.external_post_id)) {
     const platform = requestedChannel === "instagram" ? "instagram" : "facebook";
-    candidates.push({ platform, postId: publishResult.platform_post_id || publishResult.external_post_id, mediaId: platform === "instagram" ? publishResult.platform_post_id || publishResult.external_post_id : null });
+    const fallbackId = publishResult.platform_post_id || publishResult.external_post_id;
+    addCandidate(platform, fallbackId, platform === "instagram" ? fallbackId : null);
   }
 
   for (const candidate of candidates) {
@@ -1718,7 +1728,7 @@ export const saveLinksForPublishedPost = async ({ post, publishResult, createdBy
       platform: candidate.platform,
       postId: candidate.postId,
       mediaId: candidate.mediaId,
-      productId: post.product_id,
+      productId,
       createdBy,
     });
     await savePostProductLinksV2({
@@ -1732,8 +1742,8 @@ export const saveLinksForPublishedPost = async ({ post, publishResult, createdBy
         canonical_post_id: candidate.postId,
         media_id: candidate.mediaId || null,
       },
-      productIds: [post.product_id],
-      primaryProductId: post.product_id,
+      productIds: [productId],
+      primaryProductId: productId,
     });
     if (row) rows.push(row);
   }
