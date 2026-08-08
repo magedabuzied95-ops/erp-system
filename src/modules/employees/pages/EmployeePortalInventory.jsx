@@ -551,6 +551,7 @@ export default function EmployeePortalInventory() {
   const lookupInputRef = useRef(null);
   const filtersPanelRef = useRef(null);
   const taskLaunchHandledRef = useRef(false);
+  const taskAutoAddHandledRef = useRef(false);
 
   const isEditable = ["draft", "in_progress"].includes(String(session?.status || ""));
   const isRejected = String(session?.status || "") === "rejected";
@@ -654,7 +655,10 @@ export default function EmployeePortalInventory() {
     }
     const timer = window.setTimeout(() => {
       setLookupLoading(true);
-      lookupEmployeePortalInventoryVariants(token, session.id, { query: lookupQuery, limit: 20 })
+      lookupEmployeePortalInventoryVariants(token, session.id, {
+        query: lookupQuery,
+        limit: searchParams.get("taskId") ? 100 : 20,
+      })
         .then((response) => {
           setLookupResults(Array.isArray(response?.items) ? response.items : []);
         })
@@ -666,7 +670,7 @@ export default function EmployeePortalInventory() {
         .finally(() => setLookupLoading(false));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [isEditable, isRejected, lookupQuery, session?.id, session?.status, token]);
+  }, [isEditable, isRejected, lookupQuery, searchParams, session?.id, session?.status, token]);
 
   const visibleSessions = useMemo(() => {
     const query = clean(sessionSearch).toLowerCase();
@@ -1102,6 +1106,28 @@ export default function EmployeePortalInventory() {
       setItemSavingId("");
     }
   }, [isEditable, items, refreshCurrentSession, saveItem, session?.id, token]);
+
+  useEffect(() => {
+    const taskId = clean(searchParams.get("taskId"));
+    if (
+      !taskId ||
+      taskAutoAddHandledRef.current ||
+      lookupLoading ||
+      !session?.id ||
+      !isEditable ||
+      !lookupGroups.length
+    ) return;
+
+    taskAutoAddHandledRef.current = true;
+    const addTaskModel = async () => {
+      for (const group of lookupGroups) {
+        await addColorGroup(group);
+      }
+      setLookupQuery("");
+      toast.success("تمت إضافة ألوان ومقاسات الموديل إلى الجرد");
+    };
+    void addTaskModel();
+  }, [addColorGroup, isEditable, lookupGroups, lookupLoading, searchParams, session?.id]);
 
   const findColorGroupForVariant = useCallback((variant, records = []) => {
     const productId = variant?.product_id ?? null;

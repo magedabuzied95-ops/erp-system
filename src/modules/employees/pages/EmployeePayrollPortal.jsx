@@ -3243,6 +3243,24 @@ export default function EmployeePayrollPortal() {
     }
   };
 
+  const isInventoryTaskRecord = (task) => Boolean(task && (
+    task.task_type === "daily_inventory_count" ||
+    task.source_ref_type === "product_variant" ||
+    (task.product_id && task.variant_id)
+  ));
+
+  const openInventoryTask = (task) => {
+    if (!isInventoryTaskRecord(task)) return;
+    const query = task.product_name || task.variant_article_code || task.variant_sku || task.source_ref_id || task.variant_id || "";
+    const params = new URLSearchParams({
+      taskId: String(task.id || ""),
+      variantId: String(task.variant_id || task.source_ref_id || ""),
+      query: String(query),
+      productName: String(task.product_name || ""),
+    });
+    navigate(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/inventory?${params.toString()}`);
+  };
+
   const updateWalletTask = async (taskOrId, status) => {
     const task = typeof taskOrId === "object" && taskOrId ? taskOrId : null;
     const taskId = task?.id || taskOrId;
@@ -3257,16 +3275,7 @@ export default function EmployeePayrollPortal() {
       });
       if (response.portal) setPortal(response.portal);
       setPortalNotice(text.taskUpdated);
-      if (status === "in_progress" && task?.task_type === "daily_inventory_count") {
-        const query = task.variant_article_code || task.variant_sku || task.source_ref_id || task.variant_id || "";
-        const params = new URLSearchParams({
-          taskId: String(task.id || ""),
-          variantId: String(task.variant_id || task.source_ref_id || ""),
-          query: String(query),
-          productName: String(task.product_name || ""),
-        });
-        navigate(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/inventory?${params.toString()}`);
-      }
+      if (status === "in_progress" && isInventoryTaskRecord(task)) openInventoryTask(task);
       logPagePerf("employee-wallet.task-update", startedAt, { status });
     } catch (err) {
       setPortalNotice(err?.responseBody?.message || err?.message || text.invalid);
@@ -4170,6 +4179,12 @@ export default function EmployeePayrollPortal() {
                                 <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task, "in_progress")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-50">
                                   {taskSavingId === `${task.id}:in_progress` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                                   {text.startTask}
+                                </button>
+                              ) : null}
+                              {taskStatusKey(task.status) === "in_progress" && isInventoryTaskRecord(task) ? (
+                                <button type="button" onClick={() => openInventoryTask(task)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-black text-amber-900">
+                                  <ClipboardList className="h-4 w-4" />
+                                  فتح الجرد
                                 </button>
                               ) : null}
                               {taskStatusKey(task.status) === "in_progress" ? (
