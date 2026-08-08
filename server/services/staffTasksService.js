@@ -983,6 +983,13 @@ const normalizeTaskRow = (row = {}) => ({
   product_id: row.product_id || null,
   product_name: repairTaskText(row.product_name),
   variant_id: row.variant_id || null,
+  product_image_url: row.product_image_url || row.metadata?.product_image_url || "",
+  variant_image_url: row.variant_image_url || row.product_image_url || row.metadata?.variant_image_url || "",
+  variant_sku: row.variant_sku || row.metadata?.variant_sku || "",
+  variant_article_code: row.variant_article_code || row.metadata?.variant_article_code || "",
+  variant_color: repairTaskText(row.variant_color || row.metadata?.variant_color || ""),
+  variant_size: repairTaskText(row.variant_size || row.metadata?.variant_size || ""),
+  product_grade: repairTaskText(row.product_grade || row.metadata?.product_grade || ""),
   assigned_employee_id: row.assigned_employee_id || null,
   current_assignee_id: row.current_assignee_id || null,
   assignee_name: repairTaskText(row.assignee_name),
@@ -1023,6 +1030,24 @@ const taskSelect = `
   b.name AS branch_name,
   w.name AS warehouse_name,
   p.name AS product_name,
+  p.grade AS product_grade,
+  v.sku AS variant_sku,
+  v.article_code AS variant_article_code,
+  v.color AS variant_color,
+  v.size AS variant_size,
+  COALESCE(
+    NULLIF(v.image_url, ''),
+    NULLIF(p.image_url, ''),
+    NULLIF(p.image, ''),
+    (
+      SELECT NULLIF(pvi.image_url, '')
+      FROM product_variant_images pvi
+      WHERE pvi.variant_id = v.id OR (pvi.product_id = p.id AND LOWER(TRIM(COALESCE(pvi.color_name, ''))) = LOWER(TRIM(COALESCE(v.color, ''))))
+      ORDER BY CASE WHEN pvi.variant_id = v.id THEN 0 ELSE 1 END, pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
+      LIMIT 1
+    ),
+    ''
+  ) AS product_image_url,
   COALESCE(attachments.attachments_count, 0) AS attachments_count,
   attachments.latest_attachment_url AS latest_attachment_url,
   attachments.latest_attachment_type AS latest_attachment_type,
@@ -1036,6 +1061,7 @@ const taskJoins = `
   LEFT JOIN branches b ON b.id = sta.branch_id
   LEFT JOIN warehouses w ON w.id = sta.warehouse_id
   LEFT JOIN products p ON p.id = sta.product_id
+  LEFT JOIN product_variants v ON v.id = sta.variant_id
   LEFT JOIN LATERAL (
     SELECT
       COUNT(*)::int AS attachments_count,
@@ -2562,6 +2588,41 @@ export const deleteStaffTask = async (taskId, actor = {}) => {
 
 export const assignDailyInventoryCountTasks = async ({ tenantId = null, actor = null, limit = 20 } = {}) => {
   await ensureStaffTasksSchema();
+  const eligibleEmployees = await findEligibleEmployees(db, { tenantId });
+  const employeeLoad = new Map(eligibleEmployees.map((employee) => [String(employee.id), Number(employee.open_task_count || 0)]));
+  const pickNextEmployee = () => {
+    const selected = eligibleEmployees
+      .slice()
+      .sort((a, b) => (employeeLoad.get(String(a.id)) || 0) - (employeeLoad.get(String(b.id)) || 0) || Number(a.id) - Number(b.id))[0] || null;
+    if (selected) employeeLoad.set(String(selected.id), (employeeLoad.get(String(selected.id)) || 0) + 1);
+    return selected;
+  };
+
+  // Older automatic inventory tasks were left unassigned, which made every employee see them.
+  // Claim each one for exactly one employee before creating today's tasks.
+  if (eligibleEmployees.length) {
+    const unassigned = await db.query(
+      `SELECT id FROM staff_task_assignments
+       WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+         AND task_type = 'daily_inventory_count'
+         AND current_assignee_id IS NULL
+         AND status = ANY($2::text[])
+       ORDER BY id ASC`,
+      [tenantId, OPEN_STATUSES]
+    );
+    for (const task of unassigned.rows) {
+      const employee = pickNextEmployee();
+      if (!employee) break;
+      await db.query(
+        `UPDATE staff_task_assignments
+         SET current_assignee_id = $1, assigned_employee_id = $1, assigned_user_id = $2,
+             assigned_at = COALESCE(assigned_at, NOW()), assignment_source = 'balanced_inventory_distribution',
+             metadata = metadata || $3::jsonb, updated_at = NOW()
+         WHERE id = $4 AND current_assignee_id IS NULL`,
+        [employee.id, employee.user_id || null, JSON.stringify({ assignment_strategy: "balanced_inventory_distribution" }), task.id]
+      );
+    }
+  }
   const candidates = await db.query(
     `
     WITH sold AS (
@@ -2582,6 +2643,11 @@ export const assignDailyInventoryCountTasks = async ({ tenantId = null, actor = 
       p.name AS product_name,
       v.id AS variant_id,
       v.sku,
+      v.article_code,
+      v.color,
+      v.size,
+      p.grade,
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS image_url,
       v.stock,
       COALESCE(s.sold_qty, 0) AS sold_30d,
       COALESCE(d.discrepancy_qty, 0) AS discrepancy_qty,
@@ -2603,6 +2669,7 @@ export const assignDailyInventoryCountTasks = async ({ tenantId = null, actor = 
   );
   const created = [];
   for (const row of candidates.rows) {
+    const assignee = pickNextEmployee();
     const variantLabel = row.sku || row.variant_id;
     const result = await createStaffTask({
       tenantId,
@@ -2618,9 +2685,21 @@ export const assignDailyInventoryCountTasks = async ({ tenantId = null, actor = 
       priority: row.priority,
       product_id: row.product_id,
       variant_id: row.variant_id,
+      current_assignee_id: assignee?.id || null,
       default_deadline_minutes: priorityWeight(row.priority) >= 4 ? 180 : 360,
       auto_assigned: true,
-      metadata: { sold_30d: row.sold_30d, discrepancy_qty: row.discrepancy_qty },
+      metadata: {
+        sold_30d: row.sold_30d,
+        discrepancy_qty: row.discrepancy_qty,
+        assignment_strategy: "balanced_inventory_distribution",
+        product_image_url: row.image_url || "",
+        variant_image_url: row.image_url || "",
+        variant_sku: row.sku || "",
+        variant_article_code: row.article_code || "",
+        variant_color: row.color || "",
+        variant_size: row.size || "",
+        product_grade: row.grade || "",
+      },
     }, actor || {});
     if (!result.duplicate && result.task) created.push(result.task);
   }

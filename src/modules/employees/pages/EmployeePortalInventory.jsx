@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Camera,
@@ -509,6 +509,7 @@ function ScannerModal({ onClose, onScan }) {
 
 export default function EmployeePortalInventory() {
   const { token, sessionId: routeSessionId } = useParams();
+  const [searchParams] = useSearchParams();
   usePageTitle(routeSessionId ? "Inventory Count Session" : "Employee Inventory Count");
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
@@ -549,6 +550,7 @@ export default function EmployeePortalInventory() {
   const itemSavingIdRef = useRef("");
   const lookupInputRef = useRef(null);
   const filtersPanelRef = useRef(null);
+  const taskLaunchHandledRef = useRef(false);
 
   const isEditable = ["draft", "in_progress"].includes(String(session?.status || ""));
   const isRejected = String(session?.status || "") === "rejected";
@@ -865,6 +867,40 @@ export default function EmployeePortalInventory() {
       setSessionSaving(false);
     }
   }, [loadSession, loadSessions, navigate, token]);
+
+  useEffect(() => {
+    const taskId = clean(searchParams.get("taskId"));
+    const taskQuery = clean(searchParams.get("query"));
+    const productName = clean(searchParams.get("productName"));
+    if (!taskId || taskLaunchHandledRef.current) return;
+    taskLaunchHandledRef.current = true;
+    setLookupQuery(taskQuery);
+
+    if (routeSessionId) return;
+    let cancelled = false;
+    const launchTaskInventory = async () => {
+      try {
+        setSessionSaving(true);
+        const response = await createEmployeePortalInventorySession(token, {
+          title: productName ? `جرد ${productName}` : `جرد مهمة #${taskId}`,
+          notes: `تم إنشاؤه من مهمة الجرد رقم ${taskId}`,
+        });
+        const created = response?.session;
+        if (cancelled || !created?.id) return;
+        await loadSessions();
+        await loadSession(created.id);
+        const params = new URLSearchParams({ taskId, query: taskQuery, productName });
+        const portalBase = window.location.pathname.startsWith("/employee-app/") ? "/employee-app" : "/employee-portal";
+        navigate(`${portalBase}/${encodeURIComponent(token)}/inventory/${encodeURIComponent(created.id)}?${params.toString()}`, { replace: true });
+      } catch (error) {
+        if (!cancelled) toast.error(error?.responseBody?.message || error?.message || "تعذر فتح جرد المهمة");
+      } finally {
+        if (!cancelled) setSessionSaving(false);
+      }
+    };
+    void launchTaskInventory();
+    return () => { cancelled = true; };
+  }, [loadSession, loadSessions, navigate, routeSessionId, searchParams, token]);
 
   const handleSaveSessionMeta = useCallback(async () => {
     if (!session?.id) return;

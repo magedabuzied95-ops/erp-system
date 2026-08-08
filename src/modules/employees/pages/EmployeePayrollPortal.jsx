@@ -3243,7 +3243,9 @@ export default function EmployeePayrollPortal() {
     }
   };
 
-  const updateWalletTask = async (taskId, status) => {
+  const updateWalletTask = async (taskOrId, status) => {
+    const task = typeof taskOrId === "object" && taskOrId ? taskOrId : null;
+    const taskId = task?.id || taskOrId;
     const startedAt = safeNow();
     try {
       setTaskSavingId(`${taskId}:${status}`);
@@ -3255,6 +3257,16 @@ export default function EmployeePayrollPortal() {
       });
       if (response.portal) setPortal(response.portal);
       setPortalNotice(text.taskUpdated);
+      if (status === "in_progress" && task?.task_type === "daily_inventory_count") {
+        const query = task.variant_article_code || task.variant_sku || task.source_ref_id || task.variant_id || "";
+        const params = new URLSearchParams({
+          taskId: String(task.id || ""),
+          variantId: String(task.variant_id || task.source_ref_id || ""),
+          query: String(query),
+          productName: String(task.product_name || ""),
+        });
+        navigate(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/inventory?${params.toString()}`);
+      }
       logPagePerf("employee-wallet.task-update", startedAt, { status });
     } catch (err) {
       setPortalNotice(err?.responseBody?.message || err?.message || text.invalid);
@@ -4127,9 +4139,25 @@ export default function EmployeePayrollPortal() {
                         {rows.length ? rows.map((task) => (
                           <div key={task.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                             <div className="flex items-start justify-between gap-3">
+                              {task.product_image_url || task.variant_image_url ? (
+                                <img
+                                  src={task.variant_image_url || task.product_image_url}
+                                  alt={task.product_name || "منتج"}
+                                  className="h-16 w-16 shrink-0 rounded-2xl border border-slate-200 bg-white object-cover"
+                                  loading="lazy"
+                                />
+                              ) : null}
                               <div className="min-w-0">
                                 <div className="text-sm font-black text-slate-950" dir="auto">{task.task_title_ar || task.title_ar || task.title}</div>
                                 <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{task.task_description_ar || task.description_ar || task.description || task.notes || "-"}</div>
+                                {task.task_type === "daily_inventory_count" ? (
+                                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-black text-slate-600">
+                                    {task.variant_color ? <span className="rounded-full bg-white px-2 py-1">{task.variant_color}</span> : null}
+                                    {task.variant_size ? <span className="rounded-full bg-white px-2 py-1">المقاس: {task.variant_size}</span> : null}
+                                    {task.variant_article_code || task.variant_sku ? <span className="rounded-full bg-white px-2 py-1" dir="ltr">{task.variant_article_code || task.variant_sku}</span> : null}
+                                    {task.product_grade ? <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">{task.product_grade}</span> : null}
+                                  </div>
+                                ) : null}
                               </div>
                               <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{task.status}</span>
                             </div>
@@ -4139,7 +4167,7 @@ export default function EmployeePayrollPortal() {
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {["pending", "overdue", "reassigned"].includes(taskStatusKey(task.status)) ? (
-                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "in_progress")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-50">
+                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task, "in_progress")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-50">
                                   {taskSavingId === `${task.id}:in_progress` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                                   {text.startTask}
                                 </button>
