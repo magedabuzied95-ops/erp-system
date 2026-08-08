@@ -155,6 +155,7 @@ export default function SharedPortalChat({
         full_name: threadMatch.employee_name,
         employee_name: threadMatch.employee_name,
         employee_code: threadMatch.employee_code,
+        photo_url: threadMatch.photo_url || "",
         branch_name: threadMatch.branch_name,
       };
     }
@@ -191,6 +192,7 @@ export default function SharedPortalChat({
           full_name: item.employee_name,
           employee_name: item.employee_name,
           employee_code: item.employee_code,
+          photo_url: item.photo_url || "",
           branch_name: item.branch_name,
         },
         thread: item,
@@ -750,8 +752,12 @@ export default function SharedPortalChat({
                     ].join(" ")}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
-                        <UserRound className="h-5 w-5" />
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
+                        {employee.photo_url ? (
+                          <img src={employee.photo_url} alt={employee.full_name || employee.employee_name || ""} className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          <UserRound className="h-5 w-5" />
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">

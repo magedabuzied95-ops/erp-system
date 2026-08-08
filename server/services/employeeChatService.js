@@ -138,6 +138,7 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
       t.updated_at,
       e.full_name AS employee_name,
       e.employee_code,
+      COALESCE(e.photo_url, '') AS photo_url,
       b.name AS branch_name,
       lm.last_message,
       lm.sender_type AS last_sender_type,
@@ -529,6 +530,7 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
       t.*,
       e.full_name AS employee_name,
       e.employee_code,
+      COALESCE(e.photo_url, '') AS photo_url,
       e.tenant_id AS employee_tenant_id,
       e.employee_portal_token,
       b.name AS branch_name

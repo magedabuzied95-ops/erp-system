@@ -3514,6 +3514,7 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
       SELECT
         e.id AS employee_id,
         e.full_name AS employee_name,
+        COALESCE(e.photo_url, '') AS photo_url,
         e.job_title,
         e.position,
         e.role,
@@ -3547,7 +3548,7 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
         AND ($3::bigint IS NULL OR e.branch_id = $3::bigint)
         AND COALESCE(e.is_deleted, FALSE) = FALSE
         AND LOWER(COALESCE(e.status, 'active')) = 'active'
-      GROUP BY e.id, e.full_name, e.job_title, e.position, e.role, e.department, ot.open_count, ta.check_in_at, ta.check_in, os.is_online, os.last_seen_at
+      GROUP BY e.id, e.full_name, e.photo_url, e.job_title, e.position, e.role, e.department, ot.open_count, ta.check_in_at, ta.check_in, os.is_online, os.last_seen_at
       ORDER BY
         CASE
           WHEN COALESCE(os.is_online, FALSE) THEN 0
