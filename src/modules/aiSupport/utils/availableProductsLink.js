@@ -29,6 +29,9 @@ const normalizeFilterValue = (value = "") => {
   return text;
 };
 
+const normalizeFilterValues = (value = "") =>
+  uniqueTextValues((Array.isArray(value) ? value : [value]).map(normalizeFilterValue).filter(Boolean));
+
 export const buildAvailableProductsUrl = ({
   sizes = [],
   gender = "",
@@ -40,10 +43,10 @@ export const buildAvailableProductsUrl = ({
   const params = new URLSearchParams();
   normalizeSizes(sizes).forEach((size) => params.append("size", size));
   const normalizedGender = normalizeFilterValue(gender);
-  const normalizedType = normalizeFilterValue(type);
+  const normalizedTypes = normalizeFilterValues(type);
   const normalizedBrand = normalizeFilterValue(brand);
   if (normalizedGender) params.set("gender", normalizedGender);
-  if (normalizedType) params.set("type", normalizedType);
+  normalizedTypes.forEach((item) => params.append("type", item));
   if (normalizedBrand) params.set("brand", normalizedBrand);
   if (clean(minPrice)) params.set("min_price", clean(minPrice));
   if (clean(maxPrice)) params.set("max_price", clean(maxPrice));
@@ -60,7 +63,7 @@ export const buildAvailableProductsMessage = (filters = {}, url = "") => {
   const sizeText = sizes.length ? sizes.join("، ") : "";
   const selectedFilters = uniqueTextValues([
     normalizeFilterValue(filters.gender),
-    normalizeFilterValue(filters.type),
+    normalizeFilterValues(filters.type).join("، "),
     normalizeFilterValue(filters.brand),
     clean(filters.minPrice) ? `أقل سعر ${clean(filters.minPrice)}` : "",
     clean(filters.maxPrice) ? `أعلى سعر ${clean(filters.maxPrice)}` : "",

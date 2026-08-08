@@ -134,6 +134,15 @@ const optionRows = (values = []) => {
     .map(([value, count]) => ({ id: value, name: value, count }));
 };
 
+const productTypeIcon = (value = "") => {
+  const key = lower(value);
+  if (key.includes("bag") || key.includes("شنط")) return "🎒";
+  if (key.includes("crocs") || key.includes("slipper") || key.includes("شبشب")) return "🩴";
+  if (key.includes("sneaker") || key.includes("shoe") || key.includes("حذاء")) return "👟";
+  if (key.includes("boot")) return "🥾";
+  return "📦";
+};
+
 const toggleMultiFilter = (setter, value) => {
   setter((current) => {
     if (value === "all") return [];
@@ -340,7 +349,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [selectedSizeCards, setSelectedSizeCards] = useState([]);
   const [selectedLinkSizes, setSelectedLinkSizes] = useState([]);
   const [selectedLinkGender, setSelectedLinkGender] = useState("all");
-  const [selectedLinkType, setSelectedLinkType] = useState("all");
+  const [selectedLinkTypes, setSelectedLinkTypes] = useState([]);
   const [selectedLinkBrand, setSelectedLinkBrand] = useState("all");
   const [selectedLinkMinPrice, setSelectedLinkMinPrice] = useState("");
   const [selectedLinkMaxPrice, setSelectedLinkMaxPrice] = useState("");
@@ -351,6 +360,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const posPickerMode = mode === "pos";
   const inlineFullscreenMode = mode === "inlineFullscreen" || (!isDesktopViewport && !posPickerMode);
   const darkMode = theme === "dark";
+
+  useEffect(() => {
+    void loadCustomerProductCatalog().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -397,13 +410,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     if (!sizeMode) return [];
     const searchValue = clean(search);
     const selectedBrandValue = lower(selectedLinkBrand);
-    const selectedTypeValue = lower(selectedLinkType);
+    const selectedTypeValues = selectedLinkTypes.map(lower);
     const selectedGenderValue = lower(selectedLinkGender);
     const minPriceValue = clean(selectedLinkMinPrice) ? Number(selectedLinkMinPrice) : null;
     const maxPriceValue = clean(selectedLinkMaxPrice) ? Number(selectedLinkMaxPrice) : null;
     return products.filter((product) => {
       if (selectedBrandValue !== "all" && lower(product.brand || product.brand_name) !== selectedBrandValue) return false;
-      if (selectedTypeValue !== "all" && !productTypeValues(product).map(lower).includes(selectedTypeValue)) return false;
+      if (selectedTypeValues.length && !selectedTypeValues.some((value) => productTypeValues(product).map(lower).includes(value))) return false;
       if (selectedGenderValue !== "all" && !productGenderValues(product).map(lower).includes(selectedGenderValue)) return false;
       if (!matchesQuery(product, searchValue)) return false;
       const price = Number(product?.price ?? product?.final_price ?? product?.sale_price ?? product?.selling_price ?? 0) || 0;
@@ -411,7 +424,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       if (maxPriceValue !== null && Number.isFinite(maxPriceValue) && price > maxPriceValue) return false;
       return true;
     });
-  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkType, sizeMode]);
+  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkTypes, sizeMode]);
 
   const availableSizes = useMemo(() => availableSizesForProducts(sizeMode ? sizeLinkFilteredProducts : filteredProducts), [filteredProducts, sizeLinkFilteredProducts, sizeMode]);
   const isSizeSelectionStep = Boolean(sizeMode && !selectedSize);
@@ -475,7 +488,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       setSelectedSizeCards([]);
       setSelectedLinkSizes([]);
       setSelectedLinkGender("all");
-      setSelectedLinkType("all");
+      setSelectedLinkTypes([]);
       setSelectedLinkBrand("all");
       setSelectedLinkMinPrice("");
       setSelectedLinkMaxPrice("");
@@ -636,7 +649,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const url = buildAvailableProductsUrl({
       sizes,
       gender: selectedLinkGender,
-      type: selectedLinkType,
+      type: selectedLinkTypes,
       brand: selectedLinkBrand,
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
@@ -644,7 +657,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const message = buildAvailableProductsMessage({
       sizes,
       gender: selectedLinkGender !== "all" ? selectedLinkGender : "",
-      type: selectedLinkType !== "all" ? selectedLinkType : "",
+      type: selectedLinkTypes,
       brand: selectedLinkBrand !== "all" ? selectedLinkBrand : "",
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
@@ -655,14 +668,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setSubmitting(true);
     setError("");
     try {
-      if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkType, brand: selectedLinkBrand, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
+      if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkTypes, brand: selectedLinkBrand, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
       else await onSubmit?.([{ url, storefront_url: url, product_url: url, share_url: url, name: message, product_name: message }]);
     } catch (err) {
       setError(err?.message || "تعذر إرسال الرابط");
     } finally {
       setSubmitting(false);
     }
-  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkSizes, selectedLinkType, submitting]);
+  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkSizes, selectedLinkTypes, submitting]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -671,7 +684,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const selectedLinkUrl = buildAvailableProductsUrl({
       sizes: normalizedSelectedSizes,
       gender: selectedLinkGender,
-      type: selectedLinkType,
+      type: selectedLinkTypes,
       brand: selectedLinkBrand,
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
@@ -679,7 +692,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const selectedLinkMessage = buildAvailableProductsMessage({
       sizes: normalizedSelectedSizes,
       gender: selectedLinkGender !== "all" ? selectedLinkGender : "",
-      type: selectedLinkType !== "all" ? selectedLinkType : "",
+      type: selectedLinkTypes,
       brand: selectedLinkBrand !== "all" ? selectedLinkBrand : "",
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
@@ -726,6 +739,36 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-[#111310] p-4">
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">نوع المنتج</div>
+              <div className="mt-2 text-lg font-black text-white">اختر نوعًا أو أكثر</div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">يمكنك الجمع بين أكثر من نوع في نفس الرابط.</div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedLinkTypes([])}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition ${!selectedLinkTypes.length ? "border-amber-300 bg-amber-300 text-slate-950" : "border-white/10 bg-transparent text-white hover:border-amber-300/35"}`}
+                >
+                  <span aria-hidden="true">✨</span>
+                  الكل
+                </button>
+                {typeOptions.map((item) => {
+                  const active = selectedLinkTypes.includes(item);
+                  return (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setSelectedLinkTypes((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])}
+                      className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition ${active ? "border-amber-300 bg-amber-300 text-slate-950" : "border-white/10 bg-transparent text-white hover:border-amber-300/35"}`}
+                    >
+                      <span className="text-base" aria-hidden="true">{productTypeIcon(item)}</span>
+                      {item}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">المقاسات</div>
               <div className="mt-2 text-lg font-black text-white">اختر المقاس أو المقاسات</div>
               <div className="mt-1 text-xs font-semibold text-slate-400">المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.</div>
@@ -755,34 +798,27 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
+              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-transparent px-3 focus-within:border-amber-300/30">
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Gender</span>
-                <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none">
+                <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} style={{ background: "transparent", border: 0, boxShadow: "none", backgroundImage: "none" }} className="min-w-0 flex-1 appearance-none !bg-transparent text-xs font-black text-white outline-none">
                   {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? "الكل" : option}</option>)}
                 </select>
               </label>
-              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Type</span>
-                <select value={selectedLinkType} onChange={(event) => setSelectedLinkType(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none">
-                  <option value="all">الكل</option>
-                  {typeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </label>
-              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
+              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-transparent px-3 focus-within:border-amber-300/30">
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Brand</span>
-                <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none">
+                <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} style={{ background: "transparent", border: 0, boxShadow: "none", backgroundImage: "none" }} className="min-w-0 flex-1 appearance-none !bg-transparent text-xs font-black text-white outline-none">
                   <option value="all">الكل</option>
                   {brandOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
+                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-transparent px-3 focus-within:border-amber-300/30">
                   <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Min</span>
-                  <input value={selectedLinkMinPrice} onChange={(event) => setSelectedLinkMinPrice(event.target.value)} inputMode="numeric" placeholder="0" className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none" />
+                  <input value={selectedLinkMinPrice} onChange={(event) => setSelectedLinkMinPrice(event.target.value)} inputMode="numeric" placeholder="0" style={{ background: "transparent", border: 0, boxShadow: "none" }} className="min-w-0 flex-1 !bg-transparent text-xs font-black text-white outline-none" />
                 </label>
-                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
+                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-transparent px-3 focus-within:border-amber-300/30">
                   <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Max</span>
-                  <input value={selectedLinkMaxPrice} onChange={(event) => setSelectedLinkMaxPrice(event.target.value)} inputMode="numeric" placeholder="0" className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none" />
+                  <input value={selectedLinkMaxPrice} onChange={(event) => setSelectedLinkMaxPrice(event.target.value)} inputMode="numeric" placeholder="0" style={{ background: "transparent", border: 0, boxShadow: "none" }} className="min-w-0 flex-1 !bg-transparent text-xs font-black text-white outline-none" />
                 </label>
               </div>
             </div>
