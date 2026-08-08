@@ -69,6 +69,19 @@ html[data-theme="dark"] .employee-portal-workspace :where(input, select, textare
   color: var(--text) !important;
 }
 
+/* Inventory fields are composite controls: their label/search wrapper owns the surface. */
+html[data-theme="dark"] .employee-portal-inventory input[class*="bg-transparent"],
+html[data-theme="light"] .employee-portal-inventory input[class*="bg-transparent"],
+html[data-theme="dark"] .employee-portal-inventory textarea[class*="bg-transparent"],
+html[data-theme="light"] .employee-portal-inventory textarea[class*="bg-transparent"] {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
 html[data-theme="dark"] .employee-portal-workspace :where([class*="border-slate-"], [class*="border-white/"]) {
   border-color: var(--border) !important;
 }
