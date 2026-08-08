@@ -77,7 +77,7 @@ export const aggregatePaymentDistribution = (orderRows = []) => {
         if (payment.edit_additional_payment) return null;
         const method = normalizeManagerPaymentMethod(payment.method || payment.payment_method);
         const amount = Number(payment.amount ?? payment.paid_amount ?? payment.value ?? 0);
-        if (!method || !Number.isFinite(amount) || amount <= 0) return null;
+        if (!method || ["split", "mixed", "multiple"].includes(method) || !Number.isFinite(amount) || amount <= 0) return null;
         return { method, amount };
       })
       .filter(Boolean);
@@ -88,12 +88,22 @@ export const aggregatePaymentDistribution = (orderRows = []) => {
         bump(alloc.method, alloc.amount, alloc.method, seen);
       }
     } else {
+      const legacyAllocations = [
+        { method: "cash", amount: Number(row.cash_amount || 0) },
+        { method: "card", amount: Number(row.card_amount || 0) },
+        { method: "instapay", amount: Number(row.wallet_payment_amount || 0) },
+      ].filter((payment) => Number.isFinite(payment.amount) && payment.amount > 0);
+      if (legacyAllocations.length) {
+        const seen = new Set();
+        for (const alloc of legacyAllocations) bump(alloc.method, alloc.amount, alloc.method, seen);
+        continue;
+      }
       // No stored allocations (e.g. deferred/آجل or legacy orders): preserve the
       // previous behaviour — the full order amount under its single method.
       const method = normalizeManagerPaymentMethod(row.payment_method) || "unknown";
       const amount = Number(row.total_amount || 0);
       const seen = new Set();
-      bump(method, amount, method, seen);
+      bump(["split", "mixed", "multiple"].includes(method) ? "unknown" : method, amount, method, seen);
     }
   }
 

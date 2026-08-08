@@ -676,11 +676,14 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
     listRecentDisplayRefillAlerts({ limit: 20 }).then((rows) => rows.filter((row) => (tenantId ? numberOrNull(row.tenant_id) === tenantId || row.tenant_id === null : true) && (branchId ? numberOrNull(row.branch_id) === branchId : true))),
     tableExists("orders").then(async (ordersExist) => {
       if (!ordersExist) return [];
-      const [hasPaymentMethod, hasPaymentBreakdown, hasTotalAmount, hasTotal] = await Promise.all([
+      const [hasPaymentMethod, hasPaymentBreakdown, hasTotalAmount, hasTotal, hasCashAmount, hasCardAmount, hasWalletAmount] = await Promise.all([
         columnExists("orders", "payment_method"),
         columnExists("orders", "payment_breakdown"),
         columnExists("orders", "total_amount"),
         columnExists("orders", "total"),
+        columnExists("orders", "cash_amount"),
+        columnExists("orders", "card_amount"),
+        columnExists("orders", "wallet_payment_amount"),
       ]);
       if (!hasPaymentMethod && !hasPaymentBreakdown) return [];
       const totalExpr = hasTotalAmount && hasTotal
@@ -703,7 +706,10 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
         SELECT
           ${hasPaymentMethod ? "o.payment_method" : "NULL"} AS payment_method,
           ${totalExpr} AS total_amount,
-          ${hasPaymentBreakdown ? "o.payment_breakdown" : "'[]'::jsonb"} AS payment_breakdown
+          ${hasPaymentBreakdown ? "o.payment_breakdown" : "'[]'::jsonb"} AS payment_breakdown,
+          ${hasCashAmount ? "COALESCE(o.cash_amount, 0)" : "0"} AS cash_amount,
+          ${hasCardAmount ? "COALESCE(o.card_amount, 0)" : "0"} AS card_amount,
+          ${hasWalletAmount ? "COALESCE(o.wallet_payment_amount, 0)" : "0"} AS wallet_payment_amount
         FROM orders o
         WHERE o.created_at >= date_trunc('day', NOW())
           AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')

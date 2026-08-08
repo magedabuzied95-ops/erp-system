@@ -279,7 +279,6 @@ const paymentMethodLabel = (value = "") => {
     wallet: "محفظة",
     vodafone_cash: "فودافون كاش",
     instapay: "إنستاباي",
-    split: "دفع مقسم",
     credit_sale: "آجل",
     cod: "الدفع عند الاستلام",
     cash_on_delivery: "الدفع عند الاستلام",
