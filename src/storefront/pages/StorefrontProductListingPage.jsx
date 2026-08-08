@@ -672,6 +672,15 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   );
   const totalProducts = Number(backendTotal || orderedFilteredProducts.length);
   const totalPages = Math.max(1, Math.ceil(totalProducts / SEO_PAGE_SIZE));
+  const listingPagePath = seoCategory?.path || location.pathname || filterBasePath;
+  const visiblePaginationPages = Array.from({ length: totalPages }, (_, index) => index + 1)
+    .filter((pageNumber) => pageNumber === 1 || pageNumber === totalPages || Math.abs(pageNumber - page) <= 2);
+  const pageUrl = (pageNumber) => {
+    const next = new URLSearchParams(params);
+    if (pageNumber <= 1) next.delete("page");
+    else next.set("page", String(pageNumber));
+    return `${listingPagePath}${next.toString() ? `?${next.toString()}` : ""}`;
+  };
 
   useEffect(() => {
     if (!seoCategory || typeof document === "undefined") return undefined;
@@ -1123,14 +1132,19 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 onAddToCart={onAddToCart}
                 saleModeEnabled={saleModeEnabled}
               />
-              {seoCategory && totalPages > 1 ? (
-                <nav aria-label="صفحات المنتجات" className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => {
-                    const next = new URLSearchParams(params);
-                    if (pageNumber === 1) next.delete("page");
-                    else next.set("page", String(pageNumber));
-                    return <Link key={pageNumber} rel={pageNumber === page + 1 ? "next" : pageNumber === page - 1 ? "prev" : undefined} to={`${seoCategory.path}${next.toString() ? `?${next}` : ""}`} className={`grid h-11 min-w-11 place-items-center rounded-full border px-3 text-sm font-black ${pageNumber === page ? "border-[#d4af37] bg-[#d4af37] text-black" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white"}`}>{pageNumber}</Link>;
+              {totalPages > 1 ? (
+                <nav aria-label="صفحات المنتجات" className="mt-6 flex flex-wrap items-center justify-center gap-2 pb-24 sm:pb-4">
+                  {page > 1 ? <Link rel="prev" to={pageUrl(page - 1)} className="grid h-11 place-items-center rounded-full border border-stone-200 bg-white px-4 text-sm font-black text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white">السابق</Link> : null}
+                  {visiblePaginationPages.map((pageNumber, index) => {
+                    const previousPageNumber = visiblePaginationPages[index - 1];
+                    return (
+                      <span key={pageNumber} className="contents">
+                        {previousPageNumber && pageNumber - previousPageNumber > 1 ? <span className="grid h-11 min-w-6 place-items-center text-stone-500">…</span> : null}
+                        <Link to={pageUrl(pageNumber)} aria-current={pageNumber === page ? "page" : undefined} className={`grid h-11 min-w-11 place-items-center rounded-full border px-3 text-sm font-black ${pageNumber === page ? "border-[#d4af37] bg-[#d4af37] text-black" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white"}`}>{pageNumber}</Link>
+                      </span>
+                    );
                   })}
+                  {page < totalPages ? <Link rel="next" to={pageUrl(page + 1)} className="grid h-11 place-items-center rounded-full border border-[#d4af37]/50 bg-[#d4af37]/10 px-4 text-sm font-black text-[#8a6a00] dark:text-[#f4d675]">التالي</Link> : null}
                 </nav>
               ) : null}
               {seoCategory ? (
