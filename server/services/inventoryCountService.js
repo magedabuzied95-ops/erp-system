@@ -239,6 +239,7 @@ const buildInventoryCountLookupSelects = async (client, { variantAlias = "v", pr
   return {
     productCodeExpr: firstAvailableColumnExpr(productAlias, productColumns, ["product_code", "code"], "''"),
     productArticleCodeExpr: firstAvailableColumnExpr(productAlias, productColumns, ["article_code"], "''"),
+    productGradeExpr: firstAvailableColumnExpr(productAlias, productColumns, ["grade", "quality", "classification"], "''"),
     variantCodeExpr: firstAvailableColumnExpr(variantAlias, variantColumns, ["product_code", "code"], "''"),
     productBarcodeLabelExpr: firstAvailableColumnExpr(productAlias, productColumns, ["barcode_label"], "''"),
     variantBarcodeLabelExpr: firstAvailableColumnExpr(variantAlias, variantColumns, ["barcode_label"], "''"),
@@ -1261,6 +1262,7 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         p.sku AS product_sku,
         p.barcode AS product_barcode,
         ${lookupSelects.productArticleCodeExpr} AS product_article_code,
+        ${lookupSelects.productGradeExpr} AS grade,
         ${lookupSelects.productCodeExpr} AS product_code,
         ${lookupSelects.productBarcodeLabelExpr} AS product_barcode_label,
         v.color,

@@ -237,7 +237,7 @@ const normalizeVariant = (record = {}) => {
   const size = clean(record.size ?? record.variant_size ?? record.size_name ?? "");
   const sku = clean(record.sku ?? record.variant_sku ?? "");
   const barcode = clean(record.barcode ?? record.variant_barcode ?? "");
-  const articleCode = clean(record.article_code ?? record.variant_article_code ?? "");
+  const articleCode = clean(record.article_code ?? record.variant_article_code ?? record.product_article_code ?? "");
   const gender = clean(record.gender ?? record.product_gender ?? record.product?.gender ?? "");
   const type = clean(record.type ?? record.product_type ?? record.product?.type ?? "");
   const category = clean(record.category ?? record.category_name ?? record.grade ?? record.product?.category ?? "");
@@ -321,6 +321,8 @@ const groupVariants = (records = []) => {
         product_id: variant.product_id,
         product_name: variant.product_name,
         color: variant.color,
+        article_code: variant.article_code,
+        category: variant.category,
         color_key: colorKey,
         image_url: variant.image_url,
         image: variant.image_url,
@@ -343,6 +345,8 @@ const groupVariants = (records = []) => {
       group.variant_image = variant.image_url;
       group.images = variant.image_url ? [variant.image_url] : group.images;
     }
+    if (!group.article_code && variant.article_code) group.article_code = variant.article_code;
+    if (!group.category && variant.category) group.category = variant.category;
     group.variants.push(variant);
     group.system_total += toNumber(variant.system_quantity, 0);
     group.counted_total += toNumber(variant.counted_quantity, 0);
@@ -1563,6 +1567,20 @@ export default function EmployeePortalInventory() {
                               <div className="mt-1 text-xs font-semibold text-slate-500">
                                 {group.color || "لون غير محدد"} • {group.variants.length} قطع
                               </div>
+                              {(group.article_code || group.category) ? (
+                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-black text-slate-600">
+                                  {group.article_code ? (
+                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1" dir="ltr">
+                                      Article: {group.article_code}
+                                    </span>
+                                  ) : null}
+                                  {group.category ? (
+                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
+                                      {group.category}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : null}
                               <button
                                 type="button"
                                 onClick={() => addColorGroup(group)}
