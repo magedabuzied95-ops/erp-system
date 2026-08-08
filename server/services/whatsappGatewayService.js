@@ -394,14 +394,14 @@ export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = 
       INSERT INTO ai_support_sessions (
         tenant_id, session_id, source, channel, customer_name, last_message, updated_at
       )
-      SELECT $1, r.session_id, 'whatsapp', 'whatsapp', r.customer_name, r.last_message,
+      SELECT $1, r.session_id, 'whatsapp', 'whatsapp', COALESCE(r.customer_name, ''), COALESCE(r.last_message, ''),
              COALESCE(NULLIF(r.last_message_at, '')::timestamptz, NOW())
       FROM jsonb_to_recordset($2::jsonb) AS r(
         session_id text, phone text, remote_jid text, customer_name text,
         last_message text, last_message_at text
       )
       ON CONFLICT (tenant_id, session_id) DO UPDATE SET
-        customer_name = COALESCE(NULLIF(ai_support_sessions.customer_name, ''), NULLIF(EXCLUDED.customer_name, '')),
+        customer_name = COALESCE(NULLIF(ai_support_sessions.customer_name, ''), NULLIF(EXCLUDED.customer_name, ''), ''),
         last_message = CASE WHEN EXCLUDED.updated_at >= ai_support_sessions.updated_at THEN EXCLUDED.last_message ELSE ai_support_sessions.last_message END,
         updated_at = GREATEST(ai_support_sessions.updated_at, EXCLUDED.updated_at)
       `,
@@ -413,7 +413,7 @@ export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = 
         tenant_id, channel, external_conversation_id, external_customer_id,
         is_group, customer_name, last_message, metadata, last_message_at, updated_at
       )
-      SELECT $1, 'whatsapp', r.session_id, r.phone, FALSE, r.customer_name, r.last_message,
+      SELECT $1, 'whatsapp', r.session_id, r.phone, FALSE, COALESCE(r.customer_name, ''), COALESCE(r.last_message, ''),
              jsonb_build_object(
                'phone', r.phone,
                'remote_jid', r.remote_jid,
@@ -430,7 +430,7 @@ export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = 
       )
       ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
         external_customer_id = COALESCE(NULLIF(ai_channel_conversations.external_customer_id, ''), EXCLUDED.external_customer_id),
-        customer_name = COALESCE(NULLIF(ai_channel_conversations.customer_name, ''), NULLIF(EXCLUDED.customer_name, '')),
+        customer_name = COALESCE(NULLIF(ai_channel_conversations.customer_name, ''), NULLIF(EXCLUDED.customer_name, ''), ''),
         last_message = CASE WHEN EXCLUDED.updated_at >= ai_channel_conversations.updated_at THEN EXCLUDED.last_message ELSE ai_channel_conversations.last_message END,
         metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
         last_message_at = GREATEST(ai_channel_conversations.last_message_at, EXCLUDED.last_message_at),
