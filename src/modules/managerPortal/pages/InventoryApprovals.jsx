@@ -139,9 +139,17 @@ export default function InventoryApprovalsPage() {
       setSummary(payload.summary || {});
       setSessions(Array.isArray(payload.sessions) ? payload.sessions : []);
       setPagination(payload.pagination || { total: 0, page: 1, limit: 5, totalPages: 1 });
-      const firstSessionId = nextSessionId || payload.sessions?.[0]?.id || "";
-      if (firstSessionId) setSelectedSessionId(String(firstSessionId));
-      else setSelectedApproval(null);
+      const availableSessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+      const requestedSession = nextSessionId
+        ? availableSessions.find((session) => String(session.id) === String(nextSessionId))
+        : null;
+      const firstSessionId = requestedSession?.id || availableSessions[0]?.id || "";
+      if (firstSessionId) {
+        setSelectedSessionId(String(firstSessionId));
+      } else {
+        setSelectedSessionId("");
+        setSelectedApproval(null);
+      }
     } catch (err) {
       setError(err?.responseBody?.message || err?.message || "تعذر تحميل اعتمادات الجرد");
     } finally {
@@ -190,11 +198,12 @@ export default function InventoryApprovalsPage() {
     if (!token || !selectedSessionId) return;
     try {
       setApproving(true);
-      const response = await managerPortalApi.approveInventoryApproval(token, selectedSessionId);
+      await managerPortalApi.approveInventoryApproval(token, selectedSessionId);
       toast.success("تم اعتماد الجرد");
-      setSelectedApproval(response?.session ? { ...selectedApproval, session: response.session } : selectedApproval);
-      await loadApprovals(selectedSessionId);
-      await loadDetail(selectedSessionId);
+      setSelectedSessionId("");
+      setSelectedApproval(null);
+      await loadApprovals();
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       toast.error(err?.responseBody?.message || err?.message || "تعذر اعتماد الجرد");
     } finally {
@@ -218,8 +227,10 @@ export default function InventoryApprovalsPage() {
       toast.success("تم رفض الجرد");
       setRejectOpen(false);
       setRejectReason("");
+      setSelectedSessionId("");
+      setSelectedApproval(null);
       await loadApprovals();
-      await loadDetail(selectedSessionId);
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       toast.error(err?.responseBody?.message || err?.message || "تعذر رفض الجرد");
     } finally {
