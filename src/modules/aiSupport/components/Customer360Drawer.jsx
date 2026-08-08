@@ -199,11 +199,21 @@ export default function Customer360Drawer({
         const payload = await api.get(`/customers/${encodeURIComponent(id)}/profile`, { perfComponent: "Customer360.profile" });
         if (cancelled) return;
         const data = payload?.data || payload || {};
+        const loadedOrders = safeArray(data.orders);
+        const orderEvents = loadedOrders.map((order) => ({
+          id: `order-${order.id || order.invoice_number}`,
+          type: "Order",
+          label: `Order #${order.invoice_number || order.id}`,
+          title: `Order #${order.invoice_number || order.id}`,
+          time: order.created_at || order.date,
+          created_at: order.created_at || order.date,
+          status: order.status || "open",
+        }));
         setProfileData((current) => ({
           ...current,
           ...fallbackCustomerProfile(data.customer || customerProfile || customer || {}, { ...context, customerId: id }),
           metrics: data.metrics || current.metrics,
-          orders: safeArray(data.orders || current.orders),
+          orders: loadedOrders.length ? loadedOrders : current.orders,
           products: {
             viewed: safeArray(data.favorites?.viewed_products || current.products?.viewed),
             purchased: safeArray(data.favorites?.purchased_products || current.products?.purchased),
@@ -215,6 +225,8 @@ export default function Customer360Drawer({
             totalSpend: data.metrics?.totalSpend || current.metrics?.totalSpend || 0,
           },
           purchasePreferences: data.favorites || data.customer?.purchase_preferences || current.purchasePreferences || {},
+          currentActivity: safeArray(data.activity).length ? safeArray(data.activity) : orderEvents.slice(0, 5),
+          timeline: safeArray(data.timeline).length ? safeArray(data.timeline) : orderEvents,
           notes: safeArray(data.notes),
         }));
       } catch {
@@ -514,7 +526,7 @@ export default function Customer360Drawer({
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-black text-slate-900">{clean(product.name || product.title || product.product_name || "Product")}</div>
                           <div className="mt-1 text-xs text-slate-500">{clean(product.price || product.final_price || product.sale_price || "") ? `${clean(product.price || product.final_price || product.sale_price)} EGP` : "Price unavailable"}</div>
-                          <div className="mt-1 text-xs text-slate-500">{clean(product.stock || product.stock_status || "—")}</div>
+                          <div className="mt-1 text-xs text-slate-500">{[product.department, product.category, product.color, product.size ? `Size ${product.size}` : ""].filter(Boolean).join(" · ") || "Product details unavailable"}</div>
                         </div>
                         <button type="button" onClick={() => openSystemPath(productPath(product))} className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-[11px] font-black text-slate-700">
                           Open Product <ExternalLink className="h-3.5 w-3.5" />

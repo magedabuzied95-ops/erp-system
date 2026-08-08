@@ -892,6 +892,7 @@ const getCustomerOrdersData = async (customerId, tenantId) => {
       o.id,
       COALESCE(o.invoice_number, CONCAT('ORD-', o.id::text)) AS invoice_number,
       o.created_at,
+      ${hasStatus ? "COALESCE(o.status, 'open')" : "'open'"} AS status,
       COALESCE(o.total_amount, 0) AS total,
       ${hasItems ? "COALESCE(SUM(oi.quantity), COUNT(oi.id), 0)::int" : "0"} AS items_count
     FROM orders o
@@ -903,6 +904,42 @@ const getCustomerOrdersData = async (customerId, tenantId) => {
     `,
     params
   );
+
+  let purchasedProducts = [];
+  if (hasItems) {
+    const productsResult = await pool.query(
+      `
+      SELECT
+        p.id,
+        COALESCE(p.name, oi.product_name, 'Product') AS name,
+        COALESCE(NULLIF(pv.image_url, ''), NULLIF(p.image_url, '')) AS image_url,
+        COALESCE(NULLIF(pv.size, ''), NULLIF(p.fixed_size_label, '')) AS size,
+        NULLIF(pv.color, '') AS color,
+        NULLIF(p.grade, '') AS department,
+        NULLIF(c.name, '') AS category,
+        SUM(GREATEST(COALESCE(oi.quantity, 1) - COALESCE(oi.returned_quantity, 0), 0))::int AS quantity,
+        MAX(o.created_at) AS last_purchased_at,
+        MAX(COALESCE(oi.sale_price, 0)) AS price
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN products p ON p.id = oi.product_id
+      LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+      LEFT JOIN categories c ON c.id = p.category_id
+      WHERE ${where.join(" AND ")}
+        ${hasStatus ? "AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled','canceled','void','refunded')" : ""}
+      GROUP BY p.id, p.name, oi.product_name, pv.image_url, p.image_url, pv.size, p.fixed_size_label, pv.color, p.grade, c.name
+      HAVING SUM(GREATEST(COALESCE(oi.quantity, 1) - COALESCE(oi.returned_quantity, 0), 0)) > 0
+      ORDER BY MAX(o.created_at) DESC
+      LIMIT 12
+      `,
+      params
+    );
+    purchasedProducts = productsResult.rows.map((row) => ({
+      ...row,
+      quantity: Number(row.quantity || 0),
+      price: Number(row.price || 0),
+    }));
+  }
 
   let favorites = {
     topCategory: "Not enough data",
@@ -1016,11 +1053,13 @@ const getCustomerOrdersData = async (customerId, tenantId) => {
     orders: ordersResult.rows.map((order) => ({
       id: order.id,
       invoice_number: order.invoice_number,
+      created_at: order.created_at,
       date: order.created_at,
+      status: order.status || "open",
       total: Number(order.total || 0),
       items_count: Number(order.items_count || 0),
     })),
-    favorites,
+    favorites: { ...favorites, purchased_products: purchasedProducts },
   };
 };
 
