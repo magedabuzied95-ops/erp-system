@@ -21,6 +21,7 @@ import toast from "react-hot-toast";
 
 import { managerPortalApi } from "../services/managerPortalApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
 const resolveStoredToken = () => {
   if (typeof window === "undefined") return "";
@@ -56,6 +57,13 @@ const formatDateTime = (value) => {
     minute: "2-digit",
   }).format(date);
 };
+
+const itemColor = (item = {}) => text(item.variant_color || item.color, "");
+const itemSize = (item = {}) => text(item.variant_size || item.size, "");
+const itemImage = (item = {}) => resolveProductImageUrl(
+  item.color_image_url || item.variant_image_url || item.primary_image_url || item.main_image_url ||
+  item.image_url || item.product_image_url || item.product_image || item.main_image || ""
+);
 
 const statusTone = (status = "") => {
   const normalized = String(status || "").toLowerCase();
@@ -380,14 +388,21 @@ export default function InventoryApprovalsPage() {
                     const system = Number(item.system_quantity || item.expected_qty || 0);
                     const counted = Number(item.counted_quantity || item.actual_qty || 0);
                     const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
+                    const color = itemColor(item);
+                    const size = itemSize(item);
+                    const imageUrl = itemImage(item);
                     return (
                       <article key={`mobile-${item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`}`} className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <h3 className="text-sm font-black leading-5 text-white">{text(item.product_name, "منتج")}</h3>
-                            {(text(item.color, "") || text(item.size, "")) ? (
-                              <p className="mt-1 text-xs text-slate-400">{[text(item.color, ""), text(item.size, "")].filter(Boolean).join(" • ")}</p>
-                            ) : null}
+                          <div className="flex min-w-0 items-start gap-3">
+                            <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                              {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Package className="h-5 w-5 text-slate-500" />}
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="text-sm font-black leading-5 text-white">{text(item.product_name, "منتج")}</h3>
+                              {(color || size) ? <p className="mt-1 text-xs text-slate-400">{[color, size].filter(Boolean).join(" • ")}</p> : null}
+                              {item.variant_sku || item.variant_barcode ? <p className="mt-1 truncate text-[10px] text-slate-500">{item.variant_sku || item.variant_barcode}</p> : null}
+                            </div>
                           </div>
                           <span className={`shrink-0 rounded-xl px-2.5 py-1 text-sm font-black ${diff > 0 ? "bg-emerald-500/15 text-emerald-300" : diff < 0 ? "bg-rose-500/15 text-rose-300" : "bg-white/5 text-slate-300"}`}>
                             {diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}
@@ -423,11 +438,12 @@ export default function InventoryApprovalsPage() {
                           const system = Number(item.system_quantity || item.expected_qty || 0);
                           const counted = Number(item.counted_quantity || item.actual_qty || 0);
                           const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
+                          const imageUrl = itemImage(item);
                           return (
                             <tr key={item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`} className="border-t border-white/5">
-                              <td className="px-4 py-3 font-semibold text-white">{text(item.product_name, "منتج")}</td>
-                              <td className="px-4 py-3 text-slate-300">{text(item.color, "-")}</td>
-                              <td className="px-4 py-3 text-slate-300">{text(item.size, "-")}</td>
+                              <td className="px-4 py-3 font-semibold text-white"><div className="flex items-center gap-2">{imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 rounded-lg object-cover" loading="lazy" /> : null}<span>{text(item.product_name, "منتج")}</span></div></td>
+                              <td className="px-4 py-3 text-slate-300">{text(item.variant_color || item.color, "-")}</td>
+                              <td className="px-4 py-3 text-slate-300">{text(item.variant_size || item.size, "-")}</td>
                               <td className="px-4 py-3 font-semibold text-slate-200">{formatNumber(system)}</td>
                               <td className="px-4 py-3 font-semibold text-slate-200">{formatNumber(counted)}</td>
                               <td className={`px-4 py-3 font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-slate-300"}`}>{diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}</td>
