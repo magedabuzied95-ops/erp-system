@@ -2084,7 +2084,7 @@ const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {})
   }
 };
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 50, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();

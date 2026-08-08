@@ -117,7 +117,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
+import { syncEvolutionChatsToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 
 const router = express.Router();
 const whatsappProfileSyncState = new Map();
@@ -2505,6 +2505,9 @@ router.post("/channels/:channel/test-send", protect, permit("settings", "edit"),
 router.get("/inbox", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
+    await syncEvolutionChatsToAiInbox({ tenantId }).catch((error) => {
+      console.warn("[whatsapp:inbox-recovery-sync-error]", { tenantId, message: error?.message || String(error) });
+    });
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),
@@ -2522,6 +2525,9 @@ router.get("/inbox", protect, permit("settings", "view"), async (req, res) => {
 router.get("/conversations", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
+    await syncEvolutionChatsToAiInbox({ tenantId }).catch((error) => {
+      console.warn("[whatsapp:inbox-recovery-sync-error]", { tenantId, message: error?.message || String(error) });
+    });
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),

@@ -35,9 +35,11 @@ const recentEvolutionWebhookEvents = [];
 const evolutionWebhookEventCounts = new Map();
 const trackedEvolutionButtonMessages = new Map();
 const evolutionProfilePictureCache = new Map();
+const evolutionInboxRecoveryCache = new Map();
 const EVOLUTION_BUTTONS_DELIVERY_TIMEOUT_MS = 30000;
 const EVOLUTION_PROFILE_PICTURE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const EVOLUTION_PROFILE_PICTURE_EMPTY_TTL_MS = 30 * 60 * 1000;
+const EVOLUTION_INBOX_RECOVERY_TTL_MS = 60 * 1000;
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
@@ -318,6 +320,136 @@ const evolutionFetch = async (path, options = {}) => {
     throw gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, { data });
   }
   return data;
+};
+
+const evolutionChatLastMessageText = (chat = {}) => {
+  const lastMessage = chat?.lastMessage || chat?.last_message || {};
+  const message = lastMessage?.message || {};
+  return text(
+    message?.conversation ||
+    message?.extendedTextMessage?.text ||
+    message?.imageMessage?.caption ||
+    message?.videoMessage?.caption ||
+    message?.documentMessage?.caption ||
+    (message?.imageMessage ? "[صورة]" : "") ||
+    (message?.videoMessage ? "[فيديو]" : "") ||
+    (message?.audioMessage ? "[رسالة صوتية]" : "") ||
+    (message?.documentMessage ? "[ملف]" : "") ||
+    chat?.lastMessageText ||
+    chat?.last_message ||
+    ""
+  );
+};
+
+export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || provider() !== "evolution") {
+    return { scanned: 0, eligible: 0, synced: 0, skipped: true };
+  }
+  const cacheKey = `${safeTenantId}:${instanceName()}`;
+  const cached = evolutionInboxRecoveryCache.get(cacheKey);
+  if (!force && cached && Date.now() - cached.at < EVOLUTION_INBOX_RECOVERY_TTL_MS) return cached.result;
+
+  const payload = await evolutionFetch(`/chat/findChats/${encodeURIComponent(instanceName())}`, {
+    method: "POST",
+    body: "{}",
+  });
+  const chats = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.records)
+      ? payload.records
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : [];
+  const records = chats.flatMap((chat) => {
+    const remoteJid = text(chat?.remoteJid || chat?.remote_jid || chat?.id);
+    if (!remoteJid.endsWith("@s.whatsapp.net")) return [];
+    const phone = normalizeWhatsappPhone(remoteJid);
+    const sessionId = normalizeWhatsappSessionId(remoteJid, phone);
+    if (!phone || !sessionId) return [];
+    const lastMessage = chat?.lastMessage || chat?.last_message || {};
+    const fromMe = lastMessage?.key?.fromMe === true || lastMessage?.fromMe === true;
+    const customerName = text(chat?.pushName || chat?.name || (!fromMe ? lastMessage?.pushName : ""));
+    return [{
+      session_id: sessionId,
+      phone,
+      remote_jid: remoteJid,
+      customer_name: customerName,
+      last_message: evolutionChatLastMessageText(chat),
+      last_message_at: text(chat?.updatedAt || chat?.updated_at || lastMessage?.messageTimestamp || "") || new Date().toISOString(),
+    }];
+  });
+  if (!records.length) {
+    const result = { scanned: chats.length, eligible: 0, synced: 0 };
+    evolutionInboxRecoveryCache.set(cacheKey, { at: Date.now(), result });
+    return result;
+  }
+
+  await ensureAiSupportLogSchema();
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `
+      INSERT INTO ai_support_sessions (
+        tenant_id, session_id, source, channel, customer_name, last_message, updated_at
+      )
+      SELECT $1, r.session_id, 'whatsapp', 'whatsapp', r.customer_name, r.last_message,
+             COALESCE(NULLIF(r.last_message_at, '')::timestamptz, NOW())
+      FROM jsonb_to_recordset($2::jsonb) AS r(
+        session_id text, phone text, remote_jid text, customer_name text,
+        last_message text, last_message_at text
+      )
+      ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+        customer_name = COALESCE(NULLIF(ai_support_sessions.customer_name, ''), NULLIF(EXCLUDED.customer_name, '')),
+        last_message = CASE WHEN EXCLUDED.updated_at >= ai_support_sessions.updated_at THEN EXCLUDED.last_message ELSE ai_support_sessions.last_message END,
+        updated_at = GREATEST(ai_support_sessions.updated_at, EXCLUDED.updated_at)
+      `,
+      [safeTenantId, JSON.stringify(records)]
+    );
+    await client.query(
+      `
+      INSERT INTO ai_channel_conversations (
+        tenant_id, channel, external_conversation_id, external_customer_id,
+        is_group, customer_name, last_message, metadata, last_message_at, updated_at
+      )
+      SELECT $1, 'whatsapp', r.session_id, r.phone, FALSE, r.customer_name, r.last_message,
+             jsonb_build_object(
+               'phone', r.phone,
+               'remote_jid', r.remote_jid,
+               'resolved_reply_jid', r.remote_jid,
+               'resolved_phone', r.phone,
+               'instance', $3::text,
+               'source', 'evolution_chat_recovery'
+             ),
+             COALESCE(NULLIF(r.last_message_at, '')::timestamptz, NOW()),
+             COALESCE(NULLIF(r.last_message_at, '')::timestamptz, NOW())
+      FROM jsonb_to_recordset($2::jsonb) AS r(
+        session_id text, phone text, remote_jid text, customer_name text,
+        last_message text, last_message_at text
+      )
+      ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
+        external_customer_id = COALESCE(NULLIF(ai_channel_conversations.external_customer_id, ''), EXCLUDED.external_customer_id),
+        customer_name = COALESCE(NULLIF(ai_channel_conversations.customer_name, ''), NULLIF(EXCLUDED.customer_name, '')),
+        last_message = CASE WHEN EXCLUDED.updated_at >= ai_channel_conversations.updated_at THEN EXCLUDED.last_message ELSE ai_channel_conversations.last_message END,
+        metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
+        last_message_at = GREATEST(ai_channel_conversations.last_message_at, EXCLUDED.last_message_at),
+        updated_at = GREATEST(ai_channel_conversations.updated_at, EXCLUDED.updated_at)
+      `,
+      [safeTenantId, JSON.stringify(records), instanceName()]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const result = { scanned: chats.length, eligible: records.length, synced: records.length };
+  evolutionInboxRecoveryCache.set(cacheKey, { at: Date.now(), result });
+  console.info("[whatsapp:inbox-recovery-sync]", { tenantId: safeTenantId, ...result });
+  return result;
 };
 
 export const normalizeEgyptPhone = (phone = "") => {
