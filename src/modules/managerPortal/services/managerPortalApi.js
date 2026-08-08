@@ -31,6 +31,9 @@ export const managerPortalApi = {
   reopenTask: (token, id, payload = {}) => api.patch(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}/reopen`, payload),
   noteTask: (token, id, payload = {}) => api.post(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}/notes`, payload),
   updateSettings: (token, payload) => api.patch(`${tokenPath(token)}/settings`, payload),
+  unlockProfit: (token, password) => api.post(`${tokenPath(token)}/profit/unlock`, { password }),
+  lockProfit: (token, profitToken) => api.post(`${tokenPath(token)}/profit/lock`, { profit_token: profitToken }),
+  salesWithProfit: (token, profitToken, options = {}) => api.get(`${tokenPath(token)}/sales`, { ...options, headers: { ...(options.headers || {}), "X-Profit-Authorization": `Bearer ${profitToken}` } }),
 };
 
 export default managerPortalApi;

@@ -654,6 +654,103 @@ const EmptyState = ({ title, body, compact = false }) => (
   </div>
 );
 
+const DailyProfitCard = ({ token, salesData, canView }) => {
+  const [state, setState] = useState({ status: "locked", data: null, token: "" });
+  const [modalOpen, setModalOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const relockTimerRef = useRef(null);
+
+  const relock = useCallback(() => {
+    if (relockTimerRef.current) { clearTimeout(relockTimerRef.current); relockTimerRef.current = null; }
+    setState({ status: "locked", data: null, token: "" });
+    setPassword("");
+    setError("");
+  }, []);
+
+  useEffect(() => () => { if (relockTimerRef.current) clearTimeout(relockTimerRef.current); }, []);
+
+  const handleUnlock = useCallback(async () => {
+    if (!password || submitting) return;
+    setSubmitting(true); setError("");
+    try {
+      const res = await managerPortalApi.unlockProfit(token, password);
+      const profitToken = res?.profit_token;
+      const expiresIn = Number(res?.expires_in || 900);
+      if (!profitToken) throw new Error("unlock_failed");
+      const salesRes = await managerPortalApi.salesWithProfit(token, profitToken);
+      const block = salesRes?.sales?.daily_profit || null;
+      setState({ status: "unlocked", token: profitToken, data: block });
+      setModalOpen(false); setPassword("");
+      if (relockTimerRef.current) clearTimeout(relockTimerRef.current);
+      relockTimerRef.current = setTimeout(relock, Math.max(1, expiresIn) * 1000);
+    } catch (e) {
+      const status = Number(e?.status || 0);
+      setError(status === 429 ? "محاولات كثيرة، حاول لاحقًا" : "كلمة مرور الربح غير صحيحة");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [password, submitting, token, relock]);
+
+  const handleHide = useCallback(async () => {
+    const t = state?.token;
+    relock();
+    if (t) { try { await managerPortalApi.lockProfit(token, t); } catch { /* ignore */ } }
+  }, [state, token, relock]);
+
+  if (!canView) {
+    return (
+      <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-4 py-4 text-right">
+        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">الربح اليومي</div>
+        <div className="mt-1 text-sm font-black text-slate-500">الربح مخفي</div>
+      </div>
+    );
+  }
+
+  if (state.status === "unlocked" && state.data && state.data.profit_locked === false) {
+    const d = state.data;
+    const change = d.profit_change_percent;
+    return (
+      <div className="rounded-2xl border border-amber-500/40 bg-[#0b1220] px-4 py-4 text-right">
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={handleHide} className="text-[10px] font-bold text-slate-400 transition hover:text-amber-300">إخفاء الربح</button>
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-300">الربح اليومي</div>
+        </div>
+        <div className="mt-1 text-lg font-black text-white">{formatCurrency(d.profit || 0)}</div>
+        <div className="mt-1 text-xs font-bold text-slate-300">هامش الربح {Number(d.profit_margin || 0)}%</div>
+        {change !== null && change !== undefined ? (
+          <div className={`mt-1 text-[11px] font-bold ${Number(change) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+            {Number(change) >= 0 ? "↑" : "↓"} {Math.abs(Number(change))}% عن أمس
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => { setError(""); setModalOpen(true); }} className="w-full rounded-2xl border border-slate-800 bg-[#0b1220] px-4 py-4 text-right transition hover:border-amber-500/40">
+        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">🔒 الربح اليومي</div>
+        <div className="mt-1 text-sm font-black text-amber-300">اضغط لعرض الربح</div>
+      </button>
+      {modalOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" onClick={() => { if (!submitting) { setModalOpen(false); setError(""); } }}>
+          <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-[#0b1220] p-5 text-right shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm font-black text-white">أدخل كلمة مرور الربح</div>
+            <input type="password" value={password} autoComplete="off" onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleUnlock(); }} className="mt-3 w-full rounded-xl border border-slate-700 bg-[#0f172a] px-3 py-2 text-sm font-bold text-white outline-none transition focus:border-amber-500" placeholder="••••••" />
+            {error ? <div className="mt-2 text-xs font-bold text-rose-400">{error}</div> : null}
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <button type="button" onClick={() => { setModalOpen(false); setPassword(""); setError(""); }} className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-bold text-slate-300">إلغاء</button>
+              <button type="button" disabled={submitting || !password} onClick={handleUnlock} className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-slate-950 transition disabled:opacity-50">{submitting ? "جارٍ التحقق…" : "عرض الربح"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+};
+
 export default function ManagerPortal() {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
@@ -2493,7 +2590,7 @@ export default function ManagerPortal() {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Card title={formatCurrency(sales?.overview?.today?.sales || dashboard?.today_sales_total || 0)} subtitle="مبيعات اليوم" icon={ShoppingCart} />
                 <Card title={formatNumber(sales?.overview?.today?.orders || dashboard?.invoice_count || 0)} subtitle="الفواتير" icon={ClipboardList} />
-                {canViewProfit ? <Card title={formatCurrency(sales?.overview?.today?.profit || 0)} subtitle="الربح" icon={SunMedium} /> : <Card title="—" subtitle="الربح مخفي" icon={SunMedium} />}
+                <DailyProfitCard token={token} salesData={sales} canView={canViewProfit} />
                 <Card title={formatCurrency(sales?.overview?.today?.averageOrderValue || 0)} subtitle="متوسط الفاتورة" icon={ArrowLeftRight} />
               </div>
               <div className="grid gap-4 xl:grid-cols-2">

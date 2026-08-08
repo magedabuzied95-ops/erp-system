@@ -3,6 +3,7 @@ import db from "../database/db.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
+import { verifyProfitToken, nullProfitFieldsInOverview, stripInvoiceProfit, stripProfitFromInsights, buildDailyProfitBlock } from "./managerProfitLock.js";
 import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment } from "./staffTasksService.js";
 import {
   listEmployeeChatThreads,
@@ -475,11 +476,17 @@ export const getManagerPortalMe = async (manager = {}) => ({
 });
 
 const branchFilterValue = (manager = {}) => (manager.branch_scope === "all" ? null : numberOrNull(manager.branch_id));
-const canViewProfitForManager = (manager = {}) =>
+export const canViewProfitForManager = (manager = {}) =>
   Array.isArray(manager.permissions) &&
   manager.permissions.some((permission) =>
     ["treasury.dashboard.view", "accounting.view", "accounting.reports", "reports.view", "money_accounts.view"].includes(permission)
   );
+
+const resolveProfitOk = async (manager = {}, profitToken = "") => {
+  if (!canViewProfitForManager(manager)) return false;
+  const result = await verifyProfitToken(profitToken, { managerId: manager.id, tenantId: manager.tenant_id });
+  return Boolean(result && result.valid);
+};
 
 const publicInvoiceUrlForOrder = (order = {}) => {
   const origin = getPublicAppUrl() || clean(process.env.PUBLIC_APP_URL) || DEFAULT_MANAGER_PORTAL_APP_URL;
@@ -488,7 +495,7 @@ const publicInvoiceUrlForOrder = (order = {}) => {
   return normalizedOrigin && identifier ? `${normalizedOrigin}/invoice/${encodeURIComponent(identifier)}` : "";
 };
 
-export const getManagerPortalInvoiceDetail = async ({ manager = {}, invoiceId } = {}) => {
+export const getManagerPortalInvoiceDetail = async ({ manager = {}, invoiceId, profitToken = "" } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
   const orderId = numberOrNull(invoiceId);
@@ -614,7 +621,7 @@ export const getManagerPortalInvoiceDetail = async ({ manager = {}, invoiceId } 
   const shipping = Number(order.shipping_fee ?? order.delivery_fee ?? order.shipping_cost ?? order.service_fee ?? 0);
   const tax = Number(order.tax_amount ?? order.vat_amount ?? order.total_tax ?? 0);
   const paid = Number(order.paid_amount ?? order.amount_paid ?? order.total_paid ?? 0);
-  const profitAllowed = canViewProfitForManager(manager);
+  const profitAllowed = await resolveProfitOk(manager, profitToken);
   const profit = profitAllowed ? Number(order.profit ?? order.gross_profit ?? order.net_profit ?? 0) : null;
   const cost = profitAllowed ? Number(order.cost_amount ?? order.cogs_amount ?? order.total_cost ?? 0) : null;
 
@@ -658,7 +665,7 @@ export const getManagerPortalInvoiceDetail = async ({ manager = {}, invoiceId } 
   };
 };
 
-export const getManagerPortalDashboard = async ({ manager = {}, filters = {} } = {}) => {
+export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, profitToken = "" } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
   const [overview, staffDashboard, lowStock, aiInsights, refillAlerts, paymentBreakdown, leads, attendanceRows] = await Promise.all([
@@ -751,16 +758,16 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {} } =
   const absentEmployees = Array.isArray(staffDashboard?.byEmployee)
     ? staffDashboard.byEmployee.filter((employee) => employee.attendance_status === "absent").length
     : 0;
-  if (!canViewProfitForManager(manager) && overview?.today) {
-    overview.today.profit = null;
-  }
+  const profitOk = await resolveProfitOk(manager, profitToken);
+  if (!profitOk) nullProfitFieldsInOverview(overview);
   if (Array.isArray(overview?.recentInvoices)) {
     overview.recentInvoices = await Promise.all(
       overview.recentInvoices.map(async (invoice) => {
-        const detail = await getManagerPortalInvoiceDetail({ manager, invoiceId: invoice.id }).catch(() => null);
+        const detail = await getManagerPortalInvoiceDetail({ manager, invoiceId: invoice.id, profitToken }).catch(() => null);
         return detail || invoice;
       })
     );
+    if (!profitOk) overview.recentInvoices = overview.recentInvoices.map(stripInvoiceProfit);
   }
 
   return {
@@ -777,7 +784,7 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {} } =
     low_stock: lowStock,
     refill_alerts: refillAlerts,
     new_leads: leads,
-    ai_insights: aiInsights || [],
+    ai_insights: profitOk ? (aiInsights || []) : stripProfitFromInsights(aiInsights || []),
     recent_tasks: staffDashboard?.recentTasks || [],
     task_history: staffDashboard?.history || [],
     overview,
@@ -879,7 +886,7 @@ export const getManagerPortalTasks = async ({ manager = {} } = {}) => {
   };
 };
 
-export const getManagerPortalSales = async ({ manager = {} } = {}) => {
+export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
   const monthFilters = { branchId, range: "month" };
@@ -1051,9 +1058,10 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
         )
       : [],
   ]);
-  if (!canViewProfitForManager(manager) && overview?.today) {
-    overview.today.profit = null;
-  }
+  const rawDailyProfit = Number(overview?.today?.profit ?? overview?.today?.todayProfit?.value ?? 0);
+  const rawProfitGrowth = overview?.today?.todayProfit?.growth ?? null;
+  const dailyProfitAuthorized = await resolveProfitOk(manager, profitToken);
+  if (!dailyProfitAuthorized) nullProfitFieldsInOverview(overview);
   const comparison = comparisonRows[0] || {};
   const sellerStats = sellerRows || [];
   const topSeller = sellerStats[0] || null;
@@ -1063,13 +1071,14 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
   const conversionSummary = customerConversionRows[0] || {};
   const aiConversionSummary = aiConversionRows[0] || {};
   return {
+    daily_profit: buildDailyProfitBlock({ authorized: dailyProfitAuthorized, profit: rawDailyProfit, sales: Number(overview?.today?.sales || 0), changePercent: rawProfitGrowth }),
     overview,
     trend: trend7d,
     trend_7d: trend7d,
     hourly,
     top_products: topProducts,
     recent_invoices: recentInvoices,
-    ai_insights: aiInsights,
+    ai_insights: dailyProfitAuthorized ? aiInsights : stripProfitFromInsights(aiInsights),
     comparison: {
       today_sales: Number(comparison.today_sales || overview?.today?.sales || 0),
       yesterday_sales: Number(comparison.yesterday_sales || 0),

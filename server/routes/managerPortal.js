@@ -34,6 +34,8 @@ import {
   sendManagerPortalTestPush,
   unsubscribeManagerPortalPush,
 } from "../services/managerPortalPushService.js";
+import { canViewProfitForManager } from "../services/managerPortalService.js";
+import { verifyProfitPin, issueProfitToken, revokeProfitToken, attemptKey, isRateLimited, registerFailedAttempt, registerSuccess } from "../services/managerProfitLock.js";
 
 const router = express.Router();
 
@@ -84,6 +86,11 @@ const portalTokenDebug = ({ req, token, manager = null, reason = "" }) => {
     role: manager?.role || null,
     reason,
   });
+};
+
+const extractProfitToken = (req) => {
+  const header = req.get?.("x-profit-authorization") || req.get?.("X-Profit-Authorization") || "";
+  return String(header || "").replace(/^Bearer\s+/i, "").trim();
 };
 
 const portalRoutePath = (req) => `${req.baseUrl || ""}${req.route?.path || req.path || ""}`;
@@ -268,7 +275,7 @@ router.get("/:token/dashboard", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
-    const dashboard = await getManagerPortalDashboard({ manager, filters: req.query || {} });
+    const dashboard = await getManagerPortalDashboard({ manager, filters: req.query || {}, profitToken: extractProfitToken(req) });
     return res.json({ success: true, dashboard });
   } catch (error) {
     console.error("[manager-portal] dashboard error", error);
@@ -280,7 +287,7 @@ router.get("/:token/invoices/:invoiceId", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
-    const invoice = await getManagerPortalInvoiceDetail({ manager, invoiceId: req.params.invoiceId });
+    const invoice = await getManagerPortalInvoiceDetail({ manager, invoiceId: req.params.invoiceId, profitToken: extractProfitToken(req) });
     return res.json({ success: true, invoice });
   } catch (error) {
     console.error("[manager-portal] invoice detail error", error);
@@ -316,7 +323,7 @@ router.get("/:token/sales", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
-    const sales = await getManagerPortalSales({ manager });
+    const sales = await getManagerPortalSales({ manager, profitToken: extractProfitToken(req) });
     return res.json({ success: true, sales });
   } catch (error) {
     console.error("[manager-portal] sales error", error);
@@ -554,6 +561,44 @@ router.patch("/:token/settings", verifyManagerPortalToken, async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] settings update error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update settings" });
+  }
+});
+
+router.post("/:token/profit/unlock", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    if (!canViewProfitForManager(manager)) {
+      return res.status(403).json({ success: false, message: "Invalid profit password" });
+    }
+    const key = attemptKey(manager.tenant_id, manager.id);
+    if (isRateLimited(key)) {
+      return res.status(429).json({ success: false, message: "Too many attempts. Please try again later." });
+    }
+    const ok = await verifyProfitPin(req.body?.password);
+    if (!ok) {
+      registerFailedAttempt(key);
+      console.info("[manager-portal:profit]", { requestId: req.id, managerId: manager.id, tenantId: manager.tenant_id, action: "unlock_failed" });
+      return res.status(401).json({ success: false, message: "Invalid profit password" });
+    }
+    registerSuccess(key);
+    const issued = await issueProfitToken({ managerId: manager.id, tenantId: manager.tenant_id });
+    console.info("[manager-portal:profit]", { requestId: req.id, managerId: manager.id, tenantId: manager.tenant_id, action: "unlock_success" });
+    return res.json({ success: true, profit_unlocked: true, expires_in: issued.expiresIn, profit_token: issued.token });
+  } catch (error) {
+    console.error("[manager-portal] profit unlock error", error?.message || error);
+    return res.status(500).json({ success: false, message: "Invalid profit password" });
+  }
+});
+
+router.post("/:token/profit/lock", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    await revokeProfitToken(extractProfitToken(req) || req.body?.profit_token);
+    console.info("[manager-portal:profit]", { requestId: req.id, managerId: manager.id, tenantId: manager.tenant_id, action: "manual_relock" });
+    return res.json({ success: true, profit_locked: true });
+  } catch (error) {
+    console.error("[manager-portal] profit lock error", error?.message || error);
+    return res.json({ success: true, profit_locked: true });
   }
 });
 
