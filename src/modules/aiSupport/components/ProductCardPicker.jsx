@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, Loader2, Search, ShoppingBag, SlidersHorizontal, Square, X } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, Loader2, Search, ShoppingBag, SlidersHorizontal, Square, X } from "lucide-react";
 
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -353,6 +353,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [selectedLinkBrand, setSelectedLinkBrand] = useState("all");
   const [selectedLinkMinPrice, setSelectedLinkMinPrice] = useState("");
   const [selectedLinkMaxPrice, setSelectedLinkMaxPrice] = useState("");
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const previousOpenRef = useRef(false);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   // The order composer uses the same dark product surface as POS, including the
@@ -1116,6 +1117,15 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               </div>
             ) : selectedProduct ? (
               <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setPreviewCollapsed((current) => !current)}
+                  className="sticky top-0 z-10 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-2 text-sm font-black text-white shadow-lg"
+                >
+                  {previewCollapsed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  {previewCollapsed ? "إظهار معاينة المنتج" : "إخفاء معاينة المنتج"}
+                </button>
+                <div className={previewCollapsed ? "hidden" : "space-y-3"}>
                 <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
                   {activeImage ? (
                     <img src={activeImage} alt={selectedProduct.name || "منتج"} className="aspect-[16/10] w-full object-cover" loading="lazy" />
@@ -1211,6 +1221,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 </button>
 
                 {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+                </div>
               </div>
             ) : (
               <div className="grid min-h-[24rem] place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, MapPin, PackageSearch, ShoppingBag, ShoppingCart, X } from "lucide-react";
 import { api } from "../../../shared/api/api";
@@ -10,6 +10,18 @@ const text = (value = "") => String(value || "").trim();
 const idOf = (item = {}) => text(item.id || item.provider_city_id || item.provider_zone_id || item.provider_district_id);
 const labelOf = (item = {}) => text(item.name_ar || item.name_en || item.name || item.city_name_ar || item.zone_name_ar || item.district_name_ar);
 const imageOf = (item = {}) => text(item.image_url || item.image || item.thumbnail_url || item.product_image_url);
+const ORDER_DRAFT_PREFIX = "ai-inbox-order-customer-draft:v1:";
+const conversationDraftKey = (conversation = {}) => {
+  const identity = text(
+    conversation.session_id || conversation.sessionId || conversation.conversation_id || conversation.id ||
+    conversation.customer_phone || conversation.customer_profile?.phone || conversation.channel_metadata?.resolved_phone
+  );
+  return identity ? `${ORDER_DRAFT_PREFIX}${identity}` : "";
+};
+const readConversationDraft = (key) => {
+  if (!key || typeof window === "undefined") return {};
+  try { return JSON.parse(window.localStorage.getItem(key) || "{}") || {}; } catch { return {}; }
+};
 
 export default function PwaOrderComposer({ open, conversation = {}, busy = false, headers = {}, onClose, onSubmit }) {
   const profile = conversation.customer_profile || {};
@@ -18,10 +30,16 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
   const [quantity, setQuantity] = useState(1);
   const [form, setForm] = useState({});
   const [locations, setLocations] = useState({ cities: [], zones: [], districts: [], loading: false });
+  const formReadyRef = useRef(false);
+  const skipNextDraftSaveRef = useRef(false);
+  const draftKey = useMemo(() => conversationDraftKey(conversation), [conversation]);
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
     if (!open) return;
+    formReadyRef.current = false;
+    skipNextDraftSaveRef.current = true;
+    const savedDraft = readConversationDraft(draftKey);
     setProduct(null); setQuantity(1);
     setForm({
       customer_name: text(conversation.customer_name || profile.name || profile.display_name),
@@ -31,8 +49,19 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
       street_address: text(profile.street_address || profile.address || conversation.customer_address),
       building_number: text(profile.building_number), floor_number: text(profile.floor_number),
       apartment_number: text(profile.apartment_number), landmark: text(profile.landmark), notes: "",
+      ...savedDraft,
     });
-  }, [conversation.session_id, open]);
+    formReadyRef.current = true;
+  }, [conversation.session_id, draftKey, open]);
+
+  useEffect(() => {
+    if (!open || !draftKey || !formReadyRef.current || typeof window === "undefined") return;
+    if (skipNextDraftSaveRef.current) {
+      skipNextDraftSaveRef.current = false;
+      return;
+    }
+    try { window.localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* storage can be unavailable */ }
+  }, [draftKey, form, open]);
 
   useEffect(() => {
     if (!open) return;
