@@ -1189,7 +1189,10 @@ export const approveManagerPortalInventoryApproval = async ({ manager = {}, sess
     tenantId: numberOrNull(manager.tenant_id),
     sessionId,
     approvedBy: manager.user_id || manager.id || null,
-    user: manager,
+    // Reaching this service requires a valid manager-portal token. Mark the
+    // actor as a reviewer explicitly because employee job titles can be
+    // customized and should not fail the generic role-name check.
+    user: { ...manager, role: "manager", manager_portal_verified: true },
   });
 };
 

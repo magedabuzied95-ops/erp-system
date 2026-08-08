@@ -67,7 +67,7 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   stock: { sound: true, toast: true, push: true },
   ai_leads: { sound: true, toast: true, push: true },
 };
-const MANAGER_PORTAL_PWA_VERSION = "20260607";
+const MANAGER_PORTAL_PWA_VERSION = "20260808-inventory-approvals";
 const MANAGER_PORTAL_CRITICAL_TIMEOUT_MS = 9000;
 const MANAGER_PORTAL_DEFERRED_TIMEOUT_MS = 12000;
 const settledValue = (result) => (result?.status === "fulfilled" ? result.value : null);
@@ -1697,7 +1697,7 @@ export default function ManagerPortal() {
 
   const openInventoryApprovals = () => {
     if (!token) return;
-    navigate(`/manager/inventory-approvals?token=${encodeURIComponent(token)}`);
+    navigate(`/manager-portal/${encodeURIComponent(token)}/inventory-approvals`);
   };
 
   const renderTaskCard = (task) => {
