@@ -847,13 +847,19 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
       return safeQuery(
         `
         SELECT
-          ea.employee_id,
-          COALESCE(SUM(GREATEST(COALESCE(ea.remaining_amount, ea.amount, 0), 0)), 0) AS outstanding_advance
-        FROM employee_advances ea
-        WHERE ($1::bigint IS NULL OR ea.tenant_id = $1::bigint)
-          AND LOWER(COALESCE(ea.deduction_status, 'pending')) NOT IN ('settled', 'deducted', 'cancelled', 'canceled')
-          AND LOWER(COALESCE(ea.status, 'pending')) NOT IN ('settled', 'deducted', 'cancelled', 'canceled')
-        GROUP BY ea.employee_id
+          ranked.employee_id,
+          COALESCE(SUM(COALESCE(ranked.remaining_amount, ranked.amount, 0)), 0) AS total_advances
+        FROM (
+          SELECT
+            ea.employee_id,
+            ea.amount,
+            ea.remaining_amount,
+            ROW_NUMBER() OVER (PARTITION BY ea.employee_id ORDER BY ea.created_at DESC, ea.id DESC) AS row_number
+          FROM employee_advances ea
+          WHERE ($1::bigint IS NULL OR ea.tenant_id = $1::bigint)
+        ) ranked
+        WHERE ranked.row_number <= 20
+        GROUP BY ranked.employee_id
         `,
         [tenantId],
         []
@@ -883,7 +889,7 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
       check_out_time: checkOutTime,
       late_minutes: Number(attendance.late_minutes || 0),
       shift_duration_hours: Number(shiftDurationHours.toFixed(2)),
-      outstanding_advance: Number(advances.outstanding_advance || 0),
+      total_advances: Number(advances.total_advances || 0),
       sales_today: Number(sales.sales_total || 0),
       invoices_count: Number(sales.invoice_count || 0),
       expected_commission: null,
