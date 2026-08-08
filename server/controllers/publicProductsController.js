@@ -723,8 +723,28 @@ const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png") => {
   return new URL(`${suffix}${params.toString() ? `?${params.toString()}` : ""}`, publicBaseUrl).toString();
 };
 
+const fetchImageDataUrl = async (imageUrl = "") => {
+  const url = normalizeImageUrlCandidate(imageUrl);
+  if (!url) return "";
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return "";
+    const contentType = String(response.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
+    if (!contentType.startsWith("image/")) return "";
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length || buffer.length > 8 * 1024 * 1024) return "";
+    return `data:${contentType};base64,${buffer.toString("base64")}`;
+  } catch (error) {
+    console.warn("[share-available-image-embed]", { imageUrl: url, message: error?.message });
+    return "";
+  }
+};
+
 const buildShareAvailablePreviewPngBuffer = async ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
-  const svg = buildShareAvailablePreviewSvg({ req, filters, products, count });
+  const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
+  const remoteImageUrl = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
+  const embeddedImageUrl = await fetchImageDataUrl(remoteImageUrl);
+  const svg = buildShareAvailablePreviewSvg({ req, filters, products, count, embeddedImageUrl });
   console.log("[share-available-svg-debug]", {
     svgRectCount: (svg.match(/<rect/g) || []).length,
     svgImageCount: (svg.match(/<image/g) || []).length,
@@ -817,22 +837,6 @@ const loadShareAvailableProducts = async (req = {}, filters = {}) => {
     inStock: false,
     offerStory: false,
   };
-  const storefrontQueryParams = [
-    tenantId,
-    "",
-    "",
-    storefrontFilters.brand || "",
-    false,
-    Boolean(storefrontFilters.offerStory),
-    storefrontFilters.gender,
-    storefrontFilters.productType,
-    storefrontFilters.grade,
-    storefrontFilters.size || "",
-    Boolean(storefrontFilters.inStock),
-    storefrontFilters.quality || [],
-    1000,
-    0,
-  ];
   console.log("[share-available-query-debug]", {
     requestUrl: req.originalUrl || req.url || "",
     filters,
@@ -844,13 +848,7 @@ const loadShareAvailableProducts = async (req = {}, filters = {}) => {
     inStock: storefrontFilters.inStock,
     size: storefrontFilters.size,
     generatedSql: storefrontProductsSql,
-    params: storefrontQueryParams,
     source: "storefrontController.queryProductsWithSql",
-  });
-  const directRowsResult = await db.query(storefrontProductsSql, storefrontQueryParams);
-  console.log("[share-available-query-direct]", {
-    rowCount: directRowsResult.rowCount,
-    firstIds: directRowsResult.rows.slice(0, 5).map((row) => row.id),
   });
   const rowsResult = await queryProductsWithSql(
     storefrontProductsSql,
@@ -915,15 +913,15 @@ const loadShareAvailableProducts = async (req = {}, filters = {}) => {
   };
 };
 
-const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
+const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0, embeddedImageUrl = "" } = {}) => {
   const imageGeneratorVersion = "V2";
   const sizeValue = filters.sizes?.[0] || "";
   const title = escapeHtml(`المنتجات المتاحة للمقاس ${sizeValue}`.trim() || "المنتجات المتاحة");
   const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
   const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
   const fallbackImage = buildShareAvailableFallbackImageUrl(req) || "";
-  const selectedImage = primaryImage || fallbackImage || "";
-  const routeBranch = primaryImage ? "single-product" : fallbackImage ? "fallback" : "empty";
+  const selectedImage = embeddedImageUrl || primaryImage || fallbackImage || "";
+  const routeBranch = embeddedImageUrl ? "embedded-product" : primaryImage ? "single-product" : fallbackImage ? "fallback" : "empty";
   const selectedTitle = title || "المنتجات المتاحة";
   const imageTag = selectedImage
     ? `<image href="${escapeHtml(selectedImage)}" x="86" y="286" width="1028" height="248" preserveAspectRatio="xMidYMid meet" />`

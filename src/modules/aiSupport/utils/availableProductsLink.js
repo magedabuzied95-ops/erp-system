@@ -1,5 +1,14 @@
 const clean = (value = "") => String(value ?? "").trim();
 
+const CANONICAL_STOREFRONT_ORIGIN = "https://m1store-egy.com";
+
+const resolvePublicStorefrontOrigin = () => {
+  if (typeof window === "undefined") return CANONICAL_STOREFRONT_ORIGIN;
+  const currentOrigin = clean(window.location?.origin).replace(/\/+$/g, "");
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(currentOrigin)) return currentOrigin;
+  return CANONICAL_STOREFRONT_ORIGIN;
+};
+
 const uniqueTextValues = (values = []) =>
   [...new Set(values.map((item) => clean(item)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
 
@@ -53,8 +62,7 @@ export const buildAvailableProductsUrl = ({
   params.set("inStock", "1");
   const query = params.toString();
   const path = `/share/available${query ? `?${query}` : ""}`;
-  if (typeof window === "undefined") return path;
-  return `${window.location.origin}${path}`;
+  return `${resolvePublicStorefrontOrigin()}${path}`;
 };
 
 export const buildAvailableProductsMessage = (filters = {}, url = "") => {

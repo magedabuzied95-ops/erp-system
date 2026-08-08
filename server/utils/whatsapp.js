@@ -2,7 +2,7 @@ import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "./orde
 import { displayPublicOrderNumber } from "./publicOrderNumber.js";
 
 const DEFAULT_PROVIDER = "web";
-const DEFAULT_PUBLIC_APP_URL = "https://erp-system-ten-green.vercel.app";
+const DEFAULT_PUBLIC_APP_URL = "https://m1store-egy.com";
 const EMOJI_PATTERN = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/u;
 
 export const buildWhatsappTextDebug = (message = "", previewChars = 300) => {

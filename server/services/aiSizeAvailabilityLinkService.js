@@ -86,10 +86,16 @@ export const detectSizeAvailabilityIntent = (message = "") => {
 };
 
 export const storefrontBaseUrl = () =>
-  text(process.env.STOREFRONT_URL).replace(/\/+$/g, "") ||
-  text(process.env.PUBLIC_STOREFRONT_URL).replace(/\/+$/g, "") ||
-  text(process.env.VITE_STOREFRONT_URL).replace(/\/+$/g, "") ||
-  getPublicAppUrl();
+  [
+    process.env.STORE_FRONT_URL,
+    process.env.STOREFRONT_URL,
+    process.env.PUBLIC_STOREFRONT_URL,
+    process.env.VITE_STOREFRONT_URL,
+    getPublicAppUrl(),
+  ]
+    .map((value) => text(value).replace(/\/+$/g, ""))
+    .map((value) => /\/\/erp-system-ten-green\.vercel\.app$/i.test(value) ? "https://m1store-egy.com" : value)
+    .find(Boolean) || "https://m1store-egy.com";
 
 export const buildSizeAvailabilityStorefrontUrl = ({ size, gender = "", query = "", quality = "" } = {}) => {
   const base = storefrontBaseUrl();
