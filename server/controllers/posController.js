@@ -1064,8 +1064,7 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
           OR LOWER(COALESCE(category, '')) IN ('employee_advance', 'employee advance', 'advance', 'staff advance')
         ) AS is_employee_advance
       FROM expenses
-      WHERE source = 'pos'
-        AND shift_id = $1
+      WHERE shift_id = $1
         AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
         AND LOWER(COALESCE(status, '')) NOT IN ('rejected', 'cancelled', 'canceled', 'void')
     )
@@ -1118,8 +1117,7 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       COALESCE(NULLIF(emp.full_name, ''), NULLIF(emp.employee_code, '')) AS employee_name
     FROM expenses ex
     LEFT JOIN employees emp ON emp.id = ex.employee_id
-    WHERE ex.source = 'pos'
-      AND ex.shift_id = $1
+    WHERE ex.shift_id = $1
       AND ($2::bigint IS NULL OR ex.tenant_id = $2::bigint)
       AND LOWER(COALESCE(ex.status, '')) NOT IN ('rejected', 'cancelled', 'canceled', 'void')
     ORDER BY ex.created_at ASC, ex.id ASC
