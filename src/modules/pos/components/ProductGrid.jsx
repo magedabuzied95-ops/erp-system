@@ -187,7 +187,7 @@ function ProductGrid({
   }
 
   const renderProduct = (product, _index, key) => (
-    <ProductCard
+    <PosProductCard
       key={key}
       product={product}
       onSelectProduct={onSelectProduct}
@@ -215,7 +215,7 @@ function ProductGrid({
   );
 }
 
-const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
+export const PosProductCard = memo(function PosProductCard({ product, onSelectProduct }) {
   const { t } = useTranslation();
   const stock = getProductStock(product);
   const isOutOfStock = stock <= 0;

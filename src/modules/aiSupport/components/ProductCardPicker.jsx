@@ -6,6 +6,8 @@ import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../uti
 import { formatCurrency } from "../../../shared/lib/currency";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
+import { PosProductCard } from "../../pos/components/ProductGrid";
+import "../../pos/pages/POSPro.m1.css";
 import { useTheme } from "../../../theme/useTheme";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -853,7 +855,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
   const content = (
     <div
-      className={`ai-pwa-product-picker ${darkMode ? "ai-pwa-product-picker--dark" : "ai-pwa-product-picker--light"} ${inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}`}
+      className={`ai-pwa-product-picker ${posPickerMode ? "pos-pro-shell" : ""} ${darkMode ? "ai-pwa-product-picker--dark" : "ai-pwa-product-picker--light"} ${inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}`}
       style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 2147482000, isolation: "isolate" }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
@@ -861,7 +863,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     >
       <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
       <section
-        className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : posPickerMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-slate-950 text-white" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
+        className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : posPickerMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-[#171714] text-white" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
         style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: posPickerMode ? "100dvh" : "85dvh", margin: 0, borderRadius: posPickerMode ? 0 : "1.35rem" }}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
@@ -869,9 +871,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         aria-labelledby="ai-product-card-picker-title"
         dir="rtl"
       >
-        <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : "sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur"}>
+        <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : `sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3 backdrop-blur ${posPickerMode ? "bg-[#171714]/95" : "bg-slate-950/95"}`}>
           <div className="min-w-0">
-            <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>AI INBOX</div>
+            <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : `text-[10px] font-black uppercase tracking-[0.22em] ${posPickerMode ? "text-[#d4af37]" : "text-cyan-200"}`}>AI INBOX</div>
             <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>إرسال منتج</h3>
             <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.</p>
           </div>
@@ -1008,6 +1010,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     const previewPrice = Number(previewVariant?.price ?? product.final_price ?? product.price ?? 0);
                     const previewColors = productColors(product).slice(0, 3);
                     const previewSizes = productSizes(product, previewColors[0] || "").slice(0, 3);
+                    if (posPickerMode) {
+                      return (
+                        <div
+                          key={`${product.product_id || product.id}`}
+                          className={`rounded-[1.15rem] border p-0.5 transition ${isActive ? "border-[#d4af37] bg-[#d4af37]/10 shadow-[0_0_0_2px_rgba(212,175,55,0.15)]" : "border-transparent"}`}
+                        >
+                          <PosProductCard product={product} onSelectProduct={toggleProductSelection} />
+                        </div>
+                      );
+                    }
                     return (
                       <button
                         key={`${product.product_id || product.id}`}
@@ -1120,7 +1132,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 <button
                   type="button"
                   onClick={() => setPreviewCollapsed((current) => !current)}
-                  className="sticky top-0 z-10 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-2 text-sm font-black text-white shadow-lg"
+                  className="sticky top-0 z-10 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/30 bg-[#27251f] px-4 py-2 text-sm font-black text-[#f4df9a] shadow-lg"
                 >
                   {previewCollapsed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                   {previewCollapsed ? "إظهار معاينة المنتج" : "إخفاء معاينة المنتج"}
