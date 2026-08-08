@@ -31,8 +31,11 @@ const normalizeBrand = (row = {}) => ({
   updated_at: row.updated_at || null,
 });
 
-export const ensureBrandsTable = async () => {
-  await db.query(`
+let brandsTableReady = false;
+let brandsTableReadyPromise = null;
+
+const ensureBrandsTableNow = async (executor = db) => {
+  await executor.query(`
     CREATE TABLE IF NOT EXISTS brands (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT,
@@ -47,7 +50,7 @@ export const ensureBrandsTable = async () => {
     )
   `);
 
-  await db.query(`
+  await executor.query(`
     ALTER TABLE IF EXISTS brands
       ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
       ADD COLUMN IF NOT EXISTS slug VARCHAR(255) NOT NULL DEFAULT '',
@@ -59,7 +62,7 @@ export const ensureBrandsTable = async () => {
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   `);
 
-  await db.query(`
+  await executor.query(`
     UPDATE brands
     SET
       slug = COALESCE(NULLIF(slug, ''), id::text),
@@ -67,6 +70,27 @@ export const ensureBrandsTable = async () => {
       logo_url = COALESCE(NULLIF(logo_url, ''), NULLIF(image_url, ''))
     WHERE COALESCE(NULLIF(slug, ''), '') = '' OR COALESCE(NULLIF(image_url, ''), NULLIF(logo_url, '')) IS NOT NULL
   `);
+};
+
+// Storefront request-path DDL fix: GET /api/storefront/brands previously executed
+// CREATE TABLE + ALTER TABLE + a full-table UPDATE on every public request, which
+// takes ACCESS EXCLUSIVE locks and contends with live traffic. This mirrors the
+// established guard in storefrontController.ensureStorefrontSchema: one shared
+// in-flight promise, then a pure in-memory no-op with zero database queries.
+// Failure never marks the schema ready.
+export const ensureBrandsTable = async (executor = db) => {
+  if (brandsTableReady) return;
+  if (!brandsTableReadyPromise) {
+    brandsTableReadyPromise = ensureBrandsTableNow(executor)
+      .then(() => {
+        brandsTableReady = true;
+      })
+      .catch((error) => {
+        brandsTableReadyPromise = null;
+        throw error;
+      });
+  }
+  return brandsTableReadyPromise;
 };
 
 const buildBrandPayload = (body = {}) => {

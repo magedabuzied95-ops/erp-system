@@ -27,6 +27,7 @@ import permit from "./middleware/permissionMiddleware.js";
 import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertService.js";
 import { ensureUsersLoginSchema } from "./controllers/authController.js";
 import { ensureInventoryCountSchema } from "./services/inventoryCountService.js";
+import { ensureBrandsTable } from "./controllers/brandsController.js";
 
 const require = createRequire(import.meta.url);
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -2247,6 +2248,8 @@ const bootstrapStartup = async () => {
     console.log("[server] product classification schema ensured");
     await ensureStorefrontSchema();
     console.log("[server] storefront schema ensured");
+    await ensureBrandsTable();
+    console.log("[server] brands schema ensured");
     await ensureShippingSchema(db);
     console.log("[server] shipping schema ensured");
     await ensureStorefrontCustomerSessionSchema(db);
