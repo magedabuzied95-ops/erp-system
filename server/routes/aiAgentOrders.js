@@ -4157,6 +4157,10 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
       )
     ORDER BY
       CASE
+        WHEN LOWER(COALESCE(channel, '')) IN ('whatsapp', 'facebook_messenger', 'facebook', 'messenger', 'instagram') THEN 0
+        ELSE 1
+      END,
+      CASE
         WHEN external_conversation_id = $2 THEN 0
         WHEN external_customer_id = $2 THEN 1
         ${hasConversationKeyColumn ? "WHEN conversation_key = $2 THEN 2" : ""}
