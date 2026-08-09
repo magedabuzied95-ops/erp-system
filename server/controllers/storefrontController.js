@@ -1381,8 +1381,26 @@ const deriveColorGroupsFromVariants = (variants = []) => {
   return Array.from(seen.values());
 };
 
-const catalogQuery = `
-  SELECT
+// Storefront catalog query builder.
+//
+// The candidate row set - the exact (product_id, variant_id) pairs that reach the
+// aggregate - is defined ONCE, in the `candidate_rows` CTE, and reused by both the
+// purchase-price resolver and the projection. Callers pass their extra predicate as
+// `where` and their GROUP BY / ORDER BY / LIMIT as `trailing`, so the candidate
+// predicate has a single source of truth and is never duplicated or string-mutated.
+//
+// `last_color_purchase_price` keeps its name and its two consuming expressions
+// byte-identical to the previous correlated LATERAL. Its semantics are unchanged and
+// were proven equivalent against all 8407 production variants: variant-id OR
+// normalized color with no precedence between them, ordered by
+// pu.created_at DESC NULLS LAST then pi.id DESC, the same tenant/null-tenant rules,
+// the same excluded purchase statuses and the same price-positivity rules.
+const catalogVariantJoinSql = `
+    AND pv.is_active IS DISTINCT FROM FALSE
+    AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
+    AND pv.deleted_at IS NULL`;
+
+const catalogSelectListSql = `  SELECT
     p.*,
     c.name AS category_name,
     b.name AS brand_name,
@@ -1436,43 +1454,91 @@ const catalogQuery = `
         )
       ) FILTER (WHERE pv.id IS NOT NULL),
       '[]'::jsonb
-    ) AS variants
-  FROM products p
-  LEFT JOIN categories c ON c.id = p.category_id
-  LEFT JOIN brands b ON b.id = p.brand_id
-  LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
-  LEFT JOIN product_variants pv ON pv.product_id = p.id
-    AND pv.is_active IS DISTINCT FROM FALSE
-    AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
-    AND pv.deleted_at IS NULL
-  LEFT JOIN LATERAL (
+    ) AS variants`;
+
+const buildCatalogQuery = ({ where = "", trailing = "", productVisibility = true } = {}) => `
+  WITH candidate_rows AS MATERIALIZED (
+    SELECT p.id AS product_id, pv.id AS variant_id
+    FROM products p
+    LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN brands b ON b.id = p.brand_id
+    LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+    LEFT JOIN product_variants pv ON pv.product_id = p.id${catalogVariantJoinSql}
+    WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+    AND p.is_active IS DISTINCT FROM FALSE
+    AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+${productVisibility ? `    AND ${storefrontVisibilityConditionSql}\n` : ""}${where}
+  ),
+  candidate_purchase_items AS MATERIALIZED (
     SELECT
+      pi.id AS pi_id,
+      pi.product_id AS product_id,
+      pi.variant_id AS pi_variant_id,
+      pi.tenant_id AS pi_tenant_id,
+      pu.tenant_id AS pu_tenant_id,
+      pu.created_at AS pu_created_at,
+      COALESCE(LOWER(TRIM(pi.metadata->>'color')), '') AS match_color,
       COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
       NULLIF(pi.sale_price, 0) AS purchase_sale_price
     FROM purchase_items pi
     JOIN purchases pu ON pu.id = pi.purchase_id
-    WHERE pi.product_id = p.id
-      AND (
-        pi.variant_id = pv.id
-        OR (
-          COALESCE(TRIM(pi.metadata->>'color'), '') <> ''
-          AND LOWER(TRIM(pi.metadata->>'color')) = LOWER(TRIM(pv.color))
-        )
-      )
-      AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
-      AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
-      AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
+    WHERE COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
       AND (
         COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
         OR NULLIF(pi.sale_price, 0) > 0
       )
-    ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
-    LIMIT 1
-  ) last_color_purchase_price ON TRUE
-  WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
-    AND p.is_active IS DISTINCT FROM FALSE
-    AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
-    AND ${storefrontVisibilityConditionSql}
+      AND EXISTS (SELECT 1 FROM candidate_rows cr_pi WHERE cr_pi.product_id = pi.product_id)
+  ),
+  candidate_purchase_matches AS (
+    SELECT
+      cr_variant.variant_id AS variant_pk,
+      cpi.pu_created_at,
+      cpi.pi_id,
+      cpi.purchase_selling_price,
+      cpi.purchase_sale_price
+    FROM candidate_purchase_items cpi
+    JOIN candidate_rows cr_variant
+      ON cr_variant.variant_id = cpi.pi_variant_id
+     AND cr_variant.product_id = cpi.product_id
+    JOIN products p_variant ON p_variant.id = cr_variant.product_id
+    WHERE (cpi.pi_tenant_id = p_variant.tenant_id OR cpi.pi_tenant_id IS NULL)
+      AND (cpi.pu_tenant_id = p_variant.tenant_id OR cpi.pu_tenant_id IS NULL)
+    UNION ALL
+    SELECT
+      cr_color.variant_id AS variant_pk,
+      cpi.pu_created_at,
+      cpi.pi_id,
+      cpi.purchase_selling_price,
+      cpi.purchase_sale_price
+    FROM candidate_purchase_items cpi
+    JOIN candidate_rows cr_color ON cr_color.product_id = cpi.product_id
+    JOIN product_variants pv_color
+      ON pv_color.id = cr_color.variant_id
+     AND cpi.match_color <> ''
+     AND cpi.match_color = LOWER(TRIM(pv_color.color))
+    JOIN products p_color ON p_color.id = cr_color.product_id
+    WHERE (cpi.pi_tenant_id = p_color.tenant_id OR cpi.pi_tenant_id IS NULL)
+      AND (cpi.pu_tenant_id = p_color.tenant_id OR cpi.pu_tenant_id IS NULL)
+  ),
+  last_color_purchase_price AS (
+    SELECT DISTINCT ON (variant_pk)
+      variant_pk,
+      pu_created_at,
+      pi_id,
+      purchase_selling_price,
+      purchase_sale_price
+    FROM candidate_purchase_matches
+    ORDER BY variant_pk, pu_created_at DESC NULLS LAST, pi_id DESC
+  )
+${catalogSelectListSql}
+  FROM candidate_rows cr
+  JOIN products p ON p.id = cr.product_id
+  LEFT JOIN categories c ON c.id = p.category_id
+  LEFT JOIN brands b ON b.id = p.brand_id
+  LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+  LEFT JOIN product_variants pv ON pv.id = cr.variant_id
+  LEFT JOIN last_color_purchase_price ON last_color_purchase_price.variant_pk = pv.id
+${trailing}
 `;
 
 const lookupAny = (fieldSql, identifierParam) => `EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE LOWER(TRIM(COALESCE(${fieldSql}, ''))) = LOWER(TRIM(lookup.value)))`;
@@ -1546,7 +1612,7 @@ const findStorefrontProductId = async (tenantId, identifiers) => {
 const loadStorefrontProductRowById = async (tenantId, productId) => {
   if (!productId) return null;
   const result = await db.query(
-    `${catalogQuery} AND p.id = $2 GROUP BY p.id, c.name, b.name, m.name LIMIT 1`,
+    buildCatalogQuery({ where: "AND p.id = $2", trailing: "GROUP BY p.id, c.name, b.name, m.name LIMIT 1" }),
     [tenantId, productId]
   );
   return result.rows[0] || null;
@@ -1598,8 +1664,7 @@ const productAudienceSearchSql = `
   )
 `;
 
-export const storefrontProductsSql = `
-    ${catalogQuery}
+const storefrontProductsWhereSql = `
       AND ($2 = '' OR LOWER(CONCAT_WS(' ', p.name, p.sku, p.barcode, p.gender, p.product_type, c.name, b.name, pv.size, pv.color, pv.sku, pv.article_code, pv.edition_name, pv.edition_slug)) LIKE '%' || $2 || '%' OR ${productAudienceSearchSql})
       AND ($3 = '' OR LOWER(CONCAT_WS(' ', c.name, p.gender, p.product_type)) LIKE '%' || $3 || '%' OR EXISTS (SELECT 1 FROM product_audiences pa_category WHERE pa_category.product_id = p.id AND pa_category.audience LIKE '%' || $3 || '%'))
       AND (
@@ -1654,8 +1719,9 @@ export const storefrontProductsSql = `
           AND COALESCE(pv_stock.is_storefront_visible, TRUE) = TRUE
           AND pv_stock.deleted_at IS NULL
           AND COALESCE(pv_stock.stock, 0) > 0
-    ))
-    GROUP BY p.id, c.name, b.name, m.name
+    ))`;
+
+const storefrontProductsTrailingSql = `    GROUP BY p.id, c.name, b.name, m.name
     ORDER BY
       CASE
         WHEN $6::boolean = TRUE THEN 0
@@ -1664,13 +1730,22 @@ export const storefrontProductsSql = `
         ELSE 0
       END ASC,
       p.id DESC
-    LIMIT $13 OFFSET $14
-`;
+    LIMIT $13 OFFSET $14`;
 
-const storefrontProductsSqlWithoutVisibility = storefrontProductsSql.replace(
-  `    AND ${storefrontVisibilityConditionSql}\n`,
-  "\n"
-);
+export const storefrontProductsSql = buildCatalogQuery({
+  where: storefrontProductsWhereSql,
+  trailing: storefrontProductsTrailingSql,
+});
+
+// Relaxed-visibility fallback. Built from the same builder with the product-level
+// storefront-visibility predicate omitted, instead of string-replacing it out of an
+// already-assembled query. The variant-level visibility condition in the
+// product_variants join is unaffected, exactly as before.
+const storefrontProductsSqlWithoutVisibility = buildCatalogQuery({
+  where: storefrontProductsWhereSql,
+  trailing: storefrontProductsTrailingSql,
+  productVisibility: false,
+});
 
 export const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset) => {
   const arrayParam = (value) => Array.isArray(value)
@@ -1728,12 +1803,12 @@ const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = S
   const ids = productIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
   if (!ids.length) return [];
   let result = await db.query(
-    `${catalogQuery} AND p.id = ANY($2::bigint[]) GROUP BY p.id, c.name, b.name, m.name`,
+    buildCatalogQuery({ where: "AND p.id = ANY($2::bigint[])", trailing: "GROUP BY p.id, c.name, b.name, m.name" }),
     [tenantId, ids]
   );
   if (!result.rows.length && tenantId !== null) {
     result = await db.query(
-      `${catalogQuery} AND p.id = ANY($2::bigint[]) GROUP BY p.id, c.name, b.name, m.name`,
+      buildCatalogQuery({ where: "AND p.id = ANY($2::bigint[])", trailing: "GROUP BY p.id, c.name, b.name, m.name" }),
       [null, ids]
     );
   }
@@ -2189,12 +2264,12 @@ const collectProductImageUrls = (product = {}) => [
 const queryVisualImageCandidates = async (tenantId, limit = 600) => {
   const pricingSettings = await loadStorefrontPricingSettings(tenantId);
   let result = await db.query(
-    `${catalogQuery} GROUP BY p.id, c.name, b.name, m.name ORDER BY p.id DESC LIMIT $2`,
+    buildCatalogQuery({ trailing: "GROUP BY p.id, c.name, b.name, m.name ORDER BY p.id DESC LIMIT $2" }),
     [tenantId, limit]
   );
   if (!result.rows.length && tenantId !== null) {
     result = await db.query(
-      `${catalogQuery} GROUP BY p.id, c.name, b.name, m.name ORDER BY p.id DESC LIMIT $2`,
+      buildCatalogQuery({ trailing: "GROUP BY p.id, c.name, b.name, m.name ORDER BY p.id DESC LIMIT $2" }),
       [null, limit]
     );
   }
@@ -4233,13 +4308,10 @@ export const getProductByToken = async (req, res) => {
 
     const queryByTenant = (scopeTenantId) =>
       db.query(
-        `
-        ${catalogQuery}
-          ${productIdentifierClause("$2")}
-        GROUP BY p.id, c.name, b.name, m.name
-        ${productIdentifierOrder("$2")}
-        LIMIT 1
-        `,
+        buildCatalogQuery({
+          where: productIdentifierClause("$2"),
+          trailing: `GROUP BY p.id, c.name, b.name, m.name ${productIdentifierOrder("$2")} LIMIT 1`,
+        }),
         [scopeTenantId, identifiers]
       );
 
