@@ -49,8 +49,16 @@ html[data-theme="light"] .inventory-approvals-page .manager-inventory-stat[data-
   border-color: var(--border);
 }
 
-.manager-portal-shell .manager-portal-hero {
+/* The hero is a branded dark topbar (light text) in BOTH light and dark.
+   It carries a legacy `bg-slate-950` utility that the global
+   `html[data-theme] .bg-slate-950 { background: var(--bg) }` rule (specificity
+   0,2,1) was force-lighting in light mode — leaving light text on a light
+   background (invisible). Raise specificity to (0,3,1) with a leading
+   `html[data-theme]` so the topbar wins, and exclude the mobile portal which
+   has its own intentional dark treatment (.manager-portal-mobile-dark). */
+html[data-theme] .manager-portal-shell:not(.manager-portal-mobile-dark) .manager-portal-hero {
   background: var(--topbar) !important;
+  background-image: none !important;
   border-color: color-mix(in srgb, var(--topbar-text) 16%, transparent) !important;
   color: var(--topbar-text) !important;
 }
