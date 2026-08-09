@@ -1123,17 +1123,27 @@ const storefrontBrandMatchSql = (fieldSql = "p.name", param = "$4") => {
 
 // Second-level normalize_products diagnostics. Aggregate totals only, no per-product
 // logging and no ids/names/prices/URLs. Inert unless STOREFRONT_PERF_DIAGNOSTICS=1.
-const npMetrics = { on: false, calls: 0, variants: 0, maxVariants: 0, maxCallMs: 0, json_ms: 0, pricing_ms: 0, audience_ms: 0, variants_ms: 0 };
+const npMetrics = { on: false, calls: 0, variants: 0, maxVariants: 0, maxCallMs: 0, json_ms: 0, pricing_ms: 0, audience_ms: 0, variants_ms: 0, derive_ms: 0, build_ms: 0 };
 export const npMetricsReset = (on) => {
   npMetrics.on = Boolean(on);
   npMetrics.calls = 0; npMetrics.variants = 0; npMetrics.maxVariants = 0; npMetrics.maxCallMs = 0;
   npMetrics.json_ms = 0; npMetrics.pricing_ms = 0; npMetrics.audience_ms = 0; npMetrics.variants_ms = 0;
+  npMetrics.derive_ms = 0; npMetrics.build_ms = 0;
 };
 export const npMetricsSnapshot = () => ({ ...npMetrics });
 const npTime = (bucket, fn) => {
   if (!npMetrics.on) return fn();
   const s = process.hrtime.bigint();
   try { return fn(); } finally { npMetrics[bucket] += Number(process.hrtime.bigint() - s) / 1e6; }
+};
+// Closure-free variants of the above, used inside the per-variant loop so the
+// disabled path allocates nothing at all: npStamp returns null without reading the
+// clock and npAdd then does no work. Buckets are nested inside variants_ms, so they
+// are reported as metadata and never summed into accounted_ms.
+const npStamp = () => (npMetrics.on ? process.hrtime.bigint() : null);
+const npAdd = (bucket, start) => {
+  if (start === null) return;
+  npMetrics[bucket] += Number(process.hrtime.bigint() - start) / 1e6;
 };
 
 const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
@@ -1158,6 +1168,7 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   const variants = npTime("variants_ms", () => npTime("json_ms", () => parseJsonArray(row.variants)).map((variant) => {
     const variantPublicPrice = npTime("pricing_ms", () => resolveCustomerFacingDisplayPrice(row, variant, pricingSettings));
     const variantResolvedSellingPrice = npTime("pricing_ms", () => resolveCurrentSellingPrice({ product: row, variant })).value;
+    const npDeriveStart = npStamp();
     const variantSellingPrice = roundMoney(variantResolvedSellingPrice || variantPublicPrice.selling_price || variant.selling_price || variant.price || rowSellingPrice);
     const variantOriginalCandidates = [
       variant.original_price,
@@ -1169,20 +1180,36 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     ].map(roundMoney).filter((value) => value > 0);
     const variantOriginalPrice = variantOriginalCandidates.find((value) => value > variantSellingPrice) || rowOriginalPrice || variantOriginalCandidates[0] || 0;
     const variantSalePrice = roundMoney(variantPublicPrice.sale_price || variant.sale_price || rowSalePrice);
+    npAdd("derive_ms", npDeriveStart);
     const resolvedPrice = npTime("pricing_ms", () => resolveStorefrontActivePrice({
       originalPrice: variantOriginalPrice,
       sellingPrice: variantSellingPrice,
       salePrice: variantSalePrice,
       pricingSettings,
     }));
+    const npDeriveResume = npStamp();
     const currentPrice = resolvedPrice.activePrice;
     const variantCompareAtPrice = resolvedPrice.compareAtPrice;
-    return {
+    // Hoisted verbatim out of the object literal below so that derivation helpers are
+    // attributed to derive_ms and build_ms measures only object construction. Every
+    // expression is pure and independent, so the emitted object is byte-for-byte the
+    // same as before, including key order.
+    const variantEditionName = firstText(variant.edition_name);
+    const variantEditionSlug = firstText(variant.edition_slug, slugifyEdition(variant.edition_name));
+    const variantImageUrl = firstText(variant.image_url, productImage);
+    const variantPurchaseSalePrice = roundMoney(variant.purchase_sale_price);
+    const variantPurchaseInvoiceSalePrice = roundMoney(variant.purchase_invoice_sale_price ?? variant.purchase_sale_price);
+    const variantPurchaseInvoiceSellingPrice = roundMoney(variant.purchase_invoice_selling_price);
+    const variantLastPieceSalePrice = roundMoney(variant.last_piece_sale_price ?? variant.purchase_sale_price);
+    const variantStock = Math.max(0, toNumber(variant.stock));
+    npAdd("derive_ms", npDeriveResume);
+    const npBuildStart = npStamp();
+    const normalizedVariant = {
       ...variant,
       id: variant.id,
-      edition_name: firstText(variant.edition_name),
-      edition_slug: firstText(variant.edition_slug, slugifyEdition(variant.edition_name)),
-      image_url: firstText(variant.image_url, productImage),
+      edition_name: variantEditionName,
+      edition_slug: variantEditionSlug,
+      image_url: variantImageUrl,
       original_price: variantOriginalPrice,
       base_price: variantOriginalPrice,
       list_price: variantOriginalPrice,
@@ -1193,10 +1220,10 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       regular_price: variantOriginalPrice,
       price: currentPrice || variantSellingPrice,
       sale_price: variantSalePrice,
-      purchase_sale_price: roundMoney(variant.purchase_sale_price),
-      purchase_invoice_sale_price: roundMoney(variant.purchase_invoice_sale_price ?? variant.purchase_sale_price),
-      purchase_invoice_selling_price: roundMoney(variant.purchase_invoice_selling_price),
-      last_piece_sale_price: roundMoney(variant.last_piece_sale_price ?? variant.purchase_sale_price),
+      purchase_sale_price: variantPurchaseSalePrice,
+      purchase_invoice_sale_price: variantPurchaseInvoiceSalePrice,
+      purchase_invoice_selling_price: variantPurchaseInvoiceSellingPrice,
+      last_piece_sale_price: variantLastPieceSalePrice,
       final_price: currentPrice || variantSellingPrice,
       sale_price_enabled: resolvedPrice.saleActive,
       sale_prices_enabled: resolvedPrice.saleModeOn,
@@ -1207,8 +1234,10 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       sale_mode_applied: resolvedPrice.saleActive,
       compare_at_price: variantCompareAtPrice,
       old_price: variantCompareAtPrice,
-      stock: Math.max(0, toNumber(variant.stock)),
+      stock: variantStock,
     };
+    npAdd("build_ms", npBuildStart);
+    return normalizedVariant;
   }));
   const totalStock = variants.length
     ? Math.max(variants.reduce((sum, variant) => sum + toNumber(variant.stock), 0), toNumber(row.variant_total_stock))
@@ -3216,6 +3245,8 @@ export const listProducts = async (req, res) => {
         perf.count("np_pricing_ms", Number(np.pricing_ms.toFixed(1)));
         perf.count("np_audience_ms", Number(np.audience_ms.toFixed(1)));
         perf.count("np_variants_ms", Number(np.variants_ms.toFixed(1)));
+        perf.count("np_derive_ms", Number(np.derive_ms.toFixed(1)));
+        perf.count("np_build_ms", Number(np.build_ms.toFixed(1)));
         perf.count("np_max_call_ms", Number(np.maxCallMs.toFixed(1)));
         let totalVariants = 0;
         let maxVariants = 0;
