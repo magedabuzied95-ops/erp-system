@@ -392,16 +392,6 @@ const resolveCustomerFacingDisplayPrice = (product = {}, variant = {}, pricingSe
   const selected_price_source = saleApplied || (selling <= 0 && sale > 0) ? "sale_price" : "selling_price";
   const wholesale_price = roundMoney(variant.wholesale_price ?? product.wholesale_price ?? variant.purchase_price ?? product.purchase_price ?? variant.average_cost ?? product.average_cost ?? variant.last_purchase_price ?? product.last_purchase_price ?? 0);
   const cost_price = roundMoney(variant.cost_price ?? product.cost_price ?? 0);
-  console.log("[ai-price-source]", {
-    product_id: product.id || product.product_id || null,
-    variant_id: variant.id || variant.variant_id || null,
-    selling_price: selling,
-    sale_price: sale,
-    wholesale_price,
-    cost_price,
-    selected_display_price,
-    selected_price_source,
-  });
   return { selected_display_price, selected_price_source, selling_price: selling, sale_price: sale, wholesale_price, cost_price };
 };
 
