@@ -49,6 +49,12 @@ test("AI Inbox hides regression fixtures without deleting production data", () =
   assert.match(serviceSource, /NOT EXISTS \(/);
 });
 
+test("Messenger message fragments cannot override the stored account name", () => {
+  assert.match(serviceSource, /readableSystemCustomerName/);
+  assert.match(serviceSource, /isHumanReadableDisplayName\(systemCustomer\.name/);
+  assert.match(serviceSource, /const customerName = readableSystemCustomerName \|\|/);
+});
+
 test("AI Inbox PWA renders direct-message channels with their brand icons", () => {
   assert.match(pwaSource, /key === "whatsapp"\) return \{ label: "WhatsApp", icon: FaWhatsapp/);
   assert.match(pwaSource, /key === "instagram" \? "Instagram DM"/);

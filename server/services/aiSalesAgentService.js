@@ -2400,7 +2400,15 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       sessionId: canonicalSessionId,
       externalConversationId: conversation.external_conversation_id,
     }));
-    const customerName = systemCustomer?.name || (isCommentThread
+    const readableSystemCustomerName = !systemCustomer?.name
+      ? ""
+      : isMessengerConversationChannel(channel)
+        ? (isHumanReadableDisplayName(systemCustomer.name, {
+            sessionId: canonicalSessionId,
+            externalConversationId: conversation.external_conversation_id,
+          }) ? systemCustomer.name : "")
+        : systemCustomer.name;
+    const customerName = readableSystemCustomerName || (isCommentThread
       ? text(readableCommenterName || "مستخدم فيسبوك")
       : resolveConversationDisplayName({
           conversation,
@@ -2486,7 +2494,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         closed_at: conversation.closed_at,
         customer_name: customerName,
         erp_customer_id: systemCustomer?.id || null,
-        erp_customer_name: systemCustomer?.name || "",
+        erp_customer_name: readableSystemCustomerName,
         customer_avatar_url: customerAvatarUrl,
         commenter_name: latestCommenterName || customerName,
         commenter_profile_picture_url: latestCommenterAvatarUrl,
