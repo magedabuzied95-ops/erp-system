@@ -125,7 +125,13 @@ test("the timer brackets only the audience filter, and the filter itself is unch
 
   // Filtering semantics are byte-identical to the pre-probe implementation.
   assert.match(queryFn, /const selectedAudiences = Array\.isArray\(filters\.gender\) \? filters\.gender : \[\];/);
-  assert.match(queryFn, /const variantAudiences = normalizeProductAudiences\(variant\?\.audiences, String\(variant\?\.audience \|\| ""\)\.split\(","\)\);/);
+  // The predicate now resolves audiences through the per-invocation memo, so pin the
+  // memo's inputs instead of the old inline call: both arguments must still reach
+  // normalizeProductAudiences exactly as before.
+  assert.match(queryFn, /const variantAudiences = normalizeVariantAudiences\(variant\);/);
+  assert.match(queryFn, /const rawList = variant\?\.audiences;/);
+  assert.match(queryFn, /const rawText = String\(variant\?\.audience \|\| ""\);/);
+  assert.match(queryFn, /normalized = normalizeProductAudiences\(rawList, rawText\.split\(","\)\);/);
   assert.match(queryFn, /return variantAudiences\.length === 0 \|\| variantAudiences\.some\(\(audience\) => selectedAudiences\.includes\(audience\)\);/);
   assert.match(queryFn, /const matchedImage = scopedVariants\.find\(\(variant\) => String\(variant\?\.image_url \|\| ""\)\.trim\(\)\)\?\.image_url \|\| "";/);
   assert.match(queryFn, /\.\.\.\(matchedImage \? \{ public_image_url: matchedImage \} : \{\}\),/);

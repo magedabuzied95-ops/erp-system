@@ -428,11 +428,17 @@ const flattenAudienceInput = (value) => {
   if (typeof value === "string") {
     const text = value.trim();
     if (!text) return [];
-    try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) return flattenAudienceInput(parsed);
-    } catch {
-      // Accept comma-separated strings below.
+    // Only a JSON array can change the outcome here. JSON.parse of anything else
+    // either throws or returns a non-array, and both of those already fall through
+    // to the separator split below. Skipping the attempt for inputs that cannot be
+    // a JSON array removes a thrown exception per token without altering any result.
+    if (text.charCodeAt(0) === 91 /* "[" */) {
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return flattenAudienceInput(parsed);
+      } catch {
+        // Accept comma-separated strings below.
+      }
     }
     return text.split(/[,\n|]+/);
   }
@@ -1776,10 +1782,27 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
     if (diagnostics) diagnostics.audience_postfilter_ms = 0;
     if (selectedAudiences.length > 0) {
       const audienceStart = diagnostics ? process.hrtime.bigint() : null;
+      // Per-invocation memo, discarded when this call returns: no module-level cache
+      // and nothing retained between requests. The key encodes BOTH arguments that
+      // reach normalizeProductAudiences, so it is complete for any caller regardless
+      // of how the supplied SQL projects `audiences`. Production carries only 15
+      // distinct audience representations across every storefront-visible variant.
+      const audienceMemo = new Map();
+      const normalizeVariantAudiences = (variant) => {
+        const rawList = variant?.audiences;
+        const rawText = String(variant?.audience || "");
+        const key = `${Array.isArray(rawList) ? rawList.join("\u0000") : String(rawList ?? "")}\u0001${rawText}`;
+        let normalized = audienceMemo.get(key);
+        if (normalized === undefined) {
+          normalized = normalizeProductAudiences(rawList, rawText.split(","));
+          audienceMemo.set(key, normalized);
+        }
+        return normalized;
+      };
       result.rows = result.rows.map((row) => {
         const variants = Array.isArray(row.variants) ? row.variants : [];
         const scopedVariants = variants.filter((variant) => {
-          const variantAudiences = normalizeProductAudiences(variant?.audiences, String(variant?.audience || "").split(","));
+          const variantAudiences = normalizeVariantAudiences(variant);
           return variantAudiences.length === 0 || variantAudiences.some((audience) => selectedAudiences.includes(audience));
         });
         const matchedImage = scopedVariants.find((variant) => String(variant?.image_url || "").trim())?.image_url || "";
