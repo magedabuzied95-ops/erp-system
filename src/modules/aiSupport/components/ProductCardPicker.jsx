@@ -4,9 +4,13 @@ import { CheckCircle2, Eye, EyeOff, Loader2, Search, ShoppingBag, SlidersHorizon
 
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
+import { useProductClassifications } from "../../products/hooks/useProductClassifications";
+import { classificationGroupsToFieldOptions, normalizeCanonicalProductType } from "../../products/lib/productClassifications";
+import { matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
 import "../../pos/pages/POSPro.m1.css";
 import { useTheme } from "../../../theme/useTheme";
 
@@ -96,16 +100,7 @@ const productSizes = (product = {}, color = "") => {
   return uniqueSizeValues(variants.map((variant) => variant.size || variant.size_name || variant.variant_size));
 };
 
-const productGenderValues = (product = {}) =>
-  uniqueTextValues([
-    product.gender,
-    product.genders,
-    product.audience,
-    product.audiences,
-    product.product_audience,
-    product.product_audiences,
-    ...asArray(product.variants).flatMap((variant) => [variant.gender, variant.genders, variant.audience, variant.audiences]),
-  ]);
+const productGenderValues = (product = {}) => getProductAudienceValues(product);
 
 const productTypeValues = (product = {}) =>
   uniqueTextValues([
@@ -125,15 +120,58 @@ const productTypeValues = (product = {}) =>
     ]),
   ]);
 
-const productGradeValues = (product = {}) => uniqueTextValues([product.grade, product.product_grade, product.quality_grade, ...asArray(product.variants).map((variant) => variant.grade || variant.product_grade)]);
-const productManufacturerValues = (product = {}) => uniqueTextValues([product.manufacturer_id, product.manufacturer, product.manufacturer_name]);
 const productStock = (product = {}) => asArray(product.variants).reduce((sum, variant) => sum + Math.max(0, Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? 0) || 0), 0) || Math.max(0, Number(product.total_stock ?? product.stock ?? product.available_stock ?? 0) || 0);
-const optionRows = (values = []) => {
-  const counts = new Map();
-  values.map(clean).filter(Boolean).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
-  return [...counts.entries()]
-    .sort(([left], [right]) => left.localeCompare(right, "ar"))
-    .map(([value, count]) => ({ id: value, name: value, count }));
+const normalizeSmartText = (value = "") => String(value ?? "").normalize("NFKD").toLowerCase().trim();
+const normalizeFilterValue = (value = "") => String(value || "").trim().toLowerCase().replace(/&/g, "and").replace(/[\s-]+/g, "_");
+const normalizeAudienceValue = (value = "") => {
+  const normalized = normalizeFilterValue(value);
+  if (["men", "man", "male"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls"].includes(normalized)) return "kids";
+  return normalized;
+};
+
+const resolveSmartFilterMatch = (value, options = []) => {
+  const normalized = normalizeFilterValue(value);
+  if (!normalized) return "";
+  const match = asArray(options).find((option) =>
+    [option?.value, option?.id, option?.name, option?.label, option?.label_ar, option?.label_en]
+      .map(normalizeFilterValue)
+      .filter(Boolean)
+      .includes(normalized)
+  );
+  return normalizeFilterValue(match?.value || match?.id || normalized);
+};
+
+const getProductSmartFilterValue = (product = {}, field, options = []) => {
+  const firstVariant = asArray(product.variants)[0] || {};
+  if (field === "gender") return productGenderValues(product)[0] || resolveSmartFilterMatch(product.gender || firstVariant.gender, options);
+  const values = field === "productType"
+    ? [product.product_type, product.productType, product.type, firstVariant.product_type, firstVariant.productType, firstVariant.type]
+    : [product.grade, product.product_grade, product.quality_grade, firstVariant.grade, firstVariant.product_grade];
+  const rawValue = values.find((value) => clean(value));
+  return field === "productType" ? normalizeCanonicalProductType(rawValue) : resolveSmartFilterMatch(rawValue, options);
+};
+
+const productBrandKey = (product = {}) => product.brand_id
+  ? String(product.brand_id)
+  : clean(product.brand || product.brand_name)
+    ? `name:${normalizeSmartText(product.brand || product.brand_name)}`
+    : "";
+
+const productManufacturerMeta = (product = {}) => {
+  const variants = asArray(product.variants);
+  const ids = new Set([
+    product.manufacturer_id,
+    product.variant_manufacturer_id,
+    ...variants.flatMap((variant) => [variant.manufacturer_id, variant.variant_manufacturer_id]),
+  ].map((value) => clean(value)).filter(Boolean));
+  const names = uniqueTextValues([
+    product.manufacturer,
+    product.manufacturer_name,
+    ...variants.flatMap((variant) => [variant.manufacturer, variant.manufacturer_name]),
+  ]).map(normalizeSmartText);
+  return { ids, names };
 };
 
 const productTypeIcon = (value = "") => {
@@ -143,14 +181,6 @@ const productTypeIcon = (value = "") => {
   if (key.includes("sneaker") || key.includes("shoe") || key.includes("حذاء")) return "👟";
   if (key.includes("boot")) return "🥾";
   return "📦";
-};
-
-const toggleMultiFilter = (setter, value) => {
-  setter((current) => {
-    if (value === "all") return [];
-    const normalized = String(value);
-    return current.includes(normalized) ? current.filter((item) => item !== normalized) : [...current, normalized];
-  });
 };
 
 const buildAvailableBySizeUrl = ({
@@ -330,14 +360,15 @@ const matchesQuery = (product = {}, query = "") => {
 
 export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, mode = "" }) {
   const { theme } = useTheme();
+  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [brand, setBrand] = useState([]);
-  const [category, setCategory] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftPosFilters, setDraftPosFilters] = useState(null);
   const [gender, setGender] = useState([]);
   const [productType, setProductType] = useState("all");
   const [grade, setGrade] = useState("all");
@@ -392,23 +423,51 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     };
   }, [open]);
 
-  const filteredProducts = useMemo(() => {
-    const searchValue = clean(search);
-    return products.filter((product) => {
-      if (brand.length && !brand.map(lower).includes(lower(product.brand || product.brand_name))) return false;
-      if (category !== "all" && lower(product.category || product.category_name) !== lower(category)) return false;
-      if (gender.length && !gender.some((value) => productGenderValues(product).map(lower).includes(lower(value)))) return false;
-      if (productType !== "all" && !productTypeValues(product).map(lower).includes(lower(productType))) return false;
-      if (grade !== "all" && !productGradeValues(product).map(lower).includes(lower(grade))) return false;
-      if (manufacturer.length && !manufacturer.some((value) => productManufacturerValues(product).map(lower).includes(lower(value)))) return false;
-      if (filterColor !== "all" && !productColors(product).map(lower).includes(lower(filterColor))) return false;
-      if (filterSize !== "all" && !productSizes(product).map(lower).includes(lower(filterSize))) return false;
-      if (stockFilter === "in_stock" && productStock(product) <= 0) return false;
-      if (stockFilter === "out_of_stock" && productStock(product) > 0) return false;
-      if (!matchesQuery(product, searchValue)) return false;
-      return true;
-    });
-  }, [brand, category, filterColor, filterSize, gender, grade, manufacturer, productType, products, search, stockFilter]);
+  const smartClassificationOptions = useMemo(
+    () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false, includeCurrentValue: false }),
+    [classificationGroups]
+  );
+
+  const smartProductRows = useMemo(() => products.map((product) => {
+    const manufacturerMeta = productManufacturerMeta(product);
+    return {
+      product,
+      audienceKeys: productGenderValues(product),
+      productType: getProductSmartFilterValue(product, "productType", smartClassificationOptions.productType),
+      grade: getProductSmartFilterValue(product, "grade", smartClassificationOptions.grade),
+      brandKey: productBrandKey(product),
+      manufacturerIds: manufacturerMeta.ids,
+      manufacturerNames: manufacturerMeta.names,
+    };
+  }), [products, smartClassificationOptions]);
+
+  const smartFilterSource = useMemo(() => smartProductRows.filter(({ product }) => {
+    if (stockFilter === "in_stock" && productStock(product) <= 0) return false;
+    if (stockFilter === "out_of_stock" && productStock(product) > 0) return false;
+    return matchesQuery(product, search);
+  }), [search, smartProductRows, stockFilter]);
+
+  const filteredProducts = useMemo(() => smartFilterSource.filter((row) => {
+    const matchesQuickFilters = matchesQuickFilterGroups(
+      {
+        audienceKeys: row.audienceKeys,
+        brandKey: row.brandKey,
+        manufacturerIds: row.manufacturerIds,
+        manufacturerNames: row.manufacturerNames,
+      },
+      {
+        genders: normalizeMultiFilterValue(gender).map(normalizeAudienceValue),
+        brands: brand,
+        manufacturers: manufacturer,
+      },
+      normalizeSmartText
+    );
+    const matchesProductType = productType === "all" || row.productType === normalizeFilterValue(productType);
+    const matchesGrade = grade === "all" || row.grade === normalizeFilterValue(grade);
+    if (filterColor !== "all" && !productColors(row.product).map(lower).includes(lower(filterColor))) return false;
+    if (filterSize !== "all" && !productSizes(row.product).map(lower).includes(lower(filterSize))) return false;
+    return matchesQuickFilters && matchesProductType && matchesGrade;
+  }).map(({ product }) => product), [brand, filterColor, filterSize, gender, grade, manufacturer, productType, smartFilterSource]);
 
   const sizeLinkFilteredProducts = useMemo(() => {
     if (!sizeMode) return [];
@@ -468,15 +527,68 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const visibleSizeCardKeySet = useMemo(() => new Set(visibleSizeCards.map((card) => card.key)), [visibleSizeCards]);
   const selectedSizeCardKeySet = useMemo(() => new Set(selectedSizeCards.map((card) => card.key)), [selectedSizeCards]);
 
+  const posGenderOptions = useMemo(() => smartClassificationOptions.gender.map((option) => {
+    const id = normalizeAudienceValue(option.value || option.id);
+    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: smartFilterSource.filter((row) => row.audienceKeys.includes(id)).length };
+  }), [smartClassificationOptions.gender, smartFilterSource]);
+  const posTypeOptions = useMemo(() => moveWinterCollectionToEnd(smartClassificationOptions.productType.map((option) => {
+    const id = normalizeFilterValue(option.value || option.id);
+    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: smartFilterSource.filter((row) => row.productType === id).length };
+  })), [smartClassificationOptions.productType, smartFilterSource]);
+  const posGradeOptions = useMemo(() => smartClassificationOptions.grade.map((option) => {
+    const id = normalizeFilterValue(option.value || option.id);
+    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: smartFilterSource.filter((row) => row.grade === id).length };
+  }), [smartClassificationOptions.grade, smartFilterSource]);
+  const posBrandOptions = useMemo(() => {
+    const map = new Map();
+    smartFilterSource.forEach(({ product, brandKey }) => {
+      const name = clean(product.brand_name || product.brand);
+      if (!name || lower(name) === "unbranded") return;
+      const current = map.get(brandKey) || { id: brandKey, name, count: 0 };
+      current.count += 1;
+      map.set(brandKey, current);
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  }, [smartFilterSource]);
+  const posManufacturerOptions = useMemo(() => {
+    const map = new Map();
+    smartFilterSource.forEach((row) => {
+      row.manufacturerIds.forEach((id) => {
+        const name = clean(row.product.manufacturer_name || row.product.manufacturer || id);
+        if (!map.has(id)) map.set(id, { id, name });
+      });
+      row.manufacturerNames.forEach((normalizedName) => {
+        const id = `name:${normalizedName}`;
+        if (!map.has(id)) map.set(id, { id, name: clean(row.product.manufacturer_name || row.product.manufacturer || normalizedName) });
+      });
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  }, [smartFilterSource]);
   const brandOptions = useMemo(() => uniqueTextValues(products.map((product) => product.brand || product.brand_name)), [products]);
-  const categoryOptions = useMemo(() => uniqueTextValues(products.map((product) => product.category || product.category_name)), [products]);
-  const posBrandOptions = useMemo(() => optionRows(brandOptions), [brandOptions]);
-  const posGenderOptions = useMemo(() => optionRows(products.flatMap((product) => productGenderValues(product))), [products]);
-  const posTypeOptions = useMemo(() => optionRows(products.flatMap((product) => productTypeValues(product))), [products]);
-  const posGradeOptions = useMemo(() => optionRows(products.flatMap((product) => productGradeValues(product))), [products]);
-  const posManufacturerOptions = useMemo(() => optionRows(products.flatMap((product) => productManufacturerValues(product))), [products]);
   const activeFilterCount = brand.length + gender.length + manufacturer.length + [productType, grade].filter((value) => value !== "all").length;
-  const resetPosFilters = useCallback(() => { setBrand([]); setGender([]); setProductType("all"); setGrade("all"); setManufacturer([]); }, []);
+  const openPosFilters = useCallback(() => {
+    setDraftPosFilters({ gender: [...gender], productType, grade, brands: [...brand], manufacturers: [...manufacturer] });
+    setFiltersOpen(true);
+  }, [brand, gender, grade, manufacturer, productType]);
+  const updateDraftMultiFilter = useCallback((field, value) => {
+    setDraftPosFilters((current) => ({ ...(current || {}), [field]: toggleMultiFilterValue(current?.[field] || [], value) }));
+  }, []);
+  const updateDraftSingleFilter = useCallback((field, value) => {
+    setDraftPosFilters((current) => ({ ...(current || {}), [field]: value }));
+  }, []);
+  const resetPosFilters = useCallback(() => {
+    setDraftPosFilters({ gender: [], productType: "all", grade: "all", brands: [], manufacturers: [] });
+  }, []);
+  const applyPosFilters = useCallback(() => {
+    if (draftPosFilters) {
+      setGender(normalizeMultiFilterValue(draftPosFilters.gender));
+      setProductType(draftPosFilters.productType || "all");
+      setGrade(draftPosFilters.grade || "all");
+      setBrand(normalizeMultiFilterValue(draftPosFilters.brands));
+      setManufacturer(normalizeMultiFilterValue(draftPosFilters.manufacturers));
+    }
+    setFiltersOpen(false);
+  }, [draftPosFilters]);
   const typeOptions = useMemo(() => uniqueTextValues(products.flatMap((product) => productTypeValues(product))), [products]);
   const genderOptions = useMemo(() => ["all", "men", "women", "kids"], []);
 
@@ -926,19 +1038,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               />
             </label>
 
-            <div className="grid gap-2">
-              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Category</span>
-                <select value={category} onChange={(event) => setCategory(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
-                  <option value="all">الكل</option>
-                  {categoryOptions.map((item) => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <button type="button" onClick={() => setFiltersOpen(true)} className="ai-pwa-pos-filter-trigger inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-black transition">
+            <button type="button" onClick={openPosFilters} className="ai-pwa-pos-filter-trigger inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-black transition">
               <SlidersHorizontal className="h-4 w-4" />
               فلاتر POS الذكية
               {activeFilterCount ? <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] text-emerald-950">{activeFilterCount}</span> : null}
@@ -1248,20 +1348,20 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       <SmartPosFilters
         open={filtersOpen}
         smartFilterOptions={{ gender: posGenderOptions, productType: posTypeOptions, grade: posGradeOptions }}
-        selectedGender={gender}
-        onGenderChange={(value) => toggleMultiFilter(setGender, value)}
-        selectedProductType={productType}
-        onProductTypeChange={setProductType}
-        selectedGrade={grade}
-        onGradeChange={setGrade}
+        selectedGender={draftPosFilters?.gender ?? gender}
+        onGenderChange={(value) => updateDraftMultiFilter("gender", value)}
+        selectedProductType={draftPosFilters?.productType ?? productType}
+        onProductTypeChange={(value) => updateDraftSingleFilter("productType", value)}
+        selectedGrade={draftPosFilters?.grade ?? grade}
+        onGradeChange={(value) => updateDraftSingleFilter("grade", value)}
         brandOptions={posBrandOptions}
-        selectedBrandId={brand}
-        onBrandChange={(value) => toggleMultiFilter(setBrand, value)}
+        selectedBrandId={draftPosFilters?.brands ?? brand}
+        onBrandChange={(value) => updateDraftMultiFilter("brands", value)}
         manufacturerOptions={posManufacturerOptions}
-        selectedManufacturerId={manufacturer}
-        onManufacturerChange={(value) => toggleMultiFilter(setManufacturer, value)}
+        selectedManufacturerId={draftPosFilters?.manufacturers ?? manufacturer}
+        onManufacturerChange={(value) => updateDraftMultiFilter("manufacturers", value)}
         activeSmartFilterCount={activeFilterCount}
-        onApply={() => setFiltersOpen(false)}
+        onApply={applyPosFilters}
         onReset={resetPosFilters}
         onClose={() => setFiltersOpen(false)}
       />
