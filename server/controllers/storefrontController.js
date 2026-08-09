@@ -1125,7 +1125,24 @@ const storefrontBrandMatchSql = (fieldSql = "p.name", param = "$4") => {
   return `CASE ${cases} ELSE '' END = LOWER(TRIM(${param}))`;
 };
 
+// Second-level normalize_products diagnostics. Aggregate totals only, no per-product
+// logging and no ids/names/prices/URLs. Inert unless STOREFRONT_PERF_DIAGNOSTICS=1.
+const npMetrics = { on: false, calls: 0, variants: 0, maxVariants: 0, maxCallMs: 0, json_ms: 0, pricing_ms: 0, audience_ms: 0, variants_ms: 0 };
+export const npMetricsReset = (on) => {
+  npMetrics.on = Boolean(on);
+  npMetrics.calls = 0; npMetrics.variants = 0; npMetrics.maxVariants = 0; npMetrics.maxCallMs = 0;
+  npMetrics.json_ms = 0; npMetrics.pricing_ms = 0; npMetrics.audience_ms = 0; npMetrics.variants_ms = 0;
+};
+export const npMetricsSnapshot = () => ({ ...npMetrics });
+const npTime = (bucket, fn) => {
+  if (!npMetrics.on) return fn();
+  const s = process.hrtime.bigint();
+  try { return fn(); } finally { npMetrics[bucket] += Number(process.hrtime.bigint() - s) / 1e6; }
+};
+
 const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
+  const npStart = npMetrics.on ? process.hrtime.bigint() : null;
+  try {
   const galleryImages = parseJsonArray(row.gallery_images).filter(Boolean);
   const productImage = firstText(row.public_image_url, row.image_url, row.image, row.photo_url, row.thumbnail_url, galleryImages[0]);
   const productCompareFields = {
@@ -1142,9 +1159,9 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   const rowResolvedSellingPrice = resolveCurrentSellingPrice({ product: row }).value;
   const rowSellingPrice = roundMoney(rowResolvedSellingPrice || rowPublicPrice.selling_price || row.selling_price || row.price || row.regular_price);
   const rowSalePrice = roundMoney(rowPublicPrice.sale_price || row.sale_price || row.offer_price);
-  const variants = parseJsonArray(row.variants).map((variant) => {
-    const variantPublicPrice = resolveCustomerFacingDisplayPrice(row, variant, pricingSettings);
-    const variantResolvedSellingPrice = resolveCurrentSellingPrice({ product: row, variant }).value;
+  const variants = npTime("variants_ms", () => npTime("json_ms", () => parseJsonArray(row.variants)).map((variant) => {
+    const variantPublicPrice = npTime("pricing_ms", () => resolveCustomerFacingDisplayPrice(row, variant, pricingSettings));
+    const variantResolvedSellingPrice = npTime("pricing_ms", () => resolveCurrentSellingPrice({ product: row, variant })).value;
     const variantSellingPrice = roundMoney(variantResolvedSellingPrice || variantPublicPrice.selling_price || variant.selling_price || variant.price || rowSellingPrice);
     const variantOriginalCandidates = [
       variant.original_price,
@@ -1156,12 +1173,12 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     ].map(roundMoney).filter((value) => value > 0);
     const variantOriginalPrice = variantOriginalCandidates.find((value) => value > variantSellingPrice) || rowOriginalPrice || variantOriginalCandidates[0] || 0;
     const variantSalePrice = roundMoney(variantPublicPrice.sale_price || variant.sale_price || rowSalePrice);
-    const resolvedPrice = resolveStorefrontActivePrice({
+    const resolvedPrice = npTime("pricing_ms", () => resolveStorefrontActivePrice({
       originalPrice: variantOriginalPrice,
       sellingPrice: variantSellingPrice,
       salePrice: variantSalePrice,
       pricingSettings,
-    });
+    }));
     const currentPrice = resolvedPrice.activePrice;
     const variantCompareAtPrice = resolvedPrice.compareAtPrice;
     return {
@@ -1196,7 +1213,7 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       old_price: variantCompareAtPrice,
       stock: Math.max(0, toNumber(variant.stock)),
     };
-  });
+  }));
   const totalStock = variants.length
     ? Math.max(variants.reduce((sum, variant) => sum + toNumber(variant.stock), 0), toNumber(row.variant_total_stock))
     : Math.max(0, toNumber(row.stock), toNumber(row.variant_total_stock));
@@ -1230,8 +1247,8 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     category: row.category_name || "",
     category_id: row.category_id || null,
     gender: row.gender || "",
-    audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
-    product_audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
+    audiences: npTime("audience_ms", () => normalizeProductAudiences(row.audiences, row.product_audiences, row.gender)),
+    product_audiences: npTime("audience_ms", () => normalizeProductAudiences(row.audiences, row.product_audiences, row.gender)),
     product_type: row.product_type || "",
     productType: row.product_type || "",
     grade: row.grade || "",
@@ -1311,6 +1328,13 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     is_mirror: isMirrorProduct(product),
     seo_title: mirrorProductTitle(product, variants[0]),
   };
+  } finally {
+    if (npMetrics.on) {
+      npMetrics.calls += 1;
+      const durationMs = Number(process.hrtime.bigint() - npStart) / 1e6;
+      if (durationMs > npMetrics.maxCallMs) npMetrics.maxCallMs = durationMs;
+    }
+  }
 };
 
 const productSeoTitle = (product = {}) => firstText(product.meta_title, product.seo_title, product.name, "Product");
@@ -3082,8 +3106,17 @@ export const listProducts = async (req, res) => {
           });
         }
       }
+      if (perf.enabled) npMetricsReset(true);
       let products = perf.sync("normalize_products", () => result.rows.map((row) => normalizeProduct(row, pricingSettings)));
       if (perf.enabled) {
+        const np = npMetricsSnapshot();
+        npMetricsReset(false);
+        perf.count("np_calls", np.calls);
+        perf.count("np_json_ms", Number(np.json_ms.toFixed(1)));
+        perf.count("np_pricing_ms", Number(np.pricing_ms.toFixed(1)));
+        perf.count("np_audience_ms", Number(np.audience_ms.toFixed(1)));
+        perf.count("np_variants_ms", Number(np.variants_ms.toFixed(1)));
+        perf.count("np_max_call_ms", Number(np.maxCallMs.toFixed(1)));
         let totalVariants = 0;
         let maxVariants = 0;
         for (const normalized of products) {
