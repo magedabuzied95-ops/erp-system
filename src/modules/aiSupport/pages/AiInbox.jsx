@@ -6082,8 +6082,7 @@ export default function AiInbox() {
       ...asArray(confidenceState.reasons).map((item) => clean(item)),
       ...Object.entries(confidenceState.riskFlags || {}).filter(([, value]) => Boolean(value)).map(([key]) => clean(key)),
     ].filter(Boolean);
-    const takeoverWarnings = selectedConversation?.conversation_status === "human_takeover" ? ["Conversation is in human takeover"] : [];
-    const sendWarnings = [...new Set([...validationWarnings, ...confidenceWarnings, ...takeoverWarnings])].slice(0, 5);
+    const sendWarnings = [...new Set([...validationWarnings, ...confidenceWarnings])].slice(0, 5);
     const warningCount = sendWarnings.length;
     console.info("[ai-support] sendWarnings", {
       warningCount,
