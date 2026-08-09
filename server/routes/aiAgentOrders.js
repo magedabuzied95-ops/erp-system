@@ -401,6 +401,9 @@ const requestClientRequestId = (req) =>
   );
 const friendlyOutboundDeliveryError = (value = "") => {
   const raw = envText(value);
+  if (/another app|currently controls|thread control|تطبيق\s*(?:ًا|ا)?\s*آخر.*يتحكم|التحكم.*(?:المحادثة|سلسلة)/i.test(raw)) {
+    return "تعذر الإرسال لأن تطبيقًا آخر يتحكم في محادثة Messenger حاليًا. أعد المحاولة بعد نقل التحكم إلى M1 AI Inbox.";
+  }
   if (/\(#?10\)|outside.*(?:24|window)|خارج الإطار الزمني|policy-overview/i.test(raw)) {
     return "لم يتم الإرسال لأن آخر تفاعل من العميل مر عليه أكثر من 24 ساعة. اطلب من العميل إرسال رسالة جديدة أولًا.";
   }

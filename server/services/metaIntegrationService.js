@@ -10205,6 +10205,46 @@ const sendReasoningRecoveryReply = async ({
   return result ? { handled: true, reason: `reasoning_${route || "recovery"}`, reply_preview: selectedReplyText, answer: selectedReplyText } : null;
 };
 
+const isMetaThreadControlConflict = (error = null) => {
+  const code = Number(error?.code || error?.meta?.code || error?.metaResponse?.error?.code || 0);
+  const message = text(error?.message || error?.meta?.message || error?.metaResponse?.error?.message || "");
+  return code === 10 && /another app|currently controls|thread control|تطبيق\s*(?:ًا|ا)?\s*آخر.*يتحكم|التحكم.*(?:المحادثة|سلسلة)/i.test(message);
+};
+
+const postMetaMessageWithThreadControl = async ({ token, recipientId, body = {}, sendContext = {} }) => {
+  const send = () => callMetaPost({ endpoint: "/me/messages", token, body });
+  try {
+    return await send();
+  } catch (error) {
+    const isMessenger = text(sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+    if (!isMessenger || !isMetaThreadControlConflict(error)) throw error;
+    console.warn("[meta-send] thread control conflict, taking control", {
+      pageId: maskIdForLog(sendContext.resolved_page_id || ""),
+      recipientId: maskIdForLog(recipientId),
+      code: error?.code || error?.meta?.code || "",
+    });
+    try {
+      await callMetaPost({
+        endpoint: "/me/take_thread_control",
+        token,
+        body: {
+          recipient: { id: recipientId },
+          metadata: "M1 AI Inbox",
+        },
+      });
+      console.log("[meta-send] thread control acquired", {
+        pageId: maskIdForLog(sendContext.resolved_page_id || ""),
+        recipientId: maskIdForLog(recipientId),
+      });
+      return await send();
+    } catch (threadControlError) {
+      error.threadControlError = threadControlError?.message || "Unable to take Messenger thread control";
+      error.code = error?.code || error?.meta?.code || "META_THREAD_CONTROL_CONFLICT";
+      throw error;
+    }
+  }
+};
+
 const postMetaMessage = async ({ token, recipientId, messageText, sendContext = {}, quickReplies = [] }) => {
   console.log("[meta-send] graphApiCalled", {
     channel: sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
@@ -10223,44 +10263,42 @@ const postMetaMessage = async ({ token, recipientId, messageText, sendContext = 
     message_length: text(messageText).length,
     message_type: "text",
   });
-  const response = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: json({
-      recipient: { id: recipientId },
-      messaging_type: "RESPONSE",
-      message: {
-        text: text(messageText).slice(0, 2000),
-        ...(Array.isArray(quickReplies) && quickReplies.length ? { quick_replies: quickReplies } : {}),
+  let payload;
+  try {
+    payload = await postMetaMessageWithThreadControl({
+      token,
+      recipientId,
+      sendContext,
+      body: {
+        recipient: { id: recipientId },
+        messaging_type: "RESPONSE",
+        message: {
+          text: text(messageText).slice(0, 2000),
+          ...(Array.isArray(quickReplies) && quickReplies.length ? { quick_replies: quickReplies } : {}),
+        },
       },
-    }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
+    });
+  } catch (error) {
     console.error("[meta-send] failed", {
-      status: response.status,
-      code: payload?.error?.code || "",
-      subcode: payload?.error?.error_subcode || "",
-      message: payload?.error?.message || "Meta Send API failed",
-      fbtrace_id: payload?.error?.fbtrace_id || "",
+      status: error?.status || "",
+      code: error?.code || error?.meta?.code || "",
+      subcode: error?.meta?.error_subcode || "",
+      message: error?.message || "Meta Send API failed",
+      fbtrace_id: error?.meta?.fbtrace_id || "",
       payloadType: "text",
     });
     console.error("[meta-inbox] graph_send_error", {
-      status: response.status,
-      code: payload?.error?.code || "",
-      subcode: payload?.error?.error_subcode || "",
-      type: payload?.error?.type || "",
-      message: payload?.error?.message || "Meta Send API failed",
-      fbtrace_id: payload?.error?.fbtrace_id || "",
+      status: error?.status || "",
+      code: error?.code || error?.meta?.code || "",
+      subcode: error?.meta?.error_subcode || "",
+      type: error?.meta?.type || "",
+      message: error?.message || "Meta Send API failed",
+      fbtrace_id: error?.meta?.fbtrace_id || "",
     });
-    throw Object.assign(new Error(payload?.error?.message || "Meta Send API failed"), {
-      status: response.status,
-      code: payload?.error?.code || "",
-      metaResponse: payload,
-    });
+    throw error;
   }
   console.log("[meta-send] success", {
-    status: response.status,
+    status: 200,
     recipientId: maskIdForLog(recipientId),
     message_id: payload?.message_id || "",
     payloadType: "text",
@@ -10291,47 +10329,45 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext 
     message_type: "image",
     image_url_exists: Boolean(text(imageUrl)),
   });
-  const response = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: json({
-      recipient: { id: recipientId },
-      messaging_type: "RESPONSE",
-      message: {
-        attachment: {
-          type: "image",
-          payload: { url: text(imageUrl), is_reusable: true },
+  let payload;
+  try {
+    payload = await postMetaMessageWithThreadControl({
+      token,
+      recipientId,
+      sendContext,
+      body: {
+        recipient: { id: recipientId },
+        messaging_type: "RESPONSE",
+        message: {
+          attachment: {
+            type: "image",
+            payload: { url: text(imageUrl), is_reusable: true },
+          },
         },
       },
-    }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
+    });
+  } catch (error) {
     console.error("[meta-send] failed", {
-      status: response.status,
-      code: payload?.error?.code || "",
-      subcode: payload?.error?.error_subcode || "",
-      message: payload?.error?.message || "Meta image send failed",
-      fbtrace_id: payload?.error?.fbtrace_id || "",
+      status: error?.status || "",
+      code: error?.code || error?.meta?.code || "",
+      subcode: error?.meta?.error_subcode || "",
+      message: error?.message || "Meta image send failed",
+      fbtrace_id: error?.meta?.fbtrace_id || "",
       payloadType: "image",
     });
     console.error("[meta-inbox] graph_send_error", {
-      status: response.status,
-      code: payload?.error?.code || "",
-      subcode: payload?.error?.error_subcode || "",
-      type: payload?.error?.type || "",
-      message: payload?.error?.message || "Meta image send failed",
-      fbtrace_id: payload?.error?.fbtrace_id || "",
+      status: error?.status || "",
+      code: error?.code || error?.meta?.code || "",
+      subcode: error?.meta?.error_subcode || "",
+      type: error?.meta?.type || "",
+      message: error?.message || "Meta image send failed",
+      fbtrace_id: error?.meta?.fbtrace_id || "",
       message_type: "image",
     });
-    throw Object.assign(new Error(payload?.error?.message || "Meta image send failed"), {
-      status: response.status,
-      code: payload?.error?.code || "",
-      metaResponse: payload,
-    });
+    throw error;
   }
   console.log("[meta-send] success", {
-    status: response.status,
+    status: 200,
     recipientId: maskIdForLog(recipientId),
     message_id: payload?.message_id || "",
     payloadType: "image",
@@ -21774,7 +21810,6 @@ const resolveMetaSendConfig = async ({
     WHERE tenant_id = $1
       AND page_access_token_encrypted IS NOT NULL
       AND page_access_token_encrypted <> ''
-      AND COALESCE(token_expires_at, NOW() + INTERVAL '1 day') > NOW()
       AND LOWER(COALESCE(status, '')) NOT IN ('invalid','token_expired','revoked','error','not_connected')
       AND (
         $5::text <> 'instagram'
@@ -22700,7 +22735,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       incoming_instagram_business_account_ids: instagramBusinessAccountIds.map(maskIdForLog),
     };
   }
-  const appSecret = decryptSecret(config.app_secret_encrypted);
+  const appSecret = decryptSecret(config.app_secret_encrypted) || text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET);
   const signatureOk = verifyMetaWebhookSignature({ rawBody: req.rawBody, signature: req.headers?.["x-hub-signature-256"], appSecret });
   if (!signatureOk) throw Object.assign(new Error("Invalid Meta webhook signature"), { status: 403 });
   console.log("META_WEBHOOK_SEEN", {
