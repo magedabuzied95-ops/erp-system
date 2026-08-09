@@ -25,13 +25,26 @@ export const loadMetaReviewerScope = (env = process.env) => {
   const pageId = text(env.META_REVIEWER_FACEBOOK_PAGE_ID);
   const allowedPsids = parseAllowedPsids(env.META_REVIEWER_ALLOWED_PSIDS);
   const referenceSecret = text(env.META_REVIEWER_SCOPE_HMAC_KEY);
-  const enabled = Number.isFinite(tenantId) && tenantId > 0 && Boolean(pageId) && allowedPsids.length > 0 && Boolean(referenceSecret);
+  const visibleMessagesAfterValue = text(
+    env.META_REVIEWER_VISIBLE_MESSAGES_AFTER || env.META_REVIEWER_REVIEW_SESSION_STARTED_AT
+  );
+  const visibleMessagesAfterDate = new Date(visibleMessagesAfterValue);
+  const visibleMessagesAfter = visibleMessagesAfterValue && !Number.isNaN(visibleMessagesAfterDate.getTime())
+    ? visibleMessagesAfterDate.toISOString()
+    : "";
+  const enabled = Number.isFinite(tenantId)
+    && tenantId > 0
+    && Boolean(pageId)
+    && allowedPsids.length > 0
+    && Boolean(referenceSecret)
+    && Boolean(visibleMessagesAfter);
   return {
     enabled,
     tenantId: enabled ? tenantId : null,
     pageId: enabled ? pageId : "",
     allowedPsids: enabled ? allowedPsids : [],
     referenceSecret: enabled ? referenceSecret : "",
+    visibleMessagesAfter: enabled ? visibleMessagesAfter : "",
   };
 };
 
@@ -101,6 +114,18 @@ export const sanitizeMetaReviewerMessage = (message = {}) => ({
   created_at: message.created_at || null,
 });
 
+export const metaReviewerMessageVisible = (message = {}, scope = loadMetaReviewerScope()) => {
+  if (!scope?.enabled || !scope.visibleMessagesAfter || !message?.created_at) return false;
+  const createdAt = new Date(message.created_at);
+  const visibleAfter = new Date(scope.visibleMessagesAfter);
+  return !Number.isNaN(createdAt.getTime())
+    && !Number.isNaN(visibleAfter.getTime())
+    && createdAt.getTime() >= visibleAfter.getTime();
+};
+
+export const filterMetaReviewerVisibleMessages = (messages = [], scope = loadMetaReviewerScope()) =>
+  (Array.isArray(messages) ? messages : []).filter((message) => metaReviewerMessageVisible(message, scope));
+
 export const metaReviewerAccountExpired = (value, now = new Date()) => {
   if (!value) return false;
   const expiresAt = new Date(value);
@@ -109,6 +134,7 @@ export const metaReviewerAccountExpired = (value, now = new Date()) => {
 
 export const emitMetaReviewerInboundEvent = ({ tenantId, channel, pageId, psid, sessionId, message } = {}, scope = loadMetaReviewerScope()) => {
   if (!metaReviewerConversationAllowed({ tenantId, channel, pageId, psid }, scope)) return false;
+  if (!metaReviewerMessageVisible(message, scope)) return false;
   const room = metaReviewerRealtimeRoom(scope);
   if (!room) return false;
   emitToRooms([room], "meta_reviewer:message", {

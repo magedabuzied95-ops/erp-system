@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { metaReviewerApiBoundary } from "../../server/middleware/metaReviewerBoundary.js";
 import {
   emitMetaReviewerInboundEvent,
+  filterMetaReviewerVisibleMessages,
   loadMetaReviewerScope,
   metaReviewerConversationAllowed,
   metaReviewerConversationRef,
@@ -18,12 +19,19 @@ const env = {
   META_REVIEWER_FACEBOOK_PAGE_ID: "page-test",
   META_REVIEWER_ALLOWED_PSIDS: "test-psid",
   META_REVIEWER_SCOPE_HMAC_KEY: "test-only-hmac-key-with-sufficient-entropy",
+  META_REVIEWER_VISIBLE_MESSAGES_AFTER: "2026-08-09T18:00:00.000Z",
 };
 
 test("scope fails closed when no test PSID is configured", () => {
   const scope = loadMetaReviewerScope({ ...env, META_REVIEWER_ALLOWED_PSIDS: "" });
   assert.equal(scope.enabled, false);
   assert.deepEqual(scope.allowedPsids, []);
+});
+
+test("scope fails closed when the review session start time is missing", () => {
+  const scope = loadMetaReviewerScope({ ...env, META_REVIEWER_VISIBLE_MESSAGES_AFTER: "" });
+  assert.equal(scope.enabled, false);
+  assert.equal(scope.visibleMessagesAfter, "");
 });
 
 test("only the configured tenant, page, Messenger channel and test PSID are allowed", () => {
@@ -52,6 +60,16 @@ test("message responses omit channel identifiers and customer data", () => {
   assert.equal("metadata" in result, false);
 });
 
+test("review session hides old messages and includes messages at or after the cutoff", () => {
+  const scope = loadMetaReviewerScope(env);
+  const visible = filterMetaReviewerVisibleMessages([
+    { id: 1, created_at: "2026-08-09T17:59:59.999Z", message_text: "old" },
+    { id: 2, created_at: "2026-08-09T18:00:00.000Z", message_text: "at cutoff" },
+    { id: 3, created_at: "2026-08-09T18:00:01.000Z", message_text: "new" },
+  ], scope);
+  assert.deepEqual(visible.map((message) => message.id), [2, 3]);
+});
+
 test("realtime emits only for the configured test conversation", () => {
   const events = [];
   const fakeIo = { to(room) { events.push({ room }); return this; }, emit(name, payload) { events.push({ name, payload }); return this; } };
@@ -59,7 +77,9 @@ test("realtime emits only for the configured test conversation", () => {
   const scope = loadMetaReviewerScope(env);
   assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "real-customer", sessionId: "forbidden", message: {} }, scope), false);
   assert.equal(events.length, 0);
-  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "test-psid", sessionId: "allowed", message: { message_text: "ok", sender_type: "customer" } }, scope), true);
+  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "test-psid", sessionId: "old", message: { message_text: "old", sender_type: "customer", created_at: "2026-08-09T17:59:59.999Z" } }, scope), false);
+  assert.equal(events.length, 0);
+  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "test-psid", sessionId: "allowed", message: { message_text: "ok", sender_type: "customer", created_at: "2026-08-09T18:00:00.000Z" } }, scope), true);
   assert.equal(events.some((event) => event.name === "meta_reviewer:message"), true);
   assert.equal(JSON.stringify(events).includes("test-psid"), false);
   setIo(null);

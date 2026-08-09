@@ -7,6 +7,7 @@ import { ensureAiSupportLogSchema, appendManualAiSupportReply } from "./aiSuppor
 import { sendMetaInboxOutboundMessage } from "./metaIntegrationService.js";
 import {
   extractMetaReviewerIdentity,
+  filterMetaReviewerVisibleMessages,
   loadMetaReviewerScope,
   metaReviewerConversationAllowed,
   metaReviewerConversationRef,
@@ -42,8 +43,15 @@ const scopedConversationSql = ({ includeSearch = false } = {}) => `
     s.session_id,
     COALESCE(NULLIF(c.customer_name, ''), NULLIF(s.customer_name, ''), 'Meta test account') AS customer_name,
     COALESCE(NULLIF(c.customer_avatar_url, ''), NULLIF(s.customer_avatar_url, ''), '') AS customer_avatar_url,
-    COALESCE(NULLIF(c.last_message, ''), NULLIF(s.last_message, ''), '') AS last_message,
-    COALESCE(c.last_message_at, s.updated_at) AS last_message_at,
+    COALESCE(
+      NULLIF(visible_message.customer_message, ''),
+      NULLIF(visible_message.staff_message, ''),
+      NULLIF(visible_message.message_text, ''),
+      NULLIF(visible_message.ai_answer, ''),
+      NULLIF(visible_message.last_message, ''),
+      ''
+    ) AS last_message,
+    visible_message.created_at AS last_message_at,
     COALESCE(c.read_at, s.read_at) AS read_at,
     c.channel,
     c.external_customer_id,
@@ -56,6 +64,7 @@ const scopedConversationSql = ({ includeSearch = false } = {}) => `
       WHERE unread_message.tenant_id = s.tenant_id
         AND unread_message.session_id = s.session_id
         AND unread_message.sender_type = 'customer'
+        AND unread_message.created_at >= $4::timestamptz
         AND unread_message.created_at > COALESCE(c.read_at, s.read_at, TIMESTAMP 'epoch')
     ) AS unread_count
   FROM ai_support_sessions s
@@ -68,19 +77,28 @@ const scopedConversationSql = ({ includeSearch = false } = {}) => `
     ORDER BY channel_conversation.updated_at DESC, channel_conversation.id DESC
     LIMIT 1
   ) c ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT candidate_message.*
+    FROM ai_support_messages candidate_message
+    WHERE candidate_message.tenant_id = s.tenant_id
+      AND candidate_message.session_id = s.session_id
+      AND candidate_message.created_at >= $4::timestamptz
+    ORDER BY candidate_message.created_at DESC, candidate_message.id DESC
+    LIMIT 1
+  ) visible_message ON TRUE
   WHERE s.tenant_id = $1::bigint
     AND ${PAGE_ID_SQL} = $2::text
     AND ${PSID_MATCH_SQL}
     AND LOWER(COALESCE(s.thread_kind, c.thread_kind, 'dm')) <> 'comment'
     ${includeSearch ? `AND (
-      $4::text = ''
-      OR LOWER(COALESCE(c.customer_name, s.customer_name, '')) LIKE $4::text
-      OR LOWER(COALESCE(c.last_message, s.last_message, '')) LIKE $4::text
+      $5::text = ''
+      OR LOWER(COALESCE(c.customer_name, s.customer_name, '')) LIKE $5::text
       OR EXISTS (
         SELECT 1 FROM ai_support_messages search_message
         WHERE search_message.tenant_id = s.tenant_id
           AND search_message.session_id = s.session_id
-          AND LOWER(COALESCE(search_message.customer_message, search_message.staff_message, search_message.message_text, search_message.ai_answer, '')) LIKE $4::text
+          AND search_message.created_at >= $4::timestamptz
+          AND LOWER(COALESCE(search_message.customer_message, search_message.staff_message, search_message.message_text, search_message.ai_answer, '')) LIKE $5::text
       )
     )` : ""}
 `;
@@ -95,11 +113,11 @@ export const listMetaReviewerConversations = async ({ search = "", limit = 50, s
   await ensureInboxDependencies();
   const safeLimit = Math.min(100, Math.max(1, int(limit, 50)));
   const searchValue = text(search).toLowerCase();
-  const params = [scope.tenantId, scope.pageId, scope.allowedPsids, searchValue ? `%${searchValue}%` : "", safeLimit];
+  const params = [scope.tenantId, scope.pageId, scope.allowedPsids, scope.visibleMessagesAfter, searchValue ? `%${searchValue}%` : "", safeLimit];
   const result = await db.query(
     `${scopedConversationSql({ includeSearch: true })}
-     ORDER BY COALESCE(c.last_message_at, s.updated_at) DESC
-     LIMIT $5::int`,
+     ORDER BY visible_message.created_at DESC NULLS LAST, s.session_id ASC
+     LIMIT $6::int`,
     params
   );
   const conversations = result.rows.map((row) => ({
@@ -123,7 +141,7 @@ export const listMetaReviewerConversations = async ({ search = "", limit = 50, s
 export const resolveMetaReviewerConversation = async ({ conversationRef, scope = loadMetaReviewerScope() } = {}) => {
   if (!scope.enabled) return null;
   await ensureInboxDependencies();
-  const result = await db.query(scopedConversationSql(), [scope.tenantId, scope.pageId, scope.allowedPsids]);
+  const result = await db.query(scopedConversationSql(), [scope.tenantId, scope.pageId, scope.allowedPsids, scope.visibleMessagesAfter]);
   const row = result.rows.find((candidate) => metaReviewerConversationRefMatches(conversationRef, candidate.session_id, scope));
   if (!row) return null;
   const identity = extractMetaReviewerIdentity(row);
@@ -138,10 +156,12 @@ export const loadMetaReviewerMessages = async ({ conversationRef, limit = 50, sc
   const result = await db.query(
     `SELECT *
      FROM ai_support_messages
-     WHERE tenant_id = $1::bigint AND session_id = $2::text
+     WHERE tenant_id = $1::bigint
+       AND session_id = $2::text
+       AND created_at >= $3::timestamptz
      ORDER BY created_at DESC, id DESC
-     LIMIT $3::int`,
-    [scope.tenantId, conversation.session_id, safeLimit]
+     LIMIT $4::int`,
+    [scope.tenantId, conversation.session_id, scope.visibleMessagesAfter, safeLimit]
   );
   return {
     conversation: {
@@ -150,7 +170,7 @@ export const loadMetaReviewerMessages = async ({ conversationRef, limit = 50, sc
       customer_name: text(conversation.customer_name || "Meta test account"),
       customer_avatar_url: text(conversation.customer_avatar_url),
     },
-    messages: result.rows.reverse().map(sanitizeMetaReviewerMessage),
+    messages: filterMetaReviewerVisibleMessages(result.rows.reverse(), scope).map(sanitizeMetaReviewerMessage),
   };
 };
 

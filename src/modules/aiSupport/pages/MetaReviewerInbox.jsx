@@ -96,6 +96,7 @@ export default function MetaReviewerInbox() {
           <header className="border-b border-[var(--border)] p-4"><strong>{selected?.customer_name || "اختر محادثة الاختبار"}</strong><p className="text-xs text-[var(--muted)]">Facebook Messenger · M1 Store</p></header>
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.map((message) => <article key={message.id} className={`max-w-[80%] rounded-2xl p-3 ${message.sender_type === "customer" ? "mr-auto bg-[var(--surface-2)]" : "ml-auto bg-amber-400 text-black"}`}><p className="whitespace-pre-wrap">{message.text}</p><time className="mt-1 block text-[10px] opacity-60">{timeLabel(message.created_at)}</time></article>)}
+            {selectedId && !messages.length && <div className="mx-auto max-w-xl rounded-2xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">Send a new message from the authorized test account to begin the review.</div>}
           </div>
           {error && <p className="px-4 pb-2 text-sm text-red-500">{error}</p>}
           <form onSubmit={send} className="flex gap-2 border-t border-[var(--border)] p-4">
