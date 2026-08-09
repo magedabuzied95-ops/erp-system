@@ -3704,6 +3704,17 @@ const buildDraftOrderPaymentActions = ({ conversation = {}, order = {}, product 
   ];
 };
 
+const normalizeProductCardSizes = (...values) => {
+  const entries = values.flatMap((value) => {
+    if (Array.isArray(value)) return value;
+    const safeValue = envText(value);
+    return safeValue ? safeValue.split(/[,،|/]+/) : [];
+  });
+  return [...new Set(entries.map(envText).filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })
+  );
+};
+
 const normalizeSelectedProductCard = (card = {}) => {
   const safeSize = envText(
     card.size ||
@@ -3712,8 +3723,14 @@ const normalizeSelectedProductCard = (card = {}) => {
       card.variant?.size ||
       card.variant?.size_name ||
       card.variant?.variant_size ||
-      (Array.isArray(card.sizes) ? card.sizes[0] : "") ||
       ""
+  );
+  const availableSizes = normalizeProductCardSizes(
+    card.available_sizes,
+    card.availableSizes,
+    card.sizes,
+    card.size_options,
+    safeSize
   );
   const safePrice = Number(card.price ?? card.final_price ?? card.sale_price ?? card.selling_price ?? card.variant?.price ?? card.variant?.final_price ?? 0);
   const productName = envText(
@@ -3775,6 +3792,10 @@ const normalizeSelectedProductCard = (card = {}) => {
     price: Number.isFinite(safePrice) && safePrice > 0 ? safePrice : null,
     color,
     size: safeSize,
+    selected_size: safeSize,
+    available_sizes: availableSizes,
+    sizes: availableSizes,
+    size_options: availableSizes,
     storefront_url: storefrontUrl,
     product_url: storefrontUrl,
     url: storefrontUrl,
@@ -3865,6 +3886,7 @@ const enrichSelectedProductCard = async ({ tenantId = null, card = {} } = {}) =>
   try {
     let productRow = null;
     let variantRow = null;
+    let productVariantRows = [];
 
     if (variantId) {
       const variantQuery = `
@@ -3923,19 +3945,25 @@ const enrichSelectedProductCard = async ({ tenantId = null, card = {} } = {}) =>
       }
     }
 
-    if (!variantRow && productRow?.id) {
-      const fallbackVariantResult = await db.query(
+    if (productRow?.id) {
+      const productVariantsResult = await db.query(
         `
           SELECT *
           FROM product_variants
           WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
             AND product_id = $2::bigint
           ORDER BY id ASC
-          LIMIT 1
         `,
         [safeTenantId, Number(productRow.id)]
       ).catch(() => ({ rows: [] }));
-      variantRow = fallbackVariantResult.rows?.[0] || null;
+      productVariantRows = productVariantsResult.rows || [];
+      if (!variantRow) {
+        const requestedColor = envText(normalizedCard.color).toLowerCase();
+        const matchingColorRows = requestedColor
+          ? productVariantRows.filter((row) => envText(row.color || row.color_name || row.variant_color).toLowerCase() === requestedColor)
+          : productVariantRows;
+        variantRow = matchingColorRows.find((row) => Number(row.stock_quantity ?? row.stock ?? row.quantity ?? row.available_quantity ?? 0) > 0) || matchingColorRows[0] || productVariantRows[0] || null;
+      }
     }
 
     if (!productRow && !variantRow) {
@@ -3993,14 +4021,26 @@ const enrichSelectedProductCard = async ({ tenantId = null, card = {} } = {}) =>
         variantRow?.display_color ||
         ""
     );
-    const size = envText(
-      normalizedCard.size ||
-        variantRow?.size ||
-        variantRow?.size_name ||
-        variantRow?.variant_size ||
-        variantRow?.display_size ||
-        ""
+    const derivedAvailableSizes = normalizeProductCardSizes(
+      normalizedCard.available_sizes,
+      normalizedCard.sizes,
+      normalizedCard.size_options,
+      productVariantRows
+        .filter((row) => !color || envText(row.color || row.color_name || row.variant_color).toLowerCase() === color.toLowerCase())
+        .filter((row) => Number(row.stock_quantity ?? row.stock ?? row.quantity ?? row.available_quantity ?? 0) > 0)
+        .map((row) => row.size || row.size_name || row.variant_size || row.display_size)
     );
+    const colorOnlySelection = Boolean(color && !envText(normalizedCard.size) && derivedAvailableSizes.length);
+    const size = colorOnlySelection
+      ? ""
+      : envText(
+          normalizedCard.size ||
+            variantRow?.size ||
+            variantRow?.size_name ||
+            variantRow?.variant_size ||
+            variantRow?.display_size ||
+            ""
+        );
     const resolvedUrl = resolveProductCardUrl(normalizedCard, productContext, productRow || {});
     const slugValue = envText(
       normalizedCard.slug ||
@@ -4015,7 +4055,7 @@ const enrichSelectedProductCard = async ({ tenantId = null, card = {} } = {}) =>
     return {
       ...normalizedCard,
       product_id: normalizedCard.product_id || envText(productRow?.id || variantRow?.product_id || ""),
-      variant_id: normalizedCard.variant_id || envText(variantRow?.id || ""),
+      variant_id: colorOnlySelection ? "" : (normalizedCard.variant_id || envText(variantRow?.id || "")),
       slug: slugValue,
       canonical_slug: envText(normalizedCard.canonical_slug || productRow?.canonical_slug || ""),
       product_slug: envText(normalizedCard.product_slug || productRow?.product_slug || ""),
@@ -4033,12 +4073,17 @@ const enrichSelectedProductCard = async ({ tenantId = null, card = {} } = {}) =>
       price: Number.isFinite(resolvedPrice) && resolvedPrice > 0 ? resolvedPrice : null,
       color,
       size,
+      selected_size: size,
+      available_sizes: derivedAvailableSizes,
+      sizes: derivedAvailableSizes,
+      size_options: derivedAvailableSizes,
+      card_reply_mode: colorOnlySelection ? "color_only" : normalizedCard.card_reply_mode,
       storefront_url: resolvedUrl,
       product_url: resolvedUrl,
       url: resolvedUrl,
       share_url: envText(normalizedCard.share_url || normalizedCard.shareUrl || resolvedUrl),
       product: normalizedCard.product || productRow || {},
-      variant: normalizedCard.variant || variantRow || null,
+      variant: colorOnlySelection ? null : (normalizedCard.variant || variantRow || null),
     };
   } catch (error) {
     console.warn("[ai-inbox][product-card-send] product card enrichment warning", {
@@ -4064,8 +4109,9 @@ const buildProductCardFallbackText = (cards = []) =>
       productCardReplyText({
         name: card.product_name || card.name || card.title || `Product ${index + 1}`,
         color: card.color || "",
-        available_sizes: card.size ? [card.size] : [],
-        sizes: card.size ? [card.size] : [],
+        available_sizes: normalizeProductCardSizes(card.available_sizes, card.sizes, card.size_options, card.size),
+        sizes: normalizeProductCardSizes(card.available_sizes, card.sizes, card.size_options, card.size),
+        card_reply_mode: card.card_reply_mode || (card.color && !card.size ? "color_only" : ""),
         price: card.price || 0,
         product_url: card.storefront_url || card.product_url || card.url || "",
       })

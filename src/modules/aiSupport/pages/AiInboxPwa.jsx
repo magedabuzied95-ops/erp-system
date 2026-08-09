@@ -1886,9 +1886,15 @@ const confirmationStatusMeta = (status = "") => {
   return { label: key || "Unknown", tone: "zinc" };
 };
 
-const buildProductCardPayload = (product = {}, variant = null, selectedColor = "") => ({
+const buildProductCardPayload = (
+  product = {},
+  variant = null,
+  selectedColor = "",
+  selectedSize = "",
+  availableSizes = []
+) => ({
   product_id: product.product_id ?? product.id ?? null,
-  variant_id: variant?.variant_id ?? variant?.id ?? null,
+  variant_id: clean(selectedSize) ? (variant?.variant_id ?? variant?.id ?? null) : null,
   product_name: clean(product.name || product.product_name || product.title || ""),
   image_url: clean(
     variant?.image_url ||
@@ -1909,9 +1915,14 @@ const buildProductCardPayload = (product = {}, variant = null, selectedColor = "
   ) || 0,
   sale_mode_applied: Boolean(variant?.sale_mode_applied || product.sale_mode_applied),
   color: clean(selectedColor || variant?.color || variant?.color_name || ""),
-  size: clean(variant?.size || variant?.size_name || ""),
-  product_url: buildProductCardUrl(product, variant, selectedColor),
-  storefront_url: buildProductCardUrl(product, variant, selectedColor),
+  size: clean(selectedSize),
+  selected_size: clean(selectedSize),
+  available_sizes: asArray(availableSizes).map(clean).filter(Boolean),
+  sizes: asArray(availableSizes).map(clean).filter(Boolean),
+  size_options: asArray(availableSizes).map(clean).filter(Boolean),
+  card_reply_mode: clean(selectedColor) && !clean(selectedSize) ? "color_only" : "",
+  product_url: buildProductCardUrl(product, clean(selectedSize) ? variant : null, selectedColor),
+  storefront_url: buildProductCardUrl(product, clean(selectedSize) ? variant : null, selectedColor),
 });
 
 const productColors = (product = {}) =>
@@ -1992,6 +2003,11 @@ const variantStockQuantity = (variant = {}) =>
     ) || 0
   );
 
+const sortProductSizes = (sizes = []) =>
+  [...new Set(asArray(sizes).map(clean).filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })
+  );
+
 const productSizeOptions = (product = {}, color = "") => {
   const variants = getVariantRows(product);
   const normalizedColor = normalizeKey(color);
@@ -2005,7 +2021,7 @@ const productSizeOptions = (product = {}, color = "") => {
     ),
   ];
 
-  return allSizes.map((size) => {
+  return sortProductSizes(allSizes).map((size) => {
     const normalizedSize = normalizeKey(size);
     const matchingVariants = variants.filter((variant) => {
       const sizeMatch = normalizeKey(variantSizeValue(variant)) === normalizedSize;
@@ -2616,6 +2632,10 @@ function ProductSheet({
   );
   const needsColorSelection = colors.length > 0;
   const needsSizeSelection = sizes.length > 0;
+  const availableSizesForColor = useMemo(
+    () => sortProductSizes(sizeOptions.filter((option) => option.available).map((option) => option.size)),
+    [sizeOptions]
+  );
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -2631,7 +2651,7 @@ function ProductSheet({
   const variant = useMemo(() => {
     if (!selectedProduct) return null;
     if (needsColorSelection && needsSizeSelection) {
-      if (!clean(selectedColor) || !clean(selectedSize)) return null;
+      if (!clean(selectedColor)) return null;
       return findVariant(selectedProduct || {}, selectedColor, selectedSize);
     }
     if (needsColorSelection) {
@@ -2645,14 +2665,15 @@ function ProductSheet({
     return null;
   }, [needsColorSelection, needsSizeSelection, selectedColor, selectedProduct, selectedSize]);
   const card = useMemo(
-    () => (selectedProduct ? buildProductCardPayload(selectedProduct, variant, selectedColor) : null),
-    [selectedColor, selectedProduct, variant]
+    () => (selectedProduct ? buildProductCardPayload(selectedProduct, variant, selectedColor, selectedSize, availableSizesForColor) : null),
+    [availableSizesForColor, selectedColor, selectedProduct, selectedSize, variant]
   );
   const canSend = Boolean(
     selectedConversation?.session_id &&
       selectedProduct &&
       (!needsColorSelection || clean(selectedColor)) &&
-      (!needsSizeSelection || (clean(selectedSize) && selectedSizeOption?.available))
+      (needsColorSelection || !needsSizeSelection || (clean(selectedSize) && selectedSizeOption?.available)) &&
+      (!needsColorSelection || availableSizesForColor.length > 0)
   );
   const previewImage = useMemo(
     () => productImage(selectedProduct || {}, variant || selectedColorOption?.variant || null) || productImage(selectedProduct || {}),
@@ -2845,6 +2866,9 @@ function ProductSheet({
                       {previewPrice > 0 ? <div className="text-sm font-medium text-emerald-700">{money(previewPrice)}</div> : null}
                       <div className="flex flex-wrap gap-2">
                         {selectedSize ? <PwaChip>{selectedSize}</PwaChip> : null}
+                        {!selectedSize && selectedColor && availableSizesForColor.length ? (
+                          <PwaChip>{`Available sizes: ${availableSizesForColor.join(", ")}`}</PwaChip>
+                        ) : null}
                         {variant?.available !== undefined ? (
                           <PwaChip tone={variant.available ? "emerald" : "rose"}>{variant.available ? `In stock ${previewStock}` : "Out of stock"}</PwaChip>
                         ) : previewStock > 0 ? (
@@ -2908,7 +2932,10 @@ function ProductSheet({
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="text-sm font-medium text-slate-700">Size</div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium text-slate-700">Size</div>
+                      {needsColorSelection ? <div className="text-xs text-slate-500">Optional</div> : null}
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {sizeOptions.length ? (
                         sizeOptions.map(({ size, available, stock }) => {
@@ -2958,13 +2985,9 @@ function ProductSheet({
             </button>
             {!selectedConversation ? (
               <div className="mt-2 text-xs text-slate-500">Open a conversation first to send a product card.</div>
-            ) : (needsColorSelection && !clean(selectedColor)) || (needsSizeSelection && !clean(selectedSize)) ? (
+            ) : (needsColorSelection && !clean(selectedColor)) || (!needsColorSelection && needsSizeSelection && !clean(selectedSize)) ? (
               <div className="mt-2 text-xs text-slate-500">
-                {needsColorSelection && needsSizeSelection
-                  ? "Select color and size to enable Send Product."
-                  : needsColorSelection
-                    ? "Select a color to enable Send Product."
-                    : "Select a size to enable Send Product."}
+                {needsColorSelection ? "Select a color to enable Send Product. Size is optional." : "Select a size to enable Send Product."}
               </div>
             ) : null}
           </div>

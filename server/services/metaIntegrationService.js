@@ -10384,9 +10384,17 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext 
 const buildMessengerGenericTemplatePayload = ({ recipientId = "", product = {} } = {}) => {
   const title = text(product.name || product.title || product.product_name || "");
   const imageUrl = text(product.image_url || product.image || product.main_image || "");
+  const availableSizes = [...new Set([
+    ...asArray(product.available_sizes),
+    ...asArray(product.sizes),
+    ...asArray(product.size_options),
+  ].map(text).filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })
+  );
+  const selectedSize = text(product.size || product.selected_size || "");
   const subtitleParts = [
     text(product.color || ""),
-    text(product.size || ""),
+    selectedSize ? `Size: ${selectedSize}` : availableSizes.length ? `Available sizes: ${availableSizes.join(", ")}` : "",
     text(product.price ? `EGP ${Number(product.price).toFixed(2)}` : ""),
   ].filter(Boolean);
   const productUrl = text(product.product_url || product.url || product.storefront_url || product.share_url || "");
