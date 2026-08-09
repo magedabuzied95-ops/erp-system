@@ -4170,7 +4170,7 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
   const channelResult = await db.query(channelQuery, [safeTenantId, safeConversationId, safeExternalCustomerId]);
   const channelRow = channelResult.rows[0] || null;
 
-  if (!sessionRow && channelRow?.external_conversation_id) {
+  if (channelRow?.external_conversation_id) {
     const linkedSession = await db.query(
       `
       SELECT *
@@ -4181,14 +4181,14 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
       `,
       [safeTenantId, channelRow.external_conversation_id]
     );
-    sessionRow = linkedSession.rows[0] || null;
+    sessionRow = linkedSession.rows[0] || sessionRow;
   }
 
   const conversation = sessionRow || channelRow
     ? {
         ...(sessionRow || {}),
         ...(channelRow || {}),
-        session_id: sessionRow?.session_id || channelRow?.external_conversation_id || safeConversationId,
+        session_id: channelRow?.external_conversation_id || sessionRow?.session_id || safeConversationId,
         channel: channelRow?.channel || sessionRow?.channel || sessionRow?.source || channelRow?.source || "",
         source: sessionRow?.source || channelRow?.channel || channelRow?.source || "",
         external_conversation_id: channelRow?.external_conversation_id || sessionRow?.session_id || safeConversationId,

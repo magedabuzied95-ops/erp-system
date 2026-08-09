@@ -61,6 +61,7 @@ test("numeric Messenger ids stay Messenger and legacy WhatsApp URLs resolve to t
   assert.match(routeSource, /safeExternalCustomerId = safeConversationId\.replace/);
   assert.match(routeSource, /resolved\.conversation\?\.session_id/);
   assert.match(routeSource, /let conversationId = requestedConversationId/);
+  assert.match(routeSource, /session_id: channelRow\?\.external_conversation_id \|\| sessionRow\?\.session_id/);
 });
 
 test("dirty Messenger CRM matches do not override Customer 360", () => {
