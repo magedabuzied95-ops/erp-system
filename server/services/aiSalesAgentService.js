@@ -2096,6 +2096,18 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   const normalizedChannelFilter = lower(channelFilter || "");
   const searchTerm = text(search);
   clauses.push(whatsappInboxGroupFilterSql("s", "c"));
+  clauses.push(`NOT EXISTS (
+    SELECT 1
+    FROM ai_support_messages regression_message
+    WHERE regression_message.tenant_id = s.tenant_id
+      AND regression_message.session_id = s.session_id
+      AND (
+        COALESCE(regression_message.external_message_id, '') LIKE 'mock-product-card:%'
+        OR LOWER(COALESCE(regression_message.customer_message, '')) LIKE '%regression inbound%'
+        OR LOWER(COALESCE(regression_message.ai_answer, '')) LIKE '%example.com/regression/%'
+        OR LOWER(COALESCE(regression_message.staff_message, '')) LIKE '%example.com/regression/%'
+      )
+  )`);
   if (normalizedFilter === "hot_leads") clauses.push("(COALESCE(o.draft_count, 0) > 0 OR COALESCE(p.memory_score, 0) >= 75)");
   if (normalizedFilter === "complaints") clauses.push("(m.needs_human_support = TRUE OR COALESCE(p.customer_sentiment, '') = 'negative')");
   if (["human_handoff", "human_takeover", "needs_human"].includes(normalizedFilter)) clauses.push("(s.status = 'human_takeover' OR m.needs_human_support = TRUE)");

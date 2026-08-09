@@ -43,6 +43,12 @@ test("legacy Facebook DM sessions remain visible under Messenger", () => {
   assert.match(serviceSource, /IN \('facebook_messenger', 'facebook', 'messenger'\)/);
 });
 
+test("AI Inbox hides regression fixtures without deleting production data", () => {
+  assert.match(serviceSource, /mock-product-card:%/);
+  assert.match(serviceSource, /example\.com\/regression\//);
+  assert.match(serviceSource, /NOT EXISTS \(/);
+});
+
 test("AI Inbox PWA renders direct-message channels with their brand icons", () => {
   assert.match(pwaSource, /key === "whatsapp"\) return \{ label: "WhatsApp", icon: FaWhatsapp/);
   assert.match(pwaSource, /key === "instagram" \? "Instagram DM"/);
