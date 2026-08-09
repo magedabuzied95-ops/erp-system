@@ -81,3 +81,26 @@ test("getOrSetCache: diagnostics optional, semantics unchanged", async () => {
   assert.equal(diag.cache, "miss");
   assert.equal(typeof diag.cache_write_ms, "number");
 });
+
+test("count() records cardinality as metadata and never inflates accounted_ms", async () => {
+  process.env.STOREFRONT_PERF_DIAGNOSTICS = "1";
+  const { createPerfTrace } = await import("../server/utils/storefrontPerf.js?perf=count");
+  const logs = []; const real = console.info;
+  console.info = (...a) => logs.push(a.join(" "));
+  try {
+    const perf = createPerfTrace("products");
+    perf.set("cache_lookup", 2.0);
+    perf.count("np_result_rows", 213);
+    perf.count("np_total_variants", 3447);
+    perf.count("np_avg_variants_per_row", 16.2);
+    perf.count("np_max_variants_per_row", 40);
+    perf.end({ cache: "miss" });
+  } finally { console.info = real; }
+  const t = JSON.parse(logs[0].replace("[storefront:perf] ", ""));
+  assert.equal(t.np_result_rows, 213);
+  assert.equal(t.np_total_variants, 3447);
+  assert.equal(t.np_max_variants_per_row, 40);
+  // counters must NOT be summed into the timing arithmetic
+  assert.ok(t.accounted_ms < 10, `accounted_ms must exclude counters, got ${t.accounted_ms}`);
+  assert.ok(Math.abs(t.accounted_ms + t.unaccounted_ms - t.total_ms) < 0.5);
+});

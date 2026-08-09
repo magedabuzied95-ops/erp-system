@@ -3083,6 +3083,19 @@ export const listProducts = async (req, res) => {
         }
       }
       let products = perf.sync("normalize_products", () => result.rows.map((row) => normalizeProduct(row, pricingSettings)));
+      if (perf.enabled) {
+        let totalVariants = 0;
+        let maxVariants = 0;
+        for (const normalized of products) {
+          const variantCount = Array.isArray(normalized?.variants) ? normalized.variants.length : 0;
+          totalVariants += variantCount;
+          if (variantCount > maxVariants) maxVariants = variantCount;
+        }
+        perf.count("np_result_rows", result.rows.length);
+        perf.count("np_total_variants", totalVariants);
+        perf.count("np_avg_variants_per_row", products.length ? Number((totalVariants / products.length).toFixed(1)) : 0);
+        perf.count("np_max_variants_per_row", maxVariants);
+      }
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
         const fallback = await perf.step("sql_order_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
         const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));

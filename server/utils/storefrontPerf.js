@@ -12,6 +12,7 @@ const NOOP_TRACE = {
   step: (_name, fn) => fn(),
   sync: (_name, fn) => fn(),
   set: () => {},
+  count: () => {},
   end: () => {},
 };
 
@@ -35,6 +36,8 @@ export const createPerfTrace = (label) => {
       if (typeof value === "number") stages[name] = (stages[name] || 0) + Number(value.toFixed(1));
       else meta[name] = value;
     },
+    // Cardinality counters: metadata only, never added to accounted_ms.
+    count(name, value) { meta[name] = value; },
     end(extra = {}) {
       if (ended) return;
       ended = true;
