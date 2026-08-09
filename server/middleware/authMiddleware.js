@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import db from "../database/db.js";
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
+import { isMetaReviewerRole, metaReviewerAccountExpired } from "../services/metaReviewerAccessService.js";
 
 let tenantBootstrapPromise = null;
 
@@ -56,17 +57,31 @@ export const protect = async (
           [decoded.id]
         );
 
+        const databaseUser = userResult.rows[0];
+        if (!databaseUser && isMetaReviewerRole(decoded?.role)) {
+          return res.status(401).json({ message: "Review account is no longer available" });
+        }
+        if (databaseUser?.is_active === false) {
+          return res.status(403).json({ message: "Account disabled" });
+        }
+        const effectiveRole = databaseUser?.role || databaseUser?.role_name || decoded?.role;
+        if (isMetaReviewerRole(effectiveRole) && (!databaseUser?.account_expires_at || metaReviewerAccountExpired(databaseUser.account_expires_at))) {
+          return res.status(403).json({ message: "Temporary review account expired" });
+        }
         req.user =
-          userResult.rows[0]
+          databaseUser
             ? {
                 ...decoded,
-                ...userResult.rows[0],
-                role: userResult.rows[0].role || userResult.rows[0].role_name || decoded.role,
+                ...databaseUser,
+                role: effectiveRole,
               }
             : decoded;
         req.tenantId = req.user?.tenant_id ?? req.user?.tenantId ?? null;
         req.tenant = req.tenantId ? { id: req.tenantId } : undefined;
       } catch {
+        if (isMetaReviewerRole(decoded?.role)) {
+          return res.status(401).json({ message: "Review account could not be verified" });
+        }
         req.user = decoded;
         req.tenantId = req.user?.tenant_id ?? req.user?.tenantId ?? null;
         req.tenant = req.tenantId ? { id: req.tenantId } : undefined;

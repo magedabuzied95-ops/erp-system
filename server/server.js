@@ -26,6 +26,12 @@ import { protect } from "./middleware/authMiddleware.js";
 import permit from "./middleware/permissionMiddleware.js";
 import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertService.js";
 import { ensureUsersLoginSchema } from "./controllers/authController.js";
+import {
+  isMetaReviewerRole,
+  loadMetaReviewerScope,
+  metaReviewerAccountExpired,
+  metaReviewerRealtimeRoom,
+} from "./services/metaReviewerAccessService.js";
 import { ensureInventoryCountSchema } from "./services/inventoryCountService.js";
 import { ensureBrandsTable } from "./controllers/brandsController.js";
 
@@ -385,6 +391,8 @@ io.on("connection", async (socket) => {
       SELECT
         u.id,
         u.tenant_id,
+        u.is_active,
+        u.account_expires_at,
         COALESCE(r.name, u.role, $2) AS role_name,
         COALESCE(u.is_super_admin, FALSE) AS is_super_admin,
         e.id AS employee_id,
@@ -405,6 +413,20 @@ io.on("connection", async (socket) => {
     const employeeRole = normalizeSocketRoomKey(user?.employee_role || "");
     const tenantId = user?.tenant_id || decoded?.tenant_id || decoded?.tenantId;
     const branchId = user?.branch_id || user?.employee_branch_id || decoded?.branch_id || decoded?.branchId;
+
+    if (isMetaReviewerRole(role)) {
+      const reviewScope = loadMetaReviewerScope();
+      if (!userResult.rows[0] || user?.is_active === false || !user?.account_expires_at || metaReviewerAccountExpired(user.account_expires_at)) {
+        throw new Error("review account unavailable");
+      }
+      if (!reviewScope.enabled || Number(tenantId) !== Number(reviewScope.tenantId)) {
+        throw new Error("review scope unavailable");
+      }
+      socket.data.user = { id: userId, tenant_id: tenantId, role };
+      socket.join(metaReviewerRealtimeRoom(reviewScope));
+      socket.emit("notifications:ready", { connected: true, at: new Date().toISOString() });
+      return;
+    }
 
     socket.data.user = {
       id: userId,
@@ -480,6 +502,8 @@ io.on("connection", async (socket) => {
 });
 
 const { default: authRoutes } = await import("./routes/auth.js");
+const { default: metaReviewerInboxRoutes } = await import("./routes/metaReviewerInbox.js");
+const { default: metaReviewerApiBoundary } = await import("./middleware/metaReviewerBoundary.js");
 const { default: productsRoutes } = await import("./routes/products.js");
 const { default: ordersRoutes } = await import("./routes/orders.js");
 const { default: posRoutes } = await import("./routes/pos.js");
@@ -1676,7 +1700,9 @@ app.use("/uploads", express.static(path.join(currentDir, "..", "uploads"), uploa
    API ROUTES
 ========================= */
 
+app.use(metaReviewerApiBoundary);
 app.use("/api/auth", authRoutes);
+app.use("/api/meta-reviewer/inbox", metaReviewerInboxRoutes);
 app.use("/api/products", productsRoutes);
 app.use("/api/variants", variantRoutes);
 app.use("/api/inventory", inventoryRoutes);

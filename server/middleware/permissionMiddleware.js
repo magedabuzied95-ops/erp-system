@@ -4,6 +4,8 @@ import { isSuperAdminUser } from "../utils/requestScope.js";
 const MARKETING_ACTIONS = ["view", "create", "update", "delete", "publish", "settings"];
 const ADMIN_ROLES = ["admin", "super_admin", "super admin", "superadmin"];
 const CORE_PERMISSIONS = [
+  ["ai_inbox_messenger", "view"],
+  ["ai_inbox_messenger", "reply"],
   ["suppliers", "view"],
   ["suppliers", "create"],
   ["warehouses", "view"],

@@ -7,6 +7,7 @@ import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialP
 import { getPublicAppUrl, getMetaWebhookUrl } from "../utils/publicUrl.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
 import { emitToRooms } from "../utils/socket.js";
+import { emitMetaReviewerInboundEvent } from "./metaReviewerAccessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
@@ -9498,6 +9499,7 @@ const logIncomingToInbox = async ({ message, config }) => {
   await ensureAiSupportLogSchema();
   await ensureMessengerProfileStorage();
   const sessionId = message.external_conversation_id;
+  const sessionTrace = crypto.createHash("sha256").update(text(sessionId)).digest("hex").slice(0, 12);
   const channel = channelAlias(message.channel);
   const resolvedPageId = await resolveMessengerProfileFetchPageId({
     message,
@@ -9538,14 +9540,10 @@ const logIncomingToInbox = async ({ message, config }) => {
     : customerName;
   console.log("[meta-inbox] meta_inbox_session_upsert_start", {
     tenant_id: config.tenant_id,
-    session_id: sessionId,
+    session_trace: sessionTrace,
     source: channel,
     channel,
-    external_customer_id: message.external_customer_id,
-    sender_psid: message.raw?.sender_psid || message.external_customer_id || "",
-    customer_psid: message.raw?.customer_psid || message.external_customer_id || "",
-    resolved_sender_id: message.raw?.sender_psid || message.external_customer_id || "",
-    resolved_customer_id: message.external_customer_id || "",
+    has_external_customer_id: Boolean(message.external_customer_id),
     resolved_page_id: resolvedPageId || message.raw?.page_id || "",
     external_message_id: externalMessageId || null,
     provider_message_id: providerMessageId || null,
@@ -9568,12 +9566,12 @@ const logIncomingToInbox = async ({ message, config }) => {
   );
   console.log("[meta-inbox] meta_inbox_session_upsert_success", {
     tenant_id: config.tenant_id,
-    session_id: sessionId,
+    session_trace: sessionTrace,
     session_ref_id: session.rows[0]?.id || null,
   });
   console.log("[ai-support-insert]", {
     source: "sync_job",
-    session_id: sessionId,
+    session_trace: sessionTrace,
     channel,
     external_message_id: externalMessageId || null,
   });
@@ -9593,7 +9591,7 @@ const logIncomingToInbox = async ({ message, config }) => {
   if (!inserted.rows[0]) {
     console.log("[meta-inbox] meta_message_duplicate_skipped", {
       tenant_id: config.tenant_id,
-      session_id: sessionId,
+      session_trace: sessionTrace,
       external_message_id: externalMessageId || null,
       dedupe_key: dedupeKey,
     });
@@ -9601,7 +9599,7 @@ const logIncomingToInbox = async ({ message, config }) => {
   }
   console.log("[meta-inbox] meta_inbox_message_insert_success", {
     tenant_id: config.tenant_id,
-    session_id: sessionId,
+    session_trace: sessionTrace,
     message_id: inserted.rows[0]?.id || null,
   });
   console.info("[provider-message-first-seen]", {
@@ -9623,8 +9621,16 @@ const logIncomingToInbox = async ({ message, config }) => {
   });
   console.log("[meta-inbox] meta_inbox_socket_emit", {
     tenant_id: config.tenant_id,
-    session_id: sessionId,
+    session_trace: sessionTrace,
     events: ["ai_inbox:message", "ai_inbox:refresh"],
+  });
+  emitMetaReviewerInboundEvent({
+    tenantId: config.tenant_id,
+    channel,
+    pageId: resolvedPageId || message.raw?.page_id || "",
+    psid: message.external_customer_id || message.raw?.sender_psid || "",
+    sessionId,
+    message: inserted.rows[0] || null,
   });
   return { duplicate: false, session_id: sessionId, message: inserted.rows[0] || null, dedupe_key: dedupeKey };
 };

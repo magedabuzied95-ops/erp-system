@@ -4,6 +4,7 @@ import db from "../database/db.js";
 import { sendLoginTaskDigestIfNeeded } from "../services/staffTaskEmailNotificationService.js";
 import { ensureStaffTasksSchema, resolveEmployeeForUser } from "../services/staffTasksService.js";
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
+import { isMetaReviewerRole, metaReviewerAccountExpired } from "../services/metaReviewerAccessService.js";
 
 export const ensureUsersLoginSchema = async () => {
   const before = await db.query(
@@ -20,6 +21,7 @@ export const ensureUsersLoginSchema = async () => {
     definition: before.rows[0] || null,
   });
   await db.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS account_expires_at TIMESTAMPTZ NULL`);
   const after = await db.query(
     `
     SELECT column_name, data_type, is_nullable
@@ -112,6 +114,7 @@ const buildLoginUserSelect = (passwordColumns = []) => {
     "u.is_active",
     "u.is_super_admin",
     "u.last_login_at",
+    "u.account_expires_at",
     "u.created_at",
     "u.updated_at",
     ...passwordColumns.map((column) => `u.${column} AS ${column}`),
@@ -138,8 +141,13 @@ const resolveUserPasswordValue = (user, passwordColumns = []) => {
   return { column: null, value: null };
 };
 
-const generateToken = (user) =>
-  jwt.sign(
+const generateToken = (user) => {
+  const reviewer = isMetaReviewerRole(user.role);
+  const remainingSeconds = reviewer
+    ? Math.floor((new Date(user.account_expires_at).getTime() - Date.now()) / 1000)
+    : null;
+  const expiresIn = reviewer ? Math.max(1, Math.min(8 * 60 * 60, remainingSeconds)) : "7d";
+  return jwt.sign(
     {
       id: user.id,
       role: user.role,
@@ -147,8 +155,9 @@ const generateToken = (user) =>
       is_super_admin: Boolean(user.is_super_admin),
     },
     process.env.JWT_SECRET || "SECRET_KEY",
-    { expiresIn: "7d" }
+    { expiresIn }
   );
+};
 
 const getUserPermissions = async (userId) => {
   const permissions = await db.query(
@@ -210,6 +219,10 @@ export const register = async (req, res) => {
     );
 
     const normalizedRole = roleResult.rows[0]?.name || role || "user";
+
+    if (isMetaReviewerRole(normalizedRole)) {
+      return res.status(403).json({ success: false, message: "Reserved roles require the secure administrative command." });
+    }
 
     const createdUser = await db.query(
       `
@@ -284,7 +297,7 @@ export const login = async (req, res) => {
     const passwordColumns = getReadablePasswordColumns(userColumns);
     console.log("[auth] login lookup", {
       source: "users",
-      email: String(email || "").trim().toLowerCase(),
+      emailProvided: Boolean(String(email || "").trim()),
       tenantId,
       passwordColumns,
     });
@@ -306,7 +319,7 @@ export const login = async (req, res) => {
         [email.trim(), tenantId]
       );
       console.log("[auth] login exact tenant lookup", {
-        email: String(email || "").trim().toLowerCase(),
+        emailProvided: true,
         tenantId,
         matchCount: result.rows.length,
       });
@@ -314,7 +327,7 @@ export const login = async (req, res) => {
 
     if (result.rows.length === 0) {
       console.log("[auth] login fallback lookup", {
-        email: String(email || "").trim().toLowerCase(),
+        emailProvided: true,
         tenantId,
         reason: tenantId !== null ? "exact_tenant_miss" : "no_tenant_provided",
       });
@@ -338,7 +351,7 @@ export const login = async (req, res) => {
 
     if (result.rows.length === 0) {
       console.log("[auth] login user not found", {
-        email: String(email || "").trim().toLowerCase(),
+        emailProvided: true,
         tenantId,
       });
       return res.status(400).json({
@@ -348,7 +361,7 @@ export const login = async (req, res) => {
     }
 
     console.log("[auth] login user candidates found", {
-      email: String(email || "").trim().toLowerCase(),
+      emailProvided: true,
       tenantId,
       fallbackUsed: tenantId === null,
       candidates: result.rows.map((candidate) => ({
@@ -361,7 +374,7 @@ export const login = async (req, res) => {
     if (tenantId === null) {
       if (result.rows.length > 1) {
         console.warn("[auth] login workspace required", {
-          email: String(email || "").trim().toLowerCase(),
+          emailProvided: true,
           tenantId,
           candidateTenantIds: result.rows.map((candidate) => candidate.tenant_id ?? null),
         });
@@ -398,7 +411,7 @@ export const login = async (req, res) => {
 
     if (!user) {
       console.log("[auth] login password mismatch", {
-        email: String(email || "").trim().toLowerCase(),
+        emailProvided: true,
         tenantId,
       });
       return res.status(400).json({
@@ -417,6 +430,10 @@ export const login = async (req, res) => {
         success: false,
         message: "Account Disabled",
       });
+    }
+
+    if (isMetaReviewerRole(getRoleName(user)) && (!user.account_expires_at || metaReviewerAccountExpired(user.account_expires_at))) {
+      return res.status(403).json({ success: false, message: "Temporary review account expired or is not configured." });
     }
 
     const permissions = await getUserPermissions(user.id, user.tenant_id);
@@ -441,6 +458,7 @@ export const login = async (req, res) => {
       role: getRoleName(user),
       tenant_id: user.tenant_id,
       is_super_admin: Boolean(user.is_super_admin),
+      account_expires_at: user.account_expires_at || null,
     });
 
     const tenantBranding = user.tenant_id
@@ -473,7 +491,7 @@ export const login = async (req, res) => {
         }
       : null;
 
-    void (async () => {
+    if (!isMetaReviewerRole(getRoleName(user))) void (async () => {
       try {
         await ensureStaffTasksSchema();
         const employee = await resolveEmployeeForUser(user, user.tenant_id);
@@ -502,6 +520,7 @@ export const login = async (req, res) => {
         favicon_url: tenant?.faviconUrl || "",
         is_super_admin: Boolean(user.is_super_admin),
         permissions,
+        account_expires_at: user.account_expires_at || null,
       },
     });
   } catch (error) {
@@ -577,10 +596,24 @@ export const me = async (req, res) => {
         }
       : null;
 
+    const currentUser = current.rows[0];
+    const safeReviewerUser = isMetaReviewerRole(currentUser?.role || currentUser?.role_name)
+      ? {
+          id: currentUser.id,
+          tenant_id: currentUser.tenant_id,
+          name: currentUser.name,
+          email: currentUser.email,
+          role: "meta_reviewer",
+          role_name: "meta_reviewer",
+          is_active: currentUser.is_active,
+          is_super_admin: false,
+          account_expires_at: currentUser.account_expires_at,
+        }
+      : currentUser;
     return res.json({
       success: true,
       user: {
-        ...current.rows[0],
+        ...safeReviewerUser,
         company_name: tenant?.companyName || current.rows[0]?.company_name || "",
         company_logo_url: tenant?.companyLogoUrl || current.rows[0]?.company_logo_url || "",
         favicon_url: tenant?.faviconUrl || current.rows[0]?.favicon_url || "",

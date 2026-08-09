@@ -30,6 +30,8 @@
     "test:coupons": "node --test tests/coupons/*.test.js",
     "test:messenger-shopping": "node --test tests/messenger-guided-shopping/*.test.js",
     "test:meta-catalog": "node --test tests/meta-catalog/*.test.js",
+    "test:meta-reviewer": "node --test tests/meta-reviewer/*.test.js",
+    "meta-reviewer:manage": "node server/scripts/manageMetaReviewer.js",
     "test:storefront-seo": "node --test tests/storefront-seo/*.test.js",
     "test:manager-portal": "node --test tests/manager-portal/*.test.js",
     "migrate:merchant-policies": "node server/scripts/migrateMerchantPolicySettings.js",

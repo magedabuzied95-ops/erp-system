@@ -1634,6 +1634,7 @@ export const appendManualAiSupportReply = async ({
   externalReplyId = "",
   preserveExactMessage = false,
   upsertSession = true,
+  redactSessionInLogs = false,
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
@@ -1689,7 +1690,7 @@ export const appendManualAiSupportReply = async ({
   });
   console.info("[ai-support-insert]", {
     source: "ai_support_route",
-    session_id: safeSessionId,
+    session_id: redactSessionInLogs ? "[redacted]" : safeSessionId,
     channel: toText(channel, "web_chat"),
     message_id: result?.id || null,
   });

@@ -27,7 +27,7 @@ import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlag
 ====================================================== */
 
 import Login from "./pages/Login";
-import { getToken, setAuth } from "./shared/auth/authStorage";
+import { getToken, getUserRole, setAuth } from "./shared/auth/authStorage";
 
 /* ======================================================
    DASHBOARD
@@ -229,6 +229,7 @@ const AiSupportConsole = lazy(() => import("./modules/aiSupport/pages/AiSupportC
 const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSupportKnowledgeBase"));
 const AiInbox = lazy(() => import("./modules/aiSupport/pages/AiInbox"));
 const AiInboxPwa = lazy(() => import("./modules/aiSupport/pages/AiInboxPwa"));
+const MetaReviewerInbox = lazy(() => import("./modules/aiSupport/pages/MetaReviewerInbox"));
 const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
 const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
 const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSettings"));
@@ -301,8 +302,17 @@ function StorefrontLegacyRedirect() {
   return <Navigate to={legacyShopToRootPath(location.pathname, location.search)} replace />;
 }
 
+function ScopedInbox() {
+  return getUserRole() === "meta_reviewer" ? <MetaReviewerInbox /> : <AiInboxPwa />;
+}
+
+function ErpMainRoute() {
+  return getUserRole() === "meta_reviewer" ? <Navigate to="/inbox" replace /> : <MainLayout />;
+}
+
 function App() {
   useTranslation();
+  const location = useLocation();
   const [, setAuthRevision] = useState(0);
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
   const employeeAppToken = isEmployeeAppRoute ? window.location.pathname.split("/")[2] || "" : "";
@@ -374,6 +384,10 @@ function App() {
         </Suspense>
       </DebugErrorBoundary>
     );
+  }
+
+  if (enableErpAppRoutes && getToken() && getUserRole() === "meta_reviewer" && !location.pathname.startsWith("/inbox") && location.pathname !== "/login") {
+    return <Navigate to="/inbox" replace />;
   }
 
   return (
@@ -616,8 +630,8 @@ function App() {
       <Route
         path="/inbox"
         element={
-          <ProtectedRoute adminOnly>
-            <AiInboxPwa />
+          <ProtectedRoute requiredPermissions={["ai_inbox_messenger.view"]}>
+            <ScopedInbox />
           </ProtectedRoute>
         }
       />
@@ -625,8 +639,8 @@ function App() {
       <Route
         path="/inbox/:conversationId"
         element={
-          <ProtectedRoute adminOnly>
-            <AiInboxPwa />
+          <ProtectedRoute requiredPermissions={["ai_inbox_messenger.view"]}>
+            <ScopedInbox />
           </ProtectedRoute>
         }
       />
@@ -636,7 +650,7 @@ function App() {
       {enableErpAppRoutes ? (
       <Route
         path="/*"
-        element={<MainLayout />}
+        element={<ErpMainRoute />}
       >
 
         {/* DEFAULT */}

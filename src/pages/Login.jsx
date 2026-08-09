@@ -94,8 +94,6 @@ function Login() {
         tenant: workspace,
       });
 
-      console.log(data);
-
       const tenant =
         data?.tenant ||
         data?.user?.tenant ||
@@ -125,7 +123,8 @@ function Login() {
         },
       });
 
-      window.location.href = "/dashboard";
+      const role = String(data?.user?.role || data?.user?.role_name || "").toLowerCase();
+      window.location.href = role === "meta_reviewer" ? "/inbox" : "/dashboard";
     } catch (loginError) {
       console.log(loginError);
       console.error("[login] fetch error details:", {
