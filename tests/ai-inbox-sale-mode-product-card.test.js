@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import { getPosEffectivePrice } from "../src/modules/pos/lib/posPricing.js";
+import { resolveCardPrice } from "../server/services/aiProductCards.js";
 
 const catalogSource = fs.readFileSync(
   new URL("../src/modules/aiSupport/services/customerProductCatalog.js", import.meta.url),
@@ -48,4 +49,44 @@ test("AI Inbox and PWA load the same persisted Sale setting as POS before buildi
   assert.match(pwaSource, /loadCustomerProductCatalog\(\{ headers \}\)/);
   assert.match(pickerSource, /loadCustomerProductCatalog\(\)/);
   assert.doesNotMatch(pickerSource, /getPosSellableProducts\(\)/);
+});
+
+test("AI product cards preserve the customer-facing regular price when Sale mode is off", () => {
+  const card = {
+    product_id: 561,
+    price: 1700,
+    sale_mode_applied: false,
+    sale_price: 1600,
+    selling_price: 1700,
+  };
+  const variant = {
+    id: 7912,
+    sale_price: 1600,
+    selling_price: 1700,
+    sale_price_enabled: true,
+  };
+
+  assert.equal(resolveCardPrice(card, variant, variant), 1700);
+});
+
+test("AI product cards preserve the already-selected Sale price when Sale mode is on", () => {
+  const card = {
+    product_id: 561,
+    price: 1600,
+    sale_mode_applied: true,
+    sale_price: 1600,
+    selling_price: 1700,
+  };
+  const variant = {
+    id: 7912,
+    sale_price: 1600,
+    selling_price: 1700,
+    sale_mode_applied: true,
+  };
+
+  assert.equal(resolveCardPrice(card, variant, variant), 1600);
+});
+
+test("AI product cards can still use a legacy sale-only price as a last fallback", () => {
+  assert.equal(resolveCardPrice({ product_id: 561 }, { id: 7912, sale_price: 1600 }), 1600);
 });

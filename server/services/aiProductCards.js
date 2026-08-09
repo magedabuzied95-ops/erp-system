@@ -174,18 +174,56 @@ const validPrice = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
-const resolveCardPrice = (product = {}, variant = {}, selectedVariant = null) => {
+const explicitSaleModeApplied = (...sources) =>
+  sources.some((source) => {
+    if (!source || typeof source !== "object") return false;
+    return [
+      source.sale_mode_applied,
+      source.sale_active,
+      source.is_sale_active,
+      source.use_sale_price,
+    ].some((value) => value === true || value === 1 || ["true", "1", "yes", "on"].includes(text(value).toLowerCase()));
+  });
+
+export const resolveCardPrice = (product = {}, variant = {}, selectedVariant = null) => {
   const selected = selectedVariant || variant || product?.selected_variant || product?.variant || product?.matched_variant || {};
-  const candidateSources = [
+  const saleActive = explicitSaleModeApplied(product, selected, variant, product?.matched_variant);
+  const customerSelectedSources = [
+    { source: "card.selected_display_price", value: product?.selected_display_price },
+    { source: "card.display_price", value: product?.display_price },
+    { source: "card.final_price", value: product?.final_price },
+    { source: "card.price", value: product?.price },
+  ];
+  const regularSources = [
     { source: "selected_variant.display_price", value: selected?.display_price, saleActive: false },
-    { source: "selected_variant.sale_price", value: selected?.sale_price, saleActive: true },
+    { source: "selected_variant.final_price", value: selected?.final_price, saleActive: false },
     { source: "selected_variant.selling_price", value: selected?.selling_price, saleActive: false },
+    { source: "selected_variant.regular_price", value: selected?.regular_price, saleActive: false },
+    { source: "selected_variant.price", value: selected?.price, saleActive: false },
     { source: "variant.display_price", value: variant?.display_price, saleActive: false },
-    { source: "variant.sale_price", value: variant?.sale_price, saleActive: true },
+    { source: "variant.final_price", value: variant?.final_price, saleActive: false },
     { source: "variant.selling_price", value: variant?.selling_price, saleActive: false },
+    { source: "variant.regular_price", value: variant?.regular_price, saleActive: false },
+    { source: "variant.price", value: variant?.price, saleActive: false },
     { source: "matched_variant.display_price", value: product?.matched_variant?.display_price, saleActive: false },
-    { source: "matched_variant.sale_price", value: product?.matched_variant?.sale_price, saleActive: true },
+    { source: "matched_variant.final_price", value: product?.matched_variant?.final_price, saleActive: false },
     { source: "matched_variant.selling_price", value: product?.matched_variant?.selling_price, saleActive: false },
+    { source: "matched_variant.regular_price", value: product?.matched_variant?.regular_price, saleActive: false },
+    { source: "matched_variant.price", value: product?.matched_variant?.price, saleActive: false },
+    { source: "product.selling_price", value: product?.selling_price, saleActive: false },
+    { source: "product.regular_price", value: product?.regular_price, saleActive: false },
+  ];
+  const saleSources = [
+    { source: "selected_variant.sale_price", value: selected?.sale_price, saleActive: true },
+    { source: "variant.sale_price", value: variant?.sale_price, saleActive: true },
+    { source: "matched_variant.sale_price", value: product?.matched_variant?.sale_price, saleActive: true },
+    { source: "product.sale_price", value: product?.sale_price, saleActive: true },
+  ];
+  const candidateSources = [
+    ...customerSelectedSources.map((candidate) => ({ ...candidate, saleActive })),
+    ...(saleActive ? saleSources : []),
+    ...regularSources,
+    ...(!saleActive ? saleSources : []),
   ];
   for (const candidate of candidateSources) {
     const price = numericPrice(candidate.value);
@@ -196,14 +234,14 @@ const resolveCardPrice = (product = {}, variant = {}, selectedVariant = null) =>
         color: text(variant?.color || selected?.color || product?.color || ""),
         selling_price: numericPrice(selected?.selling_price || variant?.selling_price || product?.selling_price) || null,
         sale_price: numericPrice(selected?.sale_price || variant?.sale_price || product?.sale_price) || null,
-        sale_active: candidate.saleActive,
+        sale_active: saleActive,
         display_price: price,
         price_source: candidate.source,
       });
       return price;
     }
   }
-  return numericPrice(product?.final_price) || numericPrice(product?.price) || numericPrice(product?.sale_price) || null;
+  return null;
 };
 
 const normalizeColorName = (value = "") =>
@@ -582,14 +620,16 @@ const buildBaseCard = (product = {}, overrides = {}) => {
         numericPrice(selectedVariant?.selling_price));
   const priceSource =
     overrides.price ? "override.price" :
+    numericPrice(product?.selected_display_price) ? "card.selected_display_price" :
+    numericPrice(product?.display_price) ? "card.display_price" :
+    numericPrice(product?.final_price) ? "card.final_price" :
+    numericPrice(product?.price) ? "card.price" :
     numericPrice(selectedVariant?.display_price) ? "selected_variant.display_price" :
-    numericPrice(selectedVariant?.sale_price) ? "selected_variant.sale_price" :
     numericPrice(selectedVariant?.selling_price) ? "selected_variant.selling_price" :
+    numericPrice(selectedVariant?.sale_price) ? "selected_variant.sale_price" :
     numericPrice(product?.matched_variant?.display_price) ? "matched_variant.display_price" :
-    numericPrice(product?.matched_variant?.sale_price) ? "matched_variant.sale_price" :
     numericPrice(product?.matched_variant?.selling_price) ? "matched_variant.selling_price" :
-    numericPrice(product?.final_price) ? "product.final_price" :
-    numericPrice(product?.price) ? "product.price" :
+    numericPrice(product?.matched_variant?.sale_price) ? "matched_variant.sale_price" :
     numericPrice(product?.sale_price) ? "product.sale_price" :
     "missing";
   debugAiImagesLog("[image-card-price-source]", {

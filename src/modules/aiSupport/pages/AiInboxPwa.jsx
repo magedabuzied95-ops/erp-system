@@ -1955,6 +1955,7 @@ const buildProductCardPayload = (product = {}, variant = null, selectedColor = "
       product.price ??
       0
   ) || 0,
+  sale_mode_applied: Boolean(variant?.sale_mode_applied || product.sale_mode_applied),
   color: clean(selectedColor || variant?.color || variant?.color_name || ""),
   size: clean(variant?.size || variant?.size_name || ""),
   product_url: buildProductCardUrl(product, variant, selectedColor),

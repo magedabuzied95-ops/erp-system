@@ -255,6 +255,7 @@ const buildProductCardPayload = (product = {}, variant = null) => {
     thumbnail_url: activeImage,
     media_url: clean(product.media_url || product.mediaUrl || ""),
     price: Number.isFinite(priceValue) ? priceValue : 0,
+    sale_mode_applied: Boolean(variant?.sale_mode_applied || product.sale_mode_applied),
     stock: Number(variant?.stock ?? variant?.stock_quantity ?? variant?.available_quantity ?? product.total_stock ?? product.stock ?? 0) || 0,
     color,
     size,
