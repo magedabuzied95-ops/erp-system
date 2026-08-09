@@ -1747,7 +1747,7 @@ const storefrontProductsSqlWithoutVisibility = buildCatalogQuery({
   productVisibility: false,
 });
 
-export const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset) => {
+export const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset, diagnostics) => {
   const arrayParam = (value) => Array.isArray(value)
     ? value
     : String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -1770,7 +1770,12 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
   try {
     const result = await db.query(sql, params);
     const selectedAudiences = Array.isArray(filters.gender) ? filters.gender : [];
+    // `diagnostics` is optional and undefined for every normal caller. When supplied it
+    // receives one aggregate duration for the post-SQL audience filter below. Filtering
+    // semantics are unchanged and nothing per-row or per-variant is recorded.
+    if (diagnostics) diagnostics.audience_postfilter_ms = 0;
     if (selectedAudiences.length > 0) {
+      const audienceStart = diagnostics ? process.hrtime.bigint() : null;
       result.rows = result.rows.map((row) => {
         const variants = Array.isArray(row.variants) ? row.variants : [];
         const scopedVariants = variants.filter((variant) => {
@@ -1784,6 +1789,9 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
           ...(matchedImage ? { public_image_url: matchedImage } : {}),
         };
       });
+      if (diagnostics) {
+        diagnostics.audience_postfilter_ms = Number((Number(process.hrtime.bigint() - audienceStart) / 1e6).toFixed(1));
+      }
     }
     return result;
   } catch (error) {
@@ -1793,8 +1801,8 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
   }
 };
 
-export const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
-  queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset);
+export const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset, diagnostics) =>
+  queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset, diagnostics);
 
 export const queryProductsWithoutVisibility = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
   queryProductsWithSql(storefrontProductsSqlWithoutVisibility, tenantId, q, category, filters, saleOnly, limit, offset);
@@ -3143,7 +3151,11 @@ export const listProducts = async (req, res) => {
           excluded_due_to_is_storefront_visible: excludedDueToVisibility,
         });
       }
-      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
+      // Nested inside sql_main, so it is reported through count() as metadata and is
+      // never summed into accounted_ms. Undefined - a pure no-op - when diagnostics are off.
+      const audienceDiagnostics = perf.enabled ? {} : undefined;
+      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset, audienceDiagnostics));
+      if (audienceDiagnostics) perf.count("sql_audience_postfilter", audienceDiagnostics.audience_postfilter_ms ?? 0);
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
         const fallback = await perf.step("sql_tenant_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
