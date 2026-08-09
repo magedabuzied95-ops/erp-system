@@ -6,6 +6,7 @@ const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.j
 const pwaSource = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
 const pwaStyles = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.css", import.meta.url), "utf8");
 const serviceSource = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
+const routeSource = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
 
 test("AI Inbox renders each direct-message channel with its own label", () => {
   assert.match(source, /channel === "whatsapp"\) return "WhatsApp"/);
@@ -53,6 +54,19 @@ test("Messenger message fragments cannot override the stored account name", () =
   assert.match(serviceSource, /readableSystemCustomerName/);
   assert.match(serviceSource, /isHumanReadableDisplayName\(systemCustomer\.name/);
   assert.match(serviceSource, /const customerName = readableSystemCustomerName \|\|/);
+});
+
+test("numeric Messenger ids stay Messenger and legacy WhatsApp URLs resolve to the stored session", () => {
+  assert.match(pwaSource, /\(!detectedPrefix && \/\^\\\+\?\\d\+\$\//);
+  assert.match(routeSource, /safeExternalCustomerId = safeConversationId\.replace/);
+  assert.match(routeSource, /resolved\.conversation\?\.session_id/);
+  assert.match(routeSource, /let conversationId = requestedConversationId/);
+});
+
+test("dirty Messenger CRM matches do not override Customer 360", () => {
+  assert.match(serviceSource, /const validatedSystemCustomer = readableSystemCustomerName \? systemCustomer : null/);
+  assert.match(serviceSource, /erp_customer_id: validatedSystemCustomer\?\.id/);
+  assert.match(serviceSource, /id: validatedSystemCustomer\?\.id/);
 });
 
 test("AI Inbox PWA renders direct-message channels with their brand icons", () => {

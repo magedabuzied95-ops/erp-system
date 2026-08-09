@@ -2551,7 +2551,13 @@ router.get("/debug-ping", (req, res) => {
 router.get("/conversations/:conversationId/messages", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    const conversationId = decodeRouteId(req.params.conversationId);
+    const requestedConversationId = decodeRouteId(req.params.conversationId);
+    const resolved = await resolveProductCardSendConversation({ tenantId, conversationId: requestedConversationId });
+    const conversationId = envText(
+      resolved.conversation?.session_id ||
+      resolved.conversation?.external_conversation_id ||
+      requestedConversationId
+    );
     if (String(conversationId).toLowerCase().startsWith("whatsapp:")) {
       await syncEvolutionConversationMessagesToAiInbox({
         tenantId,
@@ -4113,6 +4119,7 @@ const hasAiChannelConversationKeyColumn = async () => {
 const resolveProductCardSendConversation = async ({ tenantId, conversationId }) => {
   const safeTenantId = Number(tenantId);
   const safeConversationId = envText(conversationId);
+  const safeExternalCustomerId = safeConversationId.replace(/^[a-z0-9_]+:/i, "");
   const hasConversationKeyColumn = await hasAiChannelConversationKeyColumn();
   const lookupFields = [
     "ai_support_sessions.session_id",
@@ -4126,10 +4133,15 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
     SELECT *
     FROM ai_support_sessions
     WHERE tenant_id = $1
-      AND (session_id = $2 OR id::text = $2)
+      AND (
+        session_id = $2
+        OR id::text = $2
+        OR ($3::text <> '' AND external_customer_id = $3)
+      )
+    ORDER BY CASE WHEN session_id = $2 THEN 0 WHEN id::text = $2 THEN 1 ELSE 2 END, updated_at DESC, id DESC
     LIMIT 1
     `,
-    [safeTenantId, safeConversationId]
+    [safeTenantId, safeConversationId, safeExternalCustomerId]
   );
   let sessionRow = sessionResult.rows[0] || null;
 
@@ -4140,6 +4152,7 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
       AND (
         external_conversation_id = $2
         OR external_customer_id = $2
+        OR ($3::text <> '' AND external_customer_id = $3)
         ${hasConversationKeyColumn ? "OR conversation_key = $2" : ""}
       )
     ORDER BY
@@ -4147,13 +4160,14 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
         WHEN external_conversation_id = $2 THEN 0
         WHEN external_customer_id = $2 THEN 1
         ${hasConversationKeyColumn ? "WHEN conversation_key = $2 THEN 2" : ""}
-        ELSE 3
+        WHEN external_customer_id = $3 THEN 3
+        ELSE 4
       END,
       updated_at DESC,
       id DESC
     LIMIT 1
   `;
-  const channelResult = await db.query(channelQuery, [safeTenantId, safeConversationId]);
+  const channelResult = await db.query(channelQuery, [safeTenantId, safeConversationId, safeExternalCustomerId]);
   const channelRow = channelResult.rows[0] || null;
 
   if (!sessionRow && channelRow?.external_conversation_id) {
@@ -4718,7 +4732,8 @@ router.post("/conversations/:conversationId/reply", protect, permit("settings", 
 
 router.post("/conversations/:conversationId/send", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
-  const conversationId = envText(req.params.conversationId);
+  const requestedConversationId = envText(req.params.conversationId);
+  let conversationId = requestedConversationId;
   const messageText = envText(req.body?.message || req.body?.reply || req.body?.text);
   const mockDelivery = regressionMockDeliveryRequested(req);
   let conversation = null;
@@ -4734,6 +4749,12 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       conversation_id: conversationId,
       message_length: messageText.length,
     });
+    const resolved = await resolveProductCardSendConversation({ tenantId, conversationId: requestedConversationId });
+    conversationId = envText(
+      resolved.conversation?.session_id ||
+      resolved.conversation?.external_conversation_id ||
+      requestedConversationId
+    );
     const findConversation = (items = []) => items.find((item) =>
       item.session_id === conversationId ||
       item.external_conversation_id === conversationId ||
@@ -4747,7 +4768,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       conversation_id: conversationId,
       loaded_count: inbox.conversations.length,
     });
-    conversation = findConversation(inbox.conversations);
+    conversation = findConversation(inbox.conversations) || resolved.conversation;
     if (!conversation) {
       console.info("[ai-inbox:send-route]", {
         stage: "targeted_lookup_miss",

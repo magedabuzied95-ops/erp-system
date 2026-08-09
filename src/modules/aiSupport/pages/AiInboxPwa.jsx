@@ -553,7 +553,11 @@ const normalizeConversationSessionId = (value = "", channel = "") => {
   const detectedPrefix = stripped.prefix || normalizeConversationPrefix(channel);
   const baseSessionId = stripped.value || raw;
   if (!baseSessionId) return raw;
-  if (detectedPrefix === "whatsapp" || /@(?:s\.whatsapp\.net|lid)$/i.test(raw) || /^\+?\d+$/.test(baseSessionId)) {
+  if (
+    detectedPrefix === "whatsapp" ||
+    /@(?:s\.whatsapp\.net|lid)$/i.test(raw) ||
+    (!detectedPrefix && /^\+?\d+$/.test(baseSessionId))
+  ) {
     const digits = clean(baseSessionId).replace(/^whatsapp:/i, "").replace(/@(?:s\.whatsapp\.net|lid)$/i, "").replace(/\D/g, "");
     if (digits) return `whatsapp:${digits.startsWith("20") && digits.length === 12 ? digits : digits.startsWith("0") && digits.length === 11 ? `20${digits.slice(1)}` : digits}`;
   }

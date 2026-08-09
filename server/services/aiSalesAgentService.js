@@ -2408,6 +2408,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
             externalConversationId: conversation.external_conversation_id,
           }) ? systemCustomer.name : "")
         : systemCustomer.name;
+    const validatedSystemCustomer = readableSystemCustomerName ? systemCustomer : null;
     const customerName = readableSystemCustomerName || (isCommentThread
       ? text(readableCommenterName || "مستخدم فيسبوك")
       : resolveConversationDisplayName({
@@ -2493,7 +2494,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         returned_to_ai_at: conversation.returned_to_ai_at,
         closed_at: conversation.closed_at,
         customer_name: customerName,
-        erp_customer_id: systemCustomer?.id || null,
+        erp_customer_id: validatedSystemCustomer?.id || null,
         erp_customer_name: readableSystemCustomerName,
         customer_avatar_url: customerAvatarUrl,
         commenter_name: latestCommenterName || customerName,
@@ -2533,7 +2534,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         },
         channel_metadata: channelMetadata,
         customer_profile: {
-          id: systemCustomer?.id || null,
+          id: validatedSystemCustomer?.id || null,
           name: customerName,
           avatar_url: customerAvatarUrl,
           phone: text(conversation.profile_phone || existingChannelMetadata.resolved_phone || existingChannelMetadata.phone || conversation.external_customer_id || ""),
