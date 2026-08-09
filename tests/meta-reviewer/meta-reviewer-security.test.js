@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 import jwt from "jsonwebtoken";
 
@@ -112,4 +113,12 @@ test("API boundary keeps the reviewer inside its inbox while preserving Admin ac
   const adminToken = jwt.sign({ id: 2, role: "admin" }, process.env.JWT_SECRET);
   metaReviewerApiBoundary({ headers: { authorization: `Bearer ${adminToken}` }, originalUrl: "/api/settings" }, makeResponse(), () => { nextCalls += 1; });
   assert.equal(nextCalls, 2);
+});
+
+test("Instagram webhook setup subscribes to direct messages and fails back to the required field", () => {
+  const source = fs.readFileSync(new URL("../../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  assert.match(source, /META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS\s*=\s*\[[\s\S]*?"messages"/);
+  assert.match(source, /META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS\s*=\s*\["messages"\]/);
+  assert.match(source, /subscribed_fields:\s*META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS\.join\(","\)/);
+  assert.match(source, /subscribed_fields:\s*META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS\.join\(","\)/);
 });

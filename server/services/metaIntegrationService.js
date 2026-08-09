@@ -135,6 +135,12 @@ const META_WEBHOOK_COMMENT_FIELDS = [
   "comments",
   "mentions",
 ];
+const META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS = [
+  "comments",
+  "messages",
+  "messaging_postbacks",
+];
+const META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS = ["messages"];
 const META_WEBHOOK_MINIMAL_FIELDS = [
   "feed",
   "messages",
@@ -6869,7 +6875,8 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   const instagramBusinessAccountId = text(row?.instagram_business_account_id || "");
   result.instagram_subscription = {
     account_id: instagramBusinessAccountId,
-    requested_fields: ["comments"],
+    requested_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS,
+    subscribed_fields: [],
     subscribed: false,
     error: "",
   };
@@ -6878,27 +6885,49 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
       const instagramSubscriptionMeta = await callMetaPostForm({
         endpoint: `/${encodeURIComponent(instagramBusinessAccountId)}/subscribed_apps`,
         token,
-        body: { subscribed_fields: "comments" },
+        body: { subscribed_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS.join(",") },
       });
       result.instagram_subscription = {
         ...result.instagram_subscription,
         subscribed: instagramSubscriptionMeta?.success !== false,
+        subscribed_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS,
         meta: instagramSubscriptionMeta || null,
       };
-      console.log("META_INSTAGRAM_COMMENTS_SUBSCRIPTION_SUCCESS", {
+      console.log("META_INSTAGRAM_WEBHOOK_SUBSCRIPTION_SUCCESS", {
         tenant_id: numberOrNull(tenantId),
         instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
-        subscribed_fields: ["comments"],
+        subscribed_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS,
       });
     } catch (error) {
-      result.instagram_subscription.error = error?.message || "Unable to subscribe Instagram comments webhook";
-      result.instagram_subscription.meta = error?.meta || null;
-      console.warn("META_INSTAGRAM_COMMENTS_SUBSCRIPTION_FAILED", {
-        tenant_id: numberOrNull(tenantId),
-        instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
-        message: result.instagram_subscription.error,
-        meta: error?.meta || null,
-      });
+      try {
+        const fallbackMeta = await callMetaPostForm({
+          endpoint: `/${encodeURIComponent(instagramBusinessAccountId)}/subscribed_apps`,
+          token,
+          body: { subscribed_fields: META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS.join(",") },
+        });
+        result.instagram_subscription = {
+          ...result.instagram_subscription,
+          subscribed: fallbackMeta?.success !== false,
+          subscribed_fields: META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS,
+          meta: fallbackMeta || null,
+          optional_fields_error: error?.message || "Meta rejected optional Instagram webhook fields",
+        };
+        console.log("META_INSTAGRAM_WEBHOOK_SUBSCRIPTION_SUCCESS", {
+          tenant_id: numberOrNull(tenantId),
+          instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
+          subscribed_fields: META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS,
+          fallback: true,
+        });
+      } catch (fallbackError) {
+        result.instagram_subscription.error = fallbackError?.message || error?.message || "Unable to subscribe Instagram messages webhook";
+        result.instagram_subscription.meta = fallbackError?.meta || error?.meta || null;
+        console.warn("META_INSTAGRAM_WEBHOOK_SUBSCRIPTION_FAILED", {
+          tenant_id: numberOrNull(tenantId),
+          instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
+          message: result.instagram_subscription.error,
+          meta: result.instagram_subscription.meta,
+        });
+      }
     }
   }
 
@@ -6916,7 +6945,7 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   result.page_subscription_present = Boolean(verification.page_subscription_present || verification.ok || result.post_subscription_success);
   result.missing_required_fields = META_WEBHOOK_REQUIRED_FIELDS.filter((field) => !hasRequiredWebhookFields(result.subscribed_fields, [field]));
   result.missing_optional_fields = META_WEBHOOK_COMMENT_FIELDS.filter((field) => {
-    if (field === "comments" && result.instagram_subscription?.subscribed) return false;
+    if (field === "comments" && result.instagram_subscription?.subscribed_fields?.includes("comments")) return false;
     return !hasRequiredWebhookFields(result.subscribed_fields, [field]);
   });
   result.comments_available = Boolean(
