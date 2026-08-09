@@ -65,8 +65,27 @@ const main = async () => {
     const names = ["tenant_id", "role_id", "name", "email", "password", "is_active", "is_super_admin", "account_expires_at"];
     const values = [scope.tenantId, roleId, displayName, email, passwordHash, true, false, expiry.toISOString()];
     if (columns.has("role")) { names.push("role"); values.push("meta_reviewer"); }
-    const placeholders = values.map((_, index) => `$${index + 1}`).join(",");
-    await client.query(`INSERT INTO users (${names.join(",")}) VALUES (${placeholders}) ON CONFLICT (tenant_id, email) DO UPDATE SET role_id = EXCLUDED.role_id, name = EXCLUDED.name, password = EXCLUDED.password, is_active = TRUE, is_super_admin = FALSE, account_expires_at = EXCLUDED.account_expires_at${columns.has("role") ? ", role = 'meta_reviewer'" : ""}`, values);
+    const existingUser = await client.query(
+      `SELECT id FROM users WHERE tenant_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
+      [scope.tenantId, email]
+    );
+    if (existingUser.rowCount) {
+      await client.query(
+        `UPDATE users
+         SET role_id = $1,
+             name = $2,
+             password = $3,
+             is_active = TRUE,
+             is_super_admin = FALSE,
+             account_expires_at = $4
+             ${columns.has("role") ? ", role = 'meta_reviewer'" : ""}
+         WHERE id = $5`,
+        [roleId, displayName, passwordHash, expiry.toISOString(), existingUser.rows[0].id]
+      );
+    } else {
+      const placeholders = values.map((_, index) => `$${index + 1}`).join(",");
+      await client.query(`INSERT INTO users (${names.join(",")}) VALUES (${placeholders})`, values);
+    }
     await client.query("COMMIT");
     console.log("Meta reviewer account created or refreshed with an expiration date.");
   } catch (error) {
