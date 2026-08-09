@@ -17,7 +17,6 @@ import { useTranslation } from "react-i18next";
    LAYOUT
 ====================================================== */
 
-import MainLayout from "./shared/layouts/MainLayout";
 import { api } from "./shared/api/api";
 import { setCurrency } from "./shared/lib/currency";
 import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlagProvider";
@@ -236,6 +235,11 @@ const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSett
 const AiSettings = lazy(() => import("./modules/aiSupport/pages/AiSettings"));
 const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAnalytics"));
 const Storefront = lazy(() => import("./storefront/Storefront"));
+// MainLayout is the ERP shell (sidebar, realtime socket, RBAC, notifications).
+// It only renders on the ERP host, so load it lazily to keep its heavy graph
+// (socket.io-client, rbac store, notifications) out of the customer storefront's
+// initial bundle. It renders inside the route-level <Suspense> below.
+const MainLayout = lazy(() => import("./shared/layouts/MainLayout"));
 
 function RouteSkeleton() {
   return (
@@ -391,7 +395,7 @@ function App() {
   }
 
   return (
-    <FeatureFlagProvider>
+    <FeatureFlagProvider poll={enableErpAppRoutes}>
     <TenantProvider>
     <DebugErrorBoundary title="Application screen crashed">
     <Suspense fallback={<RouteSkeleton />}>

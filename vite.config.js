@@ -78,7 +78,12 @@ export default defineConfig(({ mode }) => {
     build: {
       modulePreload: {
         resolveDependencies(_filename, deps) {
-          return deps.filter((dep) => !/(^|\/)(charts|exports|invoices|qr|qr-scanner|select)-/.test(dep));
+          // Never eagerly preload admin/export-only heavy chunks. They are reached
+          // only through dynamic imports on ERP/admin routes, so preloading them on
+          // the customer storefront just wastes bandwidth before first paint.
+          return deps.filter(
+            (dep) => !/(^|\/)(charts|exports|invoices|qr|qr-scanner|select|jspdf|jspdf-autotable|html2canvas|xlsx|realtime)-/.test(dep),
+          );
         },
       },
       rollupOptions: {
@@ -92,20 +97,20 @@ export default defineConfig(({ mode }) => {
           chunkFileNames: `assets/[name]-[hash]-${buildVersion}.js`,
           manualChunks(id) {
             if (!id.includes("node_modules")) return undefined;
+            // Split only the framework libs that the entry always needs, for stable
+            // long-term caching. Everything else — including admin/export-only heavy
+            // libs (recharts, jspdf, xlsx, html2canvas, qr, react-select, socket.io)
+            // that are reached ONLY through dynamic import on ERP/admin routes — is
+            // left to Rolldown's automatic splitting. A manual chunk for those pulled
+            // their whole dependency subtree (redux, d3, use-sync-external-store, …)
+            // into one heavy chunk, and a single shared dep then forced the entry to
+            // statically import (and download) that ~120 KB chunk on the customer
+            // storefront. Letting Rolldown decide keeps dynamic-only libs in async
+            // chunks and shared deps in entry-reachable common chunks.
             if (/[\\/]node_modules[\\/]react[\\/]/.test(id)) return "react";
             if (/[\\/]node_modules[\\/]react-dom[\\/]/.test(id)) return "react-dom";
             if (/[\\/]node_modules[\\/](react-router|react-router-dom)[\\/]/.test(id)) return "react-router";
-            if (/[\\/]node_modules[\\/]recharts[\\/]/.test(id)) return "charts";
-            if (/[\\/]node_modules[\\/]jspdf[\\/]/.test(id)) return "jspdf";
-            if (/[\\/]node_modules[\\/]jspdf-autotable[\\/]/.test(id)) return "jspdf-autotable";
-            if (/[\\/]node_modules[\\/]html2canvas[\\/]/.test(id)) return "html2canvas";
-            if (/[\\/]node_modules[\\/]xlsx[\\/]/.test(id)) return "xlsx";
-            if (/[\\/]node_modules[\\/]file-saver[\\/]/.test(id)) return "file-saver";
-            if (/[\\/]node_modules[\\/](react-qr-barcode-scanner|html5-qrcode)[\\/]/.test(id)) return "qr-scanner";
-            if (/[\\/]node_modules[\\/](qrcode\.react|react-qr-code)[\\/]/.test(id)) return "qr";
-            if (/[\\/]node_modules[\\/]react-select[\\/]/.test(id)) return "select";
-            if (/[\\/]node_modules[\\/]socket\.io-client[\\/]/.test(id)) return "realtime";
-            return "vendor";
+            return undefined;
           },
         },
       },
