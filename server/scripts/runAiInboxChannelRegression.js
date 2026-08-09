@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 const reportsDir = path.resolve(__dirname, "../reports");
 
 const BASE_URL = String(process.env.AI_INBOX_REGRESSION_BASE_URL || "https://api.m1store-egy.com").replace(/\/+$/g, "");
+const ALLOW_PRODUCTION_REGRESSION = ["1", "true", "yes"].includes(String(process.env.ALLOW_PRODUCTION_AI_INBOX_REGRESSION || "").trim().toLowerCase());
 const ADMIN_EMAIL = String(process.env.AI_INBOX_REGRESSION_EMAIL || "admin").trim();
 const ADMIN_PASSWORD = String(process.env.AI_INBOX_REGRESSION_PASSWORD || "admin").trim();
 const TENANT_ID = Number(process.env.AI_INBOX_REGRESSION_TENANT_ID || 1) || 1;
@@ -598,6 +599,11 @@ const renderMarkdown = () => {
 };
 
 const main = async () => {
+  const regressionHost = new URL(BASE_URL).hostname.toLowerCase();
+  const isProductionTarget = regressionHost === "api.m1store-egy.com" || regressionHost === "erp.m1store-egy.com";
+  if (isProductionTarget && !ALLOW_PRODUCTION_REGRESSION) {
+    throw new Error("Refusing to run AI Inbox regression against production. Set a non-production AI_INBOX_REGRESSION_BASE_URL.");
+  }
   const token = await login();
   printStep("auth", "login", { status: report.auth.login_status, ok: report.auth.login_success, payload: report.auth.login_response }, {
     endpoint: "/api/auth/login",

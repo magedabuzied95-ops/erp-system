@@ -2104,7 +2104,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   if (["draft_orders", "ai_drafts"].includes(normalizedFilter)) clauses.push("COALESCE(o.draft_count, 0) > 0");
   if (normalizedFilter === "confirmed_orders") clauses.push("COALESCE(o.confirmed_count, 0) > 0");
   if (["abandoned", "follow_up_due"].includes(normalizedFilter)) clauses.push("COALESCE(f.due_followup_count, 0) > 0");
-  if (["facebook", "facebook_messenger", "messenger"].includes(normalizedFilter)) clauses.push("COALESCE(c.channel, s.channel, s.source) = 'facebook_messenger'");
+  if (["facebook", "facebook_messenger", "messenger"].includes(normalizedFilter)) clauses.push("COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'facebook', 'messenger')");
   if (["instagram", "instagram_dm"].includes(normalizedFilter)) clauses.push("COALESCE(c.channel, s.channel, s.source) = 'instagram'");
   if (normalizedFilter === "ai_replied") clauses.push("COALESCE(m.ai_answer, '') <> ''");
   if (normalizedFilter === "unread") clauses.push("(m.sender_type = 'customer' OR m.needs_human_support = TRUE OR s.status = 'human_takeover')");
@@ -2115,7 +2115,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     clauses.push("(COALESCE(c.channel, s.channel, s.source) = 'instagram_comment' OR COALESCE(c.thread_kind, s.thread_kind, '') = 'comment')");
   }
   if (normalizedChannelFilter === "facebook_messenger") {
-    clauses.push("COALESCE(c.channel, s.channel, s.source) = 'facebook_messenger'");
+    clauses.push("COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'facebook', 'messenger')");
   }
   if (normalizedChannelFilter === "instagram") {
     clauses.push("COALESCE(c.channel, s.channel, s.source) = 'instagram'");

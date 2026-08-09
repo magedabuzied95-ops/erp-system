@@ -39,6 +39,10 @@ test("AI Inbox prioritizes WhatsApp direct messages in the initial summary", () 
   assert.match(serviceSource, /IN \('facebook_messenger', 'instagram', 'whatsapp'\) THEN 0/);
 });
 
+test("legacy Facebook DM sessions remain visible under Messenger", () => {
+  assert.match(serviceSource, /IN \('facebook_messenger', 'facebook', 'messenger'\)/);
+});
+
 test("AI Inbox PWA renders direct-message channels with their brand icons", () => {
   assert.match(pwaSource, /key === "whatsapp"\) return \{ label: "WhatsApp", icon: FaWhatsapp/);
   assert.match(pwaSource, /key === "instagram" \? "Instagram DM"/);
