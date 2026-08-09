@@ -1121,34 +1121,7 @@ const storefrontBrandMatchSql = (fieldSql = "p.name", param = "$4") => {
   return `CASE ${cases} ELSE '' END = LOWER(TRIM(${param}))`;
 };
 
-// Second-level normalize_products diagnostics. Aggregate totals only, no per-product
-// logging and no ids/names/prices/URLs. Inert unless STOREFRONT_PERF_DIAGNOSTICS=1.
-const npMetrics = { on: false, calls: 0, variants: 0, maxVariants: 0, maxCallMs: 0, json_ms: 0, pricing_ms: 0, audience_ms: 0, variants_ms: 0, derive_ms: 0, build_ms: 0 };
-export const npMetricsReset = (on) => {
-  npMetrics.on = Boolean(on);
-  npMetrics.calls = 0; npMetrics.variants = 0; npMetrics.maxVariants = 0; npMetrics.maxCallMs = 0;
-  npMetrics.json_ms = 0; npMetrics.pricing_ms = 0; npMetrics.audience_ms = 0; npMetrics.variants_ms = 0;
-  npMetrics.derive_ms = 0; npMetrics.build_ms = 0;
-};
-export const npMetricsSnapshot = () => ({ ...npMetrics });
-const npTime = (bucket, fn) => {
-  if (!npMetrics.on) return fn();
-  const s = process.hrtime.bigint();
-  try { return fn(); } finally { npMetrics[bucket] += Number(process.hrtime.bigint() - s) / 1e6; }
-};
-// Closure-free variants of the above, used inside the per-variant loop so the
-// disabled path allocates nothing at all: npStamp returns null without reading the
-// clock and npAdd then does no work. Buckets are nested inside variants_ms, so they
-// are reported as metadata and never summed into accounted_ms.
-const npStamp = () => (npMetrics.on ? process.hrtime.bigint() : null);
-const npAdd = (bucket, start) => {
-  if (start === null) return;
-  npMetrics[bucket] += Number(process.hrtime.bigint() - start) / 1e6;
-};
-
 const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
-  const npStart = npMetrics.on ? process.hrtime.bigint() : null;
-  try {
   const galleryImages = parseJsonArray(row.gallery_images).filter(Boolean);
   const productImage = firstText(row.public_image_url, row.image_url, row.image, row.photo_url, row.thumbnail_url, galleryImages[0]);
   const productCompareFields = {
@@ -1165,10 +1138,9 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   const rowResolvedSellingPrice = resolveCurrentSellingPrice({ product: row }).value;
   const rowSellingPrice = roundMoney(rowResolvedSellingPrice || rowPublicPrice.selling_price || row.selling_price || row.price || row.regular_price);
   const rowSalePrice = roundMoney(rowPublicPrice.sale_price || row.sale_price || row.offer_price);
-  const variants = npTime("variants_ms", () => npTime("json_ms", () => parseJsonArray(row.variants)).map((variant) => {
-    const variantPublicPrice = npTime("pricing_ms", () => resolveCustomerFacingDisplayPrice(row, variant, pricingSettings));
-    const variantResolvedSellingPrice = npTime("pricing_ms", () => resolveCurrentSellingPrice({ product: row, variant })).value;
-    const npDeriveStart = npStamp();
+  const variants = parseJsonArray(row.variants).map((variant) => {
+    const variantPublicPrice = resolveCustomerFacingDisplayPrice(row, variant, pricingSettings);
+    const variantResolvedSellingPrice = resolveCurrentSellingPrice({ product: row, variant }).value;
     const variantSellingPrice = roundMoney(variantResolvedSellingPrice || variantPublicPrice.selling_price || variant.selling_price || variant.price || rowSellingPrice);
     const variantOriginalCandidates = [
       variant.original_price,
@@ -1180,20 +1152,17 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     ].map(roundMoney).filter((value) => value > 0);
     const variantOriginalPrice = variantOriginalCandidates.find((value) => value > variantSellingPrice) || rowOriginalPrice || variantOriginalCandidates[0] || 0;
     const variantSalePrice = roundMoney(variantPublicPrice.sale_price || variant.sale_price || rowSalePrice);
-    npAdd("derive_ms", npDeriveStart);
-    const resolvedPrice = npTime("pricing_ms", () => resolveStorefrontActivePrice({
+    const resolvedPrice = resolveStorefrontActivePrice({
       originalPrice: variantOriginalPrice,
       sellingPrice: variantSellingPrice,
       salePrice: variantSalePrice,
       pricingSettings,
-    }));
-    const npDeriveResume = npStamp();
+    });
     const currentPrice = resolvedPrice.activePrice;
     const variantCompareAtPrice = resolvedPrice.compareAtPrice;
-    // Hoisted verbatim out of the object literal below so that derivation helpers are
-    // attributed to derive_ms and build_ms measures only object construction. Every
-    // expression is pure and independent, so the emitted object is byte-for-byte the
-    // same as before, including key order.
+    // Derivation helpers hoisted out of the object literal below. Every expression is
+    // pure and independent, so the emitted object is byte-for-byte identical, including
+    // key order.
     const variantEditionName = firstText(variant.edition_name);
     const variantEditionSlug = firstText(variant.edition_slug, slugifyEdition(variant.edition_name));
     const variantImageUrl = firstText(variant.image_url, productImage);
@@ -1202,8 +1171,6 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     const variantPurchaseInvoiceSellingPrice = roundMoney(variant.purchase_invoice_selling_price);
     const variantLastPieceSalePrice = roundMoney(variant.last_piece_sale_price ?? variant.purchase_sale_price);
     const variantStock = Math.max(0, toNumber(variant.stock));
-    npAdd("derive_ms", npDeriveResume);
-    const npBuildStart = npStamp();
     const normalizedVariant = {
       ...variant,
       id: variant.id,
@@ -1236,9 +1203,8 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       old_price: variantCompareAtPrice,
       stock: variantStock,
     };
-    npAdd("build_ms", npBuildStart);
     return normalizedVariant;
-  }));
+  });
   const totalStock = variants.length
     ? Math.max(variants.reduce((sum, variant) => sum + toNumber(variant.stock), 0), toNumber(row.variant_total_stock))
     : Math.max(0, toNumber(row.stock), toNumber(row.variant_total_stock));
@@ -1272,8 +1238,8 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     category: row.category_name || "",
     category_id: row.category_id || null,
     gender: row.gender || "",
-    audiences: npTime("audience_ms", () => normalizeProductAudiences(row.audiences, row.product_audiences, row.gender)),
-    product_audiences: npTime("audience_ms", () => normalizeProductAudiences(row.audiences, row.product_audiences, row.gender)),
+    audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
+    product_audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
     product_type: row.product_type || "",
     productType: row.product_type || "",
     grade: row.grade || "",
@@ -1353,13 +1319,6 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     is_mirror: isMirrorProduct(product),
     seo_title: mirrorProductTitle(product, variants[0]),
   };
-  } finally {
-    if (npMetrics.on) {
-      npMetrics.calls += 1;
-      const durationMs = Number(process.hrtime.bigint() - npStart) / 1e6;
-      if (durationMs > npMetrics.maxCallMs) npMetrics.maxCallMs = durationMs;
-    }
-  }
 };
 
 const productSeoTitle = (product = {}) => firstText(product.meta_title, product.seo_title, product.name, "Product");
@@ -1782,7 +1741,7 @@ const storefrontProductsSqlWithoutVisibility = buildCatalogQuery({
   productVisibility: false,
 });
 
-export const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset, diagnostics) => {
+export const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset) => {
   const arrayParam = (value) => Array.isArray(value)
     ? value
     : String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -1805,12 +1764,7 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
   try {
     const result = await db.query(sql, params);
     const selectedAudiences = Array.isArray(filters.gender) ? filters.gender : [];
-    // `diagnostics` is optional and undefined for every normal caller. When supplied it
-    // receives one aggregate duration for the post-SQL audience filter below. Filtering
-    // semantics are unchanged and nothing per-row or per-variant is recorded.
-    if (diagnostics) diagnostics.audience_postfilter_ms = 0;
     if (selectedAudiences.length > 0) {
-      const audienceStart = diagnostics ? process.hrtime.bigint() : null;
       // Per-invocation memo, discarded when this call returns: no module-level cache
       // and nothing retained between requests. The key encodes BOTH arguments that
       // reach normalizeProductAudiences, so it is complete for any caller regardless
@@ -1841,9 +1795,6 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
           ...(matchedImage ? { public_image_url: matchedImage } : {}),
         };
       });
-      if (diagnostics) {
-        diagnostics.audience_postfilter_ms = Number((Number(process.hrtime.bigint() - audienceStart) / 1e6).toFixed(1));
-      }
     }
     return result;
   } catch (error) {
@@ -1853,8 +1804,8 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
   }
 };
 
-export const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset, diagnostics) =>
-  queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset, diagnostics);
+export const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
+  queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset);
 
 export const queryProductsWithoutVisibility = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
   queryProductsWithSql(storefrontProductsSqlWithoutVisibility, tenantId, q, category, filters, saleOnly, limit, offset);
@@ -3203,11 +3154,7 @@ export const listProducts = async (req, res) => {
           excluded_due_to_is_storefront_visible: excludedDueToVisibility,
         });
       }
-      // Nested inside sql_main, so it is reported through count() as metadata and is
-      // never summed into accounted_ms. Undefined - a pure no-op - when diagnostics are off.
-      const audienceDiagnostics = perf.enabled ? {} : undefined;
-      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset, audienceDiagnostics));
-      if (audienceDiagnostics) perf.count("sql_audience_postfilter", audienceDiagnostics.audience_postfilter_ms ?? 0);
+      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
         const fallback = await perf.step("sql_tenant_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
@@ -3235,31 +3182,7 @@ export const listProducts = async (req, res) => {
           });
         }
       }
-      if (perf.enabled) npMetricsReset(true);
       let products = perf.sync("normalize_products", () => result.rows.map((row) => normalizeProduct(row, pricingSettings)));
-      if (perf.enabled) {
-        const np = npMetricsSnapshot();
-        npMetricsReset(false);
-        perf.count("np_calls", np.calls);
-        perf.count("np_json_ms", Number(np.json_ms.toFixed(1)));
-        perf.count("np_pricing_ms", Number(np.pricing_ms.toFixed(1)));
-        perf.count("np_audience_ms", Number(np.audience_ms.toFixed(1)));
-        perf.count("np_variants_ms", Number(np.variants_ms.toFixed(1)));
-        perf.count("np_derive_ms", Number(np.derive_ms.toFixed(1)));
-        perf.count("np_build_ms", Number(np.build_ms.toFixed(1)));
-        perf.count("np_max_call_ms", Number(np.maxCallMs.toFixed(1)));
-        let totalVariants = 0;
-        let maxVariants = 0;
-        for (const normalized of products) {
-          const variantCount = Array.isArray(normalized?.variants) ? normalized.variants.length : 0;
-          totalVariants += variantCount;
-          if (variantCount > maxVariants) maxVariants = variantCount;
-        }
-        perf.count("np_result_rows", result.rows.length);
-        perf.count("np_total_variants", totalVariants);
-        perf.count("np_avg_variants_per_row", products.length ? Number((totalVariants / products.length).toFixed(1)) : 0);
-        perf.count("np_max_variants_per_row", maxVariants);
-      }
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
         const fallback = await perf.step("sql_order_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
         const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));

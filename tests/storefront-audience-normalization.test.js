@@ -226,22 +226,6 @@ test("row copying behaviour is unchanged: rows are replaced, inputs are not muta
   assert.equal(typeof result.rows[0], "object");
 });
 
-test("the probe still reports the complete post-filter duration, memo included", async () => {
-  const diagnostics = {};
-  const slowSpy = (...args) => {
-    const until = process.hrtime.bigint() + 2000000n; // ~2 ms of busy work per distinct key
-    while (process.hrtime.bigint() < until) { /* burn */ }
-    return audience.normalizeProductAudiences(...args);
-  };
-  await run(ROWS(), ["men"], { spy: slowSpy, diagnostics });
-  assert.equal(typeof diagnostics.audience_postfilter_ms, "number");
-  assert.ok(diagnostics.audience_postfilter_ms >= 2, `probe must span the work, got ${diagnostics.audience_postfilter_ms}`);
-
-  const skipped = {};
-  await run(ROWS(), [], { diagnostics: skipped });
-  assert.equal(skipped.audience_postfilter_ms, 0, "the skipped path still reports a number");
-});
-
 test("the memo key encodes both arguments, so it cannot collide across representations", async () => {
   // Two variants sharing a raw `audience` but carrying different `audiences` arrays
   // must not be conflated. This is what makes the memo safe for any caller, not just
