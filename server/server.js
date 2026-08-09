@@ -28,9 +28,11 @@ import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertServ
 import { ensureUsersLoginSchema } from "./controllers/authController.js";
 import {
   isMetaReviewerRole,
+  getMetaReviewerChannelScope,
   loadMetaReviewerScope,
   metaReviewerAccountExpired,
   metaReviewerRealtimeRoom,
+  normalizeMetaReviewerChannel,
 } from "./services/metaReviewerAccessService.js";
 import { ensureInventoryCountSchema } from "./services/inventoryCountService.js";
 import { ensureBrandsTable } from "./controllers/brandsController.js";
@@ -423,7 +425,22 @@ io.on("connection", async (socket) => {
         throw new Error("review scope unavailable");
       }
       socket.data.user = { id: userId, tenant_id: tenantId, role };
-      socket.join(metaReviewerRealtimeRoom(reviewScope));
+      socket.on("meta_reviewer:select_channel", async (payload = {}, acknowledge = () => {}) => {
+        const channel = normalizeMetaReviewerChannel(payload?.channel);
+        const channelScope = getMetaReviewerChannelScope(reviewScope, channel);
+        for (const candidate of ["messenger", "instagram"]) {
+          const room = metaReviewerRealtimeRoom(reviewScope, candidate);
+          if (room) await socket.leave(room);
+        }
+        if (!channelScope?.enabled) {
+          acknowledge({ success: false, channel, enabled: false });
+          return;
+        }
+        const room = metaReviewerRealtimeRoom(reviewScope, channel);
+        await socket.join(room);
+        socket.data.metaReviewerChannel = channel;
+        acknowledge({ success: true, channel, enabled: true });
+      });
       socket.emit("notifications:ready", { connected: true, at: new Date().toISOString() });
       return;
     }

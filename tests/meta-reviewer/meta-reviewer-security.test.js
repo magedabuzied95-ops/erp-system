@@ -6,10 +6,12 @@ import { metaReviewerApiBoundary } from "../../server/middleware/metaReviewerBou
 import {
   emitMetaReviewerInboundEvent,
   filterMetaReviewerVisibleMessages,
+  getMetaReviewerChannelScope,
   loadMetaReviewerScope,
   metaReviewerConversationAllowed,
   metaReviewerConversationRef,
   metaReviewerConversationRefMatches,
+  normalizeMetaReviewerChannel,
   sanitizeMetaReviewerMessage,
 } from "../../server/services/metaReviewerAccessService.js";
 import { setIo } from "../../server/utils/socket.js";
@@ -17,85 +19,95 @@ import { setIo } from "../../server/utils/socket.js";
 const env = {
   META_REVIEWER_TENANT_ID: "1",
   META_REVIEWER_FACEBOOK_PAGE_ID: "page-test",
-  META_REVIEWER_ALLOWED_PSIDS: "test-psid",
+  META_REVIEWER_ALLOWED_PSIDS: "messenger-test-user",
+  META_REVIEWER_MESSENGER_REVIEW_SESSION_STARTED_AT: "2026-08-09T18:00:00.000Z",
+  META_REVIEWER_INSTAGRAM_BUSINESS_ACCOUNT_ID: "instagram-business-test",
+  META_REVIEWER_ALLOWED_INSTAGRAM_SCOPED_USER_IDS: "instagram-test-user",
+  META_REVIEWER_INSTAGRAM_REVIEW_SESSION_STARTED_AT: "2026-08-09T19:00:00.000Z",
   META_REVIEWER_SCOPE_HMAC_KEY: "test-only-hmac-key-with-sufficient-entropy",
-  META_REVIEWER_VISIBLE_MESSAGES_AFTER: "2026-08-09T18:00:00.000Z",
 };
 
-test("scope fails closed when no test PSID is configured", () => {
-  const scope = loadMetaReviewerScope({ ...env, META_REVIEWER_ALLOWED_PSIDS: "" });
-  assert.equal(scope.enabled, false);
-  assert.deepEqual(scope.allowedPsids, []);
+test("each review channel fails closed without its trusted test sender", () => {
+  const scope = loadMetaReviewerScope({ ...env, META_REVIEWER_ALLOWED_INSTAGRAM_SCOPED_USER_IDS: "" });
+  assert.equal(scope.enabled, true);
+  assert.equal(getMetaReviewerChannelScope(scope, "messenger").enabled, true);
+  assert.equal(getMetaReviewerChannelScope(scope, "instagram").enabled, false);
 });
 
-test("scope fails closed when the review session start time is missing", () => {
-  const scope = loadMetaReviewerScope({ ...env, META_REVIEWER_VISIBLE_MESSAGES_AFTER: "" });
-  assert.equal(scope.enabled, false);
-  assert.equal(scope.visibleMessagesAfter, "");
+test("only Messenger and Instagram Direct normalize to authorized tabs", () => {
+  assert.equal(normalizeMetaReviewerChannel("facebook_messenger"), "messenger");
+  assert.equal(normalizeMetaReviewerChannel("instagram_dm"), "instagram");
+  assert.equal(normalizeMetaReviewerChannel("whatsapp"), "whatsapp");
+  assert.equal(normalizeMetaReviewerChannel("web_chat"), "web_chat");
 });
 
-test("only the configured tenant, page, Messenger channel and test PSID are allowed", () => {
+test("Messenger isolation requires tenant, page and the authorized test PSID", () => {
   const scope = loadMetaReviewerScope(env);
-  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "test-psid" }, scope), true);
-  assert.equal(metaReviewerConversationAllowed({ tenantId: 2, channel: "messenger", pageId: "page-test", psid: "test-psid" }, scope), false);
-  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "messenger", pageId: "other-page", psid: "test-psid" }, scope), false);
-  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", pageId: "page-test", psid: "test-psid" }, scope), false);
-  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "real-customer" }, scope), false);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "messenger", assetId: "page-test", senderScopedId: "messenger-test-user" }, scope), true);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 2, channel: "messenger", assetId: "page-test", senderScopedId: "messenger-test-user" }, scope), false);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "messenger", assetId: "other-page", senderScopedId: "messenger-test-user" }, scope), false);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "messenger", assetId: "page-test", senderScopedId: "real-customer" }, scope), false);
 });
 
-test("opaque conversation references do not expose or accept another conversation id", () => {
+test("Instagram isolation requires tenant, business account and authorized scoped user", () => {
   const scope = loadMetaReviewerScope(env);
-  const reference = metaReviewerConversationRef("messenger:test-psid", scope);
-  assert.equal(reference.includes("test-psid"), false);
-  assert.equal(metaReviewerConversationRefMatches(reference, "messenger:test-psid", scope), true);
-  assert.equal(metaReviewerConversationRefMatches(reference, "messenger:real-customer", scope), false);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "instagram-test-user" }, scope), true);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "page-test", senderScopedId: "instagram-test-user" }, scope), false);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "messenger-test-user" }, scope), false);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "whatsapp", assetId: "instagram-business-test", senderScopedId: "instagram-test-user" }, scope), false);
 });
 
-test("message responses omit channel identifiers and customer data", () => {
+test("opaque conversation references are bound to the selected channel", () => {
+  const scope = loadMetaReviewerScope(env);
+  const reference = metaReviewerConversationRef("test-session", scope, "messenger");
+  assert.equal(reference.includes("test-session"), false);
+  assert.equal(metaReviewerConversationRefMatches(reference, "test-session", scope, "messenger"), true);
+  assert.equal(metaReviewerConversationRefMatches(reference, "test-session", scope, "instagram"), false);
+  assert.equal(metaReviewerConversationRefMatches(reference, "other-session", scope, "messenger"), false);
+});
+
+test("network message responses omit scoped IDs, phones and metadata", () => {
   const result = sanitizeMetaReviewerMessage({ id: 7, message_text: "hello", sender_type: "customer", external_customer_id: "secret", remote_jid: "secret", phone: "secret", metadata: { token: "secret" } });
   assert.equal(result.text, "hello");
-  assert.equal("external_customer_id" in result, false);
-  assert.equal("remote_jid" in result, false);
-  assert.equal("phone" in result, false);
-  assert.equal("metadata" in result, false);
+  for (const key of ["external_customer_id", "remote_jid", "phone", "metadata"]) assert.equal(key in result, false);
 });
 
-test("review session hides old messages and includes messages at or after the cutoff", () => {
+test("review session start is independent for Messenger and Instagram", () => {
   const scope = loadMetaReviewerScope(env);
-  const visible = filterMetaReviewerVisibleMessages([
-    { id: 1, created_at: "2026-08-09T17:59:59.999Z", message_text: "old" },
-    { id: 2, created_at: "2026-08-09T18:00:00.000Z", message_text: "at cutoff" },
-    { id: 3, created_at: "2026-08-09T18:00:01.000Z", message_text: "new" },
-  ], scope);
-  assert.deepEqual(visible.map((message) => message.id), [2, 3]);
+  const messages = [
+    { id: 1, created_at: "2026-08-09T18:30:00.000Z" },
+    { id: 2, created_at: "2026-08-09T19:00:00.000Z" },
+  ];
+  assert.deepEqual(filterMetaReviewerVisibleMessages(messages, scope, "messenger").map((item) => item.id), [1, 2]);
+  assert.deepEqual(filterMetaReviewerVisibleMessages(messages, scope, "instagram").map((item) => item.id), [2]);
 });
 
-test("realtime emits only for the configured test conversation", () => {
+test("Socket events are emitted only to the selected authorized channel room", () => {
   const events = [];
   const fakeIo = { to(room) { events.push({ room }); return this; }, emit(name, payload) { events.push({ name, payload }); return this; } };
   setIo(fakeIo);
   const scope = loadMetaReviewerScope(env);
-  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "real-customer", sessionId: "forbidden", message: {} }, scope), false);
+  const message = { message_text: "ok", sender_type: "customer", created_at: "2026-08-09T19:00:00.000Z" };
+  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "whatsapp", assetId: "page-test", senderScopedId: "messenger-test-user", sessionId: "forbidden", message }, scope), false);
+  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "real-customer", sessionId: "forbidden", message }, scope), false);
   assert.equal(events.length, 0);
-  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "test-psid", sessionId: "old", message: { message_text: "old", sender_type: "customer", created_at: "2026-08-09T17:59:59.999Z" } }, scope), false);
-  assert.equal(events.length, 0);
-  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "messenger", pageId: "page-test", psid: "test-psid", sessionId: "allowed", message: { message_text: "ok", sender_type: "customer", created_at: "2026-08-09T18:00:00.000Z" } }, scope), true);
-  assert.equal(events.some((event) => event.name === "meta_reviewer:message"), true);
-  assert.equal(JSON.stringify(events).includes("test-psid"), false);
+  assert.equal(emitMetaReviewerInboundEvent({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "instagram-test-user", sessionId: "allowed", message }, scope), true);
+  assert.equal(events.some((event) => String(event.room || "").endsWith(":instagram-test")), true);
+  assert.equal(events.some((event) => String(event.room || "").endsWith(":messenger-test")), false);
+  assert.equal(JSON.stringify(events).includes("instagram-test-user"), false);
   setIo(null);
 });
 
-test("API boundary rejects non-inbox APIs for the reviewer and preserves existing roles", () => {
+test("API boundary keeps the reviewer inside its inbox while preserving Admin access", () => {
   process.env.JWT_SECRET = "boundary-test-secret";
-  const token = jwt.sign({ id: 1, role: "meta_reviewer" }, process.env.JWT_SECRET);
-  const makeResponse = () => ({ statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
+  const makeResponse = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
   let nextCalls = 0;
+  const reviewerToken = jwt.sign({ id: 1, role: "meta_reviewer" }, process.env.JWT_SECRET);
   const denied = makeResponse();
-  metaReviewerApiBoundary({ headers: { authorization: `Bearer ${token}` }, originalUrl: "/api/settings" }, denied, () => { nextCalls += 1; });
+  metaReviewerApiBoundary({ headers: { authorization: `Bearer ${reviewerToken}` }, originalUrl: "/api/settings" }, denied, () => { nextCalls += 1; });
   assert.equal(denied.statusCode, 403);
-  assert.equal(nextCalls, 0);
   const allowed = makeResponse();
-  metaReviewerApiBoundary({ headers: { authorization: `Bearer ${token}` }, originalUrl: "/api/meta-reviewer/inbox/conversations?channel=whatsapp" }, allowed, () => { nextCalls += 1; });
+  metaReviewerApiBoundary({ headers: { authorization: `Bearer ${reviewerToken}` }, originalUrl: "/api/meta-reviewer/inbox/channels/instagram/conversations" }, allowed, () => { nextCalls += 1; });
   assert.equal(nextCalls, 1);
   const adminToken = jwt.sign({ id: 2, role: "admin" }, process.env.JWT_SECRET);
   metaReviewerApiBoundary({ headers: { authorization: `Bearer ${adminToken}` }, originalUrl: "/api/settings" }, makeResponse(), () => { nextCalls += 1; });

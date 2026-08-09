@@ -2,105 +2,111 @@ import crypto from "node:crypto";
 import { emitToRooms } from "../utils/socket.js";
 
 const text = (value = "") => String(value ?? "").trim();
+const uniqueCsv = (value = "") => [...new Set(text(value).split(",").map(text).filter(Boolean))];
+const isoDate = (value = "") => {
+  const raw = text(value);
+  const parsed = new Date(raw);
+  return raw && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : "";
+};
 
 export const META_REVIEWER_ROLE = "meta_reviewer";
-export const META_REVIEWER_CHANNELS = new Set(["facebook", "facebook_messenger", "messenger"]);
+export const META_REVIEWER_TABS = new Set(["messenger", "instagram"]);
 
-export const normalizeMetaReviewerRole = (value = "") =>
-  text(value).toLowerCase().replace(/[\s-]+/g, "_");
-
-export const isMetaReviewerRole = (value = "") =>
-  normalizeMetaReviewerRole(value) === META_REVIEWER_ROLE;
+export const normalizeMetaReviewerRole = (value = "") => text(value).toLowerCase().replace(/[\s-]+/g, "_");
+export const isMetaReviewerRole = (value = "") => normalizeMetaReviewerRole(value) === META_REVIEWER_ROLE;
 
 export const normalizeMetaReviewerChannel = (value = "") => {
   const channel = text(value).toLowerCase().replace(/[\s-]+/g, "_");
-  return META_REVIEWER_CHANNELS.has(channel) ? "facebook_messenger" : channel;
+  if (["facebook", "facebook_messenger", "messenger"].includes(channel)) return "messenger";
+  if (["instagram", "instagram_dm"].includes(channel)) return "instagram";
+  return channel;
 };
 
-export const parseAllowedPsids = (value = "") =>
-  [...new Set(text(value).split(",").map(text).filter(Boolean))];
+const channelScope = ({ assetId, allowedSenderIds, visibleMessagesAfter }) => ({
+  enabled: Boolean(assetId) && allowedSenderIds.length > 0 && Boolean(visibleMessagesAfter),
+  assetId: text(assetId),
+  allowedSenderIds,
+  visibleMessagesAfter,
+});
 
 export const loadMetaReviewerScope = (env = process.env) => {
   const tenantId = Number.parseInt(text(env.META_REVIEWER_TENANT_ID), 10);
-  const pageId = text(env.META_REVIEWER_FACEBOOK_PAGE_ID);
-  const allowedPsids = parseAllowedPsids(env.META_REVIEWER_ALLOWED_PSIDS);
   const referenceSecret = text(env.META_REVIEWER_SCOPE_HMAC_KEY);
-  const visibleMessagesAfterValue = text(
-    env.META_REVIEWER_VISIBLE_MESSAGES_AFTER || env.META_REVIEWER_REVIEW_SESSION_STARTED_AT
-  );
-  const visibleMessagesAfterDate = new Date(visibleMessagesAfterValue);
-  const visibleMessagesAfter = visibleMessagesAfterValue && !Number.isNaN(visibleMessagesAfterDate.getTime())
-    ? visibleMessagesAfterDate.toISOString()
-    : "";
-  const enabled = Number.isFinite(tenantId)
-    && tenantId > 0
-    && Boolean(pageId)
-    && allowedPsids.length > 0
-    && Boolean(referenceSecret)
-    && Boolean(visibleMessagesAfter);
+  const baseEnabled = Number.isFinite(tenantId) && tenantId > 0 && Boolean(referenceSecret);
+  const messenger = channelScope({
+    assetId: env.META_REVIEWER_FACEBOOK_PAGE_ID,
+    allowedSenderIds: uniqueCsv(env.META_REVIEWER_ALLOWED_PSIDS),
+    visibleMessagesAfter: isoDate(env.META_REVIEWER_MESSENGER_REVIEW_SESSION_STARTED_AT || env.META_REVIEWER_VISIBLE_MESSAGES_AFTER || env.META_REVIEWER_REVIEW_SESSION_STARTED_AT),
+  });
+  const instagram = channelScope({
+    assetId: env.META_REVIEWER_INSTAGRAM_BUSINESS_ACCOUNT_ID,
+    allowedSenderIds: uniqueCsv(env.META_REVIEWER_ALLOWED_INSTAGRAM_SCOPED_USER_IDS),
+    visibleMessagesAfter: isoDate(env.META_REVIEWER_INSTAGRAM_REVIEW_SESSION_STARTED_AT),
+  });
+  if (!baseEnabled) {
+    messenger.enabled = false;
+    instagram.enabled = false;
+  }
   return {
-    enabled,
-    tenantId: enabled ? tenantId : null,
-    pageId: enabled ? pageId : "",
-    allowedPsids: enabled ? allowedPsids : [],
-    referenceSecret: enabled ? referenceSecret : "",
-    visibleMessagesAfter: enabled ? visibleMessagesAfter : "",
+    enabled: baseEnabled && (messenger.enabled || instagram.enabled),
+    tenantId: baseEnabled ? tenantId : null,
+    referenceSecret: baseEnabled ? referenceSecret : "",
+    channels: { messenger, instagram },
+    // Compatibility for the existing Messenger deployment and management script.
+    pageId: messenger.assetId,
+    allowedPsids: messenger.allowedSenderIds,
+    visibleMessagesAfter: messenger.visibleMessagesAfter,
   };
 };
 
-export const metaReviewerScopeIsClosed = (scope = loadMetaReviewerScope()) => !scope?.enabled;
-
-export const metaReviewerConversationAllowed = ({ tenantId, channel, pageId, psid } = {}, scope = loadMetaReviewerScope()) => {
-  if (!scope?.enabled) return false;
-  return Number(tenantId) === Number(scope.tenantId)
-    && normalizeMetaReviewerChannel(channel) === "facebook_messenger"
-    && text(pageId) === text(scope.pageId)
-    && scope.allowedPsids.includes(text(psid));
+export const getMetaReviewerChannelScope = (scope = loadMetaReviewerScope(), channel = "") => {
+  const normalized = normalizeMetaReviewerChannel(channel);
+  return META_REVIEWER_TABS.has(normalized) ? scope?.channels?.[normalized] || null : null;
 };
 
-export const metaReviewerConversationRef = (sessionId = "", scope = loadMetaReviewerScope()) => {
-  if (!scope?.enabled || !text(sessionId)) return "";
-  return crypto
-    .createHmac("sha256", scope.referenceSecret)
-    .update(`meta-reviewer-conversation:v1:${scope.tenantId}:${text(sessionId)}`)
-    .digest("base64url")
-    .slice(0, 32);
+export const metaReviewerScopeIsClosed = (scope = loadMetaReviewerScope(), channel = "") => {
+  const channelConfig = getMetaReviewerChannelScope(scope, channel);
+  return !scope?.enabled || !channelConfig?.enabled;
 };
 
-export const metaReviewerConversationRefMatches = (candidateRef = "", sessionId = "", scope = loadMetaReviewerScope()) => {
-  const expected = metaReviewerConversationRef(sessionId, scope);
+export const metaReviewerConversationAllowed = ({ tenantId, channel, assetId, senderScopedId, pageId, psid } = {}, scope = loadMetaReviewerScope()) => {
+  const normalized = normalizeMetaReviewerChannel(channel);
+  const channelConfig = getMetaReviewerChannelScope(scope, normalized);
+  return Boolean(scope?.enabled && channelConfig?.enabled)
+    && Number(tenantId) === Number(scope.tenantId)
+    && text(assetId || pageId) === channelConfig.assetId
+    && channelConfig.allowedSenderIds.includes(text(senderScopedId || psid));
+};
+
+export const metaReviewerConversationRef = (sessionId = "", scope = loadMetaReviewerScope(), channel = "messenger") => {
+  const normalized = normalizeMetaReviewerChannel(channel);
+  if (!scope?.enabled || !META_REVIEWER_TABS.has(normalized) || !text(sessionId)) return "";
+  return crypto.createHmac("sha256", scope.referenceSecret)
+    .update(`meta-reviewer-conversation:v2:${scope.tenantId}:${normalized}:${text(sessionId)}`)
+    .digest("base64url").slice(0, 32);
+};
+
+export const metaReviewerConversationRefMatches = (candidateRef = "", sessionId = "", scope = loadMetaReviewerScope(), channel = "messenger") => {
+  const expected = metaReviewerConversationRef(sessionId, scope, channel);
   const actual = text(candidateRef);
-  if (!expected || expected.length !== actual.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  return Boolean(expected && expected.length === actual.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual)));
 };
 
-export const metaReviewerRealtimeRoom = (scope = loadMetaReviewerScope()) =>
-  scope?.enabled ? `meta-reviewer:tenant:${scope.tenantId}:messenger-test` : "";
+export const metaReviewerRealtimeRoom = (scope = loadMetaReviewerScope(), channel = "") => {
+  const normalized = normalizeMetaReviewerChannel(channel);
+  return getMetaReviewerChannelScope(scope, normalized)?.enabled
+    ? `meta-reviewer:tenant:${scope.tenantId}:${normalized}-test`
+    : "";
+};
 
-export const extractMetaReviewerIdentity = (record = {}) => {
+export const extractMetaReviewerIdentity = (record = {}, channel = record.channel) => {
   const metadata = record.channel_metadata || record.metadata || record.raw || {};
-  const pageId = text(
-    record.page_id ||
-    record.facebook_page_id ||
-    metadata.page_id ||
-    metadata.facebook_page_id ||
-    metadata.resolved_page_id ||
-    metadata.recipient_page_id ||
-    metadata.raw_payload?.page_id ||
-    metadata.raw_payload?.value?.page_id ||
-    record.raw?.page_id ||
-    record.raw?.recipient_page_id
-  );
-  const psid = text(
-    record.psid ||
-    record.external_customer_id ||
-    metadata.customer_psid ||
-    metadata.sender_psid ||
-    metadata.resolved_customer_id ||
-    record.raw?.sender_psid ||
-    record.raw?.sender_id
-  );
-  return { pageId, psid };
+  const normalized = normalizeMetaReviewerChannel(channel);
+  const assetId = normalized === "instagram"
+    ? text(record.instagram_business_account_id || metadata.instagram_business_account_id || metadata.resolved_instagram_business_account_id)
+    : text(record.page_id || record.facebook_page_id || metadata.page_id || metadata.facebook_page_id || metadata.resolved_page_id || metadata.recipient_page_id || metadata.raw_payload?.page_id || metadata.raw_payload?.value?.page_id || record.raw?.page_id || record.raw?.recipient_page_id);
+  const senderScopedId = text(record.sender_scoped_id || record.external_customer_id || metadata.customer_psid || metadata.sender_psid || metadata.resolved_customer_id || metadata.resolved_sender_id || record.raw?.sender_psid || record.raw?.sender_id);
+  return { assetId, senderScopedId };
 };
 
 export const sanitizeMetaReviewerMessage = (message = {}) => ({
@@ -114,17 +120,16 @@ export const sanitizeMetaReviewerMessage = (message = {}) => ({
   created_at: message.created_at || null,
 });
 
-export const metaReviewerMessageVisible = (message = {}, scope = loadMetaReviewerScope()) => {
-  if (!scope?.enabled || !scope.visibleMessagesAfter || !message?.created_at) return false;
+export const metaReviewerMessageVisible = (message = {}, scope = loadMetaReviewerScope(), channel = "messenger") => {
+  const channelConfig = getMetaReviewerChannelScope(scope, channel);
+  if (!channelConfig?.enabled || !message?.created_at) return false;
   const createdAt = new Date(message.created_at);
-  const visibleAfter = new Date(scope.visibleMessagesAfter);
-  return !Number.isNaN(createdAt.getTime())
-    && !Number.isNaN(visibleAfter.getTime())
-    && createdAt.getTime() >= visibleAfter.getTime();
+  const visibleAfter = new Date(channelConfig.visibleMessagesAfter);
+  return !Number.isNaN(createdAt.getTime()) && createdAt.getTime() >= visibleAfter.getTime();
 };
 
-export const filterMetaReviewerVisibleMessages = (messages = [], scope = loadMetaReviewerScope()) =>
-  (Array.isArray(messages) ? messages : []).filter((message) => metaReviewerMessageVisible(message, scope));
+export const filterMetaReviewerVisibleMessages = (messages = [], scope = loadMetaReviewerScope(), channel = "messenger") =>
+  (Array.isArray(messages) ? messages : []).filter((message) => metaReviewerMessageVisible(message, scope, channel));
 
 export const metaReviewerAccountExpired = (value, now = new Date()) => {
   if (!value) return false;
@@ -132,16 +137,18 @@ export const metaReviewerAccountExpired = (value, now = new Date()) => {
   return Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= now.getTime();
 };
 
-export const emitMetaReviewerInboundEvent = ({ tenantId, channel, pageId, psid, sessionId, message } = {}, scope = loadMetaReviewerScope()) => {
-  if (!metaReviewerConversationAllowed({ tenantId, channel, pageId, psid }, scope)) return false;
-  if (!metaReviewerMessageVisible(message, scope)) return false;
-  const room = metaReviewerRealtimeRoom(scope);
+export const emitMetaReviewerInboundEvent = ({ tenantId, channel, assetId, senderScopedId, pageId, psid, sessionId, message } = {}, scope = loadMetaReviewerScope()) => {
+  const normalized = normalizeMetaReviewerChannel(channel);
+  if (!metaReviewerConversationAllowed({ tenantId, channel: normalized, assetId: assetId || pageId, senderScopedId: senderScopedId || psid }, scope)) return false;
+  if (!metaReviewerMessageVisible(message, scope, normalized)) return false;
+  const room = metaReviewerRealtimeRoom(scope, normalized);
   if (!room) return false;
   emitToRooms([room], "meta_reviewer:message", {
-    conversation_id: metaReviewerConversationRef(sessionId, scope),
+    channel: normalized,
+    conversation_id: metaReviewerConversationRef(sessionId, scope, normalized),
     message: sanitizeMetaReviewerMessage(message),
     at: new Date().toISOString(),
   });
-  emitToRooms([room], "meta_reviewer:refresh", { at: new Date().toISOString() });
+  emitToRooms([room], "meta_reviewer:refresh", { channel: normalized, at: new Date().toISOString() });
   return true;
 };

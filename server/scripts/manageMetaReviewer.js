@@ -57,7 +57,7 @@ const main = async () => {
 
     const roleResult = await client.query(`INSERT INTO roles (tenant_id, name, description) VALUES ($1, 'meta_reviewer', 'Temporary isolated Meta pages_messaging reviewer') ON CONFLICT (tenant_id, name) DO UPDATE SET description = EXCLUDED.description RETURNING id`, [scope.tenantId]);
     const roleId = roleResult.rows[0].id;
-    for (const permission of [["ai_inbox_messenger", "view"], ["ai_inbox_messenger", "reply"]]) {
+    for (const permission of [["ai_inbox_messenger", "view"], ["ai_inbox_messenger", "reply"], ["ai_inbox_instagram", "view"], ["ai_inbox_instagram", "reply"]]) {
       const permissionResult = await client.query(`INSERT INTO permissions (module, action, description) VALUES ($1,$2,$3) ON CONFLICT (module, action) DO UPDATE SET description = EXCLUDED.description RETURNING id`, [permission[0], permission[1], `${permission[1]} isolated Meta review inbox`]);
       await client.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [roleId, permissionResult.rows[0].id]);
     }

@@ -49,6 +49,12 @@ export const subscribeRealtime = (eventName, handler) => {
   return () => socket.off(eventName, handler);
 };
 
+export const emitRealtime = (eventName, payload = {}, acknowledge) => {
+  if (!socket || !eventName) return;
+  connectRealtime();
+  socket.emit(eventName, payload, typeof acknowledge === "function" ? acknowledge : undefined);
+};
+
 socket.on("connect", () => {
   setState({ connected: true, connecting: false, reconnectAttempt: 0, error: "", lastEventAt: new Date().toISOString() });
 });

@@ -6,6 +6,8 @@ const ADMIN_ROLES = ["admin", "super_admin", "super admin", "superadmin"];
 const CORE_PERMISSIONS = [
   ["ai_inbox_messenger", "view"],
   ["ai_inbox_messenger", "reply"],
+  ["ai_inbox_instagram", "view"],
+  ["ai_inbox_instagram", "reply"],
   ["suppliers", "view"],
   ["suppliers", "create"],
   ["warehouses", "view"],

@@ -8,11 +8,13 @@ import { sendMetaInboxOutboundMessage } from "./metaIntegrationService.js";
 import {
   extractMetaReviewerIdentity,
   filterMetaReviewerVisibleMessages,
+  getMetaReviewerChannelScope,
   loadMetaReviewerScope,
   metaReviewerConversationAllowed,
   metaReviewerConversationRef,
   metaReviewerConversationRefMatches,
   metaReviewerRealtimeRoom,
+  normalizeMetaReviewerChannel,
   sanitizeMetaReviewerMessage,
 } from "./metaReviewerAccessService.js";
 
@@ -22,174 +24,152 @@ const int = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const PAGE_ID_SQL = `COALESCE(
-  NULLIF(c.metadata->>'page_id', ''),
-  NULLIF(c.metadata->>'facebook_page_id', ''),
-  NULLIF(c.metadata->>'resolved_page_id', ''),
-  NULLIF(c.metadata->>'recipient_page_id', ''),
-  NULLIF(c.metadata#>>'{raw_payload,page_id}', ''),
-  NULLIF(c.metadata#>>'{raw_payload,value,page_id}', '')
-)`;
+const CHANNEL_SQL = {
+  messenger: {
+    aliases: "'facebook', 'facebook_messenger', 'messenger'",
+    asset: `COALESCE(NULLIF(c.metadata->>'page_id', ''), NULLIF(c.metadata->>'facebook_page_id', ''), NULLIF(c.metadata->>'resolved_page_id', ''), NULLIF(c.metadata->>'recipient_page_id', ''), NULLIF(c.metadata#>>'{raw_payload,page_id}', ''), NULLIF(c.metadata#>>'{raw_payload,value,page_id}', ''))`,
+    outbound: "facebook_messenger",
+  },
+  instagram: {
+    aliases: "'instagram', 'instagram_dm'",
+    asset: `COALESCE(NULLIF(c.metadata->>'instagram_business_account_id', ''), NULLIF(c.metadata->>'resolved_instagram_business_account_id', ''))`,
+    outbound: "instagram",
+  },
+};
 
-const PSID_MATCH_SQL = `ARRAY_REMOVE(ARRAY[
+const SENDER_MATCH_SQL = `ARRAY_REMOVE(ARRAY[
   NULLIF(c.external_customer_id, ''),
   NULLIF(c.metadata->>'customer_psid', ''),
   NULLIF(c.metadata->>'sender_psid', ''),
-  NULLIF(c.metadata->>'resolved_customer_id', '')
+  NULLIF(c.metadata->>'resolved_customer_id', ''),
+  NULLIF(c.metadata->>'resolved_sender_id', '')
 ], NULL) && $3::text[]`;
 
-const scopedConversationSql = ({ includeSearch = false } = {}) => `
-  SELECT
-    s.session_id,
-    COALESCE(NULLIF(c.customer_name, ''), NULLIF(s.customer_name, ''), 'Meta test account') AS customer_name,
-    COALESCE(NULLIF(c.customer_avatar_url, ''), NULLIF(s.customer_avatar_url, ''), '') AS customer_avatar_url,
-    COALESCE(
-      NULLIF(visible_message.customer_message, ''),
-      NULLIF(visible_message.staff_message, ''),
-      NULLIF(visible_message.message_text, ''),
-      NULLIF(visible_message.ai_answer, ''),
-      NULLIF(visible_message.last_message, ''),
-      ''
-    ) AS last_message,
-    visible_message.created_at AS last_message_at,
-    COALESCE(c.read_at, s.read_at) AS read_at,
-    c.channel,
-    c.external_customer_id,
-    c.external_conversation_id,
-    c.metadata AS channel_metadata,
-    ${PAGE_ID_SQL} AS resolved_page_id,
-    (
-      SELECT COUNT(*)::int
-      FROM ai_support_messages unread_message
-      WHERE unread_message.tenant_id = s.tenant_id
-        AND unread_message.session_id = s.session_id
-        AND unread_message.sender_type = 'customer'
-        AND unread_message.created_at >= $4::timestamptz
-        AND unread_message.created_at > COALESCE(c.read_at, s.read_at, TIMESTAMP 'epoch')
-    ) AS unread_count
-  FROM ai_support_sessions s
-  JOIN LATERAL (
-    SELECT channel_conversation.*
-    FROM ai_channel_conversations channel_conversation
-    WHERE channel_conversation.tenant_id = s.tenant_id
-      AND channel_conversation.external_conversation_id = s.session_id
-      AND LOWER(channel_conversation.channel) IN ('facebook', 'facebook_messenger', 'messenger')
-    ORDER BY channel_conversation.updated_at DESC, channel_conversation.id DESC
-    LIMIT 1
-  ) c ON TRUE
-  LEFT JOIN LATERAL (
-    SELECT candidate_message.*
-    FROM ai_support_messages candidate_message
-    WHERE candidate_message.tenant_id = s.tenant_id
-      AND candidate_message.session_id = s.session_id
-      AND candidate_message.created_at >= $4::timestamptz
-    ORDER BY candidate_message.created_at DESC, candidate_message.id DESC
-    LIMIT 1
-  ) visible_message ON TRUE
-  WHERE s.tenant_id = $1::bigint
-    AND ${PAGE_ID_SQL} = $2::text
-    AND ${PSID_MATCH_SQL}
-    AND LOWER(COALESCE(s.thread_kind, c.thread_kind, 'dm')) <> 'comment'
-    ${includeSearch ? `AND (
-      $5::text = ''
-      OR LOWER(COALESCE(c.customer_name, s.customer_name, '')) LIKE $5::text
-      OR EXISTS (
+const scopedConversationSql = (channel, { includeSearch = false } = {}) => {
+  const config = CHANNEL_SQL[channel];
+  if (!config) throw Object.assign(new Error("Review channel is forbidden."), { status: 403 });
+  return `
+    SELECT
+      s.session_id,
+      COALESCE(NULLIF(c.customer_name, ''), NULLIF(s.customer_name, ''), 'Meta test account') AS customer_name,
+      COALESCE(NULLIF(c.customer_avatar_url, ''), NULLIF(s.customer_avatar_url, ''), '') AS customer_avatar_url,
+      COALESCE(NULLIF(visible_message.customer_message, ''), NULLIF(visible_message.staff_message, ''), NULLIF(visible_message.message_text, ''), NULLIF(visible_message.ai_answer, ''), NULLIF(visible_message.last_message, ''), '') AS last_message,
+      visible_message.created_at AS last_message_at,
+      COALESCE(c.read_at, s.read_at) AS read_at,
+      c.channel,
+      c.external_customer_id,
+      c.external_conversation_id,
+      c.metadata AS channel_metadata,
+      ${config.asset} AS resolved_asset_id,
+      (SELECT COUNT(*)::int FROM ai_support_messages unread_message
+       WHERE unread_message.tenant_id = s.tenant_id
+         AND unread_message.session_id = s.session_id
+         AND unread_message.sender_type = 'customer'
+         AND unread_message.created_at >= $4::timestamptz
+         AND unread_message.created_at > COALESCE(c.read_at, s.read_at, TIMESTAMP 'epoch')) AS unread_count
+    FROM ai_support_sessions s
+    JOIN LATERAL (
+      SELECT channel_conversation.* FROM ai_channel_conversations channel_conversation
+      WHERE channel_conversation.tenant_id = s.tenant_id
+        AND channel_conversation.external_conversation_id = s.session_id
+        AND LOWER(channel_conversation.channel) IN (${config.aliases})
+      ORDER BY channel_conversation.updated_at DESC, channel_conversation.id DESC LIMIT 1
+    ) c ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT candidate_message.* FROM ai_support_messages candidate_message
+      WHERE candidate_message.tenant_id = s.tenant_id
+        AND candidate_message.session_id = s.session_id
+        AND candidate_message.created_at >= $4::timestamptz
+      ORDER BY candidate_message.created_at DESC, candidate_message.id DESC LIMIT 1
+    ) visible_message ON TRUE
+    WHERE s.tenant_id = $1::bigint
+      AND ${config.asset} = $2::text
+      AND ${SENDER_MATCH_SQL}
+      AND LOWER(COALESCE(s.thread_kind, c.thread_kind, 'dm')) <> 'comment'
+      ${includeSearch ? `AND ($5::text = '' OR LOWER(COALESCE(c.customer_name, s.customer_name, '')) LIKE $5::text OR EXISTS (
         SELECT 1 FROM ai_support_messages search_message
         WHERE search_message.tenant_id = s.tenant_id
           AND search_message.session_id = s.session_id
           AND search_message.created_at >= $4::timestamptz
           AND LOWER(COALESCE(search_message.customer_message, search_message.staff_message, search_message.message_text, search_message.ai_answer, '')) LIKE $5::text
-      )
-    )` : ""}
-`;
+      ))` : ""}
+  `;
+};
 
 const ensureInboxDependencies = async () => {
   await ensureAiChannelAdapterSchema();
   await ensureAiSupportLogSchema();
 };
 
-export const listMetaReviewerConversations = async ({ search = "", limit = 50, scope = loadMetaReviewerScope() } = {}) => {
-  if (!scope.enabled) return { conversations: [], counts: { total: 0, unread: 0 } };
+const channelContext = (scope, channel) => {
+  const normalized = normalizeMetaReviewerChannel(channel);
+  const config = getMetaReviewerChannelScope(scope, normalized);
+  if (!CHANNEL_SQL[normalized]) throw Object.assign(new Error("Review channel is forbidden."), { status: 403 });
+  return { normalized, config };
+};
+
+export const listMetaReviewerConversations = async ({ channel, search = "", limit = 50, scope = loadMetaReviewerScope() } = {}) => {
+  const { normalized, config } = channelContext(scope, channel);
+  if (!scope.enabled || !config?.enabled) return { enabled: false, channel: normalized, conversations: [], counts: { total: 0, unread: 0 } };
   await ensureInboxDependencies();
   const safeLimit = Math.min(100, Math.max(1, int(limit, 50)));
   const searchValue = text(search).toLowerCase();
-  const params = [scope.tenantId, scope.pageId, scope.allowedPsids, scope.visibleMessagesAfter, searchValue ? `%${searchValue}%` : "", safeLimit];
-  const result = await db.query(
-    `${scopedConversationSql({ includeSearch: true })}
-     ORDER BY visible_message.created_at DESC NULLS LAST, s.session_id ASC
-     LIMIT $6::int`,
-    params
-  );
+  const params = [scope.tenantId, config.assetId, config.allowedSenderIds, config.visibleMessagesAfter, searchValue ? `%${searchValue}%` : "", safeLimit];
+  const result = await db.query(`${scopedConversationSql(normalized, { includeSearch: true })} ORDER BY visible_message.created_at DESC NULLS LAST, s.session_id ASC LIMIT $6::int`, params);
   const conversations = result.rows.map((row) => ({
-    id: metaReviewerConversationRef(row.session_id, scope),
-    channel: "messenger",
+    id: metaReviewerConversationRef(row.session_id, scope, normalized),
+    channel: normalized,
     customer_name: text(row.customer_name || "Meta test account"),
     customer_avatar_url: text(row.customer_avatar_url),
     latest_message_preview: text(row.last_message),
     last_message_at: row.last_message_at || null,
     unread_count: Math.max(0, int(row.unread_count, 0)),
   }));
-  return {
-    conversations,
-    counts: {
-      total: conversations.length,
-      unread: conversations.reduce((sum, item) => sum + item.unread_count, 0),
-    },
-  };
+  return { enabled: true, channel: normalized, conversations, counts: { total: conversations.length, unread: conversations.reduce((sum, item) => sum + item.unread_count, 0) } };
 };
 
-export const resolveMetaReviewerConversation = async ({ conversationRef, scope = loadMetaReviewerScope() } = {}) => {
-  if (!scope.enabled) return null;
+export const resolveMetaReviewerConversation = async ({ channel, conversationRef, scope = loadMetaReviewerScope() } = {}) => {
+  const { normalized, config } = channelContext(scope, channel);
+  if (!scope.enabled || !config?.enabled) return null;
   await ensureInboxDependencies();
-  const result = await db.query(scopedConversationSql(), [scope.tenantId, scope.pageId, scope.allowedPsids, scope.visibleMessagesAfter]);
-  const row = result.rows.find((candidate) => metaReviewerConversationRefMatches(conversationRef, candidate.session_id, scope));
+  const result = await db.query(scopedConversationSql(normalized), [scope.tenantId, config.assetId, config.allowedSenderIds, config.visibleMessagesAfter]);
+  const row = result.rows.find((candidate) => metaReviewerConversationRefMatches(conversationRef, candidate.session_id, scope, normalized));
   if (!row) return null;
-  const identity = extractMetaReviewerIdentity(row);
-  if (!metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel: row.channel, ...identity }, scope)) return null;
-  return { ...row, pageId: identity.pageId, psid: identity.psid };
+  const identity = extractMetaReviewerIdentity(row, normalized);
+  if (!metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel: normalized, ...identity }, scope)) return null;
+  return { ...row, ...identity, normalizedChannel: normalized };
 };
 
-export const loadMetaReviewerMessages = async ({ conversationRef, limit = 50, scope = loadMetaReviewerScope() } = {}) => {
-  const conversation = await resolveMetaReviewerConversation({ conversationRef, scope });
+export const loadMetaReviewerMessages = async ({ channel, conversationRef, limit = 50, scope = loadMetaReviewerScope() } = {}) => {
+  const conversation = await resolveMetaReviewerConversation({ channel, conversationRef, scope });
   if (!conversation) return null;
+  const config = getMetaReviewerChannelScope(scope, conversation.normalizedChannel);
   const safeLimit = Math.min(100, Math.max(1, int(limit, 50)));
-  const result = await db.query(
-    `SELECT *
-     FROM ai_support_messages
-     WHERE tenant_id = $1::bigint
-       AND session_id = $2::text
-       AND created_at >= $3::timestamptz
-     ORDER BY created_at DESC, id DESC
-     LIMIT $4::int`,
-    [scope.tenantId, conversation.session_id, scope.visibleMessagesAfter, safeLimit]
-  );
+  const result = await db.query(`SELECT * FROM ai_support_messages WHERE tenant_id = $1::bigint AND session_id = $2::text AND created_at >= $3::timestamptz ORDER BY created_at DESC, id DESC LIMIT $4::int`, [scope.tenantId, conversation.session_id, config.visibleMessagesAfter, safeLimit]);
   return {
-    conversation: {
-      id: conversationRef,
-      channel: "messenger",
-      customer_name: text(conversation.customer_name || "Meta test account"),
-      customer_avatar_url: text(conversation.customer_avatar_url),
-    },
-    messages: filterMetaReviewerVisibleMessages(result.rows.reverse(), scope).map(sanitizeMetaReviewerMessage),
+    conversation: { id: conversationRef, channel: conversation.normalizedChannel, customer_name: text(conversation.customer_name || "Meta test account"), customer_avatar_url: text(conversation.customer_avatar_url) },
+    messages: filterMetaReviewerVisibleMessages(result.rows.reverse(), scope, conversation.normalizedChannel).map(sanitizeMetaReviewerMessage),
   };
 };
 
-export const sendMetaReviewerMessage = async ({ conversationRef, message, actorUserId, scope = loadMetaReviewerScope() } = {}) => {
+export const sendMetaReviewerMessage = async ({ channel, conversationRef, message, actorUserId, scope = loadMetaReviewerScope() } = {}) => {
   const safeMessage = text(message);
-  if (!safeMessage || safeMessage.length > 2000) {
-    throw Object.assign(new Error("A message between 1 and 2000 characters is required."), { status: 400 });
-  }
-  const conversation = await resolveMetaReviewerConversation({ conversationRef, scope });
-  if (!conversation) {
-    throw Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403, code: "META_REVIEW_SCOPE_FORBIDDEN" });
+  if (!safeMessage || safeMessage.length > 2000) throw Object.assign(new Error("A message between 1 and 2000 characters is required."), { status: 400 });
+  const conversation = await resolveMetaReviewerConversation({ channel, conversationRef, scope });
+  if (!conversation) throw Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403 });
+  const normalized = conversation.normalizedChannel;
+  const channelConfig = getMetaReviewerChannelScope(scope, normalized);
+  if (!metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel: normalized, assetId: conversation.assetId, senderScopedId: conversation.senderScopedId }, scope)) {
+    throw Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403 });
   }
   const sendResult = await sendMetaInboxOutboundMessage({
     tenantId: scope.tenantId,
-    channel: "facebook_messenger",
-    recipientId: conversation.psid,
+    channel: CHANNEL_SQL[normalized].outbound,
+    recipientId: conversation.senderScopedId,
     messageText: safeMessage,
     conversationId: conversationRef,
-    facebookPageId: conversation.pageId,
+    facebookPageId: normalized === "messenger" ? channelConfig.assetId : "",
+    instagramBusinessAccountId: normalized === "instagram" ? channelConfig.assetId : "",
     replyOwner: "meta_reviewer",
     replySource: "meta_reviewer_manual_reply",
     orchestratorUsed: false,
@@ -202,8 +182,8 @@ export const sendMetaReviewerMessage = async ({ conversationRef, message, actorU
     message: safeMessage,
     staffUserId: actorUserId || null,
     staffUserName: "Meta Reviewer",
-    source: "facebook_messenger",
-    channel: "facebook_messenger",
+    source: CHANNEL_SQL[normalized].outbound,
+    channel: CHANNEL_SQL[normalized].outbound,
     deliveryStatus,
     deliveryError: deliveryStatus === "failed" ? "Message delivery failed" : "",
     externalMessageId: sendResult?.message_id || "",
@@ -211,10 +191,6 @@ export const sendMetaReviewerMessage = async ({ conversationRef, message, actorU
     redactSessionInLogs: true,
   });
   const safeStored = sanitizeMetaReviewerMessage(stored);
-  emitToRooms([metaReviewerRealtimeRoom(scope)], "meta_reviewer:message", {
-    conversation_id: conversationRef,
-    message: safeStored,
-    at: new Date().toISOString(),
-  });
+  emitToRooms([metaReviewerRealtimeRoom(scope, normalized)], "meta_reviewer:message", { channel: normalized, conversation_id: conversationRef, message: safeStored, at: new Date().toISOString() });
   return { sent: deliveryStatus === "sent", delivery_status: deliveryStatus, message: safeStored };
 };

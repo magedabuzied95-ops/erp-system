@@ -7,7 +7,7 @@ import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialP
 import { getPublicAppUrl, getMetaWebhookUrl } from "../utils/publicUrl.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
 import { emitToRooms } from "../utils/socket.js";
-import { emitMetaReviewerInboundEvent } from "./metaReviewerAccessService.js";
+import { emitMetaReviewerInboundEvent, normalizeMetaReviewerChannel } from "./metaReviewerAccessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
@@ -9627,8 +9627,10 @@ const logIncomingToInbox = async ({ message, config }) => {
   emitMetaReviewerInboundEvent({
     tenantId: config.tenant_id,
     channel,
-    pageId: resolvedPageId || message.raw?.page_id || "",
-    psid: message.external_customer_id || message.raw?.sender_psid || "",
+    assetId: normalizeMetaReviewerChannel(channel) === "instagram"
+      ? (config.instagram_business_account_id || "")
+      : (resolvedPageId || message.raw?.page_id || ""),
+    senderScopedId: message.external_customer_id || message.raw?.sender_psid || message.raw?.sender_id || "",
     sessionId,
     message: inserted.rows[0] || null,
   });
