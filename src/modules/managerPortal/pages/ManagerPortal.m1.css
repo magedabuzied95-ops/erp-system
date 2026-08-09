@@ -63,6 +63,18 @@ html[data-theme] .manager-portal-shell:not(.manager-portal-mobile-dark) .manager
   color: var(--topbar-text) !important;
 }
 
+/* Chips sitting on the dark hero (the live badge and the refresh button) carry
+   a white surface with light text — invisible on the topbar. Turn them into
+   translucent light chips (matching the theme toggle) so they read clearly.
+   Semantic controls (amber pending-approvals button, rose count badge) keep
+   their own colours and are intentionally excluded. */
+html[data-theme] .manager-portal-shell:not(.manager-portal-mobile-dark) .manager-portal-hero :where(.manager-portal-badge, button[class*="bg-white"]) {
+  background: color-mix(in srgb, var(--topbar-text) 12%, transparent) !important;
+  background-image: none !important;
+  border-color: color-mix(in srgb, var(--topbar-text) 24%, transparent) !important;
+  color: var(--topbar-text) !important;
+}
+
 .manager-portal-shell .manager-theme-toggle {
   background: color-mix(in srgb, var(--topbar-text) 8%, transparent) !important;
   border-color: color-mix(in srgb, var(--topbar-text) 18%, transparent) !important;
