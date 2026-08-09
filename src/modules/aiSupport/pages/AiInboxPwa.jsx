@@ -20,7 +20,6 @@ import {
   Minimize2,
   PackagePlus,
   Ruler,
-  RotateCcw,
   Search,
   Send,
   ShieldBan,
@@ -39,6 +38,7 @@ import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
@@ -51,6 +51,10 @@ import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from ".
 import PostProductLinksDrawer from "../components/socialAutomation/PostProductLinksDrawer.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
+import SmartPosFilters from "../../pos/components/SmartPosFilters";
+import { useProductClassifications } from "../../products/hooks/useProductClassifications";
+import { classificationGroupsToFieldOptions, normalizeCanonicalProductType, normalizeClassificationValue } from "../../products/lib/productClassifications";
+import { moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
 import EnhancedPwaOrderComposer from "../components/PwaOrderComposer";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
@@ -373,14 +377,14 @@ const getVariantRows = (product = {}) => [
 ].filter(Boolean);
 
 const PRODUCT_FILTER_DEFAULTS = Object.freeze({
-  audience: "all",
-  brand: "all",
+  audience: [],
+  brand: [],
   mainCategory: "all",
   subCategory: "all",
   childCategory: "all",
   productType: "all",
   grade: "all",
-  manufacturer: "all",
+  manufacturer: [],
   stock: "all",
 });
 
@@ -393,21 +397,7 @@ const normalizeProductFilterValue = (value = "") =>
     .replace(/\s+/g, " ");
 
 const productAudienceKeys = (product = {}) => {
-  const keys = new Set();
-  const visit = (value) => {
-    if (Array.isArray(value)) return value.forEach(visit);
-    normalizeProductFilterValue(value)
-      .split(/[,|/]+/)
-      .filter(Boolean)
-      .forEach((item) => {
-        if (/^(men|man|male|mens)$/.test(item) || /رجال|رجالي|ذكور/.test(item)) keys.add("men");
-        if (/^(women|woman|female|ladies|womens)$/.test(item) || /حريم|حريمي|نساء|نسائي|اناث/.test(item)) keys.add("women");
-        if (/^(kids|kid|children|child|boys|girls)$/.test(item) || /اطفال|طفل|ولادي|بناتي/.test(item)) keys.add("kids");
-      });
-  };
-  getVariantRows(product).forEach((variant) => visit(variant.audience || variant.variant_audience || variant.gender));
-  visit(product.audiences || product.product_audiences || product.audience || product.gender);
-  return keys;
+  return new Set(getProductAudienceValues(product));
 };
 
 const firstProductField = (product = {}, fields = []) => {
@@ -434,8 +424,8 @@ const productFilterMeta = (product = {}) => {
     mainCategory: field(["main_category_name", "main_category", "category_name", "category"]),
     subCategory: field(["sub_category_name", "sub_category", "subcategory_name", "subcategory"]),
     childCategory: field(["child_category_name", "child_category"]),
-    productType: field(["product_type", "productType", "type"]),
-    grade: field(["grade", "product_grade"]),
+    productType: normalizeCanonicalProductType(firstProductField(product, ["product_type", "productType", "type"])),
+    grade: normalizeClassificationValue(firstProductField(product, ["grade", "product_grade"])),
     manufacturer: field(["manufacturer_name", "manufacturer"]),
     stock: available ? "in" : "out",
   };
@@ -444,44 +434,6 @@ const productFilterMeta = (product = {}) => {
 const productSheetIdentity = (product = {}, index = 0) =>
   clean(product.product_id || product.id || product.uuid || product.sku || product.barcode || product.slug) ||
   `product-${normalizeProductFilterValue(product.name || product.product_name || "item")}-${index}`;
-
-const buildProductFilterOptions = (entries, field) => {
-  const labels = new Map();
-  entries.forEach(({ product, meta }) => {
-    const value = meta[field];
-    if (!value || labels.has(value)) return;
-    const fieldMap = {
-      brand: ["brand_name", "brand"],
-      mainCategory: ["main_category_name", "main_category", "category_name", "category"],
-      subCategory: ["sub_category_name", "sub_category", "subcategory_name", "subcategory"],
-      childCategory: ["child_category_name", "child_category"],
-      productType: ["product_type", "productType", "type"],
-      grade: ["grade", "product_grade"],
-      manufacturer: ["manufacturer_name", "manufacturer"],
-    };
-    labels.set(value, firstProductField(product, fieldMap[field] || []) || value);
-  });
-  return Array.from(labels, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, "ar"));
-};
-
-function ProductFilterSelect({ label, value, options, onChange, allLabel = "الكل" }) {
-  if (!options.length) return null;
-  return (
-    <label className="min-w-0">
-      <span className="mb-1 block text-[11px] font-semibold text-slate-500">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-slate-400"
-      >
-        <option value="all">{allLabel}</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 const tenantIdFromAuth = () => {
   const tenant = getCurrentTenant?.() || {};
@@ -2468,12 +2420,14 @@ function ProductSheet({
   sending,
   selectedConversation,
 }) {
+  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [view, setView] = useState("list");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [productFilters, setProductFilters] = useState(() => ({ ...PRODUCT_FILTER_DEFAULTS }));
+  const [draftPosFilters, setDraftPosFilters] = useState(null);
 
   useEffect(() => {
     if (!open) return;
@@ -2483,6 +2437,7 @@ function ProductSheet({
     setView("list");
     setFiltersOpen(false);
     setProductFilters({ ...PRODUCT_FILTER_DEFAULTS });
+    setDraftPosFilters(null);
   }, [open, selectedConversation?.session_id]);
 
   const productEntries = useMemo(
@@ -2493,24 +2448,68 @@ function ProductSheet({
     [products]
   );
 
-  const filterOptions = useMemo(
-    () => ({
-      brand: buildProductFilterOptions(productEntries, "brand"),
-      mainCategory: buildProductFilterOptions(productEntries, "mainCategory"),
-      subCategory: buildProductFilterOptions(productEntries, "subCategory"),
-      childCategory: buildProductFilterOptions(productEntries, "childCategory"),
-      productType: buildProductFilterOptions(productEntries, "productType"),
-      grade: buildProductFilterOptions(productEntries, "grade"),
-      manufacturer: buildProductFilterOptions(productEntries, "manufacturer"),
-    }),
-    [productEntries]
+  const smartClassificationOptions = useMemo(
+    () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false, includeCurrentValue: false }),
+    [classificationGroups]
   );
+
+  const smartFilterOptions = useMemo(() => {
+    const withCounts = (options, field) => asArray(options).map((option) => {
+      const id = field === "productType"
+        ? normalizeCanonicalProductType(option.value || option.id)
+        : normalizeClassificationValue(option.value || option.id);
+      const count = productEntries.filter(({ meta }) => field === "audience" ? meta.audience.has(id) : meta[field] === id).length;
+      return {
+        ...option,
+        id,
+        name: option.label_ar || option.label_en || option.label || option.name || option.value || option.id,
+        count,
+      };
+    });
+    return {
+      gender: withCounts(smartClassificationOptions.gender, "audience"),
+      productType: moveWinterCollectionToEnd(withCounts(smartClassificationOptions.productType, "productType")),
+      grade: withCounts(smartClassificationOptions.grade, "grade"),
+    };
+  }, [productEntries, smartClassificationOptions]);
+
+  const posBrandOptions = useMemo(() => {
+    const map = new Map();
+    productEntries.forEach(({ product, meta }) => {
+      if (!meta.brand) return;
+      const current = map.get(meta.brand) || {
+        id: meta.brand,
+        name: firstProductField(product, ["brand_name", "brand"]) || meta.brand,
+        count: 0,
+      };
+      current.count += 1;
+      map.set(meta.brand, current);
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  }, [productEntries]);
+
+  const posManufacturerOptions = useMemo(() => {
+    const map = new Map();
+    productEntries.forEach(({ product, meta }) => {
+      if (!meta.manufacturer) return;
+      const current = map.get(meta.manufacturer) || {
+        id: meta.manufacturer,
+        name: firstProductField(product, ["manufacturer_name", "manufacturer"]) || meta.manufacturer,
+        count: 0,
+      };
+      current.count += 1;
+      map.set(meta.manufacturer, current);
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  }, [productEntries]);
 
   const filteredProductEntries = useMemo(() => {
     const normalized = clean(query).toLowerCase();
     return productEntries.filter(({ product, meta }) => {
-      if (productFilters.audience !== "all" && !meta.audience.has(productFilters.audience)) return false;
-      if (["brand", "mainCategory", "subCategory", "childCategory", "productType", "grade", "manufacturer"].some((field) => productFilters[field] !== "all" && meta[field] !== productFilters[field])) return false;
+      if (normalizeMultiFilterValue(productFilters.audience).length && !normalizeMultiFilterValue(productFilters.audience).some((value) => meta.audience.has(value))) return false;
+      if (normalizeMultiFilterValue(productFilters.brand).length && !normalizeMultiFilterValue(productFilters.brand).includes(meta.brand)) return false;
+      if (normalizeMultiFilterValue(productFilters.manufacturer).length && !normalizeMultiFilterValue(productFilters.manufacturer).includes(meta.manufacturer)) return false;
+      if (["productType", "grade"].some((field) => productFilters[field] !== "all" && meta[field] !== productFilters[field])) return false;
       if (productFilters.stock !== "all" && meta.stock !== productFilters.stock) return false;
       if (!normalized) return true;
       const searchable = [
@@ -2542,9 +2541,48 @@ function ProductSheet({
   }, [productEntries, productFilters, query]);
 
   const activeProductFilterCount = useMemo(
-    () => Object.entries(productFilters).filter(([key, value]) => key !== "audience" && value !== "all").length + (productFilters.audience === "all" ? 0 : 1),
+    () => normalizeMultiFilterValue(productFilters.audience).length + normalizeMultiFilterValue(productFilters.brand).length + normalizeMultiFilterValue(productFilters.manufacturer).length + [productFilters.productType, productFilters.grade].filter((value) => value !== "all").length,
     [productFilters]
   );
+
+  const openPosFilters = useCallback(() => {
+    setDraftPosFilters({
+      audience: normalizeMultiFilterValue(productFilters.audience),
+      productType: productFilters.productType || "all",
+      grade: productFilters.grade || "all",
+      brand: normalizeMultiFilterValue(productFilters.brand),
+      manufacturer: normalizeMultiFilterValue(productFilters.manufacturer),
+    });
+    setFiltersOpen(true);
+  }, [productFilters]);
+
+  const updateDraftMultiFilter = useCallback((field, value) => {
+    setDraftPosFilters((current) => ({ ...(current || {}), [field]: toggleMultiFilterValue(current?.[field] || [], value) }));
+  }, []);
+
+  const updateDraftSingleFilter = useCallback((field, value) => {
+    setDraftPosFilters((current) => ({ ...(current || {}), [field]: value }));
+  }, []);
+
+  const resetDraftPosFilters = useCallback(() => {
+    setDraftPosFilters({ audience: [], productType: "all", grade: "all", brand: [], manufacturer: [] });
+  }, []);
+
+  const applyDraftPosFilters = useCallback(() => {
+    setProductFilters((current) => ({
+      ...current,
+      audience: normalizeMultiFilterValue(draftPosFilters?.audience),
+      productType: draftPosFilters?.productType || "all",
+      grade: draftPosFilters?.grade || "all",
+      brand: normalizeMultiFilterValue(draftPosFilters?.brand),
+      manufacturer: normalizeMultiFilterValue(draftPosFilters?.manufacturer),
+      mainCategory: "all",
+      subCategory: "all",
+      childCategory: "all",
+      stock: "all",
+    }));
+    setFiltersOpen(false);
+  }, [draftPosFilters]);
 
   useEffect(() => {
     if (!open) return;
@@ -2701,7 +2739,7 @@ function ProductSheet({
                     </label>
                     <button
                       type="button"
-                      onClick={() => setFiltersOpen((current) => !current)}
+                      onClick={openPosFilters}
                       className={`relative inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition ${filtersOpen || activeProductFilterCount ? "border-amber-400 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-700"}`}
                     >
                       <SlidersHorizontal className="h-4 w-4" />
@@ -2720,45 +2758,13 @@ function ProductSheet({
                       <button
                         key={value}
                         type="button"
-                        onClick={() => setProductFilters((current) => ({ ...current, audience: value }))}
-                        className={`h-9 rounded-xl border text-xs font-semibold transition ${productFilters.audience === value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"}`}
+                        onClick={() => setProductFilters((current) => ({ ...current, audience: value === "all" ? [] : [value] }))}
+                        className={`h-9 rounded-xl border text-xs font-semibold transition ${(value === "all" ? normalizeMultiFilterValue(productFilters.audience).length === 0 : normalizeMultiFilterValue(productFilters.audience).includes(value)) ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"}`}
                       >
                         {label}
                       </button>
                     ))}
                   </div>
-
-                  {filtersOpen ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                        <ProductFilterSelect label="البراند" value={productFilters.brand} options={filterOptions.brand} onChange={(value) => setProductFilters((current) => ({ ...current, brand: value }))} />
-                        <ProductFilterSelect label="القسم الرئيسي" value={productFilters.mainCategory} options={filterOptions.mainCategory} onChange={(value) => setProductFilters((current) => ({ ...current, mainCategory: value, subCategory: "all", childCategory: "all" }))} />
-                        <ProductFilterSelect label="القسم الفرعي" value={productFilters.subCategory} options={filterOptions.subCategory} onChange={(value) => setProductFilters((current) => ({ ...current, subCategory: value, childCategory: "all" }))} />
-                        <ProductFilterSelect label="القسم الدقيق" value={productFilters.childCategory} options={filterOptions.childCategory} onChange={(value) => setProductFilters((current) => ({ ...current, childCategory: value }))} />
-                        <ProductFilterSelect label="نوع المنتج" value={productFilters.productType} options={filterOptions.productType} onChange={(value) => setProductFilters((current) => ({ ...current, productType: value }))} />
-                        <ProductFilterSelect label="التصنيف" value={productFilters.grade} options={filterOptions.grade} onChange={(value) => setProductFilters((current) => ({ ...current, grade: value }))} />
-                        <ProductFilterSelect label="المصنّع" value={productFilters.manufacturer} options={filterOptions.manufacturer} onChange={(value) => setProductFilters((current) => ({ ...current, manufacturer: value }))} />
-                        <ProductFilterSelect
-                          label="المخزون"
-                          value={productFilters.stock}
-                          options={[{ value: "in", label: "متوفر" }, { value: "out", label: "غير متوفر" }]}
-                          onChange={(value) => setProductFilters((current) => ({ ...current, stock: value }))}
-                        />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <span className="text-xs font-medium text-slate-500">{filteredProductEntries.length} منتج</span>
-                        <button
-                          type="button"
-                          onClick={() => setProductFilters({ ...PRODUCT_FILTER_DEFAULTS })}
-                          disabled={!activeProductFilterCount}
-                          className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 disabled:opacity-40"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          مسح الفلاتر
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
 
               <div className="space-y-2 pb-4">
                 {loading ? (
@@ -2966,7 +2972,32 @@ function ProductSheet({
       </div>
     </div>
   );
-  return mobileFullscreenMode ? createPortal(sheet, document.body) : sheet;
+  const content = (
+    <>
+      {sheet}
+      <SmartPosFilters
+        open={filtersOpen}
+        smartFilterOptions={smartFilterOptions}
+        selectedGender={draftPosFilters?.audience ?? productFilters.audience}
+        onGenderChange={(value) => updateDraftMultiFilter("audience", value)}
+        selectedProductType={draftPosFilters?.productType ?? productFilters.productType}
+        onProductTypeChange={(value) => updateDraftSingleFilter("productType", value)}
+        selectedGrade={draftPosFilters?.grade ?? productFilters.grade}
+        onGradeChange={(value) => updateDraftSingleFilter("grade", value)}
+        brandOptions={posBrandOptions}
+        selectedBrandId={draftPosFilters?.brand ?? productFilters.brand}
+        onBrandChange={(value) => updateDraftMultiFilter("brand", value)}
+        manufacturerOptions={posManufacturerOptions}
+        selectedManufacturerId={draftPosFilters?.manufacturer ?? productFilters.manufacturer}
+        onManufacturerChange={(value) => updateDraftMultiFilter("manufacturer", value)}
+        activeSmartFilterCount={activeProductFilterCount}
+        onApply={applyDraftPosFilters}
+        onReset={resetDraftPosFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
+    </>
+  );
+  return mobileFullscreenMode ? createPortal(content, document.body) : content;
 }
 
 function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLeadFilterChange }) {
