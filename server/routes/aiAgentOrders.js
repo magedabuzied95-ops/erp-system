@@ -4083,6 +4083,16 @@ const normalizeProductCardSendChannel = (value = "") => {
   return channel;
 };
 
+const recipientIdFromConversationKey = ({ conversationId = "", channel = "" } = {}) => {
+  const safeConversationId = envText(conversationId);
+  const separatorIndex = safeConversationId.indexOf(":");
+  if (separatorIndex <= 0 || separatorIndex >= safeConversationId.length - 1) return "";
+  const conversationChannel = normalizeProductCardSendChannel(safeConversationId.slice(0, separatorIndex));
+  const normalizedChannel = normalizeProductCardSendChannel(channel);
+  if (!conversationChannel || !normalizedChannel || conversationChannel !== normalizedChannel) return "";
+  return envText(safeConversationId.slice(separatorIndex + 1));
+};
+
 const isWhatsAppStoredOnlyIssue = (error = {}) => {
   const code = envText(error?.code || "");
   if ([
@@ -5141,6 +5151,10 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     });
     const previewText = formatProductCardPreviewText(productCards[0] || {});
     const fallbackText = buildProductCardFallbackText(productCards);
+    const conversationRecipientId = recipientIdFromConversationKey({
+      conversationId: conversation.session_id || conversation.external_conversation_id || conversationId,
+      channel: normalizedChannel,
+    });
     const externalCustomerId = envText(
       channelMetadata.customer_psid ||
         channelMetadata.sender_psid ||
@@ -5148,6 +5162,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
         conversation.external_customer_id ||
         conversation.customer_profile?.external_customer_id ||
         conversation.customer_profile?.psid ||
+        conversationRecipientId ||
         ""
     );
     console.info("[ai-inbox][product-card-send][request]", {
