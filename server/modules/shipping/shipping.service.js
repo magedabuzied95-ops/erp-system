@@ -724,29 +724,31 @@ export const createBostaShipmentForOrder = async (orderId) => {
     }
 
     const status = response.status || "created";
-    const timelineEvent = { at: nowIso(), action: "bosta_create_delivery", provider: "bosta", status, shipment_id: response.shipment_id, tracking_number: response.tracking_number };
+    const providerDeliveryId = response.provider_delivery_id || response.shipment_id;
+    const bostaShipmentNumber = response.tracking_number || response.shipment_id || providerDeliveryId;
+    const timelineEvent = { at: nowIso(), action: "bosta_create_delivery", provider: "bosta", status, delivery_id: providerDeliveryId, shipment_id: bostaShipmentNumber, tracking_number: response.tracking_number };
     const updateResult = await client.query(
       `
       UPDATE orders SET
         shipping_provider = 'bosta',
         shipping_provider_id = 'bosta',
         shipping_provider_delivery_id = $2,
-        shipment_id = $2,
-        shipping_tracking_number = $3,
-        tracking_number = $3,
-        tracking_url = $4,
-        shipping_label_url = $5,
-        shipping_status = $6,
-        shipment_status = $6,
+        shipment_id = $3,
+        shipping_tracking_number = $4,
+        tracking_number = $4,
+        tracking_url = $5,
+        shipping_label_url = $6,
+        shipping_status = $7,
+        shipment_status = $7,
         shipping_last_synced_at = CURRENT_TIMESTAMP,
         last_shipping_sync_at = CURRENT_TIMESTAMP,
-        shipping_raw_payload = $7::jsonb,
-        shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $8::jsonb,
+        shipping_raw_payload = $8::jsonb,
+        shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $9::jsonb,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
       `,
-      [order.id, response.shipment_id, response.tracking_number, response.tracking_url, response.label_url, status, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
+      [order.id, providerDeliveryId, bostaShipmentNumber, response.tracking_number, response.tracking_url, response.label_url, status, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
     );
     await client.query("COMMIT");
     const updatedOrder = updateResult.rows[0];
@@ -788,15 +790,17 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
       shipment_status = $2,
       tracking_number = COALESCE(NULLIF($3, ''), tracking_number),
       shipping_tracking_number = COALESCE(NULLIF($3, ''), shipping_tracking_number),
-      tracking_url = COALESCE(NULLIF($4, ''), tracking_url),
+      shipment_id = COALESCE(NULLIF($3, ''), NULLIF($4, ''), shipment_id),
+      shipping_provider_delivery_id = COALESCE(NULLIF($4, ''), shipping_provider_delivery_id),
+      tracking_url = COALESCE(NULLIF($5, ''), tracking_url),
       shipping_last_synced_at = CURRENT_TIMESTAMP,
-      shipping_raw_payload = $5::jsonb,
-      shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $6::jsonb,
+      shipping_raw_payload = $6::jsonb,
+      shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $7::jsonb,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = $1
     RETURNING *
     `,
-    [orderId, status, response.tracking_number, response.tracking_url, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
+    [orderId, status, response.tracking_number, response.provider_delivery_id, response.tracking_url, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
   );
   const updatedOrder = updated.rows[0];
   sendShipmentNotificationForStatus(updatedOrder, status).catch((error) => {
@@ -942,15 +946,19 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
       UPDATE orders SET
         shipping_status = $2,
         shipment_status = $2,
+        shipping_provider_delivery_id = COALESCE(NULLIF($3, ''), shipping_provider_delivery_id),
+        shipment_id = COALESCE(NULLIF($4, ''), NULLIF($3, ''), shipment_id),
+        shipping_tracking_number = COALESCE(NULLIF($4, ''), shipping_tracking_number),
+        tracking_number = COALESCE(NULLIF($4, ''), tracking_number),
         shipping_last_synced_at = CURRENT_TIMESTAMP,
         last_shipping_sync_at = CURRENT_TIMESTAMP,
-        shipping_raw_payload = $3::jsonb,
-        shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $4::jsonb,
+        shipping_raw_payload = $5::jsonb,
+        shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $6::jsonb,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
       `,
-      [order.id, parsed.status, safeJson(payload), JSON.stringify([timelineEvent])]
+      [order.id, parsed.status, parsed.deliveryId, parsed.trackingNumber, safeJson(payload), JSON.stringify([timelineEvent])]
     );
     await client.query("COMMIT");
     const updatedOrder = updated.rows[0];

@@ -37,6 +37,7 @@ import {
 } from "../../../shared/utils/whatsapp.js";
 import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "../../../shared/utils/orderInvoice";
 import OrdersShell from "../components/OrdersShell";
+import "./OrderDetails.css";
 import StatusBadge from "../components/StatusBadge";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
@@ -741,7 +742,7 @@ function OrderDetails() {
         shipping_status: updated.shipping_status || result.status || prev.shipping_status,
         shipment_status: updated.shipment_status || updated.shipping_status || result.status || prev.shipment_status,
         shipment_id: updated.shipment_id || result.shipment_id || prev.shipment_id,
-        shipping_provider_delivery_id: updated.shipping_provider_delivery_id || result.shipment_id || prev.shipping_provider_delivery_id,
+        shipping_provider_delivery_id: updated.shipping_provider_delivery_id || result.provider_delivery_id || prev.shipping_provider_delivery_id,
         tracking_number: updated.shipping_tracking_number || updated.tracking_number || result.tracking_number || prev.tracking_number,
         tracking_url: updated.tracking_url || result.tracking_url || prev.tracking_url,
         shipping_label_url: updated.shipping_label_url || result.label_url || prev.shipping_label_url,
@@ -963,7 +964,7 @@ function OrderDetails() {
         </Link>
       }
     >
-      <div className="mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-4 xl:grid-cols-12">
+      <div className="order-details-theme mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-8">
           <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1595,8 +1596,8 @@ function OrderDetails() {
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
                         {order.landmark ? <Info label="علامة مميزة" value={order.landmark} /> : null}
-                        <Info label="رقم التسليم" value={shipping.shipping_provider_delivery_id || shipping.shipment_id || t("orders.fallback.notAvailable")} />
-                        <Info label={t("orders.shipping.trackingNumber")} value={shipping.tracking_number || t("orders.fallback.notAvailable")} />
+                        <Info label="معرّف Bosta الداخلي" value={shipping.shipping_provider_delivery_id || t("orders.fallback.notAvailable")} />
+                        <Info label="رقم شحنة Bosta" value={shipping.tracking_number || shipping.shipment_id || t("orders.fallback.notAvailable")} />
                         <Info label="رابط الملصق" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
                       </div>
                       {shipping.shipping_label_url ? (
@@ -1654,12 +1655,13 @@ function OrderDetails() {
                       ))}
                     </select>
                   </FieldLabel>
-                  <FieldLabel label={t("orders.shipping.shipmentId")}>
+                  <FieldLabel label={isBostaShippingProvider(shipping.provider) ? "رقم شحنة Bosta" : t("orders.shipping.shipmentId")}>
                     <input
-                      value={shipping.shipment_id}
+                      value={isBostaShippingProvider(shipping.provider) ? (shipping.tracking_number || shipping.shipment_id) : shipping.shipment_id}
                       onChange={(e) => setShipping((prev) => ({ ...prev, shipment_id: e.target.value }))}
-                      placeholder={t("orders.shipping.shipmentId")}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      readOnly={isBostaShippingProvider(shipping.provider)}
+                      placeholder={isBostaShippingProvider(shipping.provider) ? "يظهر تلقائيًا بعد إنشاء الشحنة" : t("orders.shipping.shipmentId")}
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 read-only:cursor-not-allowed read-only:opacity-70"
                     />
                   </FieldLabel>
                 </div>

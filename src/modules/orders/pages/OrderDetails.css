@@ -1,0 +1,36 @@
+.order-details-theme {
+  --order-accent-border: color-mix(in srgb, var(--primary) 38%, var(--border));
+  --order-accent-strong: color-mix(in srgb, var(--primary) 82%, var(--text));
+}
+
+.order-details-theme :where([class*="border-blue-"], [class*="border-sky-"], [class*="border-cyan-"]) {
+  border-color: var(--order-accent-border) !important;
+}
+
+.order-details-theme :where([class*="bg-blue-"], [class*="bg-sky-"], [class*="bg-cyan-"]) {
+  background-color: var(--primary-soft) !important;
+}
+
+.order-details-theme :where([class*="text-blue-"], [class*="text-sky-"], [class*="text-cyan-"]) {
+  color: var(--order-accent-strong) !important;
+}
+
+.order-details-theme :where(button, a)[class~="bg-blue-500"],
+.order-details-theme :where(button, a)[class~="bg-sky-400"],
+.order-details-theme :where(button, a)[class~="bg-cyan-300"] {
+  border-color: color-mix(in srgb, var(--primary) 72%, var(--border)) !important;
+  background-color: var(--primary) !important;
+  color: #17140b !important;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.order-details-theme :where(button, a)[class~="bg-blue-500"]:hover,
+.order-details-theme :where(button, a)[class~="bg-sky-400"]:hover,
+.order-details-theme :where(button, a)[class~="bg-cyan-300"]:hover {
+  background-color: color-mix(in srgb, var(--primary) 86%, white) !important;
+}
+
+.order-details-theme :where(input, select, textarea):focus {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--border)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+}

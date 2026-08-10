@@ -74,11 +74,14 @@ export const normalizeBostaMasterLocations = (payload) => {
 export const normalizeBostaDeliveryResponse = (payload = {}) => {
   const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
   const errorPayload = payload?.error && typeof payload.error === "object" ? payload.error : {};
+  const providerDeliveryId = text(pick(data, ["_id", "id", "deliveryId", "delivery_id", "shipment_id"]));
+  const trackingNumber = text(pick(data, ["trackingNumber", "tracking_number", "trackingCode", "tracking_code", "trackingNo"]));
   return {
     success: payload?.success !== false && !payload?.errorCode && !errorPayload?.errorCode,
     provider: "bosta",
-    shipment_id: text(pick(data, ["_id", "id", "deliveryId", "delivery_id", "shipment_id"])),
-    tracking_number: text(pick(data, ["trackingNumber", "tracking_number", "trackingCode", "tracking_code", "trackingNo"])),
+    provider_delivery_id: providerDeliveryId,
+    shipment_id: trackingNumber || providerDeliveryId,
+    tracking_number: trackingNumber,
     tracking_url: text(pick(data, ["trackingUrl", "tracking_url", "trackingURL"])),
     label_url: text(pick(data, ["labelUrl", "label_url", "airwayBillUrl", "awbUrl"])),
     status: text(pick(data, ["status", "state", "deliveryStatus"])) || "created",
