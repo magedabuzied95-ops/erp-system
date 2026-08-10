@@ -1489,7 +1489,7 @@ function OrderDetails() {
                   type="button"
                   onClick={() => setShippingTab(key)}
                   className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                    shippingTab === key ? "bg-white text-zinc-950" : "text-zinc-300 hover:bg-white/10"
+                    shippingTab === key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-zinc-300 hover:bg-white/10"
                   }`}
                 >
                   {label}
@@ -1500,10 +1500,10 @@ function OrderDetails() {
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
               {shippingTab === "shipment" ? (
                 <div className="grid gap-3 2xl:grid-cols-2">
-                  <div className="grid gap-3 rounded-2xl border border-sky-400/15 bg-sky-400/[0.05] p-4 sm:grid-cols-2 2xl:col-span-2">
+                  <div className="order-details-address-panel grid gap-3 rounded-2xl border p-4 sm:grid-cols-2 2xl:col-span-2">
                     <div className="sm:col-span-2">
-                      <div className="text-sm font-black text-sky-100">{isBostaShippingProvider(shipping.provider) ? "عنوان شحن Bosta" : "بيانات توصيل العميل"}</div>
-                      <div className="mt-1 text-xs font-semibold text-zinc-500">{isBostaShippingProvider(shipping.provider) ? "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة." : "احفظ بيانات التوصيل قبل إنشاء الشحنة."}</div>
+                      <div className="order-details-address-title text-sm font-black">{isBostaShippingProvider(shipping.provider) ? "عنوان شحن Bosta" : "بيانات توصيل العميل"}</div>
+                      <div className="order-details-address-description mt-1 text-xs font-semibold">{isBostaShippingProvider(shipping.provider) ? "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة." : "احفظ بيانات التوصيل قبل إنشاء الشحنة."}</div>
                     </div>
                     <FieldLabel label="رقم هاتف العميل">
                       <input value={shipping.customer_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />

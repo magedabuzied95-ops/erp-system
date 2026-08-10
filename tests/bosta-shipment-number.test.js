@@ -6,6 +6,7 @@ import { normalizeBostaDeliveryResponse } from "../server/modules/shipping/provi
 
 const shippingServiceSource = readFileSync(new URL("../server/modules/shipping/shipping.service.js", import.meta.url), "utf8");
 const orderDetailsSource = readFileSync(new URL("../src/modules/orders/pages/OrderDetails.jsx", import.meta.url), "utf8");
+const orderDetailsStyles = readFileSync(new URL("../src/modules/orders/pages/OrderDetails.css", import.meta.url), "utf8");
 
 test("Bosta tracking number is the ERP shipment number while the delivery id remains available", () => {
   const result = normalizeBostaDeliveryResponse({
@@ -40,4 +41,13 @@ test("Bosta shipment number is read-only and filled automatically in order detai
   assert.match(orderDetailsSource, /label=\{isBostaShippingProvider\(shipping\.provider\) \? "رقم شحنة Bosta"/);
   assert.match(orderDetailsSource, /readOnly=\{isBostaShippingProvider\(shipping\.provider\)\}/);
   assert.match(orderDetailsSource, /shipping\.tracking_number \|\| shipping\.shipment_id/);
+});
+
+test("order details uses M1 theme surfaces in both light and dark modes", () => {
+  assert.match(orderDetailsSource, /order-details-address-panel/);
+  assert.match(orderDetailsStyles, /html\[data-theme="light"\][\s\S]*order-details-address-panel/);
+  assert.match(orderDetailsStyles, /html\[data-theme="dark"\][\s\S]*order-details-address-panel/);
+  assert.match(orderDetailsStyles, /background-color: var\(--card\) !important/);
+  assert.match(orderDetailsStyles, /background-color: var\(--surface\) !important/);
+  assert.match(orderDetailsStyles, /color: var\(--primary-contrast\) !important/);
 });
