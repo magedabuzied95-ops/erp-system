@@ -514,8 +514,8 @@ const Badge = ({ children, className = "" }) => (
   <span className={`manager-portal-badge inline-flex items-center rounded-full border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-2.5 py-1.5 text-[11px] font-black leading-5 text-slate-700 ${className}`}>{children}</span>
 );
 
-const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false }) => (
-  <section className={`manager-portal-card overflow-hidden rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ${compact ? "p-3" : "p-4"} ${className}`}>
+const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false, tone = "gold" }) => (
+  <section data-tone={tone} className={`manager-portal-card overflow-hidden rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ${compact ? "p-3" : "p-4"} ${className}`}>
     <div className="flex items-start justify-between gap-2">
       <div>
         <div className="text-[11px] font-black leading-5 tracking-normal text-slate-500">{subtitle}</div>
@@ -2354,7 +2354,7 @@ export default function ManagerPortal() {
           ) : null}
 
           {activeTab === "staff" ? (
-            <div className="space-y-2 sm:space-y-3">
+            <div className="manager-portal-tab manager-portal-tab--staff space-y-2 sm:space-y-3">
               <section className="manager-advance-panel rounded-2xl border p-3 text-right shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -2397,6 +2397,7 @@ export default function ManagerPortal() {
                 isMobilePortal ? (
                   <div
                     key={employee.employee_id}
+                    data-tone={employee.attendance_status === "checked_in" ? "green" : employee.attendance_status === "late" ? "amber" : "gold"}
                     className="manager-portal-employee-card rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)]"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -2473,8 +2474,8 @@ export default function ManagerPortal() {
           ) : null}
 
           {activeTab === "tasks" ? (
-            <div className="space-y-4">
-              <Card title="إنشاء مهمة" subtitle="Create task" icon={Plus}>
+            <div className="manager-portal-tab manager-portal-tab--tasks space-y-4">
+              <Card title="إنشاء مهمة" subtitle="Create task" icon={Plus} tone="gold">
                 <div className="grid gap-2 md:grid-cols-2">
                   <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="عنوان المهمة" className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
                   <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
@@ -2495,7 +2496,7 @@ export default function ManagerPortal() {
                 <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder="الوصف" rows={3} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
               </Card>
 
-              <Card title="المرشحات" subtitle="المرشحات" icon={Search}>
+              <Card title="المرشحات" subtitle="المرشحات" icon={Search} tone="slate">
                 <div className="grid gap-2 md:grid-cols-4">
                   <input
                     value={taskFilters.query}
@@ -2535,21 +2536,21 @@ export default function ManagerPortal() {
               </Card>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <Card title={formatNumber(taskCounts.open)} subtitle="المهام المفتوحة" icon={ClipboardList} />
-                <Card title={formatNumber(taskCounts.completed)} subtitle="المهام المكتملة" icon={CheckCheck} />
-                <Card title={formatNumber(taskCounts.overdue)} subtitle="المهام المتأخرة" icon={AlertTriangle} />
+                <Card title={formatNumber(taskCounts.open)} subtitle="المهام المفتوحة" icon={ClipboardList} tone="gold" />
+                <Card title={formatNumber(taskCounts.completed)} subtitle="المهام المكتملة" icon={CheckCheck} tone="green" />
+                <Card title={formatNumber(taskCounts.overdue)} subtitle="المهام المتأخرة" icon={AlertTriangle} tone="red" />
               </div>
 
-              <Card title="قائمة المهام المفتوحة" subtitle="قائمة التشغيل" icon={ClipboardList}>
+              <Card title="قائمة المهام المفتوحة" subtitle="قائمة التشغيل" icon={ClipboardList} tone="gold">
                 {openTasks.length ? <div className="space-y-3">{openTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام مفتوحة" body="لا توجد مهام مطابقة للمرشحات الحالية." />}
               </Card>
 
-              <Card title="قائمة المهام المكتملة" subtitle="الإثبات جاهز" icon={CheckCheck}>
+              <Card title="قائمة المهام المكتملة" subtitle="الإثبات جاهز" icon={CheckCheck} tone="green">
                 {completedTasks.length ? <div className="space-y-3">{completedTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام مكتملة" body="المهام المكتملة ستظهر هنا مع معاينة الإثبات." />}
               </Card>
 
               {mobileAlertBuckets.overdueTasks.length ? (
-                <Card title="قائمة المهام المتأخرة" subtitle="تحتاج انتباه" icon={AlertTriangle}>
+                <Card title="قائمة المهام المتأخرة" subtitle="تحتاج انتباه" icon={AlertTriangle} tone="red">
                   <div className="space-y-3">{mobileAlertBuckets.overdueTasks.map((task) => renderTaskCard(task))}</div>
                 </Card>
               ) : null}
@@ -2558,7 +2559,7 @@ export default function ManagerPortal() {
 
           {activeTab === "sales" ? (
             isMobilePortal ? (
-              <div className="space-y-3">
+              <div className="manager-portal-tab manager-portal-tab--sales space-y-3">
                 <div className="manager-portal-mobile-sales-hero rounded-[1.6rem] border border-slate-800 bg-[#08111f] p-4 shadow-[0_18px_32px_rgba(2,6,23,0.16)]">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -2652,7 +2653,7 @@ export default function ManagerPortal() {
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="manager-portal-tab manager-portal-tab--sales space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Card title={formatCurrency(sales?.overview?.today?.sales || dashboard?.today_sales_total || 0)} subtitle="مبيعات اليوم" icon={ShoppingCart} />
                 <Card title={formatNumber(sales?.overview?.today?.orders || dashboard?.invoice_count || 0)} subtitle="الفواتير" icon={ClipboardList} />
@@ -2902,7 +2903,7 @@ export default function ManagerPortal() {
               headerTitle="محادثات الموظفين"
               headerKicker="بوابة المدير / الشات"
               secureNotice="هذه المحادثة خاصة بين الموظف والإدارة"
-              className="xl:h-[calc(100dvh-13rem)]"
+              className="manager-portal-tab manager-portal-tab--chat xl:h-[calc(100dvh-13rem)]"
               managerPanel={() => (
                 selectedChatEmployee ? (
                   <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto pr-1" dir="rtl">
@@ -2983,8 +2984,8 @@ export default function ManagerPortal() {
           ) : null}
 
           {activeTab === "more" ? (
-            <div className="space-y-4">
-              <Card title="الإعدادات" subtitle="المزيد" icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
+            <div className="manager-portal-tab manager-portal-tab--more space-y-4">
+              <Card title="الإعدادات" subtitle="المزيد" icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="gold">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <button type="button" onClick={() => setActiveTab("notifications")} className="relative flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-500"><Bell className="h-6 w-6" /></span>
@@ -3002,7 +3003,7 @@ export default function ManagerPortal() {
                 </div>
               </Card>
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card title="الملف الشخصي" subtitle="ملف المدير" icon={Building2} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
+                <Card title="الملف الشخصي" subtitle="ملف المدير" icon={Building2} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="green">
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                     <div className="font-black text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "المدير")}</div>
                     <div>{portalText(me?.role || "manager")} · {portalText(me?.department || "—")}</div>
@@ -3010,7 +3011,7 @@ export default function ManagerPortal() {
                     <div>{formatNumber(me?.permissions?.length || 0)} صلاحية</div>
                   </div>
                 </Card>
-              <Card title="بيانات الفرع" subtitle="معلومات الفرع" icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
+              <Card title="بيانات الفرع" subtitle="معلومات الفرع" icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
                 <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                     <div className="font-black text-slate-950 dark:text-white">{portalText(me?.branch_name || "All branches")}</div>
                     <div>النطاق: {portalText(me?.branch_scope || "all")}</div>
