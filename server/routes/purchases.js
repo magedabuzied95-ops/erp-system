@@ -2552,7 +2552,9 @@ const loadPurchaseById = async (client, { tenantId, purchaseId, branchId = null,
 };
 
 const loadPurchases = async (client, { tenantId }) => {
-  await ensurePurchaseCreateSchema(client);
+  // Verify schema once per process (memoized on the pool) instead of running
+  // the full ALTER/CREATE INDEX + .sql-file DDL on every list request.
+  await ensurePurchaseSchemaReady();
   const purchaseColumns = await getTableColumns(client, "purchases");
   const values = [];
   const purchaseTenant = tenantClause("p", purchaseColumns, tenantId, values);
@@ -2580,50 +2582,14 @@ const loadPurchases = async (client, { tenantId }) => {
     `,
     values
   );
-  const rows = result.rows;
-  const purchaseIds = rows.map((row) => row.id).filter(Boolean);
-  const itemsByPurchase = new Map();
-  if (purchaseIds.length) {
-    const itemColumns = await getTableColumns(client, "purchase_items");
-    const receivedExpr = itemColumns.has("received_quantity")
-      ? "received_quantity"
-      : itemColumns.has("received_qty")
-        ? "received_qty"
-        : "quantity";
-    const itemTenantFilter = itemColumns.has("tenant_id") ? "AND ($2::bigint IS NULL OR tenant_id = $2 OR tenant_id IS NULL)" : "";
-    const itemParams = itemColumns.has("tenant_id") ? [purchaseIds, tenantId] : [purchaseIds];
-    const itemsResult = await client.query(
-      `
-      SELECT *, ${receivedExpr} AS received_quantity
-      FROM purchase_items
-      WHERE purchase_id = ANY($1::bigint[])
-        ${itemTenantFilter}
-      ORDER BY id ASC
-      `,
-      itemParams
-    );
-    itemsResult.rows.forEach((item) => {
-      const key = String(item.purchase_id);
-      itemsByPurchase.set(key, [...(itemsByPurchase.get(key) || []), item]);
-    });
-  }
-  const normalized = [];
-  for (const row of rows) {
-    const items = itemsByPurchase.get(String(row.id)) || [];
-    let safety = {};
-    try {
-      const stockReversal = await getPurchaseStockReversalState(client, { tenantId, purchase: { ...row, items }, items });
-      safety = {
-        canDeleteWithStockReversal: stockReversal.canReverseStock,
-        stockReversalBlockMessage: stockReversal.canReverseStock ? null : STOCK_REVERSAL_BLOCK_MESSAGE,
-        ...stockReversal,
-      };
-    } catch (error) {
-      console.warn("[purchases:list] stock reversal safety skipped", { purchaseId: row.id, error: error.message });
-    }
-    normalized.push(normalizePurchaseRow(row, [], safety));
-  }
-  return normalized;
+  // List rows are compact summaries: header fields + item_count (from the
+  // grouped subquery above). Per-purchase items and delete/stock-reversal
+  // safety are NOT computed here — the list UI never uses them, and they are
+  // recomputed authoritatively when a purchase is opened (GET /:id) or a
+  // delete/reverse is attempted. This removes the previous O(N) N+1
+  // (getPurchaseStockReversalState per row + a full purchase_items load) so the
+  // list is a single header query.
+  return result.rows.map((row) => normalizePurchaseRow(row, [], {}));
 };
 
 const resolveSupplierForPurchaseUpdate = async (client, tenantId, body = {}, fallbackSupplierId = null) => {
