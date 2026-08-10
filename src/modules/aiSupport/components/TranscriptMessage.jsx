@@ -1,10 +1,13 @@
 ﻿import { memo, useMemo } from "react";
-import { Bot, ExternalLink, MessageSquareText, Sparkles, UserCheck } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, MoreVertical, Pin, PinOff, Reply as ReplyIcon, Sparkles, Star, UserCheck, X } from "lucide-react";
 
 import ProductCardMessage from "./ProductCardMessage";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
+const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
 const staffSenderLabel = (message = {}) => {
   const source = clean(`${message.source_path || ""} ${message.insert_source || ""} ${message.message_type || ""}`).toLowerCase();
   if (source.includes("automation") || source.includes("system")) return "النظام";
@@ -102,6 +105,161 @@ const commentThreadPostTime = (message = {}) =>
       ""
   );
 
+const messageBodyText = (message = {}) =>
+  clean(
+    message.customer_message ||
+      message.staff_message ||
+      message.ai_answer ||
+      message.message_text ||
+      message.text ||
+      message.body ||
+      message.caption ||
+      ""
+  );
+
+const messageIdentity = (row = {}, message = {}) =>
+  clean(
+    message.id ||
+      message.message_id ||
+      message.external_message_id ||
+      message.provider_message_id ||
+      message.whatsapp_message_id ||
+      row.key ||
+      `${row.kind || "message"}:${message.created_at || ""}:${messageBodyText(message).slice(0, 80)}`
+  );
+
+const readStoredMessageSet = (storageKey) => {
+  if (typeof window === "undefined") return new Set();
+  try {
+    return new Set(asArray(JSON.parse(window.localStorage.getItem(storageKey) || "[]")).map((item) => clean(item)).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+};
+
+const writeStoredMessageFlag = (storageKey, messageKey, enabled) => {
+  if (typeof window === "undefined" || !messageKey) return;
+  const values = readStoredMessageSet(storageKey);
+  if (enabled) values.add(messageKey);
+  else values.delete(messageKey);
+  window.localStorage.setItem(storageKey, JSON.stringify([...values].slice(-500)));
+};
+
+function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", children }) {
+  const key = messageIdentity(row, message);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [selected, setSelected] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [pinned, setPinned] = useState(() => readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
+  const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
+  const shellRef = useRef(null);
+  const text = messageBodyText(message);
+  const sender = row.kind === "customer" ? "العميل" : row.kind === "ai" ? "AI" : row.kind === "staff" ? staffSenderLabel(message) : "الرسالة";
+
+  useEffect(() => {
+    setPinned(readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
+    setStarred(readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
+    setSelected(false);
+  }, [key]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const close = (event) => {
+      if (!shellRef.current?.contains(event.target)) setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [menuOpen]);
+
+  const copyMessage = async () => {
+    if (!text || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+    setMenuOpen(false);
+  };
+
+  const replyToMessage = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("m1:ai-inbox-message-reply", { detail: { messageKey: key, sender, text, createdAt } }));
+    }
+    setMenuOpen(false);
+  };
+
+  const togglePinned = () => {
+    const next = !pinned;
+    setPinned(next);
+    writeStoredMessageFlag(MESSAGE_PIN_STORAGE_KEY, key, next);
+    setMenuOpen(false);
+  };
+
+  const toggleStarred = () => {
+    const next = !starred;
+    setStarred(next);
+    writeStoredMessageFlag(MESSAGE_STAR_STORAGE_KEY, key, next);
+    setMenuOpen(false);
+  };
+
+  const menuItems = [
+    { label: "Reply", icon: ReplyIcon, action: replyToMessage, disabled: !text },
+    { label: copied ? "Copied" : "Copy", icon: Copy, action: copyMessage, disabled: !text },
+    { label: pinned ? "Unpin" : "Pin", icon: pinned ? PinOff : Pin, action: togglePinned },
+    { label: starred ? "Unstar" : "Star", icon: Star, action: toggleStarred, active: starred },
+    { label: selected ? "Deselect" : "Select", icon: CheckSquare, action: () => { setSelected((current) => !current); setMenuOpen(false); }, active: selected },
+    { label: "Info", icon: Info, action: () => { setInfoOpen(true); setMenuOpen(false); } },
+  ];
+
+  return (
+    <div ref={shellRef} className={`ai-inbox-message-actions group relative rounded-2xl transition ${selected ? "bg-amber-300/10 p-1 ring-1 ring-amber-300/45" : ""}`} data-message-selected={selected ? "true" : "false"}>
+      {(pinned || starred) ? (
+        <div className={`mb-1 flex items-center gap-1.5 px-2 text-[10px] font-black text-amber-400 ${align === "right" ? "justify-end" : "justify-start"}`}>
+          {pinned ? <span className="inline-flex items-center gap-1"><Pin className="h-3 w-3" /> Pinned</span> : null}
+          {starred ? <span className="inline-flex items-center gap-1"><Star className="h-3 w-3 fill-current" /> Starred</span> : null}
+        </div>
+      ) : null}
+      {children}
+      <button
+        type="button"
+        onClick={() => setMenuOpen((current) => !current)}
+        aria-label="Message actions"
+        title="Message actions"
+        className={`absolute top-1 z-20 grid h-8 w-8 place-items-center rounded-full border shadow-sm transition ${align === "right" ? "right-1" : "left-1"} ${variant === "pwa" ? "border-slate-200 bg-white/95 text-slate-600" : "border-white/10 bg-slate-950/90 text-slate-300 opacity-75 hover:opacity-100"}`}
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {menuOpen ? (
+        <div dir="ltr" className={`absolute top-10 z-40 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-slate-800 shadow-[0_18px_55px_rgba(0,0,0,0.28)] ${align === "right" ? "right-1" : "left-1"}`}>
+          {menuItems.map(({ label, icon: Icon, action, disabled, active }) => (
+            <button key={label} type="button" onClick={action} disabled={disabled} className={`flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-semibold transition hover:bg-slate-100 disabled:opacity-40 ${active ? "text-amber-600" : ""}`}>
+              <Icon className={`h-4 w-4 ${active && label.includes("Star") ? "fill-current" : ""}`} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {infoOpen ? (
+        <div className="fixed inset-0 z-[2147482500] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setInfoOpen(false); }}>
+          <section dir="rtl" role="dialog" aria-modal="true" aria-label="Message info" className="w-full max-w-md rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">Message info</div><h3 className="mt-1 text-lg font-black">تفاصيل الرسالة</h3></div>
+              <button type="button" onClick={() => setInfoOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5"><X className="h-4 w-4" /></button>
+            </div>
+            <dl className="mt-4 grid grid-cols-[110px_1fr] gap-x-3 gap-y-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm">
+              <dt className="text-slate-400">المرسل</dt><dd className="font-bold">{sender}</dd>
+              <dt className="text-slate-400">القناة</dt><dd className="font-bold">{channelLabel || message.channel || "—"}</dd>
+              <dt className="text-slate-400">الوقت</dt><dd className="font-bold">{createdAt || "—"}</dd>
+              <dt className="text-slate-400">النوع</dt><dd className="font-bold">{message.message_type || row.kind || "message"}</dd>
+              <dt className="text-slate-400">الحالة</dt><dd className="font-bold">{message.delivery_status || "—"}</dd>
+              <dt className="text-slate-400">المعرف</dt><dd dir="ltr" className="truncate text-left font-mono text-xs">{key || "—"}</dd>
+            </dl>
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function LinkifiedText({ text = "", className = "" }) {
   const value = String(text || "");
   const parts = value.split(/(https?:\/\/[^\s]+)/g);
@@ -163,19 +321,22 @@ function TranscriptMessage({
   if (variant === "pwa") {
     if (safeRow.kind === "product_card") {
       return (
-        <div className="flex justify-start">
-          <div className="w-[82%] max-w-sm space-y-1.5">
-            <div className="px-1 text-left text-[10px] font-medium text-slate-500">{createdAt}</div>
-            <ProductCardMessage message={message} cards={cards} />
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
+          <div className="flex justify-start">
+            <div className="w-[82%] max-w-sm space-y-1.5">
+              <div className="px-1 text-left text-[10px] font-medium text-slate-500">{createdAt}</div>
+              <ProductCardMessage message={message} cards={cards} />
+            </div>
           </div>
-        </div>
+        </MessageActionShell>
       );
     }
 
     if (safeRow.kind === "customer") {
       return (
-        <div className="flex justify-end">
-          <div className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel}>
+          <div className="flex justify-end">
+            <div className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
             <div className="ai-pwa-message-body">
               <LinkifiedText text={message.customer_message} className="text-[14px] leading-5.5" />
@@ -194,27 +355,31 @@ function TranscriptMessage({
             </div>
           </div>
         </div>
+        </MessageActionShell>
       );
     }
 
     if (safeRow.kind === "ai") {
       return (
-        <div className="flex justify-start">
-          <div className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
+          <div className="flex justify-start">
+            <div className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 flex items-center gap-1 text-[10px] font-medium">
               <Bot className="h-3.5 w-3.5" />
               AI
             </div>
             <LinkifiedText text={message.ai_answer} className="ai-pwa-message-body text-[14px] leading-5.5" />
+            </div>
           </div>
-        </div>
+        </MessageActionShell>
       );
     }
 
     if (safeRow.kind === "staff") {
       return (
-        <div className="flex justify-start">
-          <div className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
+          <div className="flex justify-start">
+            <div className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
             <div className="ai-pwa-message-meta mb-1 text-[10px] font-medium">
               {message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}
             </div>
@@ -222,15 +387,17 @@ function TranscriptMessage({
             {message.delivery_status === "failed" && message.delivery_error ? (
               <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
             ) : null}
+            </div>
           </div>
-        </div>
+        </MessageActionShell>
       );
     }
 
     if (isCommentMessage) {
       return (
-        <div className="flex justify-start">
-          <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
+          <div className="flex justify-start">
+            <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
               <span>{commenterName || commentLabel}</span>
@@ -260,8 +427,9 @@ function TranscriptMessage({
                 </button>
               ) : null}
             </div>
+            </div>
           </div>
-        </div>
+        </MessageActionShell>
       );
     }
 
@@ -269,7 +437,8 @@ function TranscriptMessage({
   }
 
   return (
-    <div className="space-y-2" style={{ contentVisibility: "auto", containIntrinsicBlockSize: "180px" }}>
+    <MessageActionShell row={safeRow} message={message} variant="desktop" align={safeRow.kind === "customer" || isCommentMessage ? "left" : "right"} createdAt={createdAt} channelLabel={channelLabel}>
+      <div className="space-y-2" style={{ contentVisibility: "auto", containIntrinsicBlockSize: "180px" }}>
       {safeRow.kind === "product_card" ? (
         <div className="flex justify-end">
           <div className="max-w-[88%]">
@@ -417,7 +586,8 @@ function TranscriptMessage({
           </div>
         </div>
       ) : null}
-    </div>
+      </div>
+    </MessageActionShell>
   );
 }
 

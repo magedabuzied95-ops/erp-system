@@ -3294,6 +3294,22 @@ export default function AiInboxPwa() {
     window.addEventListener("m1:ai-inbox-customer-action", handleCustomerAction);
     return () => window.removeEventListener("m1:ai-inbox-customer-action", handleCustomerAction);
   }, []);
+  useEffect(() => {
+    const handleMessageReply = (event) => {
+      const sender = clean(event?.detail?.sender || "الرسالة");
+      const quotedText = clean(event?.detail?.text).replace(/\s+/g, " ").slice(0, 240);
+      if (!quotedText) return;
+      setComposerMode("reply");
+      setComposerText(`↪ ${sender}: ${quotedText}\n\n`);
+      window.setTimeout(() => {
+        const editor = document.querySelector('[data-ai-inbox-composer="true"]');
+        editor?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        editor?.focus?.();
+      }, 80);
+    };
+    window.addEventListener("m1:ai-inbox-message-reply", handleMessageReply);
+    return () => window.removeEventListener("m1:ai-inbox-message-reply", handleMessageReply);
+  }, []);
   const [isFullscreenConversation, setIsFullscreenConversation] = useState(false);
   const [editingAiDraft, setEditingAiDraft] = useState(false);
   const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");
