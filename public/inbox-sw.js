@@ -1,4 +1,4 @@
-const VERSION = "ai-inbox-v3";
+const VERSION = "ai-inbox-v4";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_URLS = [
@@ -44,8 +44,13 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const clone = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put("/inbox", clone)).catch(() => null);
+          // Only cache a healthy shell. Caching a 5xx/opaque error response would
+          // pin a broken app shell (referencing missing bundles) and strand users
+          // on a permanent loading state until the cache is manually cleared.
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put("/inbox", clone)).catch(() => null);
+          }
           return response;
         })
         .catch(() => caches.match("/inbox"))
@@ -58,8 +63,10 @@ self.addEventListener("fetch", (event) => {
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
-          const clone = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, clone)).catch(() => null);
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, clone)).catch(() => null);
+          }
           return response;
         });
       })
