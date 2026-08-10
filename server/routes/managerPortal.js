@@ -339,6 +339,8 @@ router.get("/:token/tasks", async (req, res) => {
 
 router.get("/:token/sales", async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.set("Pragma", "no-cache");
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
     const sales = await getManagerPortalSales({ manager, profitToken: extractProfitToken(req) });

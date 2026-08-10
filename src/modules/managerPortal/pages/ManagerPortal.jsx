@@ -672,6 +672,46 @@ const DailyProfitCard = ({ token, salesData, canView, className = "" }) => {
 
   useEffect(() => () => { if (relockTimerRef.current) clearTimeout(relockTimerRef.current); }, []);
 
+  useEffect(() => {
+    const profitToken = state?.token;
+    if (state?.status !== "unlocked" || !profitToken) return undefined;
+
+    let active = true;
+    let refreshing = false;
+    const refreshProfit = async () => {
+      if (!active || refreshing) return;
+      refreshing = true;
+      try {
+        const salesRes = await managerPortalApi.salesWithProfit(token, profitToken, {
+          params: { _fresh: Date.now() },
+          headers: { "Cache-Control": "no-cache" },
+        });
+        const block = salesRes?.sales?.daily_profit || null;
+        if (active && block?.profit_locked === false) {
+          setState((current) => current.token === profitToken ? { ...current, data: block } : current);
+        }
+      } catch {
+        // Keep the last authorized value until the next refresh or token expiry.
+      } finally {
+        refreshing = false;
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") refreshProfit();
+    };
+
+    refreshProfit();
+    const timer = window.setInterval(refreshProfit, 30_000);
+    window.addEventListener("focus", refreshProfit);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshProfit);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [state?.status, state?.token, token, salesData]);
+
   const handleUnlock = useCallback(async () => {
     if (!password || submitting) return;
     setSubmitting(true); setError("");
