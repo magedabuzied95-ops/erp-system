@@ -1877,6 +1877,7 @@ function ProductsList() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const requestId = latestProductsRequestRef.current + 1;
     latestProductsRequestRef.current = requestId;
 
@@ -1888,6 +1889,7 @@ function ProductsList() {
         const refreshToken = Date.now();
         const productsResult = await getProductsAdminList({
           timeoutMs: REQUEST_TIMEOUT_MS,
+          signal: controller.signal,
           params: {
             refresh: refreshToken,
             page,
@@ -1919,6 +1921,7 @@ function ProductsList() {
         setBrandOptions(["all", ...apiBrands.filter(Boolean)]);
       } catch (err) {
         if (cancelled || latestProductsRequestRef.current !== requestId) return;
+        if (err?.name === "AbortError" || err?.name === "CanceledError" || String(err?.code || "") === "ERR_CANCELED") return;
         console.error("[products:list] load error", err);
         const message =
           String(err?.message || "").toLowerCase().includes("session expired")
@@ -1938,6 +1941,7 @@ function ProductsList() {
     loadProducts();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [
     page,
