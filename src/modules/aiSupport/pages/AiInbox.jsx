@@ -724,6 +724,24 @@ const isConversationChannel = (value = "") => {
 };
 const conversationChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
 const socialCommentChannelOrder = ["facebook_comment", "instagram_comment"];
+// The UI channel vocabulary ("messenger", "web") is NOT the backend's. loadAiInbox
+// only recognises facebook_messenger | instagram | whatsapp | web_chat |
+// facebook_comment | instagram_comment; anything else silently matches no clause
+// and the server returns the unfiltered top-N across every channel. The PWA has
+// always mapped these before sending — ERP did not, so its channel chips never
+// narrowed the query server-side. Empty string means "no channel filter".
+const AI_INBOX_BACKEND_CHANNEL_FILTERS = new Map([
+  ["messenger", "facebook_messenger"],
+  ["facebook", "facebook_messenger"],
+  ["facebook_messenger", "facebook_messenger"],
+  ["instagram", "instagram"],
+  ["whatsapp", "whatsapp"],
+  ["web", "web_chat"],
+  ["web_chat", "web_chat"],
+  ["facebook_comment", "facebook_comment"],
+  ["instagram_comment", "instagram_comment"],
+]);
+const backendChannelFilter = (value = "") => AI_INBOX_BACKEND_CHANNEL_FILTERS.get(clean(value).toLowerCase()) || "";
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
   const key = raw.toLowerCase();
@@ -4252,7 +4270,15 @@ export default function AiInbox() {
       // (it always embeds exactly the latest message per conversation), so the
       // param was dead weight. The open thread hydrates from
       // /conversations/:id/messages instead.
-      const inboxPayload = await api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, channel_filter: channelFilter, search: debouncedSearch, limit: 50 }, headers, perfComponent: "AiInbox.conversations" });
+      // `limit` MUST match the PWA's 200. The server returns the newest N
+      // conversations across ALL channels, so a low cap silently truncates whole
+      // channels: with 47 active WhatsApp threads a 50-row cap left exactly one
+      // Messenger seat, and the second real Messenger conversation never reached
+      // the client at all (it was not merged away — it was never sent). Instagram
+      // truncates the same way. This is why ERP showed 1 where the PWA showed 2,
+      // and why a new message seemed to "arrive late": it only became visible once
+      // it climbed into the newest-50 window.
+      const inboxPayload = await api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, channel_filter: backendChannelFilter(channelFilter), search: debouncedSearch, limit: 200 }, headers, perfComponent: "AiInbox.conversations" });
       if (seq !== requestSeqRef.current) return;
       lastListLoadAtRef.current = Date.now();
       const conversations = asArray(inboxPayload.conversations).map((conversation) => ({
