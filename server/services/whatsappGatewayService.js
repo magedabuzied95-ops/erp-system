@@ -24,6 +24,7 @@ import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js"
 import { buildCodOrderConfirmationMessage } from "../utils/orderConfirmationMessage.js";
 import { getConversationMemory } from "./aiConversationMemory.js";
 import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
+import { autoRegisterWhatsappCustomer } from "./whatsappCustomerAutoRegistrationService.js";
 
 const provider = () => String(process.env.WHATSAPP_GATEWAY_PROVIDER || "evolution").trim().toLowerCase();
 const apiUrl = () => String(process.env.EVOLUTION_API_URL || "").trim().replace(/\/+$/g, "");
@@ -4480,6 +4481,27 @@ export const handleIncomingWebhook = async (payload = {}) => {
     await finishTrace(trace, { status: "skipped", reason: "missing_phone" });
     return { ...normalized, received_at: normalized.timestamp, trace_id: trace?.id || null, inbox: { saved: false, reason: "missing_phone" } };
   }
+  await autoRegisterWhatsappCustomer({
+    tenantId: traceTenantId,
+    phone: normalized.resolvedPhone || normalized.phone,
+    whatsappName: normalized.senderName,
+  }).then((result) => {
+    if (result?.created || result?.updated) {
+      console.info("[whatsapp:customer-auto-registered]", {
+        tenantId: traceTenantId,
+        customerId: result.customerId || null,
+        created: result.created === true,
+        updated: result.updated === true,
+        phoneSuffix: normalized.phone.slice(-4),
+      });
+    }
+  }).catch((error) => {
+    console.warn("[whatsapp:customer-auto-registration-failed]", {
+      tenantId: traceTenantId,
+      phoneSuffix: normalized.phone.slice(-4),
+      message: error?.message || String(error),
+    });
+  });
   if (!normalized.customerAvatarUrl) {
     normalized.customerAvatarUrl = await fetchWhatsappCustomerProfilePicture({
       phone: normalized.resolvedPhone || normalized.phone,
@@ -5536,5 +5558,4 @@ export default {
   handleIncomingWebhook,
   triggerWhatsappAiAutoReply,
 };
-
 

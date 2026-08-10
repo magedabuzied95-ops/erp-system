@@ -118,6 +118,7 @@ import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
+import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 
 const router = express.Router();
 const whatsappProfileSyncState = new Map();
@@ -1449,6 +1450,17 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
         results.push({ external_customer_id: message.external_customer_id, ignored: "empty_message" });
         continue;
       }
+      await autoRegisterWhatsappCustomer({
+        tenantId,
+        phone: message.external_customer_id,
+        whatsappName: message.customer_name,
+      }).catch((error) => {
+        console.warn("[ai-agent:whatsapp] customer auto-registration failed", {
+          tenantId,
+          phoneSuffix: String(message.external_customer_id || "").slice(-4),
+          message: error?.message || String(error),
+        });
+      });
       const inboundProviderId = envText(message.external_message_id || message.dedupe_key || "");
       const inboundRow = await appendInboundAiSupportMessage({
         tenantId,
