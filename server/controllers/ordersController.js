@@ -172,6 +172,28 @@ const normalizeReturnDisposition = (value = "", fallbackRestock = true) => {
   return fallbackRestock ? "restock" : "damaged";
 };
 
+const normalizeReturnReasonText = (value = "") => String(value || "")
+  .trim()
+  .toLowerCase()
+  .replace(/[\u064B-\u065F\u0670]/g, "")
+  .replace(/[أإآ]/g, "ا")
+  .replace(/ة/g, "ه")
+  .replace(/ى/g, "ي");
+
+const isManufacturingDefectReason = (...values) => {
+  const reasonText = normalizeReturnReasonText(values.flat().filter(Boolean).join(" "));
+  return /عيب\s*(?:صناع[هي]?|تصنيع)/.test(reasonText)
+    || /(?:manufacturing|factory)\s*defect/.test(reasonText);
+};
+
+const resolveReturnDisposition = ({ value = "", fallbackRestock = true, reasons = [] } = {}) => {
+  const disposition = normalizeReturnDisposition(value, fallbackRestock);
+  if (disposition === "restock" && isManufacturingDefectReason(reasons)) {
+    return "manufacturing_defect";
+  }
+  return disposition;
+};
+
 const returnRefundMethodLabel = (value = "") => {
   const method = normalizeReturnRefundMethod(value);
   if (method === "cash") return "نقدي";
@@ -6687,10 +6709,11 @@ export const returnOrder = async (req, res) => {
       throw error;
     }
     const reason = req.body.reason || (mode === "exchange" ? "استبدال" : "POS return");
-    const disposition = normalizeReturnDisposition(
-      req.body.disposition || req.body.returnDisposition,
-      req.body.restock !== false
-    );
+    const disposition = resolveReturnDisposition({
+      value: req.body.disposition || req.body.returnDisposition,
+      fallbackRestock: req.body.restock !== false,
+      reasons: [reason, ...(Array.isArray(req.body.items) ? req.body.items.map((item) => item?.reason) : [])],
+    });
     const shouldRestock = disposition === "restock";
     const refundFunding = await ensureReturnRefundFunding(client, {
       routeName,
@@ -7073,6 +7096,33 @@ export const getSupplierReturnItems = async (req, res) => {
   }
 };
 
+export const updateSupplierReturnItemStatus = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    if (!Number.isFinite(id) || id <= 0 || !["pending", "returned", "cancelled"].includes(status)) {
+      return res.status(400).json({ message: "Invalid supplier return status" });
+    }
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const result = await db.query(
+      `
+      UPDATE supplier_return_items
+      SET status = $2,
+          updated_at = NOW()
+      WHERE id = $1
+        AND ($3::bigint IS NULL OR tenant_id = $3::bigint)
+      RETURNING *
+      `,
+      [id, status, tenantId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ message: "Supplier return item not found" });
+    return res.status(200).json({ success: true, item: result.rows[0] });
+  } catch (error) {
+    console.error("[orders] supplier return status error", error);
+    return res.status(500).json({ message: "Failed to update supplier return status" });
+  }
+};
+
 export const createReturn = async (req, res) => {
   const client = await db.connect();
 
@@ -7133,10 +7183,11 @@ export const createReturn = async (req, res) => {
     }
     const orderRow = orderResult.rows[0];
     const tenantId = assertReturnTenantId(resolveReturnTenantId(req, orderRow), orderId);
-    const disposition = normalizeReturnDisposition(
-      req.body.disposition || req.body.returnDisposition,
-      Boolean(restock)
-    );
+    const disposition = resolveReturnDisposition({
+      value: req.body.disposition || req.body.returnDisposition,
+      fallbackRestock: Boolean(restock),
+      reasons: [reason, ...items.map((item) => item?.reason)],
+    });
     const shouldRestock = disposition === "restock";
     logReturnFlowStep(routeName, { orderId, tenantId, step: "order_loaded" });
     const refundMethod = normalizeReturnRefundMethod(req.body.refund_method || req.body.refundMethod || "cash");

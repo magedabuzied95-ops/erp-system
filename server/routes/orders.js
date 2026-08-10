@@ -19,6 +19,7 @@ import {
   editOrder,
   getOrders,
   getSupplierReturnItems,
+  updateSupplierReturnItemStatus,
   getPosOrderSummary,
   getPosEditOrder,
   getSingleOrder,
@@ -91,6 +92,13 @@ router.get(
   protect,
   permit("orders", "view"),
   getSupplierReturnItems
+);
+
+router.patch(
+  "/supplier-returns/:id/status",
+  protect,
+  permit("orders", "edit"),
+  updateSupplierReturnItemStatus
 );
 
 router.post(

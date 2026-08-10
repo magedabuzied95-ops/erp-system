@@ -78,6 +78,17 @@ const normalizeRefundMethod = (value = "cash") => {
   if (["same_payment_method", "original", "wallet", "bank_transfer", "card"].includes(key)) return "cash";
   return "cash";
 };
+const isManufacturingDefectText = (value = "") => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي");
+  return /عيب\s*(?:صناع[هي]?|تصنيع)/.test(normalized)
+    || /(?:manufacturing|factory)\s*defect/.test(normalized);
+};
 const stockDispositionLabel = (record = {}) => {
   if (record.disposition === "manufacturing_defect") return "محجوز للمورد";
   if (record.disposition === "damaged") return "تالف — غير معاد";
@@ -329,6 +340,18 @@ function OrderReturnsPage() {
     toast.success("تم حذف المرتجع.");
   };
 
+  const markSupplierReturnCompleted = async (itemId) => {
+    try {
+      await api.patch(`/orders/supplier-returns/${itemId}/status`, { status: "returned" });
+      const supplierQueue = await api.get("/orders/supplier-returns");
+      setSupplierReturnGroups(Array.isArray(supplierQueue?.suppliers) ? supplierQueue.suppliers : []);
+      toast.success("تم تسجيل تسليم القطعة للمورد.");
+    } catch (err) {
+      console.log(err);
+      toast.error("تعذر تسجيل تسليم القطعة للمورد.");
+    }
+  };
+
   const isArabic = i18n.language?.toLowerCase().startsWith("ar");
   const tableDir = isArabic ? "rtl" : "ltr";
 
@@ -352,7 +375,7 @@ function OrderReturnsPage() {
         <KpiCard label="تمت إعادتها للمخزون" value={kpis.restocked} icon={PackageOpen} accent="violet" />
       </section>
 
-      {supplierReturnGroups.length ? <SupplierReturnQueue groups={supplierReturnGroups} /> : null}
+      {supplierReturnGroups.length ? <SupplierReturnQueue groups={supplierReturnGroups} onMarkReturned={markSupplierReturnCompleted} /> : null}
 
       <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
         <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -473,7 +496,7 @@ function KpiCard({ label, value, icon: Icon, accent }) {
   );
 }
 
-function SupplierReturnQueue({ groups }) {
+function SupplierReturnQueue({ groups, onMarkReturned }) {
   return (
     <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -492,9 +515,18 @@ function SupplierReturnQueue({ groups }) {
             </div>
             <div className="mt-2 space-y-1.5">
               {group.items.slice(0, 4).map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-2 text-xs text-zinc-300">
-                  <span className="truncate">{item.product_name}{[item.color, item.size].filter(Boolean).length ? ` — ${[item.color, item.size].filter(Boolean).join(" / ")}` : ""}</span>
-                  <span className="shrink-0 font-bold">× {item.quantity}</span>
+                <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-xs text-zinc-300">
+                  <div className="min-w-0">
+                    <div className="truncate">{item.product_name}{[item.color, item.size].filter(Boolean).length ? ` — ${[item.color, item.size].filter(Boolean).join(" / ")}` : ""}</div>
+                    <div className="mt-1 text-[10px] text-zinc-500">{item.return_number || item.invoice_number || ""} · × {item.quantity}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onMarkReturned(item.id)}
+                    className="shrink-0 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20"
+                  >
+                    تم التسليم للمورد
+                  </button>
                 </div>
               ))}
               {group.items.length > 4 ? <div className="text-[11px] text-zinc-500">+ {group.items.length - 4} بنود أخرى</div> : null}
@@ -873,7 +905,13 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                             <Field label={t("orders.returns.reason")}>
                               <input
                                 value={selectedItem?.reason || ""}
-                                onChange={(event) => updateItem(item.id, { reason: event.target.value })}
+                                onChange={(event) => {
+                                  const reason = event.target.value;
+                                  updateItem(item.id, { reason });
+                                  if (isManufacturingDefectText(reason)) {
+                                    setForm((current) => ({ ...current, disposition: "manufacturing_defect", restock: false }));
+                                  }
+                                }}
                                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                                 placeholder={t("orders.returns.reasonPlaceholder")}
                               />
@@ -892,7 +930,14 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
             <Field label={t("orders.returns.returnReason")}>
               <textarea
                 value={form.reason}
-                onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}
+                onChange={(event) => {
+                  const reason = event.target.value;
+                  setForm((current) => ({
+                    ...current,
+                    reason,
+                    ...(isManufacturingDefectText(reason) ? { disposition: "manufacturing_defect", restock: false } : {}),
+                  }));
+                }}
                 rows={5}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none"
                 placeholder={t("orders.returns.overallReasonPlaceholder")}
