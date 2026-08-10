@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const serviceSource = readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
 const routeSource = readFileSync(new URL("../server/routes/metaIntegration.js", import.meta.url), "utf8");
 const settingsSource = readFileSync(new URL("../src/modules/marketing/pages/MarketingSettings.jsx", import.meta.url), "utf8");
+const serverSource = readFileSync(new URL("../server/server.js", import.meta.url), "utf8");
 
 test("Instagram Business Login token is stored separately and encrypted", () => {
   assert.match(serviceSource, /instagram_access_token_encrypted TEXT NOT NULL DEFAULT ''/);
@@ -50,4 +51,11 @@ test("admin UI treats the Instagram App Secret as write-only", () => {
   assert.match(settingsSource, /value=\{instagramAppSecret\}/);
   assert.match(settingsSource, /autoComplete="new-password"/);
   assert.doesNotMatch(settingsSource, /value=\{metaConfig\.instagram_app_secret/);
+});
+
+test("Meta webhook diagnostics never log signatures or raw message bodies", () => {
+  assert.match(serverSource, /signature_present: Boolean\(req\.headers\["x-hub-signature-256"\]\)/);
+  assert.match(serverSource, /rawBodyCaptured: rawBodyText\.length > 0/);
+  assert.doesNotMatch(serverSource, /"x-hub-signature-256": req\.headers\["x-hub-signature-256"\]/);
+  assert.doesNotMatch(serverSource, /rawBodyPreview: rawBodyText\.slice/);
 });

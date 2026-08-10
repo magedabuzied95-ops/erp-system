@@ -463,7 +463,7 @@ webhookRouter.post("/webhook", async (req, res) => {
       at: new Date().toISOString(),
       object: envText(req.body?.object || ""),
       entry_count: entry.length,
-      first_entry_id: envText(firstEntry?.id || ""),
+      first_entry_id_present: Boolean(envText(firstEntry?.id || "")),
       change_fields: changeFields,
       messaging_count: messagingCount,
     };

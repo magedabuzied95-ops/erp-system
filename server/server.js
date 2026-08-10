@@ -1496,11 +1496,8 @@ app.use((req, res, next) => {
   ) {
     console.log("META_ANY_POST", {
       path: req.path,
-      headers: {
-        "x-hub-signature-256": req.headers["x-hub-signature-256"],
-        "user-agent": req.headers["user-agent"],
-      },
-      body: req.body,
+      signature_present: Boolean(req.headers["x-hub-signature-256"]),
+      body_keys: req.body && typeof req.body === "object" ? Object.keys(req.body) : [],
     });
   }
 
@@ -1526,7 +1523,7 @@ app.use((req, res, next) => {
         contentLength: Number(req.get("content-length") || rawBodyBuffer.length || 0) || 0,
         signaturePresent: Boolean(req.headers?.["x-hub-signature-256"]),
         rawBodyLength: rawBodyText.length,
-        rawBodyPreview: rawBodyText.slice(0, 500),
+        rawBodyCaptured: rawBodyText.length > 0,
       };
       getMetaWebhookDiagnosticsState().raw_ingress = rawIngressSummary;
       console.log("[META_WEBHOOK_RAW_INGRESS]", rawIngressSummary);
@@ -1548,7 +1545,7 @@ app.use((req, res, next) => {
         contentLength: Number(req.get("content-length") || rawBodyBuffer.length || 0) || 0,
         signaturePresent: Boolean(req.headers?.["x-hub-signature-256"]),
         rawBodyLength: rawBodyText.length,
-        rawBodyPreview: rawBodyText.slice(0, 500),
+        rawBodyCaptured: rawBodyText.length > 0,
       };
       getMetaWebhookDiagnosticsState().raw_ingress = rawIngressSummary;
       console.log("[META_WEBHOOK_RAW_INGRESS]", rawIngressSummary);
