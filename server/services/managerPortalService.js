@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights } from "./dashboardAnalyticsService.js";
+import { calculateTodayProfit, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
 import { verifyProfitToken, nullProfitFieldsInOverview, stripInvoiceProfit, stripProfitFromInsights, buildDailyProfitBlock } from "./managerProfitLock.js";
 import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment } from "./staffTasksService.js";
@@ -964,6 +964,8 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
   const monthFilters = { branchId, range: "month" };
+  const todayFilters = { branchId, range: "today" };
+  const yesterdayFilters = { branchId, range: "yesterday" };
   const hasOrders = await tableExists("orders");
   const hasOrderItems = await tableExists("order_items");
   const hasProducts = await tableExists("products");
@@ -973,7 +975,7 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
   const hasAiAgentConversationColumn = await columnExists("orders", "ai_agent_conversation_id");
   const hasAiAgentStatusColumn = await columnExists("orders", "ai_agent_status");
 
-  const [overview, trend7d, hourly, topProducts, recentInvoices, aiInsights, comparisonRows, sellerRows, categoryRows, brandRows, customerConversionRows, aiConversionRows] = await Promise.all([
+  const [overview, trend7d, hourly, topProducts, recentInvoices, aiInsights, comparisonRows, sellerRows, categoryRows, brandRows, customerConversionRows, aiConversionRows, todayProfit, yesterdayProfit] = await Promise.all([
     getDashboardOverview({ tenantId, filters: monthFilters }),
     getSalesTrend({ tenantId, filters: monthFilters, days: 31 }),
     getHourlySales({ tenantId, filters: monthFilters }),
@@ -995,17 +997,17 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
       ? safeQuery(
           `
           SELECT
-            COALESCE(SUM(CASE WHEN o.created_at >= date_trunc('month', CURRENT_DATE) AND o.created_at < CURRENT_DATE + INTERVAL '1 day' THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS today_sales,
-            COUNT(*) FILTER (WHERE o.created_at >= date_trunc('month', CURRENT_DATE) AND o.created_at < CURRENT_DATE + INTERVAL '1 day')::int AS today_orders,
-            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= date_trunc('month', CURRENT_DATE) AND o.created_at < CURRENT_DATE + INTERVAL '1 day'), 0) AS today_aov,
-            COALESCE(SUM(CASE WHEN o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND o.created_at < date_trunc('month', CURRENT_DATE) THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS yesterday_sales,
-            COUNT(*) FILTER (WHERE o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND o.created_at < date_trunc('month', CURRENT_DATE))::int AS yesterday_orders,
-            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND o.created_at < date_trunc('month', CURRENT_DATE)), 0) AS yesterday_aov
+            COALESCE(SUM(CASE WHEN o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day' THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS today_sales,
+            COUNT(*) FILTER (WHERE o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day')::int AS today_orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day'), 0) AS today_aov,
+            COALESCE(SUM(CASE WHEN o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS yesterday_sales,
+            COUNT(*) FILTER (WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE)::int AS yesterday_orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE), 0) AS yesterday_aov
           FROM orders o
           WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
             ${branchId ? "AND o.branch_id = $2::bigint" : ""}
             AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
-            AND o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+            AND o.created_at >= CURRENT_DATE - INTERVAL '1 day'
             AND o.created_at < CURRENT_DATE + INTERVAL '1 day'
           `,
           branchId ? [tenantId, branchId] : [tenantId],
@@ -1131,9 +1133,14 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
           [],
         )
       : [],
+    calculateTodayProfit({ tenantId, filters: todayFilters }),
+    calculateTodayProfit({ tenantId, filters: yesterdayFilters }),
   ]);
-  const rawDailyProfit = Number(overview?.today?.profit ?? overview?.today?.todayProfit?.value ?? 0);
-  const rawProfitGrowth = overview?.today?.todayProfit?.growth ?? null;
+  const rawDailyProfit = Number(todayProfit || 0);
+  const rawYesterdayProfit = Number(yesterdayProfit || 0);
+  const rawProfitGrowth = rawYesterdayProfit !== 0
+    ? ((rawDailyProfit - rawYesterdayProfit) / Math.abs(rawYesterdayProfit)) * 100
+    : rawDailyProfit !== 0 ? 100 : 0;
   const dailyProfitAuthorized = await resolveProfitOk(manager, profitToken);
   if (!dailyProfitAuthorized) nullProfitFieldsInOverview(overview);
   const comparison = comparisonRows[0] || {};
@@ -1145,7 +1152,7 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
   const conversionSummary = customerConversionRows[0] || {};
   const aiConversionSummary = aiConversionRows[0] || {};
   return {
-    daily_profit: buildDailyProfitBlock({ authorized: dailyProfitAuthorized, profit: rawDailyProfit, sales: Number(overview?.today?.sales || 0), changePercent: rawProfitGrowth }),
+    daily_profit: buildDailyProfitBlock({ authorized: dailyProfitAuthorized, profit: rawDailyProfit, sales: Number(comparison.today_sales || 0), changePercent: rawProfitGrowth }),
     overview,
     trend: trend7d,
     trend_7d: trend7d,
@@ -1154,11 +1161,11 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
     recent_invoices: recentInvoices,
     ai_insights: dailyProfitAuthorized ? aiInsights : stripProfitFromInsights(aiInsights),
     comparison: {
-      today_sales: Number(comparison.today_sales || overview?.today?.sales || 0),
+      today_sales: Number(comparison.today_sales ?? 0),
       yesterday_sales: Number(comparison.yesterday_sales || 0),
-      today_orders: Number(comparison.today_orders || overview?.today?.orders || 0),
+      today_orders: Number(comparison.today_orders ?? 0),
       yesterday_orders: Number(comparison.yesterday_orders || 0),
-      today_average_invoice: Number(comparison.today_aov || overview?.today?.averageOrderValue || 0),
+      today_average_invoice: Number(comparison.today_aov ?? 0),
       yesterday_average_invoice: Number(comparison.yesterday_aov || 0),
       sales_delta: Number(comparison.today_sales || 0) - Number(comparison.yesterday_sales || 0),
       orders_delta: Number(comparison.today_orders || 0) - Number(comparison.yesterday_orders || 0),

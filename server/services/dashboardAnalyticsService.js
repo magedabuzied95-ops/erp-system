@@ -22,16 +22,16 @@ const resolveDateRange = ({ range = "today", dateFrom = "", dateTo = "" } = {}) 
   return { sql: "CURRENT_DATE", endSql: "CURRENT_DATE + INTERVAL '1 day'" };
 };
 
-const dateClause = (alias, filters, params) => {
+const dateClause = (alias, filters, params, column = "created_at") => {
   const range = resolveDateRange(filters);
   if (range.custom) {
     params.push(range.dateFrom);
     const from = `$${params.length}`;
     params.push(range.dateTo);
     const to = `$${params.length}`;
-    return ` AND ${alias}.created_at >= ${from}::timestamp AND ${alias}.created_at < (${to}::date + INTERVAL '1 day')`;
+    return ` AND ${alias}.${column} >= ${from}::timestamp AND ${alias}.${column} < (${to}::date + INTERVAL '1 day')`;
   }
-  return ` AND ${alias}.created_at >= ${range.sql} AND ${alias}.created_at < ${range.endSql}`;
+  return ` AND ${alias}.${column} >= ${range.sql} AND ${alias}.${column} < ${range.endSql}`;
 };
 
 const branchClause = (alias, filters, params) => {
@@ -333,12 +333,33 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
   const hasProducts = await tableExists("products");
   const hasVariants = await tableExists("product_variants");
   const hasInvoiceDiscountAmount = await columnExists("orders", "invoice_discount_amount");
+  const hasOrderDiscountAmount = await columnExists("orders", "discount_amount");
+  const hasItemDiscountAmount = await columnExists("order_items", "discount_amount");
+  const hasReturnedQuantity = await columnExists("order_items", "returned_quantity");
+  const hasExpenses = await tableExists("expenses");
+  const hasExpenseDate = hasExpenses && await columnExists("expenses", "expense_date");
+  const hasExpenseBranch = hasExpenses && await columnExists("expenses", "branch_id");
+  const hasExpenseStatus = hasExpenses && await columnExists("expenses", "status");
   const expenseParams = [];
   const orderParams = [];
   const orderTenant = tenantClause("o", tenantId, orderParams);
   const orderDate = dateClause("o", filters, orderParams);
   const orderBranch = branchClause("o", filters, orderParams);
   const expenseTenant = tenantClause("e", tenantId, expenseParams);
+  const expenseDate = dateClause("e", filters, expenseParams, hasExpenseDate ? "expense_date" : "created_at");
+  const expenseBranch = hasExpenseBranch ? branchClause("e", filters, expenseParams) : "";
+  const netQuantityExpr = hasReturnedQuantity
+    ? "GREATEST(COALESCE(oi.quantity, 0) - COALESCE(oi.returned_quantity, 0), 0)"
+    : "COALESCE(oi.quantity, 0)";
+  const itemRevenueExpr = `CASE
+    WHEN COALESCE(oi.quantity, 0) > 0
+      THEN COALESCE(oi.total_amount, oi.sale_price * oi.quantity, 0) * (${netQuantityExpr}) / oi.quantity
+    ELSE 0
+  END`;
+  const unitCostExpr = "COALESCE(NULLIF(pv.cost_price, 0), NULLIF(p.cost_price, 0), 0)";
+  const orderLevelDiscountExpr = hasOrderDiscountAmount
+    ? `GREATEST(COALESCE(o.discount_amount, 0) - ${hasItemDiscountAmount ? "COALESCE(SUM(oi.discount_amount), 0)" : "0"}, 0)`
+    : hasInvoiceDiscountAmount ? "COALESCE(o.invoice_discount_amount, 0)" : "0";
 
   const salesRows = hasItems && (hasProducts || hasVariants)
     ? await safeQuery(
@@ -347,10 +368,10 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
           SELECT
             o.id,
             COALESCE(SUM(
-              COALESCE(oi.total_amount, oi.sale_price * oi.quantity, 0) -
-              (COALESCE(pv.cost_price, p.cost_price, 0) * COALESCE(oi.quantity, 0))
+              (${itemRevenueExpr}) -
+              (${unitCostExpr} * (${netQuantityExpr}))
             ), 0) AS item_profit,
-            ${hasInvoiceDiscountAmount ? "COALESCE(o.invoice_discount_amount, 0)" : "0"} AS invoice_discount
+            ${orderLevelDiscountExpr} AS order_level_discount
           FROM orders o
           JOIN order_items oi ON oi.order_id = o.id
           LEFT JOIN products p ON p.id = oi.product_id
@@ -358,12 +379,12 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
           WHERE 1=1
             ${orderDate}
             ${orderBranch}
-            AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void', 'refunded', 'returned', 'draft', 'deleted')
             ${personalOrderClause("o")}
             ${orderTenant}
-          GROUP BY o.id${hasInvoiceDiscountAmount ? ", o.invoice_discount_amount" : ""}
+          GROUP BY o.id${hasOrderDiscountAmount ? ", o.discount_amount" : hasInvoiceDiscountAmount ? ", o.invoice_discount_amount" : ""}
         )
-        SELECT COALESCE(SUM(item_profit - invoice_discount), 0) AS profit
+        SELECT COALESCE(SUM(item_profit - order_level_discount), 0) AS profit
         FROM order_profit
         `,
         orderParams,
@@ -377,7 +398,7 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
         WHERE 1=1
           ${orderDate}
           ${orderBranch}
-          AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+          AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void', 'refunded', 'returned', 'draft', 'deleted')
           ${personalOrderClause("o")}
           ${orderTenant}
         `,
@@ -386,12 +407,15 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
         "profit.orders"
       );
 
-  const expenses = await tableExists("expenses")
+  const expenses = hasExpenses
     ? await safeQuery(
         `
         SELECT COALESCE(SUM(amount), 0) AS amount
         FROM expenses e
-        WHERE e.created_at >= ${daySql}
+        WHERE 1=1
+          ${expenseDate}
+          ${expenseBranch}
+          ${hasExpenseStatus ? "AND LOWER(COALESCE(e.status, '')) NOT IN ('cancelled', 'canceled', 'rejected', 'void', 'deleted')" : ""}
           ${expenseTenant}
         `,
         expenseParams,
