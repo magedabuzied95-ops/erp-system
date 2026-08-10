@@ -1233,7 +1233,7 @@ const refreshCatalogProducts = async ({
         signal,
         cache: "no-store",
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-        ...(search !== undefined ? { params: { search } } : {}),
+        params: { pos: 1, ...(search !== undefined ? { search } : {}) },
       }));
     const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
     if (isActive()) {
@@ -2362,7 +2362,7 @@ function POSPro() {
             cache: "no-store",
             headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
           }),
-          getProductsWithVariants({ signal: controller.signal }),
+          getProductsWithVariants({ signal: controller.signal, params: { pos: 1 } }),
           api.get("/manufacturers", { signal: controller.signal }),
           api.get("/customers", {
             params: {
@@ -2547,7 +2547,7 @@ function POSPro() {
     const timeoutId = window.setTimeout(async () => {
       try {
         const rawProducts = await getProductsWithVariants({
-          params: { search: rawSearch },
+          params: { pos: 1, search: rawSearch },
           signal: controller.signal,
         });
         const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
@@ -3586,7 +3586,7 @@ function POSPro() {
           signal: controller.signal,
           cache: "no-store",
           headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-          params: { productId, stock_refresh: Date.now() },
+          params: { pos: 1, productId, stock_refresh: Date.now() },
         });
         if (disposed) return;
         const incoming = normalizePosSellableProducts(rawProducts, saleModeSettings)

@@ -3714,6 +3714,74 @@ const projectCompactPickerProducts = (products, compactFlag) => {
   });
 };
 
+// POS-specific lean projection (opt-in via ?pos=1). The full /products/with-variants
+// response is ~56MB for this tenant (673 products / 8205 variants, 120 product + 82
+// variant fields) — dominated by fields the POS never reads: cost/purchase/supplier
+// internals, descriptions/SEO, thermal image fields, product color_images + per-variant
+// images arrays, and duplicate image-url aliases. This is an ALLOWLIST of exactly the
+// keys consumed by the POS client (posProductsApi.normalizeVariant/buildProductFromVariants,
+// posPricing.getPosEffectivePrice, shared saleMode, the grid filters, and barcodeLookup)
+// plus the server-added search-meta (matched_*). It is NOT the ?compact=1 picker
+// projection, which is unsafe for POS (it strips manufacturer_id, needed by the POS
+// manufacturer filter). Verified: normalize(full) === normalize(projected) for pricing,
+// stock, ids, barcode/sku/article, colour/size, classification and image resolution
+// (the normalizer's image fallback never reads the dropped image aliases). Cutting these
+// fields also keeps cost data off the POS client. Result: ~56MB -> ~9MB (84% smaller).
+const POS_PRODUCT_KEEP_FIELDS = new Set([
+  "id", "product_id", "name", "product_name", "variation_mode", "fixed_size_label",
+  "sku", "product_sku", "barcode", "product_barcode", "qr_token", "qrToken", "product_qr_token", "productQrToken",
+  "article_code", "articleCode", "color_article_code", "colorArticleCode",
+  "brand_id", "brandId", "brand", "brand_name", "brandName",
+  "category_id", "categoryId", "category", "category_name", "category_path", "categoryPath", "parent_category_id", "parentCategoryId",
+  "main_category_id", "mainCategoryId", "main_category", "main_category_name", "mainCategoryName",
+  "sub_category_id", "subCategoryId", "sub_category", "sub_category_name", "subCategoryName",
+  "child_category_id", "childCategoryId", "child_category", "child_category_name", "childCategoryName",
+  "subcategory", "subcategory_name", "subcategoryName",
+  "gender", "product_type", "productType", "grade", "audiences", "product_audiences",
+  "manufacturer", "manufacturer_name", "manufacturerName", "manufacturer_id", "manufacturerId", "variant_manufacturer_id",
+  "image_url", "product_image_url", "image", "photo_url", "thumbnail_url", "cover_image_url", "featured_image_url", "main_image_url",
+  "is_pos_favorite", "isPosFavorite", "is_offer_story", "isOfferStory", "is_offer", "isOffer", "show_in_offers", "showInOffers", "promotion_enabled", "promotionEnabled", "sale_reason",
+  "regular_price", "original_price", "selling_price", "price", "current_selling_price", "purchase_selling_price",
+  "sale_price", "stored_sale_price", "raw_sale_price", "sale_price_enabled", "sale_start_at", "sale_end_at",
+  "low_stock_threshold", "low_stock_alert", "total_variant_stock", "active_variant_count", "stock", "is_active", "status",
+  "matched_variant_id", "matchedVariantId", "matched_color", "matchedColor", "matched_color_id", "matchedColorId",
+  "matched_article", "matchedArticle", "matched_sku", "matchedSku", "search_match_type", "searchMatchType",
+]);
+const POS_VARIANT_KEEP_FIELDS = new Set([
+  "id", "variant_id", "product_id", "name", "product_name",
+  "color", "variant_color", "size", "variant_size",
+  "sku", "variant_sku", "product_sku", "barcode", "variant_barcode", "product_barcode",
+  "article_code", "articleCode", "variant_article_code", "color_article_code", "colorArticleCode", "color_article_codes", "colorArticleCodes",
+  "qr_token", "qrToken",
+  "image_url", "variant_image_url", "product_image_url", "thumbnail_url",
+  "regular_price", "variant_regular_price", "variant_price", "original_price", "selling_price", "price", "current_selling_price", "purchase_selling_price",
+  "sale_price", "variant_sale_price", "stored_sale_price", "raw_sale_price", "sale_price_enabled", "sale_start_at", "sale_end_at", "sale_reason",
+  "stock", "variant_stock", "quantity", "low_stock_alert", "low_stock_threshold",
+  "manufacturer_id", "variant_manufacturer_id", "manufacturerId", "manufacturer_name", "variant_manufacturer_name",
+  "audience", "variant_audience", "gender", "product_type", "productType", "grade",
+  "brand_id", "brand", "brand_name", "category_id", "category", "category_name",
+  "is_pos_favorite", "isPosFavorite", "is_offer_story", "is_offer", "show_in_offers", "promotion_enabled",
+]);
+const pickKeptFields = (obj, keep) => {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
+  const out = {};
+  for (const key of Object.keys(obj)) {
+    if (keep.has(key)) out[key] = obj[key];
+  }
+  return out;
+};
+export const projectPosCatalogProducts = (products, posFlag) => {
+  const pos = ["1", "true", "yes", "on"].includes(String(posFlag || "").toLowerCase());
+  if (!pos || !Array.isArray(products)) return products;
+  return products.map((product) => {
+    const projected = pickKeptFields(product, POS_PRODUCT_KEEP_FIELDS);
+    if (Array.isArray(product.variants)) {
+      projected.variants = product.variants.map((variant) => pickKeptFields(variant, POS_VARIANT_KEEP_FIELDS));
+    }
+    return projected;
+  });
+};
+
 export const getProductsWithVariants = async (req, res) => {
   const scope = resolveProductRequestScope(req);
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -3986,7 +4054,10 @@ export const getProductsWithVariants = async (req, res) => {
     // display/pricing field (selling/regular/sale/compare, purchase_sale_price, stock,
     // colour, size, image) so client-side pricing stays byte-identical. Also keeps
     // sensitive cost data off the inbox client.
-    const payload = normalizeResponse(projectCompactPickerProducts(withSearchMeta, req.query.compact));
+    const projectedProducts = req.query.pos
+      ? projectPosCatalogProducts(withSearchMeta, req.query.pos)
+      : projectCompactPickerProducts(withSearchMeta, req.query.compact);
+    const payload = normalizeResponse(projectedProducts);
 
     res.json(payload);
     console.log("[products] response sent", {
