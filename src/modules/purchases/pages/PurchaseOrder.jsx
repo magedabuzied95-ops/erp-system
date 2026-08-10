@@ -827,7 +827,13 @@ function PurchaseOrder() {
       }
 
       const [productsRes, reorderRes, financialAccountsRes, paymentMappingsRes] = await Promise.allSettled([
-        api.get("/products/with-variants"),
+        // Bounded initial browse set instead of the entire catalog. Loading the
+        // full products-with-variants payload here was ~55 MB / 8k variants and
+        // was the dominant cost of opening Purchases. Typing (>=2 chars) already
+        // hits the server search below, so anything outside this browse set is
+        // still reachable. Kept non-compact so cost/purchase price fields (which
+        // the compact projection strips) remain available for the picker.
+        api.get("/products/with-variants", { params: { limit: 200 } }),
         api.get("/purchases/reorder-suggestions"),
         accountingApi.getFinancialAccounts({ include_inactive: true }),
         accountingApi.getPaymentMethodMappings(),
