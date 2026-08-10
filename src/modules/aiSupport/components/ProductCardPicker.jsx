@@ -5,7 +5,7 @@ import { CheckCircle2, Eye, EyeOff, Loader2, Search, ShoppingBag, SlidersHorizon
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
-import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
+import { loadCustomerProductCatalog, searchCustomerProducts, PICKER_PAGE_SIZE } from "../services/customerProductCatalog";
 import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pickerSizesApi";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
@@ -397,6 +397,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // fall back to deriving sizes/facets/counts from the full catalog like before.
   const [sizeCatalogFallback, setSizeCatalogFallback] = useState(false);
   const previousOpenRef = useRef(false);
+  // Newest-wins guard for the server-side product search, plus the last term we
+  // actually committed (used to skip the debounce when the term did not change,
+  // e.g. reopening the picker — that path should feel instant).
+  const searchRequestIdRef = useRef(0);
+  const lastSearchTermRef = useRef(null);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   // The order composer uses the same dark product surface as POS, including the
   // shared SmartPosFilters drawer, instead of the lightweight PWA list.
@@ -418,26 +423,88 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     // individual product cards and needs the catalog. Only load the catalog in
     // sizeMode if the size endpoints failed and we fell back.
     if (sizeMode && !sizeCatalogFallback) return undefined;
-    let active = true;
-    setLoading(true);
+    // sizeMode fallback ONLY: the size endpoints are unavailable, so we still need
+    // the whole catalog to derive sizes/facets/counts client-side.
+    if (sizeMode) {
+      let active = true;
+      setLoading(true);
+      setError("");
+      Promise.resolve()
+        .then(() => loadCustomerProductCatalog())
+        .then(({ products: data }) => {
+          if (!active) return;
+          setProducts(asArray(data));
+        })
+        .catch((err) => {
+          if (!active) return;
+          setError(err?.message || "تعذر تحميل كتالوج المنتجات");
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
+
+    // Product-card mode ("إرسال منتج"): fetch ONE bounded, server-filtered page
+    // instead of the whole catalog. Same endpoint and same normalization/pricing
+    // pipeline as before — only bounded — so prices and stock stay identical.
+    // The modal shell, search box and filter button already render independently
+    // of `loading`, so only the results area waits. Debounced + aborted +
+    // stale-guarded: typing never queues a pile of requests and a slow earlier
+    // response can never overwrite a newer one.
+    const term = clean(search);
+    const controller = new AbortController();
+    const requestId = searchRequestIdRef.current + 1;
+    searchRequestIdRef.current = requestId;
+    const isNewTerm = term !== lastSearchTermRef.current;
+    const delay = term && isNewTerm ? 300 : 0;
+    let cancelled = false;
     setError("");
-    Promise.resolve()
-      .then(() => loadCustomerProductCatalog())
-      .then(({ products: data }) => {
-        if (!active) return;
-        setProducts(asArray(data));
+    setLoading(true);
+    const timer = window.setTimeout(() => {
+      searchCustomerProducts({ search: term, limit: PICKER_PAGE_SIZE, signal: controller.signal })
+        .then(({ products: data }) => {
+          if (cancelled || requestId !== searchRequestIdRef.current) return;
+          lastSearchTermRef.current = term;
+          setProducts(asArray(data));
+        })
+        .catch((err) => {
+          if (cancelled || requestId !== searchRequestIdRef.current) return;
+          if (err?.name === "AbortError" || err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
+          setError(err?.message || "تعذر تحميل كتالوج المنتجات");
+        })
+        .finally(() => {
+          if (!cancelled && requestId === searchRequestIdRef.current) setLoading(false);
+        });
+    }, delay);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, sizeMode, sizeCatalogFallback, search]);
+
+  // Product-card mode: pull the brand/type facets once from the same tiny
+  // endpoint the size flow uses, so the POS filter dropdowns stay complete even
+  // though the results list is now a single bounded page. Facets only — the size
+  // list and match count are sizeMode concerns. Never blocks the results area.
+  useEffect(() => {
+    if (!open || sizeMode) return undefined;
+    let active = true;
+    getAvailableProductSizes({})
+      .then((data) => {
+        if (active) setSizeServer(data);
       })
-      .catch((err) => {
-        if (!active) return;
-        setError(err?.message || "تعذر تحميل كتالوج المنتجات");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+      .catch(() => {
+        // Facet endpoint unavailable → brandOptions/typeOptions fall back to
+        // deriving from the loaded page, which is what they did before.
       });
     return () => {
       active = false;
     };
-  }, [open, sizeMode, sizeCatalogFallback]);
+  }, [open, sizeMode]);
 
   // sizeMode: fetch the in-stock size list + brand/type facets from the server,
   // honouring the active filters. Debounced so typing/filtering stays snappy.
@@ -656,11 +723,15 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     });
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ar"));
   }, [smartFilterSource]);
+  // Facets come from the tiny server endpoint whenever we have them. In
+  // product-card mode `products` is now a single bounded page, so deriving the
+  // dropdowns from it would silently shrink them to whatever happens to be on
+  // screen. Fall back to page-derived values only if the facet call failed.
   const brandOptions = useMemo(
-    () => (sizeMode && !sizeCatalogFallback
+    () => (asArray(sizeServer.brands).length
       ? uniqueTextValues(asArray(sizeServer.brands))
       : uniqueTextValues(products.map((product) => product.brand || product.brand_name))),
-    [products, sizeMode, sizeCatalogFallback, sizeServer.brands]
+    [products, sizeServer.brands]
   );
   const activeFilterCount = brand.length + gender.length + manufacturer.length + [productType, grade].filter((value) => value !== "all").length;
   const openPosFilters = useCallback(() => {
@@ -687,10 +758,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setFiltersOpen(false);
   }, [draftPosFilters]);
   const typeOptions = useMemo(
-    () => (sizeMode && !sizeCatalogFallback
+    () => (asArray(sizeServer.types).length
       ? uniqueTextValues(asArray(sizeServer.types))
       : uniqueTextValues(products.flatMap((product) => productTypeValues(product)))),
-    [products, sizeMode, sizeCatalogFallback, sizeServer.types]
+    [products, sizeServer.types]
   );
   const genderOptions = useMemo(() => ["all", "men", "women", "kids"], []);
 
