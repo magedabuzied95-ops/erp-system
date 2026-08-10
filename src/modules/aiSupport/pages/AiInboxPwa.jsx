@@ -3302,6 +3302,10 @@ export default function AiInboxPwa() {
   const isLoadingOlderRef = useRef(false);
   const isHydratingConversationRef = useRef(false);
   const isAppendingNewMessageRef = useRef(false);
+  // Synchronous in-flight guard for manual sends: a ref (not the async `sending`
+  // state) so a rapid double-click cannot start a second send before the first
+  // render commits — preventing duplicate outbound messages.
+  const manualSendInFlightRef = useRef(false);
   const previousConversationKeyRef = useRef("");
   const previousLatestMessageKeyRef = useRef("");
   const markReadSignatureRef = useRef("");
@@ -4707,6 +4711,8 @@ export default function AiInboxPwa() {
     const explicitText = typeof overrideText === "string" ? overrideText : "";
     const message = cleanMessageText(explicitText || composerText);
     if (!selectedConversation?.session_id || !message) return;
+    if (manualSendInFlightRef.current) return; // double-click / in-flight guard
+    manualSendInFlightRef.current = true;
     const clientRequestId = buildClientRequestId();
     const canonicalSessionId = selectedConversationRouteId || normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || "");
     const messageIdentityKey = buildMessageIdentityKey({
@@ -4750,11 +4756,36 @@ export default function AiInboxPwa() {
     });
     if (composerMode !== "note" && warningCount > 0) {
       const confirmed = window.confirm(sendWarnings.join("\n"));
-      if (!confirmed) return;
+      if (!confirmed) { manualSendInFlightRef.current = false; return; }
     }
     const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
     const correctionMetadata = options.correctionMetadata || {};
     const sendFlow = options.flow || (allowSameTextCorrection ? "edit" : "normal");
+    // Optimistic pending message: appears immediately (<100 ms) so the send feels
+    // instant even while the authoritative Meta/Evolution send (2-5s) is in flight.
+    // Reconciled on success and marked failed on error below — never shown as sent
+    // before the server acknowledges.
+    const optimisticMessageId = `pending:${clientRequestId}`;
+    const optimisticMessage = {
+      id: optimisticMessageId,
+      client_request_id: clientRequestId,
+      message_identity_key: messageIdentityKey,
+      staff_message: message,
+      message_text: message,
+      direction: "outbound",
+      sender_type: composerMode === "note" ? "note" : "staff",
+      message_type: composerMode === "note" ? "internal_note" : "manual_reply",
+      delivery_status: "sending",
+      is_optimistic: true,
+      created_at: new Date().toISOString(),
+    };
+    patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
+      ...conversation,
+      messages: mergeMessagesByIdentity([...asArray(conversation.messages), optimisticMessage]),
+      latest_message_preview: messageDisplayText(optimisticMessage) || message,
+      last_activity_at: optimisticMessage.created_at,
+      updated_at: optimisticMessage.created_at,
+    }));
     setSending(true);
     try {
       const payload =
@@ -4797,7 +4828,7 @@ export default function AiInboxPwa() {
           last_ai_reply_validation: null,
           last_ai_reply_confidence_engine: null,
           last_ai_reply_draft_updated_at: null,
-          messages: mergeMessagesByIdentity([...asArray(conversation.messages), returnedMessage]),
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages).filter((existing) => existing?.id !== optimisticMessageId), returnedMessage]),
           latest_message_preview: messageDisplayText(returnedMessage) || message,
           last_activity_at: returnedMessage.created_at || new Date().toISOString(),
           updated_at: returnedMessage.created_at || new Date().toISOString(),
@@ -4909,8 +4940,19 @@ export default function AiInboxPwa() {
       setComposerText("");
       if (composerMode === "note") setComposerMode("reply");
     } catch (sendError) {
+      // Mark the optimistic message failed (with retry affordance) — never leave it
+      // looking sent, and never claim success without a server acknowledgement.
+      patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((existing) =>
+          existing?.id === optimisticMessageId
+            ? { ...existing, delivery_status: "failed", delivery_error: clean(sendError?.responseBody?.delivery_error || sendError?.responseBody?.message || sendError?.message || "Failed to send") }
+            : existing
+        ),
+      }));
       toast.error(sendError?.responseBody?.delivery_error || sendError?.responseBody?.message || sendError?.message || "فشل الإرسال");
     } finally {
+      manualSendInFlightRef.current = false;
       setSending(false);
     }
   }, [composerMode, composerText, editingAiDraft, headers, patchConversation, selectedConversation, tenantId]);
