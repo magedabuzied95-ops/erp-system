@@ -564,10 +564,8 @@ export const loadEmployeePortalCompactProducts = async ({ employee = null, query
       COALESCE(NULLIF(p.product_type, ''), NULLIF(p.style, ''), NULLIF(p.category, '')) AS product_type,
       COALESCE(NULLIF(p.gender, ''), '') AS gender,
       COALESCE(NULLIF(p.grade, ''), '') AS grade,
-      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
-      (SELECT COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)::int FROM product_variants v WHERE v.product_id = p.id AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL) AS total_stock,
-      (SELECT COALESCE(array_agg(DISTINCT NULLIF(TRIM(v.color), '')) FILTER (WHERE COALESCE(v.stock, 0) > 0), '{}') FROM product_variants v WHERE v.product_id = p.id AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL) AS colors,
-      (SELECT COALESCE(array_agg(DISTINCT NULLIF(TRIM(v.size), '')) FILTER (WHERE COALESCE(v.stock, 0) > 0), '{}') FROM product_variants v WHERE v.product_id = p.id AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL) AS sizes
+      p.qr_token,
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url
     FROM products p
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
@@ -576,23 +574,64 @@ export const loadEmployeePortalCompactProducts = async ({ employee = null, query
     LIMIT ${limitToken} OFFSET ${offsetToken}
   `;
   const result = await db.query(sql, values);
-  const products = (result.rows || []).map((row) => ({
-    id: Number(row.id),
-    product_id: Number(row.id),
-    name: clean(row.name),
-    brand: clean(row.brand),
-    product_type: clean(row.product_type),
-    type: clean(row.product_type),
-    gender: clean(row.gender),
-    grade: clean(row.grade),
-    image_url: clean(row.product_image_url),
-    product_image_url: clean(row.product_image_url),
-    total_stock: Math.max(0, Number(row.total_stock) || 0),
-    stock: Math.max(0, Number(row.total_stock) || 0),
-    colors: Array.isArray(row.colors) ? row.colors.filter(Boolean) : [],
-    sizes: Array.isArray(row.sizes) ? row.sizes.filter(Boolean) : [],
-    has_variants: true,
-  }));
+  const baseRows = result.rows || [];
+  const productIds = baseRows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
+
+  // LEAN variants only (color/size/stock/image/ids/barcode) — preserves the
+  // card-by-color/size expansion + selection + barcode match at a fraction of
+  // the POS payload (no prices/blobs/duplicate images/timestamps).
+  const variantsByProduct = new Map();
+  if (productIds.length) {
+    const vres = await db.query(
+      `SELECT v.product_id, v.id AS variant_id, v.color, v.size, v.sku, v.barcode, v.article_code,
+              COALESCE(v.stock, 0)::int AS stock,
+              COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.color_image_url, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url
+       FROM product_variants v
+       WHERE v.product_id = ANY($1::bigint[]) AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL AND COALESCE(v.stock, 0) > 0
+       ORDER BY v.product_id DESC, v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC`,
+      [productIds]
+    );
+    for (const r of vres.rows || []) {
+      const key = String(r.product_id);
+      if (!variantsByProduct.has(key)) variantsByProduct.set(key, []);
+      variantsByProduct.get(key).push({
+        id: Number(r.variant_id),
+        variant_id: Number(r.variant_id),
+        product_id: Number(r.product_id),
+        color: clean(r.color),
+        size: clean(r.size),
+        sku: clean(r.sku),
+        barcode: clean(r.barcode),
+        article_code: clean(r.article_code),
+        stock: Math.max(0, Number(r.stock) || 0),
+        image_url: clean(r.image_url),
+        variant_image_url: clean(r.image_url),
+      });
+    }
+  }
+
+  const products = baseRows.map((row) => {
+    const variants = variantsByProduct.get(String(row.id)) || [];
+    const productImage = clean(row.product_image_url) || (variants.find((v) => v.image_url)?.image_url || "");
+    return {
+      id: Number(row.id),
+      product_id: Number(row.id),
+      name: clean(row.name),
+      brand: clean(row.brand),
+      product_type: clean(row.product_type),
+      type: clean(row.product_type),
+      gender: clean(row.gender),
+      grade: clean(row.grade),
+      qr_token: clean(row.qr_token),
+      image_url: productImage,
+      product_image_url: productImage,
+      total_stock: variants.reduce((s, v) => s + v.stock, 0),
+      stock: variants.reduce((s, v) => s + v.stock, 0),
+      colors: [...new Set(variants.map((v) => v.color).filter(Boolean))],
+      sizes: [...new Set(variants.map((v) => v.size).filter(Boolean))],
+      variants,
+    };
+  });
   return {
     employee: employee ? { id: employee.id ?? null, full_name: employee.full_name || employee.name || "", branch_id: employee.branch_id ?? null, branch_name: employee.branch_name || "" } : null,
     products,
