@@ -4743,11 +4743,27 @@ function POSPro() {
       if (!sourceItem) return prev;
 
       const productId = sourceItem.product_id ?? sourceItem.product?.product_id ?? sourceItem.product?.id;
-      const catalogProduct = getCatalogProductById(products, productId) || normalizeCatalogProduct(sourceItem.product || {});
-      const targetVariant = getCatalogVariantById(catalogProduct, targetVariantId) ||
-        (Array.isArray(sourceItem.product?.variants) ? sourceItem.product.variants : []).find(
-          (variant) => String(variant.variant_id ?? variant.variantId ?? variant.id ?? "") === targetVariantId
-        );
+      const liveCatalogProduct = getCatalogProductById(products, productId);
+      const availableVariants = [
+        ...(Array.isArray(liveCatalogProduct?.variants) ? liveCatalogProduct.variants : []),
+        ...(Array.isArray(sourceItem.product?.variants) ? sourceItem.product.variants : []),
+        ...(Array.isArray(sourceItem.variant_options) ? sourceItem.variant_options : []),
+      ];
+      const variantsById = new Map();
+      availableVariants.forEach((variant) => {
+        const id = getCatalogVariantId(variant);
+        if (!id) return;
+        const existing = variantsById.get(id);
+        variantsById.set(id, normalizeCatalogVariant(existing ? { ...variant, ...existing } : variant));
+      });
+      const catalogProduct = normalizeCatalogProduct({
+        ...(sourceItem.product || {}),
+        ...(liveCatalogProduct || {}),
+        id: liveCatalogProduct?.id ?? sourceItem.product?.id ?? productId,
+        product_id: liveCatalogProduct?.product_id ?? sourceItem.product?.product_id ?? productId,
+        variants: Array.from(variantsById.values()),
+      });
+      const targetVariant = variantsById.get(targetVariantId) || null;
 
       if (!targetVariant) {
         toast.error("Variant not found / لم يتم العثور على المقاس أو اللون");
@@ -4789,6 +4805,7 @@ function POSPro() {
         product: catalogProduct,
         variant: targetVariant,
         product_variant: targetVariant.product_variant || targetVariant,
+        variant_options: catalogProduct.variants,
         price: activePrice,
         variant_price: activePrice,
         original_price: originalPrice,
