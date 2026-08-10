@@ -3999,6 +3999,273 @@ export const getProductsWithVariants = async (req, res) => {
   }
 };
 
+/* ======================================================
+   SIZE-FIRST PICKER ENDPOINTS (AI Inbox "available by size")
+   ------------------------------------------------------
+   Power the size-first product picker so the client stops downloading the
+   entire catalog + all variants (~50MB) just to derive the size list, filter
+   options and match counts. Both reuse the EXACT scope/search/filter helpers
+   and the canonical active/sellable/stock predicate used by
+   getProductsWithVariants — so results are byte-identical to what the old
+   client-side derivation produced from the compact catalog.
+====================================================== */
+
+const PICKER_VARIANT_STOCK_PREDICATE =
+  "v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL AND COALESCE(v.stock, 0) > 0";
+
+// Builds the scoped product WHERE (tenant scope + search + brand/gender/type/grade
+// filters + optional price range), mirroring getProductsWithVariants exactly.
+const buildPickerProductWhere = async (req, { includeSearch = true, includeFilters = true, includePrice = true } = {}) => {
+  const scope = resolveProductRequestScope(req);
+  const columns = await getProductColumns();
+  const scopeClause = buildProductScopeClause({ columns, scope });
+  const values = [...scopeClause.values];
+  const searchClause = includeSearch
+    ? buildProductSearchClause({ values, search: req.query.search ?? req.query.q ?? "" })
+    : "";
+  // product_type is handled separately below so the size picker can pass MULTIPLE
+  // types (the shared admin filter only supports a single value).
+  const filtersClause = includeFilters
+    ? await buildProductsAdminListFiltersClause({
+        values,
+        filters: {
+          brand: req.query.brand,
+          manufacturer: req.query.manufacturer,
+          gender: req.query.gender,
+          grade: req.query.grade,
+        },
+      })
+    : { sql: "" };
+  let whereSql = [
+    scopeClause.whereSql,
+    searchClause ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${searchClause}` : "",
+    filtersClause.sql ? `${scopeClause.whereSql || searchClause ? "AND" : "WHERE"} ${filtersClause.sql}` : "",
+  ].filter(Boolean).join("\n");
+  if (includeFilters) {
+    const rawTypes = req.query.product_type ?? req.query.productType ?? req.query.product_types ?? "";
+    const types = (Array.isArray(rawTypes) ? rawTypes : String(rawTypes).split(","))
+      .map((value) => String(value || "").trim())
+      .filter((value) => value && value.toLowerCase() !== "all");
+    if (types.length) {
+      values.push(types.map((value) => value.toLowerCase()));
+      whereSql = [whereSql, `${whereSql ? "AND" : "WHERE"} LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($${values.length}::text[])`].filter(Boolean).join("\n");
+    }
+  }
+  if (includePrice) {
+    // Mirrors the client sizeMode min/max filter, which reads product.price with
+    // selling/regular fallback.
+    const priceExpr = "COALESCE(NULLIF(p.price, 0), NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), 0)";
+    const minPrice = Number(req.query.min_price ?? req.query.minPrice ?? 0) || 0;
+    const maxPrice = Number(req.query.max_price ?? req.query.maxPrice ?? 0) || 0;
+    if (minPrice > 0) {
+      values.push(minPrice);
+      whereSql = [whereSql, `${whereSql ? "AND" : "WHERE"} ${priceExpr} >= $${values.length}`].filter(Boolean).join("\n");
+    }
+    if (maxPrice > 0) {
+      values.push(maxPrice);
+      whereSql = [whereSql, `${whereSql ? "AND" : "WHERE"} ${priceExpr} <= $${values.length}`].filter(Boolean).join("\n");
+    }
+  }
+  return { scope, columns, scopeClause, whereSql, values };
+};
+
+// GET /api/products/available-sizes
+// Tiny response: the in-stock size list (with product counts) + the brand/type
+// facet lists the picker dropdowns need. No product objects, no variants.
+export const getAvailableProductSizes = async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    await ensureProductSchema();
+    try {
+      await ensureProductVariantSchema();
+    } catch (schemaError) {
+      console.error("[available-sizes] variant schema ensure failed:", schemaError);
+    }
+
+    // Sizes honour the active filters (brand/gender/type/price/search).
+    const filtered = await buildPickerProductWhere(req);
+    const sizesResult = await runTimedProductQuery({
+      route: "GET /api/products/available-sizes",
+      label: "available-sizes",
+      text: `
+        SELECT LOWER(TRIM(v.size)) AS size_key,
+               MAX(TRIM(v.size)) AS size_label,
+               COUNT(DISTINCT v.product_id)::int AS product_count
+        FROM product_variants v
+        WHERE ${PICKER_VARIANT_STOCK_PREDICATE}
+          AND TRIM(COALESCE(v.size, '')) <> ''
+          AND v.product_id IN (
+            SELECT p.id FROM products p
+            LEFT JOIN brands b ON b.id = p.brand_id
+            LEFT JOIN categories c ON c.id = p.category_id
+            LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+            ${filtered.whereSql}
+          )
+        GROUP BY LOWER(TRIM(v.size))
+        ORDER BY product_count DESC, size_key ASC
+      `,
+      values: filtered.values,
+      scope: filtered.scope,
+    });
+
+    // Facets (brand/type) are scope + in-stock only so the dropdown option lists
+    // stay stable regardless of the currently selected brand/type.
+    const facetBase = await buildPickerProductWhere(req, { includeSearch: false, includeFilters: false, includePrice: false });
+    const inStockExists = `EXISTS (
+      SELECT 1 FROM product_variants v
+      WHERE v.product_id = p.id AND ${PICKER_VARIANT_STOCK_PREDICATE}
+    )`;
+    const facetWhere = [facetBase.whereSql, `${facetBase.whereSql ? "AND" : "WHERE"} ${inStockExists}`].filter(Boolean).join("\n");
+    const [brandsResult, typesResult] = await Promise.all([
+      runTimedProductQuery({
+        route: "GET /api/products/available-sizes",
+        label: "available-sizes-brands",
+        text: `
+          SELECT DISTINCT COALESCE(NULLIF(TRIM(b.name), ''), NULLIF(TRIM(p.brand), '')) AS brand
+          FROM products p
+          LEFT JOIN brands b ON b.id = p.brand_id
+          ${facetWhere}
+        `,
+        values: facetBase.values,
+        scope: facetBase.scope,
+      }),
+      runTimedProductQuery({
+        route: "GET /api/products/available-sizes",
+        label: "available-sizes-types",
+        text: `
+          SELECT LOWER(TRIM(p.product_type)) AS type_key, MAX(TRIM(p.product_type)) AS type_label
+          FROM products p
+          ${facetWhere}
+          GROUP BY LOWER(TRIM(p.product_type))
+        `,
+        values: facetBase.values,
+        scope: facetBase.scope,
+      }),
+    ]);
+
+    const sizes = (sizesResult.rows || [])
+      .map((row) => ({ size: String(row.size_label || row.size_key || "").trim(), product_count: Number(row.product_count) || 0 }))
+      .filter((row) => row.size);
+    const brands = (brandsResult.rows || [])
+      .map((row) => String(row.brand || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "ar"));
+    const types = (typesResult.rows || [])
+      .map((row) => String(row.type_label || row.type_key || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "ar"));
+
+    res.json({ success: true, sizes, brands, types });
+  } catch (error) {
+    console.error("[available-sizes] crash:", error);
+    res.status(500).json({ success: false, message: "Failed to load available sizes", error: error.message });
+  }
+};
+
+// GET /api/products/by-size
+// Products available in the selected size(s), honouring all filters + search,
+// with pagination and a total count. Compact projection; no unrelated-size
+// variants. Pass ?count_only=1 for just the match count (used by the picker's
+// "N products" badge).
+export const getProductsBySize = async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    await ensureProductSchema();
+    try {
+      await ensureProductVariantSchema();
+    } catch (schemaError) {
+      console.error("[by-size] variant schema ensure failed:", schemaError);
+    }
+
+    const base = await buildPickerProductWhere(req);
+    const values = [...base.values];
+    let whereSql = base.whereSql;
+
+    // Selected size(s): products having an in-stock variant in ANY selected size.
+    const rawSizes = req.query.size ?? req.query.sizes ?? req.query.selected_size ?? "";
+    const sizes = (Array.isArray(rawSizes) ? rawSizes : String(rawSizes).split(","))
+      .map((value) => String(value || "").trim())
+      .filter((value) => value && value.toLowerCase() !== "all");
+    if (sizes.length) {
+      values.push(sizes.map((value) => value.toLowerCase()));
+      const sizeToken = `$${values.length}`;
+      whereSql = [
+        whereSql,
+        `${whereSql ? "AND" : "WHERE"} EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND ${PICKER_VARIANT_STOCK_PREDICATE}
+            AND LOWER(TRIM(COALESCE(v.size, ''))) = ANY(${sizeToken}::text[])
+        )`,
+      ].filter(Boolean).join("\n");
+    } else {
+      // No size selected → still restrict to products with any in-stock variant.
+      whereSql = [
+        whereSql,
+        `${whereSql ? "AND" : "WHERE"} EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND ${PICKER_VARIANT_STOCK_PREDICATE}
+        )`,
+      ].filter(Boolean).join("\n");
+    }
+
+    const joins = `
+      LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+    `;
+
+    const totalResult = await runTimedProductQuery({
+      route: "GET /api/products/by-size",
+      label: "by-size-count",
+      text: `SELECT COUNT(*)::int AS total FROM products p ${joins} ${whereSql}`,
+      values,
+      scope: base.scope,
+    });
+    const total = Number(totalResult.rows?.[0]?.total) || 0;
+
+    const countOnly = ["1", "true", "yes", "on"].includes(String(req.query.count_only ?? req.query.countOnly ?? "").trim().toLowerCase());
+    if (countOnly) {
+      res.json({ success: true, total, products: [], page: 1, limit: 0 });
+      return;
+    }
+
+    const page = Math.max(1, Number(req.query.page || 1) || 1);
+    const limit = Math.min(Math.max(1, Number(req.query.limit || 24) || 24), 48);
+    const offset = (page - 1) * limit;
+    const pageValues = [...values, limit, offset];
+    const productsResult = await runTimedProductQuery({
+      route: "GET /api/products/by-size",
+      label: "by-size-products",
+      text: `
+        SELECT p.id, p.name, p.product_type, p.grade,
+               COALESCE(NULLIF(TRIM(b.name), ''), NULLIF(TRIM(p.brand), '')) AS brand,
+               COALESCE(p.image_url, p.thumbnail_url, p.photo_url, p.image, '') AS image_url,
+               COALESCE(NULLIF(p.price, 0), NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), 0) AS price
+        FROM products p ${joins} ${whereSql}
+        ORDER BY p.id DESC
+        LIMIT $${values.length + 1} OFFSET $${values.length + 2}
+      `,
+      values: pageValues,
+      scope: base.scope,
+    });
+    const products = (productsResult.rows || []).map((row) => ({
+      id: Number(row.id),
+      product_id: Number(row.id),
+      name: String(row.name || "").trim(),
+      brand: String(row.brand || "").trim(),
+      product_type: String(row.product_type || "").trim(),
+      grade: String(row.grade || "").trim(),
+      image_url: String(row.image_url || "").trim(),
+      price: Number(row.price) || 0,
+    }));
+
+    res.json({ success: true, total, products, page, limit });
+  } catch (error) {
+    console.error("[by-size] crash:", error);
+    res.status(500).json({ success: false, message: "Failed to load products by size", error: error.message });
+  }
+};
+
 export const loadProductsWithVariantsPayload = async ({ query = {}, user = null, requestId = "employee-portal-products" } = {}) => {
   let statusCode = 200;
   let payload = null;
