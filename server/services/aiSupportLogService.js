@@ -1947,6 +1947,70 @@ export const appendChannelOutboundSupportReply = async (options = {}) =>
     preserveExistingOnProviderMatch: options.preserveExistingOnProviderMatch === true,
   });
 
+export const upsertAiSupportMessageReaction = async ({
+  tenantId,
+  sessionId,
+  channel = "whatsapp",
+  emoji = "",
+  targetMessageId = "",
+  fromMe = false,
+  providerMessageId = "",
+  whatsappInstance = "",
+  remoteJid = "",
+  resolvedReplyJid = "",
+  resolvedPhone = "",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeChannel = toText(channel || "whatsapp");
+  const safeSessionId = safeChannel === "whatsapp"
+    ? normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || sessionId)
+    : toText(sessionId);
+  const safeTargetMessageId = toText(targetMessageId);
+  const safeEmoji = String(emoji ?? "").trim();
+  const senderType = fromMe ? "staff" : "customer";
+  if (!safeTenantId || !safeSessionId || !safeTargetMessageId) return null;
+
+  await ensureAiSupportLogSchema();
+  await db.query(
+    `
+    DELETE FROM ai_support_messages
+    WHERE tenant_id = $1::bigint
+      AND session_id = $2::text
+      AND channel = $3::text
+      AND message_type = 'reaction'
+      AND external_reply_id = $4::text
+      AND sender_type = $5::text
+    `,
+    [safeTenantId, safeSessionId, safeChannel, safeTargetMessageId, senderType]
+  );
+  if (!safeEmoji) return { removed: true, reaction: null };
+
+  const reaction = await persistOutboundTranscriptRow({
+    tenantId: safeTenantId,
+    sessionId: safeSessionId,
+    message: safeEmoji,
+    messageType: "reaction",
+    senderType,
+    staffMessage: fromMe ? safeEmoji : "",
+    channel: safeChannel,
+    deliveryStatus: fromMe ? "sent" : "received",
+    externalMessageId: providerMessageId,
+    providerMessageId,
+    whatsappInstance,
+    remoteJid,
+    resolvedReplyJid,
+    resolvedPhone,
+    externalReplyId: safeTargetMessageId,
+    preserveExactMessage: true,
+    upsertSession: false,
+    source: "whatsapp_reaction",
+    sourcePath: "whatsapp_reaction",
+    insertSource: "whatsapp_reaction",
+    direction: fromMe ? "outbound" : "inbound",
+  });
+  return { removed: false, reaction };
+};
+
 export const upsertAiReplySuggestionDraft = async ({
   tenantId,
   sessionId,

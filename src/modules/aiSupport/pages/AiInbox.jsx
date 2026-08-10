@@ -5664,10 +5664,30 @@ export default function AiInbox() {
     ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
     : "zinc";
   const selectedTranscriptRows = useMemo(() => {
-    const messages = uniqueMessages(selectedConversation?.messages).filter((message) => !isHiddenAiReplyTranscriptMessage(message));
+    const messages = uniqueMessages(selectedConversation?.messages)
+      .filter((message) => !isHiddenAiReplyTranscriptMessage(message))
+      .map((message) => normalizeTranscriptMessage(message));
+    const reactionsByTarget = new Map();
+    messages.forEach((message) => {
+      if (clean(message.message_type).toLowerCase() !== "reaction") return;
+      const targetId = clean(
+        message.external_reply_id ||
+          message.reaction_target_message_id ||
+          message.reactionTargetMessageId ||
+          message.target_message_id
+      );
+      if (!targetId) return;
+      const actorKey = isFromMeMessage(message) ? "staff" : "customer";
+      if (!reactionsByTarget.has(targetId)) reactionsByTarget.set(targetId, new Map());
+      const reactionsByActor = reactionsByTarget.get(targetId);
+      const existing = reactionsByActor.get(actorKey);
+      const existingAt = new Date(existing?.created_at || 0).getTime() || 0;
+      const nextAt = new Date(message.created_at || 0).getTime() || 0;
+      if (!existing || nextAt >= existingAt) reactionsByActor.set(actorKey, message);
+    });
     return messages
-      .map((message) => {
-        const normalizedMessage = normalizeTranscriptMessage(message);
+      .filter((message) => clean(message.message_type).toLowerCase() !== "reaction")
+      .map((normalizedMessage) => {
         const productCards = normalizeProductCardsValue(normalizedMessage.product_cards || normalizedMessage.productCards);
         const isProductCardMessage = normalizedMessage.message_type === "product_card" || productCards.length > 0;
         const isCommentMessage =
@@ -5679,9 +5699,18 @@ export default function AiInbox() {
         const isAiSender = ["assistant", "ai", "bot", "system"].includes(clean(normalizedMessage.sender_type).toLowerCase());
         const isAi = !isStaff && (isAiSender || Boolean(clean(normalizedMessage.ai_answer)) || (normalizedMessage.direction === "outbound" && !isFromMe));
         if (!isCustomer && !isAi && !isStaff && !isProductCardMessage && !isCommentMessage) return null;
+        const providerIds = [
+          normalizedMessage.provider_message_id,
+          normalizedMessage.external_message_id,
+          normalizedMessage.whatsapp_message_id,
+          normalizedMessage.message_id,
+          normalizedMessage.id,
+        ].map(clean).filter(Boolean);
+        const reactions = providerIds.flatMap((id) => [...(reactionsByTarget.get(id)?.values() || [])]);
         return {
           key: messageKey(normalizedMessage),
           message: normalizedMessage,
+          reactions,
           cards: productCards,
           kind: isProductCardMessage ? "product_card" : isCommentMessage ? "comment" : isCustomer ? "customer" : isStaff ? "staff" : "ai",
           visible: true,

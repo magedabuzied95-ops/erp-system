@@ -237,6 +237,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
   const shellRef = useRef(null);
   const text = messageBodyText(message);
+  const reactions = asArray(row?.reactions).filter((reaction) => clean(reaction?.message_text || reaction?.text || reaction?.customer_message || reaction?.staff_message));
   const sender = row.kind === "customer" ? "العميل" : row.kind === "ai" ? "AI" : row.kind === "staff" ? staffSenderLabel(message) : "الرسالة";
 
   useEffect(() => {
@@ -339,6 +340,17 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         </div>
       ) : null}
       {children}
+      {reactions.length ? (
+        <div data-ai-message-reactions="true" className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
+          <div className={`inline-flex min-h-7 items-center gap-1 rounded-full border px-2 py-0.5 shadow-sm ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-[#252824] text-white"}`}>
+            {reactions.map((reaction) => {
+              const emoji = clean(reaction.message_text || reaction.text || reaction.customer_message || reaction.staff_message);
+              const reactor = reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff" ? "أنت" : "العميل";
+              return <span key={messageIdentity({ kind: "reaction" }, reaction)} title={`${reactor}: ${emoji}`} className="text-base leading-none">{emoji}</span>;
+            })}
+          </div>
+        </div>
+      ) : null}
       {menuOpen ? (
         <div
           dir="ltr"
@@ -643,7 +655,7 @@ function TranscriptMessage({
               <UserCheck className="h-3.5 w-3.5" />
               <span>{staffSenderLabel(message)}</span>
               {message.staff_user_name && message.staff_user_name !== "أنا" ? <span className="text-slate-400">{message.staff_user_name}</span> : null}
-              {message.message_type ? (
+              {message.message_type && !["text", "conversation"].includes(clean(message.message_type).toLowerCase()) ? (
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${message.message_type === "automation_error" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : message.message_type === "comment_like" ? "border-white/10 bg-white/[0.055] text-slate-100" : message.message_type === "comment_private_reply" ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100" : "border-violet-300/20 bg-violet-400/10 text-violet-100"}`}>
                   {message.message_type}
                 </span>

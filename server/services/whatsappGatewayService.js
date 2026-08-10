@@ -13,7 +13,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
-import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendInboundAiSupportMessage, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
+import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendInboundAiSupportMessage, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus, upsertAiSupportMessageReaction } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
@@ -25,6 +25,7 @@ import { buildCodOrderConfirmationMessage } from "../utils/orderConfirmationMess
 import { getConversationMemory } from "./aiConversationMemory.js";
 import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 import { autoRegisterWhatsappCustomer } from "./whatsappCustomerAutoRegistrationService.js";
+import { extractWhatsappReactionEvent } from "../utils/whatsappReaction.js";
 
 const provider = () => String(process.env.WHATSAPP_GATEWAY_PROVIDER || "evolution").trim().toLowerCase();
 const apiUrl = () => String(process.env.EVOLUTION_API_URL || "").trim().replace(/\/+$/g, "");
@@ -4086,6 +4087,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const sanitizedPayload = redactSensitive(payload);
   const fullPayloadText = extractMessageText(envelope.data, payload);
+  const reactionEvent = extractWhatsappReactionEvent(payload);
   let mediaDescriptor = extractWhatsappMediaDescriptor(payload);
   const webhookMessage = envelope.data?.message || envelope.data?.messages?.[0]?.message || payload?.body?.data?.message || payload?.body?.message || payload?.message || {};
   const webhookMessageType = text(
@@ -4149,7 +4151,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
     remoteJid: envelope.remoteJid,
     messageId: envelope.messageId,
     textValue: fullPayloadText,
-    hasMedia: Boolean(mediaDescriptor.type),
+    hasMedia: Boolean(mediaDescriptor.type || reactionEvent.isReaction),
     fromMe: envelope.fromMe === true,
   });
   if (skipReason) {
@@ -4308,6 +4310,41 @@ export const handleIncomingWebhook = async (payload = {}) => {
     };
   }
   const normalized = await extractIncomingWhatsapp(payload);
+  if (reactionEvent.isReaction) {
+    const tenantId = tenantIdForWhatsapp(payload);
+    const sessionId = normalizeWhatsappSessionId(
+      normalized.remoteJid || normalized.resolvedReplyJid || normalized.phone,
+      normalized.resolvedPhone || normalized.phone
+    );
+    const storedReaction = await upsertAiSupportMessageReaction({
+      tenantId,
+      sessionId,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      emoji: reactionEvent.emoji,
+      targetMessageId: reactionEvent.targetMessageId,
+      fromMe: envelope.fromMe === true,
+      providerMessageId: normalized.messageId,
+      whatsappInstance: normalized.instance,
+      remoteJid: normalized.remoteJid,
+      resolvedReplyJid: normalized.resolvedReplyJid,
+      resolvedPhone: normalized.resolvedPhone || normalized.phone,
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: sessionId,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      reason: "whatsapp_reaction",
+    });
+    return {
+      ...normalized,
+      text: "",
+      reaction: reactionEvent,
+      inbox: {
+        saved: Boolean(storedReaction),
+        reason: reactionEvent.emoji ? "reaction_saved" : "reaction_removed",
+      },
+    };
+  }
   if (envelope.fromMe) {
     const tenantId = tenantIdForWhatsapp(payload);
     const sessionId = normalizeWhatsappSessionId(normalized.remoteJid || normalized.resolvedReplyJid || normalized.phone, normalized.resolvedPhone || normalized.phone);
