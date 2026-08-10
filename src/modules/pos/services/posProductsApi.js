@@ -500,6 +500,8 @@ export const normalizePosCatalogProduct = (product = {}) => {
   };
 };
 
-export const getPosSellableProducts = async (saleModeSettings = {}) => {
-  return normalizePosSellableProducts(await getProductsWithVariants(), saleModeSettings).map((product) => normalizePosCatalogProduct(product));
+export const getPosSellableProducts = async (saleModeSettings = {}, { requestOptions } = {}) => {
+  // requestOptions lets callers (e.g. the AI Inbox picker) request the compact
+  // projection (?compact=1) without affecting POS, which calls with no options.
+  return normalizePosSellableProducts(await getProductsWithVariants(requestOptions), saleModeSettings).map((product) => normalizePosCatalogProduct(product));
 };

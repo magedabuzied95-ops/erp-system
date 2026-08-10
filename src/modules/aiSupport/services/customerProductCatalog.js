@@ -24,7 +24,12 @@ export const loadCustomerProductCatalog = async ({ headers } = {}) => {
       .catch(() => api.get("/settings/public", requestConfig))
       .catch(() => ({ settings: { sale_mode_enabled: false } }));
     const saleModeSettings = normalizeSaleModeSettings(readSettings(settingsPayload));
-    const products = await getPosSellableProducts(saleModeSettings);
+    // Use the compact picker projection: same normalization/pricing, but the API
+    // omits cost/margin/supplier/description/SEO fields the card never uses. Keeps
+    // sensitive cost data off the inbox client and trims the payload.
+    const products = await getPosSellableProducts(saleModeSettings, {
+      requestOptions: { params: { compact: 1 }, headers: { ...(headers || {}), "Cache-Control": "no-cache", Pragma: "no-cache" } },
+    });
     const value = { products, saleModeSettings };
     catalogCache = { loadedAt: Date.now(), value };
     return value;

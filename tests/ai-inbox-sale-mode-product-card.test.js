@@ -45,7 +45,10 @@ test("customer product cards use saved sale price when the POS Sale button is on
 test("AI Inbox and PWA load the same persisted Sale setting as POS before building cards", () => {
   assert.match(catalogSource, /api\s*\.get\("\/website\/settings"/);
   assert.match(catalogSource, /normalizeSaleModeSettings/);
-  assert.match(catalogSource, /getPosSellableProducts\(saleModeSettings\)/);
+  // saleModeSettings must remain the FIRST argument so the inbox cards use the
+  // same persisted POS sale setting. A second requestOptions arg (compact picker
+  // projection) is allowed and does not affect the sale mode.
+  assert.match(catalogSource, /getPosSellableProducts\(saleModeSettings[,)]/);
   assert.match(pwaSource, /loadCustomerProductCatalog\(\{ headers \}\)/);
   assert.match(pickerSource, /loadCustomerProductCatalog\(\)/);
   assert.doesNotMatch(pickerSource, /getPosSellableProducts\(\)/);
