@@ -51,6 +51,14 @@ import {
   upsertEmployeePortalInventoryItem,
 } from "../services/employeePortalInventoryApi";
 
+// Map the server identity block (snake_case) to the draft store's camelCase
+// identity used to build the token-free namespace key.
+const toDraftIdentity = (identity = {}) => ({
+  tenantId: identity.tenant_id ?? identity.tenantId ?? null,
+  employeeId: identity.employee_id ?? identity.employeeId ?? null,
+  branchId: identity.branch_id ?? identity.branchId ?? null,
+});
+
 const clean = (value = "") => String(value || "").trim();
 const lower = (value = "") => clean(value).toLowerCase();
 const uniqueTextValues = (values = []) => [...new Set(values.map((value) => clean(value)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
@@ -614,7 +622,7 @@ export default function EmployeePortalInventory() {
       setSessionsLoading(true);
       setSessionsError("");
       const response = await listEmployeePortalInventorySessions(token, { limit: 100, page: 1 });
-      if (response?.identity) setDraftIdentity(response.identity);
+      if (response?.identity) setDraftIdentity(toDraftIdentity(response.identity));
       const rows = Array.isArray(response?.sessions) ? response.sessions : [];
       setSessions(rows);
     } catch (error) {
@@ -638,7 +646,7 @@ export default function EmployeePortalInventory() {
       response = null;
     }
     try {
-      const identity = response?.identity || null;
+      const identity = response?.identity ? toDraftIdentity(response.identity) : null;
       if (identity) setDraftIdentity(identity);
       const draftId = { ...(identity || draftIdentity || {}), sessionId };
       // Working draft is a fast starting point only; the server stays
