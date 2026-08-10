@@ -7062,7 +7062,10 @@ export const getSupplierReturnItems = async (req, res) => {
         COALESCE(pv.color, '') AS color,
         COALESCE(pv.size, '') AS size,
         r.return_number,
-        o.invoice_number
+        o.invoice_number,
+        COALESCE(source_purchase.cost_price, 0)::numeric AS purchase_unit_cost,
+        (COALESCE(source_purchase.cost_price, 0) * sri.quantity)::numeric AS purchase_total_cost,
+        source_purchase.purchase_number
       FROM supplier_return_items sri
       LEFT JOIN suppliers s ON s.id = sri.supplier_id
       LEFT JOIN products p ON p.id = sri.product_id
@@ -7070,6 +7073,19 @@ export const getSupplierReturnItems = async (req, res) => {
       LEFT JOIN order_items oi ON oi.id = sri.order_item_id
       LEFT JOIN returns r ON r.id = sri.customer_return_id
       LEFT JOIN orders o ON o.id = sri.order_id
+      LEFT JOIN LATERAL (
+        SELECT pi.cost_price, pu.purchase_number
+        FROM purchase_items pi
+        JOIN purchases pu ON pu.id = pi.purchase_id
+        WHERE ($1::bigint IS NULL OR pu.tenant_id = $1::bigint)
+          AND (sri.supplier_id IS NULL OR pu.supplier_id = sri.supplier_id)
+          AND (
+            (sri.variant_id IS NOT NULL AND pi.variant_id = sri.variant_id)
+            OR (sri.variant_id IS NULL AND sri.product_id IS NOT NULL AND pi.product_id = sri.product_id)
+          )
+        ORDER BY pu.created_at DESC, pu.id DESC, pi.id DESC
+        LIMIT 1
+      ) source_purchase ON TRUE
       WHERE ($1::bigint IS NULL OR sri.tenant_id = $1::bigint)
         AND ($2 = 'all' OR LOWER(sri.status) = $2)
       ORDER BY supplier_name ASC, sri.created_at DESC, sri.id DESC
@@ -7083,13 +7099,26 @@ export const getSupplierReturnItems = async (req, res) => {
         supplierId: item.supplier_id || null,
         supplierName: item.supplier_name,
         totalQuantity: 0,
+        totalPurchaseCost: 0,
         items: [],
       };
       current.totalQuantity += Number(item.quantity || 0);
+      current.totalPurchaseCost += Number(item.purchase_total_cost || 0);
       current.items.push(item);
       supplierMap.set(key, current);
     }
-    return res.status(200).json({ items: result.rows, suppliers: [...supplierMap.values()] });
+    const items = result.rows;
+    return res.status(200).json({
+      items,
+      suppliers: [...supplierMap.values()],
+      summary: {
+        totalItems: items.length,
+        totalQuantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+        totalPurchaseCost: items.reduce((sum, item) => sum + Number(item.purchase_total_cost || 0), 0),
+        pendingQuantity: items.filter((item) => String(item.status).toLowerCase() === "pending").reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+        returnedQuantity: items.filter((item) => String(item.status).toLowerCase() === "returned").reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+      },
+    });
   } catch (error) {
     console.error("[orders] supplier return queue error", error);
     return res.status(500).json({ message: "Failed to load supplier return queue" });

@@ -125,7 +125,13 @@ function OrderReturnsPage() {
   const [editingReturnId, setEditingReturnId] = useState(null);
   const [form, setForm] = useState(defaultFormState);
   const [selectedReturn, setSelectedReturn] = useState(null);
-  const [supplierReturnGroups, setSupplierReturnGroups] = useState([]);
+  const [activePanel, setActivePanel] = useState("customers");
+  const [supplierReturnItems, setSupplierReturnItems] = useState([]);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierStatusFilter, setSupplierStatusFilter] = useState("all");
+  const [supplierIdFilter, setSupplierIdFilter] = useState("all");
+  const [supplierDateFrom, setSupplierDateFrom] = useState("");
+  const [supplierDateTo, setSupplierDateTo] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -136,13 +142,13 @@ function OrderReturnsPage() {
         setError("");
         const [data, supplierQueue] = await Promise.all([
           api.get("/orders"),
-          api.get("/orders/supplier-returns").catch(() => ({ suppliers: [] })),
+          api.get("/orders/supplier-returns?status=all").catch(() => ({ items: [] })),
         ]);
         const baseOrders = Array.isArray(data) ? data : Array.isArray(data.orders) ? data.orders : [];
         const normalized = baseOrders.length ? baseOrders.map((order) => normalizeOrder(order, { items: order.items || [] })) : mockOrders();
         if (!active) return;
         setOrders(normalized);
-        setSupplierReturnGroups(Array.isArray(supplierQueue?.suppliers) ? supplierQueue.suppliers : []);
+        setSupplierReturnItems(Array.isArray(supplierQueue?.items) ? supplierQueue.items : []);
       } catch (err) {
         console.log(err);
         const fallback = mockOrders();
@@ -221,6 +227,34 @@ function OrderReturnsPage() {
       restocked: returnsData.filter((record) => record.restock).length,
     };
   }, [returnsData]);
+
+  const supplierOptions = useMemo(() => {
+    const unique = new Map();
+    supplierReturnItems.forEach((item) => {
+      unique.set(String(item.supplier_id || "unassigned"), item.supplier_name || "مورد غير محدد");
+    });
+    return [...unique.entries()].map(([value, label]) => ({ value, label }));
+  }, [supplierReturnItems]);
+
+  const filteredSupplierReturns = useMemo(() => {
+    const query = lower(supplierSearch);
+    return supplierReturnItems.filter((item) => {
+      const matchesSearch = !query || [
+        item.supplier_name,
+        item.product_name,
+        item.return_number,
+        item.invoice_number,
+        item.purchase_number,
+        item.reason,
+      ].some((value) => lower(value).includes(query));
+      const matchesSupplier = supplierIdFilter === "all" || String(item.supplier_id || "unassigned") === supplierIdFilter;
+      const matchesStatus = supplierStatusFilter === "all" || lower(item.status) === supplierStatusFilter;
+      const itemDate = text(item.created_at).slice(0, 10);
+      const matchesFrom = !supplierDateFrom || itemDate >= supplierDateFrom;
+      const matchesTo = !supplierDateTo || itemDate <= supplierDateTo;
+      return matchesSearch && matchesSupplier && matchesStatus && matchesFrom && matchesTo;
+    });
+  }, [supplierDateFrom, supplierDateTo, supplierIdFilter, supplierReturnItems, supplierSearch, supplierStatusFilter]);
 
   const openCreateDrawer = () => {
     const firstOrder = orders[0];
@@ -317,8 +351,8 @@ function OrderReturnsPage() {
       await api.post("/orders/returns", payload);
       addReturnRecord(payload);
       if (form.disposition === "manufacturing_defect") {
-        const supplierQueue = await api.get("/orders/supplier-returns").catch(() => ({ suppliers: [] }));
-        setSupplierReturnGroups(Array.isArray(supplierQueue?.suppliers) ? supplierQueue.suppliers : []);
+        const supplierQueue = await api.get("/orders/supplier-returns?status=all").catch(() => ({ items: [] }));
+        setSupplierReturnItems(Array.isArray(supplierQueue?.items) ? supplierQueue.items : []);
       }
       toast.success(t("orders.returns.saved"));
     } catch (err) {
@@ -343,8 +377,8 @@ function OrderReturnsPage() {
   const markSupplierReturnCompleted = async (itemId) => {
     try {
       await api.patch(`/orders/supplier-returns/${itemId}/status`, { status: "returned" });
-      const supplierQueue = await api.get("/orders/supplier-returns");
-      setSupplierReturnGroups(Array.isArray(supplierQueue?.suppliers) ? supplierQueue.suppliers : []);
+      const supplierQueue = await api.get("/orders/supplier-returns?status=all");
+      setSupplierReturnItems(Array.isArray(supplierQueue?.items) ? supplierQueue.items : []);
       toast.success("تم تسجيل تسليم القطعة للمورد.");
     } catch (err) {
       console.log(err);
@@ -368,53 +402,50 @@ function OrderReturnsPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="إجمالي المرتجعات" value={kpis.total} icon={RefreshCcw} accent="cyan" />
-        <KpiCard label="مرتجعات اليوم" value={kpis.today} icon={CalendarDays} accent="amber" />
-        <KpiCard label="قيمة المرتجعات" value={formatCurrency(kpis.value)} icon={Wallet} accent="emerald" />
-        <KpiCard label="تمت إعادتها للمخزون" value={kpis.restocked} icon={PackageOpen} accent="violet" />
-      </section>
+      <ReturnsPanelTabs activePanel={activePanel} onChange={setActivePanel} customerCount={returnsData.length} supplierCount={supplierReturnItems.length} />
 
-      {supplierReturnGroups.length ? <SupplierReturnQueue groups={supplierReturnGroups} onMarkReturned={markSupplierReturnCompleted} /> : null}
+      {activePanel === "customers" ? (
+        <>
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <KpiCard label="إجمالي مرتجعات العملاء" value={kpis.total} icon={RefreshCcw} accent="cyan" />
+            <KpiCard label="مرتجعات اليوم" value={kpis.today} icon={CalendarDays} accent="amber" />
+            <KpiCard label="قيمة رد الأموال" value={formatCurrency(kpis.value)} icon={Wallet} accent="emerald" />
+            <KpiCard label="تمت إعادتها للمخزون" value={kpis.restocked} icon={PackageOpen} accent="violet" />
+          </section>
 
-      <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
-        <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Returns Workspace</div>
-            <h2 className="mt-1 text-lg font-black text-white">لوحة تشغيل المرتجعات</h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <MiniStat label="النتائج" value={filteredReturns.length} />
-            <button
-              type="button"
-              onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())}
-              className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-100" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}
-            >
-              اليوم
-            </button>
-          </div>
-        </div>
-
-        <ReturnsFilters
-          search={search}
-          setSearch={setSearch}
-          returnStatusFilter={returnStatusFilter}
-          setReturnStatusFilter={setReturnStatusFilter}
-          refundStatusFilter={refundStatusFilter}
-          setRefundStatusFilter={setRefundStatusFilter}
-          dateFilter={dateFilter}
-          setDateFilter={setDateFilter}
+          <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
+            <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-400">Customer Returns</div>
+                <h2 className="mt-1 text-lg font-black text-white">مرتجعات العملاء</h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <MiniStat label="النتائج" value={filteredReturns.length} />
+                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-100" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>اليوم</button>
+              </div>
+            </div>
+            <ReturnsFilters search={search} setSearch={setSearch} returnStatusFilter={returnStatusFilter} setReturnStatusFilter={setReturnStatusFilter} refundStatusFilter={refundStatusFilter} setRefundStatusFilter={setRefundStatusFilter} dateFilter={dateFilter} setDateFilter={setDateFilter} />
+            <ReturnsTable dir={tableDir} loading={loading} records={filteredReturns} onView={setSelectedReturn} onEdit={openEditDrawer} onDelete={handleDelete} />
+          </section>
+        </>
+      ) : (
+        <SupplierReturnsPanel
+          items={filteredSupplierReturns}
+          allItems={supplierReturnItems}
+          supplierOptions={supplierOptions}
+          search={supplierSearch}
+          setSearch={setSupplierSearch}
+          statusFilter={supplierStatusFilter}
+          setStatusFilter={setSupplierStatusFilter}
+          supplierFilter={supplierIdFilter}
+          setSupplierFilter={setSupplierIdFilter}
+          dateFrom={supplierDateFrom}
+          setDateFrom={setSupplierDateFrom}
+          dateTo={supplierDateTo}
+          setDateTo={setSupplierDateTo}
+          onMarkReturned={markSupplierReturnCompleted}
         />
-
-        <ReturnsTable
-          dir={tableDir}
-          loading={loading}
-          records={filteredReturns}
-          onView={setSelectedReturn}
-          onEdit={openEditDrawer}
-          onDelete={handleDelete}
-        />
-      </section>
+      )}
 
       {isFormOpen ? (
         <ReturnFormDrawer
@@ -496,6 +527,153 @@ function KpiCard({ label, value, icon: Icon, accent }) {
   );
 }
 
+function ReturnsPanelTabs({ activePanel, onChange, customerCount, supplierCount }) {
+  const tabs = [
+    { value: "customers", label: "مرتجعات العملاء", count: customerCount, tone: "cyan" },
+    { value: "suppliers", label: "مرتجعات الموردين", count: supplierCount, tone: "amber" },
+  ];
+  return (
+    <div className="grid gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 md:grid-cols-2">
+      {tabs.map((tab) => {
+        const active = activePanel === tab.value;
+        const activeClass = tab.tone === "amber"
+          ? "border-amber-400/35 bg-amber-400/12 text-amber-100"
+          : "border-cyan-400/35 bg-cyan-400/12 text-cyan-100";
+        return (
+          <button key={tab.value} type="button" onClick={() => onChange(tab.value)} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-black transition ${active ? activeClass : "border-transparent bg-white/[0.03] text-zinc-400 hover:bg-white/[0.07] hover:text-white"}`}>
+            <span>{tab.label}</span>
+            <span className="rounded-full border border-current/20 bg-black/20 px-2 py-0.5 text-xs">{tab.count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SupplierReturnsPanel({
+  items,
+  allItems,
+  supplierOptions,
+  search,
+  setSearch,
+  statusFilter,
+  setStatusFilter,
+  supplierFilter,
+  setSupplierFilter,
+  dateFrom,
+  setDateFrom,
+  dateTo,
+  setDateTo,
+  onMarkReturned,
+}) {
+  const groups = useMemo(() => {
+    const map = new Map();
+    items.forEach((item) => {
+      const key = String(item.supplier_id || "unassigned");
+      const group = map.get(key) || { supplierId: item.supplier_id || null, supplierName: item.supplier_name || "مورد غير محدد", totalQuantity: 0, totalPurchaseCost: 0, items: [] };
+      group.totalQuantity += Number(item.quantity || 0);
+      group.totalPurchaseCost += Number(item.purchase_total_cost || 0);
+      group.items.push(item);
+      map.set(key, group);
+    });
+    return [...map.values()];
+  }, [items]);
+
+  const summary = useMemo(() => ({
+    quantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    purchaseCost: items.reduce((sum, item) => sum + Number(item.purchase_total_cost || 0), 0),
+    pending: items.filter((item) => lower(item.status) === "pending").reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    suppliers: new Set(items.map((item) => String(item.supplier_id || "unassigned"))).size,
+  }), [items]);
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setSupplierFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  return (
+    <>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="إجمالي قطع الموردين" value={summary.quantity} icon={PackageOpen} accent="amber" />
+        <KpiCard label="إجمالي سعر الشراء" value={formatCurrency(summary.purchaseCost)} icon={Wallet} accent="emerald" />
+        <KpiCard label="قطع بانتظار التسليم" value={summary.pending} icon={RefreshCcw} accent="cyan" />
+        <KpiCard label="عدد الموردين" value={summary.suppliers} icon={FileText} accent="violet" />
+      </section>
+
+      <section className="rounded-2xl border border-amber-400/20 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Supplier Returns</div>
+            <h2 className="mt-1 text-lg font-black text-white">مرتجعات الموردين</h2>
+            <p className="mt-1 text-xs text-zinc-400">النتائج الحالية {items.length} من إجمالي {allItems.length} بند</p>
+          </div>
+          <button type="button" onClick={resetFilters} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10">مسح الفلاتر</button>
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(18rem,2fr)_repeat(4,minmax(10rem,1fr))]">
+          <label className="block">
+            <div className="mb-1.5 text-[11px] font-bold text-zinc-300">البحث</div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="المنتج، المورد، رقم المرتجع أو فاتورة الشراء" className="w-full rounded-xl border border-amber-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm text-white outline-none placeholder:text-zinc-500" />
+            </div>
+          </label>
+          <label className="block">
+            <div className="mb-1.5 text-[11px] font-bold text-zinc-300">المورد</div>
+            <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
+              <option value="all" className="bg-zinc-950">كل الموردين</option>
+              {supplierOptions.map((option) => <option key={option.value} value={option.value} className="bg-zinc-950">{option.label}</option>)}
+            </select>
+          </label>
+          <FilterSelect label="الحالة" value={statusFilter} onChange={setStatusFilter} options={["pending", "returned", "cancelled"]} allLabel="كل الحالات" />
+          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">من تاريخ</div><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
+          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">إلى تاريخ</div><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
+        </div>
+
+        {items.length ? (
+          <>
+            <div className="mt-3 hidden overflow-auto xl:block">
+              <div className="min-w-[1180px]">
+                <div className="grid grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem] rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-center text-[10px] font-bold text-zinc-400">
+                  <div>الإجراء</div><div>المورد</div><div>المنتج</div><div>الكمية</div><div>سعر الشراء</div><div>الإجمالي</div><div>المرجع</div><div>الحالة</div><div>التاريخ</div>
+                </div>
+                <div className="mt-1.5 space-y-1.5">
+                  {items.map((item) => (
+                    <div key={item.id} className="grid grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem] items-center rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs text-zinc-300">
+                      <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم</button> : <span className="text-zinc-500">—</span>}</div>
+                      <div className="truncate font-bold text-white">{item.supplier_name}</div>
+                      <div><div className="font-bold text-white">{item.product_name}</div><div className="text-[10px] text-zinc-500">{[item.color, item.size].filter(Boolean).join(" / ")}</div></div>
+                      <div className="font-black">{item.quantity}</div>
+                      <div>{formatCurrency(item.purchase_unit_cost)}</div>
+                      <div className="font-black text-amber-100">{formatCurrency(item.purchase_total_cost)}</div>
+                      <div><div>{item.return_number}</div><div className="text-[10px] text-zinc-500">{item.purchase_number || item.invoice_number}</div></div>
+                      <SupplierReturnStatus status={item.status} />
+                      <div>{formatShortDate(item.created_at)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 xl:hidden"><SupplierReturnQueue groups={groups} onMarkReturned={onMarkReturned} /></div>
+          </>
+        ) : (
+          <div className="mt-3 rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-400">لا توجد مرتجعات موردين مطابقة للفلاتر الحالية.</div>
+        )}
+      </section>
+    </>
+  );
+}
+
+function SupplierReturnStatus({ status }) {
+  const key = lower(status);
+  const label = key === "returned" ? "تم التسليم" : key === "cancelled" ? "ملغي" : "بانتظار التسليم";
+  const tone = key === "returned" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : key === "cancelled" ? "border-rose-400/25 bg-rose-400/10 text-rose-100" : "border-amber-400/25 bg-amber-400/10 text-amber-100";
+  return <div><span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold ${tone}`}>{label}</span></div>;
+}
+
 function SupplierReturnQueue({ groups, onMarkReturned }) {
   return (
     <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
@@ -511,7 +689,7 @@ function SupplierReturnQueue({ groups, onMarkReturned }) {
           <div key={String(group.supplierId || "unassigned")} className="rounded-2xl border border-white/10 bg-black/20 p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="font-black text-white">{group.supplierName}</div>
-              <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-100">{group.totalQuantity} قطعة</span>
+              <div className="text-end"><span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-100">{group.totalQuantity} قطعة</span><div className="mt-1 text-[10px] font-bold text-zinc-400">{formatCurrency(group.totalPurchaseCost)}</div></div>
             </div>
             <div className="mt-2 space-y-1.5">
               {group.items.slice(0, 4).map((item) => (
@@ -520,13 +698,9 @@ function SupplierReturnQueue({ groups, onMarkReturned }) {
                     <div className="truncate">{item.product_name}{[item.color, item.size].filter(Boolean).length ? ` — ${[item.color, item.size].filter(Boolean).join(" / ")}` : ""}</div>
                     <div className="mt-1 text-[10px] text-zinc-500">{item.return_number || item.invoice_number || ""} · × {item.quantity}</div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onMarkReturned(item.id)}
-                    className="shrink-0 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20"
-                  >
-                    تم التسليم للمورد
-                  </button>
+                  {lower(item.status) === "pending" ? (
+                    <button type="button" onClick={() => onMarkReturned(item.id)} className="shrink-0 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم للمورد</button>
+                  ) : <SupplierReturnStatus status={item.status} />}
                 </div>
               ))}
               {group.items.length > 4 ? <div className="text-[11px] text-zinc-500">+ {group.items.length - 4} بنود أخرى</div> : null}
