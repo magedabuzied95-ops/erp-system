@@ -6387,40 +6387,52 @@ router.patch("/inbox/:conversationId/labels", protect, permit("settings", "edit"
       return sendError(res, Object.assign(new Error("labels must be an array"), { status: 400, code: "INVALID_CONVERSATION_LABELS" }), "Invalid conversation labels");
     }
     const labels = normalizeAiInboxConversationLabels(req.body.labels, { max: 12 });
-    const conversation = await loadLeadConversationForAction({ tenantId, conversationId });
+    const rawConversationId = conversationId.includes(":") ? conversationId.split(":").slice(1).join(":") : conversationId;
+    const lookupIds = [...new Set([conversationId, rawConversationId].filter(Boolean))];
+    const requestedLeadStatus = [...labels].reverse().find((label) => label.leadStatus)?.leadStatus || null;
+    const updatedResult = await db.query(
+      `WITH target AS (
+         SELECT c.id
+         FROM ai_channel_conversations c
+         WHERE c.tenant_id = $1
+           AND (
+             c.external_conversation_id = ANY($2::text[])
+             OR c.external_customer_id = ANY($2::text[])
+             OR CONCAT(c.channel, ':', c.external_conversation_id) = ANY($2::text[])
+           )
+         ORDER BY
+           CASE WHEN c.external_conversation_id = $3 THEN 0 ELSE 1 END,
+           c.updated_at DESC
+         LIMIT 1
+       ), updated_conversation AS (
+         UPDATE ai_channel_conversations c
+         SET lead_status = COALESCE($4::text, NULLIF(c.lead_status, ''), 'new'),
+             metadata = COALESCE(c.metadata, '{}'::jsonb) || jsonb_build_object(
+               'conversation_labels', $5::jsonb,
+               'lead_status', COALESCE($4::text, NULLIF(c.lead_status, ''), 'new'),
+               'source', 'ai_inbox_labels'
+             ),
+             updated_at = CURRENT_TIMESTAMP
+         FROM target
+         WHERE c.id = target.id
+         RETURNING c.*
+       ), updated_profile AS (
+         UPDATE ai_customer_profiles p
+         SET customer_profile = jsonb_set(COALESCE(p.customer_profile, '{}'::jsonb), '{conversation_labels}', $5::jsonb, true),
+             updated_at = CURRENT_TIMESTAMP
+         FROM updated_conversation c
+         WHERE p.tenant_id = $1 AND p.id = c.customer_profile_id
+         RETURNING p.id
+       )
+       SELECT c.*, EXISTS(SELECT 1 FROM updated_profile) AS profile_updated
+       FROM updated_conversation c`,
+      [tenantId, lookupIds, rawConversationId || conversationId, requestedLeadStatus, JSON.stringify(labels)]
+    );
+    const conversation = updatedResult.rows[0] || null;
     if (!conversation) {
       return sendError(res, Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" }), "Conversation not found");
     }
-    const nextLeadStatus = [...labels].reverse().find((label) => label.leadStatus)?.leadStatus || conversation.lead_status || conversation.channel_metadata?.lead_status || "new";
-
-    const profileId = Number(conversation.customer_profile?.id || conversation.profile_id || conversation.customer_profile_id || 0) || null;
-    if (profileId) {
-      await db.query(
-        `UPDATE ai_customer_profiles
-         SET customer_profile = jsonb_set(COALESCE(customer_profile, '{}'::jsonb), '{conversation_labels}', $3::jsonb, true),
-             updated_at = CURRENT_TIMESTAMP
-         WHERE tenant_id = $1 AND id = $2`,
-        [tenantId, profileId, JSON.stringify(labels)]
-      );
-    }
-
-    const syncedConversation = await upsertChannelConversationMapping({
-      tenantId,
-      channel: conversation.channel || conversation.source || "",
-      externalConversationId: conversation.session_id || conversation.external_conversation_id || "",
-      externalCustomerId: conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "",
-      customerName: conversation.customer_name || conversation.customer_profile?.name || "",
-      customerAvatarUrl: conversation.customer_avatar_url || conversation.customer_profile?.avatar_url || "",
-      customerProfileId: profileId,
-      leadStatus: nextLeadStatus,
-      metadata: {
-        ...(conversation.channel_metadata || {}),
-        conversation_labels: labels,
-        lead_status: nextLeadStatus,
-        source: "ai_inbox_labels",
-      },
-      lastMessageAt: conversation.last_message_at || conversation.updated_at || new Date().toISOString(),
-    });
+    const nextLeadStatus = conversation.lead_status || requestedLeadStatus || "new";
 
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
       tenant_id: tenantId,
@@ -6438,13 +6450,11 @@ router.patch("/inbox/:conversationId/labels", protect, permit("settings", "edit"
         lead_status: nextLeadStatus,
         conversation_labels: labels,
         channel_metadata: {
-          ...(conversation.channel_metadata || {}),
-          ...(syncedConversation?.metadata || {}),
+          ...(conversation.metadata || {}),
           conversation_labels: labels,
           lead_status: nextLeadStatus,
         },
         customer_profile: {
-          ...(conversation.customer_profile || {}),
           conversation_labels: labels,
         },
       },

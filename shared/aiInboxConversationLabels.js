@@ -43,7 +43,11 @@ export const normalizeAiInboxConversationLabels = (value, { max = 12 } = {}) => 
     const defaultLabel = AI_INBOX_DEFAULT_LABELS.find((candidate) => candidate.id === id || candidate.name.toLowerCase() === name.toLowerCase());
     const colorCandidate = cleanLabelText(item?.color || defaultLabel?.color || fallback.color).toLowerCase();
     const label = defaultLabel
-      ? { ...defaultLabel }
+      ? {
+          ...defaultLabel,
+          name: name || defaultLabel.name,
+          color: AI_INBOX_LABEL_COLOR_KEYS.includes(colorCandidate) ? colorCandidate : defaultLabel.color,
+        }
       : { id: id || fallback.id, name, color: AI_INBOX_LABEL_COLOR_KEYS.includes(colorCandidate) ? colorCandidate : fallback.color };
     if (!label.id || !label.name || seen.has(label.id)) continue;
     seen.add(label.id);

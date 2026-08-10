@@ -33,6 +33,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Paperclip,
+  Pencil,
   PlayCircle,
   Star,
   RefreshCw,
@@ -2114,10 +2115,12 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
 function ConversationLabelsModal({ open, labels = [], saving = false, onClose, onSave }) {
   const [query, setQuery] = useState("");
   const [draftLabels, setDraftLabels] = useState([]);
+  const [editingLabel, setEditingLabel] = useState(null);
 
   useEffect(() => {
     if (!open) return;
     setQuery("");
+    setEditingLabel(null);
     setDraftLabels(normalizeAiInboxConversationLabels(labels));
   }, [labels, open]);
 
@@ -2129,6 +2132,14 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
   const customCandidate = customAiInboxLabel(query);
   const canCreateCustom = Boolean(customCandidate && !selectedIds.has(customCandidate.id) && !AI_INBOX_DEFAULT_LABELS.some((label) => label.id === customCandidate.id));
   const addLabel = (label) => setDraftLabels((current) => normalizeAiInboxConversationLabels([...current, label]));
+  const saveLabelEdit = () => {
+    const nextName = clean(editingLabel?.name).slice(0, 40);
+    if (!editingLabel?.id || !nextName) return;
+    setDraftLabels((current) => normalizeAiInboxConversationLabels(current.map((label) => (
+      label.id === editingLabel.id ? { ...label, name: nextName, color: editingLabel.color } : label
+    ))));
+    setEditingLabel(null);
+  };
 
   return (
     <div className="fixed inset-0 z-[2147482600] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose?.(); }}>
@@ -2150,10 +2161,26 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
               {draftLabels.length ? draftLabels.map((label) => (
                 <span key={label.id} className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-black ${conversationLabelClass(label.color)}`}>
                   {label.name}
+                  <button type="button" onClick={() => setEditingLabel({ ...label })} aria-label={`Edit ${label.name}`} className="grid h-4 w-4 place-items-center rounded-full hover:bg-black/20"><Pencil className="h-2.5 w-2.5" /></button>
                   <button type="button" onClick={() => setDraftLabels((current) => current.filter((item) => item.id !== label.id))} aria-label={`Remove ${label.name}`} className="grid h-4 w-4 place-items-center rounded-full hover:bg-black/20">×</button>
                 </span>
               )) : <span className="px-1 py-1.5 text-xs text-slate-500">لا توجد Labels مختارة</span>}
             </div>
+            {editingLabel ? (
+              <div className="mt-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-3">
+                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-amber-200">Edit label</div>
+                <input value={editingLabel.name} onChange={(event) => setEditingLabel((current) => ({ ...current, name: event.target.value }))} maxLength={40} aria-label="Label name" className="h-9 w-full rounded-lg border border-white/10 bg-black/25 px-3 text-sm font-bold text-white outline-none focus:border-amber-300/40" />
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {Object.keys(CONVERSATION_LABEL_DOT_CLASSES).map((color) => (
+                    <button key={color} type="button" onClick={() => setEditingLabel((current) => ({ ...current, color }))} aria-label={`Label color ${color}`} className={`grid h-7 w-7 place-items-center rounded-full border ${editingLabel.color === color ? "border-white bg-white/10" : "border-transparent"}`}><span className={`h-3 w-3 rounded-full ${conversationLabelDotClass(color)}`} /></button>
+                  ))}
+                  <div className="mr-auto flex gap-1.5">
+                    <button type="button" onClick={() => setEditingLabel(null)} className="h-8 rounded-lg border border-white/10 px-3 text-[11px] font-bold text-slate-300">Cancel</button>
+                    <button type="button" onClick={saveLabelEdit} disabled={!clean(editingLabel.name)} className="h-8 rounded-lg bg-amber-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-40">Save edit</button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -6135,7 +6162,7 @@ export default function AiInbox() {
       const payload = await api.patch(aiAgentInboxEndpoint(sessionId, "/labels"), {
         tenant_id: tenantId,
         labels,
-      }, { headers, perfComponent: "AiInbox.updateConversationLabels" });
+      }, { headers, timeoutMs: 12000, perfComponent: "AiInbox.updateConversationLabels" });
       const returned = payload.conversation || {};
       patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,

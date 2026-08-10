@@ -24,6 +24,12 @@ test("conversation labels allow stable custom labels and multiple selections", (
   const labels = normalizeAiInboxConversationLabels(["New", "VIP Client", "VIP Client", "Urgent"]);
   assert.equal(labels.length, 3);
   assert.deepEqual(labels.map((label) => label.name), ["New", "VIP Client", "Urgent"]);
+  assert.deepEqual(normalizeAiInboxConversationLabels([{ id: "new", name: "Fresh Lead", color: "teal" }])[0], {
+    id: "new",
+    name: "Fresh Lead",
+    color: "teal",
+    leadStatus: "new",
+  });
 });
 
 test("desktop label manager saves labels and renders them beside the customer name", () => {
@@ -34,11 +40,16 @@ test("desktop label manager saves labels and renders them beside the customer na
   assert.match(desktopSource, /إنشاء “\{customCandidate\.name\}”/);
   assert.match(desktopSource, /aiAgentInboxEndpoint\(sessionId, "\/labels"\)/);
   assert.match(desktopSource, /conversationLabels\.slice\(0, 4\)\.map/);
+  assert.match(desktopSource, /aria-label=\{`Edit \$\{label\.name\}`\}/);
+  assert.match(desktopSource, /Save edit/);
+  assert.match(desktopSource, /timeoutMs: 12000/);
 });
 
 test("labels endpoint persists labels on both customer profile and channel conversation", () => {
   assert.match(routeSource, /router\.patch\("\/inbox\/:conversationId\/labels"/);
+  assert.match(routeSource, /WITH target AS \([\s\S]*?updated_conversation AS \([\s\S]*?updated_profile AS \(/);
   assert.match(routeSource, /UPDATE ai_customer_profiles[\s\S]*?conversation_labels/);
-  assert.match(routeSource, /upsertChannelConversationMapping\([\s\S]*?conversation_labels: labels/);
+  assert.match(routeSource, /UPDATE ai_channel_conversations[\s\S]*?conversation_labels/);
+  assert.doesNotMatch(routeSource.match(/router\.patch\("\/inbox\/:conversationId\/labels"[\s\S]*?router\.patch\("\/inbox\/:conversationId\/close"/)?.[0] || "", /loadLeadConversationForAction/);
   assert.match(routeSource, /reason: "conversation_labels_updated"/);
 });
