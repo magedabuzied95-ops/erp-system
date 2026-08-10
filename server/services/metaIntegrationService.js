@@ -34,7 +34,7 @@ import {
   isLikelyMessageLikeName,
   resolveMessengerConversationDisplayName,
   upsertChannelConversationMapping,
-  verifyMetaWebhookSignature,
+  verifyMetaWebhookSignatureWithSecrets,
 } from "./aiChannelAdapterService.js";
 import { pushAIEvent } from "./aiEventLogger.js";
 import {
@@ -23004,11 +23004,30 @@ export const processMetaWebhook = async ({ req } = {}) => {
     };
   }
   const isInstagramWebhook = lower(payload?.object) === "instagram";
-  const appSecret = isInstagramWebhook
-    ? decryptSecret(config.instagram_app_secret_encrypted) || text(process.env.INSTAGRAM_APP_SECRET) || decryptSecret(config.app_secret_encrypted) || text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET)
-    : decryptSecret(config.app_secret_encrypted) || text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET);
-  const signatureOk = verifyMetaWebhookSignature({ rawBody: req.rawBody, signature: req.headers?.["x-hub-signature-256"], appSecret });
-  if (!signatureOk) throw Object.assign(new Error("Invalid Meta webhook signature"), { status: 403 });
+  const signatureCandidates = isInstagramWebhook
+    ? [
+        { source: "instagram_config", secret: decryptSecret(config.instagram_app_secret_encrypted) },
+        { source: "instagram_env", secret: text(process.env.INSTAGRAM_APP_SECRET) },
+        { source: "meta_config", secret: decryptSecret(config.app_secret_encrypted) },
+        { source: "meta_env", secret: text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET) },
+      ]
+    : [
+        { source: "meta_config", secret: decryptSecret(config.app_secret_encrypted) },
+        { source: "meta_env", secret: text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET) },
+      ];
+  const uniqueSignatureCandidates = signatureCandidates.filter(
+    (candidate, index, candidates) => candidate.secret && candidates.findIndex((item) => item.secret === candidate.secret) === index
+  );
+  const signatureResult = verifyMetaWebhookSignatureWithSecrets({
+    rawBody: req.rawBody,
+    signature: req.headers?.["x-hub-signature-256"],
+    appSecrets: uniqueSignatureCandidates.map((candidate) => candidate.secret),
+  });
+  if (!signatureResult.valid) throw Object.assign(new Error("Invalid Meta webhook signature"), { status: 403 });
+  console.log("[meta-webhook] signature verified", {
+    object: payload?.object || "",
+    secret_source: uniqueSignatureCandidates[signatureResult.matchedIndex]?.source || "not_configured",
+  });
   console.log("META_WEBHOOK_SEEN", {
     tenant_id: config.tenant_id,
     object: payload?.object || "",

@@ -1094,6 +1094,15 @@ export const verifyMetaWebhookSignature = ({ rawBody, signature, appSecret } = {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 };
 
+export const verifyMetaWebhookSignatureWithSecrets = ({ rawBody, signature, appSecrets = [] } = {}) => {
+  const secrets = [...new Set((Array.isArray(appSecrets) ? appSecrets : [appSecrets]).map(toText).filter(Boolean))];
+  if (!secrets.length) return { valid: true, matchedIndex: -1 };
+  const matchedIndex = secrets.findIndex((appSecret) =>
+    verifyMetaWebhookSignature({ rawBody, signature, appSecret })
+  );
+  return { valid: matchedIndex >= 0, matchedIndex };
+};
+
 const whatsappConfig = () => {
   const evolutionApiUrl = toText(process.env.EVOLUTION_API_URL).replace(/\/+$/g, "");
   const evolutionApiKey = toText(process.env.EVOLUTION_API_KEY);
