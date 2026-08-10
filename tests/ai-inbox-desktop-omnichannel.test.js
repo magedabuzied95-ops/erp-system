@@ -60,6 +60,9 @@ test("desktop AI Inbox uses its own wide product selection workspace", () => {
   assert.match(productPickerSource, /ai-inbox-product-picker-desktop__product-grid/);
   assert.match(desktopCss, /\.ai-inbox-product-picker-desktop__dialog[\s\S]*?width:\s*min\(1280px/);
   assert.match(desktopCss, /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(desktopCss, /--picker-accent:\s*#d4af37/);
+  assert.match(desktopCss, /\.ai-inbox-product-picker-desktop\.ai-pwa-product-picker--dark/);
+  assert.match(desktopCss, /\.ai-inbox-product-picker-desktop__product-grid > button/);
 });
 
 test("ERP shell grants only the desktop inbox a full-bleed content area", () => {

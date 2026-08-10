@@ -46,7 +46,28 @@
 
 /* Product selection is a desktop workspace in AI Inbox only. */
 .ai-inbox-product-picker-desktop {
+  --picker-accent: #d4af37;
+  --picker-accent-soft: rgba(212, 175, 55, 0.14);
+  --picker-accent-border: rgba(212, 175, 55, 0.32);
+  --picker-backdrop: rgba(8, 9, 7, 0.76);
+  --picker-bg: #f5f3ed;
+  --picker-surface: #fffdf8;
+  --picker-surface-soft: #efede6;
+  --picker-border: rgba(84, 79, 62, 0.2);
+  --picker-text: #24251f;
+  --picker-muted: #777466;
   padding: clamp(1rem, 2.5vw, 2.5rem) !important;
+  background: var(--picker-backdrop) !important;
+}
+
+.ai-inbox-product-picker-desktop.ai-pwa-product-picker--dark {
+  --picker-backdrop: rgba(8, 9, 7, 0.82);
+  --picker-bg: #1b1d19;
+  --picker-surface: #242620;
+  --picker-surface-soft: #2a2c26;
+  --picker-border: rgba(255, 255, 255, 0.11);
+  --picker-text: #f4f1e8;
+  --picker-muted: #aaa797;
 }
 
 .ai-inbox-product-picker-desktop__dialog {
@@ -57,22 +78,74 @@
   max-height: none;
   margin: 0;
   border-radius: 1.75rem;
+  border-color: var(--picker-accent-border) !important;
+  background: var(--picker-bg) !important;
+  color: var(--picker-text) !important;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(212, 175, 55, 0.08);
 }
 
 .ai-inbox-product-picker-desktop__header {
   min-height: 92px;
+  border-color: var(--picker-accent-border) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--picker-surface) 94%, var(--picker-accent) 6%), var(--picker-bg)) !important;
+}
+
+.ai-inbox-product-picker-desktop__header > div > div:first-child {
+  color: var(--picker-accent) !important;
+}
+
+.ai-inbox-product-picker-desktop__header h3 {
+  color: var(--picker-text) !important;
+}
+
+.ai-inbox-product-picker-desktop__header p {
+  color: var(--picker-muted) !important;
+}
+
+.ai-inbox-product-picker-desktop__header button {
+  border-color: var(--picker-border) !important;
+  background: var(--picker-surface) !important;
+  color: var(--picker-text) !important;
 }
 
 .ai-inbox-product-picker-desktop__body {
   grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.85fr);
   gap: 1.25rem;
   padding: 1.25rem;
+  background: var(--picker-bg);
 }
 
 .ai-inbox-product-picker-desktop__catalog {
   grid-template-columns: minmax(0, 1fr) 220px;
   grid-template-rows: 46px minmax(0, 1fr);
   gap: 0.875rem;
+}
+
+.ai-inbox-product-picker-desktop__catalog input {
+  border-color: var(--picker-border) !important;
+  background: var(--picker-surface) !important;
+  color: var(--picker-text) !important;
+}
+
+.ai-inbox-product-picker-desktop__catalog input::placeholder {
+  color: var(--picker-muted) !important;
+  opacity: 0.9;
+}
+
+.ai-inbox-product-picker-desktop__catalog input:focus {
+  border-color: var(--picker-accent) !important;
+  box-shadow: 0 0 0 3px var(--picker-accent-soft);
+}
+
+.ai-inbox-product-picker-desktop .ai-pwa-pos-filter-trigger {
+  border-color: var(--picker-accent-border) !important;
+  background: var(--picker-accent-soft) !important;
+  color: var(--picker-text) !important;
+}
+
+.ai-inbox-product-picker-desktop .ai-pwa-pos-filter-trigger:hover {
+  border-color: var(--picker-accent) !important;
+  background: color-mix(in srgb, var(--picker-accent) 20%, var(--picker-surface)) !important;
 }
 
 .ai-inbox-product-picker-desktop__products {
@@ -85,9 +158,73 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.ai-inbox-product-picker-desktop__product-grid > button {
+  border-color: var(--picker-border) !important;
+  background: var(--picker-surface) !important;
+  color: var(--picker-text) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.ai-inbox-product-picker-desktop__product-grid > button:hover {
+  border-color: var(--picker-accent-border) !important;
+  background: color-mix(in srgb, var(--picker-surface) 94%, var(--picker-accent) 6%) !important;
+}
+
+.ai-inbox-product-picker-desktop__product-grid > button[class*="border-cyan"] {
+  border-color: var(--picker-accent) !important;
+  background: var(--picker-accent-soft) !important;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.1);
+}
+
+.ai-inbox-product-picker-desktop__product-grid > button :where(.text-white, .text-slate-300) {
+  color: var(--picker-text) !important;
+}
+
+.ai-inbox-product-picker-desktop__product-grid > button :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: var(--picker-muted) !important;
+}
+
 .ai-inbox-product-picker-desktop__preview {
   padding: 1rem;
   scrollbar-gutter: stable;
+  border-color: var(--picker-border) !important;
+  background: var(--picker-surface-soft) !important;
+}
+
+.ai-inbox-product-picker-desktop__preview > div > :where(div, button) {
+  border-color: var(--picker-border) !important;
+}
+
+.ai-inbox-product-picker-desktop__preview :where([class*="bg-slate-950"], [class*="bg-[#1d1d1a]"], [class*="bg-[#22221e]"]) {
+  background: var(--picker-surface) !important;
+}
+
+.ai-inbox-product-picker-desktop__preview :where(.text-white, .text-slate-900) {
+  color: var(--picker-text) !important;
+}
+
+.ai-inbox-product-picker-desktop__preview :where(.text-slate-400, .text-slate-500, .text-stone-400, .text-stone-500) {
+  color: var(--picker-muted) !important;
+}
+
+.ai-inbox-product-picker-desktop__preview button[class*="bg-[#27251f]"] {
+  border-color: var(--picker-accent-border) !important;
+  background: var(--picker-accent-soft) !important;
+  color: var(--picker-accent) !important;
+}
+
+.ai-inbox-product-picker-desktop__preview button.bg-emerald-300 {
+  background: var(--picker-accent) !important;
+  color: #171714 !important;
+}
+
+.ai-inbox-product-picker-desktop__preview button.bg-emerald-300:hover {
+  background: #e5c14c !important;
+}
+
+.ai-inbox-product-picker-desktop .text-cyan-200,
+.ai-inbox-product-picker-desktop .text-cyan-100 {
+  color: var(--picker-accent) !important;
 }
 
 @media (min-width: 1500px) {
