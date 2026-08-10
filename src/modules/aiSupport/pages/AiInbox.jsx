@@ -72,6 +72,7 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { publicProductUrl, publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
+import "./AiInboxDesktop.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
@@ -4091,7 +4092,10 @@ export default function AiInbox() {
   const [modeSaving, setModeSaving] = useState(false);
   const [unseenSessions, setUnseenSessions] = useState([]);
   const [toolsTab, setToolsTab] = useState("customer");
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(() => (
+    typeof window !== "undefined" && window.matchMedia("(min-width: 1440px)").matches
+  ));
+  const showLegacyProfileOverlay = false;
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const [orderComposerOpen, setOrderComposerOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
@@ -5224,6 +5228,17 @@ export default function AiInbox() {
       setUnseenSessions((current) => current.filter((id) => id !== nextConversationId));
     }
   }, [openSocialCommentThread]);
+  const patchConversation = useCallback((identifier, updater) => {
+    const target = clean(identifier);
+    setInbox((current) => ({
+      ...current,
+      conversations: asArray(current.conversations).map((conversation) => {
+        if (conversation.conversation_key !== target && conversation.session_id !== target) return conversation;
+        const next = updater(conversation);
+        return { ...next, messages: mergeMessagesByIdentity(next.messages) };
+      }),
+    }));
+  }, []);
   const toggleConversationFavorite = useCallback(async (item) => {
     const sessionId = clean(item?.session_id || item?.conversation_id || "");
     const conversationIdentifier = clean(item?.conversation_key || sessionId);
@@ -5257,17 +5272,6 @@ export default function AiInbox() {
       selectedConversationCacheRef.current = selectedConversation;
     }
   }, [inboxSection, selectedConversation]);
-  const patchConversation = useCallback((identifier, updater) => {
-    const target = clean(identifier);
-    setInbox((current) => ({
-      ...current,
-      conversations: asArray(current.conversations).map((conversation) => {
-        if (conversation.conversation_key !== target && conversation.session_id !== target) return conversation;
-        const next = updater(conversation);
-        return { ...next, messages: mergeMessagesByIdentity(next.messages) };
-      }),
-    }));
-  }, []);
   useEffect(() => {
     if (inboxSection !== "conversations" || !selectedConversation?.session_id) return;
     const unreadCount = Number(selectedConversation.unread_count || selectedConversation.unread || 0);
@@ -6858,7 +6862,7 @@ export default function AiInbox() {
   );
 
   const renderCompactHeader = () => (
-    <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+    <section dir="ltr" className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
@@ -6869,6 +6873,53 @@ export default function AiInbox() {
         </div>
         {renderModeTabs()}
       </div>
+      {isConversationMode ? (
+        <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-3 xl:flex-row xl:items-center">
+          <label className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search conversations, customers or messages"
+              className="h-10 w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-10 pr-4 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+            />
+          </label>
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 xl:pb-0">
+            {fixedChannelSummaries.map((channel) => {
+              const active = channelFilter === channel.key;
+              return (
+                <button
+                  key={channel.key}
+                  type="button"
+                  onClick={() => {
+                    setChannelFilter(channel.key);
+                    setMobileView("list");
+                  }}
+                  className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3 text-[11px] font-black transition ${active ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-slate-200 hover:border-white/20"}`}
+                >
+                  <span>{channel.label}</span>
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-slate-950/10" : "bg-white/10"}`}>{channel.count}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[11px] font-black ${aiAssistantGlobalEnabled ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>
+              <Bot className="h-3.5 w-3.5" />
+              AI {aiAssistantGlobalEnabled ? "ON" : "OFF"}
+            </span>
+            <button
+              type="button"
+              onClick={() => void loadAll()}
+              disabled={loading}
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-white transition hover:border-white/20 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Refresh
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 
@@ -7148,7 +7199,7 @@ export default function AiInbox() {
   }
 
   return (
-    <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
+    <div dir="ltr" className="ai-inbox-desktop overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)]">
       {toast.text ? (
         <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
           toast.tone === "rose"
@@ -7199,7 +7250,7 @@ export default function AiInbox() {
         onChange={patchReplyCorrection}
         onSave={saveReplyCorrection}
       />
-      <div className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0 md:p-0" : "flex h-[100dvh] w-full min-w-0 flex-col gap-2 overflow-hidden p-2 md:p-3"}`}>
+      <div className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0" : "ai-omni-frame flex w-full min-w-0 flex-col gap-2 overflow-hidden"}`}>
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
@@ -7278,8 +7329,8 @@ export default function AiInbox() {
           ) : null}
         </section>
 
-        <section className={`relative ${fullscreenConversation ? "flex min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
-          <div className={`${fullscreenConversation ? "hidden" : "hidden xl:block"} w-[60px] shrink-0`}>
+        <section className={`ai-omni-workspace relative ${profileOpen && activeMainItem && !fullscreenConversation ? "ai-omni-workspace--tools" : ""} ${fullscreenConversation ? "!flex min-h-0 flex-1 gap-0 overflow-hidden" : ""}`}>
+          <div className={`${fullscreenConversation ? "hidden" : "ai-omni-channel-rail"} ai-omni-panel`}>
             <InboxChannelSidebar
               channels={fixedChannelSummaries}
               allUnread={channelSummaries.all.unread}
@@ -7292,11 +7343,18 @@ export default function AiInbox() {
             />
           </div>
 
-	          <aside className={`${isSocialMode ? "hidden" : ""} flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[280px] md:max-w-[280px] xl:w-[300px] xl:max-w-[300px] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+	          <aside dir="rtl" className={`ai-omni-panel ai-omni-list-panel ${isSocialMode ? "hidden" : ""} min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
 	            <div className="shrink-0 space-y-3">
 	              {inboxSection === "conversations" ? (
 	                <div className="flex flex-col gap-3">
-	                  <label className="relative min-w-0">
+	                  <div className="flex items-center justify-between gap-3 px-1">
+	                    <div>
+	                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">Conversations</div>
+	                      <div className="mt-0.5 text-xs text-slate-500">All connected customer channels</div>
+	                    </div>
+	                    <Pill tone="cyan">{filteredConversations.length}</Pill>
+	                  </div>
+	                  <label className="hidden">
 	                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
 	                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرّف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
 	                  </label>
@@ -7351,7 +7409,7 @@ export default function AiInbox() {
 	            </div>
 	          </aside>
 
-          <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden ${fullscreenConversation ? "h-full rounded-none border-0 bg-transparent p-0 shadow-none" : "rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]"} ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
+          <main dir="rtl" className={`ai-omni-panel ai-omni-chat-panel min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden ${fullscreenConversation ? "flex h-full rounded-none border-0 bg-transparent p-0 shadow-none" : "rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]"} ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
             {isSocialMode ? (
               <>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -7550,8 +7608,8 @@ export default function AiInbox() {
                     </div>
                   </div>
                 </div>
-                {!fullscreenConversation && profileOpen ? (
-                  <div className="absolute inset-y-0 right-0 z-40 hidden xl:flex">
+                {showLegacyProfileOverlay ? (
+                  <div className="hidden">
                     <button
                       type="button"
                       onClick={() => setProfileOpen(false)}
@@ -7599,6 +7657,42 @@ export default function AiInbox() {
               <EmptyBlock text="لا توجد محادثات حاليًا" />
             )}
           </main>
+          {!fullscreenConversation && profileOpen && activeMainItem ? (
+            <aside dir="rtl" className="ai-omni-panel ai-omni-tools-panel">
+              <RightToolsTabsPanel
+                activeTab={toolsTab}
+                onTabChange={setToolsTab}
+                conversation={selectedConversation}
+                channelStatus={selectedChannelStatus}
+                loading={loading}
+                assignName={currentAssignName}
+                onAssignNameChange={updateAssignName}
+                onAction={updateConversationAction}
+                mode={resolveChannelAutoReplyMode(selectedChannelStatus)}
+                onModeChange={updateAutoReplyMode}
+                modeSaving={modeSaving}
+                recommendations={recommendations}
+                salesCloser={salesCloser}
+                drafts={drafts}
+                onRefreshRecommendations={loadRecommendations}
+                onQuickSend={quickSendProduct}
+                onSendImages={sendProductImages}
+                onCreateDraft={createDraftFromProduct}
+                onRefreshSalesCloser={loadSalesCloser}
+                onTakeover={() => updateConversationAction("takeover")}
+                onUseText={setReplyText}
+                onPaymentAction={usePaymentAction}
+                onOpenAiTrace={isWhatsappChannel(safeConversation.channel || safeConversation.source) ? openAiTrace : null}
+                aiTrace={aiTrace}
+                onSyncMessengerProfile={syncMessengerProfile}
+                profileSyncing={profileSyncing}
+                onDebugMessengerProfile={debugMessengerProfile}
+                profileDebugging={profileDebugging}
+                onResetAiState={resetAiState}
+                resettingAiState={resettingAiState}
+              />
+            </aside>
+          ) : null}
         </section>
       </div>
     </div>

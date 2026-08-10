@@ -1,0 +1,101 @@
+.ai-inbox-desktop {
+  --ai-omni-gap: 0.5rem;
+  height: calc(100dvh - 88px);
+  min-height: 0;
+}
+
+.ai-inbox-desktop .ai-omni-frame {
+  height: 100%;
+  padding: 0.5rem;
+}
+
+.ai-inbox-desktop .ai-omni-workspace {
+  display: grid;
+  grid-template-columns: 58px minmax(270px, 310px) minmax(420px, 1fr);
+  gap: var(--ai-omni-gap);
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.ai-inbox-desktop .ai-omni-workspace.ai-omni-workspace--tools {
+  grid-template-columns: 58px minmax(270px, 310px) minmax(420px, 1fr) minmax(275px, 310px);
+}
+
+.ai-inbox-desktop .ai-omni-panel {
+  min-width: 0;
+  min-height: 0;
+}
+
+.ai-inbox-desktop .ai-omni-tools-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.18);
+}
+
+.ai-inbox-desktop .ai-omni-tools-panel > * {
+  display: flex;
+  width: 100%;
+  max-width: none;
+}
+
+.ai-inbox-desktop .ai-omni-list-panel,
+.ai-inbox-desktop .ai-omni-chat-panel,
+.ai-inbox-desktop .ai-omni-tools-panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+@media (max-width: 1535px) {
+  .ai-inbox-desktop .ai-omni-workspace,
+  .ai-inbox-desktop .ai-omni-workspace.ai-omni-workspace--tools {
+    grid-template-columns: minmax(260px, 300px) minmax(420px, 1fr);
+  }
+
+  .ai-inbox-desktop .ai-omni-channel-rail {
+    display: none;
+  }
+
+  .ai-inbox-desktop .ai-omni-tools-panel {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: 45;
+    width: min(340px, calc(100% - 1rem));
+    background: rgb(15 23 42 / 0.98);
+    backdrop-filter: blur(18px);
+  }
+}
+
+@media (max-width: 1023px) {
+  .ai-inbox-desktop {
+    height: calc(100dvh - 68px);
+    min-height: 0;
+  }
+
+  .ai-inbox-desktop .ai-omni-frame {
+    padding: 0.375rem;
+  }
+
+  .ai-inbox-desktop .ai-omni-workspace,
+  .ai-inbox-desktop .ai-omni-workspace.ai-omni-workspace--tools {
+    display: flex;
+  }
+
+  .ai-inbox-desktop .ai-omni-list-panel {
+    width: min(340px, 42vw) !important;
+    max-width: min(340px, 42vw) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .ai-inbox-desktop .ai-omni-list-panel {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
