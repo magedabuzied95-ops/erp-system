@@ -144,7 +144,7 @@ export const resolveTaskTenantId = (reqOrUser = {}) => {
   return Number.isFinite(tenantId) && tenantId > 0 ? tenantId : null;
 };
 
-export const ensureStaffTasksSchema = async (clientOrPool = db) => {
+const runStaffTasksSchemaDDL = async (clientOrPool = db) => {
   if (clientOrPool === db) {
     await ensureAttendanceSchema();
   }
@@ -519,6 +519,26 @@ export const ensureStaffTasksSchema = async (clientOrPool = db) => {
     WHERE title_ar IS NULL OR title_ar = '' OR description_ar IS NULL OR description_ar = ''
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_staff_tasks_branch_date_source ON staff_task_assignments (tenant_id, branch_id, assigned_date, source_module, task_type)`);
+};
+
+// The staff-tasks DDL above is idempotent but ~70 sequential round-trips. When it
+// runs against the shared pool (the read hot-path: dashboard/staff/tasks), memoize
+// it for the process so every request no longer pays the full ensure cost. Explicit
+// clients (transactions/migrations) always run it. On failure the promise is cleared
+// so a later request can retry.
+let staffTasksSchemaReadyPromise = null;
+export const ensureStaffTasksSchema = async (clientOrPool = db) => {
+  if (clientOrPool !== db) {
+    await runStaffTasksSchemaDDL(clientOrPool);
+    return;
+  }
+  if (!staffTasksSchemaReadyPromise) {
+    staffTasksSchemaReadyPromise = runStaffTasksSchemaDDL(db).catch((error) => {
+      staffTasksSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  await staffTasksSchemaReadyPromise;
 };
 
 const hashPortalToken = (token = "") => crypto.createHash("sha256").update(String(token)).digest("hex");

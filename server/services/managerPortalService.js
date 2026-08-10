@@ -205,13 +205,26 @@ const resolveBranchScope = (manager = {}) => {
   return manager.branch_id ? "branch" : "all";
 };
 
+// Role -> permissions is near-static, but was queried on every authenticated request
+// for role-based managers (those without the manager_portal_enabled short-circuit).
+// Cache successful DB lookups briefly so hot paths skip the extra round-trip; changes
+// still propagate within the TTL and any lookup failure falls back to a live query.
+const rolePermissionsCache = new Map();
+const ROLE_PERMISSIONS_TTL_MS = 60_000;
+
 const resolveManagerPermissions = async ({ tenantId = null, role = "", enabled = false } = {}) => {
   if (enabled) return defaultManagerPermissions;
   const roleName = clean(role);
   if (!roleName) return defaultManagerPermissions;
+  const cacheKey = `${tenantId ?? ""}:${roleName.toLowerCase()}`;
+  const cached = rolePermissionsCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.value;
   try {
     const rolePermissions = await getRolePermissions({ db, roleId: roleName, tenantId });
-    if (rolePermissions?.permissions?.length) return rolePermissions.permissions;
+    if (rolePermissions?.permissions?.length) {
+      rolePermissionsCache.set(cacheKey, { value: rolePermissions.permissions, expires: Date.now() + ROLE_PERMISSIONS_TTL_MS });
+      return rolePermissions.permissions;
+    }
   } catch (error) {
     console.warn("[manager-portal] role permission lookup failed", { role: roleName, message: error?.message || String(error) });
   }
@@ -496,6 +509,128 @@ const publicInvoiceUrlForOrder = (order = {}) => {
   return normalizedOrigin && identifier ? `${normalizedOrigin}/invoice/${encodeURIComponent(identifier)}` : "";
 };
 
+// Resolve the optional order_items / products / product_variants columns once so
+// both the single-invoice and batched hydration paths share identical SQL fragments.
+const resolveInvoiceItemExprs = async () => {
+  const [
+    hasOrderItemColor,
+    hasOrderItemSize,
+    hasOrderItemSku,
+    hasOrderItemBarcode,
+    hasOrderItemImageUrl,
+    hasOrderItemProductImage,
+    hasOrderItemVariantImage,
+    hasOrderItemTaxAmount,
+    hasProductSku,
+    hasProductBarcode,
+    hasProductImageUrl,
+    hasVariantSku,
+    hasVariantBarcode,
+    hasVariantImageUrl,
+  ] = await Promise.all([
+    columnExists("order_items", "color").catch(() => false),
+    columnExists("order_items", "size").catch(() => false),
+    columnExists("order_items", "sku").catch(() => false),
+    columnExists("order_items", "barcode").catch(() => false),
+    columnExists("order_items", "image_url").catch(() => false),
+    columnExists("order_items", "product_image").catch(() => false),
+    columnExists("order_items", "variant_image").catch(() => false),
+    columnExists("order_items", "tax_amount").catch(() => false),
+    columnExists("products", "sku").catch(() => false),
+    columnExists("products", "barcode").catch(() => false),
+    columnExists("products", "image_url").catch(() => false),
+    columnExists("product_variants", "sku").catch(() => false),
+    columnExists("product_variants", "barcode").catch(() => false),
+    columnExists("product_variants", "image_url").catch(() => false),
+  ]);
+  return {
+    itemColorExpr: hasOrderItemColor ? "NULLIF(oi.color, '')" : "NULL",
+    itemSizeExpr: hasOrderItemSize ? "NULLIF(oi.size, '')" : "NULL",
+    itemSkuExpr: hasOrderItemSku ? "NULLIF(oi.sku, '')" : "NULL",
+    itemBarcodeExpr: hasOrderItemBarcode ? "NULLIF(oi.barcode, '')" : "NULL",
+    itemImageExpr: hasOrderItemImageUrl ? "NULLIF(oi.image_url, '')" : "NULL",
+    itemProductImageExpr: hasOrderItemProductImage ? "NULLIF(oi.product_image, '')" : "NULL",
+    itemVariantImageExpr: hasOrderItemVariantImage ? "NULLIF(oi.variant_image, '')" : "NULL",
+    productSkuExpr: hasProductSku ? "NULLIF(p.sku, '')" : "NULL",
+    productBarcodeExpr: hasProductBarcode ? "NULLIF(p.barcode, '')" : "NULL",
+    productImageExpr: hasProductImageUrl ? "NULLIF(p.image_url, '')" : "NULL",
+    variantSkuExpr: hasVariantSku ? "NULLIF(pv.sku, '')" : "NULL",
+    variantBarcodeExpr: hasVariantBarcode ? "NULLIF(pv.barcode, '')" : "NULL",
+    variantImageExpr: hasVariantImageUrl ? "NULLIF(pv.image_url, '')" : "NULL",
+    hasOrderItemTaxAmount,
+  };
+};
+
+const invoiceItemsSelectColumns = (e) => `
+          oi.id,
+          oi.order_id,
+          oi.product_id,
+          oi.variant_id,
+          COALESCE(NULLIF(oi.product_name, ''), p.name, 'منتج') AS product_name,
+          COALESCE(${e.itemColorExpr}, NULLIF(pv.color, ''), '') AS color,
+          COALESCE(${e.itemSizeExpr}, NULLIF(pv.size, ''), '') AS size,
+          COALESCE(${e.itemSkuExpr}, ${e.variantSkuExpr}, ${e.productSkuExpr}, '') AS sku,
+          COALESCE(${e.itemBarcodeExpr}, ${e.variantBarcodeExpr}, ${e.productBarcodeExpr}, '') AS barcode,
+          COALESCE(${e.itemImageExpr}, ${e.itemProductImageExpr}, ${e.itemVariantImageExpr}, ${e.variantImageExpr}, ${e.productImageExpr}, '') AS image_url,
+          COALESCE(oi.quantity, 0)::numeric AS quantity,
+          COALESCE(oi.sale_price, 0)::numeric AS price,
+          0::numeric AS discount_amount,
+          ${e.hasOrderItemTaxAmount ? "COALESCE(oi.tax_amount, 0)::numeric" : "0::numeric"} AS tax_amount,
+          COALESCE(oi.total_amount, COALESCE(oi.sale_price, 0) * COALESCE(oi.quantity, 0), 0)::numeric AS line_total`;
+
+// Build the manager-portal invoice detail object from an order row + its items.
+// profitAllowed is resolved once by the caller (avoids a per-invoice profit check).
+// Exported for parity tests: single-invoice and batched hydration must produce
+// byte-identical objects for the same (order, items, profitAllowed).
+export const buildManagerPortalInvoiceObject = (order, items, profitAllowed) => {
+  const subtotal = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
+  const total = Number(order.total_amount ?? order.total ?? subtotal);
+  const discount = Number(order.discount_amount ?? order.invoice_discount_amount ?? order.coupon_discount_amount ?? 0);
+  const shipping = Number(order.shipping_fee ?? order.delivery_fee ?? order.shipping_cost ?? order.service_fee ?? 0);
+  const tax = Number(order.tax_amount ?? order.vat_amount ?? order.total_tax ?? 0);
+  const paid = Number(order.paid_amount ?? order.amount_paid ?? order.total_paid ?? 0);
+  const profit = profitAllowed ? Number(order.profit ?? order.gross_profit ?? order.net_profit ?? 0) : null;
+  const cost = profitAllowed ? Number(order.cost_amount ?? order.cogs_amount ?? order.total_cost ?? 0) : null;
+  return {
+    id: order.id,
+    order_id: order.id,
+    invoice_number: order.invoice_number || `INV-${order.id}`,
+    public_order_number: order.public_order_number || order.display_order_number || "",
+    status: order.status || "",
+    created_at: order.created_at,
+    updated_at: order.updated_at,
+    branch_id: order.branch_id || null,
+    customer_name: order.customer_name || order.customer_record_name || "عميل نقدي",
+    customer_phone: order.customer_phone || order.phone || order.customer_record_phone || "",
+    customer_address: order.customer_address || order.shipping_address_line || order.detailed_address || order.address || "",
+    customer_type: order.customer_type || (order.customer_id ? "registered" : "walk_in"),
+    seller_name: order.seller_name || order.sales_employee_name || order.salesperson_name || order.cashier_name || "",
+    cashier_name: order.cashier_name || "",
+    branch_name: order.branch_name || "",
+    payment_method: order.payment_method || "",
+    payment_type: order.payment_type || order.payment_method || "",
+    payment_status: order.payment_status || "",
+    payment_breakdown: Array.isArray(order.payment_breakdown) ? order.payment_breakdown : [],
+    treasury_name: order.treasury_name || order.cash_drawer_name || order.money_account_name || "",
+    transfer_proof_status: order.transfer_proof_status || order.shipping_proof_status || "",
+    cod_amount: Number(order.cod_amount || 0),
+    subtotal,
+    discount,
+    shipping,
+    tax,
+    total,
+    paid_amount: paid,
+    remaining_amount: Math.max(0, total - paid),
+    profit,
+    cost,
+    permissions: {
+      can_view_profit: profitAllowed,
+    },
+    public_invoice_url: order.public_invoice_url || order.invoice_public_url || order.public_invoice_short_url || order.short_invoice_url || publicInvoiceUrlForOrder(order),
+    items,
+  };
+};
+
 export const getManagerPortalInvoiceDetail = async ({ manager = {}, invoiceId, profitToken = "" } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
@@ -541,70 +676,11 @@ export const getManagerPortalInvoiceDetail = async ({ manager = {}, invoiceId, p
     throw error;
   }
 
-  const [
-    hasOrderItemColor,
-    hasOrderItemSize,
-    hasOrderItemSku,
-    hasOrderItemBarcode,
-    hasOrderItemImageUrl,
-    hasOrderItemProductImage,
-    hasOrderItemVariantImage,
-    hasOrderItemTaxAmount,
-    hasProductSku,
-    hasProductBarcode,
-    hasProductImageUrl,
-    hasVariantSku,
-    hasVariantBarcode,
-    hasVariantImageUrl,
-  ] = await Promise.all([
-    columnExists("order_items", "color").catch(() => false),
-    columnExists("order_items", "size").catch(() => false),
-    columnExists("order_items", "sku").catch(() => false),
-    columnExists("order_items", "barcode").catch(() => false),
-    columnExists("order_items", "image_url").catch(() => false),
-    columnExists("order_items", "product_image").catch(() => false),
-    columnExists("order_items", "variant_image").catch(() => false),
-    columnExists("order_items", "tax_amount").catch(() => false),
-    columnExists("products", "sku").catch(() => false),
-    columnExists("products", "barcode").catch(() => false),
-    columnExists("products", "image_url").catch(() => false),
-    columnExists("product_variants", "sku").catch(() => false),
-    columnExists("product_variants", "barcode").catch(() => false),
-    columnExists("product_variants", "image_url").catch(() => false),
-  ]);
-  const itemColorExpr = hasOrderItemColor ? "NULLIF(oi.color, '')" : "NULL";
-  const itemSizeExpr = hasOrderItemSize ? "NULLIF(oi.size, '')" : "NULL";
-  const itemSkuExpr = hasOrderItemSku ? "NULLIF(oi.sku, '')" : "NULL";
-  const itemBarcodeExpr = hasOrderItemBarcode ? "NULLIF(oi.barcode, '')" : "NULL";
-  const itemImageExpr = hasOrderItemImageUrl ? "NULLIF(oi.image_url, '')" : "NULL";
-  const itemProductImageExpr = hasOrderItemProductImage ? "NULLIF(oi.product_image, '')" : "NULL";
-  const itemVariantImageExpr = hasOrderItemVariantImage ? "NULLIF(oi.variant_image, '')" : "NULL";
-  const productSkuExpr = hasProductSku ? "NULLIF(p.sku, '')" : "NULL";
-  const productBarcodeExpr = hasProductBarcode ? "NULLIF(p.barcode, '')" : "NULL";
-  const productImageExpr = hasProductImageUrl ? "NULLIF(p.image_url, '')" : "NULL";
-  const variantSkuExpr = hasVariantSku ? "NULLIF(pv.sku, '')" : "NULL";
-  const variantBarcodeExpr = hasVariantBarcode ? "NULLIF(pv.barcode, '')" : "NULL";
-  const variantImageExpr = hasVariantImageUrl ? "NULLIF(pv.image_url, '')" : "NULL";
-
+  const exprs = await resolveInvoiceItemExprs();
   const items = (await tableExists("order_items"))
     ? await safeQuery(
         `
-        SELECT
-          oi.id,
-          oi.order_id,
-          oi.product_id,
-          oi.variant_id,
-          COALESCE(NULLIF(oi.product_name, ''), p.name, 'منتج') AS product_name,
-          COALESCE(${itemColorExpr}, NULLIF(pv.color, ''), '') AS color,
-          COALESCE(${itemSizeExpr}, NULLIF(pv.size, ''), '') AS size,
-          COALESCE(${itemSkuExpr}, ${variantSkuExpr}, ${productSkuExpr}, '') AS sku,
-          COALESCE(${itemBarcodeExpr}, ${variantBarcodeExpr}, ${productBarcodeExpr}, '') AS barcode,
-          COALESCE(${itemImageExpr}, ${itemProductImageExpr}, ${itemVariantImageExpr}, ${variantImageExpr}, ${productImageExpr}, '') AS image_url,
-          COALESCE(oi.quantity, 0)::numeric AS quantity,
-          COALESCE(oi.sale_price, 0)::numeric AS price,
-          0::numeric AS discount_amount,
-          ${hasOrderItemTaxAmount ? "COALESCE(oi.tax_amount, 0)::numeric" : "0::numeric"} AS tax_amount,
-          COALESCE(oi.total_amount, COALESCE(oi.sale_price, 0) * COALESCE(oi.quantity, 0), 0)::numeric AS line_total
+        SELECT ${invoiceItemsSelectColumns(exprs)}
         FROM order_items oi
         LEFT JOIN products p ON p.id = oi.product_id
         LEFT JOIN product_variants pv ON pv.id = oi.variant_id
@@ -616,54 +692,76 @@ export const getManagerPortalInvoiceDetail = async ({ manager = {}, invoiceId, p
       )
     : [];
 
-  const subtotal = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
-  const total = Number(order.total_amount ?? order.total ?? subtotal);
-  const discount = Number(order.discount_amount ?? order.invoice_discount_amount ?? order.coupon_discount_amount ?? 0);
-  const shipping = Number(order.shipping_fee ?? order.delivery_fee ?? order.shipping_cost ?? order.service_fee ?? 0);
-  const tax = Number(order.tax_amount ?? order.vat_amount ?? order.total_tax ?? 0);
-  const paid = Number(order.paid_amount ?? order.amount_paid ?? order.total_paid ?? 0);
   const profitAllowed = await resolveProfitOk(manager, profitToken);
-  const profit = profitAllowed ? Number(order.profit ?? order.gross_profit ?? order.net_profit ?? 0) : null;
-  const cost = profitAllowed ? Number(order.cost_amount ?? order.cogs_amount ?? order.total_cost ?? 0) : null;
+  return buildManagerPortalInvoiceObject(order, items, profitAllowed);
+};
 
-  return {
-    id: order.id,
-    order_id: order.id,
-    invoice_number: order.invoice_number || `INV-${order.id}`,
-    public_order_number: order.public_order_number || order.display_order_number || "",
-    status: order.status || "",
-    created_at: order.created_at,
-    updated_at: order.updated_at,
-    branch_id: order.branch_id || null,
-    customer_name: order.customer_name || order.customer_record_name || "عميل نقدي",
-    customer_phone: order.customer_phone || order.phone || order.customer_record_phone || "",
-    customer_address: order.customer_address || order.shipping_address_line || order.detailed_address || order.address || "",
-    customer_type: order.customer_type || (order.customer_id ? "registered" : "walk_in"),
-    seller_name: order.seller_name || order.sales_employee_name || order.salesperson_name || order.cashier_name || "",
-    cashier_name: order.cashier_name || "",
-    branch_name: order.branch_name || "",
-    payment_method: order.payment_method || "",
-    payment_type: order.payment_type || order.payment_method || "",
-    payment_status: order.payment_status || "",
-    payment_breakdown: Array.isArray(order.payment_breakdown) ? order.payment_breakdown : [],
-    treasury_name: order.treasury_name || order.cash_drawer_name || order.money_account_name || "",
-    transfer_proof_status: order.transfer_proof_status || order.shipping_proof_status || "",
-    cod_amount: Number(order.cod_amount || 0),
-    subtotal,
-    discount,
-    shipping,
-    tax,
-    total,
-    paid_amount: paid,
-    remaining_amount: Math.max(0, total - paid),
-    profit,
-    cost,
-    permissions: {
-      can_view_profit: profitAllowed,
-    },
-    public_invoice_url: order.public_invoice_url || order.invoice_public_url || order.public_invoice_short_url || order.short_invoice_url || publicInvoiceUrlForOrder(order),
-    items,
-  };
+// Batched hydration for the dashboard "today invoices" list. Fetches every scoped order
+// row and all of their items in exactly TWO queries — replacing the previous N+1 that ran
+// ~2 queries per invoice plus a redundant per-invoice profit-token check. profitOk is
+// resolved once by the caller. Returns a Map keyed by String(order.id); the caller keeps
+// the original ordering and falls back to the base row for ids that resolve out of scope,
+// matching the prior `getManagerPortalInvoiceDetail(...).catch(() => base)` behavior.
+export const getManagerPortalInvoiceDetailsBatch = async ({ manager = {}, invoiceIds = [], profitOk = false } = {}) => {
+  const ids = Array.from(new Set(invoiceIds.map((id) => numberOrNull(id)).filter((id) => id != null)));
+  if (!ids.length) return new Map();
+  if (!(await tableExists("orders"))) return new Map();
+
+  const tenantId = numberOrNull(manager.tenant_id);
+  const branchId = branchFilterValue(manager);
+  const hasBranches = await tableExists("branches");
+  const hasCustomers = await tableExists("customers");
+  const params = [ids];
+  const tenantClause = tenantId ? (params.push(tenantId), ` AND (o.tenant_id = $${params.length}::bigint OR o.tenant_id IS NULL)`) : "";
+  const branchClause = branchId ? (params.push(branchId), ` AND o.branch_id = $${params.length}::bigint`) : "";
+  const orderRows = await safeQuery(
+    `
+    SELECT
+      o.*,
+      ${hasBranches ? "COALESCE(b.name, '')" : "''"} AS branch_name,
+      ${hasCustomers ? "COALESCE(c.name, '')" : "''"} AS customer_record_name,
+      ${hasCustomers ? "COALESCE(c.phone, '')" : "''"} AS customer_record_phone
+    FROM orders o
+    ${hasBranches ? "LEFT JOIN branches b ON b.id = o.branch_id" : ""}
+    ${hasCustomers ? "LEFT JOIN customers c ON c.id = o.customer_id" : ""}
+    WHERE o.id = ANY($1::bigint[])
+      ${tenantClause}
+      ${branchClause}
+    `,
+    params,
+    []
+  );
+  if (!orderRows.length) return new Map();
+
+  const scopedIds = orderRows.map((row) => row.id);
+  const exprs = await resolveInvoiceItemExprs();
+  const itemRows = (await tableExists("order_items"))
+    ? await safeQuery(
+        `
+        SELECT ${invoiceItemsSelectColumns(exprs)}
+        FROM order_items oi
+        LEFT JOIN products p ON p.id = oi.product_id
+        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+        WHERE oi.order_id = ANY($1::bigint[])
+        ORDER BY oi.order_id ASC, oi.id ASC
+        `,
+        [scopedIds],
+        []
+      )
+    : [];
+
+  const itemsByOrder = new Map();
+  for (const item of itemRows) {
+    const key = String(item.order_id);
+    if (!itemsByOrder.has(key)) itemsByOrder.set(key, []);
+    itemsByOrder.get(key).push(item);
+  }
+
+  const detailByOrder = new Map();
+  for (const order of orderRows) {
+    detailByOrder.set(String(order.id), buildManagerPortalInvoiceObject(order, itemsByOrder.get(String(order.id)) || [], profitOk));
+  }
+  return detailByOrder;
 };
 
 export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, profitToken = "" } = {}) => {
@@ -767,13 +865,13 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
     : 0;
   const profitOk = await resolveProfitOk(manager, profitToken);
   if (!profitOk) nullProfitFieldsInOverview(overview);
-  if (Array.isArray(overview?.recentInvoices)) {
-    overview.recentInvoices = await Promise.all(
-      overview.recentInvoices.map(async (invoice) => {
-        const detail = await getManagerPortalInvoiceDetail({ manager, invoiceId: invoice.id, profitToken }).catch(() => null);
-        return detail || invoice;
-      })
-    );
+  if (Array.isArray(overview?.recentInvoices) && overview.recentInvoices.length) {
+    const detailByOrder = await getManagerPortalInvoiceDetailsBatch({
+      manager,
+      invoiceIds: overview.recentInvoices.map((invoice) => invoice.id),
+      profitOk,
+    }).catch(() => new Map());
+    overview.recentInvoices = overview.recentInvoices.map((invoice) => detailByOrder.get(String(invoice.id)) || invoice);
     if (!profitOk) overview.recentInvoices = overview.recentInvoices.map(stripInvoiceProfit);
   }
 
@@ -1291,22 +1389,24 @@ export const getManagerPortalNotifications = async ({ manager = {}, query = {} }
   const tenantId = numberOrNull(manager.tenant_id);
   const roleKey = "manager";
   const unread = query.unread === true || query.unread === "true" || query.unread === "1";
-  const notifications = await listNotifications({
-    user: {
+  const [notifications, unreadCount] = await Promise.all([
+    listNotifications({
+      user: {
+        tenant_id: tenantId,
+        role_key: roleKey,
+        is_super_admin: false,
+      },
+      limit: query.limit || 30,
+      offset: query.offset || 0,
+      unread,
+      category: query.category || "",
+    }),
+    getUnreadCount({
       tenant_id: tenantId,
       role_key: roleKey,
       is_super_admin: false,
-    },
-    limit: query.limit || 30,
-    offset: query.offset || 0,
-    unread,
-    category: query.category || "",
-  });
-  const unreadCount = await getUnreadCount({
-    tenant_id: tenantId,
-    role_key: roleKey,
-    is_super_admin: false,
-  });
+    }),
+  ]);
   return {
     notifications,
     unread_count: unreadCount,
