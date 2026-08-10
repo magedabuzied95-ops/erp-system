@@ -186,6 +186,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
     customersToday,
     activePos,
     recentInvoices,
+    itemStatsToday,
   ] = await Promise.all([
     tableExists("orders")
       ? safeQuery(
@@ -193,6 +194,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
           SELECT
             COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales,
             COALESCE(SUM(COALESCE(o.total_amount, o.total, 0) - COALESCE(o.discount_amount, 0)), 0) AS gross,
+            COALESCE(SUM(COALESCE(o.discount_amount, 0)), 0) AS discount,
             COUNT(*)::int AS orders,
             COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)), 0) AS aov
           FROM orders o
@@ -294,10 +296,31 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
         )
       : [{}],
     getRecentInvoices({ tenantId, limit: filters.range === "today" ? 500 : 6, todayOnly: filters.range === "today" }),
+    tableExists("order_items") && tableExists("orders")
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(SUM(COALESCE(oi.quantity, 0)), 0)::int AS units,
+            COALESCE(SUM(COALESCE(oi.returned_quantity, 0)), 0)::int AS returned_units
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          WHERE 1=1
+            ${ordersDate}
+            ${ordersBranch}
+            AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${personalOrderClause("o")}
+            ${ordersTenant}
+          `,
+          params,
+          [{}],
+          "overview.itemStats"
+        )
+      : [{}],
   ]);
 
   const t = today[0] || {};
   const y = yesterday[0] || {};
+  const itemStats = itemStatsToday[0] || {};
   const sales = toNumber(t.sales);
   const yesterdaySales = toNumber(y.sales);
   const growth = yesterdaySales > 0 ? ((sales - yesterdaySales) / yesterdaySales) * 100 : sales > 0 ? 100 : 0;
@@ -312,12 +335,18 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
       orders: toNumber(t.orders),
       averageOrderValue: toNumber(t.aov),
       customers: toNumber(customersToday[0]?.count),
+      unitsSold: toNumber(itemStats.units),
+      returnedUnits: toNumber(itemStats.returned_units),
+      discount: toNumber(t.discount),
     },
     kpis: {
       todaySales: { value: sales, growth },
       todayProfit: { value: profit, growth },
       todayOrders: { value: toNumber(t.orders), growth: toNumber(y.orders) ? ((toNumber(t.orders) - toNumber(y.orders)) / toNumber(y.orders)) * 100 : toNumber(t.orders) ? 100 : 0 },
       averageOrderValue: { value: toNumber(t.aov), growth: toNumber(y.aov) ? ((toNumber(t.aov) - toNumber(y.aov)) / toNumber(y.aov)) * 100 : toNumber(t.aov) ? 100 : 0 },
+      unitsSold: { value: toNumber(itemStats.units), growth: 0 },
+      returnedUnits: { value: toNumber(itemStats.returned_units), growth: 0 },
+      discountToday: { value: toNumber(t.discount), growth: 0 },
       activePosSessions: { value: toNumber(activePos[0]?.count), growth: 0 },
       lowStockProducts: { value: toNumber(productLow[0]?.count) + toNumber(variantLow[0]?.count), growth: 0 },
       pendingPurchaseOrders: { value: toNumber(pendingPurchases[0]?.count), growth: 0 },
