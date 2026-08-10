@@ -148,6 +148,9 @@ const writePackingChecklist = (orderId, value) => {
 const normalizeComparable = (value) => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
 
 const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+const asList = (value) => Array.isArray(value) ? value : [];
+const shippingLocationId = (item = {}) => String(item.id || item.provider_city_id || item.provider_zone_id || item.provider_district_id || "").trim();
+const shippingLocationLabel = (item = {}) => String(item.name_ar || item.name_en || item.name || item.city_name_ar || item.zone_name_ar || item.district_name_ar || "").trim();
 
 const resolveOrderExperience = (order = {}) => {
   const source = normalizeComparable(firstValue(order.source, order.channel, order.order_source, order.sale_channel));
@@ -422,6 +425,7 @@ function OrderDetails() {
   const [statusTimelineOpen, setStatusTimelineOpen] = useState(false);
   const [packingChecklist, setPackingChecklist] = useState(emptyPackingChecklist);
   const [shippingSetupOpen, setShippingSetupOpen] = useState(false);
+  const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
 
   const loadOrder = useCallback(async () => {
     try {
@@ -478,6 +482,45 @@ function OrderDetails() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [loadOrder]);
+
+  useEffect(() => {
+    if (shipping.provider !== "bosta") return undefined;
+    let active = true;
+    setBostaLocations((current) => ({ ...current, loadingCities: true }));
+    api.get("/shipping/cities?provider=bosta&dropoff=1", { suppressErrorStatuses: [404, 500] })
+      .then((data) => active && setBostaLocations((current) => ({ ...current, cities: asList(data?.cities) })))
+      .catch(() => active && setBostaLocations((current) => ({ ...current, cities: [] })))
+      .finally(() => active && setBostaLocations((current) => ({ ...current, loadingCities: false })));
+    return () => { active = false; };
+  }, [shipping.provider]);
+
+  useEffect(() => {
+    if (shipping.provider !== "bosta" || !shipping.shipping_city_id) {
+      setBostaLocations((current) => ({ ...current, zones: [], districts: [] }));
+      return undefined;
+    }
+    let active = true;
+    setBostaLocations((current) => ({ ...current, loadingZones: true }));
+    api.get(`/shipping/zones?provider=bosta&dropoff=1&cityId=${encodeURIComponent(shipping.shipping_city_id)}`, { suppressErrorStatuses: [404, 500] })
+      .then((data) => active && setBostaLocations((current) => ({ ...current, zones: asList(data?.zones) })))
+      .catch(() => active && setBostaLocations((current) => ({ ...current, zones: [], districts: [] })))
+      .finally(() => active && setBostaLocations((current) => ({ ...current, loadingZones: false })));
+    return () => { active = false; };
+  }, [shipping.provider, shipping.shipping_city_id]);
+
+  useEffect(() => {
+    if (shipping.provider !== "bosta" || !shipping.shipping_zone_id) {
+      setBostaLocations((current) => ({ ...current, districts: [] }));
+      return undefined;
+    }
+    let active = true;
+    setBostaLocations((current) => ({ ...current, loadingDistricts: true }));
+    api.get(`/shipping/districts?provider=bosta&dropoff=1&zoneId=${encodeURIComponent(shipping.shipping_zone_id)}`, { suppressErrorStatuses: [404, 500] })
+      .then((data) => active && setBostaLocations((current) => ({ ...current, districts: asList(data?.districts) })))
+      .catch(() => active && setBostaLocations((current) => ({ ...current, districts: [] })))
+      .finally(() => active && setBostaLocations((current) => ({ ...current, loadingDistricts: false })));
+    return () => { active = false; };
+  }, [shipping.provider, shipping.shipping_zone_id]);
 
   const previewItems = useMemo(() => {
     if (!order) return [];
@@ -581,19 +624,39 @@ function OrderDetails() {
   };
 
   const handleSaveShipping = async () => {
-    if (shippingSetupOpen && (!String(shipping.customer_phone || "").trim() || !String(shipping.shipping_address_line || "").trim())) {
+    const bostaRequiredMissing = shipping.provider === "bosta" && (
+      !String(shipping.customer_phone || "").trim() ||
+      !shipping.shipping_city_id ||
+      !shipping.shipping_zone_id ||
+      !shipping.shipping_district_id ||
+      !String(shipping.street_address || "").trim() ||
+      !String(shipping.building_number || "").trim()
+    );
+    if (bostaRequiredMissing) {
+      toast.error("أكمل هاتف العميل ومدينة ومنطقة وحي بوسطة واسم الشارع ورقم المبنى");
+      return false;
+    }
+    if (shippingSetupOpen && shipping.provider !== "bosta" && (!String(shipping.customer_phone || "").trim() || !String(shipping.shipping_address_line || "").trim())) {
       toast.error("أدخل رقم هاتف العميل والعنوان التفصيلي قبل حفظ الشحن");
-      return;
+      return false;
     }
     try {
       const payload = {
         source: shippingSetupOpen && orderExperience.isPos ? "manual_shipping" : order.source,
         channel: shippingSetupOpen && orderExperience.isPos ? "manual_shipping" : order.channel,
         customer_phone: shipping.customer_phone,
-        customer_address: shipping.shipping_address_line,
+        customer_address: shipping.street_address || shipping.shipping_address_line,
         governorate: shipping.governorate,
         city_area: shipping.city_area,
         landmark: shipping.landmark,
+        shipping_city_id: shipping.shipping_city_id,
+        shipping_zone_id: shipping.shipping_zone_id,
+        shipping_district_id: shipping.shipping_district_id,
+        shipping_address_line: shipping.street_address || shipping.shipping_address_line,
+        street_address: shipping.street_address,
+        building_number: shipping.building_number,
+        floor_number: shipping.floor_number,
+        apartment_number: shipping.apartment_number,
         shipping_provider: shipping.provider,
         shipping_provider_id: shipping.provider,
         shipping_status: shipping.shipment_status || shipping.shipping_status,
@@ -615,8 +678,10 @@ function OrderDetails() {
         shipment_status: updated.shipment_status || updated.shipping_status || payload.shipment_status,
       }));
       toast.success(t("orders.details.shippingSaved"));
+      return true;
     } catch (err) {
       toast.error(err.message || t("orders.shipping.updateFailed", "Failed to save shipping"));
+      return false;
     }
   };
 
@@ -648,7 +713,14 @@ function OrderDetails() {
     }
   };
 
-  const handleCreateShipment = () => handleShipmentAction("create");
+  const handleCreateShipment = async () => {
+    if (shipping.provider === "bosta") {
+      const saved = await handleSaveShipping();
+      if (saved) await handleBostaAction("create");
+      return;
+    }
+    await handleShipmentAction("create");
+  };
 
   const handleBostaAction = async (action) => {
     try {
@@ -1422,28 +1494,70 @@ function OrderDetails() {
                 <div className="grid gap-3 2xl:grid-cols-2">
                   <div className="grid gap-3 rounded-2xl border border-sky-400/15 bg-sky-400/[0.05] p-4 sm:grid-cols-2 2xl:col-span-2">
                     <div className="sm:col-span-2">
-                      <div className="text-sm font-black text-sky-100">بيانات توصيل العميل</div>
-                      <div className="mt-1 text-xs font-semibold text-zinc-500">احفظ البيانات أولًا، ثم أنشئ الشحنة من شركة الشحن.</div>
+                      <div className="text-sm font-black text-sky-100">{shipping.provider === "bosta" ? "عنوان شحن Bosta" : "بيانات توصيل العميل"}</div>
+                      <div className="mt-1 text-xs font-semibold text-zinc-500">{shipping.provider === "bosta" ? "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة." : "احفظ بيانات التوصيل قبل إنشاء الشحنة."}</div>
                     </div>
                     <FieldLabel label="رقم هاتف العميل">
                       <input value={shipping.customer_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                     </FieldLabel>
-                    <FieldLabel label="المحافظة">
-                      <input value={shipping.governorate} onChange={(e) => setShipping((prev) => ({ ...prev, governorate: e.target.value }))} placeholder="المحافظة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
-                    </FieldLabel>
-                    <FieldLabel label="المدينة أو المنطقة">
-                      <input value={shipping.city_area} onChange={(e) => setShipping((prev) => ({ ...prev, city_area: e.target.value }))} placeholder="المدينة / المنطقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
-                    </FieldLabel>
-                    <FieldLabel label="علامة مميزة">
-                      <input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
-                    </FieldLabel>
-                    <div className="sm:col-span-2">
-                      <FieldLabel label="العنوان التفصيلي">
-                        <textarea value={shipping.shipping_address_line} onChange={(e) => setShipping((prev) => ({ ...prev, shipping_address_line: e.target.value }))} rows={3} placeholder="الشارع، رقم المبنى، الدور والشقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
-                      </FieldLabel>
-                    </div>
+                    {shipping.provider === "bosta" ? (
+                      <>
+                        <FieldLabel label="مدينة Bosta">
+                          <select value={shipping.shipping_city_id} disabled={bostaLocations.loadingCities} onChange={(e) => {
+                            const selected = bostaLocations.cities.find((item) => shippingLocationId(item) === e.target.value);
+                            const label = shippingLocationLabel(selected);
+                            setShipping((prev) => ({ ...prev, shipping_city_id: e.target.value, shipping_zone_id: "", shipping_district_id: "", governorate: label, city_area: "", shipping_city_name_ar: selected?.name_ar || "", shipping_city_name_en: selected?.name_en || "", shipping_zone_name_ar: "", shipping_zone_name_en: "", shipping_district_name_ar: "", shipping_district_name_en: "" }));
+                          }} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
+                            <option value="" className="bg-zinc-950">{bostaLocations.loadingCities ? "تحميل مدن Bosta..." : "اختر المدينة *"}</option>
+                            {bostaLocations.cities.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
+                          </select>
+                        </FieldLabel>
+                        <FieldLabel label="المنطقة">
+                          <select value={shipping.shipping_zone_id} disabled={!shipping.shipping_city_id || bostaLocations.loadingZones} onChange={(e) => {
+                            const selected = bostaLocations.zones.find((item) => shippingLocationId(item) === e.target.value);
+                            setShipping((prev) => ({ ...prev, shipping_zone_id: e.target.value, shipping_district_id: "", city_area: shippingLocationLabel(selected), shipping_zone_name_ar: selected?.name_ar || "", shipping_zone_name_en: selected?.name_en || "", shipping_district_name_ar: "", shipping_district_name_en: "" }));
+                          }} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
+                            <option value="" className="bg-zinc-950">{bostaLocations.loadingZones ? "تحميل المناطق..." : "اختر المنطقة *"}</option>
+                            {bostaLocations.zones.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
+                          </select>
+                        </FieldLabel>
+                        <FieldLabel label="الحي">
+                          <select value={shipping.shipping_district_id} disabled={!shipping.shipping_zone_id || bostaLocations.loadingDistricts} onChange={(e) => {
+                            const selected = bostaLocations.districts.find((item) => shippingLocationId(item) === e.target.value);
+                            setShipping((prev) => ({ ...prev, shipping_district_id: e.target.value, city_area: shippingLocationLabel(selected) || prev.city_area, shipping_district_name_ar: selected?.name_ar || "", shipping_district_name_en: selected?.name_en || "" }));
+                          }} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
+                            <option value="" className="bg-zinc-950">{bostaLocations.loadingDistricts ? "تحميل الأحياء..." : "اختر الحي *"}</option>
+                            {bostaLocations.districts.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
+                          </select>
+                        </FieldLabel>
+                        <div className="sm:col-span-2">
+                          <FieldLabel label="اسم الشارع والعنوان بالتفصيل">
+                            <input value={shipping.street_address} onChange={(e) => setShipping((prev) => ({ ...prev, street_address: e.target.value, shipping_address_line: e.target.value }))} placeholder="مثال: شارع التسعين الشمالي *" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                          </FieldLabel>
+                        </div>
+                        <FieldLabel label="رقم المبنى">
+                          <input value={shipping.building_number} onChange={(e) => setShipping((prev) => ({ ...prev, building_number: e.target.value }))} placeholder="رقم المبنى *" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                        </FieldLabel>
+                        <FieldLabel label="الدور">
+                          <input value={shipping.floor_number} onChange={(e) => setShipping((prev) => ({ ...prev, floor_number: e.target.value }))} placeholder="الدور" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                        </FieldLabel>
+                        <FieldLabel label="رقم الشقة">
+                          <input value={shipping.apartment_number} onChange={(e) => setShipping((prev) => ({ ...prev, apartment_number: e.target.value }))} placeholder="الشقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                        </FieldLabel>
+                        <FieldLabel label="علامة مميزة">
+                          <input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                        </FieldLabel>
+                      </>
+                    ) : (
+                      <>
+                        <FieldLabel label="المحافظة"><input value={shipping.governorate} onChange={(e) => setShipping((prev) => ({ ...prev, governorate: e.target.value }))} placeholder="المحافظة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <FieldLabel label="المدينة أو المنطقة"><input value={shipping.city_area} onChange={(e) => setShipping((prev) => ({ ...prev, city_area: e.target.value }))} placeholder="المدينة / المنطقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <FieldLabel label="علامة مميزة"><input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <div className="sm:col-span-2"><FieldLabel label="العنوان التفصيلي"><textarea value={shipping.shipping_address_line} onChange={(e) => setShipping((prev) => ({ ...prev, shipping_address_line: e.target.value }))} rows={3} placeholder="الشارع، رقم المبنى، الدور والشقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel></div>
+                      </>
+                    )}
                   </div>
-                  {shipping.provider === "bosta" ? (
+                  {shipping.provider === "bosta" && hasCreatedShipment ? (
                     <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 2xl:col-span-2">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>

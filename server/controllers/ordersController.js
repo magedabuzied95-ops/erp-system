@@ -5347,6 +5347,14 @@ export const editOrder = async (req, res) => {
         tracking_number: Object.prototype.hasOwnProperty.call(req.body, "tracking_number") ? String(req.body.tracking_number || "").trim() : loaded.order.tracking_number,
         tracking_url: Object.prototype.hasOwnProperty.call(req.body, "tracking_url") ? String(req.body.tracking_url || "").trim() : loaded.order.tracking_url,
         courier_notes: Object.prototype.hasOwnProperty.call(req.body, "courier_notes") ? String(req.body.courier_notes || "").trim() : loaded.order.courier_notes,
+        shipping_city_id: Object.prototype.hasOwnProperty.call(req.body, "shipping_city_id") ? String(req.body.shipping_city_id || "").trim() : loaded.order.shipping_city_id,
+        shipping_zone_id: Object.prototype.hasOwnProperty.call(req.body, "shipping_zone_id") ? String(req.body.shipping_zone_id || "").trim() : loaded.order.shipping_zone_id,
+        shipping_district_id: Object.prototype.hasOwnProperty.call(req.body, "shipping_district_id") ? String(req.body.shipping_district_id || "").trim() : loaded.order.shipping_district_id,
+        shipping_address_line: Object.prototype.hasOwnProperty.call(req.body, "shipping_address_line") ? String(req.body.shipping_address_line || "").trim() : loaded.order.shipping_address_line,
+        street_address: Object.prototype.hasOwnProperty.call(req.body, "street_address") ? String(req.body.street_address || "").trim() : loaded.order.street_address,
+        building_number: Object.prototype.hasOwnProperty.call(req.body, "building_number") ? String(req.body.building_number || "").trim() : loaded.order.building_number,
+        floor_number: Object.prototype.hasOwnProperty.call(req.body, "floor_number") ? String(req.body.floor_number || "").trim() : loaded.order.floor_number,
+        apartment_number: Object.prototype.hasOwnProperty.call(req.body, "apartment_number") ? String(req.body.apartment_number || "").trim() : loaded.order.apartment_number,
       };
       const orderResult = await client.query(
         `
@@ -5376,9 +5384,17 @@ export const editOrder = async (req, res) => {
             tracking_number = $21,
             tracking_url = $22,
             courier_notes = $23,
+            shipping_city_id = $24,
+            shipping_zone_id = $25,
+            shipping_district_id = $26,
+            shipping_address_line = $27,
+            street_address = $28,
+            building_number = $29,
+            floor_number = $30,
+            apartment_number = $31,
             updated_at = NOW()
-        WHERE id = $24
-          AND ($25::bigint IS NULL OR tenant_id = $25::bigint OR tenant_id IS NULL)
+        WHERE id = $32
+          AND ($33::bigint IS NULL OR tenant_id = $33::bigint OR tenant_id IS NULL)
         RETURNING *
         `,
         [
@@ -5405,6 +5421,14 @@ export const editOrder = async (req, res) => {
           safePatch.tracking_number,
           safePatch.tracking_url,
           safePatch.courier_notes,
+          safePatch.shipping_city_id,
+          safePatch.shipping_zone_id,
+          safePatch.shipping_district_id,
+          safePatch.shipping_address_line,
+          safePatch.street_address,
+          safePatch.building_number,
+          safePatch.floor_number,
+          safePatch.apartment_number,
           loaded.order.id,
           tenantId,
         ]
