@@ -17,6 +17,7 @@ import {
   sanitizeMetaReviewerMessage,
 } from "../../server/services/metaReviewerAccessService.js";
 import { setIo } from "../../server/utils/socket.js";
+import { metaReviewerUsesRawSenderSqlFilter } from "../../server/services/metaReviewerInboxService.js";
 
 const env = {
   META_REVIEWER_TENANT_ID: "1",
@@ -75,6 +76,21 @@ test("Instagram test sender can be allowlisted by an irreversible scoped HMAC", 
   assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "instagram-test-user" }, scope), true);
   assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "real-customer" }, scope), false);
   assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "other-business", senderScopedId: "instagram-test-user" }, scope), false);
+});
+
+test("HMAC-only reviewer scopes are filtered after identity hashing instead of raw-ID SQL", () => {
+  assert.equal(metaReviewerUsesRawSenderSqlFilter({
+    allowedSenderIds: ["test-sender"],
+    allowedSenderHmacs: [],
+  }), true);
+  assert.equal(metaReviewerUsesRawSenderSqlFilter({
+    allowedSenderIds: [],
+    allowedSenderHmacs: ["irreversible-test-digest"],
+  }), false);
+  assert.equal(metaReviewerUsesRawSenderSqlFilter({
+    allowedSenderIds: ["test-sender"],
+    allowedSenderHmacs: ["irreversible-test-digest"],
+  }), false);
 });
 
 test("opaque conversation references are bound to the selected channel", () => {

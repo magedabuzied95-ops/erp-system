@@ -45,7 +45,12 @@ const SENDER_MATCH_SQL = `ARRAY_REMOVE(ARRAY[
   NULLIF(c.metadata->>'resolved_sender_id', '')
 ], NULL) && $3::text[]`;
 
-const scopedConversationSql = (channel, { includeSearch = false } = {}) => {
+export const metaReviewerUsesRawSenderSqlFilter = (config = {}) =>
+  Array.isArray(config.allowedSenderIds)
+  && config.allowedSenderIds.length > 0
+  && (!Array.isArray(config.allowedSenderHmacs) || config.allowedSenderHmacs.length === 0);
+
+const scopedConversationSql = (channel, { includeSearch = false, useRawSenderSqlFilter = true } = {}) => {
   const config = CHANNEL_SQL[channel];
   if (!config) throw Object.assign(new Error("Review channel is forbidden."), { status: 403 });
   return `
@@ -84,7 +89,7 @@ const scopedConversationSql = (channel, { includeSearch = false } = {}) => {
     ) visible_message ON TRUE
     WHERE s.tenant_id = $1::bigint
       AND ${config.asset} = $2::text
-      AND ${SENDER_MATCH_SQL}
+      AND ${useRawSenderSqlFilter ? SENDER_MATCH_SQL : "$3::text[] IS NOT NULL"}
       AND LOWER(COALESCE(s.thread_kind, c.thread_kind, 'dm')) <> 'comment'
       ${includeSearch ? `AND ($5::text = '' OR LOWER(COALESCE(c.customer_name, s.customer_name, '')) LIKE $5::text OR EXISTS (
         SELECT 1 FROM ai_support_messages search_message
@@ -95,6 +100,18 @@ const scopedConversationSql = (channel, { includeSearch = false } = {}) => {
       ))` : ""}
   `;
 };
+
+const metaReviewerIdentityFromRow = (row = {}, channel = "") => extractMetaReviewerIdentity({
+  ...row,
+  ...(channel === "instagram"
+    ? { instagram_business_account_id: row.resolved_asset_id }
+    : { page_id: row.resolved_asset_id }),
+}, channel);
+
+const authorizedConversationRows = (rows = [], scope, channel) => (Array.isArray(rows) ? rows : []).filter((row) => {
+  const identity = metaReviewerIdentityFromRow(row, channel);
+  return metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel, ...identity }, scope);
+});
 
 const ensureInboxDependencies = async () => {
   await ensureAiChannelAdapterSchema();
@@ -115,8 +132,11 @@ export const listMetaReviewerConversations = async ({ channel, search = "", limi
   const safeLimit = Math.min(100, Math.max(1, int(limit, 50)));
   const searchValue = text(search).toLowerCase();
   const params = [scope.tenantId, config.assetId, config.allowedSenderIds, config.visibleMessagesAfter, searchValue ? `%${searchValue}%` : "", safeLimit];
-  const result = await db.query(`${scopedConversationSql(normalized, { includeSearch: true })} ORDER BY visible_message.created_at DESC NULLS LAST, s.session_id ASC LIMIT $6::int`, params);
-  const conversations = result.rows.map((row) => ({
+  const useRawSenderSqlFilter = metaReviewerUsesRawSenderSqlFilter(config);
+  const limitSql = useRawSenderSqlFilter ? " LIMIT $6::int" : "";
+  const result = await db.query(`${scopedConversationSql(normalized, { includeSearch: true, useRawSenderSqlFilter })} ORDER BY visible_message.created_at DESC NULLS LAST, s.session_id ASC${limitSql}`, params);
+  const authorizedRows = authorizedConversationRows(result.rows, scope, normalized).slice(0, safeLimit);
+  const conversations = authorizedRows.map((row) => ({
     id: metaReviewerConversationRef(row.session_id, scope, normalized),
     channel: normalized,
     customer_name: text(row.customer_name || "Meta test account"),
@@ -132,10 +152,12 @@ export const resolveMetaReviewerConversation = async ({ channel, conversationRef
   const { normalized, config } = channelContext(scope, channel);
   if (!scope.enabled || !config?.enabled) return null;
   await ensureInboxDependencies();
-  const result = await db.query(scopedConversationSql(normalized), [scope.tenantId, config.assetId, config.allowedSenderIds, config.visibleMessagesAfter]);
-  const row = result.rows.find((candidate) => metaReviewerConversationRefMatches(conversationRef, candidate.session_id, scope, normalized));
+  const useRawSenderSqlFilter = metaReviewerUsesRawSenderSqlFilter(config);
+  const result = await db.query(scopedConversationSql(normalized, { useRawSenderSqlFilter }), [scope.tenantId, config.assetId, config.allowedSenderIds, config.visibleMessagesAfter]);
+  const row = authorizedConversationRows(result.rows, scope, normalized)
+    .find((candidate) => metaReviewerConversationRefMatches(conversationRef, candidate.session_id, scope, normalized));
   if (!row) return null;
-  const identity = extractMetaReviewerIdentity(row, normalized);
+  const identity = metaReviewerIdentityFromRow(row, normalized);
   if (!metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel: normalized, ...identity }, scope)) return null;
   return { ...row, ...identity, normalizedChannel: normalized };
 };

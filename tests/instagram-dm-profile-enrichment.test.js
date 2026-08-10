@@ -32,5 +32,7 @@ test("Instagram profile logs keep scoped identifiers masked and do not log token
     enrichmentSource.indexOf('console.log("messenger_profile_fetch_start"')
   );
   assert.match(instagramBranch, /scoped_user_id: maskIdForLog\(psid\)/);
+  assert.match(instagramBranch, /has_conversation_ref: Boolean\(message\.external_conversation_id\)/);
+  assert.doesNotMatch(instagramBranch, /conversation_id: message\.external_conversation_id/);
   assert.doesNotMatch(instagramBranch, /console\.(?:log|warn)\([^)]*\btoken\b/);
 });
