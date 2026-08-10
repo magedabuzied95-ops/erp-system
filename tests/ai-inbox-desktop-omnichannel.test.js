@@ -58,15 +58,15 @@ test("desktop chat exposes commerce actions above the transcript", () => {
   assert.doesNotMatch(desktopSource, /\n\s*<LeadQuickActionsBar/);
 });
 
-test("desktop conversation header stays compact and uses semantic lead colors", () => {
+test("desktop conversation header stays compact and exposes multi-label management", () => {
   assert.doesNotMatch(compactHeaderSource, />\s*Assign\s*</);
   assert.doesNotMatch(compactHeaderSource, /closeToggleLabel/);
   assert.doesNotMatch(compactHeaderSource, /onClick=\{onClose\}/);
   assert.match(compactHeaderSource, /showCustomerIdentifier[\s\S]*?facebook[\s\S]*?messenger[\s\S]*?instagram/);
-  assert.match(compactHeaderSource, /new: \{ chip: "border-sky-400\/40 bg-sky-500\/20/);
-  assert.match(compactHeaderSource, /interested: \{ chip: "border-amber-400\/40 bg-amber-500\/20/);
-  assert.match(compactHeaderSource, /won: \{ chip: "border-emerald-400\/40 bg-emerald-500\/20/);
-  assert.match(compactHeaderSource, /lost: \{ chip: "border-rose-400\/40 bg-rose-500\/20/);
+  assert.doesNotMatch(compactHeaderSource, /aria-label="Lead Status"/);
+  assert.match(compactHeaderSource, /<Tag className="h-3\.5 w-3\.5" \/> Add Label/);
+  assert.match(compactHeaderSource, /conversationLabels\.slice\(0, 4\)\.map/);
+  assert.match(compactHeaderSource, /<ConversationLabelsModal/);
 });
 
 test("PWA remains isolated from desktop layout styling", () => {

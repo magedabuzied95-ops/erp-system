@@ -46,6 +46,7 @@ import {
   ShoppingCart,
   Snowflake,
   Sparkles,
+  Tag,
   Timer,
   User,
   UserCheck,
@@ -72,6 +73,7 @@ import { getSocialCommentRealTimestamp } from "../components/socialCommentTimeli
 import { useTenant } from "../../saas/context/TenantContext";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { publicProductUrl, publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
+import { AI_INBOX_DEFAULT_LABELS, aiInboxLabelsFromConversation, customAiInboxLabel, normalizeAiInboxConversationLabels } from "../../../../shared/aiInboxConversationLabels.js";
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
@@ -1178,6 +1180,31 @@ const LEAD_STATUS_META = {
   lost: { label: "? Lost", tone: "rose" },
 };
 
+const CONVERSATION_LABEL_CLASSES = {
+  sky: "border-sky-400/35 bg-sky-500/15 text-sky-100",
+  cyan: "border-cyan-400/35 bg-cyan-500/15 text-cyan-100",
+  amber: "border-amber-400/35 bg-amber-500/15 text-amber-100",
+  violet: "border-violet-400/35 bg-violet-500/15 text-violet-100",
+  emerald: "border-emerald-400/35 bg-emerald-500/15 text-emerald-100",
+  rose: "border-rose-400/35 bg-rose-500/15 text-rose-100",
+  orange: "border-orange-400/35 bg-orange-500/15 text-orange-100",
+  teal: "border-teal-400/35 bg-teal-500/15 text-teal-100",
+};
+
+const CONVERSATION_LABEL_DOT_CLASSES = {
+  sky: "bg-sky-400",
+  cyan: "bg-cyan-400",
+  amber: "bg-amber-400",
+  violet: "bg-violet-400",
+  emerald: "bg-emerald-400",
+  rose: "bg-rose-400",
+  orange: "bg-orange-400",
+  teal: "bg-teal-400",
+};
+
+const conversationLabelClass = (color = "sky") => CONVERSATION_LABEL_CLASSES[color] || CONVERSATION_LABEL_CLASSES.sky;
+const conversationLabelDotClass = (color = "sky") => CONVERSATION_LABEL_DOT_CLASSES[color] || CONVERSATION_LABEL_DOT_CLASSES.sky;
+
 const normalizeLeadStatus = (value = "") => {
   const key = clean(value).toLowerCase();
   return Object.prototype.hasOwnProperty.call(LEAD_STATUS_META, key) ? key : "new";
@@ -2084,13 +2111,87 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
   );
 });
 
+function ConversationLabelsModal({ open, labels = [], saving = false, onClose, onSave }) {
+  const [query, setQuery] = useState("");
+  const [draftLabels, setDraftLabels] = useState([]);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    setDraftLabels(normalizeAiInboxConversationLabels(labels));
+  }, [labels, open]);
+
+  if (!open) return null;
+
+  const normalizedQuery = clean(query).toLowerCase();
+  const selectedIds = new Set(draftLabels.map((label) => label.id));
+  const availableLabels = AI_INBOX_DEFAULT_LABELS.filter((label) => !selectedIds.has(label.id) && (!normalizedQuery || label.name.toLowerCase().includes(normalizedQuery)));
+  const customCandidate = customAiInboxLabel(query);
+  const canCreateCustom = Boolean(customCandidate && !selectedIds.has(customCandidate.id) && !AI_INBOX_DEFAULT_LABELS.some((label) => label.id === customCandidate.id));
+  const addLabel = (label) => setDraftLabels((current) => normalizeAiInboxConversationLabels([...current, label]));
+
+  return (
+    <div className="fixed inset-0 z-[2147482600] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose?.(); }}>
+      <section dir="rtl" role="dialog" aria-modal="true" aria-label="Conversation Labels" className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#20231f] text-white shadow-2xl">
+        <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-amber-300" /><div><h3 className="text-base font-black">Conversation Labels</h3><p className="text-[11px] text-slate-400">أضف أكثر من Label للعميل</p></div></div>
+          <button type="button" onClick={onClose} disabled={saving} aria-label="Close labels" className="grid h-9 w-9 place-items-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-white disabled:opacity-50"><XCircle className="h-5 w-5" /></button>
+        </header>
+
+        <div className="space-y-4 p-5">
+          <label className="flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 focus-within:border-amber-300/40">
+            <Search className="h-4 w-4 text-slate-500" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث أو اكتب Label جديد..." className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500" autoFocus />
+          </label>
+
+          <div>
+            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Current labels ({draftLabels.length})</div>
+            <div className="flex min-h-10 flex-wrap gap-2 rounded-xl border border-white/8 bg-black/15 p-2">
+              {draftLabels.length ? draftLabels.map((label) => (
+                <span key={label.id} className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-black ${conversationLabelClass(label.color)}`}>
+                  {label.name}
+                  <button type="button" onClick={() => setDraftLabels((current) => current.filter((item) => item.id !== label.id))} aria-label={`Remove ${label.name}`} className="grid h-4 w-4 place-items-center rounded-full hover:bg-black/20">×</button>
+                </span>
+              )) : <span className="px-1 py-1.5 text-xs text-slate-500">لا توجد Labels مختارة</span>}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Available labels</div>
+            <div className="max-h-60 space-y-1 overflow-y-auto rounded-xl border border-white/8 bg-black/15 p-1.5">
+              {availableLabels.map((label) => (
+                <button key={label.id} type="button" onClick={() => addLabel(label)} className="flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-right transition hover:bg-white/[0.07]">
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${conversationLabelDotClass(label.color)}`} />
+                  <span className="flex-1 text-sm font-bold text-slate-200">{label.name}</span>
+                  <span className="text-lg text-slate-500">+</span>
+                </button>
+              ))}
+              {canCreateCustom ? (
+                <button type="button" onClick={() => { addLabel(customCandidate); setQuery(""); }} className="flex h-11 w-full items-center gap-3 rounded-lg border border-dashed border-amber-300/25 bg-amber-300/[0.06] px-2.5 text-right transition hover:bg-amber-300/10">
+                  <Tag className="h-4 w-4 text-amber-300" /><span className="flex-1 text-sm font-black text-amber-100">إنشاء “{customCandidate.name}”</span><span className="text-lg text-amber-300">+</span>
+                </button>
+              ) : null}
+              {!availableLabels.length && !canCreateCustom ? <div className="p-4 text-center text-xs text-slate-500">لا توجد Labels أخرى</div> : null}
+            </div>
+          </div>
+        </div>
+
+        <footer className="border-t border-white/10 p-4">
+          <button type="button" onClick={async () => { const saved = await onSave?.(draftLabels); if (saved !== false) onClose?.(); }} disabled={saving} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-300 text-sm font-black text-slate-950 shadow-lg disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Done
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 function InboxChatHeader({
   conversation,
   channelStatus = {},
   loading = false,
-  leadStatus = "new",
-  onLeadStatusChange,
-  leadStatusLoading = false,
+  labelsSaving = false,
+  onLabelsChange,
   onBack,
   onToggleAi,
   showBack = false,
@@ -2100,6 +2201,8 @@ function InboxChatHeader({
   toolsOpen = false,
   onOpenCustomer360,
 }) {
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  const conversationLabels = useMemo(() => aiInboxLabelsFromConversation(conversation || {}), [conversation]);
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const avatarUrl = isCommentConversation(conversation) ? commentThreadCustomerAvatarUrl(conversation) : customerAvatarUrl(conversation);
@@ -2127,16 +2230,8 @@ function InboxChatHeader({
     : conversationAiEnabled
       ? "bg-emerald-300 text-slate-950"
       : "border border-rose-300/20 bg-rose-400/10 text-rose-100";
-  const currentLeadStatus = normalizeLeadStatus(leadStatus || conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
-  const leadStatusStyle = {
-    new: { chip: "border-sky-400/40 bg-sky-500/20 text-sky-100", dot: "bg-sky-300" },
-    contacted: { chip: "border-cyan-400/40 bg-cyan-500/20 text-cyan-100", dot: "bg-cyan-300" },
-    interested: { chip: "border-amber-400/40 bg-amber-500/20 text-amber-100", dot: "bg-amber-300" },
-    negotiation: { chip: "border-violet-400/40 bg-violet-500/20 text-violet-100", dot: "bg-violet-300" },
-    won: { chip: "border-emerald-400/40 bg-emerald-500/20 text-emerald-100", dot: "bg-emerald-300" },
-    lost: { chip: "border-rose-400/40 bg-rose-500/20 text-rose-100", dot: "bg-rose-300" },
-  }[currentLeadStatus] || { chip: "border-sky-400/40 bg-sky-500/20 text-sky-100", dot: "bg-sky-300" };
   return (
+    <>
     <div data-ai-inbox-compact-contact-header="true" className="rounded-xl border border-white/10 bg-white/[0.05] px-2 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)] backdrop-blur">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -2194,6 +2289,10 @@ function InboxChatHeader({
               >
                 {name}
               </button>
+              {conversationLabels.slice(0, 4).map((label) => (
+                <span key={label.id} className={`inline-flex h-5 items-center rounded-md border px-1.5 text-[9px] font-black ${conversationLabelClass(label.color)}`}>{label.name}</span>
+              ))}
+              {conversationLabels.length > 4 ? <span className="text-[9px] font-black text-slate-400">+{conversationLabels.length - 4}</span> : null}
               <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>
                 <span className="inline-flex items-center gap-1">
                   <SourceIcon className={`h-3 w-3 ${isSocialComment ? "text-blue-100" : channel.includes("instagram") ? "text-rose-100" : channel.includes("messenger") ? "text-cyan-100" : "text-slate-100"}`} />
@@ -2201,27 +2300,13 @@ function InboxChatHeader({
                 </span>
               </Pill>
             </div>
-            <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
-              {showCustomerIdentifier ? <span dir="ltr" className="truncate text-[10px] font-semibold text-slate-400">{phone}</span> : null}
-              <label className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 shadow-sm ${leadStatusStyle.chip}`}>
-                <span className={`h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor] ${leadStatusStyle.dot}`} />
-                <select
-                  value={currentLeadStatus}
-                  onChange={(event) => onLeadStatusChange?.(event.target.value)}
-                  disabled={loading || leadStatusLoading}
-                  aria-label="Lead Status"
-                  style={{ colorScheme: "dark" }}
-                  className="min-w-[6.5rem] cursor-pointer bg-transparent text-[10px] font-black text-current outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {Object.entries(LEAD_STATUS_META).map(([key, meta]) => (
-                    <option key={key} value={key} className="bg-[#20231f] text-white">{meta.label}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            {showCustomerIdentifier ? <div dir="ltr" className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">{phone}</div> : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <button type="button" onClick={() => setLabelsOpen(true)} disabled={loading || labelsSaving} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-300/25 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
+            <Tag className="h-3.5 w-3.5" /> Add Label
+          </button>
           {onOpenTools ? (
             <button
               type="button"
@@ -2257,6 +2342,8 @@ function InboxChatHeader({
         </div>
       </div>
     </div>
+    <ConversationLabelsModal open={labelsOpen} labels={conversationLabels} saving={labelsSaving} onClose={() => setLabelsOpen(false)} onSave={onLabelsChange} />
+    </>
   );
 }
 
@@ -6008,34 +6095,42 @@ export default function AiInbox() {
     }
   };
 
-  const updateLeadStatus = useCallback(async (nextLeadStatus) => {
-    if (!selectedConversation?.session_id) return;
-    const leadStatus = normalizeLeadStatus(nextLeadStatus);
-    if (!Object.prototype.hasOwnProperty.call(LEAD_STATUS_META, leadStatus)) return;
+  const updateConversationLabels = useCallback(async (nextLabels) => {
+    if (!selectedConversation?.session_id) return false;
+    const labels = normalizeAiInboxConversationLabels(nextLabels);
     const sessionId = selectedConversation.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    setLeadActionLoading("lead_status");
+    setLeadActionLoading("labels");
     setError("");
     try {
-      const payload = await api.patch(aiAgentInboxEndpoint(sessionId, "/lead-status"), {
+      const payload = await api.patch(aiAgentInboxEndpoint(sessionId, "/labels"), {
         tenant_id: tenantId,
-        lead_status: leadStatus,
-      }, { headers, perfComponent: "AiInbox.updateLeadStatus" });
+        labels,
+      }, { headers, perfComponent: "AiInbox.updateConversationLabels" });
       const returned = payload.conversation || {};
       patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
         ...returned,
-        lead_status: returned.lead_status || leadStatus,
+        conversation_labels: payload.labels || returned.conversation_labels || labels,
+        lead_status: payload.lead_status || returned.lead_status || conversation.lead_status,
         channel_metadata: {
           ...(conversation.channel_metadata || {}),
           ...(returned.channel_metadata || {}),
-          lead_status: returned.lead_status || leadStatus,
+          conversation_labels: payload.labels || returned.conversation_labels || labels,
+          lead_status: payload.lead_status || returned.lead_status || conversation.channel_metadata?.lead_status,
+        },
+        customer_profile: {
+          ...(conversation.customer_profile || {}),
+          ...(returned.customer_profile || {}),
+          conversation_labels: payload.labels || returned.conversation_labels || labels,
         },
       }));
-      setToast({ tone: "emerald", text: `Lead status updated to ${leadStatusLabel(leadStatus)}` });
+      setToast({ tone: "emerald", text: "تم حفظ Labels العميل" });
+      return true;
     } catch (err) {
-      setError(err?.message || "تعذر تحديث حالة العميل المحتمل");
-      setToast({ tone: "rose", text: err?.message || "تعذر تحديث حالة العميل المحتمل" });
+      setError(err?.message || "تعذر تحديث Labels العميل");
+      setToast({ tone: "rose", text: err?.message || "تعذر تحديث Labels العميل" });
+      return false;
     } finally {
       setLeadActionLoading("");
     }
@@ -7690,9 +7785,8 @@ export default function AiInbox() {
                     conversation={selectedConversation}
                     channelStatus={selectedChannelStatus}
                     loading={loading || modeSaving}
-                    leadStatus={conversationLeadStatus(selectedConversation)}
-                    onLeadStatusChange={updateLeadStatus}
-                    leadStatusLoading={leadActionLoading === "lead_status"}
+                    labelsSaving={leadActionLoading === "labels"}
+                    onLabelsChange={updateConversationLabels}
                     onBack={() => setMobileView("list")}
                     onToggleAi={toggleAiEnabled}
                     isFullscreenConversation={conversationExpanded}
@@ -8382,9 +8476,8 @@ export default function AiInbox() {
                     conversation={safeConversation}
                     channelStatus={selectedChannelStatus}
                     loading={loading}
-                    leadStatus={conversationLeadStatus(safeConversation)}
-                    onLeadStatusChange={updateLeadStatus}
-                    leadStatusLoading={leadActionLoading === "lead_status"}
+                    labelsSaving={leadActionLoading === "labels"}
+                    onLabelsChange={updateConversationLabels}
                     onToggleAi={toggleAiEnabled}
                     onOpenTools={() => setProfileOpen(true)}
                     isFullscreenConversation={conversationExpanded}

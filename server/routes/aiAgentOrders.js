@@ -119,6 +119,7 @@ import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReply
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
+import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
 
 const router = express.Router();
 const whatsappProfileSyncState = new Map();
@@ -6375,6 +6376,81 @@ router.patch("/inbox/:conversationId/lead-status", protect, permit("settings", "
     });
   } catch (error) {
     return sendError(res, error, "Failed to update lead status");
+  }
+});
+
+router.patch("/inbox/:conversationId/labels", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    if (!Array.isArray(req.body?.labels)) {
+      return sendError(res, Object.assign(new Error("labels must be an array"), { status: 400, code: "INVALID_CONVERSATION_LABELS" }), "Invalid conversation labels");
+    }
+    const labels = normalizeAiInboxConversationLabels(req.body.labels, { max: 12 });
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId });
+    if (!conversation) {
+      return sendError(res, Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" }), "Conversation not found");
+    }
+    const nextLeadStatus = [...labels].reverse().find((label) => label.leadStatus)?.leadStatus || conversation.lead_status || conversation.channel_metadata?.lead_status || "new";
+
+    const profileId = Number(conversation.customer_profile?.id || conversation.profile_id || conversation.customer_profile_id || 0) || null;
+    if (profileId) {
+      await db.query(
+        `UPDATE ai_customer_profiles
+         SET customer_profile = jsonb_set(COALESCE(customer_profile, '{}'::jsonb), '{conversation_labels}', $3::jsonb, true),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, profileId, JSON.stringify(labels)]
+      );
+    }
+
+    const syncedConversation = await upsertChannelConversationMapping({
+      tenantId,
+      channel: conversation.channel || conversation.source || "",
+      externalConversationId: conversation.session_id || conversation.external_conversation_id || "",
+      externalCustomerId: conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "",
+      customerName: conversation.customer_name || conversation.customer_profile?.name || "",
+      customerAvatarUrl: conversation.customer_avatar_url || conversation.customer_profile?.avatar_url || "",
+      customerProfileId: profileId,
+      leadStatus: nextLeadStatus,
+      metadata: {
+        ...(conversation.channel_metadata || {}),
+        conversation_labels: labels,
+        lead_status: nextLeadStatus,
+        source: "ai_inbox_labels",
+      },
+      lastMessageAt: conversation.last_message_at || conversation.updated_at || new Date().toISOString(),
+    });
+
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "conversation_labels_updated",
+      at: new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      labels,
+      lead_status: nextLeadStatus,
+      conversation: {
+        ...conversation,
+        lead_status: nextLeadStatus,
+        conversation_labels: labels,
+        channel_metadata: {
+          ...(conversation.channel_metadata || {}),
+          ...(syncedConversation?.metadata || {}),
+          conversation_labels: labels,
+          lead_status: nextLeadStatus,
+        },
+        customer_profile: {
+          ...(conversation.customer_profile || {}),
+          conversation_labels: labels,
+        },
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to update conversation labels");
   }
 });
 
