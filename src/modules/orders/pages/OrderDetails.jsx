@@ -149,6 +149,42 @@ const normalizeComparable = (value) => String(value || "").trim().toLowerCase().
 
 const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
 
+const resolveOrderExperience = (order = {}) => {
+  const source = normalizeComparable(firstValue(order.source, order.channel, order.order_source, order.sale_channel));
+  const fulfillment = normalizeComparable(firstValue(
+    order.fulfillment_method,
+    order.fulfillment_type,
+    order.delivery_method,
+    order.order_type,
+  ));
+  const pickupRequested = ["pickup", "store pickup", "branch pickup", "استلام من الفرع"]
+    .some((value) => fulfillment.includes(value));
+  const shippingRequested = ["shipping", "delivery", "courier", "شحن", "توصيل"]
+    .some((value) => fulfillment.includes(value));
+  const websiteOrder = ["website", "storefront", "online", "web"]
+    .some((value) => source === value || source.includes(value));
+  const posOrder = ["pos", "point of sale", "نقطة البيع"]
+    .some((value) => source === value || source.includes(value));
+  const hasShippingData = Boolean(
+    order.customer_address ||
+    order.shipping_address_line ||
+    order.governorate ||
+    order.city_area ||
+    order.shipping_tracking_number ||
+    order.tracking_number ||
+    order.shipment_id ||
+    Number(order.shipping_fee || order.delivery_fee || order.shipping_cost || 0) > 0 ||
+    !["", "manual", "in store delivery", "in_store_delivery"].includes(normalizeComparable(order.shipping_provider))
+  );
+
+  if (pickupRequested) return { mode: "pickup", label: "استلام من الفرع", requiresShipping: false, isPos: false };
+  if (shippingRequested || websiteOrder || hasShippingData) {
+    return { mode: "shipping", label: websiteOrder ? "طلب أونلاين · شحن" : "طلب شحن", requiresShipping: true, isPos: false };
+  }
+  if (posOrder || !source) return { mode: "pos", label: "بيع مباشر · POS", requiresShipping: false, isPos: true };
+  return { mode: "direct", label: "فاتورة مباشرة", requiresShipping: false, isPos: false };
+};
+
 const toMoneyNumber = (value, fallback = 0) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -366,6 +402,10 @@ function OrderDetails() {
     shipping_provider_delivery_id: "",
     shipping_label_url: "",
     shipping_address_line: "",
+    customer_phone: "",
+    governorate: "",
+    city_area: "",
+    landmark: "",
     street_address: "",
     building_number: "",
     floor_number: "",
@@ -381,6 +421,7 @@ function OrderDetails() {
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [statusTimelineOpen, setStatusTimelineOpen] = useState(false);
   const [packingChecklist, setPackingChecklist] = useState(emptyPackingChecklist);
+  const [shippingSetupOpen, setShippingSetupOpen] = useState(false);
 
   const loadOrder = useCallback(async () => {
     try {
@@ -410,6 +451,10 @@ function OrderDetails() {
         shipping_provider_delivery_id: merged.shipping_provider_delivery_id || merged.shipment_id || "",
         shipping_label_url: merged.shipping_label_url || "",
         shipping_address_line: merged.shipping_address_line || merged.customer_address || "",
+        customer_phone: merged.customer_phone || merged.phone || "",
+        governorate: merged.governorate || "",
+        city_area: merged.city_area || "",
+        landmark: merged.landmark || "",
         street_address: merged.street_address || "",
         building_number: merged.building_number || "",
         floor_number: merged.floor_number || "",
@@ -425,7 +470,7 @@ function OrderDetails() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -460,7 +505,6 @@ function OrderDetails() {
   const shippingProofValue = getShippingProofRawValue(order || {});
   const paymentReviewVisible =
     isAwaitingPaymentVerification ||
-    isShippingPaid ||
     isPaymentRejected ||
     Boolean(shippingProofValue);
   const shippingProofInvalid = Boolean(shippingProofValue) && isInvalidShippingProofUrl(shippingProofValue);
@@ -492,6 +536,12 @@ function OrderDetails() {
   const bostaZoneName = shipping.shipping_zone_name_ar || shipping.shipping_zone_name_en || order?.shipping_zone_name_ar || order?.shipping_zone_name_en || shipping.shipping_zone_id || "";
   const bostaDistrictName = shipping.shipping_district_name_ar || shipping.shipping_district_name_en || order?.shipping_district_name_ar || order?.shipping_district_name_en || shipping.shipping_district_id || order?.area_id || "";
   const financials = useMemo(() => (order ? buildOrderFinancials(order, previewItems) : buildOrderFinancials({}, [])), [order, previewItems]);
+  const orderExperience = useMemo(() => resolveOrderExperience(order || {}), [order]);
+  const requiresShipping = orderExperience.requiresShipping || shippingSetupOpen;
+  const normalizedShipmentState = normalizeComparable(shipping.shipment_status || shipping.shipping_status || "pending");
+  const hasCreatedShipment = Boolean(shipping.shipment_id || shipping.tracking_number) || !["", "pending", "waiting"].includes(normalizedShipmentState);
+  const shipmentDelivered = ["delivered", "تم التسليم"].includes(normalizedShipmentState);
+  const shipmentInTransit = ["shipped", "out for delivery", "in transit", "تم الشحن", "خرج للتوصيل"].includes(normalizedShipmentState);
   const isCodOrder = [
     order?.payment_method,
     order?.payment_status,
@@ -531,8 +581,19 @@ function OrderDetails() {
   };
 
   const handleSaveShipping = async () => {
+    if (shippingSetupOpen && (!String(shipping.customer_phone || "").trim() || !String(shipping.shipping_address_line || "").trim())) {
+      toast.error("أدخل رقم هاتف العميل والعنوان التفصيلي قبل حفظ الشحن");
+      return;
+    }
     try {
       const payload = {
+        source: shippingSetupOpen && orderExperience.isPos ? "manual_shipping" : order.source,
+        channel: shippingSetupOpen && orderExperience.isPos ? "manual_shipping" : order.channel,
+        customer_phone: shipping.customer_phone,
+        customer_address: shipping.shipping_address_line,
+        governorate: shipping.governorate,
+        city_area: shipping.city_area,
+        landmark: shipping.landmark,
         shipping_provider: shipping.provider,
         shipping_provider_id: shipping.provider,
         shipping_status: shipping.shipment_status || shipping.shipping_status,
@@ -547,6 +608,7 @@ function OrderDetails() {
       const result = await api.patch(`/orders/${order.id}`, payload);
       const updated = normalizeOrder(result.order || { ...order, ...payload }, { items: previewItems });
       setOrder(updated);
+      setShippingSetupOpen(false);
       setShipping((prev) => ({
         ...prev,
         shipping_status: updated.shipping_status || payload.shipping_status,
@@ -836,11 +898,9 @@ function OrderDetails() {
                       {getAttributionLabel(order)}
                     </span>
                   ) : null}
-                  {String(order.source || order.channel || "").toLowerCase() === "website" ? (
-                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
-                      {t("orders.sources.onlineOrder")}
-                    </span>
-                  ) : null}
+                  <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${requiresShipping ? "border-sky-500/20 bg-sky-500/10 text-sky-200" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"}`}>
+                    {shippingSetupOpen ? "إعداد شحن للفاتورة" : orderExperience.label}
+                  </span>
                 </div>
                 <h2 className="mt-3 text-2xl font-black text-white">{order.customer_name}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -877,7 +937,6 @@ function OrderDetails() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusBadge value={order.status} />
-                <StatusBadge value={paymentReviewBadgeText || order.paymentStatus} />
                 {whatsappBadge ? (
                   <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${whatsappBadge.className}`}>
                     {whatsappBadge.label}
@@ -888,21 +947,21 @@ function OrderDetails() {
                     {invoiceWhatsappBadgeData.label}
                   </span>
                 ) : null}
-                {shipmentWhatsappBadgeData.map((badge) => (
+                {requiresShipping ? shipmentWhatsappBadgeData.map((badge) => (
                   <span key={badge.label} className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${badge.className}`}>
                     {badge.label}
                   </span>
-                ))}
+                )) : null}
                 <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentBadge.className}`}>
                   {paymentBadge.label}
                 </span>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className={`mt-5 grid gap-3 sm:grid-cols-2 ${requiresShipping ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
               <Info label={t("orders.table.invoice")} value={order.invoice_number} />
               <Info label={t("orders.table.total")} value={formatCurrency(financials.topDisplayTotal)} />
-              <Info label={t("orders.drawer.shipping")} value={formatCurrency(financials.shipping)} badge={financials.shippingPaidSeparately ? t("orders.statusLabels.paid") : ""} />
+              {requiresShipping ? <Info label={t("orders.drawer.shipping")} value={formatCurrency(financials.shipping)} badge={financials.shippingPaidSeparately ? t("orders.statusLabels.paid") : ""} /> : null}
               <Info label={t("orders.table.date")} value={formatDateTime(order.created_at)} />
             </div>
             {(financials.shippingPaidSeparately || hasCodRemaining) ? (
@@ -921,7 +980,28 @@ function OrderDetails() {
             ) : null}
           </div>
 
-          {String(order.source || order.channel || "").toLowerCase() === "website" ? (
+          {!requiresShipping ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-black text-emerald-100">فاتورة بيع مباشر — لا توجد خطوات شحن أو مراجعة تحويل مطلوبة</div>
+                <div className="mt-1 text-xs font-semibold text-zinc-400">يمكنك طباعة الفاتورة أو إرجاع الأصناف مباشرة، وأضف الشحن فقط إذا طلب العميل توصيلها.</div>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button type="button" onClick={() => {
+                  setShipping((prev) => ({ ...prev, provider: prev.provider || "in_store_delivery" }));
+                  setShippingSetupOpen(true);
+                }} className="inline-flex h-10 items-center gap-2 rounded-xl bg-sky-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-sky-300">
+                  <Truck className="h-4 w-4" />
+                  إضافة شحن للفاتورة
+                </button>
+                <button type="button" onClick={() => setStatusTimelineOpen(true)} className="h-10 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10">
+                  سجل العملية
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {requiresShipping && (order.customer_address || order.governorate || order.city_area) ? (
             <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
               <h3 className="text-lg font-black text-white">{t("orders.details.shippingData")}</h3>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -939,7 +1019,7 @@ function OrderDetails() {
             </div>
           ) : null}
 
-          <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
+          {requiresShipping ? <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 flex-wrap items-center gap-3">
                 <div>
@@ -972,7 +1052,7 @@ function OrderDetails() {
                 </button>
               </div>
             </div>
-          </div>
+          </div> : null}
 
           <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
             <h3 className="text-lg font-black text-white">{t("orders.drawer.items")}</h3>
@@ -1058,7 +1138,7 @@ function OrderDetails() {
         </div>
 
         <div className="space-y-4 xl:col-span-4">
-          <details className="group rounded-2xl border border-white/10 bg-zinc-950/90 p-4 shadow-xl shadow-black/10">
+          {requiresShipping ? <details className="group rounded-2xl border border-white/10 bg-zinc-950/90 p-4 shadow-xl shadow-black/10">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.details.packing")}</div>
@@ -1089,7 +1169,7 @@ function OrderDetails() {
                 </button>
               ))}
             </div>
-          </details>
+          </details> : null}
 
           {smartInsights.length ? (
             <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5 shadow-xl shadow-black/10">
@@ -1243,7 +1323,7 @@ function OrderDetails() {
             <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-white/[0.035]">
               <FinancialRow label={t("orders.details.subtotal")} value={formatCurrency(financials.subtotal)} />
               <FinancialRow label={t("orders.details.discount")} value={formatCurrency(financials.discount)} />
-              <FinancialRow label={t("orders.drawer.shipping")} value={formatCurrency(financials.shipping)} badge={financials.shippingPaidSeparately ? t("orders.statusLabels.paid") : ""} />
+              {requiresShipping ? <FinancialRow label={t("orders.drawer.shipping")} value={formatCurrency(financials.shipping)} badge={financials.shippingPaidSeparately ? t("orders.statusLabels.paid") : ""} /> : null}
               <FinancialRow
                 label={t("orders.details.grandTotal")}
                 value={formatCurrency(financials.grandTotal)}
@@ -1259,9 +1339,9 @@ function OrderDetails() {
                 />
               ) : null}
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Info label={t("orders.details.codAmount")} value={formatCurrency(hasCodRemaining ? financials.remainingOnDelivery : order.cod_amount || 0)} />
-              <Info label={t("orders.details.refundStatus")} value={order.status === "Returned" ? t("orders.statusLabels.returned") : t("orders.details.active")} />
+            <div className={`mt-4 grid gap-3 ${requiresShipping ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+              {requiresShipping ? <Info label={t("orders.details.codAmount")} value={formatCurrency(hasCodRemaining ? financials.remainingOnDelivery : order.cod_amount || 0)} /> : null}
+              {requiresShipping ? <Info label={t("orders.details.refundStatus")} value={order.status === "Returned" ? t("orders.statusLabels.returned") : t("orders.details.active")} /> : null}
               <Info label={t("orders.edit.paymentStatus")} value={paymentSummaryStatus} />
             </div>
           </div>
@@ -1296,7 +1376,7 @@ function OrderDetails() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
+          {requiresShipping ? <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.details.fulfillment")}</div>
@@ -1310,6 +1390,11 @@ function OrderDetails() {
                 <Truck className="h-4 w-4" />
                 {t("orders.details.saveShipping")}
               </button>
+              {shippingSetupOpen ? (
+                <button type="button" onClick={() => setShippingSetupOpen(false)} className="h-10 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/10">
+                  إلغاء
+                </button>
+              ) : null}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
@@ -1335,6 +1420,29 @@ function OrderDetails() {
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
               {shippingTab === "shipment" ? (
                 <div className="grid gap-3 2xl:grid-cols-2">
+                  <div className="grid gap-3 rounded-2xl border border-sky-400/15 bg-sky-400/[0.05] p-4 sm:grid-cols-2 2xl:col-span-2">
+                    <div className="sm:col-span-2">
+                      <div className="text-sm font-black text-sky-100">بيانات توصيل العميل</div>
+                      <div className="mt-1 text-xs font-semibold text-zinc-500">احفظ البيانات أولًا، ثم أنشئ الشحنة من شركة الشحن.</div>
+                    </div>
+                    <FieldLabel label="رقم هاتف العميل">
+                      <input value={shipping.customer_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                    </FieldLabel>
+                    <FieldLabel label="المحافظة">
+                      <input value={shipping.governorate} onChange={(e) => setShipping((prev) => ({ ...prev, governorate: e.target.value }))} placeholder="المحافظة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                    </FieldLabel>
+                    <FieldLabel label="المدينة أو المنطقة">
+                      <input value={shipping.city_area} onChange={(e) => setShipping((prev) => ({ ...prev, city_area: e.target.value }))} placeholder="المدينة / المنطقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                    </FieldLabel>
+                    <FieldLabel label="علامة مميزة">
+                      <input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                    </FieldLabel>
+                    <div className="sm:col-span-2">
+                      <FieldLabel label="العنوان التفصيلي">
+                        <textarea value={shipping.shipping_address_line} onChange={(e) => setShipping((prev) => ({ ...prev, shipping_address_line: e.target.value }))} rows={3} placeholder="الشارع، رقم المبنى، الدور والشقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                      </FieldLabel>
+                    </div>
+                  </div>
                   {shipping.provider === "bosta" ? (
                     <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 2xl:col-span-2">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1497,34 +1605,41 @@ function OrderDetails() {
               ) : null}
             </div>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-              <button type="button" onClick={handleCreateShipment} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
-                {t("orders.shipping.createShipment")}
-              </button>
-              <button type="button" onClick={() => handleShipmentAction("retry")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
-                {t("orders.shipping.retryShipment", "إعادة المحاولة")}
-              </button>
-              <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
-                {t("orders.shipping.markShipped", "تم الشحن")}
-              </button>
-              <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-10 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/15">
-                {t("orders.shipping.markDelivered", "تم التسليم")}
-              </button>
-              <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-10 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">
-                {t("orders.shipping.cancelShipment", "إلغاء الشحنة")}
-              </button>
-              <button
-                type="button"
-                onClick={() => shipping.tracking_url && window.open(shipping.tracking_url, "_blank", "noopener,noreferrer")}
-                className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10"
-              >
-                {t("orders.shipping.trackShipment")}
-              </button>
+            <div className="mt-4 flex flex-col gap-2">
+              {!hasCreatedShipment ? (
+                <button type="button" onClick={handleCreateShipment} className="h-11 rounded-xl bg-sky-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-sky-300">
+                  {t("orders.shipping.createShipment")}
+                </button>
+              ) : !shipmentDelivered && !shipmentInTransit ? (
+                <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-11 rounded-xl bg-sky-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-sky-300">
+                  {t("orders.shipping.markShipped", "تم الشحن")}
+                </button>
+              ) : !shipmentDelivered ? (
+                <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-11 rounded-xl bg-emerald-500 px-4 text-sm font-black text-white transition hover:bg-emerald-400">
+                  {t("orders.shipping.markDelivered", "تم التسليم")}
+                </button>
+              ) : (
+                <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">تم تسليم الشحنة</div>
+              )}
+              {shipping.tracking_url ? (
+                <button type="button" onClick={() => window.open(shipping.tracking_url, "_blank", "noopener,noreferrer")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
+                  {t("orders.shipping.trackShipment")}
+                </button>
+              ) : null}
+              {hasCreatedShipment && !shipmentDelivered ? (
+                <details className="rounded-xl border border-white/10 bg-white/[0.03]">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-center text-xs font-semibold text-zinc-400">إجراءات إضافية</summary>
+                  <div className="grid gap-2 border-t border-white/10 p-3 sm:grid-cols-2">
+                    <button type="button" onClick={() => handleShipmentAction("retry")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">{t("orders.shipping.retryShipment", "إعادة المحاولة")}</button>
+                    <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-10 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">{t("orders.shipping.cancelShipment", "إلغاء الشحنة")}</button>
+                  </div>
+                </details>
+              ) : null}
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.shipping.timeline", "Shipment timeline")}</div>
-              <div className="mt-3 grid gap-2">
+            <details className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">{t("orders.shipping.timeline", "Shipment timeline")}</summary>
+              <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">
                 {(Array.isArray(order.shipment_timeline) && order.shipment_timeline.length ? order.shipment_timeline : [{ status: shipping.shipment_status || shipping.shipping_status || "pending", action: "current", at: order.updated_at || order.created_at }]).slice().reverse().map((event, index) => (
                   <div key={`${event.status || "shipment"}-${event.at || index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
                     <div>
@@ -1535,8 +1650,8 @@ function OrderDetails() {
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
+            </details>
+          </div> : null}
         </div>
       </div>
 
