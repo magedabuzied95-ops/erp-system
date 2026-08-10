@@ -256,6 +256,10 @@ export const updateMarketingSettings = async (body) => unwrapItem(await api.put(
 export const refreshMarketingMetaTokens = async (body = {}) => unwrapItem(await api.post("/marketing/settings/refresh-tokens", body));
 export const testMarketingAutoRefresh = async (body = {}) => api.post("/marketing/settings/test-auto-refresh", body);
 export const getMetaIntegrationStatus = async (options = {}) => api.get("/integrations/meta/status", options);
+export const saveInstagramBusinessAccessToken = async (body = {}) =>
+  api.post("/integrations/meta/instagram/access-token", body);
+export const removeInstagramBusinessAccessToken = async () =>
+  api.delete("/integrations/meta/instagram/access-token");
 export const getMetaHealth = async (options = {}) => unwrapItem(await api.get("/meta/health", options));
 export const getMetaCapabilities = async (options = {}) => unwrapItem(await api.get("/meta/capabilities", options));
 export const getMetaWebhookHealth = async (options = {}) => unwrapItem(await api.get("/meta/webhook-health", options));

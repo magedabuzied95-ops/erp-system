@@ -16,6 +16,8 @@ import {
   getMetaHealth,
   getMetaIntegrationStatus,
   getMetaWebhookHealth,
+  saveInstagramBusinessAccessToken,
+  removeInstagramBusinessAccessToken,
   refreshMarketingMetaTokens,
   getMetaOAuthPages,
   getMetaSetupCheck,
@@ -252,6 +254,8 @@ export default function MarketingSettings() {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingInstagramToken, setSavingInstagramToken] = useState(false);
+  const [instagramAccessToken, setInstagramAccessToken] = useState("");
   const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState("");
   const [rules, setRules] = useState([]);
@@ -591,6 +595,44 @@ export default function MarketingSettings() {
     }
   };
 
+  const saveInstagramToken = async () => {
+    if (!instagramAccessToken.trim()) {
+      toast.error("أدخل رمز وصول Instagram أولًا");
+      return;
+    }
+    setSavingInstagramToken(true);
+    try {
+      const payload = await saveInstagramBusinessAccessToken({
+        access_token: instagramAccessToken,
+        instagram_business_account_id: form.instagram_account_id || undefined,
+      });
+      setInstagramAccessToken("");
+      const refreshed = await refreshMetaStatus();
+      applyMetaStatus(refreshed || payload);
+      if (payload?.warning) toast(payload.warning, { icon: "⚠️" });
+      else toast.success("تم حفظ وربط رمز Instagram بأمان");
+    } catch (err) {
+      toast.error(err?.message || "تعذر حفظ رمز Instagram");
+    } finally {
+      setSavingInstagramToken(false);
+    }
+  };
+
+  const removeInstagramToken = async () => {
+    setSavingInstagramToken(true);
+    try {
+      await removeInstagramBusinessAccessToken();
+      setInstagramAccessToken("");
+      const refreshed = await refreshMetaStatus();
+      applyMetaStatus(refreshed || {});
+      toast.success("تم تعطيل رمز Instagram المستقل");
+    } catch (err) {
+      toast.error(err?.message || "تعذر تعطيل رمز Instagram");
+    } finally {
+      setSavingInstagramToken(false);
+    }
+  };
+
   const reconnect = async () => {
     setReconnecting(true);
     try {
@@ -850,13 +892,17 @@ export default function MarketingSettings() {
     metaConfig.page_access_token_configured &&
       !["token_expired", "expired", "invalid", "revoked", "error"].includes(String(metaConfig.token_health_status || metaConfig.token_status || tokenIntelligence.status || "").toLowerCase())
   );
+  const instagramTokenReady = Boolean(
+    metaConfig.instagram_access_token_configured &&
+      !["token_expired", "expired", "invalid", "revoked", "error"].includes(String(metaConfig.instagram_token_status || "").toLowerCase())
+  );
   const messengerOperationalConnected = Boolean(
     facebookStatus.messenger_connected ||
       (tokenReady && webhookReady && (metaConfig.facebook_page_id || form.page_id))
   );
   const instagramDmOperationalConnected = Boolean(
     instagramStatus.dm_connected ||
-      (tokenReady && webhookReady && (metaConfig.instagram_business_account_id || form.instagram_account_id))
+      ((instagramTokenReady || tokenReady) && webhookReady && (metaConfig.instagram_business_account_id || form.instagram_account_id))
   );
   const setupSteps = [
     { label: "تسجيل الدخول عبر فيسبوك", done: setupCompletion.oauth_connected },
@@ -1230,6 +1276,57 @@ export default function MarketingSettings() {
             </div>
           )}
 
+          <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="flex items-center gap-2 font-black text-white">
+                  <KeyRound className="h-4 w-4 text-amber-300" />
+                  رمز Instagram Business Login المستقل
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-400">
+                  يُشفّر داخل الخادم ويُستخدم لرسائل Instagram فقط. لن يستبدل رمز صفحة Facebook ولن يظهر مرة أخرى بعد الحفظ.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black text-slate-300">
+                <ShieldCheck className={`h-4 w-4 ${metaConfig.instagram_access_token_configured ? "text-emerald-300" : "text-slate-500"}`} />
+                {metaConfig.instagram_access_token_configured ? "محفوظ ومشفّر" : "غير محفوظ"}
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={instagramAccessToken}
+                onChange={(event) => setInstagramAccessToken(event.target.value)}
+                placeholder="ألصق رمز Instagram هنا ثم احفظه"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-400/40"
+              />
+              <button
+                type="button"
+                onClick={saveInstagramToken}
+                disabled={savingInstagramToken || !instagramAccessToken.trim()}
+                className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-[#17130a] disabled:opacity-50"
+              >
+                {savingInstagramToken ? "جارٍ التحقق..." : "تحقق واحفظ"}
+              </button>
+              {metaConfig.instagram_access_token_configured ? (
+                <button
+                  type="button"
+                  onClick={removeInstagramToken}
+                  disabled={savingInstagramToken}
+                  className="rounded-2xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100 disabled:opacity-50"
+                >
+                  تعطيل الرمز
+                </button>
+              ) : null}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
+              <span>الحالة: {metaConfig.instagram_token_status || "missing"}</span>
+              <span>•</span>
+              <span>{metaConfig.instagram_webhook_subscribed ? "Webhook مشترك" : "Webhook يحتاج تحقق"}</span>
+            </div>
+          </div>
+
           <div className="mt-5 flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
               <input type="checkbox" checked={Boolean(form.is_connected)} onChange={(event) => setForm((current) => ({ ...current, is_connected: event.target.checked }))} />
@@ -1335,7 +1432,7 @@ export default function MarketingSettings() {
               status={instagramDmOperationalConnected ? "connected" : liveCapabilities.instagram_dm?.status}
               checks={[
                 { label: "Webhook سليم", ok: webhookReady || instagramStatus.webhook_healthy },
-                { label: "الرمز صالح", ok: tokenReady || instagramStatus.token_valid },
+                { label: "الرمز صالح", ok: instagramTokenReady || tokenReady || instagramStatus.token_valid },
                 { label: "استقبال الرسائل", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.receive_dms },
                 { label: "إرسال الردود", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.send_replies },
                 { label: "Story mention support", ok: liveCapabilities.instagram_dm?.details?.story_mention_support },
@@ -1347,7 +1444,7 @@ export default function MarketingSettings() {
               details={[
                 [t("marketing.settings.capabilities.igBusinessAccount", "IG Business Account"), instagramLabel],
                 ["Webhook", webhookReady ? "سليم" : "يحتاج اهتمامًا"],
-                ["Token", tokenReady ? "صالح" : "يحتاج اهتمامًا"],
+                ["Token", instagramTokenReady || tokenReady ? "صالح" : "يحتاج اهتمامًا"],
                 ["Missing permissions", liveCapabilities.instagram_dm?.missing_permissions?.join(", ") || "None"],
                 [t("marketing.settings.capabilities.lastSync", "Last sync"), formatDateTime(metaConfig.last_sync_at)],
               ]}

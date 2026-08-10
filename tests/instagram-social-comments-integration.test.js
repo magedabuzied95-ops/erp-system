@@ -23,7 +23,8 @@ test("Instagram media and historical comments are loaded from the connected busi
 });
 
 test("Instagram comment webhooks use the media id and accept the native comments payload", () => {
-  assert.match(metaSource, /instagramBusinessAccountId[\s\S]*?subscribed_apps[\s\S]*?subscribed_fields: "comments"/);
+  assert.match(metaSource, /META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS = \[[\s\S]*?"comments"/);
+  assert.match(metaSource, /instagramBusinessAccountId[\s\S]*?subscribed_apps[\s\S]*?subscribed_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS\.join\(","\)/);
   assert.match(automationSource, /value\.media\?\.id/);
   assert.match(automationSource, /lower\(body\.object\) === "instagram"[\s\S]*?field === "comments"/);
 });

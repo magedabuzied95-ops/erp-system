@@ -17,6 +17,8 @@ import {
   getMetaWebhookHealth,
   processMetaWebhook,
   saveMetaIntegrationConfig,
+  saveInstagramBusinessAccessToken,
+  removeInstagramBusinessAccessToken,
   selectMetaOAuthPage,
   startMetaOAuth,
   testMetaMessageCapability,
@@ -176,6 +178,36 @@ integrationRouter.post("/save-config", protect, permit("settings", "edit"), asyn
     res.json({ success: true, ...status });
   } catch (error) {
     sendError(res, error, "Unable to save Meta integration config");
+  }
+});
+
+integrationRouter.post("/instagram/access-token", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await saveInstagramBusinessAccessToken({
+      tenantId,
+      accessToken: req.body?.access_token,
+      expectedAccountId: req.body?.instagram_business_account_id,
+      expiresAt: req.body?.expires_at || null,
+    });
+    res.json({
+      success: true,
+      data: result.config,
+      webhook_subscribed: result.webhook_subscribed,
+      warning: result.warning || "",
+    });
+  } catch (error) {
+    sendError(res, error, "Unable to save Instagram access token");
+  }
+});
+
+integrationRouter.delete("/instagram/access-token", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await removeInstagramBusinessAccessToken({ tenantId });
+    res.json({ success: true, data: result.config });
+  } catch (error) {
+    sendError(res, error, "Unable to remove Instagram access token");
   }
 });
 

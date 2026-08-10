@@ -110,6 +110,8 @@ import {
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v20.0";
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const INSTAGRAM_GRAPH_VERSION = process.env.INSTAGRAM_GRAPH_VERSION || "v25.0";
+const INSTAGRAM_GRAPH_BASE_URL = `https://graph.instagram.com/${INSTAGRAM_GRAPH_VERSION}`;
 const META_COMMENTS_POLL_INTERVAL_MS = Math.max(1, Number.parseInt(process.env.META_POLLING_INTERVAL_MINUTES || "1", 10) || 1) * 60 * 1000;
 const META_OAUTH_SCOPES = [
   "pages_show_list",
@@ -2503,6 +2505,29 @@ const ensureMessengerProfileStorage = async () => {
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_profile JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
   await repairMessengerStoredNames();
+};
+
+const callInstagramGraph = async ({ endpoint, token, params = {}, method = "GET", body = null }) => {
+  const target = new URL(`${INSTAGRAM_GRAPH_BASE_URL}${endpoint}`);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const safe = text(value);
+    if (safe) target.searchParams.set(key, safe);
+  });
+  if (text(token)) target.searchParams.set("access_token", token);
+  const response = await fetch(target, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? json(body) : undefined,
+  });
+  const payload = await parseMetaPayload(response);
+  if (!response.ok) {
+    throw Object.assign(new Error(metaErrorMessage(payload, "Instagram Graph API request failed")), {
+      status: response.status,
+      meta: payload?.error || payload,
+      metaResponse: payload,
+    });
+  }
+  return payload;
 };
 
 const messengerDisplayName = ({ firstName = "", lastName = "", fallback = "" } = {}) =>
@@ -5512,6 +5537,11 @@ const sanitizeConfig = (row = {}) => ({
   page_access_token_masked: row.page_access_token_encrypted ? maskSecret(decryptSecret(row.page_access_token_encrypted)) : "",
   instagram_business_account_id: row.instagram_business_account_id || "",
   instagram_username: row.instagram_username || "",
+  instagram_access_token_configured: Boolean(row.instagram_access_token_encrypted),
+  instagram_token_status: row.instagram_token_status || "missing",
+  instagram_token_expires_at: row.instagram_token_expires_at || null,
+  instagram_token_last_validated_at: row.instagram_token_last_validated_at || null,
+  instagram_webhook_subscribed: row.instagram_webhook_subscribed === true,
   app_id: row.app_id || "",
   app_secret_configured: Boolean(row.app_secret_encrypted),
   app_secret_masked: row.app_secret_encrypted ? maskSecret(decryptSecret(row.app_secret_encrypted)) : "",
@@ -5612,6 +5642,11 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
           page_access_token_encrypted TEXT NOT NULL DEFAULT '',
           instagram_business_account_id TEXT NOT NULL DEFAULT '',
           instagram_username TEXT NOT NULL DEFAULT '',
+          instagram_access_token_encrypted TEXT NOT NULL DEFAULT '',
+          instagram_token_expires_at TIMESTAMP NULL,
+          instagram_token_status TEXT NOT NULL DEFAULT 'missing',
+          instagram_token_last_validated_at TIMESTAMP NULL,
+          instagram_webhook_subscribed BOOLEAN NOT NULL DEFAULT FALSE,
           app_id TEXT NOT NULL DEFAULT '',
           app_secret_encrypted TEXT NOT NULL DEFAULT '',
           verify_token TEXT NOT NULL DEFAULT '',
@@ -5641,6 +5676,11 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
       `);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS facebook_page_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_username TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_access_token_encrypted TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_expires_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_status TEXT NOT NULL DEFAULT 'missing'`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_last_validated_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_webhook_subscribed BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS webhook_verified BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS subscribed_apps_verified BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS permissions_saved BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -6091,6 +6131,8 @@ const secondsUntil = (value) => {
 };
 
 const getTokenForConfig = (row = {}) => decryptSecret(row.page_access_token_encrypted || row.page_access_token || row.access_token_encrypted || "");
+const getInstagramTokenForConfig = (row = {}) =>
+  decryptSecret(row.instagram_access_token_encrypted || row.page_access_token_encrypted || row.page_access_token || row.access_token_encrypted || "");
 
 const resolveMarketingSettingsWebhookToken = async ({
   tenantId,
@@ -9013,8 +9055,10 @@ export const selectMetaOAuthPage = async ({ tenantId, userId = null, pageId = ""
 export const testMetaMessageCapability = async ({ tenantId, channel = "facebook", recipientId = "", message = "" } = {}) => {
   const row = await getMetaIntegrationConfig({ tenantId });
   if (!row) throw Object.assign(new Error("Meta integration is not configured"), { status: 404 });
-  const token = getTokenForConfig(row);
-  if (!token) throw Object.assign(new Error("Page access token is missing"), { status: 400 });
+  const isInstagram = text(channel).toLowerCase() === "instagram";
+  const hasInstagramBusinessToken = isInstagram && Boolean(text(row.instagram_access_token_encrypted));
+  const token = isInstagram ? getInstagramTokenForConfig(row) : getTokenForConfig(row);
+  if (!token) throw Object.assign(new Error(isInstagram ? "Instagram access token is missing" : "Page access token is missing"), { status: 400 });
   if (!text(recipientId)) {
     const capabilities = await getMetaCapabilities({ tenantId, live: true });
     return {
@@ -9024,15 +9068,19 @@ export const testMetaMessageCapability = async ({ tenantId, channel = "facebook"
       capability: channel === "instagram" ? capabilities.capabilities.instagram_dm : capabilities.capabilities.messenger,
     };
   }
-  const result = await callMetaPost({
-    endpoint: "/me/messages",
-    token,
-    body: {
-      recipient: { id: text(recipientId) },
-      messaging_type: "RESPONSE",
-      message: { text: text(message) || "Meta integration test message" },
-    },
-  });
+  const body = {
+    recipient: { id: text(recipientId) },
+    messaging_type: "RESPONSE",
+    message: { text: text(message) || "Meta integration test message" },
+  };
+  const result = hasInstagramBusinessToken
+    ? await callInstagramGraph({
+        endpoint: `/${encodeURIComponent(text(row.instagram_business_account_id))}/messages`,
+        token,
+        method: "POST",
+        body: { recipient: body.recipient, message: body.message },
+      })
+    : await callMetaPost({ endpoint: "/me/messages", token, body });
   await logChannelEvent({
     tenantId,
     channel: channel === "instagram" ? AI_AGENT_CHANNELS.INSTAGRAM : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
@@ -9232,6 +9280,102 @@ export const saveMetaIntegrationConfig = async ({ tenantId, data = {} } = {}) =>
     });
     throw error;
   }
+};
+
+export const saveInstagramBusinessAccessToken = async ({ tenantId, accessToken = "", expectedAccountId = "", expiresAt = null } = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const token = text(accessToken);
+  if (!scopedTenantId) throw Object.assign(new Error("Tenant ID is required."), { status: 400 });
+  if (!token) throw Object.assign(new Error("Instagram access token is required."), { status: 400 });
+
+  const existingResult = await db.query(
+    `SELECT * FROM meta_integration_configs WHERE tenant_id = $1 ORDER BY updated_at DESC LIMIT 1`,
+    [scopedTenantId]
+  );
+  const existing = existingResult.rows[0];
+  if (!existing) {
+    throw Object.assign(new Error("Connect the M1 Store Facebook Page before adding the Instagram token."), { status: 409 });
+  }
+
+  const profile = await callInstagramGraph({
+    endpoint: "/me",
+    token,
+    params: { fields: "id,user_id,username,account_type" },
+  });
+  const accountId = text(profile.user_id || profile.id);
+  const requestedAccountId = text(expectedAccountId);
+  if (!accountId) throw Object.assign(new Error("The Instagram token did not return a Business Account ID."), { status: 400 });
+  if (requestedAccountId && requestedAccountId !== accountId) {
+    throw Object.assign(new Error("The Instagram token belongs to a different account."), { status: 409 });
+  }
+
+  let subscribed = false;
+  let subscriptionWarning = "";
+  try {
+    await callInstagramGraph({
+      endpoint: `/${encodeURIComponent(accountId)}/subscribed_apps`,
+      token,
+      method: "POST",
+      params: { subscribed_fields: "messages,messaging_postbacks" },
+    });
+    subscribed = true;
+  } catch (error) {
+    subscriptionWarning = error?.message || "The token was saved, but Instagram webhook subscription still needs attention.";
+  }
+
+  const result = await db.query(
+    `
+    UPDATE meta_integration_configs
+    SET instagram_business_account_id = $2,
+        instagram_username = $3,
+        instagram_access_token_encrypted = $4,
+        instagram_token_expires_at = $5::timestamp,
+        instagram_token_status = 'active',
+        instagram_token_last_validated_at = NOW(),
+        instagram_webhook_subscribed = $6,
+        instagram_enabled = TRUE,
+        instagram_dm_enabled = TRUE,
+        updated_at = NOW()
+    WHERE tenant_id = $1
+    RETURNING *
+    `,
+    [scopedTenantId, accountId, text(profile.username), encryptSecret(token), expiresAt || null, subscribed]
+  );
+  console.log("[meta-instagram] business token saved", {
+    tenant_id: scopedTenantId,
+    config_id: result.rows[0]?.id || null,
+    instagram_business_account_id: maskIdForLog(accountId),
+    token_present: true,
+    webhook_subscribed: subscribed,
+  });
+  return {
+    config: sanitizeConfig(result.rows[0]),
+    webhook_subscribed: subscribed,
+    warning: subscriptionWarning,
+  };
+};
+
+export const removeInstagramBusinessAccessToken = async ({ tenantId } = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  if (!scopedTenantId) throw Object.assign(new Error("Tenant ID is required."), { status: 400 });
+  const result = await db.query(
+    `
+    UPDATE meta_integration_configs
+    SET instagram_access_token_encrypted = '',
+        instagram_token_expires_at = NULL,
+        instagram_token_status = 'missing',
+        instagram_token_last_validated_at = NULL,
+        instagram_webhook_subscribed = FALSE,
+        updated_at = NOW()
+    WHERE tenant_id = $1
+    RETURNING *
+    `,
+    [scopedTenantId]
+  );
+  if (!result.rows[0]) throw Object.assign(new Error("Meta integration is not configured."), { status: 404 });
+  return { config: sanitizeConfig(result.rows[0]) };
 };
 
 export const testMetaIntegrationConfig = async ({ tenantId } = {}) => {
@@ -10249,7 +10393,24 @@ const isMetaThreadControlConflict = (error = null) => {
 };
 
 const postMetaMessageWithThreadControl = async ({ token, recipientId, body = {}, sendContext = {} }) => {
-  const send = () => callMetaPost({ endpoint: "/me/messages", token, body });
+  const isInstagramBusinessLogin =
+    text(sendContext.channel) === AI_AGENT_CHANNELS.INSTAGRAM && sendContext.instagram_business_login === true;
+  const send = () => {
+    if (isInstagramBusinessLogin) {
+      const instagramAccountId = text(sendContext.resolved_instagram_account_id);
+      if (!instagramAccountId) {
+        throw Object.assign(new Error("Instagram Business Account ID is missing."), { status: 409, code: "INSTAGRAM_ACCOUNT_ID_MISSING" });
+      }
+      const { messaging_type: _messagingType, ...instagramBody } = body || {};
+      return callInstagramGraph({
+        endpoint: `/${encodeURIComponent(instagramAccountId)}/messages`,
+        token,
+        method: "POST",
+        body: instagramBody,
+      });
+    }
+    return callMetaPost({ endpoint: "/me/messages", token, body });
+  };
   try {
     return await send();
   } catch (error) {
@@ -21853,8 +22014,10 @@ const resolveMetaSendConfig = async ({
     SELECT *
     FROM meta_integration_configs
     WHERE tenant_id = $1
-      AND page_access_token_encrypted IS NOT NULL
-      AND page_access_token_encrypted <> ''
+      AND (
+        ($5::text = 'instagram' AND COALESCE(instagram_access_token_encrypted, '') <> '')
+        OR COALESCE(page_access_token_encrypted, '') <> ''
+      )
       AND LOWER(COALESCE(status, '')) NOT IN ('invalid','token_expired','revoked','error','not_connected')
       AND (
         $5::text <> 'instagram'
@@ -21895,6 +22058,7 @@ const resolveMetaSendConfig = async ({
         tenant_id: row.tenant_id,
         facebook_page_id: row.page_id || pageId,
         instagram_business_account_id: row.instagram_account_id || igId,
+        instagram_access_token_encrypted: "",
         page_access_token_encrypted: row.page_access_token || row.access_token_encrypted || "",
         token_expires_at: row.token_expires_at || null,
         status: row.token_status || "active",
@@ -21906,7 +22070,11 @@ const resolveMetaSendConfig = async ({
   let decryptFailures = 0;
   for (const candidate of candidates) {
     const { row } = candidate;
-    const decrypted = tryDecryptSecret(row.page_access_token_encrypted, {
+    const useInstagramBusinessToken = normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM && Boolean(text(row.instagram_access_token_encrypted));
+    const selectedEncryptedToken = useInstagramBusinessToken
+      ? row.instagram_access_token_encrypted
+      : row.page_access_token_encrypted;
+    const decrypted = tryDecryptSecret(selectedEncryptedToken, {
       tenant_id: scopedTenantId,
       config_id: row.id || null,
       source: candidate.source,
@@ -21954,7 +22122,13 @@ const resolveMetaSendConfig = async ({
       used_marketing_settings_fallback: candidate.source === "marketing_settings",
       decrypt_failures_before_selected: decryptFailures,
     });
-    return { config: row, token: decrypted.value, source: candidate.source, channel: normalizedChannel };
+    return {
+      config: row,
+      token: decrypted.value,
+      source: useInstagramBusinessToken ? `${candidate.source}.instagram_business_login` : candidate.source,
+      channel: normalizedChannel,
+      instagramBusinessLogin: useInstagramBusinessToken,
+    };
   }
 
   throw Object.assign(new Error(decryptFailures ? "No decryptable active Meta token found for this tenant/account." : "No active persisted Meta integration config found for this tenant/account."), {
@@ -22217,8 +22391,9 @@ export const sendMetaInboxOutboundMessage = async ({
   let config;
   let token;
   let source;
+  let instagramBusinessLogin = false;
   try {
-    ({ config, token, source } = await resolveMetaSendConfig({
+    ({ config, token, source, instagramBusinessLogin } = await resolveMetaSendConfig({
       tenantId: scopedTenantId,
       channel: normalizedChannel,
       facebookPageId,
@@ -22272,6 +22447,8 @@ export const sendMetaInboxOutboundMessage = async ({
     resolved_customer_id: safeRecipientId,
     resolved_sender_id: safeRecipientId,
     channel: normalizedChannel,
+    instagram_business_login: instagramBusinessLogin,
+    resolved_instagram_account_id: text(instagramBusinessAccountId || config.instagram_business_account_id),
   };
   console.log("[meta-send] pageId", {
     tenant_id: scopedTenantId,
