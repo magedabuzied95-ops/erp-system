@@ -37,6 +37,11 @@ import {
 const RETURN_STATUS_OPTIONS = ["Draft", "Submitted", "Approved", "Rejected", "Returned", "Refunded"];
 const REFUND_STATUS_OPTIONS = ["pending", "processing", "refunded", "partial_refund", "rejected"];
 const REFUND_METHOD_OPTIONS = ["cash", "vodafone_cash", "instapay"];
+const RETURN_DISPOSITION_OPTIONS = [
+  { value: "restock", label: "سليم — إعادة للمخزون" },
+  { value: "manufacturing_defect", label: "عيب صناعة — حجز لمرتجع المورد" },
+  { value: "damaged", label: "تالف — لا يعاد للمخزون" },
+];
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -73,11 +78,17 @@ const normalizeRefundMethod = (value = "cash") => {
   if (["same_payment_method", "original", "wallet", "bank_transfer", "card"].includes(key)) return "cash";
   return "cash";
 };
+const stockDispositionLabel = (record = {}) => {
+  if (record.disposition === "manufacturing_defect") return "محجوز للمورد";
+  if (record.disposition === "damaged") return "تالف — غير معاد";
+  return record.restock ? "تمت الإعادة" : "غير معاد";
+};
 
 const defaultFormState = {
   selectedOrderId: "",
   reason: "",
   restock: true,
+  disposition: "restock",
   returnItems: {},
   refundAmount: 0,
   status: "Draft",
@@ -103,6 +114,7 @@ function OrderReturnsPage() {
   const [editingReturnId, setEditingReturnId] = useState(null);
   const [form, setForm] = useState(defaultFormState);
   const [selectedReturn, setSelectedReturn] = useState(null);
+  const [supplierReturnGroups, setSupplierReturnGroups] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -111,11 +123,15 @@ function OrderReturnsPage() {
       try {
         setLoading(true);
         setError("");
-        const data = await api.get("/orders");
+        const [data, supplierQueue] = await Promise.all([
+          api.get("/orders"),
+          api.get("/orders/supplier-returns").catch(() => ({ suppliers: [] })),
+        ]);
         const baseOrders = Array.isArray(data) ? data : Array.isArray(data.orders) ? data.orders : [];
         const normalized = baseOrders.length ? baseOrders.map((order) => normalizeOrder(order, { items: order.items || [] })) : mockOrders();
         if (!active) return;
         setOrders(normalized);
+        setSupplierReturnGroups(Array.isArray(supplierQueue?.suppliers) ? supplierQueue.suppliers : []);
       } catch (err) {
         console.log(err);
         const fallback = mockOrders();
@@ -218,6 +234,7 @@ function OrderReturnsPage() {
       selectedOrderId: String(record.orderId || ""),
       reason: record.reason || "",
       restock: Boolean(record.restock),
+      disposition: record.disposition || (record.restock ? "restock" : "damaged"),
       returnItems: buildFormReturnItems(record),
       refundAmount: Number(record.refundAmount || 0),
       status: record.returnStatus || "Draft",
@@ -262,6 +279,7 @@ function OrderReturnsPage() {
       orderNumber: selectedOrder.invoice_number,
       reason: form.reason,
       restock: form.restock,
+      disposition: form.disposition,
       refundAmount: form.refundAmount,
       status: form.status,
       shippingProvider: form.shippingProvider,
@@ -287,10 +305,13 @@ function OrderReturnsPage() {
     try {
       await api.post("/orders/returns", payload);
       addReturnRecord(payload);
+      if (form.disposition === "manufacturing_defect") {
+        const supplierQueue = await api.get("/orders/supplier-returns").catch(() => ({ suppliers: [] }));
+        setSupplierReturnGroups(Array.isArray(supplierQueue?.suppliers) ? supplierQueue.suppliers : []);
+      }
       toast.success(t("orders.returns.saved"));
     } catch (err) {
       console.log(err);
-      addReturnRecord(payload);
       toast.error(t("orders.returns.backendUnavailable"));
     } finally {
       closeFormDrawer();
@@ -330,6 +351,8 @@ function OrderReturnsPage() {
         <KpiCard label="قيمة المرتجعات" value={formatCurrency(kpis.value)} icon={Wallet} accent="emerald" />
         <KpiCard label="تمت إعادتها للمخزون" value={kpis.restocked} icon={PackageOpen} accent="violet" />
       </section>
+
+      {supplierReturnGroups.length ? <SupplierReturnQueue groups={supplierReturnGroups} /> : null}
 
       <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
         <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -447,6 +470,39 @@ function KpiCard({ label, value, icon: Icon, accent }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function SupplierReturnQueue({ groups }) {
+  return (
+    <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Supplier Returns</div>
+          <h2 className="mt-1 text-lg font-black text-white">قطع عيوب الصناعة المطلوب إرجاعها للموردين</h2>
+        </div>
+        <MiniStat label="إجمالي القطع" value={groups.reduce((sum, group) => sum + Number(group.totalQuantity || 0), 0)} />
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        {groups.map((group) => (
+          <div key={String(group.supplierId || "unassigned")} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-black text-white">{group.supplierName}</div>
+              <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-100">{group.totalQuantity} قطعة</span>
+            </div>
+            <div className="mt-2 space-y-1.5">
+              {group.items.slice(0, 4).map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-2 text-xs text-zinc-300">
+                  <span className="truncate">{item.product_name}{[item.color, item.size].filter(Boolean).length ? ` — ${[item.color, item.size].filter(Boolean).join(" / ")}` : ""}</span>
+                  <span className="shrink-0 font-bold">× {item.quantity}</span>
+                </div>
+              ))}
+              {group.items.length > 4 ? <div className="text-[11px] text-zinc-500">+ {group.items.length - 4} بنود أخرى</div> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -575,8 +631,8 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
                   </span>
                 </div>
                 <div className="flex justify-center px-2">
-                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${record.restock ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : "border-zinc-500/25 bg-zinc-500/10 text-zinc-300"}`}>
-                    {record.restock ? "تمت الإعادة" : "غير معاد"}
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${record.restock ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : record.disposition === "manufacturing_defect" ? "border-amber-400/25 bg-amber-400/10 text-amber-100" : "border-zinc-500/25 bg-zinc-500/10 text-zinc-300"}`}>
+                    {stockDispositionLabel(record)}
                   </span>
                 </div>
                 <DateCell value={record.createdAt} />
@@ -600,7 +656,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
             <div className="mt-3 text-sm text-zinc-300">{record.itemsSummary}</div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <InfoPill label="الاسترداد" value={formatCurrency(record.refundAmount)} />
-              <InfoPill label="المخزون" value={record.restock ? "تمت الإعادة" : "غير معاد"} />
+              <InfoPill label="المخزون" value={stockDispositionLabel(record)} />
               <InfoPill label="حالة الاسترداد" value={record.refundStatusLabel} />
               <InfoPill label="طريقة الاسترداد" value={record.refundMethodLabel} />
               <InfoPill label="التاريخ" value={formatShortDate(record.createdAt)} />
@@ -747,13 +803,28 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                 {formatCurrency(form.refundAmount)}
               </div>
             </Field>
+
+            <Field label="مصير القطعة المرتجعة">
+              <select
+                value={form.disposition}
+                onChange={(event) => {
+                  const disposition = event.target.value;
+                  setForm((current) => ({ ...current, disposition, restock: disposition === "restock" }));
+                }}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              >
+                {RETURN_DISPOSITION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-zinc-950 text-white">{option.label}</option>
+                ))}
+              </select>
+            </Field>
           </div>
 
           <section className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-black text-white">{t("orders.returns.returnedItems")}</h3>
               <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-200">
-                <input type="checkbox" checked={form.restock} onChange={(event) => setForm((current) => ({ ...current, restock: event.target.checked }))} />
+                <input type="checkbox" checked={form.restock} disabled={form.disposition !== "restock"} onChange={(event) => setForm((current) => ({ ...current, restock: event.target.checked }))} />
                 {t("orders.returns.restockReturnedItems")}
               </label>
             </div>
@@ -918,8 +989,8 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
           <DrawerSection title="حركة المخزون">
             <InfoGrid
               items={[
-                ["إعادة للمخزون", record.restock ? "نعم" : "لا"],
-                ["حالة الحركة", record.restock ? "تم تنفيذ الإرجاع للمخزون" : "لم يتم تنفيذ الإرجاع"],
+                ["إعادة للمخزون", stockDispositionLabel(record)],
+                ["حالة الحركة", record.restock ? "تم تنفيذ الإرجاع للمخزون" : record.disposition === "manufacturing_defect" ? "تم حجز القطعة لمرتجع المورد" : "لم يتم تنفيذ الإرجاع"],
               ]}
             />
           </DrawerSection>
@@ -1137,6 +1208,7 @@ function normalizeReturnRecord(record, orderMap) {
     trackingNumber: text(record.trackingNumber || order.tracking_number),
     shippingProvider: text(record.shippingProvider || order.shipping_provider),
     restock: Boolean(record.restock),
+    disposition: record.disposition || (record.restock ? "restock" : "damaged"),
     reason: text(record.reason),
     createdAt: record.createdAt || record.updatedAt || new Date().toISOString(),
     allowEdit: true,
@@ -1196,7 +1268,8 @@ function normalizeOrderReturn(order) {
     refundMethodLabel: humanizeKey(order.refund_method || order.refundMethod || order.payment_method || "cash"),
     trackingNumber: text(order.tracking_number || order.shipping_tracking_number),
     shippingProvider: text(order.shipping_provider),
-    restock: Boolean(order.stock_reverted_at || order.inventory_rollback_done),
+    restock: Boolean(order.restock || order.stock_reverted_at || order.inventory_rollback_done),
+    disposition: order.disposition || (order.restock ? "restock" : "damaged"),
     reason: text(order.cancel_reason || order.notes),
     createdAt: order.returned_at || order.refunded_at || order.return_completed_at || order.created_at,
     allowEdit: false,

@@ -18,6 +18,7 @@ import {
   deleteOrder,
   editOrder,
   getOrders,
+  getSupplierReturnItems,
   getPosOrderSummary,
   getPosEditOrder,
   getSingleOrder,
@@ -83,6 +84,13 @@ router.post(
   protect,
   permit("orders", "create"),
   createReturn
+);
+
+router.get(
+  "/supplier-returns",
+  protect,
+  permit("orders", "view"),
+  getSupplierReturnItems
 );
 
 router.post(

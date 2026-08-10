@@ -164,6 +164,14 @@ const normalizeReturnRefundMethod = (value = "") => {
   return "";
 };
 
+const RETURN_DISPOSITIONS = new Set(["restock", "manufacturing_defect", "damaged"]);
+
+const normalizeReturnDisposition = (value = "", fallbackRestock = true) => {
+  const key = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (RETURN_DISPOSITIONS.has(key)) return key;
+  return fallbackRestock ? "restock" : "damaged";
+};
+
 const returnRefundMethodLabel = (value = "") => {
   const method = normalizeReturnRefundMethod(value);
   if (method === "cash") return "نقدي";
@@ -489,6 +497,27 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
   await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
   await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS metadata JSONB NULL`);
+  await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS disposition VARCHAR(50) NOT NULL DEFAULT 'restock'`);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS supplier_return_items (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NULL,
+      supplier_id BIGINT NULL REFERENCES suppliers(id) ON DELETE SET NULL,
+      customer_return_id BIGINT NOT NULL REFERENCES returns(id) ON DELETE CASCADE,
+      return_item_id BIGINT NOT NULL REFERENCES return_items(id) ON DELETE CASCADE,
+      order_id BIGINT NOT NULL,
+      order_item_id BIGINT NOT NULL,
+      product_id BIGINT NULL,
+      variant_id BIGINT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      reason TEXT,
+      status VARCHAR(30) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (return_item_id)
+    )
+  `);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_supplier_return_items_supplier_status ON supplier_return_items (tenant_id, supplier_id, status, created_at DESC)`);
   await client.query(`
     UPDATE orders
     SET invoice_number = 'INV-' || id::text
@@ -4198,6 +4227,13 @@ export const getOrders = async (req, res) => {
       hasSalesEmployeesTable ? getTableColumnSet(db, "sales_employees") : Promise.resolve(new Set()),
       hasEmployeesTable ? getTableColumnSet(db, "employees") : Promise.resolve(new Set()),
     ]);
+    const returnColumns = await getTableColumnSet(db, "returns");
+    const returnRestockExpr = returnColumns.has("restock") ? "r.restock" : "FALSE";
+    const returnDispositionExpr = returnColumns.has("disposition")
+      ? "r.disposition"
+      : returnColumns.has("restock")
+        ? "CASE WHEN r.restock THEN 'restock' ELSE 'damaged' END"
+        : "'damaged'";
     const customerPhoneColumn = firstExistingColumn(customerColumns, ["phone", "mobile", "customer_phone"]);
     const customerJoin = hasCustomersTable && customerPhoneColumn
       ? "LEFT JOIN customers c ON c.id = o.customer_id"
@@ -4276,6 +4312,8 @@ export const getOrders = async (req, res) => {
             r.return_number,
             r.status AS return_status,
             r.refund_method,
+            ${returnRestockExpr} AS restock,
+            ${returnDispositionExpr} AS disposition,
             r.created_at AS returned_at,
             SUM(
               CASE
@@ -4289,7 +4327,7 @@ export const getOrders = async (req, res) => {
           WHERE r.order_id = ANY($1::bigint[])
             AND ($2::bigint IS NULL OR r.tenant_id = $2::bigint)
         )
-        SELECT order_id, return_number, return_status, refund_method, refund_amount, returned_at
+        SELECT order_id, return_number, return_status, refund_method, restock, disposition, refund_amount, returned_at
         FROM ranked_returns
         WHERE row_number = 1
         `,
@@ -4418,6 +4456,51 @@ const assertOrderReturnable = (order) => {
     error.status = 400;
     throw error;
   }
+};
+
+const resolveSupplierForReturnedItem = async (client, { tenantId, productId = null, variantId = null }) => {
+  if (!productId && !variantId) return null;
+  const result = await client.query(
+    `
+    SELECT p.supplier_id
+    FROM purchase_items pi
+    JOIN purchases p ON p.id = pi.purchase_id
+    WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+      AND (
+        ($2::bigint IS NOT NULL AND pi.variant_id = $2::bigint)
+        OR ($2::bigint IS NULL AND $3::bigint IS NOT NULL AND pi.product_id = $3::bigint)
+      )
+    ORDER BY p.created_at DESC, p.id DESC
+    LIMIT 1
+    `,
+    [tenantId, variantId, productId]
+  );
+  return result.rows[0]?.supplier_id || null;
+};
+
+const queueSupplierReturnItem = async (client, {
+  tenantId,
+  returnId,
+  returnItemId,
+  orderId,
+  orderItem,
+  quantity,
+  reason,
+}) => {
+  const productId = orderItem?.product_id || null;
+  const variantId = orderItem?.variant_id || null;
+  const supplierId = await resolveSupplierForReturnedItem(client, { tenantId, productId, variantId });
+  await client.query(
+    `
+    INSERT INTO supplier_return_items (
+      tenant_id, supplier_id, customer_return_id, return_item_id, order_id,
+      order_item_id, product_id, variant_id, quantity, reason, status
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
+    ON CONFLICT (return_item_id) DO NOTHING
+    `,
+    [tenantId, supplierId, returnId, returnItemId, orderId, orderItem.id, productId, variantId, quantity, reason || "Manufacturing defect"]
+  );
 };
 
 const markCustomerTrustedForCompletedOrder = async (client, order = {}) => {
@@ -6604,6 +6687,11 @@ export const returnOrder = async (req, res) => {
       throw error;
     }
     const reason = req.body.reason || (mode === "exchange" ? "استبدال" : "POS return");
+    const disposition = normalizeReturnDisposition(
+      req.body.disposition || req.body.returnDisposition,
+      req.body.restock !== false
+    );
+    const shouldRestock = disposition === "restock";
     const refundFunding = await ensureReturnRefundFunding(client, {
       routeName,
       orderId: loaded.order.id,
@@ -6616,11 +6704,11 @@ export const returnOrder = async (req, res) => {
     const refundShiftId = refundMethod === "cash" ? (refundFunding.shift?.id || null) : originalOrderShiftId;
     const returnResult = await client.query(
       `
-      INSERT INTO returns (tenant_id, order_id, return_number, status, reason, restock, refund_amount, created_by, shift_id, cashier_user_id)
-      VALUES ($1,$2,$3,'completed',$4,true,$5,$6,$7,$8)
+      INSERT INTO returns (tenant_id, order_id, return_number, status, reason, restock, disposition, refund_amount, created_by, shift_id, cashier_user_id)
+      VALUES ($1,$2,$3,'completed',$4,$5,$6,$7,$8,$9,$10)
       RETURNING *
       `,
-      [tenantId, loaded.order.id, temporaryReturnNumber, reason, Number(req.body.refund_amount || 0), req.user?.id || null, refundShiftId, req.user?.id || null]
+      [tenantId, loaded.order.id, temporaryReturnNumber, reason, shouldRestock, disposition, Number(req.body.refund_amount || 0), req.user?.id || null, refundShiftId, req.user?.id || null]
     );
     let returnRow = returnResult.rows[0];
     logReturnFlowStep(routeName, {
@@ -6680,25 +6768,38 @@ export const returnOrder = async (req, res) => {
     for (const { original, quantity, refund } of validatedItems) {
       refundTotal += refund;
 
-      await client.query(
+      const returnItemResult = await client.query(
         `
         INSERT INTO return_items (tenant_id, return_id, order_item_id, variant_id, quantity, refund_amount, restock)
-        VALUES ($1,$2,$3,$4,$5,$6,true)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        RETURNING id
         `,
-        [tenantId, returnRow.id, original.id, original.variant_id || null, quantity, refund]
+        [tenantId, returnRow.id, original.id, original.variant_id || null, quantity, refund, shouldRestock]
       );
       await client.query(`UPDATE order_items SET returned_quantity = COALESCE(returned_quantity, 0) + $1 WHERE id = $2`, [quantity, original.id]);
 
-      const stockLine = await resolveOrderLineStock(client, { tenantId, item: original });
-      await applyStockDelta(client, {
-        tenantId,
-        order: loaded.order,
-        stockLine,
-        delta: quantity,
-        movementType: "RETURN_IN",
-        reason: "POS invoice return",
-        userId: req.user?.id || null,
-      });
+      if (shouldRestock) {
+        const stockLine = await resolveOrderLineStock(client, { tenantId, item: original });
+        await applyStockDelta(client, {
+          tenantId,
+          order: loaded.order,
+          stockLine,
+          delta: quantity,
+          movementType: "RETURN_IN",
+          reason: "POS invoice return",
+          userId: req.user?.id || null,
+        });
+      } else if (disposition === "manufacturing_defect") {
+        await queueSupplierReturnItem(client, {
+          tenantId,
+          returnId: returnRow.id,
+          returnItemId: returnItemResult.rows[0]?.id,
+          orderId: loaded.order.id,
+          orderItem: original,
+          quantity,
+          reason,
+        });
+      }
     }
     logReturnFlowStep(routeName, {
       orderId: loaded.order.id,
@@ -6870,8 +6971,12 @@ export const returnOrder = async (req, res) => {
     }
     return res.status(201).json({
       success: true,
-      message: mode === "exchange" ? "تم إنشاء استبدال وإرجاع المنتج للمخزون" : "تم إنشاء مرتجع وإرجاع المنتج للمخزون",
-      return: { ...returnRow, mode, refund_method: refundMethod, original_order_id: loaded.order.id },
+      message: shouldRestock
+        ? "تم إنشاء المرتجع وإعادة المنتج للمخزون"
+        : disposition === "manufacturing_defect"
+          ? "تم إنشاء المرتجع وحجز القطعة ضمن مرتجعات المورد"
+          : "تم إنشاء المرتجع دون إعادة القطعة للمخزون",
+      return: { ...returnRow, mode, disposition, restock: shouldRestock, refund_method: refundMethod, original_order_id: loaded.order.id },
       order: updatedOrder.rows[0],
       refund_amount: refundTotal,
       wallet: walletResult,
@@ -6906,6 +7011,65 @@ export const getOrdersCount = async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Server Error" });
+  }
+};
+
+export const getSupplierReturnItems = async (req, res) => {
+  try {
+    const tableCheck = await db.query(
+      `
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = current_schema()
+        AND table_name = 'supplier_return_items'
+      LIMIT 1
+      `
+    );
+    if (!tableCheck.rows[0]) {
+      return res.status(200).json({ items: [], suppliers: [] });
+    }
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const status = String(req.query.status || "pending").trim().toLowerCase();
+    const result = await db.query(
+      `
+      SELECT
+        sri.*,
+        COALESCE(s.name, 'مورد غير محدد') AS supplier_name,
+        COALESCE(p.name, oi.product_name, 'منتج') AS product_name,
+        COALESCE(pv.color, '') AS color,
+        COALESCE(pv.size, '') AS size,
+        r.return_number,
+        o.invoice_number
+      FROM supplier_return_items sri
+      LEFT JOIN suppliers s ON s.id = sri.supplier_id
+      LEFT JOIN products p ON p.id = sri.product_id
+      LEFT JOIN product_variants pv ON pv.id = sri.variant_id
+      LEFT JOIN order_items oi ON oi.id = sri.order_item_id
+      LEFT JOIN returns r ON r.id = sri.customer_return_id
+      LEFT JOIN orders o ON o.id = sri.order_id
+      WHERE ($1::bigint IS NULL OR sri.tenant_id = $1::bigint)
+        AND ($2 = 'all' OR LOWER(sri.status) = $2)
+      ORDER BY supplier_name ASC, sri.created_at DESC, sri.id DESC
+      `,
+      [tenantId, status]
+    );
+    const supplierMap = new Map();
+    for (const item of result.rows) {
+      const key = String(item.supplier_id || "unassigned");
+      const current = supplierMap.get(key) || {
+        supplierId: item.supplier_id || null,
+        supplierName: item.supplier_name,
+        totalQuantity: 0,
+        items: [],
+      };
+      current.totalQuantity += Number(item.quantity || 0);
+      current.items.push(item);
+      supplierMap.set(key, current);
+    }
+    return res.status(200).json({ items: result.rows, suppliers: [...supplierMap.values()] });
+  } catch (error) {
+    console.error("[orders] supplier return queue error", error);
+    return res.status(500).json({ message: "Failed to load supplier return queue" });
   }
 };
 
@@ -6969,6 +7133,11 @@ export const createReturn = async (req, res) => {
     }
     const orderRow = orderResult.rows[0];
     const tenantId = assertReturnTenantId(resolveReturnTenantId(req, orderRow), orderId);
+    const disposition = normalizeReturnDisposition(
+      req.body.disposition || req.body.returnDisposition,
+      Boolean(restock)
+    );
+    const shouldRestock = disposition === "restock";
     logReturnFlowStep(routeName, { orderId, tenantId, step: "order_loaded" });
     const refundMethod = normalizeReturnRefundMethod(req.body.refund_method || req.body.refundMethod || "cash");
     if (!refundMethod) {
@@ -6999,13 +7168,14 @@ export const createReturn = async (req, res) => {
         status,
         reason,
         restock,
+        disposition,
         refund_amount,
         refund_method,
         created_by,
         shift_id,
         cashier_user_id
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
       `,
       [
@@ -7014,7 +7184,8 @@ export const createReturn = async (req, res) => {
         temporaryReturnNumber,
         status,
         reason,
-        Boolean(restock),
+        shouldRestock,
+        disposition,
         effectiveRefundAmount,
         refundMethod,
         req.user?.id || null,
@@ -7074,13 +7245,37 @@ export const createReturn = async (req, res) => {
       const orderItemId = item.order_item_id || item.orderItemId || item.id;
       const quantity = Number(item.quantity || 0);
       const refund = Number(item.refund_amount || item.refundAmount || 0);
-      const variantId = item.variant_id || item.variantId || null;
 
       if (!orderItemId || quantity <= 0) {
         continue;
       }
 
-      await client.query(
+      const originalItemResult = await client.query(
+        `
+        SELECT *
+        FROM order_items
+        WHERE id = $1
+          AND order_id = $2
+          AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)
+        FOR UPDATE
+        `,
+        [orderItemId, orderId, tenantId]
+      );
+      const originalItem = originalItemResult.rows[0];
+      if (!originalItem) {
+        const error = new Error("Return item does not belong to this order");
+        error.status = 400;
+        throw error;
+      }
+      const remainingQuantity = Number(originalItem.quantity || 0) - Number(originalItem.returned_quantity || 0);
+      if (quantity > remainingQuantity) {
+        const error = new Error("Return quantity exceeds the remaining sold quantity");
+        error.status = 400;
+        throw error;
+      }
+      const variantId = originalItem.variant_id || null;
+
+      const returnItemResult = await client.query(
         `
         INSERT INTO return_items (
           tenant_id,
@@ -7092,6 +7287,7 @@ export const createReturn = async (req, res) => {
           restock
         )
         VALUES ($1,$2,$3,$4,$5,$6,$7)
+        RETURNING id
         `,
         [
           tenantId,
@@ -7100,39 +7296,33 @@ export const createReturn = async (req, res) => {
           variantId,
           quantity,
           refund,
-          Boolean(restock),
+          shouldRestock,
         ]
       );
 
-      if (Boolean(restock) && variantId) {
-        const variantResult = await client.query(
-          `
-          SELECT id, product_id, stock, cost_price
-          FROM product_variants
-          WHERE id = $1
-            AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-          FOR UPDATE
-          `,
-          [variantId, tenantId]
-        );
+      await client.query(`UPDATE order_items SET returned_quantity = COALESCE(returned_quantity, 0) + $1 WHERE id = $2`, [quantity, originalItem.id]);
 
-        const variant = variantResult.rows[0];
-        if (variant) {
-          await adjustVariantStock(client, {
-            tenantId,
-            variantId,
-            quantityChange: quantity,
-            movementType: "RETURN_IN",
-            referenceType: "return",
-            referenceId: returnRow.id,
-            unitCost: variant.cost_price || null,
-            totalCost: Number(variant.cost_price || 0) * quantity,
-            reason: "Sales return restock",
-            notes: reason || `Return restocked from order ${orderId}`,
-            createdBy: req.user?.id || null,
-            branchId: orderRow?.branch_id || null,
-          });
-        }
+      if (shouldRestock) {
+        const stockLine = await resolveOrderLineStock(client, { tenantId, item: originalItem });
+        await applyStockDelta(client, {
+          tenantId,
+          order: orderRow,
+          stockLine,
+          delta: quantity,
+          movementType: "RETURN_IN",
+          reason: "Sales return restock",
+          userId: req.user?.id || null,
+        });
+      } else if (disposition === "manufacturing_defect") {
+        await queueSupplierReturnItem(client, {
+          tenantId,
+          returnId: returnRow.id,
+          returnItemId: returnItemResult.rows[0]?.id,
+          orderId,
+          orderItem: originalItem,
+          quantity,
+          reason,
+        });
       }
     }
     logReturnFlowStep(routeName, {
@@ -7150,7 +7340,7 @@ export const createReturn = async (req, res) => {
       referenceId: returnRow.id,
       description: `Return #${returnRow.return_number || returnNumberBase}`,
       amount: effectiveRefundAmount,
-      direction: restock ? "in" : "out",
+      direction: shouldRestock ? "in" : "out",
       createdBy: req.user?.id || null,
       branchId: orderRow?.branch_id || null,
       notes: reason || "",
