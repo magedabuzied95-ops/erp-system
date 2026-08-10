@@ -43,6 +43,12 @@ const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ER
 let ordersSchemaEnsurePromise = null;
 let ordersSchemaEnsured = false;
 let ordersRuntimeSchemaWarningLogged = false;
+// Commission/penalties/wallet/whatsapp-shipping schema ensures are idempotent but
+// unguarded (or guard-bypassed when passed a txn client), so they re-issued dozens of
+// CREATE/ALTER/CREATE INDEX statements on EVERY checkout. They run outside the order
+// transaction (autocommit), so ensuring them once per process on the sale path is safe:
+// the tables/columns persist. Reset naturally on process restart (i.e. every deploy).
+let posCheckoutAuxSchemaEnsured = false;
 const tableExistsCache = new Map();
 const tableColumnSetCache = new Map();
 
@@ -2751,10 +2757,16 @@ export const createOrder = async (req, res) => {
       await ensureAttendanceSchema();
       await ensurePosShiftOrderColumns(client, tenantId);
       await ensurePosUserShiftSchema(client);
-      await ensureSalesCommissionSchema(client);
       await ensureLoyaltySchema(db);
-      await ensureWalletSchema(client);
-      await ensureWhatsappShippingSchema(client);
+      // These four are idempotent but unguarded/guard-bypassed for a txn client; run the
+      // full ensure once per process instead of on every sale (they execute pre-BEGIN in
+      // autocommit, so the created schema persists regardless of the order transaction).
+      if (!posCheckoutAuxSchemaEnsured) {
+        await ensureSalesCommissionSchema(client);
+        await ensureWalletSchema(client);
+        await ensureWhatsappShippingSchema(client);
+        posCheckoutAuxSchemaEnsured = true;
+      }
     });
 
     await client.query("BEGIN");

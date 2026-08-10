@@ -1298,7 +1298,14 @@ const isSimpleNoVariantProduct = (product = {}) => {
   return mode === "simple" || type === "simple";
 };
 
+// Diagnostic price-read tracing: one console.log per variant. On the unbounded POS
+// catalog request this is thousands of synchronous log lines (and leaks cost_price into
+// logs) on every open. Gate behind an env flag; off by default.
+const PRODUCTS_PRICE_READ_DEBUG = ["1", "true", "yes", "on"].includes(
+  String(process.env.ERP_PRODUCTS_PRICE_READ_DEBUG || "").trim().toLowerCase()
+);
 const logProductsPriceRead = (products = []) => {
+  if (!PRODUCTS_PRICE_READ_DEBUG) return;
   for (const product of Array.isArray(products) ? products : []) {
     const variants = Array.isArray(product.variants) ? product.variants : [];
     const hasVariants = variants.length > 0 && !isSimpleNoVariantProduct(product);
