@@ -4247,14 +4247,11 @@ export default function AiInbox() {
     if (!silent) setSocialCommentsDebug((current) => ({ ...current, error: "" }));
     setError("");
     try {
-      const [inboxPayload, draftsPayload, analyticsPayload, channelPayload, globalAiPayload, employeesPayload] = await Promise.all([
-        api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, channel_filter: channelFilter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" }),
-        api.get("/ai-agent/orders/drafts", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.drafts" }),
-        api.get("/ai-agent/analytics", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.analytics" }),
-        api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
-        api.get("/ai-agent/settings/ai-assistant-global", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.globalAi" }).catch(() => ({ ai_assistant_global_enabled: true })),
-        api.get("/employees", { params: { active: true, limit: 200 }, headers, perfComponent: "AiInbox.employees" }).catch(() => ({ employees: [] })),
-      ]);
+      // Only the conversation list blocks first render. Drafts, analytics,
+      // channel status, the global-AI flag and the employees directory are NOT
+      // required to show conversations, so they load in a deferred, non-blocking
+      // wave after the list is usable (see below).
+      const inboxPayload = await api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, channel_filter: channelFilter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" });
       if (seq !== requestSeqRef.current) return;
       const conversations = asArray(inboxPayload.conversations).map((conversation) => ({
         ...conversation,
@@ -4292,14 +4289,26 @@ export default function AiInbox() {
         if (selectedSnapshot) selectedConversationCacheRef.current = selectedSnapshot;
         return { conversations: nextConversations, followups: asArray(inboxPayload.followups) };
       });
-      setDrafts(asArray(draftsPayload.drafts));
-      setAnalytics(analyticsPayload.analytics || {});
-      setChannelStatus(channelPayload.channels || {});
-      setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
-      setEmployees(asArray(employeesPayload?.employees || employeesPayload?.data || employeesPayload || []));
       if (activeSection === "conversations" && !activeConversationSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
       }
+      // Conversation list is usable now — unblock render BEFORE fetching the
+      // non-essential secondary data so it never gates the list.
+      if (!silent) setLoading(false);
+      Promise.all([
+        api.get("/ai-agent/orders/drafts", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.drafts" }).catch(() => ({ drafts: [] })),
+        api.get("/ai-agent/analytics", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.analytics" }).catch(() => ({ analytics: {} })),
+        api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
+        api.get("/ai-agent/settings/ai-assistant-global", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.globalAi" }).catch(() => ({ ai_assistant_global_enabled: true })),
+        api.get("/employees", { params: { active: true, limit: 200 }, headers, perfComponent: "AiInbox.employees" }).catch(() => ({ employees: [] })),
+      ]).then(([draftsPayload, analyticsPayload, channelPayload, globalAiPayload, employeesPayload]) => {
+        if (seq !== requestSeqRef.current) return;
+        setDrafts(asArray(draftsPayload.drafts));
+        setAnalytics(analyticsPayload.analytics || {});
+        setChannelStatus(channelPayload.channels || {});
+        setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
+        setEmployees(asArray(employeesPayload?.employees || employeesPayload?.data || employeesPayload || []));
+      }).catch(() => {});
 
       const socialCommentsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
       const socialSettingsRequestUrl = `/api/social-comments/auto-reply/settings?tenant_id=${encodeURIComponent(tenantId)}`;
