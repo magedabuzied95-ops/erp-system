@@ -51,6 +51,12 @@
   scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
 }
 
+html[data-theme="dark"] .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"],
+html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
+  background: #20231f !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
 @media (max-width: 1535px) {
   .ai-inbox-desktop .ai-omni-workspace,
   .ai-inbox-desktop .ai-omni-workspace.ai-omni-workspace--tools {

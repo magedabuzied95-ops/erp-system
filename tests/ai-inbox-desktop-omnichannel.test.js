@@ -30,6 +30,7 @@ test("desktop message composer matches the omnichannel footer in light and dark 
   assert.match(desktopSource, /<FileText className="h-5 w-5"/);
   assert.match(desktopSource, /bg-\[#eefaf8\][^\n]*dark:bg-\[#20231f\]/);
   assert.match(desktopSource, /dark:bg-\[#1b1e1b\]/);
+  assert.match(desktopCss, /html\[data-theme="dark"\][\s\S]*?bg-\[#eefaf8\][\s\S]*?background:\s*#20231f\s*!important/);
 });
 
 test("desktop chat exposes commerce actions above the transcript", () => {
