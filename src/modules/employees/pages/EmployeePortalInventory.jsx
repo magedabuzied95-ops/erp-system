@@ -29,6 +29,13 @@ import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmpl
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
 import { getEmployeePortalFacets } from "../services/employeePortalProductsApi";
+import {
+  saveInventoryDraft,
+  loadInventoryDraft,
+  clearInventoryDraft,
+  reconcileInventoryRows,
+  sweepExpiredDrafts,
+} from "../services/employeeDrafts/employeeDraftStore.js";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 import {
@@ -518,6 +525,11 @@ export default function EmployeePortalInventory() {
   const [selectedSessionId, setSelectedSessionId] = useState(routeSessionId || "");
   const [session, setSession] = useState(null);
   const [items, setItems] = useState([]);
+  // Token-free identity {tenant_id, employee_id, branch_id} for the local draft
+  // namespace (server-supplied; never the portal token). editedAtRef stamps the
+  // local edit time per variant so a locally-counted row wins reconciliation.
+  const [draftIdentity, setDraftIdentity] = useState(null);
+  const editedAtRef = useRef(new Map());
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionSaving, setSessionSaving] = useState(false);
   const [sessionOpening, setSessionOpening] = useState(false);
@@ -602,6 +614,7 @@ export default function EmployeePortalInventory() {
       setSessionsLoading(true);
       setSessionsError("");
       const response = await listEmployeePortalInventorySessions(token, { limit: 100, page: 1 });
+      if (response?.identity) setDraftIdentity(response.identity);
       const rows = Array.isArray(response?.sessions) ? response.sessions : [];
       setSessions(rows);
     } catch (error) {
@@ -613,22 +626,64 @@ export default function EmployeePortalInventory() {
 
   const loadSession = useCallback(async (sessionId) => {
     if (!sessionId) return;
+    setSessionLoading(true);
+    let response = null;
+    let serverOk = false;
     try {
-      setSessionLoading(true);
-      const response = await getEmployeePortalInventorySession(token, sessionId);
-      const nextSession = response?.session || null;
-      const nextItems = Array.isArray(response?.items) ? response.items : [];
-      setSession(nextSession);
-      setItems(nextItems);
-      setTitleDraft(nextSession?.title || "");
-      setNotesDraft(nextSession?.notes || "");
-      setSelectedSessionId(String(nextSession?.id || sessionId));
+      response = await getEmployeePortalInventorySession(token, sessionId);
+      serverOk = true;
+    } catch (error) {
+      // Offline / server error — fall back to the local working draft below so
+      // the employee never loses their in-progress count.
+      response = null;
+    }
+    try {
+      const identity = response?.identity || null;
+      if (identity) setDraftIdentity(identity);
+      const draftId = { ...(identity || draftIdentity || {}), sessionId };
+      // Working draft is a fast starting point only; the server stays
+      // authoritative. Read is fail-safe (null on any cache error).
+      const draft = await loadInventoryDraft(draftId);
+      const draftRows = Array.isArray(draft?.rows) ? draft.rows : [];
+
+      if (serverOk) {
+        const nextSession = response?.session || null;
+        const serverItems = Array.isArray(response?.items) ? response.items : [];
+        setSession(nextSession);
+        if (draftRows.length) {
+          // Overlay locally-counted quantities onto the authoritative server
+          // rows (server owns system_quantity + which variants exist). Only
+          // rows the employee actually edited on this device win.
+          const localRows = draftRows.filter((row) => Number(row.local_updated_at) > 0);
+          const merged = reconcileInventoryRows({ localRows, serverRows: serverItems })
+            .map((row) => {
+              const system = toNumber(row.system_quantity, 0);
+              const counted = toNumber(row.counted_quantity, 0);
+              const difference_quantity = counted - system;
+              return { ...row, difference_quantity, difference_qty: difference_quantity };
+            });
+          setItems(merged);
+        } else {
+          setItems(serverItems);
+        }
+        setTitleDraft(nextSession?.title || "");
+        setNotesDraft(nextSession?.notes || "");
+        setSelectedSessionId(String(nextSession?.id || sessionId));
+      } else if (draftRows.length) {
+        // Offline: render the local draft immediately; server state reconciles
+        // on the next successful load.
+        setItems(draftRows);
+        setSelectedSessionId(String(sessionId));
+        toast("وضع دون اتصال — تم استرجاع مسودة الجرد المحفوظة محليًا", { icon: "📴" });
+      } else {
+        toast.error("تعذر تحميل الجرد");
+      }
     } catch (error) {
       toast.error(error?.responseBody?.message || error?.message || "تعذر تحميل الجرد");
     } finally {
       setSessionLoading(false);
     }
-  }, [token]);
+  }, [token, draftIdentity]);
 
   useEffect(() => {
     loadSessions();
@@ -649,6 +704,48 @@ export default function EmployeePortalInventory() {
       loadSession(preferred.id);
     }
   }, [loadSession, routeSessionId, selectedSessionId, sessionLoading, sessions]);
+
+  // ---- Local working-draft persistence (IndexedDB, token-free namespace) ----
+  // Opportunistic expiry sweep on mount.
+  useEffect(() => { sweepExpiredDrafts(); }, []);
+
+  // Persist the working count draft after edits. Debounced + async inside the
+  // store — never blocks the quantity input. Server stays authoritative.
+  useEffect(() => {
+    if (!session?.id || !isEditable) return;
+    const identity = { ...(draftIdentity || {}), sessionId: session.id };
+    const rows = items.map((row) => {
+      const vid = String(row.product_variant_id ?? row.variant_id ?? row.id ?? "");
+      return {
+        product_id: row.product_id ?? null,
+        product_variant_id: row.product_variant_id ?? row.variant_id ?? row.id ?? null,
+        variant_id: row.variant_id ?? row.product_variant_id ?? row.id ?? null,
+        color: row.color ?? "",
+        size: row.size ?? "",
+        sku: row.sku ?? "",
+        barcode: row.barcode ?? "",
+        product_name: row.product_name ?? "",
+        image_url: row.image_url ?? row.image ?? "",
+        system_quantity: row.system_quantity ?? 0,
+        counted_quantity: row.counted_quantity ?? 0,
+        difference_quantity: row.difference_quantity ?? 0,
+        // Preserve a prior-session edit marker (survives reload via the draft)
+        // or stamp this session's edit; untouched rows stay 0 so the server wins.
+        local_updated_at: editedAtRef.current.get(vid) || Number(row.local_updated_at) || 0,
+      };
+    });
+    saveInventoryDraft(identity, { rows, savedAt: Date.now() });
+  }, [items, session?.id, isEditable, draftIdentity]);
+
+  // Once the session leaves an editable state (submitted for review / completed
+  // / cancelled), authoritative success owns cleanup — drop the local draft.
+  useEffect(() => {
+    if (!session?.id || !draftIdentity) return;
+    if (!["draft", "in_progress"].includes(String(session.status || ""))) {
+      clearInventoryDraft({ ...draftIdentity, sessionId: session.id });
+      editedAtRef.current.clear();
+    }
+  }, [session?.status, session?.id, draftIdentity]);
 
   useEffect(() => {
     const sessionState = String(session?.status || "");
@@ -1174,6 +1271,7 @@ export default function EmployeePortalInventory() {
 
   const handleVariantCountChange = useCallback((variantId, value) => {
     if (!isEditable) return;
+    editedAtRef.current.set(String(variantId), Date.now());
     const parsed = Number(value || 0);
     setItems((current) =>
       (() => {

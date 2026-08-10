@@ -8,6 +8,7 @@ import BarcodeScanner, { barcodeScannerMessages } from "../../../components/Barc
 import { productMatchesAudience } from "../../../shared/lib/productAudiences";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import { getEmployeePortalProducts, getEmployeePortalCompactProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
+import { saveWarehouseDraft, loadWarehouseDraft, clearWarehouseDraft, sweepExpiredDrafts } from "../services/employeeDrafts/employeeDraftStore.js";
 import ProductGrid from "../../pos/components/ProductGrid";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
@@ -948,6 +949,13 @@ export default function EmployeePortalProducts() {
   const [manualBarcodeValue, setManualBarcodeValue] = useState("");
   const lookupDoneRef = useRef(false);
   const firstProductLoadRef = useRef(true);
+  const draftRestoredRef = useRef(false);
+  // Token-free draft namespace identity (server-supplied employee identity).
+  const warehouseIdentity = useMemo(() => ({
+    tenantId: employee?.tenant_id ?? null,
+    employeeId: employee?.id ?? null,
+    branchId: employee?.branch_id ?? null,
+  }), [employee]);
   const filtersPanelRef = useRef(null);
   const searchInputRef = useRef(null);
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
@@ -1441,6 +1449,7 @@ export default function EmployeePortalProducts() {
   };
 
   const handleSubmit = async () => {
+    if (loadingSubmit) return; // rapid double-click must not submit twice
     if (!selectedProduct || !activeVariant || Number(activeVariant.stock || 0) <= 0) return;
     setLoadingSubmit(true);
     try {
@@ -1452,14 +1461,63 @@ export default function EmployeePortalProducts() {
         quantity: 1,
       });
       toast.success("تم إرسال الطلب للمخزن");
+      // Authoritative success only: drop the local working draft.
+      clearWarehouseDraft(warehouseIdentity);
+      draftRestoredRef.current = true;
       setSheetOpen(false);
       setSelectedQuantity(1);
+      setSelectedProduct(null);
     } catch (err) {
+      // Keep the draft on failure — a network error must never erase the work.
       toast.error(err?.message || "تعذر إرسال الطلب للمخزن");
     } finally {
       setLoadingSubmit(false);
     }
   };
+
+  // ---- Warehouse Request working-draft persistence (token-free namespace) ----
+  useEffect(() => { sweepExpiredDrafts(); }, []);
+
+  // Persist the in-progress selection (product + color + size + quantity) so a
+  // reload/close reopens where the employee stopped. Debounced + async in the
+  // store; never authoritative — the server revalidates at submit.
+  useEffect(() => {
+    if (!warehouseIdentity.employeeId || !warehouseIdentity.branchId) return;
+    if (!selectedProduct || !sheetOpen) return;
+    saveWarehouseDraft(warehouseIdentity, {
+      productId: selectedProduct.id ?? selectedProduct.product_id ?? null,
+      color: selectedColor || "",
+      size: selectedSize || "",
+      quantity: selectedQuantity || 1,
+      name: selectedProduct.name || selectedProduct.product_name || "",
+      image_url: selectedProduct.image_url || selectedProduct.product_image_url || "",
+      savedAt: Date.now(),
+    });
+  }, [warehouseIdentity, selectedProduct, selectedColor, selectedSize, selectedQuantity, sheetOpen]);
+
+  // Restore the saved selection once identity + a product list are available.
+  // Deep-link scans take precedence. Never blocks initial render.
+  useEffect(() => {
+    if (draftRestoredRef.current) return;
+    if (!warehouseIdentity.employeeId || !warehouseIdentity.branchId) return;
+    if (openedFromDeepLink) { draftRestoredRef.current = true; return; }
+    if (!normalizedProducts.length) return;
+    let active = true;
+    loadWarehouseDraft(warehouseIdentity).then((draft) => {
+      if (!active || draftRestoredRef.current) return;
+      draftRestoredRef.current = true;
+      if (!draft || !draft.productId) return;
+      const product = normalizedProducts.find((p) => String(p.id ?? p.product_id) === String(draft.productId));
+      if (!product) {
+        // Referenced product not in the current view — surface, keep the draft.
+        toast("لم يتم فتح المسودة تلقائيًا — العنصر غير ظاهر حاليًا", { icon: "⚠️" });
+        return;
+      }
+      openProduct({ ...product, employee_card_color: draft.color, employee_card_size: draft.size });
+      if (draft.quantity) setSelectedQuantity(draft.quantity);
+    });
+    return () => { active = false; };
+  }, [warehouseIdentity, normalizedProducts, openedFromDeepLink]);
 
   const handleScannerDebugChange = useCallback((payload = {}) => {
     setScannerDebug((current) => ({
