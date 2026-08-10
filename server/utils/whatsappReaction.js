@@ -1,5 +1,10 @@
 const clean = (value = "") => String(value ?? "").trim();
 
+export const normalizeWhatsappReactionEmoji = (value = "") => {
+  const emoji = clean(value);
+  return emoji === "❤" ? "❤️" : emoji;
+};
+
 const primaryData = (payload = {}) => {
   const data = payload?.data ?? payload?.body?.data ?? payload;
   return Array.isArray(data) ? (data[0] || {}) : (data || {});
@@ -29,7 +34,7 @@ export const extractWhatsappReactionEvent = (payload = {}) => {
   const rawTargetFromMe = targetKey.fromMe ?? reaction.targetFromMe;
   return {
     isReaction: true,
-    emoji: clean(reaction.text ?? reaction.emoji ?? reaction.reaction),
+    emoji: normalizeWhatsappReactionEmoji(reaction.text ?? reaction.emoji ?? reaction.reaction),
     targetMessageId: clean(targetKey.id || reaction.messageId || reaction.message_id || reaction.targetMessageId),
     targetFromMe: typeof rawTargetFromMe === "boolean" ? rawTargetFromMe : null,
   };

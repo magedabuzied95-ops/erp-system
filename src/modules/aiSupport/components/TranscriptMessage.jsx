@@ -6,6 +6,7 @@ import ProductCardMessage from "./ProductCardMessage";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+const reactionEmoji = (value = "") => clean(value) === "❤" ? "❤️" : clean(value);
 const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
 const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
 const MESSAGE_PIN_CHANGE_EVENT = "m1:ai-inbox-message-pin-change";
@@ -237,7 +238,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
   const shellRef = useRef(null);
   const text = messageBodyText(message);
-  const reactions = asArray(row?.reactions).filter((reaction) => clean(reaction?.message_text || reaction?.text || reaction?.customer_message || reaction?.staff_message));
+  const reactions = asArray(row?.reactions).filter((reaction) => reactionEmoji(reaction?.message_text || reaction?.text || reaction?.customer_message || reaction?.staff_message));
   const sender = row.kind === "customer" ? "العميل" : row.kind === "ai" ? "AI" : row.kind === "staff" ? staffSenderLabel(message) : "الرسالة";
 
   useEffect(() => {
@@ -344,7 +345,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         <div data-ai-message-reactions="true" className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <div className={`inline-flex min-h-7 items-center gap-1 rounded-full border px-2 py-0.5 shadow-sm ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-[#252824] text-white"}`}>
             {reactions.map((reaction) => {
-              const emoji = clean(reaction.message_text || reaction.text || reaction.customer_message || reaction.staff_message);
+              const emoji = reactionEmoji(reaction.message_text || reaction.text || reaction.customer_message || reaction.staff_message);
               const reactor = reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff" ? "أنت" : "العميل";
               return <span key={messageIdentity({ kind: "reaction" }, reaction)} title={`${reactor}: ${emoji}`} className="text-base leading-none">{emoji}</span>;
             })}

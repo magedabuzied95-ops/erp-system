@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { extractWhatsappReactionEvent } from "../server/utils/whatsappReaction.js";
+import { extractWhatsappReactionEvent, normalizeWhatsappReactionEmoji } from "../server/utils/whatsappReaction.js";
 
 const gateway = fs.readFileSync("server/services/whatsappGatewayService.js", "utf8");
 const logService = fs.readFileSync("server/services/aiSupportLogService.js", "utf8");
@@ -38,6 +38,10 @@ test("an empty reaction is recognized as removal instead of a blank message", ()
   assert.equal(event.isReaction, true);
   assert.equal(event.emoji, "");
   assert.equal(event.targetMessageId, "target-message");
+});
+
+test("a plain heart uses WhatsApp emoji presentation instead of a white text glyph", () => {
+  assert.equal(normalizeWhatsappReactionEmoji("❤"), "❤️");
 });
 
 test("reaction webhooks use a dedicated persistence route and never reach normal message handling", () => {
