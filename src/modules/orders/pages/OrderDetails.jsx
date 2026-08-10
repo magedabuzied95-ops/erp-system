@@ -148,6 +148,11 @@ const writePackingChecklist = (orderId, value) => {
 const normalizeComparable = (value) => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
 const normalizeShippingProviderKey = (value) => normalizeComparable(value).replace(/\s+/g, "_");
 const isBostaShippingProvider = (value) => normalizeShippingProviderKey(value) === "bosta";
+const supportedShippingProviders = ["bosta", "mylerz", "shipblu", "in_store_delivery"];
+const resolveShippingProviderKey = (value) => {
+  const normalized = normalizeShippingProviderKey(value);
+  return supportedShippingProviders.includes(normalized) ? normalized : "bosta";
+};
 
 const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
 const asList = (value) => Array.isArray(value) ? value : [];
@@ -439,7 +444,7 @@ function OrderDetails() {
       setNotes(merged.notes || "");
       setPackingChecklist(readPackingChecklist(merged.id || id));
       setShipping({
-        provider: normalizeShippingProviderKey(merged.shipping_provider || merged.shipping_provider_id || ""),
+        provider: resolveShippingProviderKey(merged.shipping_provider || merged.shipping_provider_id),
         shipping_status: merged.shipping_status || "pending",
         shipment_status: merged.shipment_status || merged.shipping_status || "pending",
         shipment_id: merged.shipment_id || "",
@@ -1062,7 +1067,7 @@ function OrderDetails() {
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 <button type="button" onClick={() => {
-                  setShipping((prev) => ({ ...prev, provider: prev.provider || "in_store_delivery" }));
+                  setShipping((prev) => ({ ...prev, provider: resolveShippingProviderKey(prev.provider) }));
                   setShippingSetupOpen(true);
                 }} className="inline-flex h-10 items-center gap-2 rounded-xl bg-sky-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-sky-300">
                   <Truck className="h-4 w-4" />
@@ -1629,7 +1634,7 @@ function OrderDetails() {
                       onChange={(e) => setShipping((prev) => ({ ...prev, provider: e.target.value }))}
                       className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                     >
-                      {["bosta", "mylerz", "shipblu", "in_store_delivery"].map((provider) => (
+                      {supportedShippingProviders.map((provider) => (
                         <option key={provider} value={provider} className="bg-zinc-950 text-white">
                           {provider}
                         </option>

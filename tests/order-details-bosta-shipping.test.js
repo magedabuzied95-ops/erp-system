@@ -8,6 +8,9 @@ const controllerSource = readFileSync(new URL("../server/controllers/ordersContr
 test("order details uses the Bosta city, zone, and district directory", () => {
   assert.match(detailsSource, /normalizeShippingProviderKey/);
   assert.match(detailsSource, /isBostaShippingProvider/);
+  assert.match(detailsSource, /resolveShippingProviderKey/);
+  assert.match(detailsSource, /return supportedShippingProviders\.includes\(normalized\) \? normalized : "bosta"/);
+  assert.doesNotMatch(detailsSource, /provider: prev\.provider \|\| "in_store_delivery"/);
   assert.match(detailsSource, /\/shipping\/cities\?provider=bosta&dropoff=1/);
   assert.match(detailsSource, /\/shipping\/zones\?provider=bosta&dropoff=1&cityId=/);
   assert.match(detailsSource, /\/shipping\/districts\?provider=bosta&dropoff=1&zoneId=/);
