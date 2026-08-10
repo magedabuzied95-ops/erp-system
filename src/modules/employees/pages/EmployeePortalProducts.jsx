@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import { productMatchesAudience } from "../../../shared/lib/productAudiences";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
-import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
+import { getEmployeePortalProducts, getEmployeePortalCompactProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
 import ProductGrid from "../../pos/components/ProductGrid";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
@@ -149,6 +149,51 @@ const normalizeEmployeePosCatalog = (payload) =>
   normalizePosSellableProducts(Array.isArray(payload) ? payload : [])
     .map((product) => normalizePosCatalogProduct(product))
     .map(normalizeProduct);
+
+// Map a COMPACT product (already lean, with lean variants) directly to the
+// component's product shape — bypassing the heavy POS normalizer pipeline. The
+// lean variants are run through the same local normalizeVariant so all
+// downstream logic (card-by-color/size expansion, selection, barcode match)
+// works unchanged.
+const mapCompactProduct = (product = {}) => {
+  const variants = (Array.isArray(product.variants) ? product.variants : []).map(normalizeVariant);
+  const colors = uniqueValues(variants.map((variant) => variant.color));
+  const sizes = sortSizes(uniqueValues(variants.map((variant) => variant.size)));
+  const totalStock = variants.reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
+  const gender = text(product.gender);
+  const productType = text(product.product_type || product.type || "");
+  const imageUrl = text(product.product_image_url) || text(product.image_url) || text(variants.find((variant) => variant.image_url)?.image_url || "");
+  return {
+    id: product.id ?? product.product_id ?? null,
+    product_id: product.product_id ?? product.id ?? null,
+    name: text(product.name || ""),
+    product_name: text(product.name || ""),
+    article_code: text(product.article_code || ""),
+    manufacturer_name: text(product.manufacturer_name || ""),
+    category: text(product.category || ""),
+    type: productType,
+    product_type: productType,
+    productType,
+    grade: text(product.grade || ""),
+    brand: text(product.brand || ""),
+    gender,
+    audiences: gender ? [gender] : [],
+    product_audiences: gender ? [gender] : [],
+    style: text(product.style || ""),
+    sku: text(product.sku || ""),
+    barcode: text(product.barcode || ""),
+    qr_token: text(product.qr_token || ""),
+    image_url: imageUrl,
+    product_image_url: imageUrl,
+    total_stock: totalStock,
+    stock: totalStock,
+    colors,
+    sizes,
+    variants,
+  };
+};
+
+const mapCompactCatalog = (payload) => (Array.isArray(payload) ? payload : []).map(mapCompactProduct);
 
 const scanFieldMatches = (value = "", candidate = "") => {
   const left = text(value);
@@ -922,27 +967,36 @@ export default function EmployeePortalProducts() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadProducts = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const response = await getEmployeePortalProducts(token, buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize }));
-        if (cancelled) return;
-        setProducts(normalizeEmployeePosCatalog(response?.products));
-        setEmployee(response?.employee || null);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "تعذر تحميل المنتجات");
-        setProducts([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void loadProducts();
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    // Real debounce: only the latest settled query fires; stale in-flight
+    // requests are aborted so a fast "n->ni->nik->nike" produces ONE render.
+    const timer = window.setTimeout(() => {
+      (async () => {
+        try {
+          setLoading(true);
+          setError("");
+          const response = await getEmployeePortalCompactProducts(
+            token,
+            buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize }),
+            { signal: controller?.signal }
+          );
+          if (cancelled) return;
+          setProducts(mapCompactCatalog(response?.products));
+          setEmployee(response?.employee || null);
+        } catch (err) {
+          if (cancelled || err?.name === "AbortError" || err?.name === "CanceledError") return;
+          setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "تعذر تحميل المنتجات");
+          setProducts([]);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+    }, 300);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
+      controller?.abort();
     };
   }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.manufacturer, filters.gender, filters.inStockOnly, selectedFilterSize]);
 

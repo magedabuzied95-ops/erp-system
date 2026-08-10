@@ -28,7 +28,7 @@ import { productMatchesAudience } from "../../../shared/lib/productAudiences";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
-import { getEmployeePortalProducts } from "../services/employeePortalProductsApi";
+import { getEmployeePortalFacets } from "../services/employeePortalProductsApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 import {
@@ -525,6 +525,7 @@ export default function EmployeePortalInventory() {
   const [sessionReopening, setSessionReopening] = useState(false);
   const [itemSavingId, setItemSavingId] = useState("");
   const [catalogProducts, setCatalogProducts] = useState([]);
+  const [facets, setFacets] = useState({ categories: [], types: [], brands: [], manufacturers: [], genders: [], grades: [], sizes: [] });
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupResults, setLookupResults] = useState([]);
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -569,13 +570,15 @@ export default function EmployeePortalInventory() {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       try {
-        const response = await getEmployeePortalProducts(token, buildCatalogParams());
+        // Tiny facets endpoint (brands/types/genders/grades/categories/
+        // manufacturers/sizes) instead of the heavy limit=120 product catalog
+        // that was downloaded only to populate the filter dropdowns.
+        const response = await getEmployeePortalFacets(token);
         if (cancelled) return;
-        setCatalogProducts(normalizeInventoryCatalog(response?.products));
+        setFacets(response?.facets || { categories: [], types: [], brands: [], manufacturers: [], genders: [], grades: [], sizes: [] });
       } catch (error) {
         if (cancelled) return;
-        console.warn("[employee-portal-inventory] catalog load failed", error);
-        setCatalogProducts([]);
+        console.warn("[employee-portal-inventory] facets load failed", error);
       }
     }, 180);
 
@@ -725,13 +728,18 @@ export default function EmployeePortalInventory() {
     return records;
   }, [items, lookupResults]);
   const filterOptions = useMemo(() => {
-    const categories = uniqueTextValues(inventoryCatalogSource.map((record) => record.category));
-    const types = uniqueTextValues(inventoryCatalogSource.map((record) => record.type));
-    const brands = uniqueTextValues(inventoryCatalogSource.map((record) => record.brand));
-    const manufacturers = uniqueTextValues(inventoryCatalogSource.map((record) => record.manufacturer_name));
-    const genders = uniqueTextValues(inventoryCatalogSource.map((record) => record.gender));
-    return { categories, types, brands, manufacturers, genders };
-  }, [inventoryCatalogSource]);
+    // Filter dropdowns come from the tiny facets endpoint. Fall back to values
+    // derived from the current session items/lookup results so nothing is lost
+    // if facets are unavailable.
+    const facetOr = (list, derived) => (Array.isArray(list) && list.length ? uniqueTextValues(list) : uniqueTextValues(derived));
+    return {
+      categories: facetOr(facets.categories, inventoryFilterSource.map((record) => record.category)),
+      types: facetOr(facets.types, inventoryFilterSource.map((record) => record.type)),
+      brands: facetOr(facets.brands, inventoryFilterSource.map((record) => record.brand)),
+      manufacturers: facetOr(facets.manufacturers, inventoryFilterSource.map((record) => record.manufacturer_name)),
+      genders: facetOr(facets.genders, inventoryFilterSource.map((record) => record.gender)),
+    };
+  }, [facets, inventoryFilterSource]);
   const optionWithCounts = useCallback((values, records, valueForRecord) => values.map((value) => ({
     id: value,
     name: value,
