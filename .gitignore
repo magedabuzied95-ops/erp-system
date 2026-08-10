@@ -49,6 +49,14 @@ backups/
 output/
 tmp/
 services/
+# `services/` above is unanchored, so it swallows EVERY directory named
+# "services" — including frontend source. That silently excluded a new
+# src/modules/aiSupport/services/*.js module from a commit and broke the
+# production build with UNRESOLVED_IMPORT (existing files there were unaffected
+# only because tracked files ignore .gitignore). Frontend source is never build
+# output: keep it committable.
+!src/**/services/
+!src/**/services/**
 .codex-deploy*.zip
 .codex-monitoring*.log
 !server/services/
