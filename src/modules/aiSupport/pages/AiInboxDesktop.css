@@ -49,18 +49,6 @@
   --picker-accent: #d4af37;
   --picker-accent-soft: rgba(212, 175, 55, 0.14);
   --picker-accent-border: rgba(212, 175, 55, 0.32);
-  --picker-backdrop: rgba(8, 9, 7, 0.76);
-  --picker-bg: #f5f3ed;
-  --picker-surface: #fffdf8;
-  --picker-surface-soft: #efede6;
-  --picker-border: rgba(84, 79, 62, 0.2);
-  --picker-text: #24251f;
-  --picker-muted: #777466;
-  padding: clamp(1rem, 2.5vw, 2.5rem) !important;
-  background: var(--picker-backdrop) !important;
-}
-
-.ai-inbox-product-picker-desktop.ai-pwa-product-picker--dark {
   --picker-backdrop: rgba(8, 9, 7, 0.82);
   --picker-bg: #1b1d19;
   --picker-surface: #242620;
@@ -68,6 +56,19 @@
   --picker-border: rgba(255, 255, 255, 0.11);
   --picker-text: #f4f1e8;
   --picker-muted: #aaa797;
+  padding: clamp(1rem, 2.5vw, 2.5rem) !important;
+  background: var(--picker-backdrop) !important;
+}
+
+html[data-theme="light"] .ai-inbox-product-picker-desktop,
+html.light .ai-inbox-product-picker-desktop {
+  --picker-backdrop: rgba(8, 9, 7, 0.68);
+  --picker-bg: #f5f3ed;
+  --picker-surface: #fffdf8;
+  --picker-surface-soft: #efede6;
+  --picker-border: rgba(84, 79, 62, 0.2);
+  --picker-text: #24251f;
+  --picker-muted: #777466;
 }
 
 .ai-inbox-product-picker-desktop__dialog {
