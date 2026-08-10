@@ -619,7 +619,7 @@ export const loadEmployeePortalProductVariants = async ({ employee = null, produ
   if (!header) return { product: null, variants: [] };
   const stockClause = inStockOnly ? "AND COALESCE(v.stock, 0) > 0" : "";
   const variantsResult = await db.query(
-    `SELECT v.id AS variant_id, v.id, v.product_id, v.color, v.color_id, v.size, v.sku, v.barcode,
+    `SELECT v.id AS variant_id, v.id, v.product_id, v.color, v.size, v.sku, v.barcode,
             v.article_code, v.color_article_code, COALESCE(v.stock, 0)::int AS stock,
             COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.color_image_url, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), $3::text) AS image_url
      FROM product_variants v
@@ -632,7 +632,7 @@ export const loadEmployeePortalProductVariants = async ({ employee = null, produ
     variant_id: Number(row.variant_id),
     product_id: Number(row.product_id),
     color: clean(row.color),
-    color_id: row.color_id ?? null,
+    color_id: null,
     size: clean(row.size),
     sku: clean(row.sku),
     barcode: clean(row.barcode),
