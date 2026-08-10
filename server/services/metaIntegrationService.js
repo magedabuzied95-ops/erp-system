@@ -3356,7 +3356,7 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
       tenant_id: config.tenant_id,
       config_id: config.id || null,
       scoped_user_id: maskIdForLog(psid),
-      conversation_id: message.external_conversation_id,
+      has_conversation_ref: Boolean(message.external_conversation_id),
     });
     try {
       const tokenResolution = await resolveMetaSendConfig({
@@ -3395,7 +3395,7 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
         config_id: resolvedConfig?.id || config.id || null,
         token_source: tokenSource || "",
         scoped_user_id: maskIdForLog(psid),
-        conversation_id: message.external_conversation_id,
+        has_conversation_ref: Boolean(message.external_conversation_id),
         has_name: Boolean(persisted?.name || displayName),
         has_profile_pic: Boolean(persisted?.profile_pic || profile.profile_pic),
         profile_id: persisted?.id || null,
@@ -3419,7 +3419,7 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
         tenant_id: config.tenant_id,
         config_id: config.id || null,
         scoped_user_id: maskIdForLog(psid),
-        conversation_id: message.external_conversation_id,
+        has_conversation_ref: Boolean(message.external_conversation_id),
         graph_fields: "name,username,profile_pic",
         message: error?.message || "Instagram profile lookup failed",
         code: error?.code || "",
