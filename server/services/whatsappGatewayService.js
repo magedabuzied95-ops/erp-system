@@ -40,6 +40,7 @@ const EVOLUTION_BUTTONS_DELIVERY_TIMEOUT_MS = 30000;
 const EVOLUTION_PROFILE_PICTURE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const EVOLUTION_PROFILE_PICTURE_EMPTY_TTL_MS = 30 * 60 * 1000;
 const EVOLUTION_INBOX_RECOVERY_TTL_MS = 60 * 1000;
+const EVOLUTION_INBOX_RECOVERY_FETCH_TIMEOUT_MS = 4000;
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
@@ -301,14 +302,26 @@ const requireEvolutionConfig = () => {
 const evolutionFetch = async (path, options = {}) => {
   const current = requireEvolutionConfig();
   const url = `${current.apiUrl}${path.startsWith("/") ? path : `/${path}`}`;
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      apikey: apiKey(),
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  const { timeoutMs, ...fetchOptions } = options;
+  // Optional bounded timeout so a slow/hung Evolution gateway cannot block the
+  // caller indefinitely. Default (no timeoutMs) preserves prior behaviour for
+  // every existing caller.
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  let response;
+  try {
+    response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller ? controller.signal : fetchOptions.signal,
+      headers: {
+        apikey: apiKey(),
+        "Content-Type": "application/json",
+        ...(fetchOptions.headers || {}),
+      },
+    });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   const raw = await response.text();
   let data = null;
   try {
@@ -427,7 +440,7 @@ export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, con
   return { scanned: rows.length, synced };
 };
 
-export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = {}) => {
+const runEvolutionChatsToAiInboxSync = async ({ tenantId, force = false } = {}) => {
   const safeTenantId = Number(tenantId);
   if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || provider() !== "evolution") {
     return { scanned: 0, eligible: 0, synced: 0, skipped: true };
@@ -439,6 +452,9 @@ export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = 
   const payload = await evolutionFetch(`/chat/findChats/${encodeURIComponent(instanceName())}`, {
     method: "POST",
     body: "{}",
+    // Bounded so the recovery scan (and any caller awaiting it) never hangs on a
+    // slow WhatsApp gateway.
+    timeoutMs: EVOLUTION_INBOX_RECOVERY_FETCH_TIMEOUT_MS,
   });
   const chats = Array.isArray(payload)
     ? payload
@@ -536,6 +552,29 @@ export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = 
   evolutionInboxRecoveryCache.set(cacheKey, { at: Date.now(), result });
   console.info("[whatsapp:inbox-recovery-sync]", { tenantId: safeTenantId, ...result });
   return result;
+};
+
+// Coalesce concurrent recovery syncs per tenant/instance so overlapping inbox
+// loads (foreground + background) share a single in-flight scan instead of each
+// firing its own external Evolution call.
+const evolutionInboxSyncInFlight = new Map();
+export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || provider() !== "evolution") {
+    return { scanned: 0, eligible: 0, synced: 0, skipped: true };
+  }
+  const cacheKey = `${safeTenantId}:${instanceName()}`;
+  const cached = evolutionInboxRecoveryCache.get(cacheKey);
+  if (!force && cached && Date.now() - cached.at < EVOLUTION_INBOX_RECOVERY_TTL_MS) return cached.result;
+  const existing = evolutionInboxSyncInFlight.get(cacheKey);
+  if (existing) return existing;
+  const promise = runEvolutionChatsToAiInboxSync({ tenantId, force });
+  evolutionInboxSyncInFlight.set(cacheKey, promise);
+  try {
+    return await promise;
+  } finally {
+    evolutionInboxSyncInFlight.delete(cacheKey);
+  }
 };
 
 export const normalizeEgyptPhone = (phone = "") => {

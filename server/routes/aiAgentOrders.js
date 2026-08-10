@@ -2505,12 +2505,26 @@ router.post("/channels/:channel/test-send", protect, permit("settings", "edit"),
   }
 });
 
+// Kick the Evolution WhatsApp recovery sync without letting the conversation list
+// be hostage to gateway latency. We wait only briefly for a fresh scan; if it is
+// slow it keeps running in the background (in-flight dedup + 60s TTL prevent
+// pile-up) and its DB upserts surface on the next load / realtime refresh. This
+// keeps GET /conversations DB-fast while still reconciling missed WhatsApp chats.
+const EVOLUTION_INBOX_SYNC_MAX_WAIT_MS = 1200;
+const kickEvolutionInboxSync = (tenantId) => {
+  const running = syncEvolutionChatsToAiInbox({ tenantId }).catch((error) => {
+    console.warn("[whatsapp:inbox-recovery-sync-error]", { tenantId, message: error?.message || String(error) });
+  });
+  return Promise.race([
+    running,
+    new Promise((resolve) => setTimeout(resolve, EVOLUTION_INBOX_SYNC_MAX_WAIT_MS)),
+  ]);
+};
+
 router.get("/inbox", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    await syncEvolutionChatsToAiInbox({ tenantId }).catch((error) => {
-      console.warn("[whatsapp:inbox-recovery-sync-error]", { tenantId, message: error?.message || String(error) });
-    });
+    await kickEvolutionInboxSync(tenantId);
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),
@@ -2528,9 +2542,7 @@ router.get("/inbox", protect, permit("settings", "view"), async (req, res) => {
 router.get("/conversations", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    await syncEvolutionChatsToAiInbox({ tenantId }).catch((error) => {
-      console.warn("[whatsapp:inbox-recovery-sync-error]", { tenantId, message: error?.message || String(error) });
-    });
+    await kickEvolutionInboxSync(tenantId);
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),
