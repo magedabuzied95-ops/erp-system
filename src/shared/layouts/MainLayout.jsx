@@ -590,6 +590,7 @@ function MainLayout() {
   const isProductsActive = location.pathname === "/products" || location.pathname.startsWith("/products/");
   const isPurchasesActive = location.pathname === "/purchases" || location.pathname.startsWith("/purchases/");
   const isAiMarketingWorkspace = location.pathname.startsWith("/marketing") || location.pathname.startsWith("/admin/ai-");
+  const isAiInboxWorkspace = location.pathname === "/admin/ai-inbox";
   const isStoreActive = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
   const posLabel = t("sidebar.quickAccess.pos");
   const productsLabel = t("sidebar.quickAccess.products");
@@ -988,7 +989,9 @@ function MainLayout() {
             </div>
           </div>
 
-          <div className="m1-shell-content w-full max-w-none flex-1 overflow-x-hidden p-3 sm:p-4 lg:p-6 xl:p-8 2xl:p-10">
+          <div className={isAiInboxWorkspace
+            ? "m1-shell-content w-full max-w-none flex-1 overflow-hidden p-0"
+            : "m1-shell-content w-full max-w-none flex-1 overflow-x-hidden p-3 sm:p-4 lg:p-6 xl:p-8 2xl:p-10"}>
             <Outlet />
           </div>
         </div>
