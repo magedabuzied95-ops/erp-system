@@ -697,17 +697,22 @@ export const loadEmployeePortalFacets = async ({ employee = null } = {}) => {
        (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(COALESCE(NULLIF(p.product_type, ''), p.style)), '') AS val FROM products p WHERE ${scope}) s WHERE val IS NOT NULL) AS types,
        (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(p.gender), '') AS val FROM products p WHERE ${scope}) s WHERE val IS NOT NULL) AS genders,
        (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(p.grade), '') AS val FROM products p WHERE ${scope}) s WHERE val IS NOT NULL) AS grades,
+       (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(p.category), '') AS val FROM products p WHERE ${scope}) s WHERE val IS NOT NULL) AS categories,
+       (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(m.name), '') AS val FROM products p LEFT JOIN manufacturers m ON m.id = p.manufacturer_id WHERE ${scope}) s WHERE val IS NOT NULL) AS manufacturers,
        (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(v.size), '') AS val FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL AND COALESCE(v.stock, 0) > 0 AND ${scope}) s WHERE val IS NOT NULL) AS sizes`,
     [tenantId]
   );
   const row = result.rows?.[0] || {};
   const arr = (v) => (Array.isArray(v) ? v.filter(Boolean) : []);
+  const alpha = (a, b) => String(a).localeCompare(String(b), "ar");
   return {
-    brands: arr(row.brands).sort((a, b) => String(a).localeCompare(String(b), "ar")),
-    types: arr(row.types).sort((a, b) => String(a).localeCompare(String(b), "ar")),
+    brands: arr(row.brands).sort(alpha),
+    types: arr(row.types).sort(alpha),
     genders: arr(row.genders),
-    grades: arr(row.grades).sort((a, b) => String(a).localeCompare(String(b), "ar")),
-    sizes: arr(row.sizes).sort((a, b) => (Number.isFinite(Number(a)) && Number.isFinite(Number(b)) ? Number(a) - Number(b) : String(a).localeCompare(String(b), "ar"))),
+    grades: arr(row.grades).sort(alpha),
+    categories: arr(row.categories).sort(alpha),
+    manufacturers: arr(row.manufacturers).sort(alpha),
+    sizes: arr(row.sizes).sort((a, b) => (Number.isFinite(Number(a)) && Number.isFinite(Number(b)) ? Number(a) - Number(b) : alpha(a, b))),
   };
 };
 
