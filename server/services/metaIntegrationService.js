@@ -3365,11 +3365,42 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
         instagramBusinessAccountId: instagramBusinessAccountId || config.instagram_business_account_id || "",
         preferredConfigId: config.id || null,
       });
-      const { token, config: resolvedConfig, source: tokenSource } = tokenResolution;
-      const payload = await callInstagramGraph({
-        endpoint: `/${encodeURIComponent(psid)}`,
-        token,
-        params: { fields: "name,username,profile_pic" },
+      const { token, config: resolvedConfig, source: tokenSource, instagramBusinessLogin } = tokenResolution;
+      // The IG-scoped-user profile endpoint differs by connection/token type:
+      //  - Instagram API with Instagram Login  -> graph.instagram.com/{igsid}
+      //  - Facebook-Login / Page-linked IG      -> graph.facebook.com/{igsid}
+      // The resolver tells us which token it selected (instagramBusinessLogin).
+      // Query the matching base first, then fall back to the OTHER official path
+      // if the response carries no usable profile fields — this is the fix for
+      // 200-but-empty (calling graph.instagram.com with a Page token, or vice
+      // versa). Field set is identical: name,username,profile_pic.
+      const igFields = "name,username,profile_pic";
+      const igEndpoint = `/${encodeURIComponent(psid)}`;
+      const fetchViaInstagram = () => callInstagramGraph({ endpoint: igEndpoint, token, params: { fields: igFields } });
+      const fetchViaFacebook = () => callMetaGet({ endpoint: igEndpoint, token, params: { fields: igFields } });
+      const hasUsableProfile = (p) => Boolean(p && (text(p.name) || text(p.username) || text(p.profile_pic)));
+      let payload = {};
+      let profileVia = instagramBusinessLogin ? "graph.instagram.com" : "graph.facebook.com";
+      payload = await (instagramBusinessLogin ? fetchViaInstagram() : fetchViaFacebook());
+      if (!hasUsableProfile(payload)) {
+        const altVia = instagramBusinessLogin ? "graph.facebook.com" : "graph.instagram.com";
+        const alt = await (instagramBusinessLogin ? fetchViaFacebook() : fetchViaInstagram()).catch(() => null);
+        if (hasUsableProfile(alt)) { payload = alt; profileVia = altVia; }
+      }
+      // Safe diagnostics: response KEY NAMES + presence flags + token type only.
+      // No id/token/name/url values are logged.
+      console.log("instagram_profile_graph_response", {
+        tenant_id: config.tenant_id,
+        config_id: resolvedConfig?.id || config.id || null,
+        token_source: tokenSource || "",
+        instagram_business_login: Boolean(instagramBusinessLogin),
+        via: profileVia,
+        http_ok: true,
+        response_keys: Object.keys(payload || {}),
+        has_id: Boolean(payload?.id),
+        has_name: Boolean(text(payload?.name)),
+        has_username: Boolean(text(payload?.username)),
+        has_profile_pic: Boolean(text(payload?.profile_pic)),
       });
       const displayName = text(payload.name || payload.username);
       const profile = {
