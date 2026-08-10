@@ -7,6 +7,10 @@ const desktopCss = readFileSync("src/modules/aiSupport/pages/AiInboxDesktop.css"
 const pwaSource = readFileSync("src/modules/aiSupport/pages/AiInboxPwa.jsx", "utf8");
 const mainLayoutSource = readFileSync("src/shared/layouts/MainLayout.jsx", "utf8");
 const productPickerSource = readFileSync("src/modules/aiSupport/components/ProductCardPicker.jsx", "utf8");
+const compactHeaderSource = desktopSource.slice(
+  desktopSource.indexOf("function InboxChatHeader"),
+  desktopSource.indexOf("const Transcript = memo")
+);
 
 test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopSource, /ai-omni-workspace/);
@@ -52,6 +56,17 @@ test("desktop chat exposes commerce actions above the transcript", () => {
   assert.match(desktopSource, /المتاح بالمقاس/);
   assert.match(desktopSource, /إنشاء عميل/);
   assert.doesNotMatch(desktopSource, /\n\s*<LeadQuickActionsBar/);
+});
+
+test("desktop conversation header stays compact and uses semantic lead colors", () => {
+  assert.doesNotMatch(compactHeaderSource, />\s*Assign\s*</);
+  assert.doesNotMatch(compactHeaderSource, /closeToggleLabel/);
+  assert.doesNotMatch(compactHeaderSource, /onClick=\{onClose\}/);
+  assert.match(compactHeaderSource, /showCustomerIdentifier[\s\S]*?facebook[\s\S]*?messenger[\s\S]*?instagram/);
+  assert.match(compactHeaderSource, /new: \{ chip: "border-sky-400\/40 bg-sky-500\/20/);
+  assert.match(compactHeaderSource, /interested: \{ chip: "border-amber-400\/40 bg-amber-500\/20/);
+  assert.match(compactHeaderSource, /won: \{ chip: "border-emerald-400\/40 bg-emerald-500\/20/);
+  assert.match(compactHeaderSource, /lost: \{ chip: "border-rose-400\/40 bg-rose-500\/20/);
 });
 
 test("PWA remains isolated from desktop layout styling", () => {

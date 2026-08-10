@@ -2093,8 +2093,6 @@ function InboxChatHeader({
   leadStatusLoading = false,
   onBack,
   onToggleAi,
-  onAssign,
-  onClose,
   showBack = false,
   isFullscreenConversation = false,
   onToggleFullscreen,
@@ -2118,6 +2116,8 @@ function InboxChatHeader({
     conversation.channel_metadata?.resolved_phone,
     conversation.external_customer_id
   );
+  const channelKey = clean(channel).toLowerCase();
+  const showCustomerIdentifier = Boolean(phone) && !["facebook", "messenger", "instagram"].some((provider) => channelKey.includes(provider));
   const isSocialComment = isSocialCommentThread(conversation);
   const sourceLabel = getConversationSourceLabel(conversation);
   const SourceIcon = getConversationSourceIcon(conversation);
@@ -2127,16 +2127,15 @@ function InboxChatHeader({
     : conversationAiEnabled
       ? "bg-emerald-300 text-slate-950"
       : "border border-rose-300/20 bg-rose-400/10 text-rose-100";
-  const closeToggleLabel = status === "closed" ? "Reopen" : "Close";
   const currentLeadStatus = normalizeLeadStatus(leadStatus || conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
-  const leadStatusClass = {
-    new: "border-cyan-300/20 bg-cyan-300/10 text-cyan-100",
-    contacted: "border-amber-300/20 bg-amber-300/10 text-amber-100",
-    interested: "border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
-    negotiation: "border-violet-300/20 bg-violet-300/10 text-violet-100",
-    won: "border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
-    lost: "border-rose-300/20 bg-rose-300/10 text-rose-100",
-  }[currentLeadStatus] || "border-cyan-300/20 bg-cyan-300/10 text-cyan-100";
+  const leadStatusStyle = {
+    new: { chip: "border-sky-400/40 bg-sky-500/20 text-sky-100", dot: "bg-sky-300" },
+    contacted: { chip: "border-cyan-400/40 bg-cyan-500/20 text-cyan-100", dot: "bg-cyan-300" },
+    interested: { chip: "border-amber-400/40 bg-amber-500/20 text-amber-100", dot: "bg-amber-300" },
+    negotiation: { chip: "border-violet-400/40 bg-violet-500/20 text-violet-100", dot: "bg-violet-300" },
+    won: { chip: "border-emerald-400/40 bg-emerald-500/20 text-emerald-100", dot: "bg-emerald-300" },
+    lost: { chip: "border-rose-400/40 bg-rose-500/20 text-rose-100", dot: "bg-rose-300" },
+  }[currentLeadStatus] || { chip: "border-sky-400/40 bg-sky-500/20 text-sky-100", dot: "bg-sky-300" };
   return (
     <div data-ai-inbox-compact-contact-header="true" className="rounded-xl border border-white/10 bg-white/[0.05] px-2 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)] backdrop-blur">
       <div className="flex items-center justify-between gap-2">
@@ -2203,18 +2202,19 @@ function InboxChatHeader({
               </Pill>
             </div>
             <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
-              {phone ? <span dir="ltr" className="truncate text-[10px] font-semibold text-slate-400">{phone}</span> : null}
-              <label className={`inline-flex h-6 items-center gap-1.5 rounded-lg border px-2 ${leadStatusClass}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${leadStatusClass.includes("rose") ? "bg-rose-300" : leadStatusClass.includes("amber") ? "bg-amber-300" : leadStatusClass.includes("violet") ? "bg-violet-300" : leadStatusClass.includes("emerald") ? "bg-emerald-300" : "bg-cyan-300"}`} />
+              {showCustomerIdentifier ? <span dir="ltr" className="truncate text-[10px] font-semibold text-slate-400">{phone}</span> : null}
+              <label className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 shadow-sm ${leadStatusStyle.chip}`}>
+                <span className={`h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor] ${leadStatusStyle.dot}`} />
                 <select
                   value={currentLeadStatus}
                   onChange={(event) => onLeadStatusChange?.(event.target.value)}
                   disabled={loading || leadStatusLoading}
                   aria-label="Lead Status"
-                  className="min-w-[6.5rem] bg-transparent text-[10px] font-black outline-none disabled:opacity-50"
+                  style={{ colorScheme: "dark" }}
+                  className="min-w-[6.5rem] cursor-pointer bg-transparent text-[10px] font-black text-current outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {Object.entries(LEAD_STATUS_META).map(([key, meta]) => (
-                    <option key={key} value={key}>{meta.label}</option>
+                    <option key={key} value={key} className="bg-[#20231f] text-white">{meta.label}</option>
                   ))}
                 </select>
               </label>
@@ -2253,18 +2253,6 @@ function InboxChatHeader({
           >
             <Bot className="h-3.5 w-3.5" />
             {status === "human_takeover" ? "Return to AI" : `AI ${conversationAiEnabled ? "ON" : "OFF"}`}
-          </button>
-          <button type="button" onClick={onAssign} disabled={loading} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100">
-            <UserPlus className="h-3.5 w-3.5" />
-            Assign
-          </button>
-          <button type="button" onClick={onClose} disabled={loading} className={`inline-flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-black disabled:opacity-50 ${
-            status === "closed"
-              ? "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
-              : "border border-rose-300/20 bg-rose-400/10 text-rose-100"
-          }`}>
-            {status === "closed" ? <PlayCircle className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}
-            {closeToggleLabel}
           </button>
         </div>
       </div>
@@ -7707,10 +7695,6 @@ export default function AiInbox() {
                     leadStatusLoading={leadActionLoading === "lead_status"}
                     onBack={() => setMobileView("list")}
                     onToggleAi={toggleAiEnabled}
-                    onAssign={() => updateConversationAction("assign")}
-                    onTakeover={() => updateConversationAction("takeover")}
-                    onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
-                    onClose={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "close")}
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
                     showBack
@@ -8402,10 +8386,6 @@ export default function AiInbox() {
                     onLeadStatusChange={updateLeadStatus}
                     leadStatusLoading={leadActionLoading === "lead_status"}
                     onToggleAi={toggleAiEnabled}
-                    onAssign={() => updateConversationAction("assign")}
-                    onTakeover={() => updateConversationAction("takeover")}
-                    onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
-                    onClose={() => updateConversationAction("close")}
                     onOpenTools={() => setProfileOpen(true)}
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
