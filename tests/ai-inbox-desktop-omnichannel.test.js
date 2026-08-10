@@ -51,6 +51,7 @@ test("desktop chat exposes commerce actions above the transcript", () => {
   assert.match(desktopSource, /إرسال منتج/);
   assert.match(desktopSource, /المتاح بالمقاس/);
   assert.match(desktopSource, /إنشاء عميل/);
+  assert.doesNotMatch(desktopSource, /\n\s*<LeadQuickActionsBar/);
 });
 
 test("PWA remains isolated from desktop layout styling", () => {

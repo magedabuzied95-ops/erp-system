@@ -7757,19 +7757,6 @@ export default function AiInbox() {
                       إنشاء عميل
                     </button>
                   </div>
-                  {conversationExpanded ? null : (
-                    <LeadQuickActionsBar
-                    conversation={selectedConversation}
-                    employees={employees}
-                    selectedEmployeeId={leadAssignEmployeeId}
-                    onSelectedEmployeeIdChange={setLeadAssignEmployeeId}
-                    onCreateOpportunity={createLeadOpportunity}
-                    onSendPrivateMessage={sendLeadPrivateMessage}
-                    onSendCommentReply={sendLeadCommentReplyQuick}
-                    onAssignEmployee={assignLeadEmployee}
-                    busy={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
-                    />
-                  )}
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
                     <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
                       <Transcript
@@ -8423,17 +8410,6 @@ export default function AiInbox() {
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
                     onOpenCustomer360={openCustomerDrawer}
-                  />
-                  <LeadQuickActionsBar
-                    conversation={safeConversation}
-                    employees={employees}
-                    selectedEmployeeId={leadAssignEmployeeId}
-                    onSelectedEmployeeIdChange={setLeadAssignEmployeeId}
-                    onCreateOpportunity={createLeadOpportunity}
-                    onSendPrivateMessage={sendLeadPrivateMessage}
-                    onSendCommentReply={sendLeadCommentReplyQuick}
-                    onAssignEmployee={assignLeadEmployee}
-                    busy={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
                   />
                   {isCommentConversation(selectedConversation || {}) ? (
                     <CommentAutomationBadges automationState={selectedConversation?.channel_metadata?.automation_state || selectedConversation?.automation_state || {}} />
