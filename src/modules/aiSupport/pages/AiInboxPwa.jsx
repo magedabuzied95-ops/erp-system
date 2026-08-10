@@ -44,7 +44,7 @@ import { useTheme } from "../../../theme/useTheme";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
-import TranscriptMessage from "../components/TranscriptMessage";
+import TranscriptMessage, { PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
@@ -2407,6 +2407,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
 
   return (
     <div dir="rtl" className="space-y-2.5 pb-3">
+      <PinnedMessagesBar rows={rows} variant="pwa" />
       {olderMessagesAvailable ? (
         <div className="flex justify-center">
           <button

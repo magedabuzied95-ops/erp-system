@@ -1,6 +1,6 @@
 ﻿import { memo, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, MoreVertical, Pin, PinOff, Reply as ReplyIcon, Sparkles, Star, UserCheck, X } from "lucide-react";
+import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pin, PinOff, Reply as ReplyIcon, Sparkles, Star, UserCheck, X } from "lucide-react";
 
 import ProductCardMessage from "./ProductCardMessage";
 
@@ -8,6 +8,8 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
 const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
 const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
+const MESSAGE_PIN_CHANGE_EVENT = "m1:ai-inbox-message-pin-change";
+const MESSAGE_FOCUS_EVENT = "m1:ai-inbox-message-focus";
 const staffSenderLabel = (message = {}) => {
   const source = clean(`${message.source_path || ""} ${message.insert_source || ""} ${message.message_type || ""}`).toLowerCase();
   if (source.includes("automation") || source.includes("system")) return "النظام";
@@ -145,12 +147,92 @@ const writeStoredMessageFlag = (storageKey, messageKey, enabled) => {
   window.localStorage.setItem(storageKey, JSON.stringify([...values].slice(-500)));
 };
 
+const dispatchMessagePinChange = (messageKey, pinned) => {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(MESSAGE_PIN_CHANGE_EVENT, { detail: { messageKey, pinned } }));
+};
+
+export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setRevision((current) => current + 1);
+    window.addEventListener(MESSAGE_PIN_CHANGE_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(MESSAGE_PIN_CHANGE_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  const pinnedRows = useMemo(() => {
+    const pinnedKeys = readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY);
+    return asArray(rows)
+      .filter((row) => pinnedKeys.has(messageIdentity(row, row?.message || {})))
+      .map((row) => {
+        const message = row?.message || {};
+        return {
+          key: messageIdentity(row, message),
+          text: messageBodyText(message) || "رسالة منتجات أو مرفقات",
+          sender: row?.kind === "customer" ? "العميل" : row?.kind === "ai" ? "AI" : row?.kind === "staff" ? staffSenderLabel(message) : "رسالة",
+        };
+      });
+  }, [rows, revision]);
+
+  if (!pinnedRows.length) return null;
+
+  const isPwa = variant === "pwa";
+  return (
+    <section
+      dir="rtl"
+      aria-label="Pinned messages"
+      className={`sticky top-0 z-30 rounded-2xl border p-2 shadow-lg backdrop-blur-xl ${isPwa ? "border-amber-200 bg-white/95 text-slate-900" : "border-amber-300/20 bg-[#24251f]/95 text-white"}`}
+    >
+      <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+        <span className={`inline-flex items-center gap-1.5 text-[11px] font-black ${isPwa ? "text-amber-700" : "text-amber-300"}`}>
+          <Pin className="h-3.5 w-3.5 fill-current" />
+          الرسائل المثبتة
+        </span>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isPwa ? "bg-amber-100 text-amber-700" : "bg-amber-300/10 text-amber-200"}`}>{pinnedRows.length}</span>
+      </div>
+      <div className="flex max-w-full gap-2 overflow-x-auto pb-0.5">
+        {pinnedRows.map((item) => (
+          <div key={item.key} className={`flex min-w-[220px] max-w-[340px] flex-1 items-center gap-1 rounded-xl border ${isPwa ? "border-slate-200 bg-slate-50" : "border-white/10 bg-black/20"}`}>
+            <button
+              type="button"
+              className="min-w-0 flex-1 px-2.5 py-2 text-right"
+              onClick={() => window.dispatchEvent(new CustomEvent(MESSAGE_FOCUS_EVENT, { detail: { messageKey: item.key } }))}
+            >
+              <span className={`block text-[10px] font-black ${isPwa ? "text-amber-700" : "text-amber-300"}`}>{item.sender}</span>
+              <span className={`block truncate text-xs font-semibold ${isPwa ? "text-slate-700" : "text-slate-200"}`}>{item.text}</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Unpin message"
+              title="Unpin"
+              className={`mx-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg ${isPwa ? "text-slate-500 hover:bg-slate-200" : "text-slate-400 hover:bg-white/10"}`}
+              onClick={() => {
+                writeStoredMessageFlag(MESSAGE_PIN_STORAGE_KEY, item.key, false);
+                dispatchMessagePinChange(item.key, false);
+              }}
+            >
+              <PinOff className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", children }) {
   const key = messageIdentity(row, message);
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [selected, setSelected] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8 });
   const [pinned, setPinned] = useState(() => readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
   const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
   const shellRef = useRef(null);
@@ -172,6 +254,37 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     return () => document.removeEventListener("pointerdown", close);
   }, [menuOpen]);
 
+  useEffect(() => {
+    const syncPinState = (event) => {
+      if (event.detail?.messageKey === key) setPinned(Boolean(event.detail?.pinned));
+    };
+    const focusMessage = (event) => {
+      if (event.detail?.messageKey !== key) return;
+      shellRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFocused(true);
+      window.setTimeout(() => setFocused(false), 1600);
+    };
+    window.addEventListener(MESSAGE_PIN_CHANGE_EVENT, syncPinState);
+    window.addEventListener(MESSAGE_FOCUS_EVENT, focusMessage);
+    return () => {
+      window.removeEventListener(MESSAGE_PIN_CHANGE_EVENT, syncPinState);
+      window.removeEventListener(MESSAGE_FOCUS_EVENT, focusMessage);
+    };
+  }, [key]);
+
+  const openActionsFromMessage = (event) => {
+    if (!event.target.closest("[data-ai-message-bubble='true']")) return;
+    if (event.target.closest("a, button, input, textarea, select, audio, video, [role='button']")) return;
+    if (typeof window !== "undefined" && window.getSelection?.()?.toString()) return;
+    const bounds = shellRef.current?.getBoundingClientRect();
+    if (bounds) {
+      const left = Math.max(8, Math.min(event.clientX - bounds.left, Math.max(8, bounds.width - 184)));
+      const top = Math.max(8, event.clientY - bounds.top);
+      setMenuPosition({ left, top });
+    }
+    setMenuOpen(true);
+  };
+
   const copyMessage = async () => {
     if (!text || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
     await navigator.clipboard.writeText(text);
@@ -191,6 +304,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     const next = !pinned;
     setPinned(next);
     writeStoredMessageFlag(MESSAGE_PIN_STORAGE_KEY, key, next);
+    dispatchMessagePinChange(key, next);
     setMenuOpen(false);
   };
 
@@ -211,7 +325,13 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   ];
 
   return (
-    <div ref={shellRef} className={`ai-inbox-message-actions group relative rounded-2xl transition ${selected ? "bg-amber-300/10 p-1 ring-1 ring-amber-300/45" : ""}`} data-message-selected={selected ? "true" : "false"}>
+    <div
+      ref={shellRef}
+      onClick={openActionsFromMessage}
+      className={`ai-inbox-message-actions group relative cursor-context-menu rounded-2xl transition ${selected ? "bg-amber-300/10 p-1 ring-1 ring-amber-300/45" : ""} ${focused ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-transparent" : ""}`}
+      data-message-key={key}
+      data-message-selected={selected ? "true" : "false"}
+    >
       {(pinned || starred) ? (
         <div className={`mb-1 flex items-center gap-1.5 px-2 text-[10px] font-black text-amber-400 ${align === "right" ? "justify-end" : "justify-start"}`}>
           {pinned ? <span className="inline-flex items-center gap-1"><Pin className="h-3 w-3" /> Pinned</span> : null}
@@ -219,17 +339,14 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         </div>
       ) : null}
       {children}
-      <button
-        type="button"
-        onClick={() => setMenuOpen((current) => !current)}
-        aria-label="Message actions"
-        title="Message actions"
-        className={`absolute top-1 z-20 grid h-8 w-8 place-items-center rounded-full border shadow-sm transition ${align === "right" ? "right-1" : "left-1"} ${variant === "pwa" ? "border-slate-200 bg-white/95 text-slate-600" : "border-white/10 bg-slate-950/90 text-slate-300 opacity-75 hover:opacity-100"}`}
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
       {menuOpen ? (
-        <div dir="ltr" className={`absolute top-10 z-40 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-slate-800 shadow-[0_18px_55px_rgba(0,0,0,0.28)] ${align === "right" ? "right-1" : "left-1"}`}>
+        <div
+          dir="ltr"
+          role="menu"
+          aria-label="Message actions"
+          style={{ left: menuPosition.left, top: menuPosition.top }}
+          className="absolute z-40 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-slate-800 shadow-[0_18px_55px_rgba(0,0,0,0.28)]"
+        >
           {menuItems.map(({ label, icon: Icon, action, disabled, active }) => (
             <button key={label} type="button" onClick={action} disabled={disabled} className={`flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-semibold transition hover:bg-slate-100 disabled:opacity-40 ${active ? "text-amber-600" : ""}`}>
               <Icon className={`h-4 w-4 ${active && label.includes("Star") ? "fill-current" : ""}`} />
@@ -323,7 +440,7 @@ function TranscriptMessage({
       return (
         <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
           <div className="flex justify-start">
-            <div className="w-[82%] max-w-sm space-y-1.5">
+            <div data-ai-message-bubble="true" className="w-[82%] max-w-sm space-y-1.5">
               <div className="px-1 text-left text-[10px] font-medium text-slate-500">{createdAt}</div>
               <ProductCardMessage message={message} cards={cards} />
             </div>
@@ -336,7 +453,7 @@ function TranscriptMessage({
       return (
         <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel}>
           <div className="flex justify-end">
-            <div className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
+            <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
             <div className="ai-pwa-message-body">
               <LinkifiedText text={message.customer_message} className="text-[14px] leading-5.5" />
@@ -363,7 +480,7 @@ function TranscriptMessage({
       return (
         <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
           <div className="flex justify-start">
-            <div className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
+            <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 flex items-center gap-1 text-[10px] font-medium">
               <Bot className="h-3.5 w-3.5" />
               AI
@@ -379,7 +496,7 @@ function TranscriptMessage({
       return (
         <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
           <div className="flex justify-start">
-            <div className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
+            <div data-ai-message-bubble="true" className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
             <div className="ai-pwa-message-meta mb-1 text-[10px] font-medium">
               {message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}
             </div>
@@ -397,7 +514,7 @@ function TranscriptMessage({
       return (
         <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
           <div className="flex justify-start">
-            <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+            <div data-ai-message-bubble="true" className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
               <span>{commenterName || commentLabel}</span>
@@ -441,14 +558,14 @@ function TranscriptMessage({
       <div className="space-y-2" style={{ contentVisibility: "auto", containIntrinsicBlockSize: "180px" }}>
       {safeRow.kind === "product_card" ? (
         <div className="flex justify-end">
-          <div className="max-w-[88%]">
+          <div data-ai-message-bubble="true" className="max-w-[88%]">
             <ProductCardMessage message={message} cards={cards} />
           </div>
         </div>
       ) : null}
       {safeRow.kind === "customer" ? (
         <div className="flex justify-start">
-          <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+          <div data-ai-message-bubble="true" className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
               <span>العميل</span>
               <span>/</span>
@@ -474,7 +591,7 @@ function TranscriptMessage({
       ) : null}
       {safeRow.kind === "ai" ? (
         <div className="flex justify-end">
-          <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
+          <div data-ai-message-bubble="true" className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
               <Bot className="h-3.5 w-3.5" />
               <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
@@ -521,7 +638,7 @@ function TranscriptMessage({
       ) : null}
       {safeRow.kind === "staff" ? (
         <div className="flex justify-end">
-          <div className={`max-w-[88%] rounded-3xl rounded-tr-sm p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${message.message_type === "automation_error" ? "border border-rose-300/20 bg-rose-400/10" : "border border-emerald-300/15 bg-emerald-400/10"}`}>
+          <div data-ai-message-bubble="true" className={`max-w-[88%] rounded-3xl rounded-tr-sm p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${message.message_type === "automation_error" ? "border border-rose-300/20 bg-rose-400/10" : "border border-emerald-300/15 bg-emerald-400/10"}`}>
             <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${message.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"}`}>
               <UserCheck className="h-3.5 w-3.5" />
               <span>{staffSenderLabel(message)}</span>
@@ -553,7 +670,7 @@ function TranscriptMessage({
       ) : null}
       {isCommentMessage ? (
         <div className="flex justify-start">
-          <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+          <div data-ai-message-bubble="true" className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
               <span>{commenterName || commentLabel}</span>

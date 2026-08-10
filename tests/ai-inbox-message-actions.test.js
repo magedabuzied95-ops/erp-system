@@ -10,7 +10,18 @@ test("message action menu is shared by desktop and PWA transcript messages", () 
   assert.match(messageSource, /function MessageActionShell/);
   assert.match(messageSource, /variant="desktop"/);
   assert.match(messageSource, /variant="pwa"/);
+  assert.match(messageSource, /onClick=\{openActionsFromMessage\}/);
+  assert.doesNotMatch(messageSource, /MoreVertical/);
   assert.match(messageSource, /aria-label="Message actions"/);
+});
+
+test("pinning renders a sticky pinned-message bar in desktop and PWA", () => {
+  assert.match(messageSource, /export function PinnedMessagesBar/);
+  assert.match(messageSource, /sticky top-0 z-30/);
+  assert.match(messageSource, /m1:ai-inbox-message-pin-change/);
+  assert.match(messageSource, /m1:ai-inbox-message-focus/);
+  assert.match(desktopSource, /<PinnedMessagesBar rows=\{rows\} variant="desktop"/);
+  assert.match(pwaSource, /<PinnedMessagesBar rows=\{rows\} variant="pwa"/);
 });
 
 test("message menu exposes reply, copy, pin, star, select, and info", () => {

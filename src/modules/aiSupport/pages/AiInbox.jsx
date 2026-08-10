@@ -64,7 +64,7 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
-import TranscriptMessage from "../components/TranscriptMessage";
+import TranscriptMessage, { PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
@@ -2287,6 +2287,7 @@ const Transcript = memo(function Transcript({
 
   return (
     <div className="space-y-3">
+      <PinnedMessagesBar rows={rows} variant="desktop" />
       {olderMessagesAvailable ? (
         <div className="flex justify-center">
           <button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="inline-flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 text-[10px] font-black text-slate-300 disabled:opacity-50">
