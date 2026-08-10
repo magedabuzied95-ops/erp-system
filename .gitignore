@@ -14,8 +14,12 @@ build/
 backend-log.txt
 meta-log.txt
 
-.codex*/
-.codex-*/
+.codex*
+codex-*
+**/.codex*
+**/codex-*
+.claude/
+test-result.txt
 .codex-screenshots/
 
 uploads/
