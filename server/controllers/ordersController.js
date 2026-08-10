@@ -7834,7 +7834,7 @@ export const getPosEditOrder = async (req, res) => {
       SELECT
         oi.id,
         oi.order_id,
-        oi.product_id,
+        COALESCE(oi.product_id, pv.product_id) AS product_id,
         oi.variant_id,
         COALESCE(p.name, oi.product_name, '') AS product_name,
         oi.variant_name,
@@ -7850,10 +7850,36 @@ export const getPosEditOrder = async (req, res) => {
         oi.total_amount,
         COALESCE(pv.stock, p.stock, 0) AS stock,
         COALESCE(p.variation_mode, 'full_variations') AS variation_mode,
-        COALESCE(NULLIF(oi.image_url, ''), NULLIF(oi.product_image, ''), NULLIF(oi.variant_image, ''), NULLIF(pv.image_url, ''), NULLIF(p.image_url, ''), '') AS image_url
+        COALESCE(NULLIF(oi.image_url, ''), NULLIF(oi.product_image, ''), NULLIF(oi.variant_image, ''), NULLIF(pv.image_url, ''), NULLIF(p.image_url, ''), '') AS image_url,
+        COALESCE(edit_variants.variant_options, '[]'::jsonb) AS variant_options
       FROM order_items oi
       LEFT JOIN product_variants pv ON pv.id = oi.variant_id
       LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
+      LEFT JOIN LATERAL (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', option_variant.id,
+            'variant_id', option_variant.id,
+            'product_id', option_variant.product_id,
+            'color', COALESCE(option_variant.color, ''),
+            'size', COALESCE(option_variant.size, ''),
+            'sku', COALESCE(option_variant.sku, ''),
+            'barcode', COALESCE(option_variant.barcode, ''),
+            'stock', COALESCE(option_variant.stock, 0),
+            'stock_quantity', COALESCE(option_variant.stock, 0),
+            'price', COALESCE(NULLIF(option_variant.price, 0), NULLIF(option_variant.sale_price, 0), NULLIF(option_variant.selling_price, 0), p.price, 0),
+            'sale_price', COALESCE(NULLIF(option_variant.sale_price, 0), NULLIF(option_variant.price, 0), NULLIF(option_variant.selling_price, 0), p.sale_price, p.price, 0),
+            'regular_price', COALESCE(NULLIF(option_variant.regular_price, 0), NULLIF(option_variant.price, 0), p.price, 0),
+            'image_url', COALESCE(NULLIF(option_variant.image_url, ''), NULLIF(p.image_url, ''), '')
+          )
+          ORDER BY option_variant.color_sort_order ASC, option_variant.color ASC, option_variant.size ASC, option_variant.id ASC
+        ) AS variant_options
+        FROM product_variants option_variant
+        WHERE option_variant.product_id = COALESCE(oi.product_id, pv.product_id)
+          AND ($2::bigint IS NULL OR option_variant.tenant_id = $2::bigint)
+          AND option_variant.is_active IS DISTINCT FROM FALSE
+          AND option_variant.deleted_at IS NULL
+      ) edit_variants ON TRUE
       WHERE oi.order_id = $1
         AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
       ORDER BY oi.id ASC
@@ -7885,6 +7911,7 @@ export const getPosEditOrder = async (req, res) => {
       stock_quantity: Number(item.stock || 0),
       variation_mode: item.variation_mode || "full_variations",
       image_url: item.image_url || "",
+      variant_options: Array.isArray(item.variant_options) ? item.variant_options : [],
     }));
 
     logPosEditTiming(req, { order_id: orderId, items_count: items.length, found: true });

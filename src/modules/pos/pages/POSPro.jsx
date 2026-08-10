@@ -4775,6 +4775,10 @@ function POSPro() {
         barcode: targetVariant.barcode || catalogProduct.barcode || targetVariant.sku || sourceItem.barcode,
         color: targetVariant.color || "",
         size: targetVariant.size || catalogProduct.fixed_size_label || "",
+        selected_color: targetVariant.color || "",
+        selected_size: targetVariant.size || catalogProduct.fixed_size_label || "",
+        variant_color: targetVariant.color || "",
+        variant_size: targetVariant.size || catalogProduct.fixed_size_label || "",
         stock: liveStock,
         stock_quantity: liveStock,
         image_url: targetVariant.image_url || catalogProduct.image_url || sourceItem.image_url || "",
@@ -4786,6 +4790,7 @@ function POSPro() {
         variant: targetVariant,
         product_variant: targetVariant.product_variant || targetVariant,
         price: activePrice,
+        variant_price: activePrice,
         original_price: originalPrice,
         sale_badge: targetVariant.sale_badge || catalogProduct.sale_badge || sourceItem.sale_badge || "",
         sale_source: targetVariant.sale_source || catalogProduct.sale_source || sourceItem.sale_source || "regular",
@@ -4869,7 +4874,22 @@ function POSPro() {
       item.product_variant?.product_id ||
       null;
     const key = variantId ? String(variantId) : `product:${productId || item.id || item.order_item_id || item.invoice_item_id}`;
-    const catalogProduct = getCatalogProductById(products, productId) || {};
+    const editVariantOptions = (Array.isArray(item.variant_options) ? item.variant_options : [])
+      .map((variant) => normalizeCatalogVariant(variant));
+    const loadedCatalogProduct = getCatalogProductById(products, productId);
+    const catalogProduct = normalizeCatalogProduct({
+      ...(loadedCatalogProduct || {}),
+      id: loadedCatalogProduct?.id ?? productId,
+      product_id: loadedCatalogProduct?.product_id ?? productId,
+      name: loadedCatalogProduct?.name || item.product_name || item.name || "منتج",
+      variation_mode: item.variation_mode || loadedCatalogProduct?.variation_mode || "full_variations",
+      image_url: loadedCatalogProduct?.image_url || item.product_image_url || item.image_url || "",
+      variants: Array.isArray(loadedCatalogProduct?.variants) && loadedCatalogProduct.variants.length > 1
+        ? loadedCatalogProduct.variants
+        : editVariantOptions.length
+          ? editVariantOptions
+          : loadedCatalogProduct?.variants || [],
+    });
     const catalogVariant = variantId ? getCatalogVariantById(catalogProduct, variantId, item.color, item.size) || {} : {};
     const quantity = Number(item.quantity ?? item.qty ?? item.item_quantity ?? 0);
     const unitPrice = Number(item.sale_price ?? item.unit_price ?? item.price ?? item.selling_price ?? 0);
@@ -4898,6 +4918,7 @@ function POSPro() {
       product: catalogProduct,
       variant: catalogVariant,
       product_variant: catalogVariant,
+      variant_options: editVariantOptions,
       price: unitPrice,
       unit_price: unitPrice,
       sale_price: unitPrice,
