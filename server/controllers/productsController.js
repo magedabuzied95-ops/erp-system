@@ -3968,6 +3968,10 @@ export const getProductsWithVariants = async (req, res) => {
       variantRows = [];
     }
 
+    const _posTiming = ["1","true","yes","on"].includes(String(req.query.pos_timing ?? process.env.POS_CATALOG_TIMING ?? "").toLowerCase());
+    let _tMark = Date.now();
+    const _phase = {};
+    const _mark = (k) => { if (_posTiming) { _phase[k] = Date.now() - _tMark; _tMark = Date.now(); } };
     const grouped = new Map();
     for (const productRow of Array.isArray(productsResult.rows) ? productsResult.rows : []) {
       const normalizedProduct = normalizeProductRow(productRow);
@@ -3989,9 +3993,11 @@ export const getProductsWithVariants = async (req, res) => {
       existing.variants.push(normalizeVariantRow(variantRow));
     }
 
+    _mark("normalize_ms");
     const productIds = Array.from(grouped.keys()).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
     const imageBundleMap = productIds.length ? await loadProductVariantImages(db, productIds).catch(() => new Map()) : new Map();
     const colorArticleCodeMap = productIds.length ? await loadProductColorArticleCodes(db, productIds).catch(() => new Map()) : new Map();
+    _mark("loaders_ms");
 
     const normalizedProducts = await withProductAudiences(db, Array.from(grouped.values()).map((product) => {
       const imageBundle = imageBundleMap.get(String(product.id ?? product.product_id ?? "")) || null;
@@ -4044,10 +4050,12 @@ export const getProductsWithVariants = async (req, res) => {
     if (Number.isFinite(requestedProductId) && requestedProductId > 0) {
       aiEnrichedProducts.forEach(logProductDetailsPriceDebug);
     }
+    _mark("imagemap_ms");
     const searchTerm = req.query.search ?? req.query.q ?? "";
     const preserveSearchVariants =
       String(req.query.preserveSearchVariants ?? req.query.preserve_search_variants ?? "").trim().toLowerCase() === "true";
     const withSearchMeta = aiEnrichedProducts.map((product) => attachVariantSearchMetadata(product, searchTerm, { preserveVariants: preserveSearchVariants }));
+    _mark("searchmeta_ms");
     // Compact projection for the AI Inbox product-card picker (opt-in via ?compact=1;
     // the default POS/admin response is unchanged). Strips only cost/margin, supplier
     // and description/SEO fields that a product card never renders — keeping every
@@ -4058,8 +4066,17 @@ export const getProductsWithVariants = async (req, res) => {
       ? projectPosCatalogProducts(withSearchMeta, req.query.pos)
       : projectCompactPickerProducts(withSearchMeta, req.query.compact);
     const payload = normalizeResponse(projectedProducts);
+    _mark("projection_ms");
 
-    res.json(payload);
+    if (_posTiming) {
+      const _body = JSON.stringify(payload);
+      _phase.serialize_ms = Date.now() - _tMark; _tMark = Date.now();
+      _phase.bytes = _body.length;
+      console.log("[products-pos-timing]", { ..._phase, product_query_ms: undefined });
+      res.set("Content-Type", "application/json").send(_body);
+    } else {
+      res.json(payload);
+    }
     console.log("[products] response sent", {
       route: "GET /api/products/with-variants",
       rows: Array.isArray(productsResult.rows) ? productsResult.rows.length : 0,
