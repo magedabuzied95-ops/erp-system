@@ -115,7 +115,9 @@ const normalizeEvent = (event = {}, fallback = {}) => ({
   created_at: event.created_at || fallback.created_at || new Date().toISOString(),
 });
 
-const ensureSchema = async (clientOrPool = db) => {
+let schemaReadyPromise = null;
+
+const runSchemaSetup = async (clientOrPool = db) => {
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS ai_sales_journey_events (
       id BIGSERIAL PRIMARY KEY,
@@ -139,6 +141,17 @@ const ensureSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE ai_sales_journey_events ADD COLUMN IF NOT EXISTS dedupe_key TEXT NOT NULL DEFAULT ''`);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_sales_journey_events_dedupe ON ai_sales_journey_events (tenant_id, dedupe_key) WHERE dedupe_key <> ''`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_sales_journey_events_tenant_conversation ON ai_sales_journey_events (tenant_id, conversation_id, created_at DESC)`);
+};
+
+const ensureSchema = async (clientOrPool = db) => {
+  if (clientOrPool !== db) return runSchemaSetup(clientOrPool);
+  if (!schemaReadyPromise) {
+    schemaReadyPromise = runSchemaSetup(db).catch((error) => {
+      schemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return schemaReadyPromise;
 };
 
 const productFromConversation = (conversation = {}) =>
