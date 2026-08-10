@@ -52,7 +52,7 @@ import {
   getLoyaltyCustomerById,
   validateLoyaltyRedemption,
 } from "../../loyalty/loyaltyApi";
-import { getProductByQrToken, getProductFull, getProductsWithVariants } from "../../products/services/productsApi";
+import { getProductByQrToken, getProductFull, getProductsWithVariants, getPosCatalogVersion } from "../../products/services/productsApi";
 import {
   calcTotals,
   clearPosPersistedState,
@@ -1224,6 +1224,7 @@ const refreshCatalogProducts = async ({
   search,
   rawProducts: prefetchedRawProducts,
   persistSnapshot = search === undefined,
+  catalogVersion = "",
 } = {}) => {
   if (manageLoading && setLoading) {
     setLoading(true);
@@ -1240,7 +1241,7 @@ const refreshCatalogProducts = async ({
       setProducts(catalog);
     }
     if (persistSnapshot) {
-      void savePosCatalogSnapshot(catalog)
+      void savePosCatalogSnapshot(catalog, catalogVersion)
         .then((snapshot) => {
           void preloadPosCatalogThumbnails(snapshot?.products || catalog);
         })
@@ -2348,21 +2349,28 @@ function POSPro() {
         setLoading(true);
         setError("");
         const cachedCatalogSnapshot = await getPosCatalogSnapshot();
-        if (active && cachedCatalogSnapshot?.products?.length) {
+        const cachedCatalogVersion = cachedCatalogSnapshot?.catalog_version || "";
+        const hasCachedCatalog = Boolean(cachedCatalogSnapshot?.products?.length);
+        if (active && hasCachedCatalog) {
           setProducts(cachedCatalogSnapshot.products);
           setLoading(false);
           console.info("POS_CATALOG_STALE_WHILE_REVALIDATE", {
             cached_at: cachedCatalogSnapshot.cached_at || "",
             product_count: cachedCatalogSnapshot.products.length,
+            cached_version: cachedCatalogVersion,
           });
         }
-        const [websiteSettingsResult, catalogResult, manufacturersResult, customersResult] = await Promise.allSettled([
+        // Warm/PWA opens: fetch only the tiny catalog-version watermark (~a few bytes)
+        // instead of the full catalog. If it matches the cached snapshot's version, skip
+        // the multi-MB catalog download entirely. Settings/manufacturers/customers are
+        // small and always refreshed (settings also carries sale-mode).
+        const [websiteSettingsResult, versionResult, manufacturersResult, customersResult] = await Promise.allSettled([
           api.get("/website/settings", {
             signal: controller.signal,
             cache: "no-store",
             headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
           }),
-          getProductsWithVariants({ signal: controller.signal, params: { pos: 1 } }),
+          getPosCatalogVersion({ signal: controller.signal }),
           api.get("/manufacturers", { signal: controller.signal }),
           api.get("/customers", {
             params: {
@@ -2373,6 +2381,7 @@ function POSPro() {
             signal: controller.signal,
           }),
         ]);
+        const freshCatalogVersion = versionResult.status === "fulfilled" ? (versionResult.value || "") : "";
         let saleModeForLoad = normalizeSaleModeSettings({ sale_mode_enabled: parseSaleModeEnabled(readUseSalePrices(), true) });
         const websiteSettings = websiteSettingsResult.status === "fulfilled" ? websiteSettingsResult.value : null;
         if (websiteSettings) {
@@ -2417,18 +2426,33 @@ function POSPro() {
           });
           setSaleModeSettings(saleModeForLoad);
         }
-        if (catalogResult.status === "rejected") throw catalogResult.reason;
-        const catalog = await refreshCatalogProducts({
-          setProducts,
-          setLoading,
-          manageLoading: false,
-          isActive: () => active,
-          signal: controller.signal,
-          saleModeSettings: saleModeForLoad,
-          rawProducts: catalogResult.value,
-        });
-        catalogFallbackActiveRef.current = false;
-        void catalog;
+        const catalogUnchanged = Boolean(
+          hasCachedCatalog && freshCatalogVersion && cachedCatalogVersion && freshCatalogVersion === cachedCatalogVersion
+        );
+        if (catalogUnchanged) {
+          // Nothing sellable changed since the cached snapshot — reuse it, skip the
+          // full catalog download. sale-mode is unchanged too (it is part of the version).
+          console.info("POS_CATALOG_VERSION_MATCH_SKIP_DOWNLOAD", {
+            version: freshCatalogVersion,
+            product_count: cachedCatalogSnapshot.products.length,
+          });
+          catalogFallbackActiveRef.current = false;
+          if (active) setLoading(false);
+        } else {
+          const rawProducts = await getProductsWithVariants({ signal: controller.signal, params: { pos: 1 } });
+          const catalog = await refreshCatalogProducts({
+            setProducts,
+            setLoading,
+            manageLoading: false,
+            isActive: () => active,
+            signal: controller.signal,
+            saleModeSettings: saleModeForLoad,
+            rawProducts,
+            catalogVersion: freshCatalogVersion,
+          });
+          catalogFallbackActiveRef.current = false;
+          void catalog;
+        }
 
         if (!active) return;
 

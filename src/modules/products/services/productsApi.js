@@ -355,6 +355,11 @@ export const getProductsAdminList = async (options = {}) => {
   };
 };
 
+export const getPosCatalogVersion = async (options = {}) => {
+  const response = await api.get("/products/pos-catalog-version", options);
+  return typeof response?.version === "string" ? response.version : "";
+};
+
 export const getProductsWithVariants = async (options = {}) => {
   const response = await api.get("/products/with-variants", options);
   return unwrapArray(response);

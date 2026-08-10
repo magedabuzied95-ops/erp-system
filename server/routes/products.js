@@ -12,6 +12,7 @@ import {
   getProductByQrToken,
   getProducts,
   getProductsWithVariants,
+  getPosCatalogVersion,
   getAvailableProductSizes,
   getProductsBySize,
   regenerateAiShoeCover,
@@ -188,6 +189,7 @@ router.use((req, res, next) => {
 router.get("/admin-list", protect, permit("products", "view"), getProductsAdminList);
 router.get("/", protect, permit("products", "view"), getProducts);
 router.get("/with-variants", protect, permit("products", "view"), getProductsWithVariants);
+router.get("/pos-catalog-version", protect, permit("products", "view"), getPosCatalogVersion);
 router.get("/available-sizes", protect, permit("products", "view"), getAvailableProductSizes);
 router.get("/by-size", protect, permit("products", "view"), getProductsBySize);
 router.get("/:id/full", protect, permit("products", "view"), getProductFull);

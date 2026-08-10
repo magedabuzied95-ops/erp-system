@@ -3782,6 +3782,51 @@ export const projectPosCatalogProducts = (products, posFlag) => {
   });
 };
 
+// Cheap POS catalog version watermark (~40ms). Lets the POS skip re-downloading the
+// catalog on warm/PWA opens when nothing sellable changed. The composite changes when
+// anything affecting POS selling changes: product/variant create+delete (counts),
+// any update incl. price/activation/barcode/classification (max updated_at/created_at),
+// and stock (summed separately, in case a stock UPDATE doesn't bump updated_at). Tenant-
+// scoped; over-invalidation is safe (worst case: an unnecessary refresh), under-
+// invalidation is not possible since every mutation moves at least one component. Sale-
+// mode/pricing settings are covered separately (POS always re-fetches /website/settings).
+export const getPosCatalogVersion = async (req, res) => {
+  try {
+    const tenantId = getTenantId(req) ?? null;
+    const result = await db.query(
+      `
+      SELECT
+        (SELECT count(*) FROM products WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)) AS pc,
+        (SELECT count(*) FROM product_variants v JOIN products p ON p.id = v.product_id
+           WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint) AND v.deleted_at IS NULL) AS vc,
+        (SELECT COALESCE(extract(epoch FROM max(GREATEST(COALESCE(updated_at, to_timestamp(0)), COALESCE(created_at, to_timestamp(0)))))::bigint, 0)
+           FROM products WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)) AS pmax,
+        (SELECT COALESCE(extract(epoch FROM max(GREATEST(COALESCE(v.updated_at, to_timestamp(0)), COALESCE(v.created_at, to_timestamp(0)))))::bigint, 0)
+           FROM product_variants v JOIN products p ON p.id = v.product_id
+           WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)) AS vmax,
+        (SELECT COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)::bigint
+           FROM product_variants v JOIN products p ON p.id = v.product_id
+           WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint) AND v.deleted_at IS NULL) AS vstock,
+        (SELECT COALESCE(SUM(GREATEST(COALESCE(stock, 0), 0)), 0)::bigint
+           FROM products WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)) AS pstock,
+        (SELECT COALESCE(extract(epoch FROM max(COALESCE(updated_at, to_timestamp(0))))::bigint, 0)
+           FROM website_settings WHERE ($1::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $1::bigint)) AS swmax
+      `,
+      [tenantId]
+    );
+    const row = result.rows[0] || {};
+    // Include the website-settings watermark so a sale-mode / pricing-settings toggle
+    // (which changes client-side price display over otherwise-unchanged catalog data)
+    // invalidates the cached snapshot and forces a re-normalized refresh.
+    const version = `${row.pc || 0}.${row.vc || 0}.${row.pmax || 0}.${row.vmax || 0}.${row.vstock || 0}.${row.pstock || 0}.${row.swmax || 0}`;
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    return res.json({ success: true, version });
+  } catch (error) {
+    console.error("[products] pos-catalog-version error:", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to compute catalog version" });
+  }
+};
+
 export const getProductsWithVariants = async (req, res) => {
   const scope = resolveProductRequestScope(req);
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -3968,10 +4013,6 @@ export const getProductsWithVariants = async (req, res) => {
       variantRows = [];
     }
 
-    const _posTiming = ["1","true","yes","on"].includes(String(req.query.pos_timing ?? process.env.POS_CATALOG_TIMING ?? "").toLowerCase());
-    let _tMark = Date.now();
-    const _phase = {};
-    const _mark = (k) => { if (_posTiming) { _phase[k] = Date.now() - _tMark; _tMark = Date.now(); } };
     const grouped = new Map();
     for (const productRow of Array.isArray(productsResult.rows) ? productsResult.rows : []) {
       const normalizedProduct = normalizeProductRow(productRow);
@@ -3993,11 +4034,9 @@ export const getProductsWithVariants = async (req, res) => {
       existing.variants.push(normalizeVariantRow(variantRow));
     }
 
-    _mark("normalize_ms");
     const productIds = Array.from(grouped.keys()).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
     const imageBundleMap = productIds.length ? await loadProductVariantImages(db, productIds).catch(() => new Map()) : new Map();
     const colorArticleCodeMap = productIds.length ? await loadProductColorArticleCodes(db, productIds).catch(() => new Map()) : new Map();
-    _mark("loaders_ms");
 
     const normalizedProducts = await withProductAudiences(db, Array.from(grouped.values()).map((product) => {
       const imageBundle = imageBundleMap.get(String(product.id ?? product.product_id ?? "")) || null;
@@ -4005,6 +4044,7 @@ export const getProductsWithVariants = async (req, res) => {
         const colorArticleCode = getVariantColorArticleCode(colorArticleCodeMap, product.id ?? product.product_id, variant);
         const colorArticleCodes = getVariantColorArticleCodes(colorArticleCodeMap, product.id ?? product.product_id, variant);
         const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
+        const effectiveArticleCode = resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "";
         return {
           ...variant,
           variant_article_code: variantArticleCode,
@@ -4012,14 +4052,18 @@ export const getProductsWithVariants = async (req, res) => {
           colorArticleCode: colorArticleCode,
           color_article_codes: colorArticleCodes,
           colorArticleCodes,
-          article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "",
-          articleCode: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "",
+          article_code: effectiveArticleCode,
+          articleCode: effectiveArticleCode,
         };
       });
-      const colorImages = attachGroupedColorImages(
-        deriveColorGroupsFromVariants(variants),
-        imageBundle
-      );
+      // The POS projection drops color_images, so skip the (expensive) grouped-color-image
+      // build entirely for ?pos=1 — it is pure wasted CPU on the POS hot path.
+      const colorImages = req.query.pos
+        ? []
+        : attachGroupedColorImages(
+            deriveColorGroupsFromVariants(variants),
+            imageBundle
+          );
       const explicitProductCover = resolveProductLevelCoverImage(product);
       const firstVariantImageUrl = cleanImageValue(variants[0]?.variant_image_url || variants[0]?.image_url || "");
       const finalThumbnailUrl = explicitProductCover || firstVariantImageUrl || "";
@@ -4050,12 +4094,10 @@ export const getProductsWithVariants = async (req, res) => {
     if (Number.isFinite(requestedProductId) && requestedProductId > 0) {
       aiEnrichedProducts.forEach(logProductDetailsPriceDebug);
     }
-    _mark("imagemap_ms");
     const searchTerm = req.query.search ?? req.query.q ?? "";
     const preserveSearchVariants =
       String(req.query.preserveSearchVariants ?? req.query.preserve_search_variants ?? "").trim().toLowerCase() === "true";
     const withSearchMeta = aiEnrichedProducts.map((product) => attachVariantSearchMetadata(product, searchTerm, { preserveVariants: preserveSearchVariants }));
-    _mark("searchmeta_ms");
     // Compact projection for the AI Inbox product-card picker (opt-in via ?compact=1;
     // the default POS/admin response is unchanged). Strips only cost/margin, supplier
     // and description/SEO fields that a product card never renders — keeping every
@@ -4066,17 +4108,8 @@ export const getProductsWithVariants = async (req, res) => {
       ? projectPosCatalogProducts(withSearchMeta, req.query.pos)
       : projectCompactPickerProducts(withSearchMeta, req.query.compact);
     const payload = normalizeResponse(projectedProducts);
-    _mark("projection_ms");
 
-    if (_posTiming) {
-      const _body = JSON.stringify(payload);
-      _phase.serialize_ms = Date.now() - _tMark; _tMark = Date.now();
-      _phase.bytes = _body.length;
-      console.log("[products-pos-timing]", { ..._phase, product_query_ms: undefined });
-      res.set("Content-Type", "application/json").send(_body);
-    } else {
-      res.json(payload);
-    }
+    res.json(payload);
     console.log("[products] response sent", {
       route: "GET /api/products/with-variants",
       rows: Array.isArray(productsResult.rows) ? productsResult.rows.length : 0,

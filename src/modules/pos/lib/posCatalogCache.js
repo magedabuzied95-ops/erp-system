@@ -249,16 +249,18 @@ const deleteStoreValue = async (key) => {
   }
 };
 
-export const buildPosCatalogSnapshot = (products = []) => {
+export const buildPosCatalogSnapshot = (products = [], catalogVersion = "") => {
   const sanitizedProducts = sanitizePosCatalogProducts(products);
   const cachedAt = new Date().toISOString();
   return {
     schema_version: POS_CATALOG_SCHEMA_VERSION,
     cached_at: cachedAt,
+    catalog_version: normalizeText(catalogVersion),
     products: sanitizedProducts,
     meta: {
       schema_version: POS_CATALOG_SCHEMA_VERSION,
       cached_at: cachedAt,
+      catalog_version: normalizeText(catalogVersion),
       product_count: sanitizedProducts.length,
       variant_count: sanitizedProducts.reduce((count, product) => count + (Array.isArray(product?.variants) ? product.variants.length : 0), 0),
       image_url_count: extractPosCatalogSnapshotImageUrls(sanitizedProducts).length,
@@ -285,8 +287,8 @@ export const extractPosCatalogSnapshotImageUrls = (snapshotOrProducts = []) => {
   return uniqueStrings(urls.map((value) => pickImageUrl(value))).slice(0, 120);
 };
 
-export const savePosCatalogSnapshot = async (products = []) => {
-  const snapshot = buildPosCatalogSnapshot(products);
+export const savePosCatalogSnapshot = async (products = [], catalogVersion = "") => {
+  const snapshot = buildPosCatalogSnapshot(products, catalogVersion);
   try {
     await writeStoreValue(POS_CATALOG_DB_KEY, snapshot);
     debugLog("POS_OFFLINE_CATALOG_SNAPSHOT_SAVED", snapshot.meta);
@@ -304,6 +306,7 @@ export const getPosCatalogSnapshot = async () => {
     return {
       schema_version: snapshot.schema_version,
       cached_at: snapshot.cached_at || "",
+      catalog_version: normalizeText(snapshot.catalog_version),
       products,
       meta: readSnapshotMeta({ ...snapshot, products }),
     };
