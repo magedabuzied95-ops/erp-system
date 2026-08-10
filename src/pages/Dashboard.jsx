@@ -364,10 +364,12 @@ function Dashboard() {
         api.get("/dashboard/inventory"),
         api.get("/dashboard/ai-insights"),
       ]);
-      const saleModeRequest = Promise.all([
-        api.get("/website/settings").catch(() => ({ settings: {} })),
-        api.get("/products/with-variants").catch(() => ({ products: [] })),
-      ]);
+      // Sale-mode banner only needs the (small) settings flag/label. The heavy
+      // /products/with-variants catalog fetch + client-side reduce that used to
+      // run here on every dashboard load (and every silent refresh) is removed —
+      // it was the dominant payload and froze the page. Sale-mode impact numbers
+      // can be aggregated server-side later if needed.
+      const saleModeRequest = api.get("/website/settings").catch(() => ({ settings: {} }));
 
       const [
         salesTrend,
@@ -400,41 +402,10 @@ function Dashboard() {
       }));
       setLastUpdated(new Date());
 
-      const [websiteSettings, productFeed] = await saleModeRequest;
+      const websiteSettings = await saleModeRequest;
       if (!isCurrentRequest()) return;
       const saleMode = normalizeSaleModeSettings(websiteSettings?.settings || {});
-      const products = normalizeArray(productFeed?.products ? productFeed.products : productFeed);
-      const saleModeAnalytics = products.reduce((acc, product) => {
-        const variants = Array.isArray(product.variants) && product.variants.length ? product.variants : [product];
-        variants.forEach((variant) => {
-          const regular = Number(variant.regular_price || variant.price || product.regular_price || product.price || 0);
-          const resolved = resolveSaleModePrice({
-            ...product,
-            ...variant,
-            id: product.id,
-            product_id: product.id,
-            regular_price: regular,
-            price: regular,
-            sale_price: variant.sale_price || product.sale_price,
-            sale_price_enabled: variant.sale_price_enabled ?? product.sale_price_enabled,
-            cost_price: variant.cost_price || product.cost_price,
-          }, saleMode);
-          if (saleMode.sale_mode_enabled && resolved.final_price > 0 && resolved.final_price < regular) {
-            acc.affectedProducts.add(String(product.id || product.product_id));
-            acc.estimatedDiscountImpact += regular - resolved.final_price;
-          }
-        });
-        return acc;
-      }, { affectedProducts: new Set(), estimatedDiscountImpact: 0 });
-
-      setData((current) => ({
-        ...current,
-        saleMode,
-        saleModeAnalytics: {
-          affectedProductsCount: saleModeAnalytics.affectedProducts.size,
-          estimatedDiscountImpact: saleModeAnalytics.estimatedDiscountImpact,
-        },
-      }));
+      setData((current) => ({ ...current, saleMode, saleModeAnalytics: null }));
       setLastUpdated(new Date());
     } finally {
       if (isCurrentRequest()) setLoading(false);
@@ -534,12 +505,22 @@ function Dashboard() {
     if (activity) return { tone: "slate", title: activity.title || activity.type || copy.latestActivity, detail: shortTime(activity.created_at) };
     return { tone: "emerald", title: copy.noCriticalAlerts, detail: copy.operationsCalm };
   }, [copy, data.liveActivity, data.lowStock]);
+  const k = overview.kpis || {};
+  const salesGrowth = Number(k.todaySales?.growth || 0);
+  const ordersGrowth = Number(k.todayOrders?.growth || 0);
+  const gr = (g) => (g > 0 ? "emerald" : g < 0 ? "rose" : "slate");
+  const grText = (g) => `${percent(g)} ${copy.vsYesterday || (isArabic ? "عن أمس" : "vs yesterday")}`;
+  const L = (ar, en) => (isArabic ? ar : en);
+  // 7 primary KPIs — all from authoritative overview data; comparison shown only
+  // where a real yesterday figure exists (net sales, invoices).
   const executiveCards = [
-    { label: copy.revenueToday, value: formatCurrency(overview.kpis?.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: "gold", detail: percent(overview.kpis?.todaySales?.growth || 0) },
-    { label: copy.ordersToday, value: number(overview.kpis?.todayOrders?.value ?? overview.today?.orders), icon: ShoppingCart, tone: "slate", detail: `${formatCurrency(overview.kpis?.averageOrderValue?.value || 0)} ${copy.aov}` },
-    { label: copy.activePos, value: number(openPosShifts.length), icon: MonitorDot, tone: hasPosActivity ? "emerald" : "slate", detail: posStatus.value },
-    { label: copy.lowStock, value: number(data.lowStock.length || overview.kpis?.lowStockProducts?.value), icon: AlertTriangle, tone: data.lowStock.length ? "amber" : "emerald", detail: data.lowStock.length ? copy.needsAttention : copy.healthy },
-    { label: copy.latestAlert, value: latestAlert.title, icon: Bell, tone: latestAlert.tone, detail: latestAlert.detail, textValue: true },
+    { label: L("صافي مبيعات اليوم", "Net sales today"), value: formatCurrency(k.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: salesGrowth >= 0 ? "emerald" : "rose", detail: grText(salesGrowth), deltaTone: gr(salesGrowth), to: "/reports" },
+    { label: L("عدد فواتير اليوم", "Invoices today"), value: number(k.todayOrders?.value ?? overview.today?.orders), icon: ReceiptText, tone: "slate", detail: grText(ordersGrowth), deltaTone: gr(ordersGrowth), to: "/orders" },
+    { label: L("متوسط قيمة الفاتورة", "Avg invoice value"), value: formatCurrency(k.averageOrderValue?.value || 0), icon: ShoppingCart, tone: "slate", detail: L("لكل فاتورة", "per invoice") },
+    { label: L("القطع المباعة اليوم", "Units sold today"), value: number(k.unitsSold?.value || 0), icon: Boxes, tone: "slate", detail: L("إجمالي القطع", "total units") },
+    { label: L("المرتجعات اليوم", "Returns today"), value: number(k.returnedUnits?.value || 0), icon: RefreshCw, tone: Number(k.returnedUnits?.value || 0) > 0 ? "amber" : "slate", detail: L("قطعة مرتجعة", "returned units") },
+    { label: L("الخصومات اليوم", "Discounts today"), value: formatCurrency(k.discountToday?.value || 0), icon: AlertTriangle, tone: Number(k.discountToday?.value || 0) > 0 ? "amber" : "slate", detail: L("إجمالي الخصم", "total discount") },
+    { label: L("نقاط البيع النشطة", "Active POS"), value: number(openPosShifts.length || k.activePosSessions?.value || 0), icon: MonitorDot, tone: hasPosActivity ? "emerald" : "slate", detail: posStatus.value, to: "/pos" },
   ];
   const hasSalesData = [...(data.salesTrend || []), ...(data.hourlySales || [])].some((row) => Number(row.revenue || row.sales || row.orders || 0) > 0);
   const hasInventoryData = Boolean((data.inventory?.lowStock || []).length || (data.inventory?.fastMovingProducts || []).length || (data.inventory?.topSizes || []).length || (data.inventory?.topColors || []).length);
@@ -595,14 +576,7 @@ function Dashboard() {
             ) : null}
             <StatusPill label={copy.socket} value={socketStatus.value} tone={socketStatus.tone} pulse={socketStatus.pulse} />
             <StatusPill label={copy.pos} value={posStatus.value} tone={posStatus.tone} pulse={posStatus.pulse} />
-            <button
-              type="button"
-              onClick={() => setFocusMode((value) => !value)}
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${focusMode ? "border-emerald-400/35 bg-emerald-500/12 text-emerald-100" : "border-slate-700 bg-slate-900/70 text-slate-200 hover:border-slate-500"}`}
-            >
-              {focusMode ? copy.focusMode : copy.fullMode}
-            </button>
-            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 transition hover:border-slate-500 hover:bg-slate-800/75">
+            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/75">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {copy.refresh}
             </button>
@@ -610,46 +584,45 @@ function Dashboard() {
         </div>
       </div>
 
-      <section className="dashboard-kpi-grid relative z-10 mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+      {/* ROW 1 — primary KPIs */}
+      <section className="relative z-10 mt-5 grid gap-3 grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
         {executiveCards.map((card) => <ExecutiveCard key={card.label} {...card} loading={loading} />)}
       </section>
 
       {!loading && Number(overview.today?.orders || 0) === 0 && Number(overview.today?.sales || 0) === 0 ? <GettingStarted /> : null}
 
-      <div className="dashboard-workspace relative z-10 mt-5 grid gap-4">
-        <main className="min-w-0 space-y-6">
-          {!focusMode && secondarySections.length ? (
-            <ExecutiveSection
-              sections={secondarySections}
-              activeId={activeSecondary?.id}
-              onSelect={setActiveSection}
-            >
-              {loading ? <WidgetSkeleton /> : activeSecondary?.render()}
-            </ExecutiveSection>
-          ) : null}
-          {!focusMode && data.saleMode?.sale_mode_enabled ? (
-            <section className="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">{copy.existingSalePricesActive}</div>
-              <div className="mt-2 text-lg font-black text-white">{data.saleMode.sale_mode_label || copy.savedSalePricesLive}</div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <TodayCard label={copy.affectedProducts} value={number(data.saleModeAnalytics?.affectedProductsCount || 0)} pulse />
-                <TodayCard label={copy.estimatedDiscountImpact} value={formatCurrency(data.saleModeAnalytics?.estimatedDiscountImpact || 0)} pulse />
-              </div>
-            </section>
-          ) : null}
-        </main>
-
-        <RightSidebar
-          lowStock={data.lowStock}
-          recentInvoices={overview.recentInvoices || []}
-          activity={data.liveActivity}
-        />
+      {/* ROW 2 — hourly sales (primary chart) + payment mix + shift status */}
+      <div className="relative z-10 mt-4 grid gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <HourlySalesCard hourlySales={data.hourlySales} loading={loading} isArabic={isArabic} />
+        </div>
+        <div className="grid content-start gap-4">
+          <PaymentMixCard payments={(data.posLive?.paymentDistribution || []).length ? data.posLive.paymentDistribution : data.paymentAnalytics} loading={loading} isArabic={isArabic} />
+          <ShiftStatusCard posLive={data.posLive} loading={loading} isArabic={isArabic} />
+        </div>
       </div>
+
+      {/* ROW 3 — recent sales · top sellers · stock attention */}
+      <div className="relative z-10 mt-4 grid gap-4 lg:grid-cols-3">
+        <RecentSalesCard invoices={overview.recentInvoices || []} loading={loading} isArabic={isArabic} />
+        <TopSellersCard products={data.topProducts || []} loading={loading} isArabic={isArabic} />
+        <StockAttentionCard lowStock={data.lowStock || []} loading={loading} isArabic={isArabic} />
+      </div>
+
+      {/* ROW 4 — action center */}
+      <AttentionCenter overview={overview} inventory={data.inventory} liveActivity={data.liveActivity} isArabic={isArabic} />
+
+      {data.saleMode?.sale_mode_enabled ? (
+        <section className="relative z-10 mt-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">{isArabic ? "أسعار التخفيض مفعّلة" : "Sale prices active"}</div>
+          <div className="mt-1 text-base font-black text-white">{data.saleMode.sale_mode_label || (isArabic ? "أسعار التخفيض المحفوظة مفعّلة" : "Saved sale prices are live")}</div>
+        </section>
+      ) : null}
     </div>
   );
 }
 
-function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loading = false, textValue = false }) {
+function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loading = false, textValue = false, to = null, deltaTone = null }) {
   const tones = {
     gold: "border-amber-600/25 bg-white text-zinc-950",
     emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
@@ -664,21 +637,229 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
     rose: "bg-red-400/12 text-red-200",
     slate: "bg-slate-700/55 text-slate-300",
   };
-  return (
-    <article className={`min-h-[132px] rounded-3xl border p-4 shadow-xl shadow-black/18 ${tones[tone] || tones.slate}`}>
-      <div className="flex items-start justify-between gap-4">
+  const deltaColors = { emerald: "text-emerald-300", rose: "text-red-300", slate: "text-slate-400" };
+  const body = (
+    <article className={`min-h-[120px] rounded-2xl border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-slate-500/80" : ""}`}>
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
-          <div className={`mt-3 font-black tracking-normal text-white ${textValue ? "line-clamp-2 text-lg leading-6" : "text-2xl md:text-3xl"}`}>
-            {loading ? <SkeletonLine className="h-9 w-24" /> : value}
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
+          <div className={`mt-2.5 font-black tracking-normal text-white ${textValue ? "line-clamp-2 text-base leading-6" : "text-2xl"}`}>
+            {loading ? <SkeletonLine className="h-8 w-20" /> : value}
           </div>
         </div>
-        <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${iconTones[tone] || iconTones.slate}`}>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${iconTones[tone] || iconTones.slate}`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <div className="mt-4 border-t border-zinc-100 pt-3 text-xs font-semibold text-slate-400">{loading ? <SkeletonLine className="h-4 w-28" /> : detail}</div>
+      <div className={`mt-3 border-t border-slate-700/45 pt-2.5 text-xs font-semibold ${deltaTone ? deltaColors[deltaTone] : "text-slate-400"}`}>
+        {loading ? <SkeletonLine className="h-4 w-24" /> : detail}
+      </div>
     </article>
+  );
+  return to ? <Link to={to} className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 rounded-2xl">{body}</Link> : body;
+}
+
+// ---- Redesigned dashboard sections (dark theme, RTL, real ERP data) --------
+const DASH_CARD = "rounded-2xl border border-slate-700/60 bg-slate-900/55 p-4 shadow-lg shadow-black/20";
+const DASH_CARD_HEAD = "flex items-center justify-between gap-2";
+const DASH_CARD_TITLE = "text-sm font-black text-slate-100";
+const DASH_TIP_STYLE = { background: "#0b1220", border: "1px solid #334155", borderRadius: 12, fontSize: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.4)" };
+const PAYMENT_LABELS = { cash: ["نقدي", "Cash"], instapay: ["إنستاباي", "Instapay"], vodafone_cash: ["فودافون كاش", "Vodafone Cash"], vodafone: ["فودافون كاش", "Vodafone Cash"], card: ["بطاقة", "Card"], bank: ["تحويل بنكي", "Bank"], visa: ["فيزا", "Visa"], wallet: ["محفظة", "Wallet"], unknown: ["أخرى", "Other"] };
+const PAY_COLORS = ["#10b981", "#f59e0b", "#38bdf8", "#a78bfa", "#f472b6", "#94a3b8"];
+
+function DashEmpty({ text }) {
+  return <div className="grid min-h-[120px] place-items-center px-3 text-center text-xs font-semibold text-slate-500">{text}</div>;
+}
+function DashRow({ label, value }) {
+  return <div className="flex items-center justify-between gap-2"><span className="text-slate-400">{label}</span><span className="max-w-[60%] truncate text-left font-bold text-slate-100">{value}</span></div>;
+}
+
+function HourlySalesCard({ hourlySales = [], loading, isArabic }) {
+  const rows = React.useMemo(() => {
+    const map = new Map((hourlySales || []).map((r) => [Number(r.hour), Number(r.sales || 0)]));
+    const out = [];
+    for (let h = 8; h <= 23; h += 1) out.push({ hour: h, label: String(h).padStart(2, "0"), sales: map.get(h) || 0 });
+    return out;
+  }, [hourlySales]);
+  const hasData = rows.some((r) => r.sales > 0);
+  const peak = rows.reduce((m, r) => (r.sales > m.sales ? r : m), { sales: 0, hour: null });
+  return (
+    <div className={DASH_CARD}>
+      <div className={DASH_CARD_HEAD}>
+        <h3 className={DASH_CARD_TITLE}>{isArabic ? "مبيعات اليوم حسب الساعة" : "Today's sales by hour"}</h3>
+        {hasData && peak.hour != null ? <span className="text-[11px] font-bold text-emerald-300">{isArabic ? `الذروة ${String(peak.hour).padStart(2, "0")}:00` : `Peak ${String(peak.hour).padStart(2, "0")}:00`}</span> : null}
+      </div>
+      <div className="mt-3 h-[260px]">
+        {loading ? <SkeletonLine className="h-full w-full rounded-xl" /> : hasData ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={rows} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: 700 }} tickLine={false} axisLine={{ stroke: "#334155" }} interval={1} reversed={isArabic} />
+              <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} tickLine={false} axisLine={false} width={46} tickFormatter={(v) => compactNumber(v)} orientation={isArabic ? "right" : "left"} />
+              <Tooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} contentStyle={DASH_TIP_STYLE} labelStyle={{ color: "#94a3b8", fontWeight: 700 }} itemStyle={{ color: "#e2e8f0" }} formatter={(v) => [formatCurrency(v), isArabic ? "مبيعات" : "Sales"]} labelFormatter={(l) => `${l}:00`} />
+              <Bar dataKey="sales" fill="#10b981" radius={[6, 6, 2, 2]} maxBarSize={30} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : <DashEmpty text={isArabic ? "لا توجد مبيعات حتى الآن اليوم" : "No sales yet today"} />}
+      </div>
+    </div>
+  );
+}
+
+function PaymentMixCard({ payments = [], loading, isArabic }) {
+  const rows = (payments || []).map((p) => ({ method: p.method || "unknown", amount: Number(p.amount || 0) })).filter((r) => r.amount > 0).sort((a, b) => b.amount - a.amount);
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const lbl = (m) => (PAYMENT_LABELS[m] ? PAYMENT_LABELS[m][isArabic ? 0 : 1] : m);
+  return (
+    <div className={DASH_CARD}>
+      <h3 className={DASH_CARD_TITLE}>{isArabic ? "طرق الدفع اليوم" : "Payment methods today"}</h3>
+      {loading ? <SkeletonLine className="mt-3 h-[150px] w-full rounded-xl" /> : rows.length ? (
+        <div className="mt-2 flex items-center gap-3">
+          <div className="h-[130px] w-[130px] shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={rows} dataKey="amount" nameKey="method" innerRadius={40} outerRadius={62} paddingAngle={3} stroke="none">
+                  {rows.map((r, i) => <Cell key={r.method} fill={PAY_COLORS[i % PAY_COLORS.length]} />)}
+                </Pie>
+                <Tooltip contentStyle={DASH_TIP_STYLE} itemStyle={{ color: "#e2e8f0" }} formatter={(v, n) => [formatCurrency(v), lbl(n)]} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="min-w-0 flex-1 space-y-1.5">
+            {rows.slice(0, 5).map((r, i) => (
+              <div key={r.method} className="flex items-center justify-between gap-2 text-xs">
+                <span className="flex min-w-0 items-center gap-1.5 font-bold text-slate-200"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: PAY_COLORS[i % PAY_COLORS.length] }} /><span className="truncate">{lbl(r.method)}</span></span>
+                <span className="shrink-0 font-semibold text-slate-400">{total ? Math.round((r.amount / total) * 100) : 0}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : <DashEmpty text={isArabic ? "لا مدفوعات اليوم" : "No payments today"} />}
+    </div>
+  );
+}
+
+function ShiftStatusCard({ posLive, loading, isArabic }) {
+  const shifts = posLive?.openShifts || [];
+  const active = Number(posLive?.activeCashiers || shifts.length || 0);
+  const last = posLive?.lastInvoice;
+  const open = shifts.length > 0 || active > 0;
+  return (
+    <div className={DASH_CARD}>
+      <div className={DASH_CARD_HEAD}>
+        <h3 className={DASH_CARD_TITLE}>{isArabic ? "حالة الوردية" : "Shift status"}</h3>
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${open ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700/40 text-slate-400"}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${open ? "bg-emerald-400" : "bg-slate-500"}`} />{open ? (isArabic ? "مفتوحة" : "Open") : (isArabic ? "مغلقة" : "Closed")}
+        </span>
+      </div>
+      {loading ? <SkeletonLine className="mt-3 h-16 w-full" /> : (
+        <div className="mt-3 space-y-1.5 text-xs">
+          <DashRow label={isArabic ? "كاشير نشط" : "Active cashiers"} value={number(active)} />
+          {shifts[0] ? <DashRow label={isArabic ? "الكاشير" : "Cashier"} value={shifts[0].cashier || shifts[0].name || "-"} /> : null}
+          {shifts[0]?.opened_at ? <DashRow label={isArabic ? "فتحت" : "Opened"} value={shortTime(shifts[0].opened_at)} /> : null}
+          {last ? <DashRow label={isArabic ? "آخر فاتورة" : "Last invoice"} value={`${last.invoice_number || `#${last.id}`} · ${formatCurrency(last.total || 0)}`} /> : null}
+          {!open ? <div className="pt-1 text-slate-500">{isArabic ? "لا توجد وردية مفتوحة حاليًا" : "No open shift right now"}</div> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecentSalesCard({ invoices = [], loading, isArabic }) {
+  const rows = (invoices || []).slice(0, 5);
+  return (
+    <div className={DASH_CARD}>
+      <div className={DASH_CARD_HEAD}><h3 className={DASH_CARD_TITLE}>{isArabic ? "أحدث الفواتير" : "Recent invoices"}</h3><Link to="/orders" className="text-[11px] font-bold text-emerald-300 hover:underline">{isArabic ? "عرض الكل" : "View all"}</Link></div>
+      {loading ? <SkeletonLine className="mt-3 h-28 w-full" /> : rows.length ? (
+        <div className="mt-2 divide-y divide-slate-700/40">
+          {rows.map((inv) => (
+            <Link key={inv.id} to={`/orders/${inv.id}`} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs transition hover:bg-slate-800/40">
+              <div className="min-w-0">
+                <div className="truncate font-bold text-slate-100">{inv.invoice_number || `#${inv.id}`}</div>
+                <div className="truncate text-[11px] text-slate-500">{shortTime(inv.created_at)}{inv.customer_name ? ` · ${inv.customer_name}` : ""}</div>
+              </div>
+              <div className="shrink-0 text-left"><div className="font-black text-slate-100">{formatCurrency(inv.total || 0)}</div>{inv.payment_status ? <div className="text-[10px] text-slate-500">{inv.payment_status}</div> : null}</div>
+            </Link>
+          ))}
+        </div>
+      ) : <DashEmpty text={isArabic ? "لا توجد فواتير بعد اليوم" : "No invoices yet today"} />}
+    </div>
+  );
+}
+
+function TopSellersCard({ products = [], loading, isArabic }) {
+  const rows = (products || []).slice(0, 5);
+  const max = Math.max(1, ...rows.map((r) => Number(r.quantity || 0)));
+  return (
+    <div className={DASH_CARD}>
+      <div className={DASH_CARD_HEAD}><h3 className={DASH_CARD_TITLE}>{isArabic ? "الأكثر مبيعًا اليوم" : "Top sellers today"}</h3><Link to="/reports" className="text-[11px] font-bold text-emerald-300 hover:underline">{isArabic ? "التقارير" : "Reports"}</Link></div>
+      {loading ? <SkeletonLine className="mt-3 h-28 w-full" /> : rows.length ? (
+        <div className="mt-2 space-y-2.5">
+          {rows.map((p, i) => (
+            <div key={`${p.name}-${i}`} className="text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-bold text-slate-100">{i + 1}. {p.name}</span>
+                <span className="shrink-0 font-black text-slate-300">{number(p.quantity)} {isArabic ? "قطعة" : "pcs"}</span>
+              </div>
+              <div className="mt-1 h-1.5 rounded-full bg-slate-700/40"><div className="h-full rounded-full bg-emerald-500/70" style={{ width: `${Math.round((Number(p.quantity || 0) / max) * 100)}%` }} /></div>
+            </div>
+          ))}
+        </div>
+      ) : <DashEmpty text={isArabic ? "لا مبيعات اليوم" : "No sales today"} />}
+    </div>
+  );
+}
+
+function StockAttentionCard({ lowStock = [], loading, isArabic }) {
+  const rows = (lowStock || []).slice(0, 6);
+  return (
+    <div className={DASH_CARD}>
+      <div className={DASH_CARD_HEAD}><h3 className={DASH_CARD_TITLE}>{isArabic ? "المخزون يحتاج انتباه" : "Stock needs attention"}</h3><Link to="/inventory" className="text-[11px] font-bold text-emerald-300 hover:underline">{isArabic ? "المخزون" : "Inventory"}</Link></div>
+      {loading ? <SkeletonLine className="mt-3 h-28 w-full" /> : rows.length ? (
+        <div className="mt-2 divide-y divide-slate-700/40">
+          {rows.map((it) => {
+            const remaining = Number(it.stock ?? it.total_stock ?? 0);
+            const critical = String(it.alert_level || "") === "critical" || remaining <= 1;
+            return (
+              <Link key={it.id || it.product_id} to={it.product_id ? `/products/${it.product_id}` : "/inventory"} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs transition hover:bg-slate-800/40">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${critical ? "bg-red-400" : "bg-amber-400"}`} />
+                  <div className="min-w-0"><div className="truncate font-bold text-slate-100">{it.product_name || it.name}</div>{(it.color || it.size) ? <div className="truncate text-[10px] text-slate-500">{[it.color, it.size].filter(Boolean).join(" · ")}</div> : null}</div>
+                </div>
+                <span className={`shrink-0 font-black ${critical ? "text-red-300" : "text-amber-300"}`}>{number(remaining)}{it.threshold ? ` / ${number(it.threshold)}` : ""}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ) : <DashEmpty text={isArabic ? "كل المخزون بحالة جيدة" : "All stock healthy"} />}
+    </div>
+  );
+}
+
+function AttentionCenter({ overview, inventory, liveActivity = [], isArabic }) {
+  const k = overview?.kpis || {};
+  const returns = (liveActivity || []).filter((a) => String(a.type || "") === "refund").length;
+  const items = [
+    { n: Number(k.lowStockProducts?.value || 0), label: isArabic ? "مخزون منخفض" : "Low stock", to: "/inventory", tone: "amber" },
+    { n: Number(k.pendingPurchaseOrders?.value || 0), label: isArabic ? "طلبات شراء معلقة" : "Pending purchases", to: "/purchases", tone: "amber" },
+    { n: Number(inventory?.pendingTransfers || 0), label: isArabic ? "تحويلات مخزون معلقة" : "Pending transfers", to: "/inventory/movements", tone: "slate" },
+    { n: returns, label: isArabic ? "مرتجعات حديثة" : "Recent returns", to: "/orders/returns", tone: "rose" },
+  ].filter((x) => x.n > 0);
+  if (!items.length) return null;
+  return (
+    <div className="relative z-10 mt-4">
+      <div className={DASH_CARD}>
+        <h3 className={DASH_CARD_TITLE}>{isArabic ? "يحتاج تدخلك" : "Needs your attention"}</h3>
+        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {items.map((it) => (
+            <Link key={it.label} to={it.to} className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition ${it.tone === "rose" ? "border-red-500/25 bg-red-500/10 hover:border-red-400/50" : it.tone === "amber" ? "border-amber-500/25 bg-amber-500/10 hover:border-amber-400/50" : "border-slate-700/60 bg-slate-800/40 hover:border-slate-500"}`}>
+              <span className="text-xs font-bold text-slate-200">{it.label}</span>
+              <span className={`text-lg font-black ${it.tone === "rose" ? "text-red-300" : it.tone === "amber" ? "text-amber-300" : "text-slate-200"}`}>{number(it.n)}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
