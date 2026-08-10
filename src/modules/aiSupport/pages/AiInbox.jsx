@@ -7245,15 +7245,6 @@ export default function AiInbox() {
       </div>
       {isConversationMode ? (
         <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-3 xl:flex-row xl:items-center">
-          <label className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search conversations, customers or messages"
-              className="h-10 w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-10 pr-4 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
-            />
-          </label>
           <div className="flex shrink-0 items-center gap-2">
             <span className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[11px] font-black ${aiAssistantGlobalEnabled ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>
               <Bot className="h-3.5 w-3.5" />
@@ -7710,19 +7701,10 @@ export default function AiInbox() {
 	                    </div>
 	                    <Pill tone="cyan">{filteredConversations.length}</Pill>
 	                  </div>
-	                  <label className="hidden">
-	                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-	                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرّف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
-	                  </label>
-	                  <div className="flex flex-wrap items-center gap-2">
-	                    <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
-	                      <ArrowUpDown className="h-4 w-4 text-slate-500" />
-	                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
-	                      <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-	                        <option value="recent">الأحدث</option>
-	                        <option value="lead_score_desc">أعلى درجة للعميل أولًا</option>
-	                        <option value="favorites_first">المفضلة أولاً</option>
-	                      </select>
+	                  <div className="flex items-center gap-2">
+	                    <label className="relative flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-slate-950/70 h-10">
+	                      <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+	                      <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو الرسالة" className="h-10 w-full min-w-0 rounded-xl bg-transparent pr-9 pl-3 text-sm font-bold text-white outline-none placeholder:text-slate-600" />
 	                    </label>
 	                      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
   <Star className="h-4 w-4 text-amber-300" />
