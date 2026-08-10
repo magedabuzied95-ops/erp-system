@@ -48,3 +48,16 @@ test("re-entering fullscreen is a no-op while already fullscreen", () => {
 test("the in-page expanded overlay is unchanged (still full-viewport, top layer)", () => {
   assert.match(src, /fixed inset-0 z-\[9999\] flex h-\[100vh\] w-\[100vw\]/);
 });
+
+test("expanding scales up the WHOLE workspace, not just the chat", () => {
+  // The channel rail used to be hidden while expanded, which turned "expand"
+  // into "chat only" and removed channel switching exactly when there is the
+  // most room for it.
+  assert.match(src, /<div className="ai-omni-channel-rail ai-omni-panel">/);
+  assert.doesNotMatch(src, /fullscreenConversation \? "hidden" : "ai-omni-channel-rail"/);
+});
+
+test("the conversation list stays visible while expanded", () => {
+  const listAside = src.slice(src.indexOf("ai-omni-list-panel") - 140, src.indexOf("ai-omni-list-panel") + 300);
+  assert.doesNotMatch(listAside, /fullscreenConversation \? "hidden"/);
+});

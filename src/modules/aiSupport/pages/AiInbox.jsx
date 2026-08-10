@@ -7682,7 +7682,11 @@ export default function AiInbox() {
         </section>
 
         <section className={`ai-omni-workspace relative ${fullscreenConversation ? "!flex min-h-0 flex-1 gap-0 overflow-hidden" : ""}`}>
-          <div className={`${fullscreenConversation ? "hidden" : "ai-omni-channel-rail"} ai-omni-panel`}>
+          {/* Expanding scales up the WHOLE workspace — channel rail, conversation
+              list and chat. It used to hide the rail, which turned "expand" into
+              "chat only" and cost you channel switching at the exact moment you
+              have the most room for it. */}
+          <div className="ai-omni-channel-rail ai-omni-panel">
             <InboxChannelSidebar
               channels={fixedChannelSummaries}
               allUnread={channelSummaries.all.unread}
