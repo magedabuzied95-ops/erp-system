@@ -51,6 +51,7 @@ import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from ".
 import PostProductLinksDrawer from "../components/socialAutomation/PostProductLinksDrawer.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
+import inboxCache from "../services/inboxCache/inboxCache";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType, normalizeClassificationValue } from "../../products/lib/productClassifications";
@@ -4075,6 +4076,79 @@ export default function AiInboxPwa() {
     ) || null
     );
   }, [conversationParam, conversations]);
+
+  // ---------------------------------------------------------------------
+  // AI Inbox stale-while-revalidate cache (IndexedDB, tenant+user namespaced).
+  // Cache is a fast starting point only; the network request stays
+  // authoritative and merges over it. Every op is fail-safe (see inboxCache).
+  // ---------------------------------------------------------------------
+  const cachePrimedThreadsRef = useRef(new Set());
+
+  // STEP 1-3: prime the conversation list from cache immediately, so a warm
+  // reopen shows recent rows before the network responds. Only fills when state
+  // is still empty — never clobbers already-loaded/fresher data.
+  useEffect(() => {
+    let active = true;
+    inboxCache.primeList(messagePlatformFilter).then((cached) => {
+      if (!active || !cached || !asArray(cached.conversations).length) return;
+      setConversations((current) => (current.length ? current : cached.conversations));
+    });
+    return () => { active = false; };
+  }, [messagePlatformFilter]);
+
+  // Prime cached messages for the open thread before the network hydrates it, so
+  // the transcript never flashes cached → empty spinner → fresh.
+  useEffect(() => {
+    const key = conversationKey(selectedConversation || {});
+    if (!key || cachePrimedThreadsRef.current.has(key)) return undefined;
+    if (asArray(selectedConversation?.messages).length > 1) {
+      cachePrimedThreadsRef.current.add(key);
+      return undefined;
+    }
+    let active = true;
+    inboxCache.primeThread(key).then((cached) => {
+      if (!active || !cached || !asArray(cached.messages).length) return;
+      cachePrimedThreadsRef.current.add(key);
+      patchConversation(key, (conversation) => ({
+        ...conversation,
+        messages: mergeMessagesByIdentity([...asArray(cached.messages), ...asArray(conversation.messages)]),
+      }));
+    });
+    return () => { active = false; };
+  }, [selectedConversation, patchConversation]);
+
+  // STEP 5 (list) / event-driven persistence — debounced inside inboxCache.
+  useEffect(() => {
+    if (conversations.length) inboxCache.saveList(conversations, messagePlatformFilter);
+  }, [conversations, messagePlatformFilter]);
+
+  // Persist the open thread's message window (covers hydration, older-message
+  // loads, realtime appends, and optimistic send/reconcile — all funnel here).
+  useEffect(() => {
+    const key = conversationKey(selectedConversation || {});
+    const messages = asArray(selectedConversation?.messages);
+    if (key && messages.length) inboxCache.saveThread(key, messages, mergeMessagesByIdentity);
+  }, [selectedConversation]);
+
+  // Remember the last opened thread for this namespace.
+  useEffect(() => {
+    if (conversationParam) inboxCache.saveLastThread(normalizeConversationSessionId(conversationParam));
+  }, [conversationParam]);
+
+  // Opportunistic expiry sweep on mount; wipe cache on logout / session change
+  // so a prior user's cached conversations can never reach the next user.
+  useEffect(() => {
+    inboxCache.sweep();
+    const onAuthUser = (event) => { if (!event?.detail?.user) inboxCache.clearAllCache(); };
+    const onAuthExpired = () => inboxCache.clearAllCache();
+    window.addEventListener("erp:auth-user-updated", onAuthUser);
+    window.addEventListener("erp:auth-expired", onAuthExpired);
+    return () => {
+      window.removeEventListener("erp:auth-user-updated", onAuthUser);
+      window.removeEventListener("erp:auth-expired", onAuthExpired);
+    };
+  }, []);
+
   const currentAgent = useMemo(() => getCurrentUser() || {}, []);
   const aiIntegration = useAIInboxAnalysis(selectedConversation, products, currentAgent);
   const trackAIRecommendation = aiIntegration.track;
