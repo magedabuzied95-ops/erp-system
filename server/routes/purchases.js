@@ -5031,6 +5031,27 @@ router.delete(
    CREATE PURCHASE
 ====================================================== */
 
+// The purchase schema/index DDL (ALTER … ADD COLUMN IF NOT EXISTS +
+// CREATE INDEX IF NOT EXISTS) is idempotent verification of an
+// already-correct production schema, but it used to run inside EVERY create
+// transaction — adding latency and taking catalog locks on every save. Run it
+// once per process on the pool (auto-commit, so it survives any request-txn
+// rollback), before opening the create transaction.
+let purchaseSchemaReadyPromise = null;
+const ensurePurchaseSchemaReady = () => {
+  if (!purchaseSchemaReadyPromise) {
+    purchaseSchemaReadyPromise = (async () => {
+      await ensurePurchaseCreateSchema(pool);
+      await ensureSmartReorderSchema(pool);
+      await ensurePurchaseCreateIndexes(pool);
+    })().catch((err) => {
+      purchaseSchemaReadyPromise = null; // allow a retry on the next request
+      throw err;
+    });
+  }
+  return purchaseSchemaReadyPromise;
+};
+
 router.post(
   "/",
   protect,
@@ -5110,13 +5131,12 @@ router.post(
         }
       };
 
+      // Verify schema once per process on the pool (not inside every txn).
+      await runStep("schema.ensureOnce", () => ensurePurchaseSchemaReady());
       await runStep("transaction.begin", async () => {
         await client.query("BEGIN");
         transactionStarted = true;
       });
-      await runStep("schema.purchaseCreate", () => ensurePurchaseCreateSchema(client));
-      await runStep("schema.smartReorder", () => ensureSmartReorderSchema(client));
-      await runStep("schema.indexVerification", () => ensurePurchaseCreateIndexes(client));
 
       const tenantId = getTenantId(req, req.user?.tenant_id);
       if (idempotencyKey) {
