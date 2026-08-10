@@ -498,6 +498,180 @@ const loadPortalCatalog = async ({ employee = null, query = {} } = {}) => {
   };
 };
 
+// ---------------------------------------------------------------------------
+// Isolated COMPACT Employee Portal data path (Warehouse Request + Inventory
+// facets). POS remains untouched. The Warehouse Request UI shows NO prices — it
+// is product -> color -> size -> quantity — so these endpoints deliberately omit
+// pricing and never fetch full variant arrays for the list.
+// ---------------------------------------------------------------------------
+
+const IN_STOCK_VARIANT = `pv.is_active IS DISTINCT FROM FALSE AND pv.deleted_at IS NULL`;
+
+const buildCompactConditions = (query, values) => {
+  const conditions = ["(p.tenant_id IS NULL OR p.tenant_id = $1::bigint)"];
+  conditions.push(`COALESCE(p.is_active, TRUE) = TRUE AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')`);
+  const search = clean(query.q ?? query.search ?? "");
+  if (search) conditions.push(buildSearchClause(values, search));
+  const category = clean(query.category);
+  if (category && lower(category) !== "all") addCondition(conditions, values, "LOWER(COALESCE(p.category, '')) = LOWER({value})", category);
+  const grade = clean(query.grade);
+  if (grade && lower(grade) !== "all") addCondition(conditions, values, "LOWER(COALESCE(p.grade, '')) = LOWER({value})", grade);
+  const brand = clean(query.brand);
+  if (brand && lower(brand) !== "all") addCondition(conditions, values, "LOWER(COALESCE(p.brand, '')) = LOWER({value})", brand);
+  const manufacturer = clean(query.manufacturer);
+  if (manufacturer && lower(manufacturer) !== "all") addCondition(conditions, values, "LOWER(COALESCE(m.name, '')) = LOWER({value})", manufacturer);
+  const gender = clean(query.gender);
+  if (gender && lower(gender) !== "all") addCondition(conditions, values, "LOWER(COALESCE(p.gender, '')) = LOWER({value})", gender);
+  const type = clean(query.product_type ?? query.type ?? query.style);
+  if (type && lower(type) !== "all") {
+    values.push(type);
+    const token = `$${values.length}`;
+    conditions.push(`(LOWER(COALESCE(p.product_type, '')) = LOWER(${token}) OR LOWER(COALESCE(p.style, '')) = LOWER(${token}))`);
+  }
+  const color = clean(query.color);
+  if (color && lower(color) !== "all") {
+    values.push(color);
+    const token = `$${values.length}`;
+    conditions.push(`EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND ${IN_STOCK_VARIANT} AND LOWER(COALESCE(pv.color, '')) = LOWER(${token}))`);
+  }
+  const size = clean(query.size ?? query.selectedSize ?? query.selected_size);
+  if (size && lower(size) !== "all") {
+    values.push(size);
+    const token = `$${values.length}`;
+    conditions.push(`EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND ${IN_STOCK_VARIANT} AND COALESCE(pv.stock, 0) > 0 AND LOWER(TRIM(COALESCE(pv.size, ''))) = LOWER(TRIM(${token})))`);
+  }
+  const inStockOnly = query.inStockOnly === undefined && query.in_stock_only === undefined ? true : truthy(query.inStockOnly ?? query.in_stock_only);
+  if (inStockOnly) conditions.push(`EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND ${IN_STOCK_VARIANT} AND COALESCE(pv.stock, 0) > 0)`);
+  return conditions;
+};
+
+// Compact paginated product cards — NO variant arrays, NO images blobs, NO price.
+export const loadEmployeePortalCompactProducts = async ({ employee = null, query = {} } = {}) => {
+  const tenantId = employee?.tenant_id ?? null;
+  const values = [tenantId];
+  const conditions = buildCompactConditions(query, values);
+  const page = toPositiveInt(query.page, 1);
+  const limit = Math.min(Math.max(toPositiveInt(query.limit ?? query.per_page ?? query.perPage, 48), 1), 100);
+  const offset = (page - 1) * limit;
+  values.push(limit, offset);
+  const limitToken = `$${values.length - 1}`;
+  const offsetToken = `$${values.length}`;
+  const sql = `
+    SELECT
+      p.id,
+      p.name,
+      COALESCE(NULLIF(b.name, ''), NULLIF(p.brand, '')) AS brand,
+      COALESCE(NULLIF(p.product_type, ''), NULLIF(p.style, ''), NULLIF(p.category, '')) AS product_type,
+      COALESCE(NULLIF(p.gender, ''), '') AS gender,
+      COALESCE(NULLIF(p.grade, ''), '') AS grade,
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+      (SELECT COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)::int FROM product_variants v WHERE v.product_id = p.id AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL) AS total_stock,
+      (SELECT COALESCE(array_agg(DISTINCT NULLIF(TRIM(v.color), '')) FILTER (WHERE COALESCE(v.stock, 0) > 0), '{}') FROM product_variants v WHERE v.product_id = p.id AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL) AS colors,
+      (SELECT COALESCE(array_agg(DISTINCT NULLIF(TRIM(v.size), '')) FILTER (WHERE COALESCE(v.stock, 0) > 0), '{}') FROM product_variants v WHERE v.product_id = p.id AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL) AS sizes
+    FROM products p
+    LEFT JOIN brands b ON b.id = p.brand_id
+    LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY p.updated_at DESC NULLS LAST, p.id DESC
+    LIMIT ${limitToken} OFFSET ${offsetToken}
+  `;
+  const result = await db.query(sql, values);
+  const products = (result.rows || []).map((row) => ({
+    id: Number(row.id),
+    product_id: Number(row.id),
+    name: clean(row.name),
+    brand: clean(row.brand),
+    product_type: clean(row.product_type),
+    type: clean(row.product_type),
+    gender: clean(row.gender),
+    grade: clean(row.grade),
+    image_url: clean(row.product_image_url),
+    product_image_url: clean(row.product_image_url),
+    total_stock: Math.max(0, Number(row.total_stock) || 0),
+    stock: Math.max(0, Number(row.total_stock) || 0),
+    colors: Array.isArray(row.colors) ? row.colors.filter(Boolean) : [],
+    sizes: Array.isArray(row.sizes) ? row.sizes.filter(Boolean) : [],
+    has_variants: true,
+  }));
+  return {
+    employee: employee ? { id: employee.id ?? null, full_name: employee.full_name || employee.name || "", branch_id: employee.branch_id ?? null, branch_name: employee.branch_name || "" } : null,
+    products,
+    page,
+    limit,
+    has_more: products.length === limit,
+  };
+};
+
+// Authoritative variants for ONE product (fetched only when a product is opened).
+export const loadEmployeePortalProductVariants = async ({ employee = null, productId = null, inStockOnly = true } = {}) => {
+  const tenantId = employee?.tenant_id ?? null;
+  const pid = toPositiveInt(productId);
+  if (!pid) return { product: null, variants: [] };
+  const headerResult = await db.query(
+    `SELECT p.id, p.name, COALESCE(NULLIF(b.name, ''), NULLIF(p.brand, '')) AS brand,
+            COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url
+     FROM products p LEFT JOIN brands b ON b.id = p.brand_id
+     WHERE p.id = $2::bigint AND (p.tenant_id IS NULL OR p.tenant_id = $1::bigint)
+       AND COALESCE(p.is_active, TRUE) = TRUE AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')`,
+    [tenantId, pid]
+  );
+  const header = headerResult.rows?.[0] || null;
+  if (!header) return { product: null, variants: [] };
+  const stockClause = inStockOnly ? "AND COALESCE(v.stock, 0) > 0" : "";
+  const variantsResult = await db.query(
+    `SELECT v.id AS variant_id, v.id, v.product_id, v.color, v.color_id, v.size, v.sku, v.barcode,
+            v.article_code, v.color_article_code, COALESCE(v.stock, 0)::int AS stock,
+            COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.color_image_url, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), $3::text) AS image_url
+     FROM product_variants v
+     WHERE v.product_id = $2::bigint AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL ${stockClause}
+     ORDER BY v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC`,
+    [tenantId, pid, clean(header.product_image_url)]
+  );
+  const variants = (variantsResult.rows || []).map((row) => ({
+    id: Number(row.variant_id),
+    variant_id: Number(row.variant_id),
+    product_id: Number(row.product_id),
+    color: clean(row.color),
+    color_id: row.color_id ?? null,
+    size: clean(row.size),
+    sku: clean(row.sku),
+    barcode: clean(row.barcode),
+    article_code: clean(row.article_code),
+    color_article_code: clean(row.color_article_code),
+    stock: Math.max(0, Number(row.stock) || 0),
+    image_url: clean(row.image_url),
+    variant_image_url: clean(row.image_url),
+  }));
+  return {
+    product: { id: Number(header.id), product_id: Number(header.id), name: clean(header.name), brand: clean(header.brand), image_url: clean(header.product_image_url), product_image_url: clean(header.product_image_url) },
+    variants,
+  };
+};
+
+// Tiny filter facets for Inventory Count (replaces the heavy limit=120 catalog).
+export const loadEmployeePortalFacets = async ({ employee = null } = {}) => {
+  const tenantId = employee?.tenant_id ?? null;
+  const scope = `(p.tenant_id IS NULL OR p.tenant_id = $1::bigint) AND COALESCE(p.is_active, TRUE) = TRUE AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft') AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND ${IN_STOCK_VARIANT} AND COALESCE(pv.stock, 0) > 0)`;
+  const result = await db.query(
+    `SELECT
+       (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(COALESCE(b.name, p.brand)), '') AS val FROM products p LEFT JOIN brands b ON b.id = p.brand_id WHERE ${scope}) s WHERE val IS NOT NULL) AS brands,
+       (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(COALESCE(NULLIF(p.product_type, ''), p.style)), '') AS val FROM products p WHERE ${scope}) s WHERE val IS NOT NULL) AS types,
+       (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(p.gender), '') AS val FROM products p WHERE ${scope}) s WHERE val IS NOT NULL) AS genders,
+       (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(p.grade), '') AS val FROM products p WHERE ${scope}) s WHERE val IS NOT NULL) AS grades,
+       (SELECT COALESCE(array_agg(DISTINCT val), '{}') FROM (SELECT NULLIF(TRIM(v.size), '') AS val FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL AND COALESCE(v.stock, 0) > 0 AND ${scope}) s WHERE val IS NOT NULL) AS sizes`,
+    [tenantId]
+  );
+  const row = result.rows?.[0] || {};
+  const arr = (v) => (Array.isArray(v) ? v.filter(Boolean) : []);
+  return {
+    brands: arr(row.brands).sort((a, b) => String(a).localeCompare(String(b), "ar")),
+    types: arr(row.types).sort((a, b) => String(a).localeCompare(String(b), "ar")),
+    genders: arr(row.genders),
+    grades: arr(row.grades).sort((a, b) => String(a).localeCompare(String(b), "ar")),
+    sizes: arr(row.sizes).sort((a, b) => (Number.isFinite(Number(a)) && Number.isFinite(Number(b)) ? Number(a) - Number(b) : String(a).localeCompare(String(b), "ar"))),
+  };
+};
+
 const buildPosCatalogQuery = (query = {}) => {
   const directSearch = firstNonEmpty(
     query.search,

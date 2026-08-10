@@ -18,7 +18,7 @@ import {
   unsubscribeEmployeePortalPush,
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
-import { loadEmployeePortalProducts } from "../services/employeePortalProductsService.js";
+import { loadEmployeePortalProducts, loadEmployeePortalCompactProducts, loadEmployeePortalProductVariants, loadEmployeePortalFacets } from "../services/employeePortalProductsService.js";
 import { loadEmployeeDisplayAudit, markEmployeeProductDisplayed } from "../services/employeeDisplayAuditService.js";
 import {
   createInventoryCountSession,
@@ -629,6 +629,50 @@ router.get("/:token/products", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] product browser load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee products" });
+  }
+});
+
+// Compact product cards (no variant arrays / no images blobs / no price) — the
+// fast Warehouse Request list + size-filter path. POS endpoint untouched.
+router.get("/:token/products/compact", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const payload = await loadEmployeePortalCompactProducts({ employee, query: req.query || {} });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[employee-portal] compact products load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load products" });
+  }
+});
+
+// Authoritative variants for a single product — fetched only when opened.
+router.get("/:token/products/:productId/variants", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const inStockOnly = req.query.inStockOnly === undefined && req.query.in_stock_only === undefined
+      ? true
+      : ["1", "true", "yes", "on"].includes(String(req.query.inStockOnly ?? req.query.in_stock_only).toLowerCase());
+    const payload = await loadEmployeePortalProductVariants({ employee, productId: req.params.productId, inStockOnly });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[employee-portal] product variants load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load variants" });
+  }
+});
+
+// Tiny filter facets (brands/types/genders/grades/sizes) — replaces the heavy
+// limit=120 catalog download the Inventory Count page used for its filters.
+router.get("/:token/facets", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const facets = await loadEmployeePortalFacets({ employee });
+    return res.json({ success: true, facets });
+  } catch (error) {
+    console.error("[employee-portal] facets load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load facets" });
   }
 });
 
