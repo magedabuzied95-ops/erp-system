@@ -1693,6 +1693,14 @@ const isLikelyMessengerExternalId = (value = "") => {
   const candidate = clean(value).replace(/\s+/g, "");
   return Boolean(candidate) && /^\d{5,}$/.test(candidate);
 };
+// Instagram Direct conversation (not a comment thread). Used to keep the raw
+// Instagram-scoped user id out of the displayed name and to pick a safe label.
+const isInstagramDmConversation = (conversation = {}) => {
+  const channel = normalizeConversationChannel(conversation);
+  const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
+  if (channel === "instagram_comment" || source.includes("_comment")) return false;
+  return channel === "instagram" || source === "instagram" || source.includes("instagram_dm") || source.includes("instagram");
+};
 
 const conversationName = (conversation = {}) =>
   (() => {
@@ -1754,9 +1762,13 @@ const conversationName = (conversation = {}) =>
       const value = clean(candidate);
       if (!value) return false;
       if (isGenericCustomerName(value)) return false;
-      if (isMessengerConversation(conversation) && isLikelyMessengerExternalId(value)) return false;
+      // Never let a Messenger/Instagram scoped user id become the display name.
+      if ((isMessengerConversation(conversation) || isInstagramDmConversation(conversation)) && isLikelyMessengerExternalId(value)) return false;
       return true;
     });
+    // Instagram Direct: if no real name resolved, show a safe label instead of
+    // the scoped user id (Meta may withhold the sender profile — see backend).
+    if (!resolved && isInstagramDmConversation(conversation)) return "مستخدم Instagram";
     return clean(resolved || customerIdentifier(
       conversation.external_customer_id,
       conversation.phone,

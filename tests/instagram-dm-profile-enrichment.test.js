@@ -62,6 +62,15 @@ test("avatar: uses profile_pic, keeps previously saved avatar, never overwrites 
   assert.match(persistSource, /customer_name = COALESCE\(NULLIF\(EXCLUDED\.customer_name, ''\), ai_customer_profiles\.customer_name\)/);
 });
 
+test("main AI Inbox never displays the Instagram scoped id as the conversation name", () => {
+  const pwa = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
+  assert.match(pwa, /const isInstagramDmConversation = \(conversation = \{\}\) =>/);
+  // scoped id excluded from the resolved display name for IG DMs
+  assert.match(pwa, /\(isMessengerConversation\(conversation\) \|\| isInstagramDmConversation\(conversation\)\) && isLikelyMessengerExternalId\(value\)/);
+  // safe label instead of the scoped id when no real name resolved
+  assert.match(pwa, /if \(!resolved && isInstagramDmConversation\(conversation\)\) return "مستخدم Instagram"/);
+});
+
 test("meta_reviewer never exposes the scoped id as a name and falls back safely", () => {
   // reviewer inbox display name: channel/session name, else 'Meta test account' — never the scoped id
   assert.match(reviewerSource, /COALESCE\(NULLIF\(c\.customer_name, ''\), NULLIF\(s\.customer_name, ''\), 'Meta test account'\) AS customer_name/);
