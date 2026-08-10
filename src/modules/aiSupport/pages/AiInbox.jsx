@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   ArrowUpDown,
   ExternalLink,
+  FileText,
   Bot,
   BadgePercent,
   CheckCheck,
@@ -39,6 +40,7 @@ import {
   Ruler,
   Search,
   Send,
+  Smile,
   ShieldBan,
   ShoppingBag,
   ShoppingCart,
@@ -2617,8 +2619,8 @@ function ManualReplyComposer({
     return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
   }
   return (
-    <div className="sticky bottom-0 w-full rounded-2xl border border-amber-300/20 bg-slate-950/95 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.3)] backdrop-blur">
-      {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="mb-1.5 rounded-xl border border-cyan-300/15 bg-cyan-300/8 px-2 py-1 text-[10px] font-bold leading-4 text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
+    <div className="sticky bottom-0 w-full bg-[#eefaf8] p-2 shadow-[0_-1px_10px_rgba(15,23,42,0.08)] dark:bg-[#20231f] dark:shadow-[0_-1px_10px_rgba(0,0,0,0.22)]">
+      {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="sr-only">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
       {hasValidation ? (
         <div className={`mb-1.5 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${validationTone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-50" : validationTone === "zinc" ? "border-white/10 bg-white/[0.045] text-slate-200" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-50"}`}>
           <div className="flex flex-wrap items-center gap-2">
@@ -2669,9 +2671,18 @@ function ManualReplyComposer({
           onDismiss={onDismissAiSuggestion}
         />
       ) : null}
-      <div className="flex flex-col gap-1">
-        <div className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-white/10 bg-[#111411] p-1.5 focus-within:border-amber-300/40 sm:flex-row sm:items-center">
-          <button type="button" title="Emoji picker coming soon" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">☺</button>
+      <div dir="ltr" className="flex min-w-0 items-end gap-2">
+        <div className="flex min-h-12 min-w-0 flex-1 items-end rounded-xl border border-slate-300 bg-white px-2 shadow-[0_1px_3px_rgba(15,23,42,0.18)] transition focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/15 dark:border-white/15 dark:bg-[#1b1e1b] dark:shadow-none dark:focus-within:border-amber-300/50 dark:focus-within:ring-amber-300/10">
+          <button
+            type="button"
+            onClick={() => onOpenProductPicker?.()}
+            disabled={loading}
+            title="Attach product"
+            aria-label="Attach product"
+            className="mb-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 dark:hover:bg-white/10 dark:hover:text-slate-100"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
           <textarea
             ref={textareaRef}
             data-ai-inbox-composer="true"
@@ -2689,84 +2700,33 @@ function ManualReplyComposer({
               }
             }}
             rows={1}
-            placeholder={canSendLive ? "اكتب رد العميل..." : "Write an internal note. It will not be sent to Meta yet."}
-            className="min-h-9 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-1.5 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-500"
+            placeholder={canSendLive ? "Type your message..." : "Write an internal note. It will not be sent yet."}
+            className="min-h-11 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2.5 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-black text-slate-950 disabled:opacity-50 sm:hidden ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}{submitLabel}</button>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`hidden h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-black text-slate-950 disabled:opacity-50 sm:inline-flex ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}{submitLabel}</button>
-          <button
-            type="button"
-            onClick={() => onOpenProductPicker?.()}
-            disabled={loading}
-            className="hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 text-[11px] font-black text-amber-100 disabled:opacity-50 sm:inline-flex"
-          >
-            <ShoppingCart className="h-3 w-3" />
-            إرسال منتج
+          <button type="button" title="Emoji" aria-label="Emoji" className="mb-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100">
+            <Smile className="h-5 w-5" />
           </button>
           <button
             type="button"
             onClick={() => onOpenAvailableBySizePicker?.()}
             disabled={loading}
-            className="hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100 disabled:opacity-50 sm:inline-flex"
+            title="Available products"
+            aria-label="Available products"
+            className="mb-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 dark:hover:bg-white/10 dark:hover:text-slate-100"
           >
-            <Ruler className="h-3 w-3" />
-            المتاح بالمقاس
+            <FileText className="h-5 w-5" />
           </button>
-          <button
-            type="button"
-            onClick={() => onCreateCustomer?.()}
-            disabled={loading}
-            className="hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 disabled:opacity-50 sm:inline-flex"
-          >
-            <UserPlus className="h-3 w-3" />
-            إنشاء عميل
-          </button>
-          <details className="relative sm:hidden">
-            <summary className="list-none cursor-pointer grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-slate-200">?</summary>
-            <div className="absolute right-0 z-20 mt-2 w-44 rounded-2xl border border-white/10 bg-slate-950/98 p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-              {isCommentConversation ? (
-                <button
-                  type="button"
-                  onClick={() => onSend()}
-                  disabled={loading || !clean(value) || !canSendLive}
-                  className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[10px] font-black text-violet-100 disabled:opacity-50"
-                >
-                  <MessageSquareText className="h-3.5 w-3.5" />
-                  رد على التعليق
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => onOpenProductPicker?.()}
-                disabled={loading}
-                className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50"
-              >
-                <ShoppingCart className="h-3.5 w-3.5" />
-                إرسال منتج
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenAvailableBySizePicker?.()}
-                disabled={loading}
-                className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50"
-              >
-                <Ruler className="h-3.5 w-3.5" />
-                المتاح بالمقاس
-              </button>
-              <button
-                type="button"
-                onClick={() => onCreateCustomer?.()}
-                disabled={loading}
-                className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 text-[10px] font-black text-emerald-100 disabled:opacity-50"
-              >
-                <UserPlus className="h-3.5 w-3.5" />
-                إنشاء عميل
-              </button>
-            </div>
-          </details>
         </div>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={loading || !clean(value) || !canSendLive}
+          title={submitTitle}
+          aria-label={submitLabel}
+          className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-white shadow-[0_6px_16px_rgba(3,105,161,0.28)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-500 hover:bg-amber-600" : "bg-sky-700 hover:bg-sky-800"}`}
+        >
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+        </button>
       </div>
     </div>
   );
@@ -7582,7 +7542,7 @@ export default function AiInbox() {
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
                     </div>
-                    <div className="z-20 shrink-0 border-t border-white/10 bg-slate-950/80 p-1.5 backdrop-blur">
+                    <div className="z-20 shrink-0 border-t border-slate-200 bg-[#eefaf8] p-1.5 dark:border-white/10 dark:bg-[#20231f]">
                       <ManualReplyComposer
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
                         value={replyText}
