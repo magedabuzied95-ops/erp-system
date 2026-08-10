@@ -99,6 +99,10 @@ export const saveList = (conversations, channelFilter) => {
   );
 };
 
+// Pure re-export (no identity/adapter needed): chronological ordering for a
+// merged message window, with a fail-safe fallback. See inboxCacheStore.
+export const orderMessages = (messages, fallback) => store.orderMessages(messages, fallback);
+
 export const primeThread = (conversationKey) =>
   guard("readThread", async () => {
     const ns = resolveNamespace();
@@ -167,6 +171,7 @@ export default {
   primeList,
   saveList,
   primeThread,
+  orderMessages,
   saveThread,
   saveThreadNow,
   saveLastThread,

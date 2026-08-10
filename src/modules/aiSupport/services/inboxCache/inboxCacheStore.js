@@ -79,6 +79,24 @@ export const boundMessages = (messages = [], limit = MAX_MESSAGES_PER_THREAD) =>
   return list.length > limit ? list.slice(list.length - limit) : list;
 };
 
+// Chronological ordering for a merged window.
+//
+// `mergeMessagesByIdentity` keeps each message at its FIRST-seen position, which
+// is correct when the incoming page is strictly older than what's on screen. It
+// is NOT correct when a cache-primed window reaches further back than the page
+// being merged in, so callers hydrating a full page order the result here.
+//
+// Fail-safe: if ANY message lacks a usable timestamp (e.g. an in-flight
+// optimistic bubble), reordering could move it to the wrong place, so we return
+// `fallback` (the caller's existing merge order) and change nothing.
+export const orderMessages = (messages = [], fallback = messages) => {
+  const list = Array.isArray(messages) ? messages.slice() : [];
+  const ts = (m) => new Date(m?.created_at || m?.updated_at || 0).getTime() || 0;
+  if (!list.length || list.some((m) => !ts(m))) return fallback;
+  // Array#sort is stable, so equal timestamps keep their incoming order.
+  return list.sort((a, b) => ts(a) - ts(b));
+};
+
 // ---- Conversation list --------------------------------------------------
 
 export const readList = async (adapter, ns, channelFilter) => {

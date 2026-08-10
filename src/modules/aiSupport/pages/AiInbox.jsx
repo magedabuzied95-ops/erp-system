@@ -1433,6 +1433,11 @@ const normalizeTranscriptMessage = (message = {}) => {
   };
 };
 
+// Freshness window for focus/visibility-triggered list revalidation. Within
+// this window a tab regaining visibility keeps showing current data instead of
+// refetching. Manual refresh and socket reconnect are NOT gated by it.
+const VISIBILITY_FRESH_MS = 20000;
+
 const mergeMessagesByIdentity = (messages = []) => {
   const merged = [];
   const identityIndexes = new Map();
@@ -4116,6 +4121,17 @@ export default function AiInbox() {
   const socialWorkspaceLoadKeyRef = useRef("");
   const isRefreshingRef = useRef(false);
   const isLoadingOlderRef = useRef(false);
+  // Threads already primed from the shared cache, and threads already
+  // revalidated against the server this session (one revalidation per thread,
+  // so a failing hydrate can never become a retry loop).
+  const cachePrimedThreadsRef = useRef(new Set());
+  const hydratedThreadsRef = useRef(new Set());
+  // Timestamp of the last successful list load — powers the focus/visibility
+  // freshness window (the ERP shell emits far more visibility events than the PWA).
+  const lastListLoadAtRef = useRef(0);
+  // In-flight guards for send (double-click must produce exactly one request).
+  const sendingReplyRef = useRef(false);
+  const sendingProductCardsRef = useRef(false);
   const isHydratingConversationRef = useRef(false);
   const isAppendingNewMessageRef = useRef(false);
   const previousConversationKeyRef = useRef("");
@@ -4232,8 +4248,13 @@ export default function AiInbox() {
       // channel status, the global-AI flag and the employees directory are NOT
       // required to show conversations, so they load in a deferred, non-blocking
       // wave after the list is usable (see below).
-      const inboxPayload = await api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, channel_filter: channelFilter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" });
+      // NOTE: no `message_limit` here. This endpoint is summary-only server-side
+      // (it always embeds exactly the latest message per conversation), so the
+      // param was dead weight. The open thread hydrates from
+      // /conversations/:id/messages instead.
+      const inboxPayload = await api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, channel_filter: channelFilter, search: debouncedSearch, limit: 50 }, headers, perfComponent: "AiInbox.conversations" });
       if (seq !== requestSeqRef.current) return;
+      lastListLoadAtRef.current = Date.now();
       const conversations = asArray(inboxPayload.conversations).map((conversation) => ({
         ...conversation,
         conversation_key: conversation.conversation_key || conversationKey(conversation),
@@ -4302,6 +4323,10 @@ export default function AiInbox() {
           tenant_id: tenantId,
         });
       }
+      // Social comments are a SEPARATE section — they are never required to show
+      // conversations. Detached from the awaited path so the comments endpoint
+      // can't hold isRefreshingRef (and therefore the refresh queue) open.
+      void (async () => {
       try {
         const [postsPayload, settingsPayload] = await Promise.all([
           api.get("/social-comments/posts", {
@@ -4367,12 +4392,14 @@ export default function AiInbox() {
           error: message,
         });
       }
+      })();
     } catch (err) {
       if (seq !== requestSeqRef.current) return;
       setError(err?.message || "تعذر تحميل صندوق محادثات الذكاء الاصطناعي");
+      // The detached social-comments block never started, so clear its spinner here.
+      setSocialComments((current) => ({ ...current, loading: false }));
     } finally {
       if (seq === requestSeqRef.current && !silent) setLoading(false);
-      if (seq === requestSeqRef.current) setSocialComments((current) => ({ ...current, loading: false }));
       if (seq === requestSeqRef.current) {
         isRefreshingRef.current = false;
         window.requestAnimationFrame(() => {
@@ -4476,6 +4503,11 @@ export default function AiInbox() {
     if (!pageVisible) return;
 
     if (!previous.pageVisible) {
+      // Freshness window: the ERP shell flips visibility far more often than the
+      // standalone PWA (tab/window switches, overlays). Re-showing a list we
+      // loaded seconds ago must not refetch — the cached/current data stays on
+      // screen. Past the window we revalidate in the background as before.
+      if (Date.now() - lastListLoadAtRef.current < VISIBILITY_FRESH_MS) return;
       requestRefresh("visibility", { silent: true, force: true });
       return;
     }
@@ -5685,12 +5717,15 @@ export default function AiInbox() {
     void loadAiTrace();
   }, [loadAiTrace]);
 
-  const loadOlderMessages = useCallback(async () => {
+  const loadOlderMessages = useCallback(async ({ forceHydrate = false } = {}) => {
     if (!selectedConversation?.session_id || olderMessagesLoading || isLoadingOlderRef.current) return;
     const sessionId = selectedConversation.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const currentMessages = asArray(selectedConversation.messages);
-    const shouldHydrateFullPage = currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length;
+    // forceHydrate: the window on screen came from the cache, so fetch the
+    // newest page (no `before` cursor) to revalidate it against the server.
+    const shouldHydrateFullPage = forceHydrate === true
+      || (currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length);
     const before = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before || currentMessages[0]?.created_at || "";
     const beforeId = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before_id || currentMessages[0]?.id || "";
     if (!shouldHydrateFullPage && !before) return;
@@ -5709,8 +5744,21 @@ export default function AiInbox() {
         headers,
         perfComponent: "AiInbox.messages.loadOlder",
       });
+      hydratedThreadsRef.current.add(clean(conversationIdentifier));
       patchConversation(conversationIdentifier, (conversation) => {
-        const mergedMessages = mergeMessagesByIdentity([...asArray(payload.messages), ...asArray(conversation.messages)]);
+        const existing = asArray(conversation.messages);
+        const incoming = asArray(payload.messages);
+        // Older-page loads prepend (incoming is strictly older). A full-page
+        // hydrate may merge over a cache-primed window that reaches FURTHER BACK
+        // than this page, and merge keeps first-seen order, so order the result
+        // chronologically (falling back to the prepend order when any message
+        // lacks a timestamp — e.g. an in-flight optimistic bubble).
+        const mergedMessages = shouldHydrateFullPage
+          ? inboxCache.orderMessages(
+              mergeMessagesByIdentity([...existing, ...incoming]),
+              mergeMessagesByIdentity([...incoming, ...existing])
+            )
+          : mergeMessagesByIdentity([...incoming, ...existing]);
         return {
           ...conversation,
           messages: mergedMessages,
@@ -5729,11 +5777,46 @@ export default function AiInbox() {
     }
   }, [headers, olderMessagesLoading, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
 
+  // WARM THREAD (stale-while-revalidate) — shared inboxCache.
+  // Opening a conversation renders its cached message window immediately; the
+  // authoritative page is fetched by the hydration effect below and merged over
+  // it, so the thread never blanks or flashes.
+  useEffect(() => {
+    const key = clean(selectedConversation?.conversation_key || selectedConversation?.session_id || "");
+    if (!key || cachePrimedThreadsRef.current.has(key)) return undefined;
+    let active = true;
+    inboxCache.primeThread(key).then((cached) => {
+      const cachedMessages = asArray(cached?.messages);
+      if (!active || !cachedMessages.length) return;
+      cachePrimedThreadsRef.current.add(key);
+      patchConversation(key, (conversation) => ({
+        ...conversation,
+        messages: mergeMessagesByIdentity([...cachedMessages, ...asArray(conversation.messages)]),
+      }));
+    });
+    return () => { active = false; };
+  }, [patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id]);
+
+  // Persist the open thread's message window. One funnel covers hydration,
+  // older-message loads, realtime appends and optimistic send/reconcile.
+  // Debounced + async inside the shared module, so it never blocks rendering.
+  useEffect(() => {
+    const key = clean(selectedConversation?.conversation_key || selectedConversation?.session_id || "");
+    const messages = asArray(selectedConversation?.messages);
+    if (key && messages.length) inboxCache.saveThread(key, messages, mergeMessagesByIdentity);
+  }, [selectedConversation]);
+
   useEffect(() => {
     if (!selectedConversation?.session_id) return;
     if (isHydratingConversationRef.current || isLoadingOlderRef.current || isAppendingNewMessageRef.current || isRefreshingRef.current) return;
-    if (asArray(selectedConversation.messages).length > 1) return;
-    void loadOlderMessages();
+    const key = clean(selectedConversation.conversation_key || selectedConversation.session_id);
+    // A cache-primed thread already shows messages, so the ">1 message" shortcut
+    // would skip revalidation entirely and leave it stale. Revalidate it exactly
+    // once per session (marked up-front so a failing fetch can't retry-loop).
+    const primedNeedsRevalidation = cachePrimedThreadsRef.current.has(key) && !hydratedThreadsRef.current.has(key);
+    if (asArray(selectedConversation.messages).length > 1 && !primedNeedsRevalidation) return;
+    if (primedNeedsRevalidation) hydratedThreadsRef.current.add(key);
+    void loadOlderMessages({ forceHydrate: primedNeedsRevalidation });
   }, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id]);
 
   const currentAssignName = assignNameDraft.sessionId === selectedConversation?.session_id
@@ -6109,6 +6192,12 @@ export default function AiInbox() {
     const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
     const correctionMetadata = options.correctionMetadata || {};
     const sendFlow = options.flow || (allowSameTextCorrection ? "edit" : "normal");
+    // Atomic in-flight guard: a rapid double-click can fire twice before the
+    // disabled state renders. Placed after the (synchronous) confirm prompt and
+    // before the optimistic bubble, so a blocked second click neither sends a
+    // duplicate request nor leaves a stray "sending" bubble behind.
+    if (sendingReplyRef.current) return;
+    sendingReplyRef.current = true;
     const optimistic = {
       id: `sending-${Date.now()}`,
       session_id: sessionId,
@@ -6198,6 +6287,7 @@ export default function AiInbox() {
           : asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: friendlyError } : item),
       }));
     } finally {
+      sendingReplyRef.current = false;
       setReplySending(false);
     }
   };
@@ -6415,6 +6505,10 @@ export default function AiInbox() {
       conversation: selectedConversation,
     });
 
+    // Atomic in-flight guard — see sendManualReply. Prevents a rapid
+    // double-click from sending the same product cards twice.
+    if (sendingProductCardsRef.current) return;
+    sendingProductCardsRef.current = true;
     setProductCardSending(true);
     setError("");
     try {
@@ -6526,6 +6620,7 @@ export default function AiInbox() {
       setError(err?.message || "تعذر إرسال المنتج");
       throw err;
     } finally {
+      sendingProductCardsRef.current = false;
       setProductCardSending(false);
     }
   }, [headers, loadAll, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
@@ -6573,9 +6668,21 @@ export default function AiInbox() {
   };
 
   useEffect(() => {
-    if (!selectedConversation?.session_id) return;
-    void loadRecommendations();
-    void loadSalesCloser();
+    if (!selectedConversation?.session_id) return undefined;
+    // Recommendations + sales-closer feed secondary side panels only. They must
+    // not compete with the thread hydration for the connection, so they wait for
+    // an idle moment after the messages/composer are usable.
+    const run = () => {
+      void loadRecommendations();
+      void loadSalesCloser();
+    };
+    const idle = window.requestIdleCallback
+      ? window.requestIdleCallback(run, { timeout: 2000 })
+      : window.setTimeout(run, 250);
+    return () => {
+      if (window.requestIdleCallback && window.cancelIdleCallback) window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
+    };
   }, [selectedConversation?.session_id]);
 
   const generateAiReply = async ({ persist = false } = {}) => {
