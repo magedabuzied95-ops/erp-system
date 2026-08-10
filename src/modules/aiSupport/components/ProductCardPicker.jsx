@@ -6,6 +6,7 @@ import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../uti
 import { formatCurrency } from "../../../shared/lib/currency";
 import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
+import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pickerSizesApi";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
@@ -388,6 +389,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [selectedLinkMinPrice, setSelectedLinkMinPrice] = useState("");
   const [selectedLinkMaxPrice, setSelectedLinkMaxPrice] = useState("");
   const [previewCollapsed, setPreviewCollapsed] = useState(true);
+  // Size-first server data (sizeMode only): replaces the ~50MB catalog download.
+  const [sizeServer, setSizeServer] = useState({ sizes: [], brands: [], types: [] });
+  const [sizeServerLoading, setSizeServerLoading] = useState(false);
+  const [sizeMatchCount, setSizeMatchCount] = useState(0);
+  // If the size-first endpoints are unavailable (e.g. backend not yet deployed),
+  // fall back to deriving sizes/facets/counts from the full catalog like before.
+  const [sizeCatalogFallback, setSizeCatalogFallback] = useState(false);
   const previousOpenRef = useRef(false);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   // The order composer uses the same dark product surface as POS, including the
@@ -403,6 +411,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // repeat opens stay instant.
   useEffect(() => {
     if (!open) return undefined;
+    // Size-first flow: the size list, filter options and match counts now come
+    // from tiny dedicated endpoints (see the sizeMode effects below), so we never
+    // download the full catalog + all variants here. Non-size mode still builds
+    // individual product cards and needs the catalog. Only load the catalog in
+    // sizeMode if the size endpoints failed and we fell back.
+    if (sizeMode && !sizeCatalogFallback) return undefined;
     let active = true;
     setLoading(true);
     setError("");
@@ -422,7 +436,74 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return () => {
       active = false;
     };
-  }, [open]);
+  }, [open, sizeMode, sizeCatalogFallback]);
+
+  // sizeMode: fetch the in-stock size list + brand/type facets from the server,
+  // honouring the active filters. Debounced so typing/filtering stays snappy.
+  useEffect(() => {
+    if (!open || !sizeMode) return undefined;
+    let active = true;
+    setSizeServerLoading(true);
+    const timer = window.setTimeout(() => {
+      getAvailableProductSizes({
+        brand: selectedLinkBrand,
+        gender: selectedLinkGender,
+        types: selectedLinkTypes,
+        minPrice: selectedLinkMinPrice,
+        maxPrice: selectedLinkMaxPrice,
+        search,
+      })
+        .then((data) => {
+          if (!active) return;
+          setSizeServer(data);
+          setSizeCatalogFallback(false);
+        })
+        .catch(() => {
+          // Endpoint unavailable → fall back to the full-catalog derivation.
+          if (!active) return;
+          setSizeCatalogFallback(true);
+        })
+        .finally(() => {
+          if (active) setSizeServerLoading(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [open, sizeMode, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
+
+  // sizeMode: fetch the match count for the currently selected size(s)+filters.
+  useEffect(() => {
+    if (!open || !sizeMode) return undefined;
+    const sizes = uniqueSizeValues(selectedLinkSizes);
+    if (!sizes.length) {
+      setSizeMatchCount(0);
+      return undefined;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      getProductsBySizeCount({
+        sizes,
+        brand: selectedLinkBrand,
+        gender: selectedLinkGender,
+        types: selectedLinkTypes,
+        minPrice: selectedLinkMinPrice,
+        maxPrice: selectedLinkMaxPrice,
+        search,
+      })
+        .then((total) => {
+          if (active) setSizeMatchCount(total);
+        })
+        .catch(() => {
+          if (active) setSizeMatchCount(0);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [open, sizeMode, selectedLinkSizes, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
 
   const smartClassificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false, includeCurrentValue: false }),
@@ -470,8 +551,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return matchesQuickFilters && matchesProductType && matchesGrade;
   }).map(({ product }) => product), [brand, filterColor, filterSize, gender, grade, manufacturer, productType, smartFilterSource]);
 
+  // Catalog-based sizeMode filtering — used ONLY as the fallback when the
+  // size-first endpoints are unavailable.
   const sizeLinkFilteredProducts = useMemo(() => {
-    if (!sizeMode) return [];
+    if (!sizeMode || !sizeCatalogFallback) return [];
     const searchValue = clean(search);
     const selectedBrandValue = lower(selectedLinkBrand);
     const selectedTypeValues = selectedLinkTypes.map(lower);
@@ -488,9 +571,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       if (maxPriceValue !== null && Number.isFinite(maxPriceValue) && price > maxPriceValue) return false;
       return true;
     });
-  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkTypes, sizeMode]);
+  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkTypes, sizeMode, sizeCatalogFallback]);
 
-  const availableSizes = useMemo(() => availableSizesForProducts(sizeMode ? sizeLinkFilteredProducts : filteredProducts), [filteredProducts, sizeLinkFilteredProducts, sizeMode]);
+  const availableSizes = useMemo(() => {
+    if (sizeMode) {
+      return sizeCatalogFallback
+        ? availableSizesForProducts(sizeLinkFilteredProducts)
+        : uniqueSizeValues(asArray(sizeServer.sizes).map((entry) => clean(entry?.size)).filter(Boolean));
+    }
+    return availableSizesForProducts(filteredProducts);
+  }, [filteredProducts, sizeMode, sizeCatalogFallback, sizeLinkFilteredProducts, sizeServer.sizes]);
   const isSizeSelectionStep = Boolean(sizeMode && !selectedSize);
   const visibleProducts = useMemo(() => {
     if (!sizeMode || !selectedSize) return filteredProducts;
@@ -565,7 +655,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     });
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ar"));
   }, [smartFilterSource]);
-  const brandOptions = useMemo(() => uniqueTextValues(products.map((product) => product.brand || product.brand_name)), [products]);
+  const brandOptions = useMemo(
+    () => (sizeMode && !sizeCatalogFallback
+      ? uniqueTextValues(asArray(sizeServer.brands))
+      : uniqueTextValues(products.map((product) => product.brand || product.brand_name))),
+    [products, sizeMode, sizeCatalogFallback, sizeServer.brands]
+  );
   const activeFilterCount = brand.length + gender.length + manufacturer.length + [productType, grade].filter((value) => value !== "all").length;
   const openPosFilters = useCallback(() => {
     setDraftPosFilters({ gender: [...gender], productType, grade, brands: [...brand], manufacturers: [...manufacturer] });
@@ -590,7 +685,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     }
     setFiltersOpen(false);
   }, [draftPosFilters]);
-  const typeOptions = useMemo(() => uniqueTextValues(products.flatMap((product) => productTypeValues(product))), [products]);
+  const typeOptions = useMemo(
+    () => (sizeMode && !sizeCatalogFallback
+      ? uniqueTextValues(asArray(sizeServer.types))
+      : uniqueTextValues(products.flatMap((product) => productTypeValues(product)))),
+    [products, sizeMode, sizeCatalogFallback, sizeServer.types]
+  );
   const genderOptions = useMemo(() => ["all", "men", "women", "kids"], []);
 
   useEffect(() => {
@@ -816,9 +916,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       maxPrice: selectedLinkMaxPrice,
       url: selectedLinkUrl,
     });
-    const matchingCount = sizeLinkFilteredProducts.filter((product) =>
-      normalizedSelectedSizes.length ? normalizedSelectedSizes.some((size) => productHasAvailableSize(product, size)) : false
-    ).length;
+    // Match count comes from the server (by-size count endpoint). Falls back to
+    // the catalog derivation when the endpoints are unavailable.
+    const matchingCount = !normalizedSelectedSizes.length
+      ? 0
+      : sizeCatalogFallback
+        ? sizeLinkFilteredProducts.filter((product) => normalizedSelectedSizes.some((size) => productHasAvailableSize(product, size))).length
+        : sizeMatchCount;
 
     const sizeContent = (
       <div
