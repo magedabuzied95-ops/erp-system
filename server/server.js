@@ -425,7 +425,10 @@ io.on("connection", async (socket) => {
         throw new Error("review scope unavailable");
       }
       socket.data.user = { id: userId, tenant_id: tenantId, role };
-      socket.on("meta_reviewer:select_channel", async (payload = {}, acknowledge = () => {}) => {
+      socket.on("meta_reviewer:select_channel", async (payload = {}, acknowledge) => {
+        // Guard: some clients emit this event without (or with a non-function)
+        // ack callback, which previously caused "acknowledge is not a function".
+        const ack = typeof acknowledge === "function" ? acknowledge : () => {};
         const channel = normalizeMetaReviewerChannel(payload?.channel);
         const channelScope = getMetaReviewerChannelScope(reviewScope, channel);
         for (const candidate of ["messenger", "instagram"]) {
@@ -433,13 +436,13 @@ io.on("connection", async (socket) => {
           if (room) await socket.leave(room);
         }
         if (!channelScope?.enabled) {
-          acknowledge({ success: false, channel, enabled: false });
+          ack({ success: false, channel, enabled: false });
           return;
         }
         const room = metaReviewerRealtimeRoom(reviewScope, channel);
         await socket.join(room);
         socket.data.metaReviewerChannel = channel;
-        acknowledge({ success: true, channel, enabled: true });
+        ack({ success: true, channel, enabled: true });
       });
       socket.emit("notifications:ready", { connected: true, at: new Date().toISOString() });
       return;
