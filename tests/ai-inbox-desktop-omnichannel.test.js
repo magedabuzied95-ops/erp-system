@@ -12,9 +12,10 @@ test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopSource, /ai-omni-workspace/);
   assert.match(desktopSource, /ai-omni-list-panel/);
   assert.match(desktopSource, /ai-omni-chat-panel/);
-  assert.match(desktopSource, /ai-omni-tools-panel/);
+  assert.doesNotMatch(desktopSource, /ai-omni-tools-panel/);
   assert.match(desktopCss, /grid-template-columns:\s*58px minmax\(270px, 310px\) minmax\(420px, 1fr\)/);
-  assert.match(desktopCss, /ai-omni-workspace--tools/);
+  assert.doesNotMatch(desktopCss, /ai-omni-workspace--tools/);
+  assert.match(pwaSource, /AIInboxAnalysisPanel/);
 });
 
 test("desktop workspace keeps search while channel filters stay out of the top bar", () => {

@@ -2223,17 +2223,19 @@ function InboxChatHeader({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
-          <button
-            type="button"
-            onClick={() => onOpenTools?.()}
-            disabled={loading}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition disabled:opacity-50 ${toolsOpen ? "border-amber-300/30 bg-amber-400/15 text-amber-100" : "border-white/10 bg-white/[0.06] text-slate-100 hover:border-amber-300/25"}`}
-            aria-label={toolsOpen ? "إغلاق تفاصيل العميل" : "فتح تفاصيل العميل"}
-            title={toolsOpen ? "إغلاق التفاصيل" : "تفاصيل العميل والأدوات"}
-          >
-            {toolsOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-            التفاصيل
-          </button>
+          {onOpenTools ? (
+            <button
+              type="button"
+              onClick={() => onOpenTools()}
+              disabled={loading}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition disabled:opacity-50 ${toolsOpen ? "border-amber-300/30 bg-amber-400/15 text-amber-100" : "border-white/10 bg-white/[0.06] text-slate-100 hover:border-amber-300/25"}`}
+              aria-label={toolsOpen ? "إغلاق تفاصيل العميل" : "فتح تفاصيل العميل"}
+              title={toolsOpen ? "إغلاق التفاصيل" : "تفاصيل العميل والأدوات"}
+            >
+              {toolsOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+              التفاصيل
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => onToggleFullscreen?.()}
@@ -7453,7 +7455,7 @@ export default function AiInbox() {
           ) : null}
         </section>
 
-        <section className={`ai-omni-workspace relative ${profileOpen && activeMainItem && !fullscreenConversation ? "ai-omni-workspace--tools" : ""} ${fullscreenConversation ? "!flex min-h-0 flex-1 gap-0 overflow-hidden" : ""}`}>
+        <section className={`ai-omni-workspace relative ${fullscreenConversation ? "!flex min-h-0 flex-1 gap-0 overflow-hidden" : ""}`}>
           <div className={`${fullscreenConversation ? "hidden" : "ai-omni-channel-rail"} ai-omni-panel`}>
             <InboxChannelSidebar
               channels={fixedChannelSummaries}
@@ -7672,8 +7674,6 @@ export default function AiInbox() {
                     onTakeover={() => updateConversationAction("takeover")}
                     onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
                     onClose={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "close")}
-                    toolsOpen={profileOpen}
-                    onOpenTools={() => setProfileOpen((current) => !current)}
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
                     showBack
@@ -7822,42 +7822,6 @@ export default function AiInbox() {
               <EmptyBlock text="لا توجد محادثات حاليًا" />
             )}
           </main>
-          {!fullscreenConversation && profileOpen && activeMainItem ? (
-            <aside dir="rtl" className="ai-omni-panel ai-omni-tools-panel">
-              <RightToolsTabsPanel
-                activeTab={toolsTab}
-                onTabChange={setToolsTab}
-                conversation={selectedConversation}
-                channelStatus={selectedChannelStatus}
-                loading={loading}
-                assignName={currentAssignName}
-                onAssignNameChange={updateAssignName}
-                onAction={updateConversationAction}
-                mode={resolveChannelAutoReplyMode(selectedChannelStatus)}
-                onModeChange={updateAutoReplyMode}
-                modeSaving={modeSaving}
-                recommendations={recommendations}
-                salesCloser={salesCloser}
-                drafts={drafts}
-                onRefreshRecommendations={loadRecommendations}
-                onQuickSend={quickSendProduct}
-                onSendImages={sendProductImages}
-                onCreateDraft={createDraftFromProduct}
-                onRefreshSalesCloser={loadSalesCloser}
-                onTakeover={() => updateConversationAction("takeover")}
-                onUseText={setReplyText}
-                onPaymentAction={usePaymentAction}
-                onOpenAiTrace={isWhatsappChannel(safeConversation.channel || safeConversation.source) ? openAiTrace : null}
-                aiTrace={aiTrace}
-                onSyncMessengerProfile={syncMessengerProfile}
-                profileSyncing={profileSyncing}
-                onDebugMessengerProfile={debugMessengerProfile}
-                profileDebugging={profileDebugging}
-                onResetAiState={resetAiState}
-                resettingAiState={resettingAiState}
-              />
-            </aside>
-          ) : null}
         </section>
       </div>
     </div>
