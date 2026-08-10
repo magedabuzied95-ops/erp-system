@@ -655,7 +655,7 @@ const EmptyState = ({ title, body, compact = false }) => (
   </div>
 );
 
-const DailyProfitCard = ({ token, salesData, canView }) => {
+const DailyProfitCard = ({ token, salesData, canView, className = "" }) => {
   const [state, setState] = useState({ status: "locked", data: null, token: "" });
   const [modalOpen, setModalOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -702,9 +702,12 @@ const DailyProfitCard = ({ token, salesData, canView }) => {
 
   if (!canView) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-4 py-4 text-right">
-        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">الربح اليومي</div>
-        <div className="mt-1 text-sm font-black text-slate-500">الربح مخفي</div>
+      <div className={`manager-daily-profit-card rounded-2xl border px-4 py-4 text-right ${className}`}>
+        <div className="flex items-center gap-2 text-[11px] font-black text-slate-500">
+          <TrendingUp className="h-4 w-4" />
+          <span>الربح اليومي</span>
+        </div>
+        <div className="mt-2 text-sm font-black text-slate-500">الربح مخفي حسب الصلاحيات</div>
       </div>
     );
   }
@@ -713,15 +716,26 @@ const DailyProfitCard = ({ token, salesData, canView }) => {
     const d = state.data;
     const change = d.profit_change_percent;
     return (
-      <div className="rounded-2xl border border-amber-500/40 bg-[#0b1220] px-4 py-4 text-right">
-        <div className="flex items-center justify-between">
-          <button type="button" onClick={handleHide} className="text-[10px] font-bold text-slate-400 transition hover:text-amber-300">إخفاء الربح</button>
-          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-300">الربح اليومي</div>
+      <div className={`manager-daily-profit-card rounded-[1.35rem] border p-4 text-right ${className}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-black text-amber-300">
+            <span className="manager-daily-profit-icon grid h-9 w-9 place-items-center rounded-xl border"><TrendingUp className="h-4 w-4" /></span>
+            <span>الربح اليومي</span>
+          </div>
+          <button type="button" onClick={handleHide} className="manager-daily-profit-hide rounded-full border px-3 py-1.5 text-[10px] font-black transition">إخفاء</button>
         </div>
-        <div className="mt-1 text-lg font-black text-white">{formatCurrency(d.profit || 0)}</div>
-        <div className="mt-1 text-xs font-bold text-slate-300">هامش الربح {Number(d.profit_margin || 0)}%</div>
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black text-slate-400">صافي ربح اليوم</div>
+            <div dir="ltr" className="mt-1 truncate text-[1.65rem] font-black leading-none tracking-tight text-white">{formatCurrency(d.profit || 0)}</div>
+          </div>
+          <div className="manager-daily-profit-margin shrink-0 rounded-xl border px-3 py-2 text-center">
+            <div className="text-[9px] font-black text-slate-400">هامش الربح</div>
+            <div dir="ltr" className="mt-0.5 text-base font-black text-amber-300">{Number(d.profit_margin || 0)}%</div>
+          </div>
+        </div>
         {change !== null && change !== undefined ? (
-          <div className={`mt-1 text-[11px] font-bold ${Number(change) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+          <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${Number(change) >= 0 ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-400" : "border-rose-400/25 bg-rose-400/10 text-rose-400"}`}>
             {Number(change) >= 0 ? "↑" : "↓"} {Math.abs(Number(change))}% عن أمس
           </div>
         ) : null}
@@ -731,9 +745,14 @@ const DailyProfitCard = ({ token, salesData, canView }) => {
 
   return (
     <>
-      <button type="button" onClick={() => { setError(""); setModalOpen(true); }} className="w-full rounded-2xl border border-slate-800 bg-[#0b1220] px-4 py-4 text-right transition hover:border-amber-500/40">
-        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">🔒 الربح اليومي</div>
-        <div className="mt-1 text-sm font-black text-amber-300">اضغط لعرض الربح</div>
+      <button type="button" onClick={() => { setError(""); setModalOpen(true); }} className={`manager-daily-profit-card w-full rounded-[1.35rem] border p-4 text-right transition ${className}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-black text-slate-400">الربح اليومي</div>
+            <div className="mt-1 text-sm font-black text-amber-300">اضغط لعرض التفاصيل</div>
+          </div>
+          <span className="manager-daily-profit-icon grid h-10 w-10 place-items-center rounded-xl border text-lg">🔒</span>
+        </div>
       </button>
       {modalOpen ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" onClick={() => { if (!submitting) { setModalOpen(false); setError(""); } }}>
@@ -2632,7 +2651,7 @@ export default function ManagerPortal() {
                         <div className="mt-1 text-sm font-black text-slate-950">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))}</div>
                       </div>
                       {canViewProfit ? (
-                        <DailyProfitCard token={token} salesData={sales} canView={canViewProfit} />
+                        <DailyProfitCard token={token} salesData={sales} canView={canViewProfit} className="col-span-2" />
                       ) : null}
                       <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-3 py-3 shadow-sm">
                         <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">أفضل يوم</div>
