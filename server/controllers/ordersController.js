@@ -4256,8 +4256,50 @@ export const getOrders = async (req, res) => {
 
     const orderIds = result.rows.map((order) => Number(order.id)).filter((id) => Number.isFinite(id) && id > 0);
     const itemsByOrder = new Map();
+    const returnsByOrder = new Map();
 
     if (orderIds.length) {
+      const returnsResult = await db.query(
+        `
+        WITH return_item_totals AS (
+          SELECT ri.return_id, COALESCE(SUM(ri.refund_amount), 0)::numeric AS refund_amount
+          FROM return_items ri
+          WHERE ri.return_id IN (
+            SELECT id FROM returns
+            WHERE order_id = ANY($1::bigint[])
+              AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+          )
+          GROUP BY ri.return_id
+        ), ranked_returns AS (
+          SELECT
+            r.order_id,
+            r.return_number,
+            r.status AS return_status,
+            r.refund_method,
+            r.created_at AS returned_at,
+            SUM(
+              CASE
+                WHEN COALESCE(r.refund_amount, 0) > 0 THEN r.refund_amount
+                ELSE COALESCE(rit.refund_amount, 0)
+              END
+            ) OVER (PARTITION BY r.order_id)::numeric AS refund_amount,
+            ROW_NUMBER() OVER (PARTITION BY r.order_id ORDER BY r.created_at DESC, r.id DESC) AS row_number
+          FROM returns r
+          LEFT JOIN return_item_totals rit ON rit.return_id = r.id
+          WHERE r.order_id = ANY($1::bigint[])
+            AND ($2::bigint IS NULL OR r.tenant_id = $2::bigint)
+        )
+        SELECT order_id, return_number, return_status, refund_method, refund_amount, returned_at
+        FROM ranked_returns
+        WHERE row_number = 1
+        `,
+        [orderIds, tenantId]
+      );
+
+      for (const returnRecord of returnsResult.rows) {
+        returnsByOrder.set(String(returnRecord.order_id), returnRecord);
+      }
+
       const itemsResult = await db.query(
         `
         SELECT
@@ -4272,6 +4314,8 @@ export const getOrders = async (req, res) => {
           COALESCE(pv.size, '') AS size,
           CONCAT_WS(' / ', NULLIF(pv.color, ''), NULLIF(pv.size, '')) AS variant_label,
           oi.quantity,
+          COALESCE(returned_item.returned_quantity, oi.returned_quantity, 0) AS returned_quantity,
+          COALESCE(returned_item.refund_amount, 0)::numeric AS refund_amount,
           oi.sale_price AS unit_price,
           oi.price AS stored_price,
           oi.sale_price AS price,
@@ -4286,6 +4330,17 @@ export const getOrders = async (req, res) => {
         FROM order_items oi
         LEFT JOIN product_variants pv ON pv.id = oi.variant_id
         LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
+        LEFT JOIN (
+          SELECT
+            ri.order_item_id,
+            COALESCE(SUM(ri.quantity), 0)::integer AS returned_quantity,
+            COALESCE(SUM(ri.refund_amount), 0)::numeric AS refund_amount
+          FROM return_items ri
+          JOIN returns r ON r.id = ri.return_id
+          WHERE r.order_id = ANY($1::bigint[])
+            AND ($2::bigint IS NULL OR r.tenant_id = $2::bigint)
+          GROUP BY ri.order_item_id
+        ) returned_item ON returned_item.order_item_id = oi.id
         WHERE oi.order_id = ANY($1::bigint[])
           AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
         ORDER BY oi.order_id DESC, oi.id ASC
@@ -4306,6 +4361,7 @@ export const getOrders = async (req, res) => {
         const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         return withPaymentProofAliases({
           ...order,
+          ...(returnsByOrder.get(String(order.id)) || {}),
           total_quantity: totalQuantity,
           total_items: totalQuantity,
           item_count: totalQuantity,
@@ -6878,6 +6934,15 @@ export const createReturn = async (req, res) => {
       });
     }
 
+    const itemRefundTotal = items.reduce((sum, item) => {
+      const amount = Number(item?.refund_amount ?? item?.refundAmount ?? 0);
+      return sum + (Number.isFinite(amount) && amount > 0 ? amount : 0);
+    }, 0);
+    const requestedRefundAmount = Number(refundAmount);
+    const effectiveRefundAmount = Number.isFinite(requestedRefundAmount) && requestedRefundAmount > 0
+      ? requestedRefundAmount
+      : itemRefundTotal;
+
     await ensureReturnFlowAccountingReady({ routeName, orderId, tenantId: requestTenantId });
     logReturnFlowStep(routeName, { orderId, tenantId: requestTenantId, step: "orders_schema:before" });
     await ensurePosShiftOrderColumns(client, requestTenantId);
@@ -6950,7 +7015,7 @@ export const createReturn = async (req, res) => {
         status,
         reason,
         Boolean(restock),
-        Number(refundAmount || 0),
+        effectiveRefundAmount,
         refundMethod,
         req.user?.id || null,
         refundShiftId,
@@ -7084,7 +7149,7 @@ export const createReturn = async (req, res) => {
       referenceType: "return",
       referenceId: returnRow.id,
       description: `Return #${returnRow.return_number || returnNumberBase}`,
-      amount: Number(refundAmount || 0),
+      amount: effectiveRefundAmount,
       direction: restock ? "in" : "out",
       createdBy: req.user?.id || null,
       branchId: orderRow?.branch_id || null,
@@ -7108,7 +7173,7 @@ export const createReturn = async (req, res) => {
         eventType: "refund_cash",
         sourceType: "return",
         sourceId: returnRow.id,
-        amount: Number(refundAmount || 0),
+        amount: effectiveRefundAmount,
       });
       logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id, shiftId: refundShiftId });
       logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:before", returnId: returnRow.id });
@@ -7121,7 +7186,7 @@ export const createReturn = async (req, res) => {
         direction: -1,
         sourceType: "return",
         sourceId: returnRow.id,
-        amount: Number(refundAmount || 0),
+        amount: effectiveRefundAmount,
         notes: reason || "",
         createdBy: req.user?.id || null,
       });
@@ -7145,7 +7210,7 @@ export const createReturn = async (req, res) => {
         direction: -1,
         sourceType: "return",
         sourceId: returnRow.id,
-        amount: Number(refundAmount || 0),
+        amount: effectiveRefundAmount,
         notes: reason || "",
         createdBy: req.user?.id || null,
       });
