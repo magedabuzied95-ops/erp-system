@@ -1744,6 +1744,7 @@ function POSPro() {
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [mobileProductQuantity, setMobileProductQuantity] = useState(1);
   const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
+  const [customerCreateSaving, setCustomerCreateSaving] = useState(false);
   const [recentOperationsOpen, setRecentOperationsOpen] = useState(false);
   const [recentOperationsOpenedAt, setRecentOperationsOpenedAt] = useState(0);
   const [scannedInvoiceNumber, setScannedInvoiceNumber] = useState("");
@@ -5311,7 +5312,6 @@ function POSPro() {
       if (!createdCustomerId) {
         console.error("[pos] customer create response did not include an id:", result);
         toast.error(t("pos.toasts.customerCreateMissingId"));
-        await loadCustomers();
         return false;
       }
 
@@ -5324,15 +5324,10 @@ function POSPro() {
       setCustomers(upsertCreatedCustomer);
       setSelectedCustomerId(createdCustomerId);
       setCustomerSearch(`${createdCustomer.name || ""} ${createdCustomer.phone || ""}`.trim());
-      const refreshedCustomers = await loadCustomers();
-      const refreshedCustomer = refreshedCustomers.find((item) => String(item?.id || item?.customer_id) === String(createdCustomerId));
-      setCustomers((prev) => {
-        const selectedCustomer = normalizePosCustomer(refreshedCustomer || createdCustomer);
-        const safePrev = Array.isArray(prev) ? prev : [];
-        const withoutDuplicate = safePrev.filter((item) => String(item?.id || item?.customer_id) !== String(createdCustomerId));
-        return [selectedCustomer, ...withoutDuplicate];
+      void savePosCustomerSnapshot([createdCustomer], {
+        tenantId: customerCacheTenantId,
+        merge: true,
       });
-      setSelectedCustomerId(createdCustomerId);
 
       setQuickCustomer(defaultState.quickCustomer);
       toast.success(t("pos.toasts.customerCreated"));
@@ -5344,8 +5339,8 @@ function POSPro() {
       return false;
     }
   }, [
+    customerCacheTenantId,
     handleSelectCustomer,
-    loadCustomers,
     quickCustomer.allow_personal_transactions,
     quickCustomer.name,
     quickCustomer.phone,
@@ -5354,7 +5349,6 @@ function POSPro() {
     resolveMarketingAttributionFromSelection,
     setCustomerSearch,
     setCustomers,
-    setCustomerCreateOpen,
     setQuickCustomer,
     setSelectedCustomerId,
     t,
@@ -7220,11 +7214,18 @@ function POSPro() {
   }, [draftPosFilters]);
 
   const handleCreateCustomerFromToolbar = useCallback(async () => {
-    const created = await handleCreateCustomer();
-    if (created) {
-      setCustomerCreateOpen(false);
+    if (customerCreateSaving) return;
+
+    setCustomerCreateSaving(true);
+    try {
+      const created = await handleCreateCustomer();
+      if (created) {
+        setCustomerCreateOpen(false);
+      }
+    } finally {
+      setCustomerCreateSaving(false);
     }
-  }, [handleCreateCustomer]);
+  }, [customerCreateSaving, handleCreateCustomer]);
 
   const openCustomerCreateModal = useCallback((initialValues = {}) => {
     const searchText = String(customerSearch || "").trim();
@@ -7808,16 +7809,19 @@ function POSPro() {
                     <button
                       type="button"
                       onClick={() => setCustomerCreateOpen(false)}
-                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08]"
+                      disabled={customerCreateSaving}
+                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handleCreateCustomerFromToolbar}
-                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+                      disabled={customerCreateSaving}
+                      aria-busy={customerCreateSaving}
+                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-wait disabled:opacity-70"
                     >
-                      Save customer
+                      {customerCreateSaving ? "Saving..." : "Save customer"}
                     </button>
                   </div>
                 </div>
