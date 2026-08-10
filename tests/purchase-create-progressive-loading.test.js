@@ -10,7 +10,7 @@ test("purchase creation does not block its initial render on the full product ca
 
   const essentialLoad = source.indexOf("const [suppliersRes, warehousesRes, branchesRes] = await Promise.allSettled");
   const interactive = source.indexOf("if (!isEditMode) {", essentialLoad);
-  const productCatalogLoad = source.indexOf('api.get("/products/with-variants")', essentialLoad);
+  const productCatalogLoad = source.indexOf('api.get("/products/with-variants"', essentialLoad);
 
   assert.ok(essentialLoad >= 0, "essential purchase setup should load first");
   assert.ok(interactive > essentialLoad, "create mode should become interactive after essential setup");

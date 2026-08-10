@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -28,6 +28,13 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { getProductAudienceValues, productMatchesAudience } from "../../../shared/lib/productAudiences";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import FlowShell from "../components/FlowShell";
+import {
+  loadPurchaseDraft,
+  savePurchaseDraft,
+  clearPurchaseDraft,
+  sweepExpiredPurchaseDrafts,
+  buildPurchaseDraftBody,
+} from "../services/purchaseDraftStore.js";
 import { accountingApi } from "../../accounting/services/accountingApi";
 import {
   formatCurrency,
@@ -733,6 +740,7 @@ function PurchaseOrder() {
   const [posting, setPosting] = useState(false);
   const postingRef = useRef(false);
   const purchaseSaveIdRef = useRef("");
+  const draftRestoredRef = useRef(false);
   const lastAutoBulkPricingSignatureRef = useRef("");
   const skipNextAutoBulkPricingRef = useRef(false);
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
@@ -941,6 +949,45 @@ function PurchaseOrder() {
   useEffect(() => {
     loadData();
   }, [editPurchaseId, isEditMode]);
+
+  // ---- Persistent purchase draft (IndexedDB, tenant+user namespaced) --------
+  // Restore an unfinished purchase immediately on open — independent of the
+  // (deferred) catalog load, only into an empty form, never in edit mode.
+  useEffect(() => {
+    if (isEditMode || draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    void sweepExpiredPurchaseDrafts();
+    loadPurchaseDraft()
+      .then((draft) => {
+        if (!draft || !Array.isArray(draft.items) || !draft.items.length) return;
+        setItems((cur) => (cur.length ? cur : draft.items.map((it) => normalizePurchaseItem(it))));
+        if (draft.supplier_id) setSupplierId((v) => v || String(draft.supplier_id));
+        if (draft.warehouse_id) setWarehouseId((v) => v || String(draft.warehouse_id));
+        if (draft.branch_id) setBranchId((v) => v || String(draft.branch_id));
+        if (Number(draft.discount) > 0) setDiscount((v) => v || Number(draft.discount));
+        if (draft.supplier_payment_status) setSupplierPaymentStatus((v) => (v && v !== "unpaid" ? v : draft.supplier_payment_status));
+        if (draft.payment_method) setPaymentMethod((v) => v || draft.payment_method);
+        if (draft.payment_account_id) setPaymentAccountId((v) => v || String(draft.payment_account_id));
+        if (Number(draft.supplier_paid_amount) > 0) setSupplierPaidAmount((v) => v || Number(draft.supplier_paid_amount));
+      })
+      .catch(() => {});
+  }, [isEditMode]);
+
+  // Autosave the working draft after meaningful changes. The store debounces +
+  // writes async, so typing a price never blocks on IndexedDB. Draft only — the
+  // POST /purchases transaction stays authoritative.
+  useEffect(() => {
+    if (isEditMode) return;
+    if (!items.length && !supplierId) return; // nothing meaningful to persist yet
+    savePurchaseDraft({
+      ...buildPurchaseDraftBody({ supplierId, warehouseId, branchId, items }),
+      discount: Number(discount) || 0,
+      supplier_payment_status: supplierPaymentStatus,
+      payment_method: paymentMethod,
+      payment_account_id: paymentAccountId ? String(paymentAccountId) : "",
+      supplier_paid_amount: Number(supplierPaidAmount) || 0,
+    });
+  }, [isEditMode, items, supplierId, warehouseId, branchId, discount, supplierPaymentStatus, paymentMethod, paymentAccountId, supplierPaidAmount]);
 
   useEffect(() => {
     if (isEditMode) return;
@@ -1316,7 +1363,7 @@ function PurchaseOrder() {
     setRunModal(null);
   };
 
-  const updateItem = (lineId, patch) => {
+  const updateItem = useCallback((lineId, patch) => {
     setItems((prev) =>
       prev.map((item) => {
         if (String(item.line_id) !== String(lineId)) return item;
@@ -1343,7 +1390,7 @@ function PurchaseOrder() {
       next.delete(String(lineId));
       return next;
     });
-  };
+  }, []);
 
   const applyBulkPrice = ({ type, value, method = "fixed", target = "all", productId = "" }) => {
     const price = money(value);
@@ -1442,16 +1489,18 @@ function PurchaseOrder() {
     return true;
   };
 
-  const removeItem = (lineId) => {
+  // Stable callbacks so a memoized CartLine only re-renders the row whose data
+  // actually changed (setItems preserves unchanged item references).
+  const removeItem = useCallback((lineId) => {
     setItems((prev) => prev.filter((item) => String(item.line_id) !== String(lineId)));
     setCartCostErrors((prev) => {
       const next = new Set(prev);
       next.delete(String(lineId));
       return next;
     });
-  };
+  }, []);
 
-  const changeQty = (lineId, delta) => {
+  const changeQty = useCallback((lineId, delta) => {
     setItems((prev) =>
       prev.map((item) =>
         String(item.line_id) === String(lineId)
@@ -1459,9 +1508,9 @@ function PurchaseOrder() {
           : item
       )
     );
-  };
+  }, []);
 
-  const changeItemVariant = (lineId, nextVariantId) => {
+  const changeItemVariant = useCallback((lineId, nextVariantId) => {
     setItems((prev) =>
       prev.map((item) => {
         if (String(item.line_id) !== String(lineId)) return item;
@@ -1475,7 +1524,7 @@ function PurchaseOrder() {
       next.delete(String(lineId));
       return next;
     });
-  };
+  }, [variantsByProduct]);
 
   const buildPurchaseQtyRows = (group) => {
     const sourceVariants = toArray(group?.variants);
@@ -2170,6 +2219,9 @@ function PurchaseOrder() {
       notifyProductsChanged();
       toast.success(t(nextStatus === "received" ? "purchases.create.postedAndReceived" : "purchases.create.orderSaved"));
       purchaseSaveIdRef.current = "";
+      // Authoritative success only — drop the local draft. On any failure/retry
+      // path (the catch below) the draft is intentionally KEPT.
+      void clearPurchaseDraft();
       navigate("/purchases");
     } catch (err) {
       console.error("[purchase-create-ui-failed]", err);
@@ -2977,7 +3029,12 @@ function PurchaseCart({
   );
 }
 
-function CartLine({ item, variants, showCostError = false, onChangeVariant, onUpdate, onQty, onRemove }) {
+// Memoized: with stable callbacks (useCallback in the parent) and setItems
+// preserving unchanged item references, editing one row re-renders only that
+// row — not all 100. Default shallow prop compare is correct here because
+// `item` is a fresh object only for the row that changed, `variants` comes from
+// a products-keyed memo, and showCostError is a primitive.
+const CartLine = memo(function CartLine({ item, variants, showCostError = false, onChangeVariant, onUpdate, onQty, onRemove }) {
   const { i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const sellingPrice = money(item.selling_price ?? item.price ?? 0);
@@ -3080,7 +3137,7 @@ function CartLine({ item, variants, showCostError = false, onChangeVariant, onUp
       ) : null}
     </div>
   );
-}
+});
 function ProductSearchPanel({ search, products, results, loading, onAdd }) {
   const { t } = useTranslation();
   const hasSearch = Boolean(text(search));
