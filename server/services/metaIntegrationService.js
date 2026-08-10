@@ -3329,10 +3329,10 @@ const loadMessengerProfileAvatarStorage = async ({ tenantId, channel, conversati
   };
 };
 
-const enrichMessengerProfile = async ({ message, config, facebookPageId = "", instagramBusinessAccountId = "", forceRefresh = false } = {}) => {
+export const enrichMessengerProfile = async ({ message, config, facebookPageId = "", instagramBusinessAccountId = "", forceRefresh = false } = {}) => {
   const channel = message?.channel;
   const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
-  if (normalizedChannel !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) return message;
+  if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(normalizedChannel)) return message;
   const psid = text(message?.raw?.sender_psid || message?.external_customer_id);
   if (!psid) return message;
   const cached = await getCachedMessengerProfile({
@@ -3350,6 +3350,95 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
       customer_profile_id: cached.profile_id || null,
       raw: { ...(message.raw || {}), messenger_profile: cached },
     };
+  }
+  if (normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
+    console.log("instagram_profile_fetch_start", {
+      tenant_id: config.tenant_id,
+      config_id: config.id || null,
+      scoped_user_id: maskIdForLog(psid),
+      conversation_id: message.external_conversation_id,
+    });
+    try {
+      const tokenResolution = await resolveMetaSendConfig({
+        tenantId: config.tenant_id,
+        channel: normalizedChannel,
+        instagramBusinessAccountId: instagramBusinessAccountId || config.instagram_business_account_id || "",
+        preferredConfigId: config.id || null,
+      });
+      const { token, config: resolvedConfig, source: tokenSource } = tokenResolution;
+      const payload = await callInstagramGraph({
+        endpoint: `/${encodeURIComponent(psid)}`,
+        token,
+        params: { fields: "name,username,profile_pic" },
+      });
+      const displayName = text(payload.name || payload.username);
+      const profile = {
+        first_name: displayName,
+        last_name: "",
+        name: displayName,
+        username: text(payload.username),
+        profile_pic: text(payload.profile_pic),
+      };
+      const resolvedInstagramAccountId = text(
+        resolvedConfig?.instagram_business_account_id || instagramBusinessAccountId || config.instagram_business_account_id
+      );
+      const persisted = await persistMessengerProfile({
+        tenantId: config.tenant_id,
+        channel: normalizedChannel,
+        conversationId: message.external_conversation_id,
+        psid,
+        pageId: resolvedInstagramAccountId,
+        profile,
+      });
+      console.log("instagram_profile_fetch_success", {
+        tenant_id: config.tenant_id,
+        config_id: resolvedConfig?.id || config.id || null,
+        token_source: tokenSource || "",
+        scoped_user_id: maskIdForLog(psid),
+        conversation_id: message.external_conversation_id,
+        has_name: Boolean(persisted?.name || displayName),
+        has_profile_pic: Boolean(persisted?.profile_pic || profile.profile_pic),
+        profile_id: persisted?.id || null,
+      });
+      return {
+        ...message,
+        customer_name: persisted?.name || displayName || cached?.name || "",
+        display_name: persisted?.display_name || persisted?.name || displayName || cached?.display_name || cached?.name || "",
+        customer_avatar_url: persisted?.profile_pic || profile.profile_pic || cached?.profile_pic || "",
+        customer_profile_id: persisted?.id || cached?.profile_id || null,
+        updated_rows: persisted?.updated_rows || 0,
+        raw: {
+          ...(message.raw || {}),
+          instagram_profile: persisted || profile,
+          // Keep the shared profile cache shape consumed by the existing inbox UI.
+          messenger_profile: persisted || profile,
+        },
+      };
+    } catch (error) {
+      console.warn("instagram_profile_fetch_failed", {
+        tenant_id: config.tenant_id,
+        config_id: config.id || null,
+        scoped_user_id: maskIdForLog(psid),
+        conversation_id: message.external_conversation_id,
+        graph_fields: "name,username,profile_pic",
+        message: error?.message || "Instagram profile lookup failed",
+        code: error?.code || "",
+        status: error?.status || null,
+      });
+      return {
+        ...message,
+        customer_name: cached?.name || message.customer_name || "",
+        display_name: cached?.display_name || cached?.name || "",
+        customer_avatar_url: cached?.profile_pic || message.customer_avatar_url || "",
+        customer_profile_id: cached?.profile_id || null,
+        updated_rows: 0,
+        raw: {
+          ...(message.raw || {}),
+          instagram_profile: cached || null,
+          messenger_profile: cached || null,
+        },
+      };
+    }
   }
   console.log("messenger_profile_fetch_start", {
     tenant_id: config.tenant_id,
