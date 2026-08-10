@@ -5726,13 +5726,13 @@ export default function AiInbox() {
         const isAiSender = ["assistant", "ai", "bot", "system"].includes(clean(normalizedMessage.sender_type).toLowerCase());
         const isAi = !isStaff && (isAiSender || Boolean(clean(normalizedMessage.ai_answer)) || (normalizedMessage.direction === "outbound" && !isFromMe));
         if (!isCustomer && !isAi && !isStaff && !isProductCardMessage && !isCommentMessage) return null;
-        const providerIds = [
+        const providerIds = [...new Set([
           normalizedMessage.provider_message_id,
           normalizedMessage.external_message_id,
           normalizedMessage.whatsapp_message_id,
           normalizedMessage.message_id,
           normalizedMessage.id,
-        ].map(clean).filter(Boolean);
+        ].map(clean).filter(Boolean))];
         const reactions = providerIds.flatMap((id) => [...(reactionsByTarget.get(id)?.values() || [])]);
         return {
           key: messageKey(normalizedMessage),

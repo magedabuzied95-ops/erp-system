@@ -8,6 +8,7 @@ const gateway = fs.readFileSync("server/services/whatsappGatewayService.js", "ut
 const logService = fs.readFileSync("server/services/aiSupportLogService.js", "utf8");
 const inbox = fs.readFileSync("src/modules/aiSupport/pages/AiInbox.jsx", "utf8");
 const transcript = fs.readFileSync("src/modules/aiSupport/components/TranscriptMessage.jsx", "utf8");
+const cacheStore = fs.readFileSync("src/modules/aiSupport/services/inboxCache/inboxCacheStore.js", "utf8");
 
 test("Evolution reactionMessage keeps the emoji and exact target message id", () => {
   const event = extractWhatsappReactionEvent({
@@ -54,8 +55,13 @@ test("AI Inbox attaches reactions to their target bubble and hides raw reaction 
   assert.match(inbox, /external_reply_id/);
   assert.match(inbox, /message_type\)\.toLowerCase\(\) !== "reaction"/);
   assert.match(transcript, /data-ai-message-reactions="true"/);
+  assert.match(inbox, /const providerIds = \[\.\.\.new Set\(/);
 });
 
 test("ordinary text messages do not show a technical text type badge", () => {
   assert.match(transcript, /!\["text", "conversation"\]\.includes/);
+});
+
+test("the transcript cache version drops stale standalone reaction snapshots", () => {
+  assert.match(cacheStore, /SCHEMA_VERSION = 2/);
 });

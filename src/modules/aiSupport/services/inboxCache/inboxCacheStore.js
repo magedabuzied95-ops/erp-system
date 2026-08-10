@@ -11,7 +11,9 @@
 // before the current identity is resolved, and one identity's records can never
 // collide with another's.
 
-export const SCHEMA_VERSION = 1;
+// V2 invalidates transcript snapshots written before WhatsApp reactions were
+// represented as linked events instead of standalone text messages.
+export const SCHEMA_VERSION = 2;
 
 // Bounded retention policy (V1). Starting points per spec; report actual sizes.
 export const MAX_CONVERSATIONS_WITH_MESSAGES = 30; // LRU cap on cached threads
