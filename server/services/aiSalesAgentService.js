@@ -250,6 +250,8 @@ export const buildSalesConversationIntelligence = async ({
   selectedProduct = null,
   currentStateRow = null,
   existingJourneyEvents = [],
+  journeyEventsPreloaded = false,
+  readOnly = false,
   channel = "",
   providerMessageId = "",
   traceReason = "",
@@ -272,7 +274,9 @@ export const buildSalesConversationIntelligence = async ({
     && text(currentStateRow.previous_state) === text(state.previous_state)
     && text(currentStateRow.state_reason) === text(state.state_reason)
     && Math.round(Number(currentStateRow.confidence || 0) * 1000) === Math.round(Number(state.confidence || 0) * 1000);
-  const persistedState = currentStateMatches
+  const persistedState = readOnly
+    ? currentStateRow || state
+    : currentStateMatches
     ? currentStateRow
     : await upsertSalesConversationState({
         tenantId,
@@ -318,14 +322,16 @@ export const buildSalesConversationIntelligence = async ({
     products: recommendations,
     followUp,
   });
-  const journeyEvents = asArray(existingJourneyEvents).length
+  const journeyEvents = journeyEventsPreloaded || asArray(existingJourneyEvents).length
     ? asArray(existingJourneyEvents)
     : await loadRecentSalesJourneyEvents({
         tenantId,
         conversationId: conversation.session_id,
         limit: 8,
       }).catch(() => []);
-  const derivedEvents = currentStateMatches && asArray(existingJourneyEvents).length
+  const derivedEvents = readOnly
+    ? []
+    : currentStateMatches && asArray(existingJourneyEvents).length
     ? []
     : await recordSalesJourneyEvents({
         tenantId,
@@ -3187,6 +3193,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
           selectedProduct,
           currentStateRow,
           existingJourneyEvents,
+          journeyEventsPreloaded: true,
+          readOnly: true,
         }).catch(() => ({
           state: {
             current_state: "DISCOVERY",
