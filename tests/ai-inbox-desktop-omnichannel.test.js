@@ -32,6 +32,18 @@ test("desktop message composer matches the omnichannel footer in light and dark 
   assert.match(desktopSource, /dark:bg-\[#1b1e1b\]/);
 });
 
+test("desktop chat exposes commerce actions above the transcript", () => {
+  assert.match(desktopSource, /data-ai-inbox-commerce-toolbar="true"/);
+  assert.match(desktopSource, /setOrderComposerOpen\(true\)/);
+  assert.match(desktopSource, /openProductCardPicker\(\)/);
+  assert.match(desktopSource, /openProductCardPicker\(\{ sizeMode: true, allowMultiple: true \}\)/);
+  assert.match(desktopSource, /onClick=\{createLeadCustomer\}/);
+  assert.match(desktopSource, /إنشاء أوردر/);
+  assert.match(desktopSource, /إرسال منتج/);
+  assert.match(desktopSource, /المتاح بالمقاس/);
+  assert.match(desktopSource, /إنشاء عميل/);
+});
+
 test("PWA remains isolated from desktop layout styling", () => {
   assert.doesNotMatch(pwaSource, /AiInboxDesktop\.css/);
   assert.doesNotMatch(pwaSource, /ai-omni-workspace/);

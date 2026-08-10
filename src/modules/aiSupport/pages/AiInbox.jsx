@@ -7515,6 +7515,47 @@ export default function AiInbox() {
                     showBack
                     onOpenCustomer360={openCustomerDrawer}
                   />
+                  <div
+                    data-ai-inbox-commerce-toolbar="true"
+                    className="mt-2 flex shrink-0 items-center gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm dark:border-white/10 dark:bg-[#20231f]"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setOrderComposerOpen(true)}
+                      disabled={loading || !selectedConversation}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-emerald-300/30 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-100"
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      إنشاء أوردر
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openProductCardPicker()}
+                      disabled={loading || productCardSending}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-amber-300/30 dark:hover:bg-amber-400/10 dark:hover:text-amber-100"
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      إرسال منتج
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
+                      disabled={loading || availableBySizeSending}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-cyan-300/30 dark:hover:bg-cyan-400/10 dark:hover:text-cyan-100"
+                    >
+                      <Ruler className="h-4 w-4" />
+                      المتاح بالمقاس
+                    </button>
+                    <button
+                      type="button"
+                      onClick={createLeadCustomer}
+                      disabled={loading || leadActionLoading === "create_customer"}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-violet-300/30 dark:hover:bg-violet-400/10 dark:hover:text-violet-100"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      إنشاء عميل
+                    </button>
+                  </div>
                   {conversationExpanded ? null : (
                     <LeadQuickActionsBar
                     conversation={selectedConversation}
