@@ -396,10 +396,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const inlineFullscreenMode = mode === "inlineFullscreen" || (!isDesktopViewport && !posPickerMode);
   const darkMode = theme === "dark";
 
-  useEffect(() => {
-    void loadCustomerProductCatalog().catch(() => {});
-  }, []);
-
+  // Load the product catalog only when the picker actually opens. Previously this
+  // ran on mount, so the multi-second full-catalog fetch fired on every AI Inbox
+  // open (competing with conversation/message loading) even when the picker was
+  // never used. The on-open effect below still warms the module-level cache, so
+  // repeat opens stay instant.
   useEffect(() => {
     if (!open) return undefined;
     let active = true;
