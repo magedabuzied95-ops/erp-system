@@ -2112,8 +2112,18 @@ function MessageText({ text = "" }) {
   );
 }
 
-function PwaReplyEditor({ value = "", onChange, placeholder = "Type a reply" }) {
+function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "Type a reply", disabled = false }) {
   const editorRef = useRef(null);
+  const allowLineBreakRef = useRef(false);
+
+  const submitCurrentText = (event) => {
+    event.preventDefault();
+    if (disabled) return;
+    const text = String(event.currentTarget.innerText || "").replace(/\u00a0/g, " ");
+    if (!text.trim()) return;
+    onChange?.(text);
+    onSubmit?.(text);
+  };
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -2131,12 +2141,34 @@ function PwaReplyEditor({ value = "", onChange, placeholder = "Type a reply" }) 
       contentEditable
       suppressContentEditableWarning
       inputMode="text"
-      enterKeyHint="enter"
+      enterKeyHint="send"
       spellCheck
       dir="auto"
       data-placeholder={placeholder}
       data-ai-inbox-composer="true"
       onInput={(event) => onChange?.(String(event.currentTarget.innerText || "").replace(/\u00a0/g, " "))}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter") return;
+        if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
+        if (event.shiftKey) {
+          allowLineBreakRef.current = true;
+          return;
+        }
+        submitCurrentText(event);
+      }}
+      onKeyUp={(event) => {
+        if (event.key === "Enter") allowLineBreakRef.current = false;
+      }}
+      onBeforeInput={(event) => {
+        const inputType = event.nativeEvent?.inputType || "";
+        if (!["insertParagraph", "insertLineBreak"].includes(inputType)) return;
+        if (event.nativeEvent?.isComposing) return;
+        if (allowLineBreakRef.current) {
+          allowLineBreakRef.current = false;
+          return;
+        }
+        submitCurrentText(event);
+      }}
       className="ai-pwa-reply-editor max-h-28 min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
     />
   );
@@ -6742,6 +6774,8 @@ export default function AiInboxPwa() {
                 <PwaReplyEditor
                   value={composerText}
                   onChange={setComposerText}
+                  onSubmit={sendManualReply}
+                  disabled={sending}
                   placeholder={composerMode === "note" ? "Write an internal note" : "Type a reply"}
                 />
                 <button
