@@ -22,12 +22,34 @@ export const normalizeMetaReviewerChannel = (value = "") => {
   return channel;
 };
 
-const channelScope = ({ assetId, allowedSenderIds, visibleMessagesAfter }) => ({
-  enabled: Boolean(assetId) && allowedSenderIds.length > 0 && Boolean(visibleMessagesAfter),
+const channelScope = ({ assetId, allowedSenderIds, allowedSenderHmacs, visibleMessagesAfter }) => ({
+  enabled: Boolean(assetId) && (allowedSenderIds.length > 0 || allowedSenderHmacs.length > 0) && Boolean(visibleMessagesAfter),
   assetId: text(assetId),
   allowedSenderIds,
+  allowedSenderHmacs,
   visibleMessagesAfter,
 });
+
+export const metaReviewerSenderScopeHmac = ({ tenantId, channel, assetId, senderScopedId } = {}, referenceSecret = "") => {
+  const normalized = normalizeMetaReviewerChannel(channel);
+  const secret = text(referenceSecret);
+  const sender = text(senderScopedId);
+  const asset = text(assetId);
+  if (!secret || !Number.isFinite(Number(tenantId)) || !META_REVIEWER_TABS.has(normalized) || !asset || !sender) return "";
+  return crypto.createHmac("sha256", secret)
+    .update(`meta-reviewer-sender:v1:${Number(tenantId)}:${normalized}:${asset}:${sender}`)
+    .digest("base64url");
+};
+
+const safeDigestIncluded = (candidate = "", allowed = []) => {
+  const actual = text(candidate);
+  if (!actual) return false;
+  return allowed.some((value) => {
+    const expected = text(value);
+    return expected.length === actual.length
+      && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  });
+};
 
 export const loadMetaReviewerScope = (env = process.env) => {
   const tenantId = Number.parseInt(text(env.META_REVIEWER_TENANT_ID), 10);
@@ -36,11 +58,13 @@ export const loadMetaReviewerScope = (env = process.env) => {
   const messenger = channelScope({
     assetId: env.META_REVIEWER_FACEBOOK_PAGE_ID,
     allowedSenderIds: uniqueCsv(env.META_REVIEWER_ALLOWED_PSIDS),
+    allowedSenderHmacs: uniqueCsv(env.META_REVIEWER_ALLOWED_MESSENGER_SENDER_HMACS),
     visibleMessagesAfter: isoDate(env.META_REVIEWER_MESSENGER_REVIEW_SESSION_STARTED_AT || env.META_REVIEWER_VISIBLE_MESSAGES_AFTER || env.META_REVIEWER_REVIEW_SESSION_STARTED_AT),
   });
   const instagram = channelScope({
     assetId: env.META_REVIEWER_INSTAGRAM_BUSINESS_ACCOUNT_ID,
     allowedSenderIds: uniqueCsv(env.META_REVIEWER_ALLOWED_INSTAGRAM_SCOPED_USER_IDS),
+    allowedSenderHmacs: uniqueCsv(env.META_REVIEWER_ALLOWED_INSTAGRAM_SCOPED_USER_HMACS),
     visibleMessagesAfter: isoDate(env.META_REVIEWER_INSTAGRAM_REVIEW_SESSION_STARTED_AT),
   });
   if (!baseEnabled) {
@@ -72,10 +96,19 @@ export const metaReviewerScopeIsClosed = (scope = loadMetaReviewerScope(), chann
 export const metaReviewerConversationAllowed = ({ tenantId, channel, assetId, senderScopedId, pageId, psid } = {}, scope = loadMetaReviewerScope()) => {
   const normalized = normalizeMetaReviewerChannel(channel);
   const channelConfig = getMetaReviewerChannelScope(scope, normalized);
+  const resolvedAssetId = text(assetId || pageId);
+  const resolvedSenderId = text(senderScopedId || psid);
+  const senderHmac = metaReviewerSenderScopeHmac({
+    tenantId,
+    channel: normalized,
+    assetId: resolvedAssetId,
+    senderScopedId: resolvedSenderId,
+  }, scope?.referenceSecret);
   return Boolean(scope?.enabled && channelConfig?.enabled)
     && Number(tenantId) === Number(scope.tenantId)
-    && text(assetId || pageId) === channelConfig.assetId
-    && channelConfig.allowedSenderIds.includes(text(senderScopedId || psid));
+    && resolvedAssetId === channelConfig.assetId
+    && (channelConfig.allowedSenderIds.includes(resolvedSenderId)
+      || safeDigestIncluded(senderHmac, channelConfig.allowedSenderHmacs));
 };
 
 export const metaReviewerConversationRef = (sessionId = "", scope = loadMetaReviewerScope(), channel = "messenger") => {

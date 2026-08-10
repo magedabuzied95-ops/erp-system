@@ -12,6 +12,7 @@ import {
   metaReviewerConversationAllowed,
   metaReviewerConversationRef,
   metaReviewerConversationRefMatches,
+  metaReviewerSenderScopeHmac,
   normalizeMetaReviewerChannel,
   sanitizeMetaReviewerMessage,
 } from "../../server/services/metaReviewerAccessService.js";
@@ -56,6 +57,24 @@ test("Instagram isolation requires tenant, business account and authorized scope
   assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "page-test", senderScopedId: "instagram-test-user" }, scope), false);
   assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "messenger-test-user" }, scope), false);
   assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "whatsapp", assetId: "instagram-business-test", senderScopedId: "instagram-test-user" }, scope), false);
+});
+
+test("Instagram test sender can be allowlisted by an irreversible scoped HMAC", () => {
+  const senderHmac = metaReviewerSenderScopeHmac({
+    tenantId: 1,
+    channel: "instagram",
+    assetId: "instagram-business-test",
+    senderScopedId: "instagram-test-user",
+  }, env.META_REVIEWER_SCOPE_HMAC_KEY);
+  const scope = loadMetaReviewerScope({
+    ...env,
+    META_REVIEWER_ALLOWED_INSTAGRAM_SCOPED_USER_IDS: "",
+    META_REVIEWER_ALLOWED_INSTAGRAM_SCOPED_USER_HMACS: senderHmac,
+  });
+  assert.equal(scope.channels.instagram.enabled, true);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "instagram-test-user" }, scope), true);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "instagram-business-test", senderScopedId: "real-customer" }, scope), false);
+  assert.equal(metaReviewerConversationAllowed({ tenantId: 1, channel: "instagram", assetId: "other-business", senderScopedId: "instagram-test-user" }, scope), false);
 });
 
 test("opaque conversation references are bound to the selected channel", () => {
