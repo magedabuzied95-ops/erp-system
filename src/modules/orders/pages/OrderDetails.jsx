@@ -146,6 +146,8 @@ const writePackingChecklist = (orderId, value) => {
 };
 
 const normalizeComparable = (value) => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
+const normalizeShippingProviderKey = (value) => normalizeComparable(value).replace(/\s+/g, "_");
+const isBostaShippingProvider = (value) => normalizeShippingProviderKey(value) === "bosta";
 
 const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
 const asList = (value) => Array.isArray(value) ? value : [];
@@ -437,7 +439,7 @@ function OrderDetails() {
       setNotes(merged.notes || "");
       setPackingChecklist(readPackingChecklist(merged.id || id));
       setShipping({
-        provider: merged.shipping_provider || "",
+        provider: normalizeShippingProviderKey(merged.shipping_provider || merged.shipping_provider_id || ""),
         shipping_status: merged.shipping_status || "pending",
         shipment_status: merged.shipment_status || merged.shipping_status || "pending",
         shipment_id: merged.shipment_id || "",
@@ -484,7 +486,7 @@ function OrderDetails() {
   }, [loadOrder]);
 
   useEffect(() => {
-    if (shipping.provider !== "bosta") return undefined;
+    if (!isBostaShippingProvider(shipping.provider)) return undefined;
     let active = true;
     setBostaLocations((current) => ({ ...current, loadingCities: true }));
     api.get("/shipping/cities?provider=bosta&dropoff=1", { suppressErrorStatuses: [404, 500] })
@@ -495,7 +497,7 @@ function OrderDetails() {
   }, [shipping.provider]);
 
   useEffect(() => {
-    if (shipping.provider !== "bosta" || !shipping.shipping_city_id) {
+    if (!isBostaShippingProvider(shipping.provider) || !shipping.shipping_city_id) {
       setBostaLocations((current) => ({ ...current, zones: [], districts: [] }));
       return undefined;
     }
@@ -509,7 +511,7 @@ function OrderDetails() {
   }, [shipping.provider, shipping.shipping_city_id]);
 
   useEffect(() => {
-    if (shipping.provider !== "bosta" || !shipping.shipping_zone_id) {
+    if (!isBostaShippingProvider(shipping.provider) || !shipping.shipping_zone_id) {
       setBostaLocations((current) => ({ ...current, districts: [] }));
       return undefined;
     }
@@ -624,7 +626,7 @@ function OrderDetails() {
   };
 
   const handleSaveShipping = async () => {
-    const bostaRequiredMissing = shipping.provider === "bosta" && (
+    const bostaRequiredMissing = isBostaShippingProvider(shipping.provider) && (
       !String(shipping.customer_phone || "").trim() ||
       !shipping.shipping_city_id ||
       !shipping.shipping_zone_id ||
@@ -636,7 +638,7 @@ function OrderDetails() {
       toast.error("أكمل هاتف العميل ومدينة ومنطقة وحي بوسطة واسم الشارع ورقم المبنى");
       return false;
     }
-    if (shippingSetupOpen && shipping.provider !== "bosta" && (!String(shipping.customer_phone || "").trim() || !String(shipping.shipping_address_line || "").trim())) {
+    if (shippingSetupOpen && !isBostaShippingProvider(shipping.provider) && (!String(shipping.customer_phone || "").trim() || !String(shipping.shipping_address_line || "").trim())) {
       toast.error("أدخل رقم هاتف العميل والعنوان التفصيلي قبل حفظ الشحن");
       return false;
     }
@@ -657,8 +659,8 @@ function OrderDetails() {
         building_number: shipping.building_number,
         floor_number: shipping.floor_number,
         apartment_number: shipping.apartment_number,
-        shipping_provider: shipping.provider,
-        shipping_provider_id: shipping.provider,
+        shipping_provider: normalizeShippingProviderKey(shipping.provider),
+        shipping_provider_id: normalizeShippingProviderKey(shipping.provider),
         shipping_status: shipping.shipment_status || shipping.shipping_status,
         shipment_status: shipping.shipment_status || shipping.shipping_status,
         shipment_id: shipping.shipment_id,
@@ -714,7 +716,7 @@ function OrderDetails() {
   };
 
   const handleCreateShipment = async () => {
-    if (shipping.provider === "bosta") {
+    if (isBostaShippingProvider(shipping.provider)) {
       const saved = await handleSaveShipping();
       if (saved) await handleBostaAction("create");
       return;
@@ -1494,13 +1496,13 @@ function OrderDetails() {
                 <div className="grid gap-3 2xl:grid-cols-2">
                   <div className="grid gap-3 rounded-2xl border border-sky-400/15 bg-sky-400/[0.05] p-4 sm:grid-cols-2 2xl:col-span-2">
                     <div className="sm:col-span-2">
-                      <div className="text-sm font-black text-sky-100">{shipping.provider === "bosta" ? "عنوان شحن Bosta" : "بيانات توصيل العميل"}</div>
-                      <div className="mt-1 text-xs font-semibold text-zinc-500">{shipping.provider === "bosta" ? "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة." : "احفظ بيانات التوصيل قبل إنشاء الشحنة."}</div>
+                      <div className="text-sm font-black text-sky-100">{isBostaShippingProvider(shipping.provider) ? "عنوان شحن Bosta" : "بيانات توصيل العميل"}</div>
+                      <div className="mt-1 text-xs font-semibold text-zinc-500">{isBostaShippingProvider(shipping.provider) ? "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة." : "احفظ بيانات التوصيل قبل إنشاء الشحنة."}</div>
                     </div>
                     <FieldLabel label="رقم هاتف العميل">
                       <input value={shipping.customer_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                     </FieldLabel>
-                    {shipping.provider === "bosta" ? (
+                    {isBostaShippingProvider(shipping.provider) ? (
                       <>
                         <FieldLabel label="مدينة Bosta">
                           <select value={shipping.shipping_city_id} disabled={bostaLocations.loadingCities} onChange={(e) => {
@@ -1557,7 +1559,7 @@ function OrderDetails() {
                       </>
                     )}
                   </div>
-                  {shipping.provider === "bosta" && hasCreatedShipment ? (
+                  {isBostaShippingProvider(shipping.provider) && hasCreatedShipment ? (
                     <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 2xl:col-span-2">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
