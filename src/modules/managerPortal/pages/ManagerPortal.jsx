@@ -70,6 +70,11 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
 const MANAGER_PORTAL_PWA_VERSION = "20260808-inventory-approvals";
 const MANAGER_PORTAL_CRITICAL_TIMEOUT_MS = 9000;
 const MANAGER_PORTAL_DEFERRED_TIMEOUT_MS = 12000;
+// The initial load eagerly fetches every tab's data (critical + deferred). Switching
+// to a tab within this window reuses that already-loaded data instead of firing a
+// redundant refetch; genuine revisits after the window still revalidate. Mutations and
+// manual refresh bypass this via force.
+const MANAGER_PORTAL_TAB_FRESH_TTL_MS = 45000;
 const settledValue = (result) => (result?.status === "fulfilled" ? result.value : null);
 
 const isBrowser = () => typeof window !== "undefined";
@@ -874,6 +879,7 @@ export default function ManagerPortal() {
   const settingsRef = useRef(settings);
   const browserNotificationPermissionRef = useRef(browserNotificationPermission);
   const openedInvoiceQueryRef = useRef("");
+  const tabFetchedAtRef = useRef({});
 
   const scrollToManagerSection = (ref) => {
     if (!isBrowser()) return;
@@ -1232,17 +1238,18 @@ export default function ManagerPortal() {
       managerPortalApi.stockAlerts(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
     ]);
 
+    const now = Date.now();
     const nextStaff = settledValue(staffRes);
-    if (nextStaff) setStaff(normalizeManagerPortalPayload("staff", nextStaff?.staff || null));
+    if (nextStaff) { setStaff(normalizeManagerPortalPayload("staff", nextStaff?.staff || null)); tabFetchedAtRef.current.staff = now; }
 
     const nextTasks = settledValue(tasksRes);
-    if (nextTasks) setTasks(normalizeManagerPortalPayload("tasks", nextTasks?.tasks || null));
+    if (nextTasks) { setTasks(normalizeManagerPortalPayload("tasks", nextTasks?.tasks || null)); tabFetchedAtRef.current.tasks = now; }
 
     const nextSales = settledValue(salesRes);
-    if (nextSales) setSales(normalizeManagerPortalPayload("sales", nextSales?.sales || null));
+    if (nextSales) { setSales(normalizeManagerPortalPayload("sales", nextSales?.sales || null)); tabFetchedAtRef.current.sales = now; }
 
     const nextStock = settledValue(stockRes);
-    if (nextStock) setStockAlerts(normalizeManagerPortalPayload("stockAlerts", nextStock?.stockAlerts || null));
+    if (nextStock) { setStockAlerts(normalizeManagerPortalPayload("stockAlerts", nextStock?.stockAlerts || null)); tabFetchedAtRef.current.today = now; }
   }, [token]);
 
   useEffect(() => {
@@ -1411,7 +1418,14 @@ export default function ManagerPortal() {
     };
   }, [token]);
 
-  const reloadTabData = async (tab = activeTab) => {
+  const reloadTabData = async (tab = activeTab, { force = false } = {}) => {
+    // Skip a redundant refetch when this tab's data was loaded very recently (e.g. by the
+    // eager initial load right before the first tab switch). Mutations and manual refresh
+    // pass force to always revalidate.
+    if (!force && ["today", "staff", "tasks", "sales"].includes(tab)) {
+      const fetchedAt = tabFetchedAtRef.current[tab] || 0;
+      if (Date.now() - fetchedAt < MANAGER_PORTAL_TAB_FRESH_TTL_MS) return;
+    }
     try {
       if (tab === "today") {
         const [dashboardRes, notificationsRes, stockRes] = await Promise.all([
@@ -1437,6 +1451,7 @@ export default function ManagerPortal() {
         const response = await managerPortalApi.sales(token);
         setSales(normalizeManagerPortalPayload("salesReload", response?.sales || null));
       }
+      tabFetchedAtRef.current[tab] = Date.now();
     } catch (reloadError) {
       toast.error(reloadError?.responseBody?.message || reloadError?.message || "تعذر تحديث البيانات");
     }
@@ -1471,7 +1486,7 @@ export default function ManagerPortal() {
     setUnreadCount(0);
     try {
       await managerPortalApi.markAllNotificationsRead(token);
-      await reloadTabData("today");
+      await reloadTabData("today", { force: true });
     } catch (readError) {
       setNotifications(previous);
       toast.error(readError?.responseBody?.message || readError?.message || "تعذر تحديث الإشعارات");
@@ -1728,7 +1743,7 @@ export default function ManagerPortal() {
       else if (action === "reject") await managerPortalApi.rejectTask(token, id, payload);
       else if (action === "reopen") await managerPortalApi.reopenTask(token, id, payload);
       else if (action === "note") await managerPortalApi.noteTask(token, id, payload);
-      await reloadTabData("tasks");
+      await reloadTabData("tasks", { force: true });
       toast.success("تم تحديث المهمة");
     } catch (taskError) {
       toast.error(taskError?.responseBody?.message || taskError?.message || "تعذر تحديث المهمة");
@@ -1748,7 +1763,7 @@ export default function ManagerPortal() {
         priority: taskDraft.priority,
       });
       setTaskDraft({ title: "", description: "", assigned_employee_id: "", priority: "medium" });
-      await reloadTabData("tasks");
+      await reloadTabData("tasks", { force: true });
       toast.success("تم إنشاء المهمة");
     } catch (taskError) {
       toast.error(taskError?.responseBody?.message || taskError?.message || "تعذر إنشاء المهمة");
@@ -1764,7 +1779,7 @@ export default function ManagerPortal() {
     setAdvanceRequestReviewingId(String(requestId));
     try {
       await managerPortalApi.reviewAdvanceRequest(token, requestId, { status });
-      await reloadTabData("staff");
+      await reloadTabData("staff", { force: true });
       toast.success(status === "approved" ? "تم اعتماد السلفة وإضافتها للموظف" : "تم رفض طلب السلفة");
     } catch (reviewError) {
       toast.error(reviewError?.responseBody?.message || reviewError?.message || "تعذر تحديث طلب السلفة");
