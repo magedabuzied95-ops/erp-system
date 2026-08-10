@@ -4247,6 +4247,9 @@ export default function AiInbox() {
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [leadFunnelExpanded, setLeadFunnelExpanded] = useState(false);
   const [isConversationExpanded, setIsConversationExpanded] = useState(false);
+  // The element handed to the Fullscreen API — the same wrapper that becomes the
+  // full-viewport overlay, so expanded styling and real fullscreen agree.
+  const fullscreenHostRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState({ tone: "", text: "" });
@@ -5773,8 +5776,55 @@ export default function AiInbox() {
   const selectedMessagingActive = Boolean(selectedChannelStatus.live_operational || selectedChannelStatus.effective_enabled || selectedChannelStatus.messaging_active);
   const conversationExpanded = Boolean(isConversationExpanded && selectedConversation && inboxSection === "conversations");
   const fullscreenConversation = conversationExpanded;
+  // The expand button used to only stretch the conversation inside the ERP shell:
+  // `fixed inset-0` covers the page but still sits under the browser's own chrome.
+  // Expanding now also asks the browser for real fullscreen, so the conversation
+  // takes over the entire screen. The click is a genuine user gesture, which is
+  // what the Fullscreen API requires. Failure is non-fatal — some browsers and
+  // embedded webviews refuse it, and the in-page overlay alone is still a usable
+  // expanded view.
+  const requestConversationFullscreen = useCallback(() => {
+    const host = fullscreenHostRef.current;
+    if (!host || document.fullscreenElement) return;
+    const request = host.requestFullscreen || host.webkitRequestFullscreen || host.msRequestFullscreen;
+    try {
+      const result = request?.call(host);
+      if (result && typeof result.catch === "function") result.catch(() => {});
+    } catch {
+      /* keep the in-page overlay */
+    }
+  }, []);
+  const exitConversationFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) return;
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    try {
+      const result = exit?.call(document);
+      if (result && typeof result.catch === "function") result.catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const handleToggleConversationExpansion = useCallback(() => {
-    setIsConversationExpanded((current) => !current);
+    setIsConversationExpanded((current) => {
+      const next = !current;
+      if (next) requestConversationFullscreen();
+      else exitConversationFullscreen();
+      return next;
+    });
+  }, [requestConversationFullscreen, exitConversationFullscreen]);
+  // Leaving fullscreen by any route the button does not own (Esc, F11, the
+  // browser's own control) must collapse the layout too, otherwise the UI stays
+  // stuck expanded with no obvious way back.
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) setIsConversationExpanded(false);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
+    };
   }, []);
   const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
   const openProductCardPicker = useCallback((options = {}) => {
@@ -7552,7 +7602,7 @@ export default function AiInbox() {
         onChange={patchReplyCorrection}
         onSave={saveReplyCorrection}
       />
-      <div className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0" : "ai-omni-frame flex w-full min-w-0 flex-col gap-2 overflow-hidden"}`}>
+      <div ref={fullscreenHostRef} className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0" : "ai-omni-frame flex w-full min-w-0 flex-col gap-2 overflow-hidden"}`}>
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
