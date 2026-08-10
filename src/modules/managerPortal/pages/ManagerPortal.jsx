@@ -538,7 +538,7 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
     blue: "border-t-blue-500",
   };
   return (
-    <div className={`manager-portal-mini-metric kpi-card-readable h-full min-h-[112px] rounded-3xl border border-slate-200 border-t-4 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${tones[tone] || tones.slate}`}>
+    <div data-tone={tone} className={`manager-portal-mini-metric kpi-card-readable h-full min-h-[112px] rounded-3xl border border-slate-200 border-t-4 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${tones[tone] || tones.slate}`}>
       <div className="flex h-full items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-black leading-5 text-slate-500">{label}</div>
@@ -593,7 +593,7 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
   const theme = tones[tone] || tones.slate;
   if (emphasis) {
     return (
-      <div className="manager-portal-compact-stat manager-portal-compact-stat--emphasis h-full min-h-[112px] rounded-2xl border border-slate-800 bg-[#0b1120] p-3 text-white shadow-[0_14px_30px_rgba(2,6,23,0.18)]">
+      <div data-tone={tone} className="manager-portal-compact-stat manager-portal-compact-stat--emphasis h-full min-h-[112px] rounded-2xl border border-slate-800 bg-[#0b1120] p-3 text-white shadow-[0_14px_30px_rgba(2,6,23,0.18)]">
         <div className="flex h-full items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="text-[10.5px] font-black leading-5 tracking-normal text-slate-400">{label}</div>
@@ -605,7 +605,7 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
     );
   }
   return (
-    <div className={`manager-portal-compact-stat h-full min-h-[112px] rounded-2xl border p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${theme.shell}`}>
+    <div data-tone={tone} className={`manager-portal-compact-stat h-full min-h-[112px] rounded-2xl border p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${theme.shell}`}>
       <div className="flex h-full items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className={`text-[10.5px] font-black leading-5 tracking-normal ${theme.label}`}>{label}</div>
@@ -1083,9 +1083,9 @@ export default function ManagerPortal() {
   const mobileDashboardStats = useMemo(() => (
     isMobilePortal
       ? [
-          { label: "مبيعات اليوم", value: formatCurrency(dashboard?.today_sales_total || 0), icon: ShoppingCart, tone: "green", emphasis: true },
-          { label: "الفواتير اليوم", value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "cyan", emphasis: true },
-          { label: "الحضور الآن", value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "blue" },
+          { label: "مبيعات اليوم", value: formatCurrency(dashboard?.today_sales_total || 0), icon: ShoppingCart, tone: "cyan", emphasis: true },
+          { label: "الفواتير اليوم", value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "slate", emphasis: true },
+          { label: "الحضور الآن", value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "green" },
           { label: "اعتمادات معلقة", value: formatNumber(pendingInventoryApprovalsCount || 0), icon: CheckCircle2, tone: "amber" },
         ]
       : []
