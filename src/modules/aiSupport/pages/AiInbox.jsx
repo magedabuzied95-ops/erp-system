@@ -74,6 +74,7 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { publicProductUrl, publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
+import inboxCache from "../services/inboxCache/inboxCache";
 import "./AiInboxDesktop.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -4206,7 +4207,23 @@ export default function AiInbox() {
     isRefreshingRef.current = true;
     isHydratingConversationRef.current = true;
     const seq = ++requestSeqRef.current;
-    if (!silent) setLoading(true);
+    if (!silent) {
+      // Warm start (stale-while-revalidate): render cached conversation
+      // summaries immediately and skip the blocking spinner while
+      // /ai-inbox/conversations revalidates below. inboxCache is the shared,
+      // fail-safe, tenant/user/channel-namespaced module (also used by the PWA).
+      const cachedList = await inboxCache.primeList(channelFilter).catch(() => null);
+      const cachedRows = asArray(cachedList?.conversations);
+      if (seq === requestSeqRef.current && cachedRows.length) {
+        setInbox((current) => (asArray(current.conversations).length ? current : {
+          conversations: cachedRows.map((c) => ({ ...c, conversation_key: c.conversation_key || conversationKey(c) })),
+          followups: asArray(current.followups),
+        }));
+        setLoading(false); // show cached now; revalidate without a spinner
+      } else if (seq === requestSeqRef.current) {
+        setLoading(true);
+      }
+    }
     if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
     if (!silent) setSocialCommentsDebug((current) => ({ ...current, error: "" }));
     setError("");
@@ -4253,6 +4270,9 @@ export default function AiInbox() {
         if (selectedSnapshot) selectedConversationCacheRef.current = selectedSnapshot;
         return { conversations: nextConversations, followups: asArray(inboxPayload.followups) };
       });
+      // Persist compact summaries (messages stripped inside inboxCache) for the
+      // next warm open. Debounced + fail-safe in the shared module.
+      inboxCache.saveList(conversations, channelFilter);
       if (activeSection === "conversations" && !activeConversationSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
       }
@@ -4369,6 +4389,20 @@ export default function AiInbox() {
       }
     }
   }, [channelFilter, debouncedSearch, filter, headers, tenantId]);
+
+  // Shared inboxCache housekeeping: expiry sweep on mount, and wipe on logout /
+  // user switch so one account's cached inbox is never shown to the next.
+  useEffect(() => {
+    inboxCache.sweep();
+    const onAuthUser = (event) => { if (!event?.detail?.user) inboxCache.clearAllCache(); };
+    const onAuthExpired = () => inboxCache.clearAllCache();
+    window.addEventListener("erp:auth-user-updated", onAuthUser);
+    window.addEventListener("erp:auth-expired", onAuthExpired);
+    return () => {
+      window.removeEventListener("erp:auth-user-updated", onAuthUser);
+      window.removeEventListener("erp:auth-expired", onAuthExpired);
+    };
+  }, []);
 
   const requestRefresh = useCallback(
     (source = "manual", { silent = true, force = false } = {}) => {
