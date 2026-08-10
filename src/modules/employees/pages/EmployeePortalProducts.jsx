@@ -947,6 +947,7 @@ export default function EmployeePortalProducts() {
   });
   const [manualBarcodeValue, setManualBarcodeValue] = useState("");
   const lookupDoneRef = useRef(false);
+  const firstProductLoadRef = useRef(true);
   const filtersPanelRef = useRef(null);
   const searchInputRef = useRef(null);
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
@@ -968,31 +969,40 @@ export default function EmployeePortalProducts() {
   useEffect(() => {
     let cancelled = false;
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    // Real debounce: only the latest settled query fires; stale in-flight
-    // requests are aborted so a fast "n->ni->nik->nike" produces ONE render.
-    const timer = window.setTimeout(() => {
-      (async () => {
-        try {
-          setLoading(true);
-          setError("");
-          const response = await getEmployeePortalCompactProducts(
-            token,
-            buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize }),
-            { signal: controller?.signal }
-          );
-          if (cancelled) return;
-          setProducts(mapCompactCatalog(response?.products));
-          setEmployee(response?.employee || null);
-        } catch (err) {
-          if (cancelled || err?.name === "AbortError" || err?.name === "CanceledError") return;
-          setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "تعذر تحميل المنتجات");
-          setProducts([]);
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-      })();
-    }, 300);
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await getEmployeePortalCompactProducts(
+          token,
+          buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize }),
+          { signal: controller?.signal }
+        );
+        if (cancelled) return;
+        setProducts(mapCompactCatalog(response?.products));
+        setEmployee(response?.employee || null);
+      } catch (err) {
+        if (cancelled || err?.name === "AbortError" || err?.name === "CanceledError") return;
+        setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "تعذر تحميل المنتجات");
+        setProducts([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
+    // First open loads immediately (no artificial startup delay). Subsequent
+    // search/filter changes are debounced ~300ms with the previous in-flight
+    // request aborted, so a fast "n->ni->nik->nike" produces ONE render.
+    if (firstProductLoadRef.current) {
+      firstProductLoadRef.current = false;
+      void loadProducts();
+      return () => {
+        cancelled = true;
+        controller?.abort();
+      };
+    }
+
+    const timer = window.setTimeout(() => { void loadProducts(); }, 300);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
