@@ -401,6 +401,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // The order composer uses the same dark product surface as POS, including the
   // shared SmartPosFilters drawer, instead of the lightweight PWA list.
   const posPickerMode = mode === "pos";
+  const desktopInboxMode = mode === "desktopInbox" && isDesktopViewport;
   const inlineFullscreenMode = mode === "inlineFullscreen" || (!isDesktopViewport && !posPickerMode);
   const darkMode = theme === "dark";
 
@@ -697,7 +698,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const openedNow = open && !previousOpenRef.current;
     previousOpenRef.current = open;
     if (!openedNow) return;
-    setPreviewCollapsed(true);
+    setPreviewCollapsed(!desktopInboxMode);
     if (sizeMode) {
       setSelectedProductId("");
       setSelectedProductIds([]);
@@ -720,7 +721,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     if (!selectedProductId || !selectedExists) {
       setSelectedProductId(String(visibleProducts[0].product_id || visibleProducts[0].id || ""));
     }
-  }, [open, selectedProductId, sizeMode, visibleProducts]);
+  }, [desktopInboxMode, open, selectedProductId, sizeMode, visibleProducts]);
 
   const selectedProduct = useMemo(() => {
     if (!visibleProducts.length) return null;
@@ -1074,7 +1075,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
   const content = (
     <div
-      className={`ai-pwa-product-picker ${posPickerMode ? "pos-pro-shell" : ""} ${darkMode ? "ai-pwa-product-picker--dark" : "ai-pwa-product-picker--light"} ${inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}`}
+      className={`ai-pwa-product-picker ${desktopInboxMode ? "ai-inbox-product-picker-desktop" : ""} ${posPickerMode ? "pos-pro-shell" : ""} ${darkMode ? "ai-pwa-product-picker--dark" : "ai-pwa-product-picker--light"} ${inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}`}
       style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 2147482000, isolation: "isolate" }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
@@ -1082,15 +1083,15 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     >
       <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
       <section
-        className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : posPickerMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-[#171714] text-white" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
-        style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: posPickerMode ? "100dvh" : "85dvh", margin: 0, borderRadius: posPickerMode ? 0 : "1.35rem" }}
+        className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : posPickerMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-[#171714] text-white" : desktopInboxMode ? "ai-inbox-product-picker-desktop__dialog relative z-10 flex min-w-0 flex-col overflow-hidden border border-white/10 bg-slate-950 text-white shadow-[0_30px_90px_rgba(0,0,0,0.65)]" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
+        style={desktopInboxMode ? undefined : { position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: posPickerMode ? "100dvh" : "85dvh", margin: 0, borderRadius: posPickerMode ? 0 : "1.35rem" }}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-product-card-picker-title"
         dir="rtl"
       >
-        <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : `sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3 backdrop-blur ${posPickerMode ? "bg-[#171714]/95" : "bg-slate-950/95"}`}>
+        <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : `sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 backdrop-blur ${desktopInboxMode ? "ai-inbox-product-picker-desktop__header bg-slate-950/95 px-6 py-4" : `px-4 py-3 ${posPickerMode ? "bg-[#171714]/95" : "bg-slate-950/95"}`}`}>
           <div className="min-w-0">
             <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : `text-[10px] font-black uppercase tracking-[0.22em] ${posPickerMode ? "text-[#d4af37]" : "text-cyan-200"}`}>AI INBOX</div>
             <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>إرسال منتج</h3>
@@ -1131,8 +1132,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
           </div>
         ) : null}
 
-        <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col overflow-hidden bg-white" : "grid min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[1.05fr_0.95fr]"}>
-          <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4" : "flex min-h-0 flex-col gap-3 overflow-hidden"}>
+        <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col overflow-hidden bg-white" : desktopInboxMode ? "ai-inbox-product-picker-desktop__body grid min-h-0 flex-1 overflow-hidden" : "grid min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[1.05fr_0.95fr]"}>
+          <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4" : desktopInboxMode ? "ai-inbox-product-picker-desktop__catalog grid min-h-0 overflow-hidden" : "flex min-h-0 flex-col gap-3 overflow-hidden"}>
             <label className="relative min-w-0">
               <Search className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${inlineFullscreenMode ? "text-slate-400" : "text-slate-500"}`} />
               <input
@@ -1149,7 +1150,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               {activeFilterCount ? <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] text-emerald-950">{activeFilterCount}</span> : null}
             </button>
 
-            <div className={inlineFullscreenMode ? "min-h-0 flex-1 overflow-y-auto pr-1 pb-24" : "min-h-0 flex-1 overflow-y-auto pr-1"}>
+            <div className={inlineFullscreenMode ? "min-h-0 flex-1 overflow-y-auto pr-1 pb-24" : desktopInboxMode ? "ai-inbox-product-picker-desktop__products min-h-0 overflow-y-auto" : "min-h-0 flex-1 overflow-y-auto pr-1"}>
               {loading ? (
                 <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
                   <Loader2 className="ml-2 h-4 w-4 animate-spin" />
@@ -1208,7 +1209,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </div>
                 )
               ) : visibleProducts.length ? (
-                <div className={posPickerMode ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
+                <div className={posPickerMode ? "grid grid-cols-2 gap-2" : desktopInboxMode ? "ai-inbox-product-picker-desktop__product-grid grid gap-3" : "grid gap-2"}>
                   {visibleProducts.slice(0, 80).map((product) => {
                     const isActive = String(product.product_id || product.id || "") === String(selectedProduct?.product_id || selectedProduct?.id || "");
                     const isSelected = selectedProductIds.includes(String(product.product_id || product.id || ""));
@@ -1284,7 +1285,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             </div>
           </div>
 
-          <div className="min-h-0 overflow-y-auto rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+          <div className={`${desktopInboxMode ? "ai-inbox-product-picker-desktop__preview" : ""} min-h-0 overflow-y-auto rounded-3xl border border-white/10 bg-white/[0.035] p-3`}>
             {sizeMode && selectedSize ? (
               <div className="space-y-3">
                 <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">

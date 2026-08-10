@@ -7342,6 +7342,7 @@ export default function AiInbox() {
         onSubmitLink={sendAvailableBySizeLink}
         sizeMode={productCardPickerConfig.sizeMode}
         allowMultiple={productCardPickerConfig.allowMultiple}
+        mode="desktopInbox"
       />
       <ReplyCorrectionModal
         open={correctionModal.open}

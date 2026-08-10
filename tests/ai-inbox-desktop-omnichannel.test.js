@@ -6,6 +6,7 @@ const desktopSource = readFileSync("src/modules/aiSupport/pages/AiInbox.jsx", "u
 const desktopCss = readFileSync("src/modules/aiSupport/pages/AiInboxDesktop.css", "utf8");
 const pwaSource = readFileSync("src/modules/aiSupport/pages/AiInboxPwa.jsx", "utf8");
 const mainLayoutSource = readFileSync("src/shared/layouts/MainLayout.jsx", "utf8");
+const productPickerSource = readFileSync("src/modules/aiSupport/components/ProductCardPicker.jsx", "utf8");
 
 test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopSource, /ai-omni-workspace/);
@@ -49,6 +50,16 @@ test("PWA remains isolated from desktop layout styling", () => {
   assert.doesNotMatch(pwaSource, /AiInboxDesktop\.css/);
   assert.doesNotMatch(pwaSource, /ai-omni-workspace/);
   assert.match(pwaSource, /import "\.\/AiInboxPwa\.css"/);
+});
+
+test("desktop AI Inbox uses its own wide product selection workspace", () => {
+  assert.match(desktopSource, /mode="desktopInbox"/);
+  assert.doesNotMatch(pwaSource, /mode="desktopInbox"/);
+  assert.match(productPickerSource, /mode === "desktopInbox"/);
+  assert.match(productPickerSource, /setPreviewCollapsed\(!desktopInboxMode\)/);
+  assert.match(productPickerSource, /ai-inbox-product-picker-desktop__product-grid/);
+  assert.match(desktopCss, /\.ai-inbox-product-picker-desktop__dialog[\s\S]*?width:\s*min\(1280px/);
+  assert.match(desktopCss, /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
 test("ERP shell grants only the desktop inbox a full-bleed content area", () => {

@@ -44,6 +44,72 @@
   max-width: none;
 }
 
+/* Product selection is a desktop workspace in AI Inbox only. */
+.ai-inbox-product-picker-desktop {
+  padding: clamp(1rem, 2.5vw, 2.5rem) !important;
+}
+
+.ai-inbox-product-picker-desktop__dialog {
+  position: relative;
+  width: min(1280px, calc(100vw - 3rem));
+  height: min(840px, calc(100dvh - 3rem));
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border-radius: 1.75rem;
+}
+
+.ai-inbox-product-picker-desktop__header {
+  min-height: 92px;
+}
+
+.ai-inbox-product-picker-desktop__body {
+  grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.85fr);
+  gap: 1.25rem;
+  padding: 1.25rem;
+}
+
+.ai-inbox-product-picker-desktop__catalog {
+  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-rows: 46px minmax(0, 1fr);
+  gap: 0.875rem;
+}
+
+.ai-inbox-product-picker-desktop__products {
+  grid-column: 1 / -1;
+  padding-inline-end: 0.375rem;
+  scrollbar-gutter: stable;
+}
+
+.ai-inbox-product-picker-desktop__product-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-inbox-product-picker-desktop__preview {
+  padding: 1rem;
+  scrollbar-gutter: stable;
+}
+
+@media (min-width: 1500px) {
+  .ai-inbox-product-picker-desktop__dialog {
+    width: min(1420px, calc(100vw - 5rem));
+  }
+
+  .ai-inbox-product-picker-desktop__body {
+    grid-template-columns: minmax(0, 1.8fr) minmax(350px, 0.8fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .ai-inbox-product-picker-desktop__body {
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.9fr);
+  }
+
+  .ai-inbox-product-picker-desktop__product-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .ai-inbox-desktop .ai-omni-list-panel,
 .ai-inbox-desktop .ai-omni-chat-panel,
 .ai-inbox-desktop .ai-omni-tools-panel {
