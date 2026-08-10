@@ -37,11 +37,16 @@ test("desktop message composer matches the omnichannel footer in light and dark 
 });
 
 test("desktop chat exposes commerce actions above the transcript", () => {
+  assert.match(desktopSource, /data-ai-inbox-compact-contact-header="true"/);
   assert.match(desktopSource, /data-ai-inbox-commerce-toolbar="true"/);
   assert.match(desktopSource, /setOrderComposerOpen\(true\)/);
   assert.match(desktopSource, /openProductCardPicker\(\)/);
   assert.match(desktopSource, /openProductCardPicker\(\{ sizeMode: true, allowMultiple: true \}\)/);
   assert.match(desktopSource, /onClick=\{createLeadCustomer\}/);
+  assert.match(desktopSource, /<ShoppingCart className="h-4 w-4"/);
+  assert.match(desktopSource, /<PackageCheck className="h-4 w-4"/);
+  assert.match(desktopSource, /<Ruler className="h-4 w-4"/);
+  assert.match(desktopSource, /<UserPlus className="h-4 w-4"/);
   assert.match(desktopSource, /إنشاء أوردر/);
   assert.match(desktopSource, /إرسال منتج/);
   assert.match(desktopSource, /المتاح بالمقاس/);

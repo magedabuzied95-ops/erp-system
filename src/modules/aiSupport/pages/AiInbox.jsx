@@ -2111,6 +2111,13 @@ function InboxChatHeader({
       ? messengerDisplayName(conversation)
       : getConversationDisplayName(conversation);
   const channel = conversation.channel || conversation.source || "web_chat";
+  const phone = customerIdentifier(
+    conversation.phone,
+    conversation.customer_phone,
+    conversation.customer_profile?.phone,
+    conversation.channel_metadata?.resolved_phone,
+    conversation.external_customer_id
+  );
   const isSocialComment = isSocialCommentThread(conversation);
   const sourceLabel = getConversationSourceLabel(conversation);
   const SourceIcon = getConversationSourceIcon(conversation);
@@ -2131,9 +2138,9 @@ function InboxChatHeader({
     lost: "border-rose-300/20 bg-rose-300/10 text-rose-100",
   }[currentLeadStatus] || "border-cyan-300/20 bg-cyan-300/10 text-cyan-100";
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.05] px-2.5 py-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-2">
+    <div data-ai-inbox-compact-contact-header="true" className="rounded-xl border border-white/10 bg-white/[0.05] px-2 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)] backdrop-blur">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {showBack ? (
             <button type="button" onClick={onBack} className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-100 md:hidden">
               <ChevronLeft className="h-5 w-5" />
@@ -2150,10 +2157,10 @@ function InboxChatHeader({
                   platform: channel,
                 });
               }}
-              className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
+              className="overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-cyan-300/40"
               aria-label={`Open customer details for ${name || "customer"}`}
             >
-              <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl object-cover" loading="lazy" />
+              <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" loading="lazy" />
             </button>
           ) : (
             <button
@@ -2166,14 +2173,14 @@ function InboxChatHeader({
                   platform: channel,
                 });
               }}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200 transition hover:bg-white/[0.1]"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.07] text-slate-200 transition hover:bg-white/[0.1]"
               aria-label={`Open customer details for ${name || "customer"}`}
             >
-              <User className="h-5 w-5" />
+              <User className="h-4 w-4" />
             </button>
           )}
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={(event) => {
@@ -2184,7 +2191,7 @@ function InboxChatHeader({
                     platform: channel,
                   });
                 }}
-                className="truncate text-left text-[17px] font-black leading-5 text-white hover:underline"
+                className="truncate text-left text-sm font-black leading-5 text-white hover:underline"
               >
                 {name}
               </button>
@@ -2195,15 +2202,16 @@ function InboxChatHeader({
                 </span>
               </Pill>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <label className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-1.5 ${leadStatusClass}`}>
-                <span className="text-[10px] font-black uppercase tracking-[0.14em] opacity-80">Lead Status</span>
-                <span className={`h-2.5 w-2.5 rounded-full ${leadStatusClass.includes("rose") ? "bg-rose-300" : leadStatusClass.includes("amber") ? "bg-amber-300" : leadStatusClass.includes("violet") ? "bg-violet-300" : leadStatusClass.includes("emerald") ? "bg-emerald-300" : "bg-cyan-300"}`} />
+            <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
+              {phone ? <span dir="ltr" className="truncate text-[10px] font-semibold text-slate-400">{phone}</span> : null}
+              <label className={`inline-flex h-6 items-center gap-1.5 rounded-lg border px-2 ${leadStatusClass}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${leadStatusClass.includes("rose") ? "bg-rose-300" : leadStatusClass.includes("amber") ? "bg-amber-300" : leadStatusClass.includes("violet") ? "bg-violet-300" : leadStatusClass.includes("emerald") ? "bg-emerald-300" : "bg-cyan-300"}`} />
                 <select
                   value={currentLeadStatus}
                   onChange={(event) => onLeadStatusChange?.(event.target.value)}
                   disabled={loading || leadStatusLoading}
-                  className="min-w-[9rem] bg-transparent text-xs font-black outline-none disabled:opacity-50"
+                  aria-label="Lead Status"
+                  className="min-w-[6.5rem] bg-transparent text-[10px] font-black outline-none disabled:opacity-50"
                 >
                   {Object.entries(LEAD_STATUS_META).map(([key, meta]) => (
                     <option key={key} value={key}>{meta.label}</option>
@@ -7710,13 +7718,13 @@ export default function AiInbox() {
                   />
                   <div
                     data-ai-inbox-commerce-toolbar="true"
-                    className="mt-2 flex shrink-0 items-center gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm dark:border-white/10 dark:bg-[#20231f]"
+                    className="mt-1 flex shrink-0 items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-sm dark:border-white/10 dark:bg-[#20231f]"
                   >
                     <button
                       type="button"
                       onClick={() => setOrderComposerOpen(true)}
                       disabled={loading || !selectedConversation}
-                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-emerald-300/30 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-100"
+                      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300/40 bg-emerald-50 px-2.5 text-[11px] font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-45 dark:border-emerald-300/25 dark:bg-emerald-400/10 dark:text-emerald-100"
                     >
                       <ShoppingCart className="h-4 w-4" />
                       إنشاء أوردر
@@ -7725,16 +7733,16 @@ export default function AiInbox() {
                       type="button"
                       onClick={() => openProductCardPicker()}
                       disabled={loading || productCardSending}
-                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-amber-300/30 dark:hover:bg-amber-400/10 dark:hover:text-amber-100"
+                      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-amber-300/45 bg-amber-50 px-2.5 text-[11px] font-black text-amber-700 transition hover:bg-amber-100 disabled:opacity-45 dark:border-amber-300/25 dark:bg-amber-400/10 dark:text-amber-100"
                     >
-                      <ShoppingBag className="h-4 w-4" />
+                      <PackageCheck className="h-4 w-4" />
                       إرسال منتج
                     </button>
                     <button
                       type="button"
                       onClick={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                       disabled={loading || availableBySizeSending}
-                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-cyan-300/30 dark:hover:bg-cyan-400/10 dark:hover:text-cyan-100"
+                      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-amber-300/45 bg-amber-50 px-2.5 text-[11px] font-black text-amber-700 transition hover:bg-amber-100 disabled:opacity-45 dark:border-amber-300/25 dark:bg-amber-400/10 dark:text-amber-100"
                     >
                       <Ruler className="h-4 w-4" />
                       المتاح بالمقاس
@@ -7743,7 +7751,7 @@ export default function AiInbox() {
                       type="button"
                       onClick={createLeadCustomer}
                       disabled={loading || leadActionLoading === "create_customer"}
-                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-violet-300/30 dark:hover:bg-violet-400/10 dark:hover:text-violet-100"
+                      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-[11px] font-black text-slate-700 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200"
                     >
                       <UserPlus className="h-4 w-4" />
                       إنشاء عميل
