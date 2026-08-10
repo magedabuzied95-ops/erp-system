@@ -3684,8 +3684,12 @@ export default function AiInboxPwa() {
         const queuedRefresh = refreshQueueRef.current;
         if (queuedRefresh && refreshStateRef.current.pageVisible) {
           refreshQueueRef.current = null;
+          // A queued refresh always runs AFTER an initial load has already
+          // completed, so it is a background refresh: force it silent so it
+          // never re-raises the blocking full-screen spinner over data that is
+          // already on screen.
           requestRefreshRef.current?.(queuedRefresh.source, {
-            silent: queuedRefresh.silent,
+            silent: true,
             force: true,
           });
         }
@@ -6526,11 +6530,11 @@ export default function AiInboxPwa() {
                   onPrivateMessage={sendLeadPrivateMessage}
                 />
               </>
-            ) : loading ? (
-              <div className="grid min-h-60 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
-                <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
-              </div>
             ) : filteredConversations.length ? (
+              // Render the conversation list as soon as data exists. A background
+              // refresh (visibility/socket/polling/filter re-entrancy) can leave
+              // `loading` raised while conversations are already populated; the list
+              // must never be hidden behind the spinner once we have rows to show.
               <div className="divide-y divide-slate-100 pb-2">
                 {filteredConversations.map((conversation) => {
                   const identifiers = conversationIdentifiers(conversation);
@@ -6545,6 +6549,10 @@ export default function AiInboxPwa() {
                     </div>
                   );
                 })}
+              </div>
+            ) : loading ? (
+              <div className="grid min-h-60 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
               </div>
             ) : (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
