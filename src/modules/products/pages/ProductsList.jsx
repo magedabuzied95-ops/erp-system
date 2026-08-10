@@ -327,58 +327,6 @@ const getThermalImageLevelDetails = (row = {}) => {
   return { hasProductThermal, colorCount, colorNames };
 };
 
-const summarizeProductThermalLevels = (product = {}) => {
-  const textValue = (value) => String(value || "").trim();
-  const productThermalImageUrl = textValue(
-    product.product_thermal_image_url ||
-    product.productThermalImageUrl ||
-    product.thermal_image_url ||
-    product.thermalImageUrl
-  );
-  const colorMap = new Map();
-  const addColorThermal = (source = {}, fallbackColor = "") => {
-    const thermalUrl = textValue(
-      source.color_thermal_image_url ||
-      source.variant_color_thermal_image_url ||
-      source.colorThermalImageUrl ||
-      source.variantColorThermalImageUrl ||
-      source.thermal_image_url ||
-      source.thermalImageUrl
-    );
-    if (!thermalUrl || (productThermalImageUrl && thermalUrl === productThermalImageUrl)) return;
-    const colorName = textValue(
-      source.color ||
-      source.color_name ||
-      source.colorName ||
-      source.color_value ||
-      source.colorValue ||
-      fallbackColor ||
-      "Default"
-    );
-    const colorKey = textValue(
-      source.color_group_key ||
-      source.colorGroupKey ||
-      colorName
-    ).toLowerCase() || thermalUrl.toLowerCase();
-    if (!colorMap.has(colorKey)) colorMap.set(colorKey, colorName);
-  };
-
-  (Array.isArray(product.color_images) ? product.color_images : []).forEach((group) => {
-    const groupColor = group?.color || group?.color_name || group?.colorName || "";
-    addColorThermal(group, groupColor);
-    (Array.isArray(group?.sizes) ? group.sizes : []).forEach((size) => addColorThermal(size, groupColor));
-  });
-  (Array.isArray(product.variants) ? product.variants : []).forEach((variant) => addColorThermal(variant));
-
-  return {
-    productThermalImageUrl,
-    productThermalImageStatus: productThermalImageUrl ? "ready" : "pending",
-    thermalColorCount: colorMap.size,
-    thermalColorNames: [...colorMap.values()],
-    thermalDetailsLoaded: true,
-  };
-};
-
 const ProductThermalLevelBadge = ({ row = {} }) => {
   const { hasProductThermal, colorCount, colorNames } = getThermalImageLevelDetails(row);
   const hasColorThermal = colorCount > 0;
@@ -2007,34 +1955,11 @@ function ProductsList() {
     t,
   ]);
 
-  useEffect(() => {
-    const pendingRows = rows.filter((row) => row?.id && row.thermalDetailsLoaded !== true);
-    if (!pendingRows.length) return undefined;
-    let cancelled = false;
-
-    const hydrateThermalLevels = async () => {
-      const summaries = await Promise.all(pendingRows.map(async (row) => {
-        try {
-          const details = await loadProductDetails(row.id);
-          return [String(row.id), summarizeProductThermalLevels(details || row)];
-        } catch {
-          return [String(row.id), { thermalDetailsLoaded: true }];
-        }
-      }));
-      if (cancelled) return;
-      const byId = new Map(summaries);
-      setRows((current) => current.map((row) => {
-        const summary = byId.get(String(row.id));
-        return summary ? { ...row, ...summary } : row;
-      }));
-    };
-
-    void hydrateThermalLevels();
-    return () => {
-      cancelled = true;
-    };
-  }, [rows]);
-
+  // Thermal-level badges (productThermalImageUrl / thermalColorCount / thermalColorNames)
+  // now come authoritatively from GET /products/admin-list, so the list no longer fetches
+  // the full /products/with-variants payload once PER visible row just to hydrate them
+  // (that was 8–24 heavy ~100KB requests on every page load / pagination). The server
+  // computes the identical value; see thermalColorSourcesSql in productsController.
   useEffect(() => {
     const refetchProducts = () => {
       refreshProducts();

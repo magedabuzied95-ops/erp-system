@@ -3061,7 +3061,13 @@ export const getProductsAdminList = async (req, res) => {
     const hasProductVariantImages = await tableExists(db, "product_variant_images");
     const hasProductColorGroups = await tableExists(db, "product_color_groups");
     const hasProductAudiences = await tableExists(db, "product_audiences");
-    const hasBarcodePrintQueue = await tableExists(db, "barcode_print_queue");
+    // Colors that carry their OWN thermal label image, counted from product_variants only
+    // and excluding any variant whose thermal image is just the product-level one. This
+    // matches exactly what the list UI derives client-side (getThermalImageLevelDetails /
+    // summarizeProductThermalLevels), so the admin-list row is authoritative and the page
+    // no longer needs a per-product /with-variants fetch to hydrate the thermal badge.
+    // (Previously this UNIONed barcode_print_queue with a different color_key, double-
+    // counting every colour — e.g. 41 instead of 20 — which is why the client re-derived it.)
     const thermalColorSourcesSql = `
       SELECT
         COALESCE(
@@ -3074,17 +3080,7 @@ export const getProductsAdminList = async (req, res) => {
       WHERE tv.product_id = p.id
         AND tv.deleted_at IS NULL
         AND TRIM(COALESCE(tv.thermal_image_url, '')) <> ''
-      ${hasBarcodePrintQueue ? `
-      UNION
-      SELECT
-        COALESCE(NULLIF(LOWER(TRIM(bpq.color_key)), ''), 'default') AS color_key,
-        COALESCE(NULLIF(TRIM(bpq.color), ''), 'Default') AS color_name
-      FROM barcode_print_queue bpq
-      WHERE bpq.product_id = p.id
-        AND bpq.tenant_id = p.tenant_id
-        AND bpq.status IN ('ready', 'printed')
-        AND TRIM(COALESCE(bpq.thermal_image_url, '')) <> ''
-      ` : ""}
+        AND TRIM(COALESCE(tv.thermal_image_url, '')) <> TRIM(COALESCE(p.thermal_image_url, ''))
     `;
 
     const values = [...scopeClause.values];
