@@ -745,7 +745,8 @@ router.get("/:token/inventory/sessions", async (req, res) => {
       limit: req.query?.limit || 50,
     });
 
-    return res.json({ success: true, ...result });
+    const identity = { tenant_id: employee.tenant_id ?? null, employee_id: employee.id ?? null, branch_id: employee.branch_id ?? null };
+    return res.json({ success: true, identity, ...result });
   } catch (error) {
     console.error("[employee-payroll-portal] inventory sessions load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load inventory sessions" });
@@ -780,8 +781,15 @@ router.get("/:token/inventory/sessions/:sessionId", async (req, res) => {
   try {
     const scoped = await loadEmployeeInventorySession(req, res);
     if (!scoped) return;
+    // Token-free stable identity for the client's local draft namespace.
+    const identity = {
+      tenant_id: scoped.employee?.tenant_id ?? scoped.session?.tenant_id ?? null,
+      employee_id: scoped.employee?.id ?? null,
+      branch_id: scoped.employee?.branch_id ?? scoped.session?.branch_id ?? null,
+    };
     return res.json({
       success: true,
+      identity,
       session: scoped.session,
       items: Array.isArray(scoped.items) ? scoped.items.map(enrichInventoryImageFields) : [],
     });

@@ -633,7 +633,7 @@ export const loadEmployeePortalCompactProducts = async ({ employee = null, query
     };
   });
   return {
-    employee: employee ? { id: employee.id ?? null, full_name: employee.full_name || employee.name || "", branch_id: employee.branch_id ?? null, branch_name: employee.branch_name || "" } : null,
+    employee: employee ? { id: employee.id ?? null, tenant_id: employee.tenant_id ?? null, full_name: employee.full_name || employee.name || "", branch_id: employee.branch_id ?? null, branch_name: employee.branch_name || "" } : null,
     products,
     page,
     limit,
