@@ -54,9 +54,8 @@ html[data-theme="light"] .inventory-approvals-page .manager-inventory-stat[data-
    `html[data-theme] .bg-slate-950 { background: var(--bg) }` rule (specificity
    0,2,1) was force-lighting in light mode — leaving light text on a light
    background (invisible). Raise specificity to (0,3,1) with a leading
-   `html[data-theme]` so the topbar wins, and exclude the mobile portal which
-   has its own intentional dark treatment (.manager-portal-mobile-dark). */
-html[data-theme] .manager-portal-shell:not(.manager-portal-mobile-dark) .manager-portal-hero {
+   `html[data-theme]` so the neutral topbar wins on desktop and mobile. */
+html[data-theme] .manager-portal-shell .manager-portal-hero {
   background: var(--topbar) !important;
   background-image: none !important;
   border-color: color-mix(in srgb, var(--topbar-text) 16%, transparent) !important;
@@ -68,7 +67,7 @@ html[data-theme] .manager-portal-shell:not(.manager-portal-mobile-dark) .manager
    translucent light chips (matching the theme toggle) so they read clearly.
    Semantic controls (amber pending-approvals button, rose count badge) keep
    their own colours and are intentionally excluded. */
-html[data-theme] .manager-portal-shell:not(.manager-portal-mobile-dark) .manager-portal-hero :where(.manager-portal-badge, button[class*="bg-white"]) {
+html[data-theme] .manager-portal-shell .manager-portal-hero :where(.manager-portal-badge, button[class*="bg-white"]) {
   background: color-mix(in srgb, var(--topbar-text) 12%, transparent) !important;
   background-image: none !important;
   border-color: color-mix(in srgb, var(--topbar-text) 24%, transparent) !important;
@@ -380,46 +379,44 @@ html[data-theme="light"] .manager-portal-shell :where(.manager-portal-card, .man
 /* =========================================================================
    LEGACY BLUE CLEANUP — unify the remaining sky / cyan / blue / indigo /
    violet residue from the old theme onto the M1 token palette, in BOTH
-   light and dark. Informational accents fold into the semantic --info token
-   (a muted blue-grey that reads well in both themes) so the "informational"
-   meaning survives without the loud legacy blue; solid legacy fills used as
-   indicators become the same cohesive accent. Green/amber/red keep their
+   light and dark. Informational accents fold into the M1 gold token so no
+   blue residue survives in either theme. Green/amber/red keep their
    own semantic tokens (handled above). Scoped to the two Manager Portal
    surfaces only, so the storefront and other ERP modules are untouched.
    ========================================================================= */
 
-/* Text: legacy blue text -> informational token. */
+/* Text: legacy blue text -> M1 gold. */
 .manager-portal-shell :where([class*="text-sky-"], [class*="text-cyan-"], [class*="text-blue-"], [class*="text-indigo-"]),
 .inventory-approvals-page :where([class*="text-sky-"], [class*="text-cyan-"], [class*="text-blue-"], [class*="text-indigo-"]) {
-  color: var(--info) !important;
+  color: var(--primary) !important;
 }
 
-/* Solid legacy-blue fills (status dots, accent bars) -> solid info. */
+/* Solid legacy-blue fills (status dots, accent bars) -> solid M1 gold. */
 .manager-portal-shell :where([class*="bg-sky-"], [class*="bg-cyan-"], [class*="bg-blue-"], [class*="bg-indigo-"]),
 .inventory-approvals-page :where([class*="bg-sky-"], [class*="bg-cyan-"], [class*="bg-blue-"], [class*="bg-indigo-"]) {
-  background-color: var(--info) !important;
+  background-color: var(--primary) !important;
   background-image: none !important;
   box-shadow: none !important;
 }
 
-/* Translucent legacy-blue tints (…/5 …/10 …/20 …/25) -> soft info surface.
+/* Translucent legacy-blue tints (…/5 …/10 …/20 …/25) -> soft gold surface.
    Listed AFTER the solid rule so the tint wins for the /opacity variants. */
 .manager-portal-shell :where([class*="bg-sky-500/"], [class*="bg-sky-400/"], [class*="bg-sky-300/"], [class*="bg-cyan-500/"], [class*="bg-cyan-400/"], [class*="bg-cyan-300/"], [class*="bg-blue-500/"], [class*="bg-blue-400/"], [class*="bg-indigo-500/"]),
 .inventory-approvals-page :where([class*="bg-sky-500/"], [class*="bg-sky-400/"], [class*="bg-sky-300/"], [class*="bg-cyan-500/"], [class*="bg-cyan-400/"], [class*="bg-cyan-300/"], [class*="bg-blue-500/"], [class*="bg-blue-400/"], [class*="bg-indigo-500/"]) {
-  background-color: var(--info-soft) !important;
+  background-color: var(--primary-soft) !important;
   background-image: none !important;
-  color: var(--info) !important;
+  color: var(--primary) !important;
 }
 
-/* Borders & focus rings: legacy blue -> info-tinted, consistent with --border. */
+/* Borders & focus rings: legacy blue -> gold-tinted, consistent with --border. */
 .manager-portal-shell :where([class*="border-sky-"], [class*="border-cyan-"], [class*="border-blue-"], [class*="border-indigo-"]),
 .inventory-approvals-page :where([class*="border-sky-"], [class*="border-cyan-"], [class*="border-blue-"], [class*="border-indigo-"]) {
-  border-color: color-mix(in srgb, var(--info) 40%, var(--border)) !important;
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border)) !important;
 }
 
 .manager-portal-shell :where([class*="ring-sky-"], [class*="ring-cyan-"], [class*="ring-blue-"], [class*="ring-indigo-"]),
 .inventory-approvals-page :where([class*="ring-sky-"], [class*="ring-cyan-"], [class*="ring-blue-"], [class*="ring-indigo-"]) {
-  --tw-ring-color: color-mix(in srgb, var(--info) 45%, transparent) !important;
+  --tw-ring-color: color-mix(in srgb, var(--primary) 45%, transparent) !important;
 }
 
 /* Violet legend/status dot -> M1 gold, so it stays distinct from the info dots
