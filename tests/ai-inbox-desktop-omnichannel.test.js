@@ -22,6 +22,16 @@ test("desktop workspace exposes omnichannel search and channel filters", () => {
   assert.match(desktopSource, /AI \{aiAssistantGlobalEnabled \? "ON" : "OFF"\}/);
 });
 
+test("desktop message composer matches the compact omnichannel footer", () => {
+  assert.match(desktopSource, /data-ai-inbox-composer="true"/);
+  assert.match(desktopSource, /placeholder=\{canSendLive \? "Type your message\.\.\."/);
+  assert.match(desktopSource, /<Paperclip className="h-5 w-5"/);
+  assert.match(desktopSource, /<Smile className="h-5 w-5"/);
+  assert.match(desktopSource, /<FileText className="h-5 w-5"/);
+  assert.match(desktopSource, /grid h-12 w-12 shrink-0 place-items-center rounded-full text-white/);
+  assert.match(desktopSource, /bg-\[#eefaf8\]/);
+});
+
 test("PWA remains isolated from desktop layout styling", () => {
   assert.doesNotMatch(pwaSource, /AiInboxDesktop\.css/);
   assert.doesNotMatch(pwaSource, /ai-omni-workspace/);
