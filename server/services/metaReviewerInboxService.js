@@ -50,6 +50,24 @@ export const metaReviewerUsesRawSenderSqlFilter = (config = {}) =>
   && config.allowedSenderIds.length > 0
   && (!Array.isArray(config.allowedSenderHmacs) || config.allowedSenderHmacs.length === 0);
 
+export const metaReviewerListQueryParams = ({
+  scope,
+  config,
+  searchValue = "",
+  safeLimit = 50,
+  useRawSenderSqlFilter = true,
+} = {}) => {
+  const params = [
+    scope.tenantId,
+    config.assetId,
+    config.allowedSenderIds,
+    config.visibleMessagesAfter,
+    searchValue ? `%${searchValue}%` : "",
+  ];
+  if (useRawSenderSqlFilter) params.push(safeLimit);
+  return params;
+};
+
 const scopedConversationSql = (channel, { includeSearch = false, useRawSenderSqlFilter = true } = {}) => {
   const config = CHANNEL_SQL[channel];
   if (!config) throw Object.assign(new Error("Review channel is forbidden."), { status: 403 });
@@ -131,8 +149,8 @@ export const listMetaReviewerConversations = async ({ channel, search = "", limi
   await ensureInboxDependencies();
   const safeLimit = Math.min(100, Math.max(1, int(limit, 50)));
   const searchValue = text(search).toLowerCase();
-  const params = [scope.tenantId, config.assetId, config.allowedSenderIds, config.visibleMessagesAfter, searchValue ? `%${searchValue}%` : "", safeLimit];
   const useRawSenderSqlFilter = metaReviewerUsesRawSenderSqlFilter(config);
+  const params = metaReviewerListQueryParams({ scope, config, searchValue, safeLimit, useRawSenderSqlFilter });
   const limitSql = useRawSenderSqlFilter ? " LIMIT $6::int" : "";
   const result = await db.query(`${scopedConversationSql(normalized, { includeSearch: true, useRawSenderSqlFilter })} ORDER BY visible_message.created_at DESC NULLS LAST, s.session_id ASC${limitSql}`, params);
   const authorizedRows = authorizedConversationRows(result.rows, scope, normalized).slice(0, safeLimit);

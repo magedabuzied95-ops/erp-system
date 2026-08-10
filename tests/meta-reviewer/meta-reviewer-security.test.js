@@ -17,7 +17,10 @@ import {
   sanitizeMetaReviewerMessage,
 } from "../../server/services/metaReviewerAccessService.js";
 import { setIo } from "../../server/utils/socket.js";
-import { metaReviewerUsesRawSenderSqlFilter } from "../../server/services/metaReviewerInboxService.js";
+import {
+  metaReviewerListQueryParams,
+  metaReviewerUsesRawSenderSqlFilter,
+} from "../../server/services/metaReviewerInboxService.js";
 
 const env = {
   META_REVIEWER_TENANT_ID: "1",
@@ -91,6 +94,29 @@ test("HMAC-only reviewer scopes are filtered after identity hashing instead of r
     allowedSenderIds: ["test-sender"],
     allowedSenderHmacs: ["irreversible-test-digest"],
   }), false);
+});
+
+test("HMAC-only reviewer list queries bind exactly the five SQL parameters they use", () => {
+  const scope = { tenantId: 1 };
+  const config = {
+    assetId: "instagram-business-test",
+    allowedSenderIds: [],
+    visibleMessagesAfter: "2026-08-09T19:00:00.000Z",
+  };
+  assert.equal(metaReviewerListQueryParams({
+    scope,
+    config,
+    searchValue: "review",
+    safeLimit: 50,
+    useRawSenderSqlFilter: false,
+  }).length, 5);
+  assert.equal(metaReviewerListQueryParams({
+    scope,
+    config,
+    searchValue: "review",
+    safeLimit: 50,
+    useRawSenderSqlFilter: true,
+  }).length, 6);
 });
 
 test("opaque conversation references are bound to the selected channel", () => {
