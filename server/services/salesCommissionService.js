@@ -1593,17 +1593,30 @@ export const ensureSalesCommissionSchema = async (clientOrPool = db) => {
   return salesCommissionSchemaReadyPromise;
 };
 
+// Small, near-static settings read on every checkout and seller-users request. Cache
+// per tenant with a short TTL so hot paths skip the round-trip; changes propagate within
+// the TTL. Invalidated explicitly by writers via invalidateSalesSettingsCache.
+const salesSettingsCache = new Map();
+const SALES_SETTINGS_TTL_MS = 30_000;
+export const invalidateSalesSettingsCache = (tenantId = null) => {
+  if (tenantId === null || tenantId === undefined) salesSettingsCache.clear();
+  else salesSettingsCache.delete(tenantId ?? 0);
+};
 export const getSalesSettings = async (clientOrPool = db, tenantId = null) => {
   const settingsTenantId = tenantId ?? 0;
+  const cached = salesSettingsCache.get(settingsTenantId);
+  if (cached && cached.expires > Date.now()) return cached.value;
   const result = await clientOrPool.query(
     `SELECT * FROM sales_commission_settings WHERE tenant_id = $1 LIMIT 1`,
     [settingsTenantId]
   );
   const row = result.rows[0] || {};
-  return {
+  const value = {
     allow_sale_without_salesperson: row.allow_sale_without_salesperson ?? DEFAULT_SETTINGS.allow_sale_without_salesperson,
     fixed_commission_mode: normalizeFixedMode(row.fixed_commission_mode || DEFAULT_SETTINGS.fixed_commission_mode),
   };
+  salesSettingsCache.set(settingsTenantId, { value, expires: Date.now() + SALES_SETTINGS_TTL_MS });
+  return value;
 };
 
 export const upsertSalesSettings = async (clientOrPool = db, tenantId = null, settings = {}) => {
@@ -1624,6 +1637,7 @@ export const upsertSalesSettings = async (clientOrPool = db, tenantId = null, se
     `,
     [settingsTenantId, next.allow_sale_without_salesperson, next.fixed_commission_mode]
   );
+  invalidateSalesSettingsCache(settingsTenantId);
   return {
     allow_sale_without_salesperson: result.rows[0].allow_sale_without_salesperson,
     fixed_commission_mode: result.rows[0].fixed_commission_mode,
