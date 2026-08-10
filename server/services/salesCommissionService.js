@@ -393,7 +393,7 @@ const loadApprovedLatePermissionMap = async ({ tenantId = null, employeeId, peri
 
 export const resolveTenantId = (req) => (isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id));
 
-export const ensureEmployeePenaltiesSchema = async (clientOrPool = db) => {
+const runEmployeePenaltiesSchemaDDL = async (clientOrPool = db) => {
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_penalties (
       id BIGSERIAL PRIMARY KEY,
@@ -419,6 +419,23 @@ export const ensureEmployeePenaltiesSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_penalties ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'pending'`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_penalties_employee_period ON employee_penalties (employee_id, penalty_date, payroll_period_start, payroll_period_end)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_penalties_tenant_status ON employee_penalties (tenant_id, status, deduct_from_payroll)`);
+};
+
+// Idempotent but lock-taking (CREATE TABLE/INDEX + ALTER TABLE ADD COLUMN). It is
+// ensured at server startup, yet was re-run on every request that touched sellers/
+// commission — the ALTERs contend for AccessExclusiveLock and timed out under concurrent
+// POS load (observed: /api/pos/seller-users -> 500 "canceling statement due to statement
+// timeout"). Memoize per process so post-startup callers are instant no-ops. Resets on
+// failure so a later call can retry; resets on process restart (every deploy).
+let employeePenaltiesSchemaReadyPromise = null;
+export const ensureEmployeePenaltiesSchema = async (clientOrPool = db) => {
+  if (!employeePenaltiesSchemaReadyPromise) {
+    employeePenaltiesSchemaReadyPromise = runEmployeePenaltiesSchemaDDL(clientOrPool).catch((error) => {
+      employeePenaltiesSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return employeePenaltiesSchemaReadyPromise;
 };
 
 export const listEmployeePenalties = async ({ tenantId = null, employeeId, status = "", includeCancelled = false } = {}) => {
@@ -1381,7 +1398,7 @@ const migrateSellerEmployeeReferences = async (clientOrPool = db) => {
   await addEmployeeReferenceForeignKey(clientOrPool, "employee_sales", "sales_employee_id", "employee_sales_sales_employee_id_employee_fkey");
 };
 
-export const ensureSalesCommissionSchema = async (clientOrPool = db) => {
+const runSalesCommissionSchemaDDL = async (clientOrPool = db) => {
   console.info("[seller-fk-check:start]", { source: "ensureSalesCommissionSchema", step: "ensure_invoked" });
   await ensureAttendanceSchema(clientOrPool);
   await ensureEmployeePenaltiesSchema(clientOrPool);
@@ -1559,6 +1576,21 @@ export const ensureSalesCommissionSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_commissions ADD COLUMN IF NOT EXISTS returned_quantity INTEGER NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_commissions ADD COLUMN IF NOT EXISTS net_sale_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_commissions ADD COLUMN IF NOT EXISTS snapshot JSONB NOT NULL DEFAULT '{}'::jsonb`);
+};
+
+// See ensureEmployeePenaltiesSchema: this ~100-statement DDL barrage is ensured at server
+// startup but was re-run on every commission/seller request, contending for table locks
+// and timing out the POS seller-users endpoint. Memoize per process so post-startup
+// callers are instant no-ops (resets on failure/restart).
+let salesCommissionSchemaReadyPromise = null;
+export const ensureSalesCommissionSchema = async (clientOrPool = db) => {
+  if (!salesCommissionSchemaReadyPromise) {
+    salesCommissionSchemaReadyPromise = runSalesCommissionSchemaDDL(clientOrPool).catch((error) => {
+      salesCommissionSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return salesCommissionSchemaReadyPromise;
 };
 
 export const getSalesSettings = async (clientOrPool = db, tenantId = null) => {

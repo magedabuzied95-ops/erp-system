@@ -26,6 +26,10 @@ import { sendTextMessage } from "../services/whatsappGatewayService.js";
 import { getSetting } from "../services/settingsService.js";
 import { assignNextOpeningEmployee, getDefaultOpeningWorkDate, getHrAttendanceSettings, listEligibleOpeningEmployees } from "../services/openingShiftService.js";
 
+// Verbose per-request seller diagnostics (dumps every employee, incl. PII) — off by
+// default; enable with POS_SELLERS_DEBUG=true only when debugging seller visibility.
+const POS_SELLERS_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.POS_SELLERS_DEBUG || "").trim().toLowerCase());
+
 const numberOrNull = (value) => {
   if (value === undefined || value === null || value === "") return null;
   const number = Number(value);
@@ -1744,9 +1748,9 @@ export const getPosSellerUsers = async (req, res) => {
         profile_tenant_id: employee.profile_tenant_id || null,
       })),
     };
-    console.log("[pos-sellers-load-final]", sellerDebugPayload);
-    const maged = employees.find((employee) => String(employee.name || employee.full_name || "").toLowerCase().includes("maged abuzied"));
-    if (maged) {
+    if (POS_SELLERS_DEBUG) console.log("[pos-sellers-load-final]", sellerDebugPayload);
+    const maged = POS_SELLERS_DEBUG ? employees.find((employee) => String(employee.name || employee.full_name || "").toLowerCase().includes("maged abuzied")) : null;
+    if (POS_SELLERS_DEBUG && maged) {
       console.log("[pos-sellers-load:maged-abuzied]", {
         employee_id: maged.id,
         name: maged.name || maged.full_name || "",
@@ -1761,7 +1765,7 @@ export const getPosSellerUsers = async (req, res) => {
         profile_tenant_id: maged.profile_tenant_id || null,
         included: sellers.some((seller) => String(seller.employee_id || seller.id) === String(maged.id)),
       });
-    } else {
+    } else if (POS_SELLERS_DEBUG) {
       console.log("[pos-sellers-load:maged-abuzied]", {
         branch_id_used: branch.id,
         found_in_branch_employee_rows: false,
