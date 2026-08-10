@@ -5538,6 +5538,7 @@ const sanitizeConfig = (row = {}) => ({
   instagram_business_account_id: row.instagram_business_account_id || "",
   instagram_username: row.instagram_username || "",
   instagram_access_token_configured: Boolean(row.instagram_access_token_encrypted),
+  instagram_app_secret_configured: Boolean(row.instagram_app_secret_encrypted),
   instagram_token_status: row.instagram_token_status || "missing",
   instagram_token_expires_at: row.instagram_token_expires_at || null,
   instagram_token_last_validated_at: row.instagram_token_last_validated_at || null,
@@ -5643,6 +5644,7 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
           instagram_business_account_id TEXT NOT NULL DEFAULT '',
           instagram_username TEXT NOT NULL DEFAULT '',
           instagram_access_token_encrypted TEXT NOT NULL DEFAULT '',
+          instagram_app_secret_encrypted TEXT NOT NULL DEFAULT '',
           instagram_token_expires_at TIMESTAMP NULL,
           instagram_token_status TEXT NOT NULL DEFAULT 'missing',
           instagram_token_last_validated_at TIMESTAMP NULL,
@@ -5677,6 +5679,7 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS facebook_page_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_username TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_access_token_encrypted TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_app_secret_encrypted TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_expires_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_status TEXT NOT NULL DEFAULT 'missing'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_last_validated_at TIMESTAMP NULL`);
@@ -9368,6 +9371,49 @@ export const removeInstagramBusinessAccessToken = async ({ tenantId } = {}) => {
         instagram_token_status = 'missing',
         instagram_token_last_validated_at = NULL,
         instagram_webhook_subscribed = FALSE,
+        updated_at = NOW()
+    WHERE tenant_id = $1
+    RETURNING *
+    `,
+    [scopedTenantId]
+  );
+  if (!result.rows[0]) throw Object.assign(new Error("Meta integration is not configured."), { status: 404 });
+  return { config: sanitizeConfig(result.rows[0]) };
+};
+
+export const saveInstagramAppSecret = async ({ tenantId, appSecret = "" } = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const secret = text(appSecret);
+  if (!scopedTenantId) throw Object.assign(new Error("Tenant ID is required."), { status: 400 });
+  if (!secret) throw Object.assign(new Error("Instagram App Secret is required."), { status: 400 });
+  const result = await db.query(
+    `
+    UPDATE meta_integration_configs
+    SET instagram_app_secret_encrypted = $2,
+        updated_at = NOW()
+    WHERE tenant_id = $1
+    RETURNING *
+    `,
+    [scopedTenantId, encryptSecret(secret)]
+  );
+  if (!result.rows[0]) throw Object.assign(new Error("Meta integration is not configured."), { status: 404 });
+  console.log("[meta-instagram] app secret saved", {
+    tenant_id: scopedTenantId,
+    config_id: result.rows[0]?.id || null,
+    secret_present: true,
+  });
+  return { config: sanitizeConfig(result.rows[0]) };
+};
+
+export const removeInstagramAppSecret = async ({ tenantId } = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  if (!scopedTenantId) throw Object.assign(new Error("Tenant ID is required."), { status: 400 });
+  const result = await db.query(
+    `
+    UPDATE meta_integration_configs
+    SET instagram_app_secret_encrypted = '',
         updated_at = NOW()
     WHERE tenant_id = $1
     RETURNING *
@@ -22957,7 +23003,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
       incoming_instagram_business_account_ids: instagramBusinessAccountIds.map(maskIdForLog),
     };
   }
-  const appSecret = decryptSecret(config.app_secret_encrypted) || text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET);
+  const isInstagramWebhook = lower(payload?.object) === "instagram";
+  const appSecret = isInstagramWebhook
+    ? decryptSecret(config.instagram_app_secret_encrypted) || text(process.env.INSTAGRAM_APP_SECRET) || decryptSecret(config.app_secret_encrypted) || text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET)
+    : decryptSecret(config.app_secret_encrypted) || text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET);
   const signatureOk = verifyMetaWebhookSignature({ rawBody: req.rawBody, signature: req.headers?.["x-hub-signature-256"], appSecret });
   if (!signatureOk) throw Object.assign(new Error("Invalid Meta webhook signature"), { status: 403 });
   console.log("META_WEBHOOK_SEEN", {

@@ -19,6 +19,18 @@ test("Instagram token management is protected by settings edit permission", () =
   assert.match(routeSource, /delete\("\/instagram\/access-token", protect, permit\("settings", "edit"\)/);
 });
 
+test("Instagram App Secret is write-only, encrypted, and isolated from the Facebook secret", () => {
+  assert.match(serviceSource, /instagram_app_secret_encrypted TEXT NOT NULL DEFAULT ''/);
+  assert.match(serviceSource, /instagram_app_secret_encrypted = \$2/);
+  assert.match(serviceSource, /\[scopedTenantId, encryptSecret\(secret\)\]/);
+  assert.match(serviceSource, /instagram_app_secret_configured: Boolean\(row\.instagram_app_secret_encrypted\)/);
+  assert.match(serviceSource, /lower\(payload\?\.object\) === "instagram"/);
+  assert.match(serviceSource, /decryptSecret\(config\.instagram_app_secret_encrypted\)/);
+  assert.match(routeSource, /post\("\/instagram\/app-secret", protect, permit\("settings", "edit"\)/);
+  assert.match(routeSource, /delete\("\/instagram\/app-secret", protect, permit\("settings", "edit"\)/);
+  assert.doesNotMatch(routeSource, /app_secret:\s*result/);
+});
+
 test("Instagram Business Login sends use Instagram Graph without changing Messenger sends", () => {
   assert.match(serviceSource, /INSTAGRAM_GRAPH_BASE_URL/);
   assert.match(serviceSource, /instagram_business_login === true/);
@@ -31,4 +43,11 @@ test("admin UI treats the Instagram token as write-only", () => {
   assert.match(settingsSource, /autoComplete="new-password"/);
   assert.match(settingsSource, /لن يستبدل رمز صفحة Facebook/);
   assert.doesNotMatch(settingsSource, /value=\{metaConfig\.instagram_access_token/);
+});
+
+test("admin UI treats the Instagram App Secret as write-only", () => {
+  assert.match(settingsSource, /Instagram App Secret لتوقيع الرسائل/);
+  assert.match(settingsSource, /value=\{instagramAppSecret\}/);
+  assert.match(settingsSource, /autoComplete="new-password"/);
+  assert.doesNotMatch(settingsSource, /value=\{metaConfig\.instagram_app_secret/);
 });

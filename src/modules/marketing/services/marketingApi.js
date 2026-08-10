@@ -260,6 +260,10 @@ export const saveInstagramBusinessAccessToken = async (body = {}) =>
   api.post("/integrations/meta/instagram/access-token", body);
 export const removeInstagramBusinessAccessToken = async () =>
   api.delete("/integrations/meta/instagram/access-token");
+export const saveInstagramAppSecret = async (body = {}) =>
+  api.post("/integrations/meta/instagram/app-secret", body);
+export const removeInstagramAppSecret = async () =>
+  api.delete("/integrations/meta/instagram/app-secret");
 export const getMetaHealth = async (options = {}) => unwrapItem(await api.get("/meta/health", options));
 export const getMetaCapabilities = async (options = {}) => unwrapItem(await api.get("/meta/capabilities", options));
 export const getMetaWebhookHealth = async (options = {}) => unwrapItem(await api.get("/meta/webhook-health", options));

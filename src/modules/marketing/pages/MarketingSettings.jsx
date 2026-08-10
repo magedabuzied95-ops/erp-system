@@ -18,6 +18,8 @@ import {
   getMetaWebhookHealth,
   saveInstagramBusinessAccessToken,
   removeInstagramBusinessAccessToken,
+  saveInstagramAppSecret,
+  removeInstagramAppSecret,
   refreshMarketingMetaTokens,
   getMetaOAuthPages,
   getMetaSetupCheck,
@@ -256,6 +258,8 @@ export default function MarketingSettings() {
   const [saving, setSaving] = useState(false);
   const [savingInstagramToken, setSavingInstagramToken] = useState(false);
   const [instagramAccessToken, setInstagramAccessToken] = useState("");
+  const [savingInstagramSecret, setSavingInstagramSecret] = useState(false);
+  const [instagramAppSecret, setInstagramAppSecret] = useState("");
   const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState("");
   const [rules, setRules] = useState([]);
@@ -630,6 +634,40 @@ export default function MarketingSettings() {
       toast.error(err?.message || "تعذر تعطيل رمز Instagram");
     } finally {
       setSavingInstagramToken(false);
+    }
+  };
+
+  const saveInstagramSecret = async () => {
+    if (!instagramAppSecret.trim()) {
+      toast.error("أدخل Instagram App Secret أولًا");
+      return;
+    }
+    setSavingInstagramSecret(true);
+    try {
+      const payload = await saveInstagramAppSecret({ app_secret: instagramAppSecret });
+      setInstagramAppSecret("");
+      const refreshed = await refreshMetaStatus();
+      applyMetaStatus(refreshed || payload);
+      toast.success("تم حفظ Instagram App Secret مشفّرًا");
+    } catch (err) {
+      toast.error(err?.message || "تعذر حفظ Instagram App Secret");
+    } finally {
+      setSavingInstagramSecret(false);
+    }
+  };
+
+  const removeInstagramSecret = async () => {
+    setSavingInstagramSecret(true);
+    try {
+      await removeInstagramAppSecret();
+      setInstagramAppSecret("");
+      const refreshed = await refreshMetaStatus();
+      applyMetaStatus(refreshed || {});
+      toast.success("تم تعطيل Instagram App Secret");
+    } catch (err) {
+      toast.error(err?.message || "تعذر تعطيل Instagram App Secret");
+    } finally {
+      setSavingInstagramSecret(false);
     }
   };
 
@@ -1324,6 +1362,52 @@ export default function MarketingSettings() {
               <span>الحالة: {metaConfig.instagram_token_status || "missing"}</span>
               <span>•</span>
               <span>{metaConfig.instagram_webhook_subscribed ? "Webhook مشترك" : "Webhook يحتاج تحقق"}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="flex items-center gap-2 font-black text-white">
+                  <ShieldCheck className="h-4 w-4 text-emerald-300" />
+                  Instagram App Secret لتوقيع الرسائل
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-400">
+                  انسخ Instagram App Secret من إعداد Instagram API. سيُحفظ مشفّرًا ويُستخدم للتحقق من Webhook الخاص بإنستجرام فقط، ولن يظهر مرة أخرى بعد الحفظ.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black text-slate-300">
+                <ShieldCheck className={`h-4 w-4 ${metaConfig.instagram_app_secret_configured ? "text-emerald-300" : "text-slate-500"}`} />
+                {metaConfig.instagram_app_secret_configured ? "محفوظ ومشفّر" : "غير محفوظ"}
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={instagramAppSecret}
+                onChange={(event) => setInstagramAppSecret(event.target.value)}
+                placeholder="ألصق Instagram App Secret هنا ثم احفظه"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40"
+              />
+              <button
+                type="button"
+                onClick={saveInstagramSecret}
+                disabled={savingInstagramSecret || !instagramAppSecret.trim()}
+                className="rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-[#07150f] disabled:opacity-50"
+              >
+                {savingInstagramSecret ? "جارٍ الحفظ..." : "حفظ السر"}
+              </button>
+              {metaConfig.instagram_app_secret_configured ? (
+                <button
+                  type="button"
+                  onClick={removeInstagramSecret}
+                  disabled={savingInstagramSecret}
+                  className="rounded-2xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100 disabled:opacity-50"
+                >
+                  تعطيل السر
+                </button>
+              ) : null}
             </div>
           </div>
 

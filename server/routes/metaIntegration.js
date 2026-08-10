@@ -19,6 +19,8 @@ import {
   saveMetaIntegrationConfig,
   saveInstagramBusinessAccessToken,
   removeInstagramBusinessAccessToken,
+  saveInstagramAppSecret,
+  removeInstagramAppSecret,
   selectMetaOAuthPage,
   startMetaOAuth,
   testMetaMessageCapability,
@@ -208,6 +210,29 @@ integrationRouter.delete("/instagram/access-token", protect, permit("settings", 
     res.json({ success: true, data: result.config });
   } catch (error) {
     sendError(res, error, "Unable to remove Instagram access token");
+  }
+});
+
+integrationRouter.post("/instagram/app-secret", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await saveInstagramAppSecret({
+      tenantId,
+      appSecret: req.body?.app_secret,
+    });
+    res.json({ success: true, data: result.config });
+  } catch (error) {
+    sendError(res, error, "Unable to save Instagram App Secret");
+  }
+});
+
+integrationRouter.delete("/instagram/app-secret", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await removeInstagramAppSecret({ tenantId });
+    res.json({ success: true, data: result.config });
+  } catch (error) {
+    sendError(res, error, "Unable to remove Instagram App Secret");
   }
 });
 
