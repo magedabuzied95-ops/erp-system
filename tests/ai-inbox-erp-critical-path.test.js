@@ -12,10 +12,15 @@ const region = src.slice(
 );
 
 test("conversation list is fetched on its own, not bundled in a blocking wave with non-essential data", () => {
-  // conversations is awaited directly (single request), not inside a Promise.all
-  assert.match(src, /const inboxPayload = await api\.get\("\/ai-inbox\/conversations"/);
-  // it must NOT be the first element of a Promise.all([...conversations, drafts, ...])
+  // The list is now a fair per-channel fan-out, but it is still its own round:
+  // only conversation pages are awaited before render.
+  assert.match(src, /const settled = await Promise\.allSettled\(requestedChannels\.map\(fetchChannelPage\)\)/);
+  // it must NOT be bundled with drafts/analytics/employees in one blocking wave
   assert.doesNotMatch(src, /await Promise\.all\(\[\s*\n?\s*api\.get\("\/ai-inbox\/conversations"/);
+  const listRound = src.slice(src.indexOf("const fetchChannelPage"), src.indexOf("const settled = await Promise.allSettled"));
+  for (const endpoint of ["/ai-agent/analytics", "/ai-agent/orders/drafts", "/employees", "/social-comments"]) {
+    assert.ok(!listRound.includes(endpoint), `${endpoint} must not sit on the list critical path`);
+  }
 });
 
 test("drafts / analytics / employees are deferred (non-blocking), not on the list critical path", () => {

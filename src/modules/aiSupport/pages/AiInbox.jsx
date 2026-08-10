@@ -75,6 +75,7 @@ import { publicProductUrl, publicStorefrontUrl } from "../../../shared/lib/publi
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
+import { channelWindow, channelsForFilter, mergeConversationPages } from "../services/inboxChannels";
 import "./AiInboxDesktop.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -730,18 +731,8 @@ const socialCommentChannelOrder = ["facebook_comment", "instagram_comment"];
 // and the server returns the unfiltered top-N across every channel. The PWA has
 // always mapped these before sending — ERP did not, so its channel chips never
 // narrowed the query server-side. Empty string means "no channel filter".
-const AI_INBOX_BACKEND_CHANNEL_FILTERS = new Map([
-  ["messenger", "facebook_messenger"],
-  ["facebook", "facebook_messenger"],
-  ["facebook_messenger", "facebook_messenger"],
-  ["instagram", "instagram"],
-  ["whatsapp", "whatsapp"],
-  ["web", "web_chat"],
-  ["web_chat", "web_chat"],
-  ["facebook_comment", "facebook_comment"],
-  ["instagram_comment", "instagram_comment"],
-]);
-const backendChannelFilter = (value = "") => AI_INBOX_BACKEND_CHANNEL_FILTERS.get(clean(value).toLowerCase()) || "";
+// Canonical channel vocabulary, per-channel windows and the fair-merge helper
+// all live in the shared module so they stay unit-testable and cannot drift.
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
   const key = raw.toLowerCase();
@@ -4258,13 +4249,21 @@ export default function AiInbox() {
     isRefreshingRef.current = true;
     isHydratingConversationRef.current = true;
     const seq = ++requestSeqRef.current;
+    // Which channels this refresh covers. A specific tab is exactly one request;
+    // "All" is one bounded request per message channel. Declared out here because
+    // both the warm-cache read and the network round below need them.
+    const warmChannels = channelsForFilter(channelFilter);
+    // Cache entries are per-channel (keyed by the backend channel name), never one
+    // giant unscoped "all" blob — a merged blob would re-introduce exactly the
+    // starvation we are fixing as soon as it got clipped by the row cap. Also
+    // reused as the per-channel fallback if a channel request fails below.
+    const cachedPages = await Promise.all(
+      warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => []))
+    );
     if (!silent) {
-      // Warm start (stale-while-revalidate): render cached conversation
-      // summaries immediately and skip the blocking spinner while
-      // /ai-inbox/conversations revalidates below. inboxCache is the shared,
-      // fail-safe, tenant/user/channel-namespaced module (also used by the PWA).
-      const cachedList = await inboxCache.primeList(channelFilter).catch(() => null);
-      const cachedRows = asArray(cachedList?.conversations);
+      // Warm start (stale-while-revalidate): render cached conversation summaries
+      // immediately and skip the blocking spinner while the channels revalidate.
+      const cachedRows = mergeConversationPages(cachedPages, conversationKey);
       if (seq === requestSeqRef.current && cachedRows.length) {
         setInbox((current) => (asArray(current.conversations).length ? current : {
           conversations: cachedRows.map((c) => ({ ...c, conversation_key: c.conversation_key || conversationKey(c) })),
@@ -4287,21 +4286,43 @@ export default function AiInbox() {
       // (it always embeds exactly the latest message per conversation), so the
       // param was dead weight. The open thread hydrates from
       // /conversations/:id/messages instead.
-      // `limit` MUST match the PWA's 200. The server returns the newest N
-      // conversations across ALL channels, so a low cap silently truncates whole
-      // channels: with 47 active WhatsApp threads a 50-row cap left exactly one
-      // Messenger seat, and the second real Messenger conversation never reached
-      // the client at all (it was not merged away — it was never sent). Instagram
-      // truncates the same way. This is why ERP showed 1 where the PWA showed 2,
-      // and why a new message seemed to "arrive late": it only became visible once
-      // it climbed into the newest-50 window.
-      const inboxPayload = await api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, channel_filter: backendChannelFilter(channelFilter), search: debouncedSearch, limit: 200 }, headers, perfComponent: "AiInbox.conversations" });
+      // Fair per-channel retrieval. One global limit let the largest channel
+      // evict the others; each channel now gets its own guaranteed window and the
+      // pages are merged client-side. When a specific channel tab is selected we
+      // issue exactly ONE request for that channel — never fetch-all-and-filter.
+      // This is still one logical refresh: the in-flight guard and the freshness
+      // window above already gate the whole block, so mount/visibility/focus/
+      // socket/SWR cannot multiply these into duplicate rounds.
+      const fetchChannelPage = (backendChannel) => api.get("/ai-inbox/conversations", {
+        params: {
+          tenant_id: tenantId,
+          filter,
+          channel_filter: backendChannel,
+          search: debouncedSearch,
+          limit: channelWindow(backendChannel),
+        },
+        headers,
+        perfComponent: `AiInbox.conversations.${backendChannel}`,
+      }).then((payload) => asArray(payload?.conversations));
+
+      const requestedChannels = warmChannels;
+      const settled = await Promise.allSettled(requestedChannels.map(fetchChannelPage));
       if (seq !== requestSeqRef.current) return;
       lastListLoadAtRef.current = Date.now();
-      const conversations = asArray(inboxPayload.conversations).map((conversation) => ({
-        ...conversation,
-        conversation_key: conversation.conversation_key || conversationKey(conversation),
-      }));
+
+      // Failure isolation: a channel that fails falls back to its own cached page
+      // so one bad endpoint cannot blank the inbox or silently delete a channel.
+      const failedChannels = [];
+      const channelPages = settled.map((result, index) => {
+        if (result.status === "fulfilled") return result.value;
+        failedChannels.push(requestedChannels[index]);
+        return asArray(cachedPages[index]);
+      });
+      if (failedChannels.length) {
+        console.warn("[ai-inbox] channel page failed, served from cache:", failedChannels.join(", "));
+      }
+      const inboxPayload = { conversations: channelPages.flat(), followups: [] };
+      const conversations = mergeConversationPages(channelPages, conversationKey);
       const activeSection = inboxSectionRef.current || "conversations";
       const activeConversationSelectedId = selectedSessionIdRef.current;
       const activeSocialCommentSelectedId = selectedSocialCommentIdRef.current;
@@ -4335,8 +4356,15 @@ export default function AiInbox() {
         return { conversations: nextConversations, followups: asArray(inboxPayload.followups) };
       });
       // Persist compact summaries (messages stripped inside inboxCache) for the
-      // next warm open. Debounced + fail-safe in the shared module.
-      inboxCache.saveList(conversations, channelFilter);
+      // next warm open. Debounced + fail-safe in the shared module. Each channel
+      // is stored under its OWN key so a warm "All" open reads four independent
+      // pages and merges them — a single merged blob would be clipped by the row
+      // cap and could starve a channel again. A channel served from cache after a
+      // failure is not rewritten: that would just echo stale data back.
+      requestedChannels.forEach((backendChannel, index) => {
+        if (failedChannels.includes(backendChannel)) return;
+        inboxCache.saveList(channelPages[index], backendChannel);
+      });
       if (activeSection === "conversations" && !activeConversationSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
       }

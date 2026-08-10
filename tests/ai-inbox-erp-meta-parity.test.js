@@ -3,6 +3,12 @@ import fs from "node:fs";
 import test from "node:test";
 
 import { writeList, MAX_LIST_ROWS } from "../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js";
+import {
+  AI_INBOX_BACKEND_CHANNEL_FILTERS,
+  AI_INBOX_MESSAGE_CHANNELS,
+  backendChannelFilter,
+  channelWindow,
+} from "../src/modules/aiSupport/services/inboxChannels.js";
 
 // P0 regression guard: ERP /admin/ai-inbox showed 1 Messenger conversation where
 // the PWA showed 2. Root cause was NOT identity/merge/cache — it was request
@@ -17,22 +23,27 @@ const pwa = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.j
 const backend = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
 
 const erpRequest = erp.slice(
-  erp.indexOf('api.get("/ai-inbox/conversations"'),
-  erp.indexOf('perfComponent: "AiInbox.conversations"')
+  erp.indexOf("const fetchChannelPage"),
+  erp.indexOf("const requestedChannels")
 );
 
 // ---- the truncation itself -----------------------------------------------
 
-test("ERP requests the same conversation page size as the PWA", () => {
-  const erpLimit = Number((erpRequest.match(/limit:\s*(\d+)/) || [])[1]);
-  const pwaLimit = Number((pwa.match(/limit:\s*(\d+),\s*\n\s*message_limit/) || [])[1]);
-  assert.equal(erpLimit, 200, "ERP must not truncate the conversation list");
-  assert.equal(erpLimit, pwaLimit, "ERP and PWA must request the same page size or channels truncate differently");
+test("ERP no longer relies on a single global page size", () => {
+  assert.match(erpRequest, /limit: channelWindow\(backendChannel\)/);
+  assert.doesNotMatch(erpRequest, /limit: \d+/, "a hard-coded global limit is what starved Meta");
 });
 
-test("the cached list can hold a full page (cache cap is not a second truncation)", () => {
-  const erpLimit = Number((erpRequest.match(/limit:\s*(\d+)/) || [])[1]);
-  assert.ok(MAX_LIST_ROWS >= erpLimit, `cache cap ${MAX_LIST_ROWS} must not clip a ${erpLimit}-row page`);
+test("each channel's own page still fits inside the cache row cap", () => {
+  for (const ch of AI_INBOX_MESSAGE_CHANNELS) {
+    assert.ok(channelWindow(ch) <= MAX_LIST_ROWS, `${ch} window exceeds the ${MAX_LIST_ROWS}-row cache cap`);
+  }
+});
+
+test("the PWA's page size still exceeds any single ERP channel window", () => {
+  // Parity sanity: ERP must never request more per channel than the PWA does overall.
+  const pwaLimit = Number((pwa.match(/limit:\s*(\d+),\s*\n\s*message_limit/) || [])[1]);
+  assert.ok(pwaLimit >= Math.max(...AI_INBOX_MESSAGE_CHANNELS.map(channelWindow)));
 });
 
 test("a low page size truncates a whole channel — the exact production shape", async () => {
@@ -62,15 +73,13 @@ test("the backend's accepted channel vocabulary is what we think it is", () => {
   );
 });
 
-test("ERP maps UI channel names onto that vocabulary before sending", () => {
-  assert.match(erp, /const AI_INBOX_BACKEND_CHANNEL_FILTERS = new Map\(/);
-  assert.match(erpRequest, /channel_filter: backendChannelFilter\(channelFilter\)/);
+test("ERP sends a mapped channel value, never the raw UI value", () => {
+  assert.match(erpRequest, /channel_filter: backendChannel\b/);
   assert.doesNotMatch(erpRequest, /channel_filter: channelFilter\b/, "raw UI value must never be sent");
 });
 
-test("every value ERP can map to is one the backend actually honours", () => {
-  const mapBlock = erp.slice(erp.indexOf("AI_INBOX_BACKEND_CHANNEL_FILTERS"), erp.indexOf("const backendChannelFilter"));
-  const targets = [...mapBlock.matchAll(/,\s*"([a-z_]+)"\]/g)].map((m) => m[1]);
+test("every value the mapper can emit is one the backend actually honours", () => {
+  const targets = [...new Set(AI_INBOX_BACKEND_CHANNEL_FILTERS.values())];
   assert.ok(targets.length >= 6, "expected the full channel map");
   for (const t of targets) {
     assert.ok(backendAccepted.includes(t), `ERP would send "${t}", which the backend silently ignores`);
@@ -79,16 +88,17 @@ test("every value ERP can map to is one the backend actually honours", () => {
 
 test("every UI chip value is mapped — an unmapped chip would silently disable filtering", () => {
   const order = JSON.parse((erp.match(/const conversationChannelOrder = (\[[^\]]*\])/) || [])[1].replace(/'/g, '"'));
-  const mapBlock = erp.slice(erp.indexOf("AI_INBOX_BACKEND_CHANNEL_FILTERS"), erp.indexOf("const backendChannelFilter"));
   for (const chip of order) {
-    assert.ok(new RegExp(`\\["${chip}",`).test(mapBlock), `chip "${chip}" has no backend mapping`);
+    assert.ok(backendChannelFilter(chip), `chip "${chip}" has no backend mapping`);
   }
 });
 
-test('"all" resolves to no channel filter rather than a literal "all"', () => {
-  assert.match(erp, /AI_INBOX_BACKEND_CHANNEL_FILTERS\.get\(clean\(value\)\.toLowerCase\(\)\) \|\| ""/);
-  const mapBlock = erp.slice(erp.indexOf("AI_INBOX_BACKEND_CHANNEL_FILTERS"), erp.indexOf("const backendChannelFilter"));
-  assert.doesNotMatch(mapBlock, /\["all",/);
+test('"all" and unknown values resolve to no channel filter, never a literal', () => {
+  assert.equal(backendChannelFilter("all"), "");
+  assert.equal(backendChannelFilter(""), "");
+  assert.equal(backendChannelFilter("nonsense"), "");
+  assert.equal(backendChannelFilter("messenger"), "facebook_messenger");
+  assert.equal(backendChannelFilter("web"), "web_chat");
 });
 
 // ---- identity must stay channel-scoped (no collapse) ---------------------
