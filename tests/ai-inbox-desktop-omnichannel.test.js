@@ -17,9 +17,10 @@ test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopCss, /ai-omni-workspace--tools/);
 });
 
-test("desktop workspace exposes omnichannel search and channel filters", () => {
+test("desktop workspace keeps search while channel filters stay out of the top bar", () => {
   assert.match(desktopSource, /Search conversations, customers or messages/);
-  assert.match(desktopSource, /fixedChannelSummaries\.map/);
+  assert.doesNotMatch(desktopSource, /fixedChannelSummaries\.map/);
+  assert.match(desktopSource, /channels=\{fixedChannelSummaries\}/);
   assert.match(desktopSource, /AI \{aiAssistantGlobalEnabled \? "ON" : "OFF"\}/);
 });
 

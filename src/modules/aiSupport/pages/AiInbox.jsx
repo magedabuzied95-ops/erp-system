@@ -7011,25 +7011,6 @@ export default function AiInbox() {
               className="h-10 w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-10 pr-4 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
             />
           </label>
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 xl:pb-0">
-            {fixedChannelSummaries.map((channel) => {
-              const active = channelFilter === channel.key;
-              return (
-                <button
-                  key={channel.key}
-                  type="button"
-                  onClick={() => {
-                    setChannelFilter(channel.key);
-                    setMobileView("list");
-                  }}
-                  className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3 text-[11px] font-black transition ${active ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-slate-200 hover:border-white/20"}`}
-                >
-                  <span>{channel.label}</span>
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-slate-950/10" : "bg-white/10"}`}>{channel.count}</span>
-                </button>
-              );
-            })}
-          </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[11px] font-black ${aiAssistantGlobalEnabled ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>
               <Bot className="h-3.5 w-3.5" />
