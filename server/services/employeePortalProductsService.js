@@ -585,7 +585,7 @@ export const loadEmployeePortalCompactProducts = async ({ employee = null, query
     const vres = await db.query(
       `SELECT v.product_id, v.id AS variant_id, v.color, v.size, v.sku, v.barcode, v.article_code,
               COALESCE(v.stock, 0)::int AS stock,
-              COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.color_image_url, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url
+              COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url
        FROM product_variants v
        WHERE v.product_id = ANY($1::bigint[]) AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL AND COALESCE(v.stock, 0) > 0
        ORDER BY v.product_id DESC, v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC`,
@@ -660,7 +660,7 @@ export const loadEmployeePortalProductVariants = async ({ employee = null, produ
   const variantsResult = await db.query(
     `SELECT v.id AS variant_id, v.id, v.product_id, v.color, v.size, v.sku, v.barcode,
             v.article_code, v.color_article_code, COALESCE(v.stock, 0)::int AS stock,
-            COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.color_image_url, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), $3::text) AS image_url
+            COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), $3::text) AS image_url
      FROM product_variants v
      WHERE v.product_id = $2::bigint AND v.is_active IS DISTINCT FROM FALSE AND v.deleted_at IS NULL ${stockClause}
      ORDER BY v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC`,
