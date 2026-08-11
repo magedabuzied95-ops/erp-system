@@ -13,8 +13,8 @@ const compactHeaderSource = desktopSource.slice(
   desktopSource.indexOf("function InboxChatHeader"),
   desktopSource.indexOf("const Transcript = memo")
 );
-const activeDesktopReturnEnd = desktopSource.indexOf("\nfunction Metric");
-const activeDesktopReturnStart = desktopSource.lastIndexOf("\n  return (", activeDesktopReturnEnd);
+const activeDesktopReturnStart = desktopSource.indexOf('className="ai-inbox-desktop');
+const activeDesktopReturnEnd = desktopSource.indexOf("\n  return (", activeDesktopReturnStart);
 const activeDesktopReturnSource = desktopSource.slice(activeDesktopReturnStart, activeDesktopReturnEnd);
 const customer360IdentitySource = desktopSource.slice(
   desktopSource.indexOf("const customer360Identifier"),
