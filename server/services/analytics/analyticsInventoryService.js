@@ -148,13 +148,15 @@ const buildScope = ({ filters, columns }) => {
     return `$${params.length}`;
   };
 
-  const tenant = push(filters.tenantId);
+  const tenantScoped = filters.tenantId !== null && filters.tenantId !== undefined;
+  const tenant = tenantScoped ? push(filters.tenantId) : null;
   const from = push(filters.from);
   const to = push(filters.to);
 
   const orderPredicate = canonicalOrderClauses(columns.orderColumns, { alias: "o" }).clauses.join(" AND ");
 
-  const productWhere = [`p.tenant_id = ${tenant}`];
+  const productWhere = [];
+  if (tenantScoped) productWhere.push(`p.tenant_id = ${tenant}`);
   if (columns.productColumns.has("deleted_at")) productWhere.push("p.deleted_at IS NULL");
   if (filters.productType) productWhere.push(`LOWER(TRIM(COALESCE(p.product_type,''))) = LOWER(TRIM(${push(filters.productType)}))`);
   if (filters.brandId) productWhere.push(`p.brand_id = ${push(filters.brandId)}`);
@@ -170,7 +172,8 @@ const buildScope = ({ filters, columns }) => {
     productWhere.push(`(p.name ILIKE ${term} OR COALESCE(p.brand,'') ILIKE ${term} OR COALESCE(p.sku,'') ILIKE ${term})`);
   }
 
-  const variantWhere = [`pv.tenant_id = ${tenant}`];
+  const variantWhere = [];
+  if (tenantScoped) variantWhere.push(`pv.tenant_id = ${tenant}`);
   if (columns.variantColumns.has("deleted_at")) variantWhere.push("pv.deleted_at IS NULL");
 
   return {
@@ -179,8 +182,9 @@ const buildScope = ({ filters, columns }) => {
     tenant,
     from,
     to,
-    productWhere: productWhere.join(" AND "),
-    variantWhere: variantWhere.join(" AND "),
+    tenantScoped,
+    productWhere: productWhere.length ? productWhere.join(" AND ") : "TRUE",
+    variantWhere: variantWhere.length ? variantWhere.join(" AND ") : "TRUE",
     orderPredicate,
   };
 };
@@ -236,7 +240,7 @@ const loadColumns = async (client) => {
  * Built once and reused by every endpoint so the four sections cannot drift apart.
  */
 const inventoryCte = ({ scope, columns, includeCost }) => {
-  const cost = unitCostExpressions(columns, scope.tenant);
+  const cost = unitCostExpressions(columns, scope.tenantScoped ? scope.tenant : "NULL");
   // Resolve cost only where there is stock to value. Zero-stock variants contribute
   // nothing to inventory value by definition, and on production they are more than half
   // the catalogue (8,227 variants, 3,668 stocked) — resolving their cost cost 700k
@@ -280,8 +284,7 @@ const inventoryCte = ({ scope, columns, includeCost }) => {
              MAX(o.created_at)                                                                        AS last_sold_at
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
-      WHERE o.tenant_id = ${scope.tenant}
-        AND ${scope.orderPredicate}
+      WHERE ${scope.tenantScoped ? `o.tenant_id = ${scope.tenant} AND ` : ""}${scope.orderPredicate}
         AND o.created_at >= ${scope.from}::date
         AND o.created_at < (${scope.to}::date + 1)
       GROUP BY oi.variant_id, oi.product_id
@@ -292,7 +295,7 @@ const inventoryCte = ({ scope, columns, includeCost }) => {
              SUM(GREATEST(oi.quantity - COALESCE(oi.returned_quantity, 0), 0))    AS units_sold
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
-      WHERE o.tenant_id = ${scope.tenant} AND ${scope.orderPredicate}
+      WHERE ${scope.tenantScoped ? `o.tenant_id = ${scope.tenant} AND ` : ""}${scope.orderPredicate}
       GROUP BY oi.product_id
     ),
     receipts AS (
@@ -300,8 +303,8 @@ const inventoryCte = ({ scope, columns, includeCost }) => {
              MIN(m.created_at) AS first_received_at,
              MAX(m.created_at) AS last_received_at
       FROM inventory_movements m
-      WHERE m.tenant_id = ${scope.tenant}
-        AND UPPER(m.movement_type) IN (${sqlTypeList(RECEIPT_MOVEMENT_TYPES)})
+      WHERE ${scope.tenantScoped ? `m.tenant_id = ${scope.tenant} AND ` : ""}
+        UPPER(m.movement_type) IN (${sqlTypeList(RECEIPT_MOVEMENT_TYPES)})
         AND m.product_id IS NOT NULL
       GROUP BY m.product_id
     )
@@ -324,10 +327,12 @@ const runTimed = async (client, sql, params, timings, name) => {
  * demand or it does not, and guessing corrupts every downstream figure.
  */
 const checkMovementVocabulary = async (client, scope, collector) => {
-  const result = await client.query(
-    `SELECT DISTINCT UPPER(movement_type) AS movement_type FROM inventory_movements WHERE tenant_id = $1`,
-    [scope.params[0]]
-  );
+  const result = scope.tenantScoped
+    ? await client.query(
+        `SELECT DISTINCT UPPER(movement_type) AS movement_type FROM inventory_movements WHERE tenant_id = $1`,
+        [scope.params[0]]
+      )
+    : await client.query(`SELECT DISTINCT UPPER(movement_type) AS movement_type FROM inventory_movements`);
   const unknown = unknownMovementTypes(result.rows.map((row) => row.movement_type));
   if (unknown.length) {
     collector.add(
@@ -427,6 +432,7 @@ export const getInventorySummary = async ({ filters, permissions = {}, client = 
   }
 
   return buildEnvelope({
+    meta: { permissions: { cost: includeCost } },
     data: {
       kpis: {
         inventoryValue: includeCost
@@ -620,6 +626,7 @@ export const getInventoryBreakdown = async ({ filters, permissions = {}, client 
   }
 
   return buildEnvelope({
+    meta: { permissions: { cost: includeCost } },
     data: { dimension, rows: mapped, total: { value: includeCost ? toMoney(totalValue) : null, units: totalUnits }, quality },
     filters,
     collector,
@@ -808,6 +815,7 @@ export const getInventoryProducts = async ({ filters, permissions = {}, client =
   const deadCandidates = (deadResult.rows || []).map(shape);
 
   return buildEnvelope({
+    meta: { permissions: { cost: includeCost } },
     data: {
       table,
       pagination: { page, limit, total, pages: Math.max(Math.ceil(total / limit), 1) },
@@ -949,6 +957,7 @@ export const getInventorySizes = async ({ filters, permissions = {}, client = db
   }
 
   return buildEnvelope({
+    meta: { permissions: { cost: includeCost } },
     data: {
       productType: filters.productType,
       applicable: true,

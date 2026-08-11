@@ -157,13 +157,16 @@ export const applyCogsCoveragePolicy = ({ coverage, values, collector, uncostedU
 };
 
 /** Standard envelope. Every v2 endpoint returns this shape. §2 */
-export const buildEnvelope = ({ data, filters, collector, contractVersion = "1.0.0", generatedAt = null }) => ({
+export const buildEnvelope = ({ data, filters, collector, contractVersion = "1.0.0", generatedAt = null, meta = null }) => ({
   data,
   meta: {
     filters,
     comparison: filters?.comparison || null,
     contractVersion,
     generatedAt: generatedAt || new Date().toISOString(),
+    // Callers merge their own metadata here — resolved permissions, timings, coverage —
+    // so the client can gate on what the server actually granted.
+    ...(meta || {}),
   },
   warnings: collector ? collector.list() : [],
 });

@@ -255,6 +255,40 @@ test("dimensions and sorts are allowlisted and never request-derived", async () 
   assert.ok(!/GROUP BY \$\{filters/.test(source), "group by must never be interpolated from the request");
 });
 
+/* ------------------------------------------------------------ tenant scope */
+
+test("a null tenant means every tenant, not a comparison against NULL", async () => {
+  const source = await service();
+  // resolveAnalyticsTenantId returns null for a super-admin. Binding it and comparing
+  // produces `tenant_id = NULL`, which matches nothing — the page rendered empty on
+  // production for exactly the users most likely to open it.
+  assert.match(source, /const tenantScoped = filters\.tenantId !== null && filters\.tenantId !== undefined/);
+  assert.ok(
+    !/const tenant = push\(filters\.tenantId\);/.test(source),
+    "the tenant must not be bound unconditionally"
+  );
+  // Every tenant clause is guarded.
+  assert.match(source, /if \(tenantScoped\) productWhere\.push/);
+  assert.match(source, /if \(tenantScoped\) variantWhere\.push/);
+  assert.match(source, /scope\.tenantScoped \? `o\.tenant_id = \$\{scope\.tenant\} AND ` : ""/);
+  assert.match(source, /scope\.tenantScoped \? `m\.tenant_id = \$\{scope\.tenant\} AND ` : ""/);
+  // An empty clause list must still be valid SQL.
+  assert.match(source, /productWhere\.length \? productWhere\.join\(" AND "\) : "TRUE"/);
+  assert.match(source, /variantWhere\.length \? variantWhere\.join\(" AND "\) : "TRUE"/);
+});
+
+test("the resolved permissions reach the client", async () => {
+  const source = await service();
+  // The UI gates inventory value on meta.permissions.cost; without it every caller
+  // silently loses the value column.
+  const envelopes = source.match(/meta: \{ permissions: \{ cost: includeCost \} \}/g) || [];
+  assert.equal(envelopes.length, 4, `all four endpoints must report permissions, found ${envelopes.length}`);
+
+  const comparison = await read("../../server/services/analytics/analyticsComparison.js");
+  assert.match(comparison, /meta = null/, "buildEnvelope must accept caller metadata");
+  assert.match(comparison, /\.\.\.\(meta \|\| \{\}\)/, "and merge it");
+});
+
 /* ------------------------------------------------------ source of truth */
 
 test("stock comes from product_variants.stock and nothing else", async () => {
