@@ -367,7 +367,7 @@ export default function ProductColors({
                       ? `
                         bg-primary
                         border-primary
-                        text-white
+                        text-[var(--primary-contrast)]
                         scale-105
                       `
 
