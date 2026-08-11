@@ -221,6 +221,15 @@ export const parseAnalyticsFilters = (req = {}) => {
     granularity,
     limit,
     page,
+    // R3 product-attribute filters. Bound as parameters by the services, never
+    // interpolated. sort/dimension are validated against allowlists downstream.
+    productType: cleanString(query.productType ?? query.product_type),
+    brandId: positiveInt(query.brandId ?? query.brand_id),
+    gender: cleanString(query.gender),
+    category: cleanString(query.category),
+    search: cleanString(query.search),
+    sort: cleanString(query.sort),
+    sortDir: String(query.sortDir || query.sort_dir || "desc").toLowerCase() === "asc" ? "asc" : "desc",
     fresh: ["1", "true", "yes"].includes(String(query.fresh || "").toLowerCase()),
   };
 };
