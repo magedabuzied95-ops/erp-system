@@ -169,7 +169,7 @@ function Accounts() {
             <FileSpreadsheet className="h-4 w-4" />
             Excel
           </button>
-          <button type="button" onClick={() => exportReport("csv", exportAccountingCsv)} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black">
+          <button type="button" onClick={() => exportReport("csv", exportAccountingCsv)} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">
             <Download className="h-4 w-4" />
             CSV
           </button>
@@ -189,14 +189,14 @@ function Accounts() {
         <button
           type="button"
           onClick={() => setView("chart")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${view === "chart" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${view === "chart" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           دليل الحسابات
         </button>
         <button
           type="button"
           onClick={() => setView("ledgers")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${view === "ledgers" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${view === "ledgers" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           عرض دفتر الأستاذ
         </button>
@@ -268,7 +268,7 @@ function Accounts() {
                   <tbody>
                     {filteredAccounts.map((account) => (
                       <tr key={account.id} className="transition hover:bg-white/[0.03]">
-                        <Td align="right" className="font-black text-cyan-200">{account.account_code || "-"}</Td>
+                        <Td align="right" className="font-black text-primary">{account.account_code || "-"}</Td>
                         <Td align="right" className="text-white">{account.account_name || "-"}</Td>
                         <Td align="right">{translateAccountType(account.account_type)}</Td>
                         <Td align="right">{account.parent_account_name || "-"}</Td>
@@ -290,16 +290,16 @@ function Accounts() {
         <>
           <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-5">
             <FilterField label={t("accounting.common.labels.from")}>
-              <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/60" />
+              <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60" />
             </FilterField>
             <FilterField label={t("accounting.common.labels.to")}>
-              <input type="date" value={filters.to_date} onChange={(event) => updateFilter("to_date", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/60" />
+              <input type="date" value={filters.to_date} onChange={(event) => updateFilter("to_date", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60" />
             </FilterField>
             <FilterField label={t("accounting.common.labels.branch")}>
-              <input type="number" min="1" placeholder={t("accounting.common.placeholders.branchId")} value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-cyan-400/60" />
+              <input type="number" min="1" placeholder={t("accounting.common.placeholders.branchId")} value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/60" />
             </FilterField>
             <FilterField label={t("accounting.common.labels.account")}>
-              <select value={filters.account_type} onChange={(event) => updateFilter("account_type", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/60">
+              <select value={filters.account_type} onChange={(event) => updateFilter("account_type", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60">
                 {accountTypeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -308,7 +308,7 @@ function Accounts() {
               </select>
             </FilterField>
             <div className="flex items-end gap-2">
-              <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400">
+              <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
                 <Search className="h-4 w-4" />
                 تطبيق
               </button>
@@ -409,7 +409,7 @@ function StateBanner({ icon, title, text, action }) {
   return (
     <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 text-white shadow-xl shadow-black/10 md:flex-row md:items-center md:justify-between">
       <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-cyan-300">{icon}</div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-primary">{icon}</div>
         <div>
           <div className="font-black">{title}</div>
           <div className="mt-1 text-sm text-zinc-400">{text}</div>
@@ -423,7 +423,7 @@ function StateBanner({ icon, title, text, action }) {
 function SourceBadge({ label }) {
   const translated = translateSourceType(label);
   return (
-    <span className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-xs font-black text-cyan-200">
+    <span className="inline-flex rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-black text-primary">
       {translated}
     </span>
   );

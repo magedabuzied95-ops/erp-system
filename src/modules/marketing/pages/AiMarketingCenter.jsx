@@ -75,7 +75,7 @@ const QUEUE_FILTERS = [
 
 const cardClass = "rounded-2xl border border-white/10 bg-white/[0.055] shadow-2xl shadow-black/20 backdrop-blur-xl";
 const buttonClass = "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50";
-const inputClass = "h-11 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-black text-white outline-none focus:border-cyan-300/50";
+const inputClass = "h-11 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-black text-white outline-none focus:border-primary/50";
 
 const unwrapSettings = (payload) => payload?.settings || payload || EMPTY_SETTINGS;
 const unwrapOverview = (payload) => payload?.overview || payload || {};
@@ -823,7 +823,7 @@ function AiMarketingCenter() {
       <AiMarketingCenterNav />
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-100">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
             <Bot className="h-4 w-4" />
             AI Marketing Engine
           </div>
@@ -840,11 +840,11 @@ function AiMarketingCenter() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
-          <button type="button" onClick={saveSettings} disabled={saving} className={`${buttonClass} border border-cyan-300/30 bg-cyan-300 text-slate-950 hover:bg-cyan-200`}>
+          <button type="button" onClick={saveSettings} disabled={saving} className={`${buttonClass} border border-primary/30 bg-primary text-slate-950 hover:bg-primary`}>
             <Check className="h-4 w-4" />
             Save
           </button>
-          <button type="button" onClick={() => runGeneration("daily")} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-cyan-100`}>
+          <button type="button" onClick={() => runGeneration("daily")} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-primary`}>
             <Wand2 className="h-4 w-4" />
             {running ? "في الطابور..." : canCreateMarketing ? "إنشاء الطابور" : "لا توجد صلاحية إنشاء"}
           </button>
@@ -852,7 +852,7 @@ function AiMarketingCenter() {
       </div>
 
       {activeGenerationCount ? (
-        <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm font-bold text-cyan-100">
+        <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-sm font-bold text-primary">
           {activeGenerationCount} generation job{activeGenerationCount === 1 ? "" : "s"} running in the background. This page will update automatically.
         </div>
       ) : null}
@@ -868,12 +868,12 @@ function AiMarketingCenter() {
         <section className={`${cardClass} mt-4 p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <SectionTitle icon={<Grid2X2 className="h-4 w-4" />} title={`Catalog coverage · Cycle ${overview.catalog_coverage.cycle_number || 1}`} />
-            <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-sm font-black text-cyan-100">
+            <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-black text-primary">
               {overview.catalog_coverage.coverage_percent || 0}% covered
             </div>
           </div>
           <div className="mt-4 h-3 overflow-hidden rounded-full bg-black/30">
-            <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all" style={{ width: `${Math.min(100, overview.catalog_coverage.coverage_percent || 0)}%` }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-400 transition-all" style={{ width: `${Math.min(100, overview.catalog_coverage.coverage_percent || 0)}%` }} />
           </div>
           <div className="mt-4 grid gap-3 text-center sm:grid-cols-4">
             <Kpi label="Eligible products" value={overview.catalog_coverage.eligible_products || 0} />
@@ -892,10 +892,10 @@ function AiMarketingCenter() {
           <section className={`${cardClass} p-5`}>
             <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Content Lanes" />
             <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-black/20 p-1">
-              <button type="button" onClick={() => patchSettings({ story_selection_mode: "catalog_coverage" })} className={`${buttonClass} ${settings.story_selection_mode !== "newest_only" ? "bg-cyan-300 text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
+              <button type="button" onClick={() => patchSettings({ story_selection_mode: "catalog_coverage" })} className={`${buttonClass} ${settings.story_selection_mode !== "newest_only" ? "bg-primary text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
                 Full catalog first
               </button>
-              <button type="button" onClick={() => patchSettings({ story_selection_mode: "newest_only" })} className={`${buttonClass} ${settings.story_selection_mode === "newest_only" ? "bg-cyan-300 text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
+              <button type="button" onClick={() => patchSettings({ story_selection_mode: "newest_only" })} className={`${buttonClass} ${settings.story_selection_mode === "newest_only" ? "bg-primary text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
                 Newest only
               </button>
             </div>
@@ -981,7 +981,7 @@ function AiMarketingCenter() {
 }
 
 function Kpi({ label, value, tone = "cyan" }) {
-  const color = tone === "emerald" ? "text-emerald-200" : tone === "amber" ? "text-amber-200" : "text-cyan-100";
+  const color = tone === "emerald" ? "text-emerald-200" : tone === "amber" ? "text-amber-200" : "text-primary";
   return (
     <div className={`${cardClass} p-4`}>
       <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
@@ -993,7 +993,7 @@ function Kpi({ label, value, tone = "cyan" }) {
 function SectionTitle({ icon, title }) {
   return (
     <div className="flex items-center gap-2 text-lg font-black">
-      <span className="grid h-9 w-9 place-items-center rounded-xl border border-cyan-300/15 bg-cyan-300/10 text-cyan-100">{icon}</span>
+      <span className="grid h-9 w-9 place-items-center rounded-xl border border-primary/15 bg-primary/10 text-primary">{icon}</span>
       {title}
     </div>
   );
@@ -1086,7 +1086,7 @@ function InsightCard({ insights, syncing = false, onSync }) {
     <section className={`${cardClass} p-5`}>
       <div className="flex items-center justify-between gap-3">
         <SectionTitle icon={<Clock className="h-4 w-4" />} title="Best Posting Windows" />
-        <button type="button" onClick={onSync} disabled={syncing} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/20 disabled:opacity-60">
+        <button type="button" onClick={onSync} disabled={syncing} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20 disabled:opacity-60">
           <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
           Sync
         </button>
@@ -1137,7 +1137,7 @@ function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatu
         </button>
         <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("archive")} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة المحدد</button>
         <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("delete")} className={`${buttonClass} border border-rose-300/20 bg-rose-400/10 text-rose-100`}>Delete Selected</button>
-        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("publish")} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>نشر المحدد</button>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("publish")} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>نشر المحدد</button>
       </div>
       <div className="mt-4 grid gap-3">
         {groups.length ? groups.map((group) => (
@@ -1159,7 +1159,7 @@ function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatu
 }
 
 function Badge({ children, tone = "slate" }) {
-  const toneClass = tone === "cyan" ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-100" : tone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : tone === "emerald" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : tone === "rose" ? "border-rose-300/25 bg-rose-400/10 text-rose-100" : "border-white/10 bg-white/[0.06] text-slate-300";
+  const toneClass = tone === "cyan" ? "border-primary/25 bg-primary/10 text-primary" : tone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : tone === "emerald" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : tone === "rose" ? "border-rose-300/25 bg-rose-400/10 text-rose-100" : "border-white/10 bg-white/[0.06] text-slate-300";
   return <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${toneClass}`}>{children}</span>;
 }
 
@@ -1237,12 +1237,12 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
             <History className="h-4 w-4" />
             History
           </button>
-          {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
+          {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
           {isArchived ? <button type="button" onClick={onRestore} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>استعادة</button> : null}
           {!isArchived && showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>موافقة</button> : null}
-          {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || generatingStoryAsset || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "جارٍ النشر..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "إعادة محاولة النشر" : "نشر"}</button> : null}
+          {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || generatingStoryAsset || actionDisabled} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{publishing ? "جارٍ النشر..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "إعادة محاولة النشر" : "نشر"}</button> : null}
           {!isArchived ? <button type="button" onClick={onArchive} disabled={actionDisabled} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة</button> : null}
-          <button type="button" title="Duplicate" onClick={onDuplicate} disabled={actionDisabled} className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
+          <button type="button" title="Duplicate" onClick={onDuplicate} disabled={actionDisabled} className="grid h-10 w-10 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
             <Copy className="h-4 w-4" />
           </button>
           {normalizedStatus === "failed" ? <button type="button" onClick={onPreview} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Retry</button> : null}
@@ -1272,7 +1272,7 @@ function DebugUrlRow({ label, value }) {
     <div className="grid gap-1 rounded-xl border border-white/10 bg-black/25 p-3">
       <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
       {displayValue ? (
-        <a href={displayValue} target="_blank" rel="noreferrer" className="break-all text-xs font-bold text-cyan-200 underline decoration-cyan-300/40 underline-offset-4">
+        <a href={displayValue} target="_blank" rel="noreferrer" className="break-all text-xs font-bold text-primary underline decoration-primary/40 underline-offset-4">
           {displayValue}
         </a>
       ) : (
@@ -1308,7 +1308,7 @@ function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) 
               type="button"
               onClick={() => onSelect?.(index)}
               className={`overflow-hidden rounded-2xl border bg-slate-950 text-left transition ${
-                index === selectedIndex ? "border-cyan-300 ring-2 ring-cyan-300/30" : "border-white/10 hover:border-white/30"
+                index === selectedIndex ? "border-primary ring-2 ring-primary/30" : "border-white/10 hover:border-white/30"
               }`}
             >
               <div className="aspect-[9/16] w-full overflow-hidden bg-slate-900">
@@ -1450,7 +1450,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         actionSlot={
           <div className="grid gap-3">
             {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
-            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
+            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
             {showApprove ? (
               <button
                 type="button"
@@ -1575,7 +1575,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
-              {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
+              {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
               {showApprove ? (
                 <button
                   type="button"
@@ -1590,7 +1590,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                 <button
                   type="button"
                   onClick={() => onPublish?.(item)}
-                  className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/20`}
+                  className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20`}
                 >
                   <Send className="h-4 w-4" />
                   نشر
@@ -1599,9 +1599,9 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
           </div>
           {storyAudio ? (
-            <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.06] p-4">
+            <div className="mt-5 rounded-2xl border border-primary/15 bg-primary/[0.06] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
-                <Music2 className="h-4 w-4 text-cyan-200" />
+                <Music2 className="h-4 w-4 text-primary" />
                 Suggested Trending Audio
               </div>
               <div className="mt-3 grid gap-2 text-xs font-bold text-slate-300">

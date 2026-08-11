@@ -134,13 +134,13 @@ export function NotificationCard({ notification, onOpen, onAction }) {
         "group relative overflow-hidden rounded-2xl border p-4 shadow-sm transition duration-200",
         "bg-white text-slate-950 dark:bg-slate-950/76 dark:text-slate-50",
         isUnread
-          ? "border-sky-200 ring-1 ring-sky-100 dark:border-cyan-300/25 dark:ring-cyan-300/10"
+          ? "border-primary ring-1 ring-primary dark:border-primary/25 dark:ring-primary/10"
           : "border-slate-200 dark:border-white/10",
-        "hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg dark:hover:border-cyan-300/35",
+        "hover:-translate-y-0.5 hover:border-primary hover:shadow-lg dark:hover:border-primary/35",
       ].join(" ")}
     >
       {isUnread ? (
-        <span className="absolute left-0 top-5 h-10 w-1 rounded-r-full bg-sky-500 shadow-[0_0_18px_rgba(14,165,233,0.45)] dark:bg-cyan-300" />
+        <span className="absolute left-0 top-5 h-10 w-1 rounded-r-full bg-primary shadow-[0_0_18px_rgba(14,165,233,0.45)] dark:bg-primary" />
       ) : null}
       <div className="flex min-w-0 gap-3">
         <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${iconClass[category] || iconClass.system}`}>
@@ -155,7 +155,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
               </p>
             </div>
             {isUnread ? (
-              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-cyan-300" title="غير مقروء" />
+              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-primary" title="غير مقروء" />
             ) : null}
           </div>
 
@@ -173,7 +173,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
               <button
                 type="button"
                 onClick={() => handleAction?.(safeNotification)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-slate-950 px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-slate-800 dark:bg-primary dark:text-slate-950 dark:hover:bg-primary"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 {safeNotification.action_label || "فتح"}
@@ -183,7 +183,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
               <button
                 type="button"
                 onClick={() => markRead(safeNotification.id)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-cyan-300/40 dark:hover:text-cyan-100"
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 transition hover:border-primary hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-primary/40 dark:hover:text-primary"
               >
                 <Check className="h-3.5 w-3.5" />
                 وضع كمقروء
@@ -258,7 +258,7 @@ export default function NotificationBell() {
         onClick={() => setOpen((current) => !current)}
         className={[
           "relative inline-flex h-11 w-11 items-center justify-center rounded-full border text-[var(--text)] shadow-sm transition duration-200",
-          "border-[var(--border)] bg-[var(--card)] hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg dark:hover:border-cyan-300/35",
+          "border-[var(--border)] bg-[var(--card)] hover:-translate-y-0.5 hover:border-primary hover:shadow-lg dark:hover:border-primary/35",
         ].join(" ")}
         aria-label="فتح الإشعارات"
         aria-expanded={open}
@@ -289,7 +289,7 @@ export default function NotificationBell() {
             <div className="shrink-0 border-b border-slate-200 bg-white/90 px-5 py-5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/88">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-sky-700 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-100">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-subtle px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
                     <Sparkles className="h-3.5 w-3.5" />
                     مباشر
                   </div>
@@ -303,7 +303,7 @@ export default function NotificationBell() {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-cyan-300/35"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35"
                   aria-label="إغلاق الإشعارات"
                 >
                   <X className="h-5 w-5" />
@@ -315,7 +315,7 @@ export default function NotificationBell() {
                   type="button"
                   onClick={markAllRead}
                   disabled={!unreadCount}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-cyan-300/35 dark:hover:text-cyan-100"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35 dark:hover:text-primary"
                 >
                   <CheckCheck className="h-4 w-4" />
                   تحديد الكل كمقروء
@@ -323,7 +323,7 @@ export default function NotificationBell() {
                 <button
                   type="button"
                   onClick={() => refresh()}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-slate-800 dark:bg-primary dark:text-slate-950 dark:hover:bg-primary"
                 >
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   تحديث

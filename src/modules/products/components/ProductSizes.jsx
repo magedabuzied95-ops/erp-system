@@ -330,8 +330,8 @@ export default function ProductSizes({
 
         <div
           className="
-          bg-blue-500/20
-          text-blue-400
+          bg-primary/20
+          text-primary
           px-4
           py-2
           rounded-xl

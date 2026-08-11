@@ -90,7 +90,7 @@ const whatsappConfirmationBadge = (order = {}) => {
   if (order.whatsapp_payment_review_sent_at) {
     return {
       label: "تم إرسال مراجعة الدفع عبر واتساب",
-      className: "border-cyan-400/25 bg-cyan-400/10 text-cyan-200",
+      className: "border-primary/25 bg-primary/10 text-primary",
     };
   }
   return null;
@@ -106,10 +106,10 @@ const invoiceWhatsappBadge = (order = {}) => {
 
 const shipmentWhatsappBadges = (order = {}) => [
   order.whatsapp_shipment_created_sent_at
-    ? { label: "تم إرسال الشحنة عبر واتساب", className: "border-sky-400/25 bg-sky-400/10 text-sky-200" }
+    ? { label: "تم إرسال الشحنة عبر واتساب", className: "border-primary/25 bg-primary/10 text-primary" }
     : null,
   order.whatsapp_shipped_sent_at
-    ? { label: "تم إشعار الشحن عبر واتساب", className: "border-indigo-400/25 bg-indigo-400/10 text-indigo-200" }
+    ? { label: "تم إشعار الشحن عبر واتساب", className: "border-primary/25 bg-primary/10 text-primary" }
     : null,
   order.whatsapp_out_for_delivery_sent_at
     ? { label: "تم إشعار في الطريق للتسليم عبر واتساب", className: "border-amber-400/25 bg-amber-400/10 text-amber-200" }
@@ -928,7 +928,7 @@ function OrderDetails() {
     return (
       <OrdersShell title={t("orders.details.title")} subtitle={t("orders.details.loadingSubtitle")}>
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-10 text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-500/20 border-t-blue-400" />
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-blue-400" />
           <p className="mt-4 text-sm text-zinc-400">{t("orders.details.loading")}</p>
         </div>
       </OrdersShell>
@@ -976,11 +976,11 @@ function OrderDetails() {
                   </span>
                   <AiInboxOrderLink order={order} />
                   {getAttributionLabel(order) ? (
-                    <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200">
+                    <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
                       {getAttributionLabel(order)}
                     </span>
                   ) : null}
-                  <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${requiresShipping ? "border-sky-500/20 bg-sky-500/10 text-sky-200" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"}`}>
+                  <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${requiresShipping ? "border-primary/20 bg-primary/10 text-primary" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"}`}>
                     {shippingSetupOpen ? "إعداد شحن للفاتورة" : orderExperience.label}
                   </span>
                 </div>
@@ -1010,7 +1010,7 @@ function OrderDetails() {
                     type="button"
                     onClick={handleCallCustomer}
                     disabled={!normalizedCustomerPhone}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Phone className="h-3.5 w-3.5" />
                     {t("orders.details.call")}
@@ -1072,7 +1072,7 @@ function OrderDetails() {
                 <button type="button" onClick={() => {
                   setShipping((prev) => ({ ...prev, provider: resolveShippingProviderKey(prev.provider) }));
                   setShippingSetupOpen(true);
-                }} className="inline-flex h-10 items-center gap-2 rounded-xl bg-sky-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-sky-300">
+                }} className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   <Truck className="h-4 w-4" />
                   إضافة شحن للفاتورة
                 </button>
@@ -1209,7 +1209,7 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={handleSaveNotes}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-500 px-4 text-sm font-semibold text-black"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-black"
               >
                 <Save className="h-4 w-4" />
                 {t("orders.details.saveNotes")}
@@ -1254,11 +1254,11 @@ function OrderDetails() {
           </details> : null}
 
           {smartInsights.length ? (
-            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5 shadow-xl shadow-black/10">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-300">{t("orders.details.smartInsights")}</div>
+            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-5 shadow-xl shadow-black/10">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-primary">{t("orders.details.smartInsights")}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {smartInsights.map((insight) => (
-                  <span key={insight} className="rounded-full border border-cyan-300/20 bg-black/20 px-3 py-1.5 text-xs font-semibold text-cyan-100">
+                  <span key={insight} className="rounded-full border border-primary/20 bg-black/20 px-3 py-1.5 text-xs font-semibold text-primary">
                     {t(`orders.details.insights.${insight}`, insight)}
                   </span>
                 ))}
@@ -1387,7 +1387,7 @@ function OrderDetails() {
                 type="button"
                 onClick={() => setPdfFormat("a4")}
                 className={`rounded-xl px-3 py-2 transition ${
-                  pdfFormat === "a4" ? "bg-blue-500 text-black" : "hover:bg-white/10"
+                  pdfFormat === "a4" ? "bg-primary text-black" : "hover:bg-white/10"
                 }`}
               >
                 {t("orders.details.a4Pdf")}
@@ -1396,7 +1396,7 @@ function OrderDetails() {
                 type="button"
                 onClick={() => setPdfFormat("thermal")}
                 className={`rounded-xl px-3 py-2 transition ${
-                  pdfFormat === "thermal" ? "bg-blue-500 text-black" : "hover:bg-white/10"
+                  pdfFormat === "thermal" ? "bg-primary text-black" : "hover:bg-white/10"
                 }`}
               >
                 {t("orders.details.thermalPdf")}
@@ -1467,7 +1467,7 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={handleSaveShipping}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 text-sm font-black text-black transition hover:bg-blue-400"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-black transition hover:bg-primary"
               >
                 <Truck className="h-4 w-4" />
                 {t("orders.details.saveShipping")}
@@ -1568,10 +1568,10 @@ function OrderDetails() {
                     )}
                   </div>
                   {isBostaShippingProvider(shipping.provider) && hasCreatedShipment ? (
-                    <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 2xl:col-span-2">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 2xl:col-span-2">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Bosta</div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-primary">Bosta</div>
                           <div className="mt-1 text-sm font-black text-white">{[bostaCityName, bostaZoneName, bostaDistrictName].filter(Boolean).join(" · ") || t("orders.fallback.notAvailable")}</div>
                           <div className="mt-1 text-xs font-semibold text-zinc-400">{shipping.shipping_address_line || order.customer_address || t("orders.fallback.notAvailable")}</div>
                           <div className="mt-1 text-[11px] font-semibold text-zinc-500">
@@ -1579,7 +1579,7 @@ function OrderDetails() {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => handleBostaAction("create")} className="h-9 rounded-xl bg-cyan-300 px-3 text-xs font-black text-zinc-950">إنشاء شحنة Bosta</button>
+                  <button type="button" onClick={() => handleBostaAction("create")} className="h-9 rounded-xl bg-primary px-3 text-xs font-black text-zinc-950">إنشاء شحنة Bosta</button>
                           <button type="button" onClick={() => handleBostaAction("refresh")} className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">تحديث الحالة</button>
                           <button type="button" onClick={() => handleBostaAction("cancel")} className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">إلغاء</button>
                         </div>
@@ -1603,7 +1603,7 @@ function OrderDetails() {
                         <Info label="رابط الملصق" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
                       </div>
                       {shipping.shipping_label_url ? (
-                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-9 rounded-xl border border-cyan-200/30 bg-cyan-200/10 px-3 text-xs font-black text-cyan-50 transition hover:bg-cyan-200/20">طباعة الملصق</button>
+                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-9 rounded-xl border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">طباعة الملصق</button>
                       ) : null}
                       {bostaActionError ? (
                         <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${
@@ -1732,11 +1732,11 @@ function OrderDetails() {
 
             <div className="mt-4 flex flex-col gap-2">
               {!hasCreatedShipment ? (
-                <button type="button" onClick={handleCreateShipment} className="h-11 rounded-xl bg-sky-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-sky-300">
+                <button type="button" onClick={handleCreateShipment} className="h-11 rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   {t("orders.shipping.createShipment")}
                 </button>
               ) : !shipmentDelivered && !shipmentInTransit ? (
-                <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-11 rounded-xl bg-sky-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-sky-300">
+                <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-11 rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   {t("orders.shipping.markShipped", "تم الشحن")}
                 </button>
               ) : !shipmentDelivered ? (
@@ -1814,7 +1814,7 @@ function OrderDetails() {
           <div className="max-h-[64vh] space-y-2 overflow-auto pr-1">
             {timeline.map((event, index) => (
               <div key={`${event.label}-${index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-blue-400" />
+                <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
                 <div className="min-w-0">
                   <div className="font-semibold text-white">{event.label}</div>
                   <div className="mt-1 text-xs text-zinc-500">{formatDateTime(event.at)}</div>
@@ -1844,7 +1844,7 @@ function OrderDetails() {
             <button
               type="button"
               onClick={handlePdf}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-500 px-4 text-sm font-semibold text-black transition hover:bg-blue-400"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-black transition hover:bg-primary"
             >
               <Download className="h-4 w-4" />
               {t("orders.details.downloadPdf")}

@@ -107,7 +107,7 @@ function LoyaltyRules() {
   return (
     <div className="space-y-6 text-white">
       <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">Loyalty Rules</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Loyalty Rules</p>
         <h1 className="mt-2 text-3xl font-black">Reward policy and tier management</h1>
         <p className="mt-2 max-w-3xl text-sm text-zinc-400">
           Control points earning, redemption value, and tier thresholds from a single rules screen.
@@ -117,7 +117,7 @@ function LoyaltyRules() {
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-cyan-300" />
+            <ShieldCheck className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-bold">Existing rules</h2>
           </div>
           <div className="mt-4 space-y-3">
@@ -131,8 +131,8 @@ function LoyaltyRules() {
                 }}
                 className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                   selectedId === rule.id
-                    ? "border-cyan-500/40 bg-cyan-500/10"
-                    : "border-white/10 bg-white/[0.03] hover:border-cyan-500/20"
+                    ? "border-primary/40 bg-primary/10"
+                    : "border-white/10 bg-white/[0.03] hover:border-primary/20"
                 }`}
               >
                 <p className="font-semibold text-white">{rule.name}</p>
@@ -147,7 +147,7 @@ function LoyaltyRules() {
 
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
           <div className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5 text-cyan-300" />
+            <Settings2 className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-bold">Rule editor</h2>
           </div>
 
@@ -168,7 +168,7 @@ function LoyaltyRules() {
                   type={type}
                   value={form[field] ?? ""}
                   onChange={(e) => handleChange(field, type === "number" ? e.target.value : e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-cyan-500/40"
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-primary/40"
                 />
               </label>
             ))}
@@ -192,7 +192,7 @@ function LoyaltyRules() {
             type="button"
             onClick={saveRule}
             disabled={saving}
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
           >
             <Save className="h-4 w-4" />
             {saving ? "Saving..." : selectedRule?.id ? "Update rule" : "Create rule"}

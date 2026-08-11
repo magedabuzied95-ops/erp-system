@@ -31,7 +31,7 @@ const emptyAccountForm = {
 };
 
 const emptyTransferForm = { from_account_id: "", to_account_id: "", amount: "", notes: "" };
-const inputClass = "w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-cyan-300/70";
+const inputClass = "w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/70";
 
 const money = (value) => {
   const parsed = Number(value);
@@ -196,7 +196,7 @@ function FinancialAccounts() {
             <ArrowRightLeft className="h-4 w-4" />
             {t("accounting.financialAccounts.actions.transfer")}
           </button>
-          <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400">
+          <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <Plus className="h-4 w-4" />
             {t("accounting.financialAccounts.actions.newAccount")}
           </button>
@@ -223,7 +223,7 @@ function FinancialAccounts() {
           <input type="number" min="1" value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className={inputClass} placeholder={t("accounting.financialAccounts.filters.anyBranch")} />
         </Field>
         <div className="flex items-end">
-          <button type="submit" className="w-full rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black">{t("accounting.common.actions.apply")}</button>
+          <button type="submit" className="w-full rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">{t("accounting.common.actions.apply")}</button>
         </div>
       </form>
 
@@ -236,7 +236,7 @@ function FinancialAccounts() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {accounts.length ? accounts.map((account) => (
-            <button key={account.id} type="button" onClick={() => selectAccount(account)} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 text-left shadow-2xl shadow-black/10 transition hover:border-cyan-300/40 hover:bg-white/[0.03]">
+            <button key={account.id} type="button" onClick={() => selectAccount(account)} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 text-left shadow-2xl shadow-black/10 transition hover:border-primary/40 hover:bg-white/[0.03]">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-black text-white">{account.name}</div>
@@ -350,7 +350,7 @@ function FinancialAccounts() {
               <input type="checkbox" checked={accountForm.allow_negative_balance} onChange={(event) => setAccountForm((current) => ({ ...current, allow_negative_balance: event.target.checked }))} />
               السماح برصيد سالب
             </label>
-            <button type="submit" disabled={saving === "account"} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black disabled:opacity-60">
+            <button type="submit" disabled={saving === "account"} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "account" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {t("accounting.financialAccounts.actions.saveAccount")}
             </button>
@@ -402,7 +402,7 @@ function translateSourceType(value) {
 }
 
 function AccountIcon({ type }) {
-  const className = "h-5 w-5 text-cyan-300";
+  const className = "h-5 w-5 text-primary";
   if (type === "bank" || type === "card_settlement") return <Landmark className={className} />;
   if (type === "wallet" || type === "digital_wallet") return <Wallet className={className} />;
   if (type === "safe") return <Building2 className={className} />;

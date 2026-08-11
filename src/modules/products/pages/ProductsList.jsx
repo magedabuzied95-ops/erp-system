@@ -109,7 +109,7 @@ const CLASSIFICATION_FILTER_FIELDS = [
   { key: "grade", field: "grade", labelKey: "products.filters.sourceQuality", fallbackLabel: "Source / quality" },
 ];
 const PRODUCT_AUDIENCE_OPTIONS = [
-  { value: "men", label_en: "Men", label_ar: "رجالي", tone: "border-sky-400/20 bg-sky-500/15 text-sky-300" },
+  { value: "men", label_en: "Men", label_ar: "رجالي", tone: "border-primary/20 bg-primary/15 text-primary" },
   { value: "women", label_en: "Women", label_ar: "حريمي", tone: "border-rose-400/20 bg-rose-500/15 text-rose-300" },
   { value: "kids", label_en: "Kids", label_ar: "أطفال", tone: "border-amber-400/20 bg-amber-500/15 text-amber-300" },
 ];
@@ -241,7 +241,7 @@ const ProductArticleBadges = ({ row = {}, limit = 3 }) => {
         </span>
       ) : null}
       {schoolBagSizeLabel ? (
-        <span className="inline-flex items-center rounded-md border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-0.5 text-[10px] font-black leading-4 text-cyan-200">
+        <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-black leading-4 text-primary">
           مقاس {schoolBagSizeLabel}
         </span>
       ) : null}
@@ -348,7 +348,7 @@ const ProductThermalLevelBadge = ({ row = {} }) => {
         hasProductThermal && hasColorThermal
           ? "border-violet-300/30 bg-violet-500/15 text-violet-200"
           : hasColorThermal
-            ? "border-cyan-300/30 bg-cyan-500/15 text-cyan-200"
+            ? "border-primary/30 bg-primary/15 text-primary"
             : hasProductThermal
               ? "border-amber-300/30 bg-amber-500/15 text-amber-200"
               : "border-zinc-400/20 bg-zinc-500/10 text-zinc-400"
@@ -3088,7 +3088,7 @@ function ProductsList() {
             </button>
             <button
               onClick={() => handleBulkStorefrontVisibility(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-200"
+              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary"
             >
               {t("products.bulk.showOnStorefront", "إظهار بالموقع")}
             </button>
@@ -3295,7 +3295,7 @@ function ProductsList() {
                             {productType || category || t("products.selected.category")}
                           </p>
                           {productType && category && category.toLowerCase() !== productType.toLowerCase() ? (
-                            <p className="truncate text-xs font-semibold text-cyan-300">{category}</p>
+                            <p className="truncate text-xs font-semibold text-primary">{category}</p>
                           ) : null}
                           <p className="truncate text-sm text-zinc-400">{row.brand || t("products.selected.brand")}</p>
                           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
@@ -3340,7 +3340,7 @@ function ProductsList() {
                             </span>
                             <span
                               className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${
-                                storefrontVisible ? "bg-sky-500/15 text-sky-300" : "bg-zinc-500/15 text-zinc-300"
+                                storefrontVisible ? "bg-primary/15 text-primary" : "bg-zinc-500/15 text-zinc-300"
                               }`}
                             >
                               {storefrontVisible
@@ -3878,7 +3878,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
               </span>
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${
-                  storefrontVisible ? "bg-sky-500/15 text-sky-300" : "bg-zinc-500/15 text-zinc-300"
+                  storefrontVisible ? "bg-primary/15 text-primary" : "bg-zinc-500/15 text-zinc-300"
                 }`}
               >
                 {storefrontVisible
@@ -3902,7 +3902,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
           <div className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{t("products.table.typeCategoryBrand")}</div>
           <div className="mt-1 truncate text-sm font-black text-white">{productType || category || t("products.selected.category")}</div>
           {productType && category && category.toLowerCase() !== productType.toLowerCase() ? (
-            <div className="mt-0.5 truncate text-[11px] font-semibold text-cyan-300">{category}</div>
+            <div className="mt-0.5 truncate text-[11px] font-semibold text-primary">{category}</div>
           ) : null}
           <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-500">{row.brand || t("products.selected.brand")}</div>
         </div>

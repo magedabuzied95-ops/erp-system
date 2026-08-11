@@ -926,7 +926,7 @@ function Branches() {
                       type="button"
                       onClick={printBranchQr}
                       disabled={qrLoading || qrError || !qrImageSrc}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm font-black text-blue-700 transition hover:bg-blue-500/20 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-black text-primary transition hover:bg-primary/20 disabled:opacity-50"
                     >
                       <Printer className="h-4 w-4" />
                       {t("branches.buttons.printQr")}
@@ -1052,7 +1052,7 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
           type="button"
           onClick={() => onEdit(safe)}
           disabled={busy || !safe?.id}
-          className="inline-flex w-fit items-center gap-2 rounded-2xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-100 transition hover:bg-blue-500/20 disabled:opacity-50"
+          className="inline-flex w-fit items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20 disabled:opacity-50"
         >
           <Edit3 className="h-3.5 w-3.5" />
           {t("branches.buttons.edit")}
@@ -1074,7 +1074,7 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
 function Kpi({ label, value, icon, tone = "zinc" }) {
   const tones = {
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-    cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
+    cyan: "border-primary/20 bg-primary/10 text-primary",
     amber: "border-amber-500/25 bg-amber-500/10 text-amber-300",
     zinc: "border-[var(--border)] bg-[var(--surface)] text-[var(--text)]",
   };

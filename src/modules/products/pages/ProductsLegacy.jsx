@@ -500,7 +500,7 @@ function Products() {
         <KPI
           title={t("products.stats.variants")}
           value={totalVariants}
-          color="text-blue-500"
+          color="text-primary"
         />
 
         <KPI

@@ -274,7 +274,7 @@ function PurchasesDashboard() {
   }, [filteredPurchases]);
   const bottomKpiCards = [
     { label: t("purchases.kpis.totalPurchases"), value: purchaseKpis.totalPurchases.toLocaleString(), accent: "text-emerald-200" },
-    { label: `${t("purchases.kpis.monthlySpend")} / ${t("purchases.kpis.totalSpent")}`, value: formatCurrency(purchaseKpis.totalSpend), accent: "text-cyan-200" },
+    { label: `${t("purchases.kpis.monthlySpend")} / ${t("purchases.kpis.totalSpent")}`, value: formatCurrency(purchaseKpis.totalSpend), accent: "text-primary" },
     { label: t("purchases.kpis.pendingOrders"), value: purchaseKpis.pendingOrders.toLocaleString(), accent: "text-amber-200" },
     { label: t("purchases.kpis.receivedToday"), value: purchaseKpis.receivedToday.toLocaleString(), accent: "text-lime-200" },
     { label: t("purchases.kpis.supplierBalances"), value: formatCurrency(purchaseKpis.supplierBalances), accent: "text-rose-100" },

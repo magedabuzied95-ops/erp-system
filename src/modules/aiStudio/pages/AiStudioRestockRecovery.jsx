@@ -106,13 +106,13 @@ export default function AiStudioRestockRecovery() {
       <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100"><PackageCheck className="h-4 w-4" />AI Studio</div>
+            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><PackageCheck className="h-4 w-4" />AI Studio</div>
             <h1 className="mt-1 text-xl font-black">Restock Recovery</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-400">When a product comes back in stock, find customers who asked to be notified and create <b>internal</b> sales follow-ups. No customer message is ever sent automatically — employees do the outreach.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {!wf ? (
-              <button type="button" onClick={doSeed} disabled={busy === "seed"} className="inline-flex h-9 items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-300/15 px-3 text-[11px] font-black text-cyan-50 hover:bg-cyan-300/25 disabled:opacity-50">
+              <button type="button" onClick={doSeed} disabled={busy === "seed"} className="inline-flex h-9 items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-3 text-[11px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
                 {busy === "seed" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Create from template
               </button>
             ) : (
@@ -140,7 +140,7 @@ export default function AiStudioRestockRecovery() {
       {/* View toggle + messaging-mode control */}
       <div className="flex flex-wrap items-center gap-1.5">
         {[["intents", "Waiting Requests"], ["notifications", "Notifications"], ["recoveries", "Recoveries"]].map(([k, label]) => (
-          <button key={k} type="button" onClick={() => setView(k)} className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[12px] font-black ${view === k ? "border-cyan-300/40 bg-cyan-300 text-slate-950" : "border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>
+          <button key={k} type="button" onClick={() => setView(k)} className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[12px] font-black ${view === k ? "border-primary/40 bg-primary text-slate-950" : "border-white/10 bg-white/[0.055] text-[var(--primary-contrast)] hover:border-white/20"}`}>
             {k === "notifications" ? <MessageSquare className="h-3.5 w-3.5" /> : null}{label}{k === "notifications" && Number(notifCounts.pending_approval || 0) > 0 ? <span className="rounded-full bg-amber-400/20 px-1.5 text-[10px] text-amber-100">{notifCounts.pending_approval}</span> : null}
           </button>
         ))}
@@ -166,7 +166,7 @@ export default function AiStudioRestockRecovery() {
             ))}
           </section>
           <section className="grid grid-cols-3 gap-3">
-            {[["Delivered", deliveryCounts.delivered, CheckCheck, "text-cyan-200"], ["Read", deliveryCounts.read, Eye, "text-emerald-200"], ["Delivery failed", deliveryCounts.delivery_failed, AlertTriangle, "text-rose-200"]].map(([label, val, Icon, tone]) => (
+            {[["Delivered", deliveryCounts.delivered, CheckCheck, "text-primary"], ["Read", deliveryCounts.read, Eye, "text-emerald-200"], ["Delivery failed", deliveryCounts.delivery_failed, AlertTriangle, "text-rose-200"]].map(([label, val, Icon, tone]) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5"><div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500"><Icon className="h-3 w-3" />{label}</div><div className={`mt-1 text-xl font-black ${tone}`}>{Number(val || 0)}</div></div>
             ))}
           </section>
@@ -180,7 +180,7 @@ export default function AiStudioRestockRecovery() {
               return (
                 <div key={n.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">Restock notification</div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Restock notification</div>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${sent ? "bg-emerald-400/20 text-emerald-100" : n.status === "rejected" ? "bg-slate-500/20 text-slate-300" : n.status === "failed" ? "bg-rose-500/20 text-rose-100" : "bg-amber-400/20 text-amber-100"}`}>{n.status.replace("_", " ")}</span>
                   </div>
                   <div className="mt-2 grid gap-3 md:grid-cols-2">
@@ -197,7 +197,7 @@ export default function AiStudioRestockRecovery() {
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[12px]">
                       <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Draft {sent ? "(sent)" : "— not sent yet"}</div>
                       {editId === n.id ? (
-                        <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={4} dir="rtl" className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 text-[12px] text-white focus:border-cyan-300/40 focus:outline-none" />
+                        <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={4} dir="rtl" className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 text-[12px] text-white focus:border-primary/40 focus:outline-none" />
                       ) : (
                         <div dir="rtl" className="mt-1 whitespace-pre-wrap text-slate-200">{n.approved_text || n.draft_text}</div>
                       )}
@@ -208,7 +208,7 @@ export default function AiStudioRestockRecovery() {
                       {editId === n.id ? (
                         <>
                           <button type="button" onClick={() => { setEditId(null); setEditText(""); }} className="inline-flex h-8 items-center rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300">Cancel</button>
-                          <button type="button" onClick={() => doNotifAction(n.id, "edit")} disabled={busy === `edit-${n.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-cyan-300/40 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100">Save draft</button>
+                          <button type="button" onClick={() => doNotifAction(n.id, "edit")} disabled={busy === `edit-${n.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-3 text-[11px] font-black text-primary">Save draft</button>
                         </>
                       ) : (
                         <button type="button" onClick={() => { setEditId(n.id); setEditText(n.approved_text || n.draft_text || ""); }} className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white"><Pencil className="h-3.5 w-3.5" />Edit</button>
@@ -221,7 +221,7 @@ export default function AiStudioRestockRecovery() {
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                         {[
                           { key: "sent", Icon: Check, label: "Sent", at: n.sent_at, on: true, tone: "text-slate-200" },
-                          { key: "delivered", Icon: CheckCheck, label: "Delivered", at: n.delivered_at, on: ["delivered", "read"].includes(n.delivery_status) || Boolean(n.delivered_at), tone: "text-cyan-200" },
+                          { key: "delivered", Icon: CheckCheck, label: "Delivered", at: n.delivered_at, on: ["delivered", "read"].includes(n.delivery_status) || Boolean(n.delivered_at), tone: "text-primary" },
                           { key: "read", Icon: Eye, label: "Read", at: n.read_at, on: n.delivery_status === "read" || Boolean(n.read_at), tone: "text-emerald-200" },
                         ].map((s) => (
                           <span key={s.key} className={`inline-flex items-center gap-1 ${s.on ? s.tone : "text-slate-600"}`}><s.Icon className="h-3.5 w-3.5" />{s.label}{s.on && s.at ? ` · ${fmt(s.at)}` : ""}</span>
@@ -250,7 +250,7 @@ export default function AiStudioRestockRecovery() {
       {view === "intents" ? (
         <>
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {[["Waiting", intentCounts.waiting, "text-slate-200"], ["Exact variant", intentCounts.waiting_exact_variant, "text-emerald-200"], ["Recovery created", intentCounts.recovery_created, "text-cyan-200"], ["Customer notified", intentCounts.customer_notified, "text-violet-200"], ["Cancelled", intentCounts.cancelled, "text-amber-200"]].map(([label, val, tone]) => (
+            {[["Waiting", intentCounts.waiting, "text-slate-200"], ["Exact variant", intentCounts.waiting_exact_variant, "text-emerald-200"], ["Recovery created", intentCounts.recovery_created, "text-primary"], ["Customer notified", intentCounts.customer_notified, "text-violet-200"], ["Cancelled", intentCounts.cancelled, "text-amber-200"]].map(([label, val, tone]) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
                 <div className={`mt-1 text-2xl font-black ${tone}`}>{Number(val || 0)}</div>
@@ -342,7 +342,7 @@ export default function AiStudioRestockRecovery() {
       ) : null}
 
       <div className="text-[11px] text-slate-600">
-        <button type="button" onClick={() => navigate("/ai-studio/executions")} className="inline-flex items-center gap-1 font-black text-cyan-200 hover:text-cyan-100">View workflow executions <ExternalLink className="h-3 w-3" /></button>
+        <button type="button" onClick={() => navigate("/ai-studio/executions")} className="inline-flex items-center gap-1 font-black text-primary hover:text-primary">View workflow executions <ExternalLink className="h-3 w-3" /></button>
       </div>
     </div>
   );

@@ -491,7 +491,7 @@ export function StoryControls({ playing, onTogglePlay, onPrevious, onNext, onRes
       <button type="button" onClick={onPrevious} className="rounded-full border border-white/10 bg-white/5 p-3 text-white transition hover:bg-white/10" aria-label={t("marketing.story.preview.previous")}>
         <SkipBack className="h-4 w-4" />
       </button>
-      <button type="button" onClick={onTogglePlay} className="rounded-full border border-cyan-300/30 bg-cyan-300/15 p-3 text-cyan-50 transition hover:bg-cyan-300/25" aria-label={playing ? t("marketing.story.preview.pause") : t("marketing.story.preview.play")}>
+      <button type="button" onClick={onTogglePlay} className="rounded-full border border-primary/30 bg-primary/15 p-3 text-primary transition hover:bg-primary/25" aria-label={playing ? t("marketing.story.preview.pause") : t("marketing.story.preview.play")}>
         {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
       <button type="button" onClick={onNext} className="rounded-full border border-white/10 bg-white/5 p-3 text-white transition hover:bg-white/10" aria-label={t("marketing.story.preview.next")}>
@@ -516,7 +516,7 @@ export function StoryTimeline({ stories = [], currentIndex, onSelect }) {
           type="button"
           onClick={() => onSelect(index)}
           className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-right transition ${
-            index === currentIndex ? "border-cyan-300/35 bg-cyan-300/10 text-cyan-50" : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]"
+            index === currentIndex ? "border-primary/35 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]"
           }`}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black">{story.position || index + 1}</span>

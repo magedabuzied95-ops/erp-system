@@ -1861,7 +1861,7 @@ function PayrollFinancialSummary({
     : isDraft
       ? "border-white/10 bg-white/5 text-white"
     : isApproved
-      ? "border-sky-300/25 bg-sky-400/10 text-sky-100"
+      ? "border-primary/25 bg-primary/10 text-primary"
       : isHardBlocked
         ? "border-amber-300/25 bg-amber-400/10 text-amber-100"
         : "border-emerald-300/25 bg-emerald-400/10 text-emerald-100";
@@ -2066,7 +2066,7 @@ function PayrollFinancialSummary({
                       <div className="text-sm font-black text-[var(--text)]">{row.label}</div>
                       <div className="text-xs text-[var(--muted)]" dir="ltr">{row.period}</div>
                     </div>
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${row.finalized || (row.isCurrent && isPaid) ? "bg-emerald-500/15 text-emerald-200" : row.isCurrent && isApproved ? "bg-sky-500/15 text-sky-100" : row.isCurrent && hardPayrollBlockers.length ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-white"}`}>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${row.finalized || (row.isCurrent && isPaid) ? "bg-emerald-500/15 text-emerald-200" : row.isCurrent && isApproved ? "bg-primary/15 text-primary" : row.isCurrent && hardPayrollBlockers.length ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-white"}`}>
                       {row.finalized || (row.isCurrent && isPaid) ? t("sales.payroll.paid", "مدفوع") : row.isCurrent ? statusLabel : t("sales.payroll.calculated", "محسوب")}
                     </span>
                   </div>
@@ -2153,7 +2153,7 @@ function PayrollSalaryHero({ amount, periodLabel, isRtl, t, onFinalize, finalizi
   return (
     <div dir={isRtl ? "rtl" : "ltr"} className={`relative overflow-hidden rounded-[1.6rem] border border-emerald-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(16,185,129,.28),transparent_34%),linear-gradient(145deg,rgba(6,78,59,.95),rgba(2,6,23,.98))] p-5 text-start text-white shadow-[0_24px_70px_rgba(16,185,129,.18)] transition hover:-translate-y-0.5 hover:border-emerald-200/35 ${isRtl ? "xl:[direction:rtl]" : ""}`}>
       <div className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-emerald-300/15 blur-3xl" />
-      <div className="absolute -bottom-24 left-8 h-56 w-56 rounded-full bg-cyan-300/10 blur-3xl" />
+      <div className="absolute -bottom-24 left-8 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
       <div className="relative flex h-full min-h-[260px] flex-col justify-between gap-6">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -2192,14 +2192,14 @@ function PayrollBreakdownCard({ label, value, tone = "neutral", icon: Icon, deta
     positive: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
     negative: "border-rose-300/25 bg-rose-400/10 text-rose-100",
     warning: "border-amber-300/25 bg-amber-400/10 text-amber-100",
-    analytics: "border-sky-300/20 bg-sky-400/10 text-sky-100",
+    analytics: "border-primary/20 bg-primary/10 text-primary",
     neutral: "border-white/10 bg-white/[0.04] text-[var(--text)]",
   }[tone];
   const iconClass = {
     positive: "bg-emerald-300/15 text-emerald-200",
     negative: "bg-rose-300/15 text-rose-200",
     warning: "bg-amber-300/15 text-amber-200",
-    analytics: "bg-sky-300/15 text-sky-200",
+    analytics: "bg-primary/15 text-primary",
     neutral: "bg-white/10 text-[var(--muted)]",
   }[tone];
 

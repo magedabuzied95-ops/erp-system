@@ -241,7 +241,7 @@ export default function PostTemplates() {
                   <div className="mt-4 space-y-2 text-sm text-slate-300">
                     <div className="line-clamp-1">{template.title_template || "-"}</div>
                     <div className="line-clamp-3 whitespace-pre-wrap">{template.caption_template || "-"}</div>
-                    <div className="text-xs text-cyan-200">{template.hashtags || "-"}</div>
+                    <div className="text-xs text-primary">{template.hashtags || "-"}</div>
                   </div>
                   <div className="mt-4 flex gap-2">
                     {canUpdate ? <button onClick={() => openEdit(template)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">{t("marketing.common.edit")}</button> : null}

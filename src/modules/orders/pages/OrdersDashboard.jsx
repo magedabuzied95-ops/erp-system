@@ -1035,13 +1035,13 @@ function WorkspaceTabs({ t, value, onChange, counts }) {
           key={key}
           type="button"
           onClick={() => onChange(key)}
-          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${value === key ? "border-cyan-400/30 bg-white/10 text-white shadow-[0_0_20px_rgba(34,211,238,0.15)]" : "border-transparent text-zinc-300 hover:bg-white/5 hover:text-white"}`}
+          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${value === key ? "border-primary/30 bg-white/10 text-white shadow-[0_0_20px_rgba(34,211,238,0.15)]" : "border-transparent text-zinc-300 hover:bg-white/5 hover:text-white"}`}
         >
           <span className="flex min-w-0 items-center gap-2">
             <Icon className="h-4 w-4 shrink-0" />
             <span className="truncate text-sm font-black">{t(labelKey)}</span>
           </span>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-black ${value === key ? "bg-cyan-400/15 text-cyan-100" : "bg-white/10 text-white"}`}>{counts[key] || 0}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-black ${value === key ? "bg-primary/15 text-primary" : "bg-white/10 text-white"}`}>{counts[key] || 0}</span>
         </button>
       ))}
     </div>
@@ -1094,7 +1094,7 @@ function Filters(props) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("orders.searchPlaceholder")}
-              className="w-full rounded-xl border border-cyan-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-cyan-300/40"
+              className="w-full rounded-xl border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
             />
           </div>
         </label>
@@ -1160,12 +1160,12 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") openOrder(order);
                 }}
-                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-cyan-400/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-cyan-950/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-cyan-400/35" : ""}`}
+                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
                 dir={tableDir}
               >
                 <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                 <div className="flex min-w-0 items-center justify-center gap-2 px-2 text-center">
-                  <input className="h-4 w-4 shrink-0 accent-cyan-500" type="checkbox" checked={selectedIds.includes(order.id)} onClick={(event) => event.stopPropagation()} onChange={() => toggleSelected(order.id)} />
+                  <input className="h-4 w-4 shrink-0 accent-primary" type="checkbox" checked={selectedIds.includes(order.id)} onClick={(event) => event.stopPropagation()} onChange={() => toggleSelected(order.id)} />
                   <OrderCode order={order} />
                 </div>
                 <OrderDateTimeCell value={order.created_at} language={language} />
@@ -1286,7 +1286,7 @@ function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, pe
           if (ORDERS_DEBUG) console.log("[orders-dashboard] action trigger clicked", { rowId: order.id, nextOpen: !isOpen });
           setOpenMenuId(isOpen ? null : order.id);
         }}
-        className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/90 shadow-lg shadow-black/10 ring-1 ring-white/[0.03] transition-all duration-200 ease-out hover:border-cyan-300/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/35"
+        className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/90 shadow-lg shadow-black/10 ring-1 ring-white/[0.03] transition-all duration-200 ease-out hover:border-primary/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/35"
       >
         <MoreVertical className="h-4 w-4 opacity-95" />
       </button>
@@ -1611,7 +1611,7 @@ function CustomerCell({ t, order }) {
     <div className="table-cell-stack px-2">
       <div className="truncate text-sm font-semibold text-white" title={getCustomerPhone(order)}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
       <div className="mt-1 flex max-w-full flex-wrap items-center justify-center gap-1">
-        {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-200">{attribution}</div> : null}
+        {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{attribution}</div> : null}
       </div>
     </div>
   );
@@ -1639,7 +1639,7 @@ function PhoneCell({ t, order }) {
       <a
         href={`tel:${phone.replace(/[^\d+]/g, "")}`}
         onClick={copyOnDesktop}
-        className="inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 truncate text-xs font-bold text-cyan-100 transition hover:text-cyan-50"
+        className="inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 truncate text-xs font-bold text-primary transition hover:text-primary"
         title={phone}
       >
         <Phone className="table-cell-stack__icon h-3.5 w-3.5 shrink-0" />
@@ -1840,7 +1840,7 @@ function EmptyState({ icon: Icon, title, text: body, compact = false }) {
 
 function QuickFilterButton({ active, onClick, label }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${active ? "border-blue-300/30 bg-blue-400/15 text-blue-100" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}>
+    <button type="button" onClick={onClick} className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${active ? "border-primary/30 bg-primary/15 text-primary" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}>
       {label}
     </button>
   );
@@ -2010,7 +2010,7 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
         </div>
         <footer className="flex flex-col-reverse gap-2 border-t border-white/10 p-4 sm:flex-row sm:justify-end">
           <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10">{t("common.cancel")}</button>
-          <button type="submit" disabled={saving} className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">{saving ? t("orders.edit.saving") : t("orders.edit.saveOrder")}</button>
+          <button type="submit" disabled={saving} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-60">{saving ? t("orders.edit.saving") : t("orders.edit.saveOrder")}</button>
         </footer>
       </form>
     </div>

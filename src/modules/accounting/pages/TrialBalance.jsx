@@ -86,7 +86,7 @@ function TrialBalance() {
           </button>
           <Link
             to="/accounting"
-            className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400"
+            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
           >
             <Scale className="h-4 w-4" />
             لوحة المحاسبة
@@ -113,7 +113,7 @@ function TrialBalance() {
           <input type="number" min="1" value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder="اختياري" className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
         </Field>
         <div className="flex items-end">
-          <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400">
+          <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <Search className="h-4 w-4" />
             عرض الميزان
           </button>
@@ -155,7 +155,7 @@ function TrialBalance() {
               <tbody>
                 {nonZeroRows.map((row) => (
                   <tr key={row.account_id} className="transition hover:bg-white/[0.03]">
-                    <Td className="font-black text-cyan-200">{row.account_code || "-"}</Td>
+                    <Td className="font-black text-primary">{row.account_code || "-"}</Td>
                     <Td className="text-white">{row.account_name || "-"}</Td>
                     <Td>{translateType(row.account_type)}</Td>
                     <Td align="right" className="font-black text-emerald-300">{formatCurrency(row.total_debit || 0)}</Td>

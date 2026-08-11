@@ -370,7 +370,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
                         <div className="flex h-11 w-14 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-lg font-black">{actual}</div>
                         <IconButton label="Increase" onClick={() => changeActual(variant.id, 1)} icon={Plus} />
                       </div>
-                      <div className={diff === 0 ? "font-black text-emerald-400" : diff > 0 ? "font-black text-blue-400" : "font-black text-rose-400"}>{diff}</div>
+                      <div className={diff === 0 ? "font-black text-emerald-400" : diff > 0 ? "font-black text-primary" : "font-black text-rose-400"}>{diff}</div>
                     </div>
                   );
                 })}

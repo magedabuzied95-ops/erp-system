@@ -22,7 +22,7 @@ function Workspace() {
       subtitle="Switch tenants, inspect the active subscription, and keep the authenticated session aligned with the current workspace."
       actions={
         <>
-          <Link to="/register-company" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black">
+          <Link to="/register-company" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">
             <Building2 className="h-4 w-4" />
             Register company
           </Link>
@@ -60,14 +60,14 @@ function Workspace() {
             </button>
           </div>
 
-          <div className="mt-4 rounded-3xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+          <div className="mt-4 rounded-3xl border border-primary/20 bg-primary/10 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/70">Workspace</div>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">Workspace</div>
                 <div className="mt-2 text-2xl font-black text-white">{currentTenant?.companyName || "No workspace selected"}</div>
-                <div className="mt-1 text-sm text-cyan-100/80">{currentTenant?.ownerEmail || "Sign in to attach a tenant workspace."}</div>
+                <div className="mt-1 text-sm text-primary/80">{currentTenant?.ownerEmail || "Sign in to attach a tenant workspace."}</div>
               </div>
-              <ShieldCheck className="h-10 w-10 text-cyan-300" />
+              <ShieldCheck className="h-10 w-10 text-primary" />
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Small label="Subscription" value={billing?.status || "Active"} />

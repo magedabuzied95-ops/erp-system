@@ -405,7 +405,7 @@ export default function AiLeadCenter() {
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur-xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-cyan-100">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-primary">
                 <Bot className="h-4 w-4" />
                 AI Lead Center
               </div>
@@ -427,7 +427,7 @@ export default function AiLeadCenter() {
               <button
                 type="button"
                 onClick={() => navigate("/admin/ai-inbox")}
-                className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-200"
+                className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-primary"
               >
                 <Users2 className="h-4 w-4" />
                 Open AI Inbox
@@ -447,7 +447,7 @@ export default function AiLeadCenter() {
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex flex-1 flex-wrap items-center gap-2">
-              <Filter className="h-4 w-4 text-cyan-100" />
+              <Filter className="h-4 w-4 text-primary" />
               <span className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Filters</span>
               <div className="h-6 w-px bg-white/10" />
               <div className="flex flex-wrap gap-2">
@@ -553,7 +553,7 @@ export default function AiLeadCenter() {
                     key={lead.id}
                     className={[
                       "min-w-0 overflow-hidden rounded-[2rem] border p-4 shadow-2xl shadow-black/15 transition",
-                      active ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]",
+                      active ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]",
                     ].join(" ")}
                   >
                     <button type="button" onClick={() => setSelectedLeadId(lead.id)} className="block w-full min-w-0 text-start">
@@ -597,7 +597,7 @@ export default function AiLeadCenter() {
                             <div className="text-sm font-black text-white">{Math.round(lead.confidence)}%</div>
                           </div>
                           <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                            <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-lime-400" style={{ width: `${Math.max(0, Math.min(100, lead.confidence))}%` }} />
+                            <div className="h-full rounded-full bg-gradient-to-r from-primary via-emerald-400 to-lime-400" style={{ width: `${Math.max(0, Math.min(100, lead.confidence))}%` }} />
                           </div>
                           <div dir="auto" className="min-w-0 break-words text-xs leading-5 text-slate-400 [overflow-wrap:anywhere]">
                             {lead.summary || "Lead summary will appear here when conversation data exists."}
@@ -619,7 +619,7 @@ export default function AiLeadCenter() {
             <section className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 shadow-2xl shadow-black/15">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <div className="text-sm font-black uppercase tracking-[0.18em] text-cyan-100">Lead Detail</div>
+                  <div className="text-sm font-black uppercase tracking-[0.18em] text-primary">Lead Detail</div>
                   <div className="text-xs text-slate-400">Selected lead with stage timeline</div>
                 </div>
                 {selectedLead ? <Pill tone={selectedLead.stageTone}>{selectedLead.stageLabel}</Pill> : null}

@@ -51,7 +51,7 @@ const formatWeekLabel = (date) =>
 
 const badgeToneClass = {
   draft: "border-white/10 bg-white/5 text-slate-200",
-  scheduled: "border-cyan-500/20 bg-cyan-500/10 text-cyan-100",
+  scheduled: "border-primary/20 bg-primary/10 text-primary",
   published: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
   review: "border-amber-500/20 bg-amber-500/10 text-amber-100",
 };
@@ -166,7 +166,7 @@ export default function SocialCalendar() {
   const cards = [
     {
       icon: Sparkles,
-      tone: "border-cyan-500/20 bg-cyan-500/10 text-cyan-100",
+      tone: "border-primary/20 bg-primary/10 text-primary",
       title: t("marketing.socialCalendar.cards.brand.title"),
       description: t("marketing.socialCalendar.cards.brand.description"),
       meta: t("marketing.socialCalendar.cards.brand.meta"),
@@ -205,7 +205,7 @@ export default function SocialCalendar() {
         <section className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
                 <CalendarDays className="h-3.5 w-3.5" />
                 {t("marketing.socialCalendar.eyebrow")}
               </div>
@@ -231,7 +231,7 @@ export default function SocialCalendar() {
                 <p className="text-sm text-slate-400">{t("marketing.socialCalendar.month.subtitle")}</p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">
-                <Clock3 className="h-3.5 w-3.5 text-cyan-200" />
+                <Clock3 className="h-3.5 w-3.5 text-primary" />
                 {t("marketing.socialCalendar.month.badge")}
               </div>
             </div>
@@ -255,11 +255,11 @@ export default function SocialCalendar() {
                     className={[
                       "min-h-[7.5rem] rounded-3xl border p-3 transition",
                       isCurrentMonth ? "border-white/10 bg-black/20" : "border-white/5 bg-black/10 opacity-45",
-                      isToday ? "ring-2 ring-cyan-400/70" : "",
+                      isToday ? "ring-2 ring-primary/70" : "",
                     ].join(" ")}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className={`text-sm font-black ${isToday ? "text-cyan-100" : isCurrentMonth ? "text-white" : "text-slate-500"}`}>
+                      <div className={`text-sm font-black ${isToday ? "text-primary" : isCurrentMonth ? "text-white" : "text-slate-500"}`}>
                         {date.getDate()}
                       </div>
                       {event ? <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] ${badgeToneClass[event.tone]}`}>{event.tone}</span> : null}
@@ -309,11 +309,11 @@ export default function SocialCalendar() {
                 return (
                   <div
                     key={date.toISOString()}
-                    className={`rounded-3xl border p-4 ${isToday ? "border-cyan-400/40 bg-cyan-500/10" : "border-white/10 bg-black/20"}`}
+                    className={`rounded-3xl border p-4 ${isToday ? "border-primary/40 bg-primary/10" : "border-white/10 bg-black/20"}`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className={`text-sm font-black ${isToday ? "text-cyan-100" : "text-white"}`}>{formatShortDay(date)}</div>
+                        <div className={`text-sm font-black ${isToday ? "text-primary" : "text-white"}`}>{formatShortDay(date)}</div>
                         <div className="text-xs text-slate-400">{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date)}</div>
                       </div>
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{index + 1}</div>
@@ -359,7 +359,7 @@ export default function SocialCalendar() {
                 {draftSteps.map((step, index) => (
                   <div key={step.title} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10 text-sm font-black text-cyan-100">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-sm font-black text-primary">
                         {pad2(index + 1)}
                       </div>
                       <div className="text-sm font-black text-white">{step.title}</div>
@@ -372,7 +372,7 @@ export default function SocialCalendar() {
 
             <div className="rounded-[1.75rem] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-                <Tv2 className="h-4 w-4 text-cyan-200" />
+                <Tv2 className="h-4 w-4 text-primary" />
                 {t("marketing.socialCalendar.draft.canvasLabel")}
               </div>
               <div className="mt-4 space-y-3">
@@ -381,9 +381,9 @@ export default function SocialCalendar() {
                   <div className="mt-1 text-sm text-slate-400">{t("marketing.socialCalendar.draft.canvas.subtitle")}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-3xl border border-white/10 bg-cyan-500/10 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-100">{t("marketing.socialCalendar.draft.canvas.leftLabel")}</div>
-                    <div className="mt-2 text-sm text-cyan-50">{t("marketing.socialCalendar.draft.canvas.leftValue")}</div>
+                  <div className="rounded-3xl border border-white/10 bg-primary/10 p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{t("marketing.socialCalendar.draft.canvas.leftLabel")}</div>
+                    <div className="mt-2 text-sm text-primary">{t("marketing.socialCalendar.draft.canvas.leftValue")}</div>
                   </div>
                   <div className="rounded-3xl border border-white/10 bg-amber-500/10 p-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-100">{t("marketing.socialCalendar.draft.canvas.rightLabel")}</div>
@@ -431,7 +431,7 @@ export default function SocialCalendar() {
               <h2 className="text-lg font-black text-white">{t("marketing.socialCalendar.scheduled.title")}</h2>
               <p className="text-sm text-slate-400">{t("marketing.socialCalendar.scheduled.subtitle")}</p>
             </div>
-            <div className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+            <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
               {scheduledPosts.length} {t("marketing.socialCalendar.scheduled.countSuffix")}
             </div>
           </div>
@@ -440,7 +440,7 @@ export default function SocialCalendar() {
               <article key={`${post.time}-${post.title}`} className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-black/20 p-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-start gap-4">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04]">
-                    <Clock3 className="h-5 w-5 text-cyan-200" />
+                    <Clock3 className="h-5 w-5 text-primary" />
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -454,7 +454,7 @@ export default function SocialCalendar() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">{post.channel}</span>
-                  <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-100">{post.time}</span>
+                  <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{post.time}</span>
                 </div>
               </article>
             ))}

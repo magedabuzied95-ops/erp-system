@@ -37,7 +37,7 @@ function Section({ icon: Icon, title, subtitle, children }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
       <div className="mb-4 flex items-start gap-3">
-        <div className="rounded-xl border border-cyan-300/15 bg-cyan-300/10 p-2 text-cyan-100"><Icon className="h-5 w-5" /></div>
+        <div className="rounded-xl border border-primary/15 bg-primary/10 p-2 text-primary"><Icon className="h-5 w-5" /></div>
         <div>
           <h2 className="text-base font-black text-white">{title}</h2>
           <p className="mt-1 text-sm leading-6 text-slate-400">{subtitle}</p>
@@ -50,7 +50,7 @@ function Section({ icon: Icon, title, subtitle, children }) {
 
 function OptionCard({ active, title, description, onClick }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-2xl border p-4 text-left transition ${active ? "border-cyan-300/40 bg-cyan-300/15 shadow-lg shadow-cyan-500/10" : "border-white/10 bg-slate-950/55 hover:border-white/20"}`}>
+    <button type="button" onClick={onClick} className={`rounded-2xl border p-4 text-left transition ${active ? "border-primary/40 bg-primary/15 shadow-lg shadow-primary/10" : "border-white/10 bg-slate-950/55 hover:border-white/20"}`}>
       <span className="block text-sm font-black text-white">{title}</span>
       <span className="mt-2 block text-xs leading-5 text-slate-400">{description}</span>
     </button>
@@ -73,7 +73,7 @@ function UrlRow({ label, value }) {
   return (
     <div className="min-w-0">
       {label}: {url ? (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="break-all font-bold text-cyan-100 underline decoration-cyan-300/50 underline-offset-4">
+        <a href={url} target="_blank" rel="noopener noreferrer" className="break-all font-bold text-primary underline decoration-primary/50 underline-offset-4">
           {url}
         </a>
       ) : "n/a"}
@@ -168,14 +168,14 @@ export default function AiSettings() {
         <section className="rounded-2xl border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100"><Bot className="h-4 w-4" />AI Brain</div>
+              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />AI Brain</div>
               <h1 className="mt-3 text-3xl font-black md:text-4xl">AI Settings</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Control automatic replies, tone, safety defaults, and debugging visibility for the Meta AI Inbox.</p>
-              <p className="mt-3 max-w-3xl rounded-xl border border-cyan-300/15 bg-cyan-300/10 px-3 py-2 text-xs font-bold leading-5 text-cyan-100">
+              <p className="mt-3 max-w-3xl rounded-xl border border-primary/15 bg-primary/10 px-3 py-2 text-xs font-bold leading-5 text-primary">
                 Global settings are the master control. A channel can only auto-reply when global mode and channel mode both allow fully automatic replies.
               </p>
             </div>
-            <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
+            <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save
             </button>
@@ -218,7 +218,7 @@ export default function AiSettings() {
             <div className="grid gap-3">
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">القناة</span>
-                <select value={playground.channelId} onChange={(event) => updatePlaygroundChannel(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-cyan-300/40">
+                <select value={playground.channelId} onChange={(event) => updatePlaygroundChannel(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40">
                   <option value="facebook_messenger">Facebook Messenger</option>
                   <option value="instagram">Instagram DM</option>
                   <option value="whatsapp">WhatsApp</option>
@@ -227,17 +227,17 @@ export default function AiSettings() {
               </label>
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Platform</span>
-                <input value={playground.platform} onChange={(event) => setPlayground((current) => ({ ...current, platform: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-cyan-300/40" />
+                <input value={playground.platform} onChange={(event) => setPlayground((current) => ({ ...current, platform: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />
               </label>
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Optional Product ID</span>
-                <input value={playground.productId} onChange={(event) => setPlayground((current) => ({ ...current, productId: event.target.value }))} placeholder="Example: 123" className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+                <input value={playground.productId} onChange={(event) => setPlayground((current) => ({ ...current, productId: event.target.value }))} placeholder="Example: 123" className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-primary/40" />
               </label>
             </div>
             <div className="grid gap-3">
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">رسالة العميل</span>
-                <textarea value={playground.message} onChange={(event) => setPlayground((current) => ({ ...current, message: event.target.value }))} className="mt-2 min-h-36 w-full resize-y rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none focus:border-cyan-300/40" />
+                <textarea value={playground.message} onChange={(event) => setPlayground((current) => ({ ...current, message: event.target.value }))} className="mt-2 min-h-36 w-full resize-y rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none focus:border-primary/40" />
               </label>
               <button type="button" onClick={runPlayground} disabled={testing || !playground.message.trim()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}

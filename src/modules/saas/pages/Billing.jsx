@@ -43,10 +43,10 @@ function Billing() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <h3 className="text-xl font-black text-white">Current subscription</h3>
-          <div className="mt-4 rounded-3xl border border-cyan-500/20 bg-cyan-500/10 p-4">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/70">Subscription</div>
+          <div className="mt-4 rounded-3xl border border-primary/20 bg-primary/10 p-4">
+            <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">Subscription</div>
             <div className="mt-2 text-3xl font-black text-white">{billing?.plan?.name || "Trial"}</div>
-            <p className="mt-2 text-sm text-cyan-100/80">
+            <p className="mt-2 text-sm text-primary/80">
               {billing?.plan?.features?.join(" • ") || "Billing placeholders available until live checkout is connected."}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -81,7 +81,7 @@ function Billing() {
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">
             Billing gateway placeholder. Connect your processor here when the backend is available.
           </div>
-          <button type="button" className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black">
+          <button type="button" className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black">
             <CreditCard className="h-4 w-4" />
             Upgrade plan
           </button>

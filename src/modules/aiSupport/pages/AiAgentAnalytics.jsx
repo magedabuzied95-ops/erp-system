@@ -46,7 +46,7 @@ const tenantIdFrom = (tenantApi) => {
 
 function KpiCard({ icon: Icon, label, value, tone = "cyan" }) {
   const toneClass = {
-    cyan: "text-cyan-200",
+    cyan: "text-primary",
     emerald: "text-emerald-200",
     amber: "text-amber-200",
     rose: "text-rose-200",
@@ -64,7 +64,7 @@ function KpiCard({ icon: Icon, label, value, tone = "cyan" }) {
 function Panel({ icon: Icon, title, children }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-      <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
+      <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-primary">
         <Icon className="h-4 w-4" />
         {title}
       </div>
@@ -92,7 +92,7 @@ function BarList({ rows = [], labelKey = "name", valueKey = "count", valueFormat
               <span className="shrink-0 font-black text-white">{valueFormatter(value, item)}</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full rounded-full bg-cyan-300" style={{ width: `${Math.max(4, (value / max) * 100)}%` }} />
+              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, (value / max) * 100)}%` }} />
             </div>
           </div>
         );
@@ -130,7 +130,7 @@ function EventLogList({ rows = [] }) {
       {items.slice(0, 5).map((item, index) => (
         <div key={item.id || `${item.event_type || "event"}-${index}`} className="rounded-xl border border-white/10 bg-slate-950/35 p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+            <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-primary">
               {item.category || item.event_type || "event"}
             </span>
             {item.channel ? (
@@ -246,18 +246,18 @@ export default function AiAgentAnalytics() {
         <section className="rounded-2xl border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100"><BarChart3 className="h-4 w-4" />AI Agent Analytics</div>
+              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><BarChart3 className="h-4 w-4" />AI Agent Analytics</div>
               <h1 className="mt-3 text-3xl font-black md:text-4xl">Performance Dashboard</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Commercial and operational performance for AI-assisted conversations, drafts, orders, follow-ups, objections, and product demand.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-4">
-              <input type="date" value={filters.from_date} onChange={(event) => setFilters((current) => ({ ...current, from_date: event.target.value }))} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-cyan-300/40" />
-              <input type="date" value={filters.to_date} onChange={(event) => setFilters((current) => ({ ...current, to_date: event.target.value }))} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-cyan-300/40" />
-              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-cyan-300/40">
+              <input type="date" value={filters.from_date} onChange={(event) => setFilters((current) => ({ ...current, from_date: event.target.value }))} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />
+              <input type="date" value={filters.to_date} onChange={(event) => setFilters((current) => ({ ...current, to_date: event.target.value }))} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />
+              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40">
                 <option value="">All branches</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || `Branch ${branch.id}`}</option>)}
               </select>
-              <button type="button" onClick={loadAnalytics} disabled={loading} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
+              <button type="button" onClick={loadAnalytics} disabled={loading} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh
               </button>

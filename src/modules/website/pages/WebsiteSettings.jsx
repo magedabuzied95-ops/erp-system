@@ -533,7 +533,7 @@ function WebsiteSettings() {
               </div>
 
               {selectedCount ? (
-                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-sky-400/20 bg-sky-400/10 p-3">
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 p-3">
                   <span className="text-sm font-black text-[var(--text)]">{selectedCount} {copy.selected}</span>
                   <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder={copy.price} className="h-9 w-28 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
                   <button type="button" onClick={() => bulkPrice !== "" && applyBulk({ price: Number(bulkPrice) })} className="h-9 rounded-lg bg-[var(--primary)] px-3 text-xs font-black text-white">{copy.bulkPrice}</button>
@@ -705,7 +705,7 @@ function ToggleCell({ checked, onChange }) {
 function SettingCard({ title, value, description, icon: Icon, tone }) {
   const tones = {
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-    blue: "border-blue-500/20 bg-blue-500/10 text-blue-300",
+    blue: "border-primary/20 bg-primary/10 text-primary",
     violet: "border-violet-500/20 bg-violet-500/10 text-violet-300",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
   };

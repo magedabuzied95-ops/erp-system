@@ -365,8 +365,8 @@ export default function ProductColors({
                       active
 
                       ? `
-                        bg-blue-500
-                        border-blue-400
+                        bg-primary
+                        border-primary
                         text-white
                         scale-105
                       `
@@ -375,7 +375,7 @@ export default function ProductColors({
                         bg-[#1e293b]
                         border-white/10
                         text-white
-                        hover:border-blue-500
+                        hover:border-primary
                         hover:bg-[#263247]
                       `
                     }
@@ -507,8 +507,8 @@ export default function ProductColors({
 
                     <span
                       className="
-                      bg-blue-500/20
-                      text-blue-400
+                      bg-primary/20
+                      text-primary
                       px-3
                       py-1
                       rounded-xl
@@ -749,14 +749,14 @@ export default function ProductColors({
                 items-center
                 justify-center
                 cursor-pointer
-                hover:border-blue-500
+                hover:border-primary
                 transition-all
                 "
               >
 
                 <ImageIcon
                   size={45}
-                  className="text-blue-400"
+                  className="text-primary"
                 />
 
                 <p

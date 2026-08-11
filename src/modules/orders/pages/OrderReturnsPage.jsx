@@ -418,12 +418,12 @@ function OrderReturnsPage() {
           <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
             <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-400">Customer Returns</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Customer Returns</div>
                 <h2 className="mt-1 text-lg font-black text-white">مرتجعات العملاء</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <MiniStat label="النتائج" value={filteredReturns.length} />
-                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-100" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>اليوم</button>
+                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>اليوم</button>
               </div>
             </div>
             <ReturnsFilters search={search} setSearch={setSearch} returnStatusFilter={returnStatusFilter} setReturnStatusFilter={setReturnStatusFilter} refundStatusFilter={refundStatusFilter} setRefundStatusFilter={setRefundStatusFilter} dateFilter={dateFilter} setDateFilter={setDateFilter} />
@@ -509,7 +509,7 @@ function PageHeader({ onCreate }) {
 
 function KpiCard({ label, value, icon: Icon, accent }) {
   const accents = {
-    cyan: "from-cyan-400/20 to-cyan-400/5 text-cyan-100",
+    cyan: "from-primary/20 to-primary/5 text-primary",
     amber: "from-amber-400/20 to-amber-400/5 text-amber-100",
     emerald: "from-emerald-400/20 to-emerald-400/5 text-emerald-100",
     violet: "from-violet-400/20 to-violet-400/5 text-violet-100",
@@ -541,7 +541,7 @@ function ReturnsPanelTabs({ activePanel, onChange, customerCount, supplierCount 
         const active = activePanel === tab.value;
         const activeClass = tab.tone === "amber"
           ? "border-amber-400/35 bg-amber-400/12 text-amber-100"
-          : "border-cyan-400/35 bg-cyan-400/12 text-cyan-100";
+          : "border-primary/35 bg-primary/12 text-primary";
         return (
           <button key={tab.value} type="button" onClick={() => onChange(tab.value)} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-black transition ${active ? activeClass : "border-transparent bg-white/[0.03] text-zinc-400 hover:bg-white/[0.07] hover:text-white"}`}>
             <span>{tab.label}</span>
@@ -746,7 +746,7 @@ function ReturnsFilters(props) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="ابحث برقم الفاتورة أو العميل أو الهاتف أو رقم التتبع"
-              className="w-full rounded-xl border border-cyan-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-cyan-300/40"
+              className="w-full rounded-xl border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
             />
           </div>
         </label>
@@ -821,7 +821,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
 
           <div className="mt-1.5 space-y-1.5">
             {records.map((record) => (
-              <div key={record.id} className="grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] items-center rounded-xl border border-white/10 bg-zinc-950/75 px-3 py-2 shadow-xl transition hover:border-cyan-400/30 hover:bg-white/[0.03]" dir={dir}>
+              <div key={record.id} className="grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] items-center rounded-xl border border-white/10 bg-zinc-950/75 px-3 py-2 shadow-xl transition hover:border-primary/30 hover:bg-white/[0.03]" dir={dir}>
                 <div className="flex flex-wrap items-center justify-center gap-1.5 px-1 text-center">
                   <RowAction icon={Eye} label="عرض التفاصيل" onClick={() => onView(record)} />
                   <RowAction icon={Pencil} label="تعديل المرتجع" onClick={() => onEdit(record)} disabled={!record.allowEdit} />
@@ -835,7 +835,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
                 <div className="flex justify-center px-2"><StatusBadge value={record.returnStatus} /></div>
                 <div className="flex flex-col items-center justify-center gap-1 px-2">
                   <StatusBadge value={record.refundStatusLabel} />
-                  <span className="max-w-full truncate rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-100">
+                  <span className="max-w-full truncate rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                     {record.refundMethodLabel}
                   </span>
                 </div>
@@ -924,7 +924,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
       <section className="absolute right-0 top-0 flex h-full w-full max-w-[46rem] flex-col overflow-hidden border-l border-white/10 bg-zinc-950 text-white shadow-2xl">
         <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-300">{mode === "edit" ? "Edit return" : "Create return"}</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{mode === "edit" ? "Edit return" : "Create return"}</div>
             <h2 className="mt-1 text-2xl font-black">{mode === "edit" ? "تعديل المرتجع" : "إنشاء مرتجع"}</h2>
             <p className="mt-1 text-sm text-zinc-400">نفس تدفق الإنشاء الحالي داخل drawer بدل الواجهة المنفصلة.</p>
           </div>
@@ -1237,7 +1237,7 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
             <div className="space-y-3">
               {record.timeline.map((item) => (
                 <div key={item.label} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
-                  <div className="mt-1 h-3 w-3 rounded-full bg-cyan-400" />
+                  <div className="mt-1 h-3 w-3 rounded-full bg-primary" />
                   <div>
                     <div className="text-sm font-black text-white">{item.label}</div>
                     <div className="mt-0.5 text-xs text-zinc-500">{item.at ? formatDateTime(item.at) : "بدون توقيت"}</div>

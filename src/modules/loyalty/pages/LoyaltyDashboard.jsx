@@ -10,7 +10,7 @@ const tierStyles = {
   Bronze: "border-amber-500/20 bg-amber-500/10 text-amber-200",
   Silver: "border-slate-300/20 bg-slate-300/10 text-slate-100",
   Gold: "border-yellow-500/20 bg-yellow-500/10 text-yellow-200",
-  Platinum: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
+  Platinum: "border-primary/20 bg-primary/10 text-primary",
 };
 
 const StatCard = ({ label, value, icon: Icon, hint }) => (
@@ -21,7 +21,7 @@ const StatCard = ({ label, value, icon: Icon, hint }) => (
         <p className="mt-3 text-3xl font-black text-white">{value}</p>
         {hint ? <p className="mt-2 text-sm text-zinc-400">{hint}</p> : null}
       </div>
-      <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-cyan-300">
+      <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
         <Icon className="h-5 w-5" />
       </div>
     </div>
@@ -95,7 +95,7 @@ function LoyaltyDashboard() {
     <div className="space-y-6 text-white">
       <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-[#0b1220] p-6 shadow-2xl shadow-black/20 xl:flex-row xl:items-center">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">Loyalty</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Loyalty</p>
           <h1 className="mt-2 text-3xl font-black">Customer Loyalty Intelligence</h1>
           <p className="mt-2 max-w-3xl text-sm text-zinc-400">
             Track points issuance, redemptions, tier movement, and customer value from one operational dashboard.
@@ -105,7 +105,7 @@ function LoyaltyDashboard() {
           <Link to="/loyalty/rules" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
             Manage Rules
           </Link>
-          <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950">
+          <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-slate-950">
             <RefreshCw className="h-4 w-4" />
             Refresh
           </button>
@@ -128,7 +128,7 @@ function LoyaltyDashboard() {
               <h2 className="text-lg font-bold">Top Loyalty Customers</h2>
               <p className="mt-1 text-sm text-zinc-500">Highest value and point balance customers</p>
             </div>
-            <TrendingUp className="h-5 w-5 text-cyan-300" />
+            <TrendingUp className="h-5 w-5 text-primary" />
           </div>
 
           <div className="mt-5 space-y-3">
@@ -136,7 +136,7 @@ function LoyaltyDashboard() {
               <Link
                 key={customer.id}
                 to={`/loyalty/customers/${customer.id}`}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-cyan-500/30 hover:bg-cyan-500/5"
+                className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-primary/30 hover:bg-primary/5"
               >
                 <div>
                   <p className="font-semibold text-white">{customer.name}</p>
@@ -148,7 +148,7 @@ function LoyaltyDashboard() {
                   <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${tierStyles[customer.tier] || tierStyles.Bronze}`}>
                     {customer.tier || "Bronze"}
                   </span>
-                  <p className="mt-2 text-sm text-cyan-200">{Number(customer.available_points || 0).toLocaleString()} pts</p>
+                  <p className="mt-2 text-sm text-primary">{Number(customer.available_points || 0).toLocaleString()} pts</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-zinc-500" />
               </Link>
@@ -166,7 +166,7 @@ function LoyaltyDashboard() {
                   <span className="text-sm text-zinc-400">{count}</span>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/5">
-                  <div className="h-full rounded-full bg-cyan-400" style={{ width: `${Math.min(100, (count / Math.max(summary.totalCustomers || 1, 1)) * 100)}%` }} />
+                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (count / Math.max(summary.totalCustomers || 1, 1)) * 100)}%` }} />
                 </div>
               </div>
             ))}
@@ -191,7 +191,7 @@ function LoyaltyDashboard() {
               <tbody>
                 {(summary.transactions || []).slice(0, 8).map((tx) => (
                   <tr key={tx.id} className="border-t border-white/10">
-                    <td className="px-4 py-3 text-cyan-200">{tx.transaction_type}</td>
+                    <td className="px-4 py-3 text-primary">{tx.transaction_type}</td>
                     <td className="px-4 py-3 text-white">{tx.customer_name || "Customer"}</td>
                     <td className="px-4 py-3 text-zinc-300">{Number(tx.points || 0).toLocaleString()}</td>
                     <td className="px-4 py-3 text-zinc-300">{Number(tx.amount_value || 0).toLocaleString()}</td>

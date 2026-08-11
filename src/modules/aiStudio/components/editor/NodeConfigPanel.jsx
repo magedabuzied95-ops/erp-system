@@ -4,7 +4,7 @@ import { CONDITION_OPS, NODE_META, RISK_META, humanizeField } from "../../lib/wo
 import { RISK_BADGE, RISK_INFO } from "./nodeKit";
 
 const labelCls = "text-[10px] font-black uppercase tracking-[0.14em] text-slate-500";
-const field = "h-9 w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[12px] text-white placeholder:text-slate-600 focus:border-cyan-300/40 focus:outline-none";
+const field = "h-9 w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[12px] text-white placeholder:text-slate-600 focus:border-primary/40 focus:outline-none";
 
 // Section wrapper for a clear NODE / INPUTS / BEHAVIOR / SECURITY / ADVANCED hierarchy.
 function Section({ title, icon: Icon, children }) {
@@ -48,8 +48,8 @@ function InputField({ name, spec, value, onChange, stepOptions }) {
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-bold text-slate-200">{humanizeField(name)}{spec?.required ? <span className="text-rose-300"> *</span> : null}</span>
         <div className="flex overflow-hidden rounded-md border border-white/10 text-[9px] font-black uppercase">
-          <button type="button" onClick={() => setMode("value")} className={`px-2 py-0.5 ${mode === "value" ? "bg-cyan-300 text-slate-950" : "text-slate-400 hover:text-slate-200"}`}>Fixed value</button>
-          <button type="button" onClick={() => setMode("from")} className={`px-2 py-0.5 ${mode === "from" ? "bg-cyan-300 text-slate-950" : "text-slate-400 hover:text-slate-200"}`}>From step</button>
+          <button type="button" onClick={() => setMode("value")} className={`px-2 py-0.5 ${mode === "value" ? "bg-primary text-slate-950" : "text-slate-400 hover:text-slate-200"}`}>Fixed value</button>
+          <button type="button" onClick={() => setMode("from")} className={`px-2 py-0.5 ${mode === "from" ? "bg-primary text-slate-950" : "text-slate-400 hover:text-slate-200"}`}>From step</button>
         </div>
       </div>
       {spec?.description ? <div className="mt-1 text-[10px] text-slate-500">{spec.description}</div> : null}
@@ -230,7 +230,7 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
             {currentMode === "llm_grounded" && (!modeInfo || modeInfo.available) ? (
               <div className="mt-2">
                 <div className={labelCls}>Prompt (optional)</div>
-                <textarea value={cfg.prompt || ""} onChange={(e) => set({ prompt: e.target.value })} rows={3} dir="ltr" className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-2 text-[12px] text-white focus:border-cyan-300/40 focus:outline-none" placeholder="Falls back to the trigger query if empty." />
+                <textarea value={cfg.prompt || ""} onChange={(e) => set({ prompt: e.target.value })} rows={3} dir="ltr" className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-2 text-[12px] text-white focus:border-primary/40 focus:outline-none" placeholder="Falls back to the trigger query if empty." />
               </div>
             ) : null}
           </Section>
@@ -281,7 +281,7 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
                     {granted ? (
                       <button type="button" onClick={() => onRevokeTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black text-rose-100 hover:bg-rose-500/20"><KeyRound className="h-3 w-3" />Revoke automatic permission</button>
                     ) : (
-                      <button type="button" onClick={() => onGrantTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-cyan-300/40 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black text-cyan-100 hover:bg-cyan-300/20"><KeyRound className="h-3 w-3" />Grant automatic permission</button>
+                      <button type="button" onClick={() => onGrantTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-[10px] font-black text-primary hover:bg-primary/20"><KeyRound className="h-3 w-3" />Grant automatic permission</button>
                     )}
                   </div>
                 );
@@ -303,14 +303,14 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
                 <div className="text-[10px] text-slate-500">Node ID: <span className="font-mono text-slate-300">{node.id}</span></div>
                 {tool ? <div className="text-[10px] text-slate-500">Tool ID: <span className="font-mono text-slate-300">{tool.id}</span></div> : null}
                 {!jsonOpen ? (
-                  <button type="button" onClick={openJson} className="inline-flex items-center gap-1 text-[11px] font-black text-cyan-200 hover:text-cyan-100"><Code2 className="h-3.5 w-3.5" /> Edit raw config JSON</button>
+                  <button type="button" onClick={openJson} className="inline-flex items-center gap-1 text-[11px] font-black text-primary hover:text-primary"><Code2 className="h-3.5 w-3.5" /> Edit raw config JSON</button>
                 ) : (
                   <div className="space-y-2">
-                    <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={8} dir="ltr" spellCheck={false} className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-cyan-300/40 focus:outline-none" />
+                    <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={8} dir="ltr" spellCheck={false} className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-primary/40 focus:outline-none" />
                     {jsonErr ? <div className="text-[10px] font-bold text-rose-300">{jsonErr}</div> : null}
                     <div className="flex justify-end gap-2">
                       <button type="button" onClick={() => setJsonOpen(false)} className="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-300">Cancel</button>
-                      <button type="button" onClick={applyJson} className="rounded-lg border border-cyan-300/40 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-black text-cyan-100">Apply</button>
+                      <button type="button" onClick={applyJson} className="rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">Apply</button>
                     </div>
                   </div>
                 )}

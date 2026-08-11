@@ -105,7 +105,7 @@ function Reports() {
   if (loading) {
     return (
       <div className="h-[80vh] flex items-center justify-center">
-        <div className="text-4xl font-black text-blue-500 animate-pulse">{t("reports.loading")}</div>
+        <div className="text-4xl font-black text-primary animate-pulse">{t("reports.loading")}</div>
       </div>
     );
   }
@@ -213,7 +213,7 @@ function Card({ title, value, icon: Icon }) {
           <p className="text-gray-400">{title}</p>
           <h2 className="text-4xl font-black text-white mt-4">{value}</h2>
         </div>
-        <div className="w-16 h-16 rounded-2xl bg-blue-600/20 flex items-center justify-center text-blue-400">
+        <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary">
           <Icon size={32} />
         </div>
       </div>

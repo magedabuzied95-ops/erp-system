@@ -2,7 +2,7 @@ import { BrainCircuit, Sparkles } from "lucide-react";
 
 function AiInsightCard({ title, insight, tone = "cyan" }) {
   const tones = {
-    cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-100",
+    cyan: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-100",
   };

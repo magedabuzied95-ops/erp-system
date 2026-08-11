@@ -185,7 +185,7 @@ const tokenStatusKey = (value = "") => {
 function StatusPill({ status, children }) {
   const classes = {
     connected: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
-    local: "border-cyan-300/25 bg-cyan-400/10 text-cyan-100",
+    local: "border-primary/25 bg-primary/10 text-primary",
     setup: "border-amber-300/25 bg-amber-400/10 text-amber-100",
     disconnected: "border-white/10 bg-white/5 text-slate-300",
     danger: "border-rose-300/25 bg-rose-400/10 text-rose-100",
@@ -199,7 +199,7 @@ function StatusPill({ status, children }) {
 
 function KpiCard({ icon: Icon, label, value, tone = "cyan" }) {
   const toneClass = {
-    cyan: "text-cyan-200 bg-cyan-400/10 border-cyan-300/20",
+    cyan: "text-primary bg-primary/10 border-primary/20",
     emerald: "text-emerald-200 bg-emerald-400/10 border-emerald-300/20",
     amber: "text-amber-200 bg-amber-400/10 border-amber-300/20",
     rose: "text-rose-200 bg-rose-400/10 border-rose-300/20",
@@ -220,7 +220,7 @@ function KpiCard({ icon: Icon, label, value, tone = "cyan" }) {
 function EmptyPanel({ icon: Icon = Inbox, title, text: body }) {
   return (
     <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/30 p-6 text-center">
-      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
+      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
         <Icon className="h-5 w-5" />
       </div>
       <div className="mt-3 text-sm font-black text-white">{title}</div>
@@ -242,7 +242,7 @@ function BarList({ rows, empty }) {
             <span className="font-black text-white">{item.count}</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-cyan-300" style={{ width: `${Math.max(5, (item.count / max) * 100)}%` }} />
+            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(5, (item.count / max) * 100)}%` }} />
           </div>
         </div>
       ))}
@@ -536,7 +536,7 @@ export default function AiChannels() {
         <section className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-2xl shadow-black/20">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-100">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {tr("eyebrow", "AI support command center")}
               </div>
@@ -558,7 +558,7 @@ export default function AiChannels() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 {tr("refresh", "Refresh")}
               </button>
-              <Link to="/admin/ai-agent-settings" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950 transition hover:bg-cyan-200">
+              <Link to="/admin/ai-agent-settings" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 transition hover:bg-primary">
                 <Settings className="h-4 w-4" />
                 {tr("settings", "Settings")}
               </Link>
@@ -572,7 +572,7 @@ export default function AiChannels() {
             <KpiCard icon={Clock3} label={tr("health.avgResponse", "متوسط زمن الاستجابة")} value={seconds(analytics?.averageResponseSeconds)} tone="violet" />
             <KpiCard icon={CheckCircle2} label={tr("health.resolvedToday", "Resolved by AI today")} value={resolvedToday || number(analytics?.closedConversations)} tone="emerald" />
           </div>
-          {actionMessage ? <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm font-bold text-cyan-100">{actionMessage}</div> : null}
+          {actionMessage ? <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/10 p-3 text-sm font-bold text-primary">{actionMessage}</div> : null}
         </section>
 
         <section id="whatsapp-gateway-settings" ref={whatsappGatewayRef} className="scroll-mt-6 rounded-3xl border border-emerald-300/20 bg-emerald-400/[0.055] p-5 shadow-xl shadow-emerald-950/20">
@@ -698,8 +698,8 @@ export default function AiChannels() {
                   <div className={`rounded-2xl border p-3 ${
                     channel.tone === "emerald" ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" :
                     channel.tone === "pink" ? "border-pink-300/20 bg-pink-400/10 text-pink-100" :
-                    channel.tone === "blue" ? "border-blue-300/20 bg-blue-400/10 text-blue-100" :
-                    "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+                    channel.tone === "blue" ? "border-primary/20 bg-primary/10 text-primary" :
+                    "border-primary/20 bg-primary/10 text-primary"
                   }`}>
                     <Icon className="h-5 w-5" />
                   </div>
@@ -707,15 +707,15 @@ export default function AiChannels() {
                 </div>
 
                 <h2 className="mt-5 text-lg font-black text-white">{tr(`channels.${channel.key}`, channel.key)}</h2>
-                <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.06] p-3">
+                <div className="mt-4 rounded-2xl border border-primary/15 bg-primary/[0.06] p-3">
                   <div className="grid gap-2">
                     <label className="block">
-                      <span className="text-[11px] font-black uppercase tracking-[0.12em] text-cyan-100">{tr("card.aiMode", "AI Mode")}</span>
+                      <span className="text-[11px] font-black uppercase tracking-[0.12em] text-primary">{tr("card.aiMode", "AI Mode")}</span>
                       <select
                         value={channel.aiChannelSettings?.aiMode || "suggest_only"}
                         onChange={(event) => saveChannelAISetting(channel, { aiMode: event.target.value })}
                         disabled={Boolean(settingsSaving)}
-                        className="mt-1 h-9 w-full rounded-xl border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-cyan-300/40 disabled:opacity-60"
+                        className="mt-1 h-9 w-full rounded-xl border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-primary/40 disabled:opacity-60"
                       >
                         <option value="off">Off</option>
                         <option value="suggest_only">Suggest only</option>
@@ -723,12 +723,12 @@ export default function AiChannels() {
                       </select>
                     </label>
                     <label className="block">
-                      <span className="text-[11px] font-black uppercase tracking-[0.12em] text-cyan-100">{tr("card.tone", "Tone")}</span>
+                      <span className="text-[11px] font-black uppercase tracking-[0.12em] text-primary">{tr("card.tone", "Tone")}</span>
                       <select
                         value={channel.aiChannelSettings?.tone || ""}
                         onChange={(event) => saveChannelAISetting(channel, { tone: event.target.value || null })}
                         disabled={Boolean(settingsSaving)}
-                        className="mt-1 h-9 w-full rounded-xl border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-cyan-300/40 disabled:opacity-60"
+                        className="mt-1 h-9 w-full rounded-xl border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-primary/40 disabled:opacity-60"
                       >
                         <option value="">Inherit global</option>
                         <option value="casual">Casual Egyptian</option>
@@ -829,7 +829,7 @@ export default function AiChannels() {
                   {META_CHANNEL_KEYS.has(channel.key) ? (
                     <Link
                       to={`/marketing/settings?section=${channel.key}`}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-cyan-100"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-primary"
                     >
                       <Settings className="h-4 w-4" />
                       {tr("actions.manageMeta", "إدارة اتصال ميتا")}
@@ -838,7 +838,7 @@ export default function AiChannels() {
                     <button
                       type="button"
                       onClick={openWhatsappGatewaySettings}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-cyan-100"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-primary"
                     >
                       <Settings className="h-4 w-4" />
                       {tr("actions.configure", "إعداد")}
@@ -846,7 +846,7 @@ export default function AiChannels() {
                   ) : (
                     <Link
                       to={channel.connected || channel.localAvailable ? "/admin/ai-inbox" : "/admin/ai-agent-settings"}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-cyan-100"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-primary"
                     >
                       {channel.connected || channel.localAvailable ? <Inbox className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
                       {channel.connected || channel.localAvailable ? tr("actions.manage", "إدارة") : tr("actions.configure", "إعداد")}
@@ -876,7 +876,7 @@ export default function AiChannels() {
                   </div>
                   {META_CHANNEL_KEYS.has(channel.key) ? (
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => loadPage()} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:opacity-50">
+                      <button type="button" onClick={() => loadPage()} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15 disabled:opacity-50">
                         <RefreshCw className="h-3.5 w-3.5" />
                         {tr("actions.resync", "إعادة المزامنة")}
                       </button>
@@ -900,13 +900,13 @@ export default function AiChannels() {
           <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/10">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
+                <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-primary">
                   <Inbox className="h-4 w-4" />
                   {tr("inbox.title", "معاينة الصندوق المباشر")}
                 </div>
                 <p className="mt-1 text-sm text-slate-400">{tr("inbox.subtitle", "Latest AI conversations across connected and local channels.")}</p>
               </div>
-              <Link to="/admin/ai-inbox" className="shrink-0 text-sm font-black text-cyan-100 hover:text-cyan-50">{tr("actions.openInbox", "فتح الصندوق")}</Link>
+              <Link to="/admin/ai-inbox" className="shrink-0 text-sm font-black text-primary hover:text-primary">{tr("actions.openInbox", "فتح الصندوق")}</Link>
             </div>
 
             {loading ? (
@@ -965,7 +965,7 @@ export default function AiChannels() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/10">
-            <div className="mb-4 inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
+            <div className="mb-4 inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-primary">
               <BarChart3 className="h-4 w-4" />
               {tr("analytics.title", "ملخص تحليلات الذكاء الاصطناعي")}
             </div>

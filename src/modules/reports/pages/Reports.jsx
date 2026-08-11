@@ -102,10 +102,10 @@ const severityStyles = {
   },
   info: {
     icon: Brain,
-    border: "border-sky-400/40",
-    bg: "bg-sky-500/10",
-    text: "text-sky-100",
-    badge: "bg-sky-300 text-sky-950",
+    border: "border-primary/40",
+    bg: "bg-primary/10",
+    text: "text-primary",
+    badge: "bg-primary-subtle text-primary",
   },
 };
 

@@ -21,7 +21,7 @@ export default function CampaignModal({ open, campaign, onClose, onSave, saving 
     <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-black/70 p-3 backdrop-blur md:items-center">
       <div className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-[#0b1020] shadow-2xl shadow-black/40">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-cyan-200">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
             <CalendarClock className="h-4 w-4" />
             {t("marketing.campaigns.modal.title")}
           </div>

@@ -16,7 +16,7 @@ const emptyForm = {
   is_default: true,
   is_active: true,
 };
-const inputClass = "w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-cyan-300/70";
+const inputClass = "w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/70";
 
 const label = (value) => String(value || "").replaceAll("_", " ");
 const accountFits = (account, types) => account?.is_active !== false && types.includes(account?.account_type);
@@ -156,7 +156,7 @@ function PaymentMethodMappings() {
             {saving === "quick" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {t("accounting.paymentMappings.actions.quickSetup")}
           </button>
-          <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400">
+          <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <Plus className="h-4 w-4" />
             {t("accounting.paymentMappings.actions.newMapping")}
           </button>
@@ -255,7 +255,7 @@ function PaymentMethodMappings() {
                 {t("accounting.common.labels.active")}
               </label>
             </div>
-            <button type="submit" disabled={saving === "mapping"} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black disabled:opacity-60">
+            <button type="submit" disabled={saving === "mapping"} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "mapping" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
               {t("accounting.paymentMappings.actions.saveMapping")}
             </button>

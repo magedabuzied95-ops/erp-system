@@ -124,7 +124,7 @@ function RegisterCompany() {
                 onClick={() => setPlan(item.id)}
                 className={[
                   "rounded-2xl border px-4 py-2 text-sm font-semibold transition",
-                  plan === item.id ? "border-cyan-500/40 bg-cyan-500 text-black" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10",
+                  plan === item.id ? "border-primary/40 bg-primary text-black" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10",
                 ].join(" ")}
               >
                 {item.name}
@@ -135,7 +135,7 @@ function RegisterCompany() {
             type="button"
             disabled={loading}
             onClick={submit}
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black disabled:opacity-40"
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-40"
           >
             <Sparkles className="h-4 w-4" />
             {loading ? "Creating..." : "Create workspace"}
@@ -175,7 +175,7 @@ function Card({ icon, title, text }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-2 text-cyan-300">{icon}</div>
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-2 text-primary">{icon}</div>
         <div>
           <div className="font-semibold text-white">{title}</div>
           <div className="mt-1 text-sm text-zinc-400">{text}</div>

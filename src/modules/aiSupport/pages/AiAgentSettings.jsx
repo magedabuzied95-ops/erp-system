@@ -71,15 +71,15 @@ function Field({ label, children, hint = "" }) {
 }
 
 function TextInput(props) {
-  return <input {...props} className={`h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 ${props.className || ""}`} />;
+  return <input {...props} className={`h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-primary/40 ${props.className || ""}`} />;
 }
 
 function TextArea(props) {
-  return <textarea {...props} className={`min-h-28 w-full resize-y rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 ${props.className || ""}`} />;
+  return <textarea {...props} className={`min-h-28 w-full resize-y rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-600 focus:border-primary/40 ${props.className || ""}`} />;
 }
 
 function SelectInput(props) {
-  return <select {...props} className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-cyan-300/40" />;
+  return <select {...props} className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />;
 }
 
 function Toggle({ label, checked, onChange, hint = "" }) {
@@ -99,7 +99,7 @@ function Toggle({ label, checked, onChange, hint = "" }) {
 function Section({ icon: Icon, title, children }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-      <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
+      <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-primary">
         <Icon className="h-4 w-4" />
         {title}
       </div>
@@ -181,7 +181,7 @@ export default function AiAgentSettings() {
         <section className="rounded-2xl border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100"><Bot className="h-4 w-4" />AI Agent Control Center</div>
+              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />AI Agent Control Center</div>
               <h1 className="mt-3 text-3xl font-black md:text-4xl">Sales Agent Settings</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Tenant-scoped controls for tone, sales rules, follow-ups, handoff triggers, and staff suggested replies.</p>
             </div>
@@ -190,7 +190,7 @@ export default function AiAgentSettings() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh
               </button>
-              <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
+              <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save settings
               </button>

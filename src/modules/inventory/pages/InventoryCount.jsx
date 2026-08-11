@@ -1441,7 +1441,7 @@ function InventoryCountPage() {
                         type="button"
                         onClick={reopenSessionHandler}
                         disabled={openingSession}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/15 disabled:opacity-40"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:opacity-40"
                       >
                         {openingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                         إعادة فتح للتعديل
@@ -1480,7 +1480,7 @@ function InventoryCountPage() {
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <div className="min-w-0">
                     <h2 className="text-xl font-black text-white">البحث ومسح الباركود</h2>
-                    <div className="mt-2 inline-flex max-w-full rounded-2xl border border-cyan-400/15 bg-cyan-400/10 px-3 py-2 text-[11px] font-bold leading-5 text-cyan-50">
+                    <div className="mt-2 inline-flex max-w-full rounded-2xl border border-primary/15 bg-primary/10 px-3 py-2 text-[11px] font-bold leading-5 text-primary">
                       Inventory counts are submitted for review before final approval.
                     </div>
                   </div>
@@ -2314,7 +2314,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
       <div className="relative w-full max-w-2xl rounded-3xl border border-white/10 bg-zinc-950 p-4 shadow-2xl shadow-black">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">ماسح الباركود</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">ماسح الباركود</div>
             <h3 className="mt-1 text-xl font-black text-white">امسح الباركود أو رمز QR</h3>
           </div>
           <button type="button" onClick={onClose} className="inline-flex min-h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">

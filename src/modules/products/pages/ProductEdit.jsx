@@ -3661,7 +3661,7 @@ function ProductEdit() {
                 ) : null}
               </div>
 
-              <div className="rounded-[28px] border border-emerald-300/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.055] to-cyan-400/10 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.18)] transition duration-200 hover:border-emerald-300/25 hover:bg-white/[0.07]">
+              <div className="rounded-[28px] border border-emerald-300/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.055] to-primary/10 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.18)] transition duration-200 hover:border-emerald-300/25 hover:bg-white/[0.07]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-base font-black text-white">{t("products.editor.customerDescriptionTitle", "Product Description (Customer-facing)")}</p>
@@ -3680,7 +3680,7 @@ function ProductEdit() {
                       type="button"
                       onClick={() => regenerateDescriptions("en")}
                       disabled={descriptionGenerating.en}
-                      className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-sky-300/30 hover:bg-sky-400/10 hover:text-sky-100"
+                      className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                     >
                       {descriptionGenerating.en ? t("products.editor.generatingEnglish", "Generating English...") : t("products.editor.regenerateEnglish", "Regenerate English")}
                     </button>
@@ -3742,7 +3742,7 @@ function ProductEdit() {
                       }}
                       rows={6}
                       placeholder={generatedDescriptions.description_en}
-                      className="mt-1.5 w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm leading-6 text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-sky-300/35 focus:bg-zinc-900"
+                      className="mt-1.5 w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm leading-6 text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-primary/35 focus:bg-zinc-900"
                     />
                   </div>
               </div>
@@ -3756,7 +3756,7 @@ function ProductEdit() {
                 />
               </div>
 
-              <div className={`rounded-[22px] border p-3 shadow-[0_16px_45px_rgba(0,0,0,0.18)] transition ${seoOpen ? "border-amber-300/28 bg-amber-300/[0.075]" : "border-sky-300/20 bg-sky-400/[0.06] hover:border-sky-300/32 hover:bg-sky-400/[0.09]"}`}>
+              <div className={`rounded-[22px] border p-3 shadow-[0_16px_45px_rgba(0,0,0,0.18)] transition ${seoOpen ? "border-amber-300/28 bg-amber-300/[0.075]" : "border-primary/20 bg-primary/[0.06] hover:border-primary/32 hover:bg-primary/[0.09]"}`}>
                 <button type="button" onClick={() => setSeoOpen((current) => !current)} className="flex w-full items-center justify-between gap-3 text-left">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-amber-200/20 bg-amber-300/10 text-amber-100">
@@ -3765,7 +3765,7 @@ function ProductEdit() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-black text-white">{t("products.editor.seoMetadata", "SEO metadata")}</p>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${seoOpen ? "bg-amber-300/20 text-amber-100" : "bg-sky-300/15 text-sky-100"}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${seoOpen ? "bg-amber-300/20 text-amber-100" : "bg-primary/15 text-primary"}`}>
                           {seoOpen ? t("products.editor.expanded", "Expanded") : t("products.editor.collapsed", "Collapsed")}
                         </span>
                       </div>
@@ -3797,7 +3797,7 @@ function ProductEdit() {
                         </div>
                         <div className="rounded-[16px] border border-white/8 bg-white/[0.03] p-3">
                           <p className="truncate text-[13px] text-zinc-400">{seoPreviewUrl}</p>
-                          <p className="mt-1 line-clamp-1 text-lg font-semibold text-sky-300">{seoPreviewTitle}</p>
+                          <p className="mt-1 line-clamp-1 text-lg font-semibold text-primary">{seoPreviewTitle}</p>
                           <p className="mt-1 line-clamp-2 text-sm leading-5 text-zinc-300">{seoPreviewDescription}</p>
                         </div>
                       </div>
@@ -3974,7 +3974,7 @@ function ProductEdit() {
                     type="button"
                     onClick={handleGenerateAiProductData}
                     disabled={aiProductLoading || !coverImage}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-blue-300/25 bg-blue-400/10 px-4 text-sm font-black text-blue-100 transition hover:border-blue-300/45 hover:bg-blue-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                     {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
@@ -4050,7 +4050,7 @@ function ProductEdit() {
             </div>
 
             {aiProductData ? (
-              <div className="mt-5 rounded-[24px] border border-blue-300/20 bg-blue-400/[0.07] p-4">
+              <div className="mt-5 rounded-[24px] border border-primary/20 bg-primary/[0.07] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-black text-white">{t("products.editor.aiProductSuggestions", "AI product suggestions")}</p>
@@ -4061,7 +4061,7 @@ function ProductEdit() {
                   <button
                     type="button"
                     onClick={applyAllAiProductSuggestions}
-                    className="inline-flex h-9 items-center rounded-[12px] border border-blue-300/30 bg-blue-300/10 px-3 text-xs font-black text-blue-100 transition hover:bg-blue-300/15"
+                    className="inline-flex h-9 items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
                   >
                     Apply all
                   </button>
@@ -4091,7 +4091,7 @@ function ProductEdit() {
                             <button
                               type="button"
                               onClick={() => applyAiProductSuggestion(field)}
-                              className="shrink-0 rounded-[10px] border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-zinc-100 hover:border-blue-300/30 hover:text-blue-100"
+                              className="shrink-0 rounded-[10px] border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-zinc-100 hover:border-primary/30 hover:text-primary"
                             >
                               Apply
                             </button>
@@ -4214,7 +4214,7 @@ function ProductEdit() {
                 </p>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">{t("products.editor.bulkArticleTools", "Bulk Article Tools")}</p>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">{t("products.editor.bulkArticleTools", "Bulk Article Tools")}</p>
                 <label className="mt-3 block">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
                     {t("products.fields.articleCode", "Article Code")}
@@ -4229,7 +4229,7 @@ function ProductEdit() {
                 <button
                   type="button"
                   onClick={() => applyBulkArticleCode()}
-                  className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-cyan-500/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                  className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
                 >
                   {t("products.editor.applyArticleAllColors", "Apply article to all colors")}
                 </button>
@@ -4347,7 +4347,7 @@ function ProductEdit() {
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <h3 className="truncate text-base font-black text-white">{group.color || `Color group ${groupIndex + 1}`}</h3>
                         {getGroupManufacturerSummary(group) ? (
-                          <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2.5 py-1 text-[11px] font-bold text-sky-100">
+                          <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">
                             المصنع: {getGroupManufacturerSummary(group)}
                           </span>
                         ) : null}
@@ -4585,7 +4585,7 @@ function ProductEdit() {
                               </datalist>
                             <p className="mt-1 text-xs text-zinc-500">{t("products.editor.pickColorHelp")}</p>
                             {colorDetecting[group.id] ? (
-                              <p className="mt-1 text-xs font-semibold text-cyan-200">{t("products.editor.detectingColor")}</p>
+                              <p className="mt-1 text-xs font-semibold text-primary">{t("products.editor.detectingColor")}</p>
                             ) : null}
                           </div>
                           <div>
@@ -4718,7 +4718,7 @@ function ProductEdit() {
                               })
                             }
                             disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-cyan-400/20 bg-cyan-400/10 px-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             {colorDetecting[group.id] ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                             AI Rename
@@ -4762,7 +4762,7 @@ function ProductEdit() {
                             <button
                               type="button"
                               onClick={() => applyBulkArticleCode(group.id)}
-                              className="inline-flex h-10 items-center justify-center rounded-[14px] border border-cyan-500/20 bg-cyan-500/10 px-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                              className="inline-flex h-10 items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
                             >
                               {t("products.editor.applyArticleThisColor", "Apply article to this color")}
                             </button>
@@ -5017,7 +5017,7 @@ function AiCoverStatusBadge({ state = null }) {
         ? "border-red-300/30 bg-red-400/10 text-red-100"
         : status === "PROCESSING"
           ? "border-amber-300/30 bg-amber-400/10 text-amber-100"
-          : "border-blue-300/30 bg-blue-400/10 text-blue-100";
+          : "border-primary/30 bg-primary/10 text-primary";
 
   const label =
     status === "COMPLETED"

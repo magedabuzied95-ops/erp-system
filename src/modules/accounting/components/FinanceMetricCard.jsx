@@ -1,7 +1,7 @@
 export default function FinanceMetricCard({ label, value, hint, tone = "zinc", icon }) {
   const classes = {
     zinc: "border-[var(--border)] bg-[var(--card)] text-[var(--text)]",
-    cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
+    cyan: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-300",

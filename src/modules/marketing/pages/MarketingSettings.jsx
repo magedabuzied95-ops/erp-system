@@ -1212,7 +1212,7 @@ export default function MarketingSettings() {
                         <button key={page.page_id} onClick={() => chooseOAuthPage(page)} disabled={oauthLoading} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.07] disabled:opacity-60">
                           <div className="font-black text-white">{page.page_name || page.page_id}</div>
                           <div className="mt-1 text-xs text-slate-400">Page ID: {page.page_id}</div>
-                          <div className="mt-2 text-xs text-cyan-200">إنستجرام: {page.instagram_username || page.instagram_business_account_id || "لا يوجد حساب أعمال مرتبط"}</div>
+                          <div className="mt-2 text-xs text-primary">إنستجرام: {page.instagram_username || page.instagram_business_account_id || "لا يوجد حساب أعمال مرتبط"}</div>
                           <div className="mt-2 text-xs text-slate-500">Token: {page.page_access_token_masked || "configured"}</div>
                         </button>
                       ))}
@@ -1421,7 +1421,7 @@ export default function MarketingSettings() {
               {form.page_access_token_set ? t("marketing.settings.status.pageTokenSaved") : form.access_token_set ? t("marketing.settings.status.legacyTokenSaved") : t("marketing.settings.status.noTokenSaved")}
             </div>
             <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
-              <KeyRound className="h-4 w-4 text-cyan-300" />
+              <KeyRound className="h-4 w-4 text-primary" />
               {loading ? t("marketing.common.loading") : form.is_connected ? t("marketing.settings.status.connected") : t("marketing.settings.status.disconnected")}
             </div>
             <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
@@ -1436,10 +1436,10 @@ export default function MarketingSettings() {
               <div className="mt-2 font-semibold text-white">{form.token_health_status || form.token_status || t("marketing.settings.status.missing")}</div>
               <div className="mt-1 text-xs text-slate-400">{t("marketing.settings.lastChecked", { value: formatDateTime(form.token_last_validated_at) })}</div>
             </div>
-            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4 text-sm text-slate-200">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">{t("marketing.settings.autoRefresh")}</div>
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-slate-200">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{t("marketing.settings.autoRefresh")}</div>
               <div className="mt-2 flex items-center gap-2 font-semibold text-white">
-                <Sparkles className="h-4 w-4 text-cyan-300" />
+                <Sparkles className="h-4 w-4 text-primary" />
                 {form.auto_refresh_enabled ? t("marketing.settings.autoRefreshEnabled") : t("marketing.settings.autoRefreshDisabled")}
               </div>
               <div className="mt-1 text-xs text-slate-400">{t("marketing.settings.lastAutoRefresh", { value: formatDateTime(form.last_auto_refresh_at) })}</div>
@@ -1460,12 +1460,12 @@ export default function MarketingSettings() {
             <button onClick={save} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
               {t("marketing.settings.save")}
             </button>
-            <button onClick={reconnect} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 disabled:opacity-60">
+            <button onClick={reconnect} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary disabled:opacity-60">
               <RefreshCw className={`h-4 w-4 ${reconnecting ? "animate-spin" : ""}`} />
               {t("marketing.settings.reconnect")}
             </button>
             <button onClick={testAutoRefresh} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
-              <Sparkles className="h-4 w-4 text-cyan-300" />
+              <Sparkles className="h-4 w-4 text-primary" />
               {t("marketing.settings.testAutoRefresh")}
             </button>
           </div>
@@ -1603,11 +1603,11 @@ export default function MarketingSettings() {
             <StatusBadge status={liveWebhook.webhook_verified ? "connected" : "webhook_issue"} />
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 disabled:opacity-60">
+            <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary disabled:opacity-60">
               <PlayCircle className="h-3.5 w-3.5" />
               {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
             </button>
-            <code className="break-all rounded-xl bg-black/30 px-3 py-2 text-xs text-cyan-100">{webhookSelfTest?.expected_public_url || liveWebhook.webhook_url || metaStatus?.webhook_url || setupCheck?.webhook_url || "/api/meta/webhook"}</code>
+            <code className="break-all rounded-xl bg-black/30 px-3 py-2 text-xs text-primary">{webhookSelfTest?.expected_public_url || liveWebhook.webhook_url || metaStatus?.webhook_url || setupCheck?.webhook_url || "/api/meta/webhook"}</code>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
@@ -1675,7 +1675,7 @@ export default function MarketingSettings() {
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">
             <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
-                <Bot className="h-4 w-4 text-cyan-300" />
+                <Bot className="h-4 w-4 text-primary" />
                 AI automation controls
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1776,7 +1776,7 @@ export default function MarketingSettings() {
             </div>
 
             <div className="space-y-3">
-              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
                 <div className="text-sm font-black text-white">محاكي المعاينة</div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <input value={simulator.commenter_name} onChange={(event) => setSimulator((current) => ({ ...current, commenter_name: event.target.value }))} className="rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
@@ -1796,7 +1796,7 @@ export default function MarketingSettings() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button onClick={() => applyRuleToForm(rule)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">{t("marketing.common.edit")}</button>
-                      <button onClick={() => runRuleTest(rule)} className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100">{t("marketing.automation.test")}</button>
+                      <button onClick={() => runRuleTest(rule)} className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">{t("marketing.automation.test")}</button>
                       <button onClick={() => removeRule(rule.id)} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

@@ -21,7 +21,7 @@ export default function AiStudioNav() {
           className={({ isActive }) =>
             `inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[12px] font-black transition ${
               isActive
-                ? "border-cyan-300/40 bg-cyan-300 text-slate-950"
+                ? "border-primary/40 bg-primary text-slate-950"
                 : "border-white/10 bg-white/[0.055] text-white hover:border-white/20"
             }`
           }

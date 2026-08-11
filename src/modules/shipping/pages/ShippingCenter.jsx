@@ -122,11 +122,11 @@ function ShipmentDrawer({ order, onClose }) {
             <div className="mb-2 flex items-center gap-2 text-sm font-black"><MapPin className="h-4 w-4 text-emerald-300" /> Address</div>
             <p className="text-sm font-semibold leading-6 text-slate-300">{address || "-"}</p>
             {order.shipping_label_url ? (
-              <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-xl border border-cyan-200/25 bg-cyan-200/10 px-3 py-2 text-xs font-black text-cyan-50 transition hover:bg-cyan-200/20">Print Label</button>
+              <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20">Print Label</button>
             ) : null}
           </section>
           <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black"><Clock3 className="h-4 w-4 text-cyan-300" /> Shipping Timeline</div>
+            <div className="mb-3 flex items-center gap-2 text-sm font-black"><Clock3 className="h-4 w-4 text-primary" /> Shipping Timeline</div>
             <div className="space-y-3">
               {timeline.length ? timeline.map((event, index) => (
                 <div key={`${event.at}-${index}`} className="rounded-xl border border-white/10 bg-black/20 p-3">
@@ -271,7 +271,7 @@ export default function ShippingCenter() {
         <section className="grid gap-3 lg:grid-cols-5">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Delivery Success Rate</div><div className="mt-2 text-2xl font-black text-emerald-200">{analytics.delivery_success_rate || 0}%</div></div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Return Rate</div><div className="mt-2 text-2xl font-black text-orange-200">{analytics.return_rate || 0}%</div></div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Average Delivery Time</div><div className="mt-2 text-2xl font-black text-cyan-200">{Number(analytics.average_delivery_hours || 0).toFixed(1)}h</div></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Average Delivery Time</div><div className="mt-2 text-2xl font-black text-primary">{Number(analytics.average_delivery_hours || 0).toFixed(1)}h</div></div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Orders Per Provider</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_provider || []).map((row) => `${PROVIDER_LABELS[row.provider] || row.provider}: ${row.orders}`).join(" · ") || "-"}</div></div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Orders Per City</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_city || []).slice(0, 3).map((row) => `${row.city}: ${row.orders}`).join(" · ") || "-"}</div></div>
         </section>
@@ -322,7 +322,7 @@ export default function ShippingCenter() {
                         <td className="px-3 py-3 text-slate-300">{order.customer_phone || "-"}</td>
                         <td className="px-3 py-3 text-slate-300">{order.city || "-"}</td>
                         <td className="px-3 py-3"><span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-black">{PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id}</span></td>
-                        <td className="px-3 py-3 font-mono text-xs text-cyan-200">{order.tracking_number || "-"}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-primary">{order.tracking_number || "-"}</td>
                         <td className="px-3 py-3"><StatusBadge status={order.shipment_status} /></td>
                         <td className="px-3 py-3 font-bold text-amber-100">{fmtMoney(order.cod_amount)}</td>
                         <td className="px-3 py-3 font-bold text-slate-100">{fmtMoney(order.order_total)}</td>

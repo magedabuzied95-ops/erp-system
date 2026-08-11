@@ -377,7 +377,7 @@ function IncomeTab({ data, loading, isArabic }) {
         ]}
         isArabic={isArabic}
       />
-      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+      <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
         {isArabic
           ? "COGS معروض كتقدير مبني على إشارات التكلفة الحالية، وليس تكلفة تاريخية مؤكدة لكل عملية بيع."
           : "COGS is shown as an estimate from currently available cost signals, not a guaranteed historical per-sale cost."}
@@ -530,7 +530,7 @@ function InventoryTab({ data, loading, isArabic }) {
         <FinanceMetricCard label={isArabic ? "أسطر المخزون" : "Inventory Lines"} value={formatNumber(summary.inventory_lines, isArabic ? "ar" : "en")} tone="violet" icon={<Boxes className="h-5 w-5" />} />
       </div>
       <NotesList notes={notes} isArabic={isArabic} />
-      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+      <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
         {isArabic
           ? "قيمة COGS هنا تقديرية وفق البيانات المتاحة حاليًا وقد لا تمثل تكلفة تاريخية دقيقة لكل سطر بيع."
           : "COGS here is estimated from the current data model and may not represent exact historical cost for every sold line."}

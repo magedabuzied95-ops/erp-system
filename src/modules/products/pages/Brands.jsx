@@ -204,7 +204,7 @@ function Brands() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
           <div className="flex items-center gap-3">
-            <BadgeCheck className="text-blue-400" />
+            <BadgeCheck className="text-primary" />
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{t("products.brands.editor")}</p>
               <h2 className="mt-1 text-2xl font-black text-white">{editingId ? t("products.brands.editBrand") : t("products.brands.addBrand")}</h2>

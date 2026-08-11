@@ -134,12 +134,12 @@ function CanvasInner({ nodes, edges, setNodes, setEdges, onCommit, onSelect, onD
       {isEmpty ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
           <div className="pointer-events-none flex flex-col items-center gap-2 text-slate-400">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10"><Zap className="h-6 w-6 text-cyan-200" /></span>
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10"><Zap className="h-6 w-6 text-primary" /></span>
             <div className="text-[15px] font-black text-white">Start with a Trigger</div>
             <div className="max-w-[280px] text-[12px] text-slate-500">Every workflow begins with a trigger. Drag one from the left, or add a manual trigger to begin.</div>
           </div>
           {onAddTrigger ? (
-            <button type="button" onClick={onAddTrigger} className="pointer-events-auto inline-flex h-9 items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-300/15 px-4 text-[12px] font-black text-cyan-50 hover:bg-cyan-300/25">
+            <button type="button" onClick={onAddTrigger} className="pointer-events-auto inline-flex h-9 items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-4 text-[12px] font-black text-primary hover:bg-primary/25">
               <Zap className="h-4 w-4" /> Add Manual Trigger
             </button>
           ) : null}

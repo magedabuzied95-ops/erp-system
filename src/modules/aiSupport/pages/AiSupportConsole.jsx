@@ -188,7 +188,7 @@ function ConfidenceBar({ value }) {
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/10">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-emerald-300 to-lime-300 transition-all"
+          className="h-full rounded-full bg-gradient-to-r from-primary via-emerald-300 to-lime-300 transition-all"
           style={{ width: `${confidence * 100}%` }}
         />
       </div>
@@ -202,7 +202,7 @@ function Pill({ children, tone = "slate" }) {
     emerald: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
     amber: "border-amber-300/20 bg-amber-400/10 text-amber-100",
     rose: "border-rose-300/20 bg-rose-400/10 text-rose-100",
-    cyan: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
+    cyan: "border-primary/20 bg-primary/10 text-primary",
   };
   return (
     <span className={`inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-black ${tones[tone] || tones.slate}`}>
@@ -287,7 +287,7 @@ function InsightList({ title, items, labelKey = "label", empty = "No data yet." 
           return (
             <div key={`${title}-${label}-${index}`} className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
               <span className="min-w-0 truncate text-sm font-bold text-slate-100">{label}</span>
-              <span className="shrink-0 rounded-full bg-white/10 px-2 py-1 text-xs font-black text-cyan-100">{item.count ?? item.usage_count ?? 0}</span>
+              <span className="shrink-0 rounded-full bg-white/10 px-2 py-1 text-xs font-black text-primary">{item.count ?? item.usage_count ?? 0}</span>
             </div>
           );
         }) : (
@@ -548,17 +548,17 @@ export default function AiSupportConsole() {
                   Test customer-style product and store policy questions, then review saved answers before public release.
                 </p>
               </div>
-              <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-100">
+              <div className="rounded-2xl border border-primary/15 bg-primary/10 px-4 py-3 text-sm font-black text-primary">
                 Tenant: {!authHydrated ? "loading..." : tenantId || "not resolved"}
-                <div className="mt-1 max-w-52 truncate text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-100/70">
+                <div className="mt-1 max-w-52 truncate text-[10px] font-bold uppercase tracking-[0.14em] text-primary/70">
                   {!authHydrated ? "hydrating auth context" : tenantContext.source}
                 </div>
               </div>
             </div>
           </section>
 
-          <section className="rounded-3xl border border-cyan-300/15 bg-cyan-400/10 p-5 shadow-2xl shadow-black/20">
-            <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100/80">
+          <section className="rounded-3xl border border-primary/15 bg-primary/10 p-5 shadow-2xl shadow-black/20">
+            <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary/80">
               <ShieldAlert className="h-4 w-4" />
               Tenant debug
             </div>
@@ -592,7 +592,7 @@ export default function AiSupportConsole() {
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
-                  className="min-h-40 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-base leading-7 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+                  className="min-h-40 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-base leading-7 text-white outline-none transition placeholder:text-slate-600 focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
                   placeholder="Type a customer question..."
                 />
                 {authHydrated && !isValidTenantId(tenantId) ? (
@@ -604,7 +604,7 @@ export default function AiSupportConsole() {
                   type="button"
                   onClick={() => runTest()}
                   disabled={!authHydrated || loading || !message.trim() || !isValidTenantId(tenantId)}
-                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-5 text-sm font-black text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:-translate-y-0.5 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-black text-slate-950 shadow-lg shadow-primary/30 transition hover:-translate-y-0.5 hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                   Run support test
@@ -623,7 +623,7 @@ export default function AiSupportConsole() {
                       type="button"
                       onClick={() => runTest(test)}
                       disabled={!authHydrated || loading || !isValidTenantId(tenantId)}
-                      className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-right text-sm font-bold text-slate-100 transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-right text-sm font-bold text-slate-100 transition hover:-translate-y-0.5 hover:border-primary/35 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {test}
                     </button>
@@ -885,7 +885,7 @@ export default function AiSupportConsole() {
                     type="checkbox"
                     checked={historyFilters.low_confidence}
                     onChange={(event) => setHistoryFilters((current) => ({ ...current, low_confidence: event.target.checked }))}
-                    className="h-4 w-4 accent-cyan-300"
+                    className="h-4 w-4 accent-primary"
                   />
                   Low confidence
                 </label>

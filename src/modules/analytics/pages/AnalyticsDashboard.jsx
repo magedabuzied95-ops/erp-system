@@ -492,7 +492,7 @@ function AnalyticsDashboard() {
       <div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-950 to-slate-900 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.24)] xl:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs uppercase tracking-[0.32em] text-cyan-300">{t("analytics.eyebrow")}</p>
+            <p className="text-xs uppercase tracking-[0.32em] text-primary">{t("analytics.eyebrow")}</p>
             <h1 className="mt-3 text-4xl font-black tracking-tight text-white xl:text-5xl">
               {t("analytics.title")}
             </h1>
@@ -518,7 +518,7 @@ function AnalyticsDashboard() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                <Filter className="h-4 w-4 text-cyan-300" />
+                <Filter className="h-4 w-4 text-primary" />
                 {t("analytics.filters.title")}
               </div>
               <p className="mt-1 text-xs text-zinc-500">
@@ -529,7 +529,7 @@ function AnalyticsDashboard() {
           <button
             type="button"
             onClick={handleFilterReset}
-            className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-cyan-400/30 hover:bg-cyan-500/10 hover:text-white"
+            className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-primary/30 hover:bg-primary/10 hover:text-white"
           >
             <RotateCcw className="h-4 w-4" />
             {t("analytics.filters.reset")}
@@ -540,7 +540,7 @@ function AnalyticsDashboard() {
             <button
               type="button"
               onClick={handleExportPdf}
-              className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/20 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/20 hover:text-white"
             >
               <Download className="h-4 w-4" />
               {t("analytics.exportPdf")}
@@ -571,7 +571,7 @@ function AnalyticsDashboard() {
                 <select
                   value={filters.datePreset}
                   onChange={(event) => handlePresetChange(event.target.value)}
-                  className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 focus:bg-zinc-950"
+                  className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950"
                 >
                   {presetOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -596,7 +596,7 @@ function AnalyticsDashboard() {
                     startDate: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
@@ -613,7 +613,7 @@ function AnalyticsDashboard() {
                     endDate: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
@@ -631,7 +631,7 @@ function AnalyticsDashboard() {
                           branchId: event.target.value,
                         }))
                       }
-                      className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 focus:bg-zinc-950 disabled:opacity-60"
+                      className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950 disabled:opacity-60"
                     >
                       <option value="">{t("analytics.labels.allBranches")}</option>
                       {branchOptions.map((branch) => (
@@ -657,7 +657,7 @@ function AnalyticsDashboard() {
                         warehouseId: event.target.value,
                       }))
                     }
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 focus:bg-zinc-950 disabled:opacity-60"
+                    className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950 disabled:opacity-60"
                     disabled={warehouseOptions.length === 0}
                   >
                     <option value="">{t("analytics.labels.allWarehouses")}</option>
@@ -781,7 +781,7 @@ function AnalyticsDashboard() {
                     </div>
                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400"
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-400"
                         style={{ width: `${item.confidence}%` }}
                       />
                     </div>
@@ -1125,7 +1125,7 @@ function ChartsSkeleton() {
 function SummaryChip({ label, value, icon: Icon }) {
   return (
     <div className="inline-flex items-center gap-3 rounded-3xl border border-white/10 bg-white/5 px-4 py-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 text-cyan-300">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 text-primary">
         {Icon ? <Icon className="h-5 w-5" /> : null}
       </div>
       <div>
@@ -1138,7 +1138,7 @@ function SummaryChip({ label, value, icon: Icon }) {
 
 function StatusPill({ label, tone = "cyan" }) {
   const tones = {
-    cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
+    cyan: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-200",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-200",
@@ -1180,7 +1180,7 @@ function RiskCard({ title, value, description, icon: Icon }) {
           <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">{title}</p>
           <div className="mt-3 text-2xl font-black text-white">{value}</div>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-cyan-300">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-primary">
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -1197,7 +1197,7 @@ function MiniInsight({ icon: Icon, title, value }) {
           <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{title}</div>
           <div className="mt-3 text-xl font-black text-white">{value}</div>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-cyan-300">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-primary">
           <Icon className="h-5 w-5" />
         </div>
       </div>

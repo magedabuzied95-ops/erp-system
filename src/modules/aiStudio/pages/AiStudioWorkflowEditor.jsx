@@ -416,7 +416,7 @@ export default function AiStudioWorkflowEditor() {
           onChange={(e) => setName(e.target.value)}
           disabled={!canEdit}
           placeholder="Workflow name"
-          className="h-9 min-w-[180px] flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-[14px] font-black text-white focus:border-cyan-300/40 focus:outline-none disabled:opacity-60"
+          className="h-9 min-w-[180px] flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-[14px] font-black text-white focus:border-primary/40 focus:outline-none disabled:opacity-60"
         />
         <span className="hidden rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-slate-300 sm:inline">v{version}</span>
 
@@ -452,7 +452,7 @@ export default function AiStudioWorkflowEditor() {
         </div>
 
         {/* save state */}
-        <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${saveState === "saving" ? "text-cyan-200" : saveState === "unsaved" ? "text-amber-200" : saveState === "failed" ? "text-rose-200" : "text-slate-500"}`}>
+        <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${saveState === "saving" ? "text-primary" : saveState === "unsaved" ? "text-amber-200" : saveState === "failed" ? "text-rose-200" : "text-slate-500"}`}>
           {saveState === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Circle className={`h-2.5 w-2.5 ${saveState === "unsaved" ? "fill-amber-300 text-amber-300" : saveState === "failed" ? "fill-rose-400 text-rose-400" : "fill-slate-600 text-slate-600"}`} />}
           {saveState === "saving" ? "Saving…" : saveState === "unsaved" ? "Unsaved" : saveState === "failed" ? "Save failed" : updatedAt ? `Saved ${fmtTime(updatedAt)}` : "Saved"}
         </span>
@@ -473,7 +473,7 @@ export default function AiStudioWorkflowEditor() {
           <button type="button" onClick={persist} disabled={!canEdit || saving} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3.5 text-[12px] font-black hover:border-white/20 disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
           </button>
-          <button type="button" onClick={doRun} disabled={!canEdit || running} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-cyan-300/40 bg-cyan-300/15 px-3.5 text-[12px] font-black text-cyan-50 hover:bg-cyan-300/25 disabled:opacity-50">
+          <button type="button" onClick={doRun} disabled={!canEdit || running} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-primary/40 bg-primary/15 px-3.5 text-[12px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Run
           </button>
         </div>
@@ -548,7 +548,7 @@ export default function AiStudioWorkflowEditor() {
 
       {/* ---- validation / status bar ---- */}
       <footer className="flex items-center gap-3 border-t border-white/10 bg-slate-950/60 px-3 py-1.5 text-[11px]">
-        <button type="button" onClick={() => setDrawerOpen((v) => !v)} className="inline-flex items-center gap-1 font-black text-cyan-200 hover:text-cyan-100"><Play className="h-3 w-3" /> Run panel</button>
+        <button type="button" onClick={() => setDrawerOpen((v) => !v)} className="inline-flex items-center gap-1 font-black text-primary hover:text-primary"><Play className="h-3 w-3" /> Run panel</button>
         <span className="text-slate-600">·</span>
         {totalErrors === 0 && totalWarnings === 0 ? (
           <span className="text-emerald-200">No issues.</span>

@@ -24,7 +24,7 @@ import { accountingApi } from "../services/accountingApi";
 const initialOpenForm = { branch_id: "", opening_cash: "", notes: "" };
 const initialCloseForm = { actual_cash: "", notes: "" };
 const initialMovementForm = { event_type: "cash_in", amount: "", note: "" };
-const inputClass = "w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-cyan-300/70";
+const inputClass = "w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/70";
 
 const money = (value) => {
   const parsed = Number(value);
@@ -215,7 +215,7 @@ function CashRegisters() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {t("accounting.common.actions.refresh")}
           </button>
-          <button type="button" onClick={() => setOpenModal(true)} disabled={Boolean(currentShift)} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={() => setOpenModal(true)} disabled={Boolean(currentShift)} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60">
             <DoorOpen className="h-4 w-4" />
             {t("accounting.cashDrawer.actions.openShift")}
           </button>
@@ -272,7 +272,7 @@ function CashRegisters() {
                 <input type="number" min="0" step="0.01" value={movementForm.amount} onChange={(event) => setMovementForm((current) => ({ ...current, amount: event.target.value }))} className={inputClass} />
               </Field>
             </div>
-            <button type="submit" disabled={!currentShift || saving === "movement"} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400 disabled:opacity-60">
+            <button type="submit" disabled={!currentShift || saving === "movement"} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
               {saving === "movement" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {t("accounting.cashDrawer.actions.addMovement")}
             </button>
@@ -326,7 +326,7 @@ function CashRegisters() {
             <Field label={t("accounting.common.labels.to")}>
               <input type="date" value={filters.to_date} onChange={(event) => setFilters((current) => ({ ...current, to_date: event.target.value }))} className={inputClass} />
             </Field>
-            <button type="submit" className="rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black md:col-span-4">{t("accounting.cashDrawer.actions.applyFilters")}</button>
+            <button type="submit" className="rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black md:col-span-4">{t("accounting.cashDrawer.actions.applyFilters")}</button>
           </form>
           <button type="button" onClick={exportHistory} disabled={!history.length} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
             <Download className="h-4 w-4" />
@@ -382,7 +382,7 @@ function CashRegisters() {
             <Field label={t("accounting.common.labels.notes")}>
               <textarea value={openForm.notes} onChange={(event) => setOpenForm((current) => ({ ...current, notes: event.target.value }))} className={`${inputClass} min-h-24`} />
             </Field>
-            <button type="submit" disabled={saving === "open"} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black disabled:opacity-60">
+            <button type="submit" disabled={saving === "open"} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "open" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DoorOpen className="h-4 w-4" />}
               {t("accounting.cashDrawer.actions.openShift")}
             </button>

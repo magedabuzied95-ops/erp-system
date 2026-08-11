@@ -453,7 +453,7 @@ function UsersPage() {
                   type="button"
                   onClick={createUser}
                   disabled={!Number.isInteger(Number(selectedRoleId)) || Number(selectedRoleId) <= 0 || roleOptions.length === 0}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black"
                 >
                   <BadgePlus className="h-4 w-4" />
                   Create user
@@ -579,7 +579,7 @@ function UsersPage() {
               type="button"
               onClick={saveEditUser}
               disabled={actionBusyId === editingUser.id}
-              className="rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+              className="rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
             >
               Save
             </button>
@@ -601,7 +601,7 @@ function UsersPage() {
               type="button"
               onClick={savePassword}
               disabled={actionBusyId === passwordUser.id}
-              className="rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+              className="rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
             >
               Save
             </button>

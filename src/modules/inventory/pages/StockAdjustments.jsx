@@ -745,7 +745,7 @@ function StockAdjustments() {
                       onClick={() => selectVariant(variant)}
                       className={`flex w-full items-center gap-4 rounded-3xl border p-4 text-left transition ${
                         selected
-                          ? "border-cyan-400/30 bg-cyan-500/10 shadow-lg shadow-cyan-500/10"
+                          ? "border-primary/30 bg-primary/10 shadow-lg shadow-primary/10"
                           : "border-white/10 bg-white/5 hover:bg-white/10"
                       }`}
                     >
@@ -756,7 +756,7 @@ function StockAdjustments() {
                             <div className="truncate text-base font-semibold text-white">{variant.product_name}</div>
                             <div className="mt-1 text-sm text-zinc-400">{getVariantLabel(variant) || "افتراضي / مقاس موحد"}</div>
                           </div>
-                          <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${selected ? "bg-cyan-400 text-black" : "border border-white/10 bg-white/5 text-white"}`}>
+                          <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${selected ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-[var(--primary-contrast)]"}`}>
                             {selected ? "محدد" : "تحديد"}
                           </div>
                         </div>
@@ -936,7 +936,7 @@ function StockAdjustments() {
                   type="button"
                   onClick={openConfirmation}
                   disabled={!selectedVariant || !canAdjust || catalogLoading}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   تطبيق التسوية
@@ -1063,7 +1063,7 @@ function StockAdjustments() {
 function PolicyCard({ label, value, tone = "zinc" }) {
   const toneClasses = {
     zinc: "border-white/10 bg-white/5 text-white",
-    blue: "border-blue-500/20 bg-blue-500/10 text-blue-200",
+    blue: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-200",
   };
@@ -1145,7 +1145,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black">
+              <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black">
                 <CheckCircle2 className="h-4 w-4" />
                 تم
               </button>
@@ -1264,7 +1264,7 @@ function ConfirmationModal({
                         type="checkbox"
                         checked={approvalConfirmed}
                         onChange={(event) => setApprovalConfirmed(event.target.checked)}
-                        className="h-4 w-4 rounded border-white/20 bg-transparent text-blue-500"
+                        className="h-4 w-4 rounded border-white/20 bg-transparent text-primary"
                       />
                       المدير اعتمد هذه التسوية
                     </label>
@@ -1285,7 +1285,7 @@ function ConfirmationModal({
                   type="button"
                   onClick={onConfirm}
                   disabled={submitting || (requiresManagerApproval && (!approvalConfirmed || !normalizeText(approvalName)))}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {requiresManagerApproval ? "اعتماد وتطبيق" : "تطبيق التسوية"}

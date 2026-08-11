@@ -15,10 +15,10 @@ import {
 
 const statusTone = {
   ready: "border-emerald-400/30 bg-emerald-500/10 text-emerald-100",
-  processing: "border-sky-400/30 bg-sky-500/10 text-sky-100",
+  processing: "border-primary/30 bg-primary/10 text-primary",
   pending: "border-amber-400/30 bg-amber-500/10 text-amber-100",
   failed: "border-rose-400/30 bg-rose-500/10 text-rose-100",
-  printed: "border-sky-400/30 bg-sky-500/10 text-sky-100",
+  printed: "border-primary/30 bg-primary/10 text-primary",
 };
 
 const formatDateTime = (value, locale = "en") => {

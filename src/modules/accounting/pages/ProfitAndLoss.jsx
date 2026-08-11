@@ -66,7 +66,7 @@ function ProfitAndLoss() {
       title={t("accounting.profitLoss.title")}
       subtitle={t("accounting.profitLoss.subtitle")}
       actions={
-        <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black">
+        <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">
           <Calculator className="h-4 w-4" />
           {t("accounting.tabs.reports")}
         </Link>
@@ -147,7 +147,7 @@ function StateBanner({ icon, title, text, action }) {
   return (
     <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 text-white shadow-xl shadow-black/10 md:flex-row md:items-center md:justify-between">
       <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-cyan-300">{icon}</div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-primary">{icon}</div>
         <div>
           <div className="font-black">{title}</div>
           <div className="mt-1 text-sm text-zinc-400">{text}</div>
@@ -161,7 +161,7 @@ function StateBanner({ icon, title, text, action }) {
 function Line({ label, value, strong = false, muted = false, tone = "" }) {
   const toneClass = tone === "emerald" ? "text-emerald-300" : tone === "rose" ? "text-rose-300" : "text-white";
   return (
-    <div className={["flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3", strong ? "border-cyan-400/20 bg-cyan-400/5" : ""].join(" ")}>
+    <div className={["flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3", strong ? "border-primary/20 bg-primary/5" : ""].join(" ")}>
       <div className={["text-sm font-semibold", muted ? "text-zinc-400" : "text-white"].join(" ")}>{label}</div>
       <div className={["text-right font-black", strong ? `text-lg ${toneClass}` : "text-white"].join(" ")}>{formatCurrency(value)}</div>
     </div>

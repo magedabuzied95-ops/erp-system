@@ -28,7 +28,7 @@ export default function AiStudioTools() {
       <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100"><Wrench className="h-4 w-4" />AI Studio</div>
+            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><Wrench className="h-4 w-4" />AI Studio</div>
             <h1 className="mt-1 text-xl font-black">Tools</h1>
             <p className="mt-1 text-sm text-slate-400">Read-only view of the server-side tool registry. The server registry is authoritative — tools cannot be pointed at arbitrary code from the browser.</p>
           </div>

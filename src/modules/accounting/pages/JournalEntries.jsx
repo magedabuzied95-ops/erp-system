@@ -258,7 +258,7 @@ function JournalEntries() {
           </button>
           <Link
             to="/accounting"
-            className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400"
+            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
           >
             <BookOpenText className="h-4 w-4" />
             {t("accounting.tabs.dashboard")}
@@ -285,21 +285,21 @@ function JournalEntries() {
         <button
           type="button"
           onClick={() => setActiveTab("list")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "list" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "list" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           القيود اليومية
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("manual")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "manual" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "manual" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           إدخال يدوي
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("preview")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "preview" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "preview" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           معاينة الترحيل
         </button>
@@ -502,7 +502,7 @@ function JournalEntries() {
               <Plus className="h-4 w-4" />
               إضافة سطر
             </button>
-            <button type="submit" disabled={formSubmitting} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400 disabled:opacity-60">
+            <button type="submit" disabled={formSubmitting} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
               <BookOpenText className="h-4 w-4" />
               {formSubmitting ? "جارٍ الحفظ..." : "إنشاء القيد"}
             </button>
@@ -536,7 +536,7 @@ function JournalEntries() {
               <input type="number" min="1" max="100" value={previewState.limit} onChange={(event) => setPreviewState((current) => ({ ...current, limit: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
             <div className="md:col-span-4">
-              <button type="submit" disabled={previewLoading} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400 disabled:opacity-60">
+              <button type="submit" disabled={previewLoading} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
                 <WandSparkles className="h-4 w-4" />
                 {previewLoading ? "جارٍ تجهيز المعاينة..." : "تحميل المعاينة"}
               </button>
@@ -611,7 +611,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
       <div className="relative z-10 h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-300/70">{t("accounting.journal.detailTitle")}</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-primary/70">{t("accounting.journal.detailTitle")}</div>
             <h3 className="mt-2 text-2xl font-black text-white">{entry.entry_number}</h3>
             <p className="mt-1 text-sm text-zinc-400">{entry.description || t("accounting.journal.fallbacks.journalEntry")}</p>
           </div>
@@ -741,7 +741,7 @@ function translateStatus(status) {
 function MiniStat({ label, value, tone = "zinc" }) {
   const tones = {
     zinc: "border-white/10 bg-white/5 text-white",
-    cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
+    cyan: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-300",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
@@ -774,7 +774,7 @@ function PreviewStatusBadge({ status }) {
 function DetailStat({ label, value, tone = "zinc" }) {
   const tones = {
     zinc: "border-white/10 bg-white/5 text-white",
-    cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
+    cyan: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-300",
   };

@@ -139,10 +139,10 @@ export default function StoryExportControls({ campaign, templateId, currentIndex
           <div className="text-sm font-black text-white">{t("marketing.story.export.title")}</div>
           <p className="mt-1 text-xs leading-5 text-slate-400">{t("marketing.story.export.description")}</p>
         </div>
-        {exporting ? <Loader2 className="h-5 w-5 animate-spin text-cyan-200" /> : null}
+        {exporting ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : null}
       </div>
       <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-        <button type="button" onClick={exportCurrent} disabled={disabled} className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-3 text-xs font-black leading-none text-cyan-50 transition hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={exportCurrent} disabled={disabled} className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-primary/25 bg-primary/10 px-3 py-3 text-xs font-black leading-none text-primary transition hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50">
           <FileImage className="h-4 w-4" />
           {t("marketing.story.export.current")}
         </button>

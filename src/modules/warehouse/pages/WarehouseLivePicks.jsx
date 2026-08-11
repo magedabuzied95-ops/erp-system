@@ -424,7 +424,7 @@ function WarehouseLivePicks() {
 
       <div className="absolute inset-0 opacity-25">
         <div className="absolute -left-20 top-16 h-72 w-72 rounded-full bg-amber-400/20 blur-3xl" />
-        <div className="absolute right-0 top-1/4 h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute right-0 top-1/4 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
       </div>
 
       <main className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-3 px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
@@ -467,7 +467,7 @@ function WarehouseLivePicks() {
           <aside className="order-2 space-y-3 lg:order-1">
             <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-3 sm:p-4">
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-white">
-                <Clock3 className="h-4 w-4 text-cyan-300" />
+                <Clock3 className="h-4 w-4 text-primary" />
                 آخر 20 تنبيه
               </div>
 

@@ -33,7 +33,7 @@ export default function NodePalette({ palette, onAdd, disabled }) {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search nodes & tools…"
             dir="ltr"
-            className="h-8 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-8 pr-2 text-[12px] text-white placeholder:text-slate-500 focus:border-cyan-300/40 focus:outline-none"
+            className="h-8 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-8 pr-2 text-[12px] text-white placeholder:text-slate-500 focus:border-primary/40 focus:outline-none"
           />
         </div>
       </div>
@@ -56,11 +56,11 @@ export default function NodePalette({ palette, onAdd, disabled }) {
                   className={`group flex w-full items-start gap-2 rounded-xl border px-2.5 py-2 text-left transition ${
                     item.disabled
                       ? "cursor-not-allowed border-white/5 bg-white/[0.015] opacity-55"
-                      : "border-white/10 bg-white/[0.04] hover:border-cyan-300/40 hover:bg-white/[0.07]"
+                      : "border-white/10 bg-white/[0.04] hover:border-primary/40 hover:bg-white/[0.07]"
                   }`}
                 >
                   <span className="mt-0.5 shrink-0">
-                    {item.disabled ? <Lock className="h-3.5 w-3.5 text-slate-500" /> : <Plus className="h-3.5 w-3.5 text-slate-400 group-hover:text-cyan-200" />}
+                    {item.disabled ? <Lock className="h-3.5 w-3.5 text-slate-500" /> : <Plus className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">

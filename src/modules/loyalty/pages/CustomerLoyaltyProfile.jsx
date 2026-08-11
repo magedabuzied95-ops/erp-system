@@ -11,7 +11,7 @@ const tierStyles = {
   Bronze: "border-amber-500/20 bg-amber-500/10 text-amber-200",
   Silver: "border-slate-300/20 bg-slate-300/10 text-slate-100",
   Gold: "border-yellow-500/20 bg-yellow-500/10 text-yellow-200",
-  Platinum: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
+  Platinum: "border-primary/20 bg-primary/10 text-primary",
 };
 
 function CustomerLoyaltyProfile() {
@@ -88,11 +88,11 @@ function CustomerLoyaltyProfile() {
     <div className="space-y-6 text-white">
       <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-[#0b1220] p-6 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-start gap-4">
-          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-cyan-300">
+          <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
             <UserCircle2 className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">ملف الولاء للعميل</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-primary/80">ملف الولاء للعميل</p>
             <h1 className="mt-2 text-3xl font-black">{loading ? "Loading..." : customer?.name}</h1>
             <p className="mt-2 text-sm text-zinc-400">
               {customer?.phone || "No phone"} {customer?.email ? `| ${customer.email}` : ""}
@@ -103,7 +103,7 @@ function CustomerLoyaltyProfile() {
           <Link to="/loyalty" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">
             Back to dashboard
           </Link>
-          <Link to="/loyalty/rules" className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950">
+          <Link to="/loyalty/rules" className="rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-slate-950">
             Rules
           </Link>
         </div>
@@ -122,7 +122,7 @@ function CustomerLoyaltyProfile() {
                 <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{label}</p>
                 <p className="mt-3 text-2xl font-black text-white">{value}</p>
               </div>
-              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-cyan-300">
+              <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
                 <Icon className="h-5 w-5" />
               </div>
             </div>
@@ -149,7 +149,7 @@ function CustomerLoyaltyProfile() {
               <tbody>
                 {(transactions || []).map((tx) => (
                   <tr key={tx.id} className="border-t border-white/10">
-                    <td className="px-4 py-3 text-cyan-200">{tx.transaction_type}</td>
+                    <td className="px-4 py-3 text-primary">{tx.transaction_type}</td>
                     <td className="px-4 py-3 text-zinc-300">{Number(tx.points || 0).toLocaleString()}</td>
                     <td className="px-4 py-3 text-zinc-300">{Number(tx.amount_value || 0).toLocaleString()}</td>
                     <td className="px-4 py-3 text-zinc-400">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : "-"}</td>
@@ -170,7 +170,7 @@ function CustomerLoyaltyProfile() {
               type="number"
               value={points}
               onChange={(e) => setPoints(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-cyan-500/40"
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-primary/40"
             />
           </label>
 
@@ -178,7 +178,7 @@ function CustomerLoyaltyProfile() {
             type="button"
             onClick={handleRedeem}
             disabled={redeeming}
-            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
+            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
           >
             <Gift className="h-4 w-4" />
             {redeeming ? "جارٍ الاستبدال..." : "استبدال النقاط"}

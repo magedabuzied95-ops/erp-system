@@ -168,7 +168,7 @@ function WarehousesDashboard() {
             <Clock3 className="h-4 w-4" />
             {t("warehouses.history")}
           </Link>
-          <Link to="/stock-transfers" className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-2 text-sm font-black text-black transition hover:bg-blue-400">
+          <Link to="/stock-transfers" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <ArrowRightLeft className="h-4 w-4" />
             {t("warehouses.transferStock")}
           </Link>
@@ -285,7 +285,7 @@ function WarehousesDashboard() {
 function Kpi({ label, value, tone = "zinc" }) {
   const classes = {
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-    blue: "border-blue-500/20 bg-blue-500/10 text-blue-300",
+    blue: "border-primary/20 bg-primary/10 text-primary",
     violet: "border-violet-500/20 bg-violet-500/10 text-violet-300",
     zinc: "border-white/10 bg-white/5 text-white",
   };

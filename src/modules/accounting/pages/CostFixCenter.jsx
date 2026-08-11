@@ -238,11 +238,11 @@ function CostFixCenter() {
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.costFix.catalogSubtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={applySuggestedCosts} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/20 disabled:opacity-60">
+            <button type="button" onClick={applySuggestedCosts} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-black text-primary transition hover:bg-primary/20 disabled:opacity-60">
               <Wand2 className="h-4 w-4" />
               {t("accounting.costFix.actions.applySuggested")}
             </button>
-            <button type="button" onClick={() => saveUpdates(catalogRows)} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-cyan-300 disabled:opacity-60">
+            <button type="button" onClick={() => saveUpdates(catalogRows)} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-primary disabled:opacity-60">
               {savingKey === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {t("accounting.costFix.actions.saveAll")}
             </button>
@@ -290,11 +290,11 @@ function CostFixCenter() {
                       <td className="px-4 py-4 text-right font-black text-amber-200">{Number(row.affected_order_lines || 0).toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-rose-200">{formatCurrency(row.current_cost || 0)}</td>
                       <td className="px-4 py-4 text-right">
-                        <div className="font-black text-cyan-200">{formatCurrency(row.suggested_cost || 0)}</div>
+                        <div className="font-black text-primary">{formatCurrency(row.suggested_cost || 0)}</div>
                         <div className="mt-1 text-xs text-zinc-500">{t("accounting.costFix.labels.lastAvg", { last: formatCurrency(row.last_purchase_cost || 0), avg: formatCurrency(row.average_purchase_cost || 0) })}</div>
                       </td>
                       <td className="px-4 py-4">
-                        <input type="number" min="0" step="0.01" value={costDrafts[key] || ""} onChange={(event) => setDraft(key, event.target.value)} disabled={!canSaveRow} className="w-32 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white outline-none transition placeholder:text-zinc-600 focus:border-cyan-300/70 disabled:cursor-not-allowed disabled:opacity-50" placeholder={canSaveRow ? "0.00" : t("accounting.costFix.labels.noTarget")} />
+                        <input type="number" min="0" step="0.01" value={costDrafts[key] || ""} onChange={(event) => setDraft(key, event.target.value)} disabled={!canSaveRow} className="w-32 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/70 disabled:cursor-not-allowed disabled:opacity-50" placeholder={canSaveRow ? "0.00" : t("accounting.costFix.labels.noTarget")} />
                       </td>
                       <td className="px-4 py-4 text-right">
                         <button type="button" onClick={() => saveUpdates([row], key)} disabled={!canSaveRow || savingKey === key || Boolean(savingKey && savingKey !== key)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">

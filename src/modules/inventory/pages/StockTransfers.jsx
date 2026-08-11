@@ -141,7 +141,7 @@ function StockTransfers() {
           <button
             type="button"
             onClick={submitTransfer}
-            className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black"
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black"
           >
             <Save className="h-4 w-4" />
             إرسال التحويل

@@ -154,9 +154,9 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[24px] border border-cyan-400/15 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] sm:p-5 xl:col-span-3 xl:row-start-2">
+      <section className="rounded-[24px] border border-primary/15 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] sm:p-5 xl:col-span-3 xl:row-start-2">
         <div className="mb-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200">{t("products.form.variationMode")}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-primary">{t("products.form.variationMode")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.variationHelp")}</p>
         </div>
 
@@ -437,7 +437,7 @@ function ModeCard({ active, title, subtitle, detail, onClick }) {
       onClick={onClick}
       className={`rounded-3xl border p-4 text-left transition ${
         active
-          ? "border-cyan-400/40 bg-cyan-400/15 text-white shadow-lg shadow-cyan-500/10"
+          ? "border-primary/40 bg-primary/15 text-white shadow-lg shadow-primary/10"
           : "border-white/8 bg-zinc-950/70 text-zinc-300 hover:border-white/16 hover:bg-zinc-950"
       }`}
     >
@@ -447,7 +447,7 @@ function ModeCard({ active, title, subtitle, detail, onClick }) {
           <div className="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-500">{subtitle}</div>
         </div>
         <div
-          className={`h-3 w-3 rounded-full ${active ? "bg-cyan-300" : "bg-zinc-600"}`}
+          className={`h-3 w-3 rounded-full ${active ? "bg-primary" : "bg-zinc-600"}`}
           aria-hidden="true"
         />
       </div>

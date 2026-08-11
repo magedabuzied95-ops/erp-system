@@ -124,7 +124,7 @@ function GeneralLedger() {
           </button>
           <Link
             to="/accounting"
-            className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400"
+            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
           >
             <BookOpenText className="h-4 w-4" />
             لوحة المحاسبة
@@ -166,7 +166,7 @@ function GeneralLedger() {
           <input type="number" min="1" value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder="اختياري" className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
         </Field>
         <div className="md:col-span-4">
-          <button type="submit" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400">
+          <button type="submit" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <Search className="h-4 w-4" />
             عرض دفتر الأستاذ
           </button>
@@ -184,7 +184,7 @@ function GeneralLedger() {
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
         <div className="flex items-center gap-2 text-sm font-semibold text-white">
-          <Filter className="h-4 w-4 text-cyan-300" />
+          <Filter className="h-4 w-4 text-primary" />
           {headline}
         </div>
 

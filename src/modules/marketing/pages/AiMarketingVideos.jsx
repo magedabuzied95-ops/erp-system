@@ -19,7 +19,7 @@ import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublish
 
 const cardClass = "rounded-2xl border border-white/10 bg-white/[0.055] shadow-2xl shadow-black/20 backdrop-blur-xl";
 const buttonClass = "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50";
-const inputClass = "h-11 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-black text-white outline-none focus:border-cyan-300/50";
+const inputClass = "h-11 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-black text-white outline-none focus:border-primary/50";
 
 const lanes = [
   ["new_arrival_video", "New Arrivals Video"],
@@ -174,14 +174,14 @@ const audioForVideo = (item = {}) => {
 };
 
 function Badge({ children, tone = "slate" }) {
-  const toneClass = tone === "cyan" ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-100" : tone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : tone === "emerald" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : tone === "rose" ? "border-rose-300/25 bg-rose-400/10 text-rose-100" : "border-white/10 bg-white/[0.06] text-slate-300";
+  const toneClass = tone === "cyan" ? "border-primary/25 bg-primary/10 text-primary" : tone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : tone === "emerald" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : tone === "rose" ? "border-rose-300/25 bg-rose-400/10 text-rose-100" : "border-white/10 bg-white/[0.06] text-slate-300";
   return <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${toneClass}`}>{children}</span>;
 }
 
 function SectionTitle({ icon: Icon, title }) {
   return (
     <div className="flex items-center gap-2 text-lg font-black text-white">
-      <Icon className="h-5 w-5 text-cyan-200" />
+      <Icon className="h-5 w-5 text-primary" />
       {title}
     </div>
   );
@@ -305,7 +305,7 @@ export default function AiMarketingVideos() {
       <AiMarketingCenterNav />
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-100">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
             <Video className="h-4 w-4" />
             AI Video Queue
           </div>
@@ -359,14 +359,14 @@ export default function AiMarketingVideos() {
               <input className={inputClass} min="1" max="20" type="number" value={videosPerDay} onChange={(event) => setVideosPerDay(Number(event.target.value || 1))} />
             </label>
             <div className="mt-4 grid gap-2">
-              <button type="button" onClick={() => generate("today")} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-cyan-100`}>
+              <button type="button" onClick={() => generate("today")} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-primary`}>
                 <Wand2 className="h-4 w-4" />
                 Generate Today
               </button>
-              <button type="button" onClick={() => generate("week")} disabled={running || !canCreateMarketing} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>
+              <button type="button" onClick={() => generate("week")} disabled={running || !canCreateMarketing} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>
                 Generate Week
               </button>
-              <button type="button" onClick={() => generate("month")} disabled={running || !canCreateMarketing} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>
+              <button type="button" onClick={() => generate("month")} disabled={running || !canCreateMarketing} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>
                 Generate Month
               </button>
               <button type="button" onClick={() => setAutomationActive(!settings.active)} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
@@ -399,7 +399,7 @@ export default function AiMarketingVideos() {
 }
 
 function Kpi({ label, value, tone = "cyan" }) {
-  const color = tone === "emerald" ? "text-emerald-200" : tone === "rose" ? "text-rose-200" : "text-cyan-100";
+  const color = tone === "emerald" ? "text-emerald-200" : tone === "rose" ? "text-rose-200" : "text-primary";
   return (
     <div className={`${cardClass} p-4`}>
       <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
@@ -444,9 +444,9 @@ function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
       </div>
       <div className="flex flex-wrap gap-2 md:justify-end">
         <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
-        {statusInfo.normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
+        {statusInfo.normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
         {showApprove ? <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>موافقة</button> : null}
-        {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>نشر</button> : null}
+        {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>نشر</button> : null}
       </div>
     </div>
   );
@@ -583,7 +583,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           <div className={`relative aspect-[9/16] overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl shadow-black/40 ${
             activeSceneRole === "price" ? "bg-gradient-to-br from-slate-950 via-amber-950/40 to-black" :
               activeSceneRole === "urgency" ? "bg-gradient-to-br from-rose-950/60 via-slate-950 to-black" :
-                activeSceneRole === "cta" ? "bg-gradient-to-br from-cyan-950/40 via-slate-950 to-black" :
+                activeSceneRole === "cta" ? "bg-gradient-to-br from-primary/40 via-slate-950 to-black" :
                   activeSceneRole === "detail" ? "bg-gradient-to-br from-zinc-950 via-slate-900 to-black" :
                     "bg-gradient-to-br from-slate-950 via-slate-900 to-black"
           }`}>
@@ -607,7 +607,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             <div className={`absolute inset-x-0 z-10 flex items-center justify-center transition-all duration-700 ${
               activeSceneRole === "detail" ? "top-[13%] h-[54%]" : activeSceneRole === "price" ? "top-[23%] h-[35%]" : activeSceneRole === "cta" ? "top-[18%] h-[42%]" : "top-[18%] h-[40%]"
             }`}>
-              <div className="absolute h-56 w-56 rounded-full bg-cyan-300/12 blur-3xl animate-pulse" />
+              <div className="absolute h-56 w-56 rounded-full bg-primary/12 blur-3xl animate-pulse" />
               <div className="absolute h-72 w-72 rounded-full bg-white/6 blur-[80px]" />
               <div className="absolute bottom-4 h-8 w-52 rounded-[50%] bg-black/50 blur-xl" />
               {activeSceneImage ? (
@@ -629,7 +629,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
               <button
                 type="button"
                 onClick={togglePlayback}
-                className={`grid h-16 w-16 place-items-center rounded-full border border-white/20 bg-white/12 text-white shadow-2xl shadow-cyan-950/30 backdrop-blur-md transition hover:scale-105 ${isPlaying ? "opacity-30 hover:opacity-90" : "opacity-100"}`}
+                className={`grid h-16 w-16 place-items-center rounded-full border border-white/20 bg-white/12 text-white shadow-2xl shadow-primary/30 backdrop-blur-md transition hover:scale-105 ${isPlaying ? "opacity-30 hover:opacity-90" : "opacity-100"}`}
                 aria-label={isPlaying ? "Pause reel preview" : hasEnded ? "Replay reel preview" : "Play reel preview"}
               >
                 {isPlaying ? <Pause className="h-7 w-7 fill-white" /> : <Play className="ml-1 h-7 w-7 fill-white" />}
@@ -643,7 +643,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             {showDetailCard ? (
             <div className="absolute left-5 right-5 bottom-[41%] z-30 transition-all duration-500 translate-x-0 opacity-100">
               <div className="rounded-2xl border border-white/10 bg-black/35 p-3 shadow-2xl shadow-black/30 backdrop-blur-md">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">Variant details</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary">Variant details</div>
                 <div className="mt-1 line-clamp-2 text-sm font-black text-white">{sceneCaption || design.color_name || "Available variants"}</div>
               </div>
             </div>
@@ -672,7 +672,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             <div className="absolute inset-x-5 bottom-5 z-30 text-white">
               <div className="line-clamp-2 text-xl font-black leading-tight">{productTitle}</div>
               <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="inline-flex rounded-full bg-cyan-300 px-4 py-2 text-sm font-black text-slate-950 shadow-[0_0_24px_rgba(103,232,249,.24)] transition duration-500 scale-110 opacity-100 animate-pulse">{activeScene.caption || design.cta_text || "View details"}</div>
+                <div className="inline-flex rounded-full bg-primary px-4 py-2 text-sm font-black text-slate-950 shadow-[0_0_24px_rgba(103,232,249,.24)] transition duration-500 scale-110 opacity-100 animate-pulse">{activeScene.caption || design.cta_text || "View details"}</div>
               </div>
             </div>
             ) : null}
@@ -749,12 +749,12 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                     key={scene.id || sceneIndex}
                     type="button"
                     onClick={() => seekToScene(sceneIndex)}
-                    className={`relative min-w-[44px] overflow-hidden border-r border-white/10 px-2 text-left text-[10px] font-black transition ${sceneIndex === activeSceneIndex ? "text-cyan-100" : "text-white/75 hover:text-white"}`}
+                    className={`relative min-w-[44px] overflow-hidden border-r border-white/10 px-2 text-left text-[10px] font-black transition ${sceneIndex === activeSceneIndex ? "text-primary" : "text-white/75 hover:text-white"}`}
                     style={{ width: `${Math.max(8, ((sceneDurations[sceneIndex] || 1) / playbackDuration) * 100)}%` }}
                     title={`${scene.title} ${formatSeconds(sceneStarts[sceneIndex] || 0)}s-${formatSeconds((sceneStarts[sceneIndex] || 0) + (sceneDurations[sceneIndex] || 0))}s`}
                   >
                     {sceneImageFor(scene, item) ? <img src={sceneImageFor(scene, item)} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /> : null}
-                    <span className={`absolute inset-0 ${sceneIndex === activeSceneIndex ? "bg-cyan-950/35 ring-1 ring-inset ring-cyan-200/50" : "bg-black/45"}`} />
+                    <span className={`absolute inset-0 ${sceneIndex === activeSceneIndex ? "bg-primary/35 ring-1 ring-inset ring-primary/50" : "bg-black/45"}`} />
                     <span className="relative z-10">{sceneIndex + 1}</span>
                   </button>
                 ))}
@@ -763,7 +763,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                 {Array.from({ length: 32 }).map((_, index) => (
                   <span
                     key={index}
-                    className={`w-1 flex-1 rounded-full ${index / 32 <= progressPercent / 100 ? "bg-cyan-200/80" : "bg-white/15"}`}
+                    className={`w-1 flex-1 rounded-full ${index / 32 <= progressPercent / 100 ? "bg-primary/80" : "bg-white/15"}`}
                     style={{ height: `${22 + ((index * 19) % 64)}%` }}
                   />
                 ))}
@@ -785,7 +785,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                   key={scene.id || sceneIndex}
                   type="button"
                   onClick={() => seekToScene(sceneIndex)}
-                  className={`rounded-xl border p-3 text-left transition ${sceneIndex === activeSceneIndex ? "border-cyan-300/50 bg-cyan-300/10" : "border-white/10 bg-white/[0.04] hover:border-white/25"}`}
+                  className={`rounded-xl border p-3 text-left transition ${sceneIndex === activeSceneIndex ? "border-primary/50 bg-primary/10" : "border-white/10 bg-white/[0.04] hover:border-white/25"}`}
                 >
                   <div className="grid grid-cols-[46px_minmax(0,1fr)] gap-3">
                     <div className="aspect-[9/16] overflow-hidden rounded-lg border border-white/10 bg-slate-950">
@@ -793,11 +793,11 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center justify-between gap-3">
-                      <div className="text-xs font-black uppercase tracking-[0.12em] text-cyan-100">{scene.label || `مشهد ${sceneIndex + 1}`}</div>
+                      <div className="text-xs font-black uppercase tracking-[0.12em] text-primary">{scene.label || `مشهد ${sceneIndex + 1}`}</div>
                         <div className="text-[11px] font-black text-slate-400">{formatSeconds(sceneStarts[sceneIndex] || 0)}s - {formatSeconds((sceneStarts[sceneIndex] || 0) + (sceneDurations[sceneIndex] || 0))}s</div>
                       </div>
                       <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-                        <div className="h-full rounded-full bg-cyan-200 transition-[width] duration-100" style={{ width: `${sceneFillPercent(sceneIndex)}%` }} />
+                        <div className="h-full rounded-full bg-primary transition-[width] duration-100" style={{ width: `${sceneFillPercent(sceneIndex)}%` }} />
                       </div>
                       <div className="mt-1 truncate text-sm font-black text-white">{scene.title}</div>
                       <div className="mt-1 text-xs font-semibold text-slate-400">{scene.motion || "إشارة حركة"} | {scene.transition || "انتقال"} | {scene.effect || "تأثير"}</div>
@@ -816,14 +816,14 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             <div className="mt-3 grid gap-2">
               {captionsTimeline.map((caption, index) => (
                 <div key={`${caption.start_second}-${index}`} className="grid grid-cols-[70px_minmax(0,1fr)] gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                  <div className="text-xs font-black text-cyan-100">{formatSeconds(caption.start_second || 0)}s</div>
+                  <div className="text-xs font-black text-primary">{formatSeconds(caption.start_second || 0)}s</div>
                   <div className="text-xs font-semibold leading-5 text-slate-300">{caption.text}</div>
                 </div>
               ))}
             </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
-            <button type="button" onClick={togglePlayback} className={`${buttonClass} bg-white text-slate-950 hover:bg-cyan-100`}>
+            <button type="button" onClick={togglePlayback} className={`${buttonClass} bg-white text-slate-950 hover:bg-primary`}>
               {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               {isPlaying ? "إيقاف المعاينة" : hasEnded ? "إعادة تشغيل المعاينة" : "تشغيل المعاينة"}
             </button>
@@ -833,10 +833,10 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             </button>
           </div>
           {audio.title ? (
-            <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.06] p-4">
+            <div className="mt-5 rounded-2xl border border-primary/15 bg-primary/[0.06] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-black text-white">
-                  <Music2 className="h-4 w-4 text-cyan-200" />
+                  <Music2 className="h-4 w-4 text-primary" />
                   صوت مقترح
                 </div>
                 <Badge tone="cyan">{audio.trend_label || "رائج"}</Badge>
@@ -847,14 +847,14 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                 {Array.from({ length: 18 }).map((_, index) => (
                   <span
                     key={index}
-                    className="w-1 flex-1 rounded-full bg-cyan-200/70 animate-pulse"
+                    className="w-1 flex-1 rounded-full bg-primary/70 animate-pulse"
                     style={{ height: `${28 + ((index * 17) % 58)}%`, animationDelay: `${index * 70}ms` }}
                   />
                 ))}
               </div>
               <div className="mt-1 text-xs font-bold text-slate-400">{audio.search_query || audio.mood || ""}</div>
               <div className="mt-2 flex flex-wrap gap-2">
-                <div className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">{audio.mood || "energetic"}</div>
+                <div className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-primary">{audio.mood || "energetic"}</div>
                 <div className="inline-flex rounded-full border border-amber-200/20 bg-amber-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100">{audio.trend_label || "رائج"}</div>
               </div>
             </div>
@@ -869,7 +869,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           </details>
           <div className="mt-5 flex flex-wrap gap-2">
             {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
-            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
+            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
             {showApprove ? (
               <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>
                 <Check className="h-4 w-4" />
@@ -877,7 +877,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
               </button>
             ) : null}
             {showPublish ? (
-              <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>
+              <button type="button" onClick={onPublish} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>
                 <Send className="h-4 w-4" />
                 نشر
               </button>

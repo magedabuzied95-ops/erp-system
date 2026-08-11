@@ -460,7 +460,7 @@ function RealtimePill({ label }) {
   const realtime = useRealtimeConnection();
   const connected = realtime.connected;
   return (
-    <div className="hidden h-11 items-center justify-center gap-2 rounded-full border border-cyan-300/25 bg-zinc-950/75 px-3 text-sm font-black text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.18),0_0_22px_rgba(34,211,238,0.12)] backdrop-blur sm:flex sm:px-4">
+    <div className="hidden h-11 items-center justify-center gap-2 rounded-full border border-primary/25 bg-zinc-950/75 px-3 text-sm font-black text-primary shadow-[0_10px_30px_rgba(0,0,0,0.18),0_0_22px_rgba(34,211,238,0.12)] backdrop-blur sm:flex sm:px-4">
       <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.85)]" : "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.75)]"}`} />
       <span className="hidden md:inline">{connected ? label : "جارٍ إعادة الاتصال"}</span>
     </div>
@@ -944,11 +944,11 @@ function MainLayout() {
                     "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
                     "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
                     isProductsActive
-                      ? "border-sky-300/55 bg-sky-500/15 text-sky-100 shadow-[0_0_28px_rgba(14,165,233,0.24)]"
-                      : "border-sky-400/25 hover:-translate-y-0.5 hover:border-sky-300/50 hover:bg-sky-500/10 hover:text-sky-100 hover:shadow-[0_0_26px_rgba(14,165,233,0.2)]",
+                      ? "border-primary/55 bg-primary/15 text-primary shadow-[0_0_28px_rgba(14,165,233,0.24)]"
+                      : "border-primary/25 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/10 hover:text-primary hover:shadow-[0_0_26px_rgba(14,165,233,0.2)]",
                   ].join(" ")}
                 >
-                  <Boxes className="h-4 w-4 text-sky-300 transition group-hover:text-sky-200" />
+                  <Boxes className="h-4 w-4 text-primary transition group-hover:text-primary" />
                   <span className="hidden sm:inline">{productsLabel}</span>
                 </NavLink>
                 {!isCashierUser(user) ? (

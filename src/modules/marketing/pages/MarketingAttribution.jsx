@@ -120,7 +120,7 @@ export default function MarketingAttribution() {
         <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
                 <TrendingUp className="h-3.5 w-3.5" />
                 {t("marketing.analytics.attribution.eyebrow")}
               </div>
@@ -132,7 +132,7 @@ export default function MarketingAttribution() {
                 type="button"
                 onClick={refresh}
                 disabled={syncing || !canSync}
-                className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/20 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/20 disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
                 {t("marketing.analytics.attribution.sync")}
@@ -143,7 +143,7 @@ export default function MarketingAttribution() {
                 disabled={loading}
                 className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
               >
-                <BarChart3 className="h-4 w-4 text-cyan-300" />
+                <BarChart3 className="h-4 w-4 text-primary" />
                 {t("marketing.common.refreshView")}
               </button>
             </div>

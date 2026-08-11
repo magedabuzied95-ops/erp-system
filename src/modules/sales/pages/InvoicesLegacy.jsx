@@ -295,7 +295,7 @@ function Sales() {
             text-5xl
             font-black
             mt-4
-            text-blue-500
+            text-primary
             "
           >
             {totalInvoices}
@@ -309,7 +309,7 @@ function Sales() {
           className="
           bg-gradient-to-r
           from-purple-500
-          to-indigo-600
+          to-primary
           text-white
           p-7
           rounded-3xl
@@ -663,7 +663,7 @@ function Sales() {
                         <td
                           className="
                           p-5
-                          text-blue-500
+                          text-primary
                           font-black
                           "
                         >

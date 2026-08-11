@@ -182,7 +182,7 @@ function Accounting() {
 
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex items-center gap-2 text-sm font-semibold text-white">
-            <BookOpenText className="h-4 w-4 text-cyan-300" />
+            <BookOpenText className="h-4 w-4 text-primary" />
             {t("accounting.quickLinks")}
           </div>
           <div className="mt-4 space-y-3">

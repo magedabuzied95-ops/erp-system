@@ -105,7 +105,7 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
             <div className="mb-2 text-xs font-black text-zinc-300">مقاسات موجودة / قديمة</div>
             <div className="flex flex-wrap gap-2">
               {legacySizes.map((size, index) => (
-                <span key={`${size}-${index}`} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 text-xs font-black text-cyan-100">
+                <span key={`${size}-${index}`} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary">
                   <Check size={13} /> {size}
                 </span>
               ))}

@@ -835,7 +835,7 @@ function ProductDetails() {
                     {product.brand || t("products.records.unbranded", "Unbranded")}
                   </span>
                   {(product.audiences || []).map((audience) => (
-                    <span key={audience} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                    <span key={audience} className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                       {audienceLabel(audience, isArabic)}
                     </span>
                   ))}
@@ -985,7 +985,7 @@ function ProductDetails() {
           <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <Clock3 className="text-cyan-400" />
+                <Clock3 className="text-primary" />
                 <div>
                   <h2 className="text-2xl font-black text-white">{t("products.stock.historyTitle", "سجل المخزون")}</h2>
                   <p className="mt-1 text-sm text-zinc-400">{t("products.stock.historyDescription", "Recent inventory movements recorded for this product.")}</p>
@@ -1106,7 +1106,7 @@ function ProductDetails() {
 
           <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
             <div className="flex items-center gap-3">
-              <ImageIcon className="text-cyan-400" />
+              <ImageIcon className="text-primary" />
               <div>
                 <h2 className="text-2xl font-black text-white">{t("products.images.gallery", "Gallery")}</h2>
                 <p className="mt-1 text-sm text-zinc-400">{t("products.images.galleryDescription", "Product gallery images available on the product record.")}</p>

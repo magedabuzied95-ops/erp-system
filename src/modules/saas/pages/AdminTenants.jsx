@@ -63,7 +63,7 @@ function AdminTenants() {
               <div key={tenant.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="grid gap-3 xl:grid-cols-[1.4fr_1fr_0.9fr_0.7fr] xl:items-center">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-cyan-300">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-primary">
                       <Building2 className="h-5 w-5" />
                     </div>
                     <div>

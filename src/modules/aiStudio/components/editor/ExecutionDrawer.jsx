@@ -19,8 +19,8 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Trigger input (JSON)</div>
-          <textarea value={inputText} onChange={(e) => onInputChange(e.target.value)} rows={3} dir="ltr" spellCheck={false} placeholder='{ "query": "nike" }' className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-cyan-300/40 focus:outline-none" />
-          <button type="button" onClick={onRun} disabled={running} className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-cyan-300/40 bg-cyan-300/15 text-[12px] font-black text-cyan-50 hover:bg-cyan-300/25 disabled:opacity-50">
+          <textarea value={inputText} onChange={(e) => onInputChange(e.target.value)} rows={3} dir="ltr" spellCheck={false} placeholder='{ "query": "nike" }' className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-primary/40 focus:outline-none" />
+          <button type="button" onClick={onRun} disabled={running} className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/15 text-[12px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} {running ? "Running…" : "Run test"}
           </button>
           <p className="mt-1 text-[10px] text-slate-500">Runs on the server using real ERP data. Nothing executes in the browser.</p>
@@ -44,7 +44,7 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
                 <ShieldAlert className="h-3.5 w-3.5" /> Waiting for human approval.
               </div>
             ) : null}
-            <button type="button" onClick={onViewFull} className="mt-2 inline-flex items-center gap-1 text-[10px] font-black text-cyan-200 hover:text-cyan-100">
+            <button type="button" onClick={onViewFull} className="mt-2 inline-flex items-center gap-1 text-[10px] font-black text-primary hover:text-primary">
               View full execution <ExternalLink className="h-3 w-3" />
             </button>
           </div>

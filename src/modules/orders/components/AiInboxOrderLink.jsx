@@ -6,7 +6,7 @@ import { aiInboxOrderChannel, buildAiInboxOrderUrl } from "../lib/aiInboxOrderLi
 
 const CHANNEL_META = {
   instagram: { Icon: FaInstagram, label: "فتح محادثة Instagram", className: "border-fuchsia-400/30 bg-fuchsia-400/10 text-fuchsia-200 hover:bg-fuchsia-400/20" },
-  messenger: { Icon: FaFacebookMessenger, label: "فتح محادثة Messenger", className: "border-sky-400/30 bg-sky-400/10 text-sky-200 hover:bg-sky-400/20" },
+  messenger: { Icon: FaFacebookMessenger, label: "فتح محادثة Messenger", className: "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20" },
   whatsapp: { Icon: FaWhatsapp, label: "فتح محادثة WhatsApp", className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/20" },
 };
 
@@ -16,7 +16,7 @@ export default function AiInboxOrderLink({ order, compact = false, className = "
   if (!url) return null;
 
   const channel = aiInboxOrderChannel(order);
-  const meta = CHANNEL_META[channel] || { Icon: MessageCircle, label: "فتح محادثة AI Inbox", className: "border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" };
+  const meta = CHANNEL_META[channel] || { Icon: MessageCircle, label: "فتح محادثة AI Inbox", className: "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20" };
   const Icon = meta.Icon;
 
   return (

@@ -185,7 +185,7 @@ export default function PublicProduct() {
     return (
       <div className="min-h-screen bg-slate-950 px-4 py-12 text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] p-12">
-          <Loader2 className="h-6 w-6 animate-spin text-cyan-300" />
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       </div>
     );
@@ -207,7 +207,7 @@ export default function PublicProduct() {
         <section className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20">
           <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="bg-gradient-to-br from-slate-950 to-slate-900 p-6 md:p-8">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
                 <Sparkles className="h-3.5 w-3.5" />
                 Tracked product
               </div>
@@ -261,7 +261,7 @@ export default function PublicProduct() {
                 <div key={String(variant.id)} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
                   <div className="font-semibold text-white">{variant.color || "Default"} / {variant.size || "One size"}</div>
                   <div className="mt-1 text-sm text-slate-400">{variant.sku || "n/a"} • {variant.barcode || "n/a"}</div>
-                  <div className="mt-3 text-lg font-black text-cyan-200">{Number(variant.sale_price || variant.price || product.sale_price || product.price || 0).toLocaleString()}</div>
+                  <div className="mt-3 text-lg font-black text-primary">{Number(variant.sale_price || variant.price || product.sale_price || product.price || 0).toLocaleString()}</div>
                 </div>
               ))
             )}

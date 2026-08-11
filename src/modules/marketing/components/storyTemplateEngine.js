@@ -50,8 +50,8 @@ export const STORY_TEMPLATES = [
   {
     id: "sneakers_streetwear",
     name: "Streetwear",
-    background: { type: "gradient", value: "from-zinc-950 via-indigo-950 to-black" },
-    typography: { headline: "text-[2.35rem] font-black leading-[1.04]", subtext: "text-[0.95rem] text-indigo-100/85", cta: "streetwear pill" },
+    background: { type: "gradient", value: "from-zinc-950 via-primary to-black" },
+    typography: { headline: "text-[2.35rem] font-black leading-[1.04]", subtext: "text-[0.95rem] text-primary/85", cta: "streetwear pill" },
     layout: { density: "kinetic", productScale: "large", pricingTone: "cyan" },
     effects: { glassmorphism: true, glow: true, vignette: true },
     animations: { default: "floating" },
@@ -77,7 +77,7 @@ export const accentClasses = {
   amber: "border-amber-300/30 bg-amber-300/15 text-amber-50 shadow-amber-500/30",
   slate: "border-slate-900/10 bg-slate-950 text-white shadow-slate-900/20",
   rose: "border-rose-300/30 bg-rose-400/20 text-rose-50 shadow-rose-500/30",
-  cyan: "border-cyan-300/30 bg-cyan-300/15 text-cyan-50 shadow-cyan-500/30",
+  cyan: "border-primary/30 bg-primary/15 text-primary shadow-primary/30",
   fuchsia: "border-fuchsia-300/30 bg-fuchsia-300/15 text-fuchsia-50 shadow-fuchsia-500/30",
   emerald: "border-emerald-300/30 bg-emerald-300/15 text-emerald-50 shadow-emerald-500/30",
 };

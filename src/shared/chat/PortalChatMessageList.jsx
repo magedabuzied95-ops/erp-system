@@ -226,7 +226,7 @@ export default function PortalChatMessageList({
                     <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
                       <span>{timeFormatter(message.created_at)}</span>
                       {message.edited_at && !deleted ? <span>{labels.edited || "معدلة"}</span> : null}
-                      {outgoing ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
+                      {outgoing ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-primary" : "text-slate-300/70"}`} /> : null}
                     </div>
                   ) : null}
                   {!deleted && reactionCounts(message.reactions).length ? (

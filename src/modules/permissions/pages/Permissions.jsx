@@ -157,7 +157,7 @@ function PermissionsPage() {
                     onClick={() => setSelectedRoleId(roleRouteId(role))}
                     className={[
                       "w-full rounded-2xl border p-4 text-left transition",
-                      active ? "border-cyan-500/40 bg-cyan-500/10" : "border-white/10 bg-white/5 hover:bg-white/10",
+                      active ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10",
                     ].join(" ")}
                   >
                     <div className="flex items-start justify-between gap-3">

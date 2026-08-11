@@ -1932,7 +1932,7 @@ export default function SocialMediaPublisher() {
                                   href={linkMatch[1]}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="block rounded-[1.1rem] border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 font-semibold text-cyan-50 transition hover:border-cyan-300/40 hover:bg-cyan-400/15"
+                                  className="block rounded-[1.1rem] border border-primary/20 bg-primary/10 px-4 py-3 font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15"
                                 >
                                   {linkMatch[1]}
                                 </a>
@@ -2016,7 +2016,7 @@ export default function SocialMediaPublisher() {
                             type="button"
                             onClick={() => void refreshSuggestedFirstComment()}
                             disabled={firstCommentLoading || !selectedCatalogProduct?.id}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {firstCommentLoading ? <Loader2 className="mr-1 inline-block h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="mr-1 inline-block h-3.5 w-3.5" />}
                             Regenerate
@@ -2101,7 +2101,7 @@ export default function SocialMediaPublisher() {
                       <select
                         value={selectedFacebookPageId}
                         onChange={(event) => handleFacebookPageChange(event.target.value)}
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
+                        className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-primary/40"
                       >
                         {facebookPages.map((page) => (
                           <option key={page.facebook_page_id} value={page.facebook_page_id}>
@@ -2130,7 +2130,7 @@ export default function SocialMediaPublisher() {
                       <select
                         value={selectedInstagramAccountId}
                         onChange={(event) => handleInstagramAccountChange(event.target.value)}
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
+                        className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-primary/40"
                       >
                         {instagramAccounts.map((account) => (
                           <option key={account.instagram_account_id} value={account.instagram_account_id}>
@@ -2172,7 +2172,7 @@ export default function SocialMediaPublisher() {
                   <button
                     type="button"
                     onClick={() => loadMetaAccounts()}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15"
                   >
                     <RefreshCcw className="h-4 w-4" />
                     Refresh Accounts
@@ -2206,7 +2206,7 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={() => setPreviewOpen(true)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15"
                 >
                   <ImageIcon className="h-4 w-4" />
                   {t("marketing.socialPublisher.preview")}

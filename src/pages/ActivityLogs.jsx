@@ -160,7 +160,7 @@ function ActivityLogs() {
 
       <div className="h-[80vh] flex items-center justify-center">
 
-        <div className="text-4xl font-black text-blue-500 animate-pulse">
+        <div className="text-4xl font-black text-primary animate-pulse">
 
           Loading Activity Logs...
 
@@ -199,8 +199,8 @@ function ActivityLogs() {
         <div
           className="
           bg-gradient-to-r
-          from-blue-600
-          to-cyan-500
+          from-primary
+          to-primary
           text-white
           px-8
           py-5
@@ -293,7 +293,7 @@ function ActivityLogs() {
                     border-zinc-800
                     rounded-3xl
                     p-6
-                    hover:border-blue-500
+                    hover:border-primary
                     transition-all
                     "
                   >
@@ -307,8 +307,8 @@ function ActivityLogs() {
                         w-16
                         h-16
                         rounded-2xl
-                        bg-blue-600/20
-                        text-blue-400
+                        bg-primary/20
+                        text-primary
                         flex
                         items-center
                         justify-center
@@ -379,7 +379,7 @@ function ActivityLogs() {
 
                           <UserCircle2
                             size={22}
-                            className="text-blue-400"
+                            className="text-primary"
                           />
 
                           <span className="text-gray-400">

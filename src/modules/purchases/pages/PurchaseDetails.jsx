@@ -330,7 +330,7 @@ function PurchaseDetails() {
 
         <section className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5">
           <div className="flex items-center gap-3">
-            <PackageCheck className="h-5 w-5 text-blue-300" />
+            <PackageCheck className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-black text-white">{t("purchases.details.timelineTitle")}</h2>
           </div>
           <div className="mt-5 space-y-3">
@@ -460,7 +460,7 @@ function SummaryCard({ label, value, tone = "zinc" }) {
     zinc: "border-white/10 bg-white/5",
     emerald: "border-emerald-500/20 bg-emerald-500/10",
     amber: "border-amber-500/20 bg-amber-500/10",
-    blue: "border-blue-500/20 bg-blue-500/10",
+    blue: "border-primary/20 bg-primary/10",
   };
   return (
     <div className={`rounded-3xl border p-5 ${tones[tone]}`}>

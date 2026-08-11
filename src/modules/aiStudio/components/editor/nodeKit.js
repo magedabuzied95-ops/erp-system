@@ -10,10 +10,10 @@ export const RISK_ICON = { Eye, Pencil, ShieldAlert };
 
 // accent -> full static class strings for node chrome
 export const ACCENT = {
-  cyan: { border: "border-cyan-300/40", chip: "bg-cyan-300/15 text-cyan-100", dot: "bg-cyan-300" },
+  cyan: { border: "border-primary/40", chip: "bg-primary/15 text-primary", dot: "bg-primary" },
   violet: { border: "border-violet-300/40", chip: "bg-violet-300/15 text-violet-100", dot: "bg-violet-300" },
   amber: { border: "border-amber-300/40", chip: "bg-amber-300/15 text-amber-100", dot: "bg-amber-300" },
-  sky: { border: "border-sky-300/40", chip: "bg-sky-300/15 text-sky-100", dot: "bg-sky-300" },
+  sky: { border: "border-primary/40", chip: "bg-primary/15 text-primary", dot: "bg-primary" },
   orange: { border: "border-orange-300/40", chip: "bg-orange-300/15 text-orange-100", dot: "bg-orange-300" },
   rose: { border: "border-rose-300/40", chip: "bg-rose-300/15 text-rose-100", dot: "bg-rose-300" },
   slate: { border: "border-slate-300/30", chip: "bg-slate-300/10 text-slate-200", dot: "bg-slate-300" },
@@ -37,7 +37,7 @@ export const RISK_INFO = {
 // execution state -> ring styling on the node
 export const EXEC_RING = {
   waiting: "ring-1 ring-slate-400/40",
-  running: "ring-2 ring-cyan-300",
+  running: "ring-2 ring-primary",
   completed: "ring-1 ring-emerald-400/60",
   failed: "ring-2 ring-rose-500",
   awaiting_approval: "ring-2 ring-amber-400",
@@ -68,7 +68,7 @@ export const EXEC_ICON = {
 // exec badge chip classes (icon+text; colour is a reinforcement, not the only signal)
 export const EXEC_BADGE = {
   waiting: "bg-slate-500/20 text-slate-200",
-  running: "bg-cyan-400/20 text-cyan-100",
+  running: "bg-primary/20 text-primary",
   completed: "bg-emerald-400/20 text-emerald-100",
   failed: "bg-rose-500/25 text-rose-100",
   awaiting_approval: "bg-amber-400/20 text-amber-100",
@@ -86,7 +86,7 @@ export const STATUS_TONE = (s) =>
     : s === "awaiting_approval"
     ? "text-amber-200"
     : s === "running"
-    ? "text-cyan-200"
+    ? "text-primary"
     : "text-slate-300";
 
 export const fmtTime = (v) => (v ? new Date(v).toLocaleString() : "—");

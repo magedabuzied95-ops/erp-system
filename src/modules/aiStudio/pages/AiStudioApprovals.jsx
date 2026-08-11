@@ -39,7 +39,7 @@ export default function AiStudioApprovals() {
       <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100"><ShieldCheck className="h-4 w-4" />AI Studio</div>
+            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><ShieldCheck className="h-4 w-4" />AI Studio</div>
             <h1 className="mt-1 text-xl font-black">Approvals</h1>
             <p className="mt-1 text-sm text-slate-400">Human approval for sensitive AI actions. Approval never bypasses RBAC — permissions are re-checked before execution.</p>
           </div>
@@ -53,7 +53,7 @@ export default function AiStudioApprovals() {
         <div className="mt-3"><AiStudioNav /></div>
       </section>
 
-      {msg ? <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-[12px] font-bold text-cyan-100">{msg}</div> : null}
+      {msg ? <div className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-[12px] font-bold text-primary">{msg}</div> : null}
 
       <section className="space-y-3">
         {loading ? (

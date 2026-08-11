@@ -122,7 +122,7 @@ function RolesPage() {
       subtitle="Create and manage system roles, browse built-in enterprise roles, and keep custom role definitions in sync with the shared permissions matrix."
       actions={
         <>
-          <Link to="/settings/permissions" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black">
+          <Link to="/settings/permissions" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">
             <ShieldCheck className="h-4 w-4" />
             Open permissions
           </Link>
@@ -150,7 +150,7 @@ function RolesPage() {
               <Field label="Role name" value={name} onChange={setName} placeholder="Custom role name" />
               <Field label="Description" value={description} onChange={setDescription} placeholder="Role description" />
               <Can permission="roles.create">
-                <button type="button" onClick={createRole} disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black disabled:opacity-50">
+                <button type="button" onClick={createRole} disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-50">
                   <BadgePlus className="h-4 w-4" />
                   {saving ? "Saving..." : "Create role"}
                 </button>
@@ -184,7 +184,7 @@ function RolesPage() {
                       onClick={() => setSelectedRoleId(role.id)}
                       className={[
                         "w-full rounded-2xl border p-4 text-left transition",
-                        active ? "border-cyan-500/40 bg-cyan-500/10" : "border-white/10 bg-white/5 hover:bg-white/10",
+                        active ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10",
                       ].join(" ")}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -221,7 +221,7 @@ function RolesPage() {
             <>
               <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-cyan-300/70">
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-primary/70">
                     <ShieldCheck className="h-4 w-4" />
                     Selected role
                   </div>

@@ -16,7 +16,7 @@ const initialFilters = {
   entity_type: "",
   search: "",
 };
-const inputClass = "w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-cyan-300/70";
+const inputClass = "w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/70";
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -126,7 +126,7 @@ function AuditTrail() {
           <input type="number" min="1" value={filters.user_id} onChange={(event) => updateFilter("user_id", event.target.value)} placeholder={t("accounting.auditTrail.placeholders.anyUser")} className={inputClass} />
         </FilterField>
         <div className="flex items-end">
-          <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-cyan-300">
+          <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-primary">
             <Search className="h-4 w-4" />
             {t("accounting.common.actions.search")}
           </button>
@@ -142,7 +142,7 @@ function AuditTrail() {
             <h2 className="text-xl font-black text-white">{t("accounting.auditTrail.eventsTitle")}</h2>
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.auditTrail.recentEntries", { count: rows.length })}</p>
           </div>
-          <ShieldCheck className="h-6 w-6 text-cyan-300" />
+          <ShieldCheck className="h-6 w-6 text-primary" />
         </div>
 
         {loading ? (
@@ -176,7 +176,7 @@ function AuditTrail() {
                       <div className="mt-1 text-xs text-zinc-500">{row.user_email || (row.user_id ? t("accounting.auditTrail.fallbacks.userNumber", { id: row.user_id }) : t("accounting.auditTrail.fallbacks.noUser"))}</div>
                     </td>
                     <td className="px-4 py-4">
-                      <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">{row.action}</span>
+                      <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-black text-primary">{row.action}</span>
                     </td>
                     <td className="px-4 py-4">
                       <div className="font-semibold text-white">{row.entity_type}</div>

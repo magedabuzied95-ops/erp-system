@@ -913,7 +913,7 @@ function Customers() {
                 resetImport();
                 setImportOpen(true);
               }}
-              className="inline-flex h-14 items-center justify-center gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-5 text-sm font-black text-cyan-100 shadow-2xl shadow-cyan-950/20 transition hover:bg-cyan-400/20"
+              className="inline-flex h-14 items-center justify-center gap-3 rounded-2xl border border-primary/20 bg-primary/10 px-5 text-sm font-black text-primary shadow-2xl shadow-primary/20 transition hover:bg-primary/20"
             >
               <UploadCloud className="h-5 w-5" />
               استيراد العملاء
@@ -1110,9 +1110,9 @@ function Customers() {
                           {customer.address || t("customers.records.notSet")}
                         </span>
                       </td>
-                      <td className="px-6 py-5 text-sm font-black text-cyan-100">
-                        <span className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2">
-                          <Sparkles className="h-4 w-4 text-cyan-200" />
+                      <td className="px-6 py-5 text-sm font-black text-primary">
+                        <span className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
                           {Number(customer.loyalty_points ?? customer.available_points ?? 0).toLocaleString("ar-EG-u-nu-latn")}
                         </span>
                       </td>
@@ -1135,7 +1135,7 @@ function Customers() {
                           <button
                             type="button"
                             onClick={() => editCustomer(customer)}
-                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-sky-300/20 bg-sky-400/10 px-3 text-xs font-black text-sky-100 transition hover:bg-sky-400/20"
+                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20"
                           >
                             <Pencil className="h-4 w-4" />
                             {t("customers.actions.edit")}
@@ -1242,7 +1242,7 @@ function CustomerImportModal({
         <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_38%),rgba(15,23,42,0.88)] p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">استيراد من النظام القديم</div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-primary">استيراد من النظام القديم</div>
               <h2 className="mt-2 text-3xl font-black">استيراد العملاء ونقاط الولاء</h2>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
                 ارفع ملف Excel أو CSV، راجع المعاينة أولاً، ثم نفذ الاستيراد النهائي بدون تكرار العملاء الموجودين.
@@ -1256,9 +1256,9 @@ function CustomerImportModal({
 
         <div className="max-h-[78vh] overflow-y-auto p-6">
           <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-            <div className="rounded-3xl border border-cyan-300/15 bg-cyan-400/5 p-5">
-              <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-cyan-300/30 bg-slate-900/70 p-6 text-center transition hover:border-cyan-200/60 hover:bg-cyan-400/10">
-                <UploadCloud className="h-10 w-10 text-cyan-200" />
+            <div className="rounded-3xl border border-primary/15 bg-primary/5 p-5">
+              <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-primary/30 bg-slate-900/70 p-6 text-center transition hover:border-primary/60 hover:bg-primary/10">
+                <UploadCloud className="h-10 w-10 text-primary" />
                 <div className="mt-3 text-lg font-black">{file?.name || "اختيار ملف العملاء"}</div>
                 <div className="mt-2 text-sm font-semibold text-slate-400">CSV, XLS, XLSX حتى 8MB</div>
                 <input
@@ -1277,7 +1277,7 @@ function CustomerImportModal({
               </div>
 
               <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                <label className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200" htmlFor="customer-import-points-mode">
+                <label className="text-xs font-black uppercase tracking-[0.18em] text-primary" htmlFor="customer-import-points-mode">
                   طريقة استيراد النقاط
                 </label>
                 <select
@@ -1306,7 +1306,7 @@ function CustomerImportModal({
                   type="button"
                   onClick={onPreview}
                   disabled={loading || !file}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-5 text-sm font-black text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-black text-slate-950 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FileText className="h-4 w-4" />
                   {loading && !summary ? "جاري الفحص..." : "معاينة قبل الاستيراد"}
@@ -1314,7 +1314,7 @@ function CustomerImportModal({
                 <button
                   type="button"
                   onClick={onDownloadTemplate}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-300/20 bg-slate-950/70 px-5 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/10"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-slate-950/70 px-5 text-sm font-black text-primary transition hover:bg-primary/10"
                 >
                   <Download className="h-4 w-4" />
                   تحميل نموذج Excel
@@ -1638,8 +1638,8 @@ function CustomerStatementDrawer({
                 <Wallet className="h-4 w-4 text-emerald-300" />
                 {formatMoney(currentBalance)}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2">
-                <Sparkles className="h-4 w-4 text-cyan-200" />
+              <span className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2">
+                <Sparkles className="h-4 w-4 text-primary" />
                 {loyaltyPoints.toLocaleString("ar-EG-u-nu-latn")}
               </span>
               <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
@@ -1689,9 +1689,9 @@ function CustomerStatementDrawer({
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200/70">إجمالي المبالغ المستحقة</div>
             <div className="mt-2 text-xl font-black text-amber-100">{formatMoney(totals.credit)} ج.م</div>
           </div>
-          <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.08] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-sky-200/70">إجمالي الدفعات والتسويات</div>
-            <div className="mt-2 text-xl font-black text-sky-100">{formatMoney(totals.debit)} ج.م</div>
+          <div className="rounded-2xl border border-primary/20 bg-primary/[0.08] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/70">إجمالي الدفعات والتسويات</div>
+            <div className="mt-2 text-xl font-black text-primary">{formatMoney(totals.debit)} ج.م</div>
           </div>
           <div className={`rounded-2xl border p-4 ${currentBalance > 0 ? "border-rose-300/25 bg-rose-400/[0.09]" : "border-emerald-300/20 bg-emerald-400/[0.08]"}`}>
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">المتبقي على العميل</div>
@@ -1908,7 +1908,7 @@ function CustomerStatementDrawer({
                           ) : <span className="text-zinc-700">—</span>}
                         </td>
                         <td className="border-b border-l border-white/10 px-5 py-4 text-center">
-                          <span className="inline-flex min-w-[115px] justify-center rounded-xl border border-cyan-300/15 bg-cyan-400/[0.07] px-3 py-2 font-black tabular-nums text-cyan-100">
+                          <span className="inline-flex min-w-[115px] justify-center rounded-xl border border-primary/15 bg-primary/[0.07] px-3 py-2 font-black tabular-nums text-primary">
                             {formatMoney(row.after_balance)}
                           </span>
                         </td>
@@ -1934,7 +1934,7 @@ function CustomerStatementDrawer({
                               <button
                                 type="button"
                                 onClick={() => onViewOrder?.(row.order_id)}
-                                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-[11px] font-black text-cyan-100 transition hover:bg-cyan-400/20"
+                                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-[11px] font-black text-primary transition hover:bg-primary/20"
                               >
                                 <FileText className="h-3.5 w-3.5" />
                                 عرض الفاتورة
@@ -1979,7 +1979,7 @@ function CustomerStatementDrawer({
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">المتبقي على العميل</div>
-            <div className="mt-2 text-2xl font-black text-cyan-200">{formatMoney(finalBalance)}</div>
+            <div className="mt-2 text-2xl font-black text-primary">{formatMoney(finalBalance)}</div>
             <div className="mt-1 text-xs font-semibold text-zinc-500">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>
           </div>
         </section>

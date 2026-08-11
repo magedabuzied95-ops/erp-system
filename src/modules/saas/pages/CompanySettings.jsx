@@ -74,7 +74,7 @@ function CompanySettings() {
             <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Invoice footer</div>
             <textarea value={invoiceFooter} onChange={(e) => setInvoiceFooter(e.target.value)} rows={4} className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" />
           </label>
-          <button type="button" onClick={save} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black">
+          <button type="button" onClick={save} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black">
             <Save className="h-4 w-4" />
             Save company settings
           </button>

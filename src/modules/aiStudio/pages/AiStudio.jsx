@@ -48,13 +48,13 @@ function InboundAssistedRepliesCard() {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-cyan-100" /><h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">Inbound Assisted Replies</h2></div>
+        <div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" /><h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">Inbound Assisted Replies</h2></div>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${capable ? "bg-emerald-400/15 text-emerald-100" : "bg-slate-500/20 text-slate-300"}`}>{capable ? "Capability enabled" : "Capability off (server flag)"}</span>
       </div>
       <p className="mt-1.5 text-[12px] text-slate-400">On an inbound customer text, AI drafts a <b className="text-slate-200">grounded reply suggestion</b> that a human approves, edits, or rejects in the AI Inbox. <b className="text-slate-200">It never sends autonomously.</b>{!capable ? " The server capability flag is off, so no suggestions are generated yet." : ""}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {MODES.map(([val, label]) => (
-          <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black ${mode === val ? "border-cyan-300/50 bg-cyan-300/15 text-cyan-50" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
+          <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black ${mode === val ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
         ))}
         {stats ? <span className="ml-1 text-[11px] text-slate-400">Last 30d — suggested {stats.suggested || 0} · skipped {stats.skipped || 0} · errors {stats.errored || 0}</span> : null}
       </div>
@@ -134,7 +134,7 @@ const canSeeModule = (module, user) => {
 };
 
 function MetricCard({ icon: Icon, label, value, hint, tone = "cyan" }) {
-  const toneRing = tone === "amber" ? "text-amber-200" : tone === "rose" ? "text-rose-200" : tone === "emerald" ? "text-emerald-200" : "text-cyan-100";
+  const toneRing = tone === "amber" ? "text-amber-200" : tone === "rose" ? "text-rose-200" : tone === "emerald" ? "text-emerald-200" : "text-primary";
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
       <div className="flex items-center justify-between gap-2">
@@ -237,7 +237,7 @@ export default function AiStudio() {
       <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
+            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary">
               <Sparkles className="h-4 w-4" />
               AI Studio
             </div>
@@ -262,7 +262,7 @@ export default function AiStudio() {
       {/* Real metrics */}
       <section>
         <div className="mb-2 flex items-center gap-2 px-1">
-          <Activity className="h-4 w-4 text-cyan-100" />
+          <Activity className="h-4 w-4 text-primary" />
           <h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">Overview</h2>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -289,15 +289,15 @@ export default function AiStudio() {
                 <Link
                   key={module.to + module.label}
                   to={module.to}
-                  className="group flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
+                  className="group flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition hover:border-primary/40 hover:bg-white/[0.06]"
                 >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-slate-950/60 text-cyan-100">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-slate-950/60 text-primary">
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 text-sm font-black text-white">
                       {module.label}
-                      <ArrowUpRight className="h-3.5 w-3.5 text-slate-500 transition group-hover:text-cyan-200" />
+                      <ArrowUpRight className="h-3.5 w-3.5 text-slate-500 transition group-hover:text-primary" />
                     </span>
                     <span className="mt-0.5 block text-[12px] font-medium leading-5 text-slate-400">{module.description}</span>
                   </span>

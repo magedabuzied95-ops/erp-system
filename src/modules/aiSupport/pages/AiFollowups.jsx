@@ -63,7 +63,7 @@ const channelLabel = (value = "") => {
 const channelTone = (value = "") => {
   const channel = lower(value);
   if (channel.includes("whatsapp")) return "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
-  if (channel.includes("messenger")) return "border-sky-300/20 bg-sky-400/10 text-sky-100";
+  if (channel.includes("messenger")) return "border-primary/20 bg-primary/10 text-primary";
   if (channel.includes("instagram")) return "border-fuchsia-300/20 bg-fuchsia-400/10 text-fuchsia-100";
   return "border-white/10 bg-slate-950/50 text-slate-300";
 };
@@ -79,7 +79,7 @@ const taskTone = (value = "") => {
     return "border-rose-300/20 bg-rose-400/10 text-rose-100";
   }
   if (key.includes("follow")) {
-    return "border-cyan-300/20 bg-cyan-400/10 text-cyan-100";
+    return "border-primary/20 bg-primary/10 text-primary";
   }
   if (key.includes("reply") || key.includes("message")) {
     return "border-violet-300/20 bg-violet-400/10 text-violet-100";
@@ -113,7 +113,7 @@ function EmptyState({ text = "No follow-ups need action right now." }) {
 
 function KpiCard({ label, value, tone = "zinc" }) {
   const tones = {
-    cyan: "border-cyan-300/15 bg-cyan-400/10 text-cyan-100",
+    cyan: "border-primary/15 bg-primary/10 text-primary",
     emerald: "border-emerald-300/15 bg-emerald-400/10 text-emerald-100",
     amber: "border-amber-300/15 bg-amber-400/10 text-amber-100",
     rose: "border-rose-300/15 bg-rose-400/10 text-rose-100",
@@ -224,7 +224,7 @@ function FollowupCard({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => onOpenInbox?.(row)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-sm font-black text-slate-950">
+          <button type="button" onClick={() => onOpenInbox?.(row)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-sm font-black text-slate-950">
             <ExternalLink className="h-4 w-4" />
             Open Inbox
           </button>
@@ -271,7 +271,7 @@ function FollowupCard({
                 value={draft}
                 onChange={(event) => onDraftChange?.(event.target.value)}
                 rows={3}
-                className="w-full resize-none rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none focus:border-cyan-300/40"
+                className="w-full resize-none rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none focus:border-primary/40"
                 placeholder="Internal note for staff..."
                 dir="auto"
               />
@@ -291,7 +291,7 @@ function FollowupCard({
                   type="button"
                   onClick={() => onSendManual?.(row)}
                   disabled={busy || !text(draft)}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-45"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-xs font-black text-slate-950 disabled:opacity-45"
                 >
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Send manual note
@@ -497,7 +497,7 @@ export default function AiFollowups() {
         <section className="rounded-3xl border border-white/10 bg-white/[0.055] p-4 md:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100">
+              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary">
                 <Clock3 className="h-4 w-4" />
                 AI Follow-up Execution Center
               </div>
@@ -510,7 +510,7 @@ export default function AiFollowups() {
               type="button"
               onClick={loadFollowups}
               disabled={loading}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Refresh
@@ -563,7 +563,7 @@ export default function AiFollowups() {
               onClick={() => setActiveFilter(filter.key)}
               className={`h-9 rounded-full px-3 text-xs font-black transition ${
                 activeFilter === filter.key
-                  ? "bg-cyan-300 text-slate-950"
+                  ? "bg-primary text-slate-950"
                   : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10"
               }`}
             >

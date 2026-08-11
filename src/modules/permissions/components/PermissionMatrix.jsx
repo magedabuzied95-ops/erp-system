@@ -69,7 +69,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
     <div className="space-y-4 rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-cyan-300/70">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-primary/70">
             <ShieldCheck className="h-4 w-4" />
             Permission matrix
           </div>
@@ -82,7 +82,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
             type="button"
             onClick={() => onSave?.(selected)}
             disabled={saving || fullAccessRole}
-            className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             {fullAccessRole ? "Full access locked" : saving ? "Saving..." : "Save permissions"}
@@ -135,7 +135,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
                       "flex items-center justify-center rounded-2xl border px-4 py-3 text-sm font-semibold transition",
                       fullAccessRole ? "cursor-not-allowed opacity-80" : "",
                       active
-                        ? "border-cyan-500/40 bg-cyan-500 text-black"
+                        ? "border-primary/40 bg-primary text-black"
                         : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white",
                     ].join(" ")}
                   >

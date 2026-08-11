@@ -132,7 +132,7 @@ function InventoryHistory() {
           </Link>
           <Link
             to="/inventory/adjustments"
-            className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-2 text-sm font-black text-black transition hover:bg-blue-400"
+            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
           >
             <History className="h-4 w-4" />
             تسويات المخزون

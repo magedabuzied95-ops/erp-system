@@ -2640,7 +2640,7 @@ function ProductCard({ group, purchaseQtyLabel, purchaseQtySelected = false, onC
       </button>
       <div className="grid grid-cols-1 border-t border-white/10 sm:grid-cols-3">
         <button type="button" onClick={onSizeRun} className="px-2 py-1.5 text-[11px] font-black text-emerald-300 hover:bg-white/5">{t("purchases.create.sizeRun")}</button>
-        <button type="button" onClick={onColorRun} className="border-t border-white/10 px-2 py-1.5 text-[11px] font-black text-cyan-300 hover:bg-white/5 sm:border-l sm:border-t-0">{t("purchases.create.colorRun")}</button>
+        <button type="button" onClick={onColorRun} className="border-t border-white/10 px-2 py-1.5 text-[11px] font-black text-primary hover:bg-white/5 sm:border-l sm:border-t-0">{t("purchases.create.colorRun")}</button>
         <button type="button" aria-pressed={purchaseQtySelected} onClick={onUsePurchaseQty} className={`inline-flex items-center justify-center gap-1.5 border-t border-white/10 px-2 py-1.5 text-[11px] font-black sm:border-l sm:border-t-0 ${purchaseQtySelected ? "bg-amber-400 text-black" : "text-amber-200 hover:bg-amber-400/10"}`}>
           <ClipboardCheck className="h-3.5 w-3.5" />
           {purchaseQtyLabel}
@@ -2810,7 +2810,7 @@ function Badge({ tone = "zinc", label }) {
   const classes = {
     amber: "bg-amber-400 text-black",
     emerald: "bg-emerald-400 text-black",
-    cyan: "bg-cyan-400 text-black",
+    cyan: "bg-primary text-black",
     rose: "bg-rose-400 text-black",
     zinc: "bg-white/10 text-white",
   };
@@ -2913,9 +2913,9 @@ function PurchaseCart({
             type="button"
             onClick={() => onBulkPrice?.("selling")}
             disabled={!hasItems}
-            className="group inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-2 py-1.5 text-[11px] font-black text-cyan-100 shadow-lg shadow-cyan-950/10 transition hover:border-cyan-300/60 hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="group inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 py-1.5 text-[11px] font-black text-primary shadow-lg shadow-primary/10 transition hover:border-primary/60 hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <ShoppingCart className="h-4 w-4 text-cyan-300" />
+            <ShoppingCart className="h-4 w-4 text-primary" />
             سعر بيع جماعي
           </button>
           <button
@@ -3618,7 +3618,7 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
   return (
     <Modal eyebrow="تسعير جماعي" title="أسعار نموذج المنتج" onClose={onClose}>
       <div className="flex max-h-[82vh] flex-col gap-4">
-        <div className="rounded-3xl border border-cyan-400/25 bg-cyan-400/10 p-4">
+        <div className="rounded-3xl border border-primary/25 bg-primary/10 p-4">
           <div className="text-sm font-black text-white">تحديد سعر البيع وسعر الخصم وسعر الجملة حسب المنتج أو النموذج.</div>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
             تطبيق الأسعار يحدّث بنود فاتورة الشراء محليًا فقط، ولا ينفّذ الاستلام.
@@ -3669,7 +3669,7 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
             <span>تمت: <b className="text-emerald-200">{completedCount}</b> / {productCount}</span>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <button type="button" onClick={apply} className="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-black transition hover:bg-cyan-300">
+            <button type="button" onClick={apply} className="rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">
               تطبيق الأسعار
             </button>
             <button type="button" onClick={saveAndClose} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">
@@ -3761,7 +3761,7 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
     ? "border-emerald-400/25 bg-emerald-400/10"
     : isSale
       ? "border-amber-400/25 bg-amber-400/10"
-      : "border-cyan-400/25 bg-cyan-400/10";
+      : "border-primary/25 bg-primary/10";
   const title = isPurchase ? t("purchases.create.bulkPurchasePrice") : isSale ? t("purchases.create.bulkSalePrice") : t("purchases.create.bulkSellingPrice");
 
   return (
@@ -3894,7 +3894,7 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
             {t("common.cancel")}
           </button>
-          <button type="submit" className={`rounded-2xl px-4 py-3 text-sm font-black text-black transition ${isPurchase ? "bg-emerald-500 hover:bg-emerald-400" : isSale ? "bg-amber-400 hover:bg-amber-300" : "bg-cyan-400 hover:bg-cyan-300"}`}>
+          <button type="submit" className={`rounded-2xl px-4 py-3 text-sm font-black text-black transition ${isPurchase ? "bg-emerald-500 hover:bg-emerald-400" : isSale ? "bg-amber-400 hover:bg-amber-300" : "bg-primary hover:bg-primary"}`}>
             {t("purchases.create.apply")}
           </button>
         </div>
