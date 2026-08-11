@@ -97,6 +97,56 @@ test("an empty state does not tower over the compact rows it replaces", () => {
   assert.match(css, /\.m1-table--compact > tbody > tr > td\.m1-table__empty[^{]*\{[^}]*padding-block: 16px/s);
 });
 
+// ---- spaced-row variant ---------------------------------------------------
+
+test("the spaced-row variant keeps separate borders and a token-driven gap", () => {
+  // Its whole reason to exist is that border-collapse would delete the row gap
+  // that IS the design of a variant matrix or campaign grid.
+  assert.match(css, /\.m1-table--separate \{[^}]*border-collapse: separate/s);
+  assert.match(css, /\.m1-table--separate \{[^}]*border-spacing: 0 var\(--m1-table-row-gap\)/s);
+  assert.match(css, /\.m1-table--separate \{[^}]*--m1-table-row-gap: 12px/s);
+});
+
+test("the spaced-row gap scales with density like everything else", () => {
+  assert.match(css, /\.m1-table--separate\.m1-table--compact \{\s*--m1-table-row-gap: 8px;/);
+});
+
+test("the spaced row draws its card on the CELLS, because a tr cannot", () => {
+  // In separate mode a <tr> border is not painted and its background sits behind
+  // the cells, so the card edge has to live on the td.
+  assert.match(css, /\.m1-table--separate > tbody > tr > td \{[^}]*background: var\(--surface\)/s);
+  assert.match(css, /\.m1-table--separate > tbody > tr > td \{[^}]*border-block: 1px solid var\(--border\)/s);
+  assert.match(css, /\.m1-table--separate > tbody > tr:hover > td/);
+  assert.match(css, /\.m1-table--separate > tbody > tr\[data-selected="true"\] > td/);
+});
+
+test("the spaced-row card closes on the correct side in RTL without a mirrored rule", () => {
+  // Logical corners + logical inline edges, so :first-child and the radius flip
+  // together with direction.
+  assert.match(css, /td:first-child \{[^}]*border-inline-start: 1px solid var\(--border\)/s);
+  assert.match(css, /td:first-child \{[^}]*border-start-start-radius/s);
+  assert.match(css, /td:last-child \{[^}]*border-inline-end: 1px solid var\(--border\)/s);
+  assert.match(css, /td:last-child \{[^}]*border-end-end-radius/s);
+  assert.doesNotMatch(css, /\[dir=["']?(?:rtl|ltr)["']?\][^{]*m1-table--separate/);
+});
+
+test("the spaced variant overrides the base cell rule by ORDER, not !important", () => {
+  // Both selectors are (0,1,3); the variant wins only because it comes later.
+  const base = css.indexOf(".m1-table > tbody > tr > td {");
+  const variant = css.indexOf(".m1-table--separate > tbody > tr > td {");
+  assert.ok(base > -1 && variant > -1);
+  assert.ok(variant > base, "the separate variant must be declared after the base cell rule");
+});
+
+test("an empty state inside a spaced table is a message, not a card", () => {
+  assert.match(css, /\.m1-table--separate > tbody > tr > td\.m1-table__empty,[\s\S]{0,120}\{[^}]*background: transparent/);
+});
+
+test("Table exposes the spaced-row variant as a prop", () => {
+  assert.match(jsx, /export function Table\(\{ density = "comfortable", separate = false/);
+  assert.match(jsx, /separate \? "m1-table--separate" : null/);
+});
+
 // ---- RTL ------------------------------------------------------------------
 
 test("the table system is RTL by construction — logical properties only", () => {

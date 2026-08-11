@@ -427,8 +427,9 @@ export function TableContainer({ plain = false, className = "", children, ...res
   );
 }
 
-export function Table({ density = "comfortable", sticky = false, interactive = false, wide = false, nowrap = false, className = "", children, ...rest }) {
+export function Table({ density = "comfortable", separate = false, sticky = false, interactive = false, wide = false, nowrap = false, className = "", children, ...rest }) {
   const modifiers = [
+    separate ? "m1-table--separate" : null,
     sticky ? "m1-table--sticky" : null,
     interactive ? "m1-table--interactive" : null,
     wide ? "m1-table--wide" : null,

@@ -163,6 +163,76 @@
   border-top: 1px solid var(--border-strong);
 }
 
+/* ---- spaced rows --------------------------------------------------------- */
+/* Some ERP tables deliberately render each row as a detached card: variant
+   matrices, the campaign analytics grid, inventory history. They wore
+   `border-separate border-spacing-y-3`, and the canonical `border-collapse:
+   collapse` would silently delete the gap that IS their design — which is why
+   they were skipped in Batch 1 rather than flattened.
+
+   This variant is the generic version of that idea. It expresses "row as card"
+   with tokens and no page-specific knowledge, so a spaced table is still a
+   canonical table: same density scale, same header, same tokens.
+
+   The card edge lives on the CELLS, not the row: a <tr> border is not painted in
+   separate mode, and a <tr> background sits behind the cells. Both rules below
+   therefore match the base cell selector's specificity (0,1,3) and win purely by
+   coming later in the file — no !important. */
+.m1-table--separate {
+  --m1-table-row-gap: 12px;
+  border-collapse: separate;
+  border-spacing: 0 var(--m1-table-row-gap);
+}
+
+.m1-table--separate.m1-table--compact {
+  --m1-table-row-gap: 8px;
+}
+
+.m1-table--separate > tbody > tr > td {
+  background: var(--surface);
+  border-block: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The base rule strips the last row's bottom border to avoid a trailing rule
+   under a collapsed table. A card needs all four sides. */
+.m1-table--separate > tbody > tr:last-child > td {
+  border-bottom: 1px solid var(--border);
+}
+
+/* Logical corners and edges, so the card closes on the correct side in RTL
+   without a mirrored rule. `:first-child` is first in DOM order and the logical
+   radii resolve by direction, so the two flip together. */
+.m1-table--separate > tbody > tr > td:first-child {
+  border-inline-start: 1px solid var(--border);
+  border-start-start-radius: var(--radius-lg);
+  border-end-start-radius: var(--radius-lg);
+}
+
+.m1-table--separate > tbody > tr > td:last-child {
+  border-inline-end: 1px solid var(--border);
+  border-start-end-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+}
+
+/* Hover and selection have to move to the cell too, for the same reason the
+   border did: the row's own background is behind the cards. */
+.m1-table--separate > tbody > tr:hover > td {
+  background: var(--table-hover);
+}
+
+.m1-table--separate > tbody > tr[data-selected="true"] > td,
+.m1-table--separate > tbody > tr.is-selected > td {
+  background: var(--table-selected);
+}
+
+/* An empty or loading row is a message, not a card. */
+.m1-table--separate > tbody > tr > td.m1-table__empty,
+.m1-table--separate > tbody > tr > td.m1-table__loading {
+  background: transparent;
+  border: 0;
+}
+
 /* ---- cell modifiers ------------------------------------------------------ */
 /* Numbers are read by magnitude, so they align to the end edge and use tabular
    figures. This is NOT mirrored for RTL: an Arabic ledger still wants its digit
