@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 import "./Customer360Drawer.css";
 
 const clean = (value = "") => String(value ?? "").trim();
@@ -591,10 +592,18 @@ export default function Customer360Drawer({
                 <div key={label} className="m1-customer-products-section rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                   <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
                   <div className="mt-3 space-y-2">
-                    {list.length ? list.slice(0, 3).map((product, index) => (
+                    {list.length ? list.slice(0, 3).map((product, index) => {
+                      const imageUrl = resolveProductImageUrl(
+                        product.image_url ||
+                          product.product_image_url ||
+                          product.variant_image_url ||
+                          product.thumbnail_url ||
+                          product.image
+                      );
+                      return (
                       <div key={product.id || product.product_id || index} className="m1-customer-product-card flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-2.5">
                         <div className="m1-customer-product-image h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-                          {product.image_url ? <img src={product.image_url} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
+                          {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-black text-[var(--text)]">{clean(product.name || product.title || product.product_name || "Product")}</div>
@@ -605,7 +614,8 @@ export default function Customer360Drawer({
                           Open Product <ExternalLink className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                    )) : <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">No products in this section.</div>}
+                      );
+                    }) : <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">No products in this section.</div>}
                   </div>
                 </div>
               ))}
