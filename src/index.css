@@ -1,6 +1,32 @@
 @import "tailwindcss";
 
 /* ============================================================================
+   THEME OWNERSHIP — Tailwind `dark:` follows the APPLICATION theme (Phase 1.5)
+   ----------------------------------------------------------------------------
+   src/theme/ThemeProvider.jsx is the single authoritative theme owner: it writes
+   the token variables and toggles `.dark` on BOTH <html> and <body>, alongside
+   data-theme / data-density / color-scheme.
+
+   Tailwind v4 defaults `dark:` to `prefers-color-scheme`, and this repo's
+   `darkMode: "class"` sits in tailwind.config.js, which is never loaded (no
+   `@config` directive references it). So all ~1,486 `dark:` utilities followed
+   the OPERATING SYSTEM rather than the user's chosen app theme: OS-dark +
+   app-light painted dark utilities onto a light UI, and OS-light + app-dark left
+   them off inside a dark one.
+
+   This binds the variant to the class ThemeProvider already owns — one central
+   correction, zero call-site changes.
+
+   DELIBERATE EXCEPTION — the storefront is NOT included. It owns its own
+   `body.storefront-dark` with dedicated CSS (storefront-light.css plus the
+   .storefront-dark rules below) and already reads `.dark` itself in
+   Storefront.jsx. Adding `.storefront-dark` here would newly activate 1,486
+   utilities across customer-facing pages: a visual change needing its own
+   review, not part of a theme-ownership fix.
+   ========================================================================== */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================================
    M1 CANONICAL DESIGN TOKENS — Tailwind semantic bridge (Phase 1)
    ----------------------------------------------------------------------------
    The CSS custom properties are the single source of truth. They are written at

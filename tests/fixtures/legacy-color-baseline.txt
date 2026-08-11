@@ -123,6 +123,7 @@ src/modules/pos/components/CartSidebar.jsx
 src/modules/pos/components/PosHeader.jsx
 src/modules/pos/components/RecentOperationsDrawer.jsx
 src/modules/pos/pages/POSPro.jsx
+src/modules/products/components/CrocsSizeSelector.jsx
 src/modules/products/components/ProductColors.jsx
 src/modules/products/components/ProductForm.jsx
 src/modules/products/components/ProductSizes.jsx

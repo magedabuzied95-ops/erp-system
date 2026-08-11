@@ -160,3 +160,35 @@ test("no bridged variable is self-referential", () => {
     assert.notEqual(name, ref, `circular token: ${name} references itself`);
   }
 });
+
+// ---- Phase 1.5: theme ownership -----------------------------------------
+
+test("Tailwind `dark:` is class-driven, not OS-driven", () => {
+  // ThemeProvider is the single theme owner and toggles `.dark`. Tailwind v4
+  // defaults `dark:` to prefers-color-scheme, and this repo's
+  // `darkMode: "class"` sits in tailwind.config.js which is never loaded (no
+  // @config directive), so ~1,486 dark: utilities followed the OS instead of the
+  // user's chosen theme. This variant binds them to the app class.
+  assert.match(indexCss, /@custom-variant dark \(&:where\(\.dark, \.dark \*\)\);/);
+});
+
+test("tailwind.config.js is still inert — nothing may rely on it", () => {
+  // If someone later adds @config, `darkMode` there would start competing with
+  // the custom variant and we would be back to two owners.
+  const withoutComments = indexCss.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(withoutComments, /@config/);
+});
+
+test("ThemeProvider remains the authoritative owner of `.dark`", () => {
+  const provider = fs.readFileSync(path.join(SRC, "theme", "ThemeProvider.jsx"), "utf8");
+  assert.match(provider, /root\.classList\.toggle\("dark", theme\.mode === "dark"\)/);
+  assert.match(provider, /body\.classList\.toggle\("dark", theme\.mode === "dark"\)/);
+});
+
+test("the storefront keeps its own scoped dark theme", () => {
+  // Deliberate exception: storefront owns body.storefront-dark + its own CSS.
+  // Pulling it into the variant would newly activate 1,486 utilities on
+  // customer-facing pages.
+  const variant = indexCss.match(/@custom-variant dark \([^)]*\)/)[0];
+  assert.ok(!variant.includes("storefront-dark"), "storefront must stay independently themed");
+});
