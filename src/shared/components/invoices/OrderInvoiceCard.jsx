@@ -369,7 +369,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
 
         <div className={`mt-5 w-full max-w-sm rounded-2xl border p-4 ${luxury ? "border-slate-200/90 bg-slate-50/90 shadow-[0_16px_45px_rgba(15,23,42,0.08)] print:border-slate-200 print:bg-slate-50 print:shadow-none" : "border-stone-200 bg-stone-50"} ${isRtl ? "mr-auto" : "ml-auto"}`}>
           <Summary luxury={luxury} label={copy.subtotal} value={formatCurrency(totals?.subtotal)} />
-          <Summary luxury={luxury} label={copy.discount} value={`- ${formatCurrency(totals?.discount)}`} />
+          {Number(totals?.discount || 0) > 0 ? <Summary luxury={luxury} label={copy.discount} value={`- ${formatCurrency(totals?.discount)}`} /> : null}
           {Number(totals?.shipping || 0) > 0 ? <Summary luxury={luxury} label={shippingLabel} value={formatCurrency(totals?.shipping)} /> : null}
           {totals?.exchangeMode ? (
             <>

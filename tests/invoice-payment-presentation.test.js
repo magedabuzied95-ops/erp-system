@@ -32,6 +32,12 @@ test("service fees are not presented as shipping and zero shipping is hidden", (
   assert.match(invoiceCard, /Number\(totals\?\.shipping \|\| 0\) > 0/);
 });
 
+test("zero discounts stay hidden on public and printed invoices", () => {
+  const receipt = read("../src/modules/pos/components/CartSidebar.jsx");
+  assert.match(invoiceCard, /Number\(totals\?\.discount \|\| 0\) > 0 \? <Summary/);
+  assert.match(receipt, /premiumDiscount > 0 \? <ReceiptTotalRow/);
+});
+
 test("thermal receipts fall back to persisted remaining amount", () => {
   assert.match(pos, /order\.remaining_amount \?\? order\.remainingAmount/);
 });

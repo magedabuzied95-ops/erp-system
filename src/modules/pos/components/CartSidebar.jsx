@@ -1580,7 +1580,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       <div className="mt-3 rounded-[22px] border border-emerald-100 bg-white px-3 py-3">
         <div className="space-y-1.5 text-[13px]">
           <ReceiptTotalRow label={receiptPrintLabel("subtotal", "الإجمالي الفرعي")} value={formatCurrency(totals.subtotal)} />
-          <ReceiptTotalRow label={receiptPrintLabel("discounts", "الخصومات")} value={`- ${formatCurrency(premiumDiscount)}`} />
+          {premiumDiscount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("discounts", "الخصومات")} value={`- ${formatCurrency(premiumDiscount)}`} /> : null}
           {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("couponDiscount", "خصم الكوبون")} value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
           {Number(totals.loyaltyDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("loyaltyDiscount", "خصم الولاء")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} /> : null}
           {premiumService > 0 ? <ReceiptTotalRow label={receiptPrintLabel("serviceFee", "رسوم الخدمة")} value={formatCurrency(premiumService)} /> : null}
