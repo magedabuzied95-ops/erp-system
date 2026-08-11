@@ -228,6 +228,7 @@ const createEmptyColorGroup = (defaults = {}) => ({
 });
 
 const createColorImageItem = (value = {}, index = 0) => {
+  const hasExplicitImageUrl = typeof value === "object" && value !== null && Object.prototype.hasOwnProperty.call(value, "image_url");
   const preview =
     typeof value === "string"
       ? value
@@ -235,14 +236,15 @@ const createColorImageItem = (value = {}, index = 0) => {
   const imageUrl =
     typeof value === "string"
       ? value
-      : value?.image_url || value?.url || value?.preview || value?.image || "";
+      : value?.image_url || value?.url || (!hasExplicitImageUrl ? value?.preview || value?.image : "") || "";
   const finalPreview = String(preview || imageUrl || "").trim();
-  const finalUrl = String(imageUrl || finalPreview || "").trim();
+  const finalUrl = String(imageUrl || (!hasExplicitImageUrl ? finalPreview : "") || "").trim();
   if (!finalPreview && !finalUrl) return null;
   return {
     id: value?.id || makeId(),
     preview: finalPreview,
     image_url: finalUrl,
+    uploading: Boolean(value?.uploading),
     is_primary: Boolean(value?.is_primary ?? value?.isPrimary ?? index === 0),
     generated_by_ai: Boolean(value?.generated_by_ai ?? value?.generatedByAi),
     name: value?.name || finalPreview.split("/").pop() || `Color image ${index + 1}`,
@@ -2149,8 +2151,21 @@ function ProductEdit() {
       void detectColorNameForGroup(groupId, list[0], { overwrite: false });
     }
 
+    const previews = await Promise.all(list.map((file) => readFileAsDataUrl(file)));
+    const existingImageCount = Array.isArray(targetGroup?.images) ? targetGroup.images.length : 0;
+    const optimisticItems = list.map((file, index) => ({
+      id: makeId(),
+      preview: previews[index],
+      image_url: "",
+      uploading: true,
+      is_primary: existingImageCount === 0 && index === 0,
+      name: file?.name || `Color image ${index + 1}`,
+    }));
+
+    updateColorGroupImages(groupId, (images) => [...images, ...optimisticItems]);
+
     const uploads = list.map(async (file, index) => {
-      const preview = await readFileAsDataUrl(file);
+      const optimisticItem = optimisticItems[index];
       const uploadPromise = uploadProductImage(file)
         .then((response) => {
           const uploadedUrl =
@@ -2162,35 +2177,36 @@ function ProductEdit() {
           if (uploadedUrl) {
             colorImageUrlsRef.current.set(groupId, uploadedUrl);
           }
-          return { preview, image_url: uploadedUrl || "", name: file?.name || `Color image ${index + 1}` };
+          updateColorGroupImages(groupId, (images) =>
+            images.map((image) =>
+              String(image.id) === String(optimisticItem.id)
+                ? { ...image, preview: uploadedUrl || image.preview, image_url: uploadedUrl || "", uploading: false }
+                : image
+            )
+          );
+          return uploadedUrl;
         })
         .catch((uploadError) => {
-          console.warn("[products:edit] color image upload failed, keeping preview only:", {
+          console.warn("[products:edit] color image upload failed:", {
             groupId,
             message: uploadError?.message,
             status: uploadError?.status,
             responseBody: uploadError?.responseBody,
           });
           toast.error(t("products.editor.colorImageUploadFailed"));
-          return { preview, image_url: "", name: file?.name || `Color image ${index + 1}` };
+          updateColorGroupImages(groupId, (images) => images.filter((image) => String(image.id) !== String(optimisticItem.id)));
+          return "";
         });
 
-      pendingColorUploadsRef.current.set(`${groupId}:${index}`, uploadPromise);
+      pendingColorUploadsRef.current.set(`${groupId}:${optimisticItem.id}`, uploadPromise);
       try {
         return await uploadPromise;
       } finally {
-        pendingColorUploadsRef.current.delete(`${groupId}:${index}`);
+        pendingColorUploadsRef.current.delete(`${groupId}:${optimisticItem.id}`);
       }
     });
 
-    const items = await Promise.all(uploads);
-    updateColorGroupImages(groupId, (images) => {
-      const normalized = dedupeImages([...images, ...items.map((item, index) => createColorImageItem({ ...item, is_primary: images.length === 0 && index === 0 }, index + images.length)).filter(Boolean)]);
-      if (!normalized.some((item) => item.is_primary) && normalized.length > 0) {
-        normalized[0] = { ...normalized[0], is_primary: true };
-      }
-      return normalized;
-    });
+    await Promise.all(uploads);
   };
 
   const addColorGroup = () => {

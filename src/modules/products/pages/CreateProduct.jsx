@@ -285,6 +285,7 @@ const createEmptyColorGroup = (defaults = {}) => {
 };
 
 const createColorImageItem = (value = {}, index = 0) => {
+  const hasExplicitImageUrl = typeof value === "object" && value !== null && Object.prototype.hasOwnProperty.call(value, "image_url");
   const preview =
     typeof value === "string"
       ? value
@@ -292,14 +293,15 @@ const createColorImageItem = (value = {}, index = 0) => {
   const imageUrl =
     typeof value === "string"
       ? value
-      : value?.image_url || value?.url || value?.preview || value?.image || "";
+      : value?.image_url || value?.url || (!hasExplicitImageUrl ? value?.preview || value?.image : "") || "";
   const finalPreview = String(preview || imageUrl || "").trim();
-  const finalUrl = String(imageUrl || finalPreview || "").trim();
+  const finalUrl = String(imageUrl || (!hasExplicitImageUrl ? finalPreview : "") || "").trim();
   if (!finalPreview && !finalUrl) return null;
   return {
     id: value?.id || makeId(),
     preview: finalPreview,
     image_url: finalUrl,
+    uploading: Boolean(value?.uploading),
     is_primary: Boolean(value?.is_primary ?? value?.isPrimary ?? index === 0),
     name: value?.name || finalPreview.split("/").pop() || `صورة لون ${index + 1}`,
   };
@@ -1437,12 +1439,33 @@ function CreateProduct() {
     if (!String(targetGroup?.color || "").trim()) {
       void detectColorNameForGroup(colorGroupId, list[0], { overwrite: false });
     }
-    const uploads = await mapWithConcurrency(list, MAX_IMAGE_UPLOAD_CONCURRENCY, async (file, index) => {
-      const uploadKey = `${colorGroupId}:${index}:${file?.name || "file"}`;
+    const existingImageCount = Array.isArray(targetGroup?.images) ? targetGroup.images.length : 0;
+    const optimisticItems = list.map((file, index) => ({
+      id: makeId(),
+      preview: createObjectPreviewUrl(file),
+      image_url: "",
+      uploading: true,
+      is_primary: existingImageCount === 0 && index === 0,
+      name: file?.name || `Color image ${index + 1}`,
+    }));
+
+    updateColorGroupImages(colorGroupId, (images) => [...images, ...optimisticItems]);
+
+    await mapWithConcurrency(list, MAX_IMAGE_UPLOAD_CONCURRENCY, async (file, index) => {
+      const optimisticItem = optimisticItems[index];
+      const uploadKey = `${colorGroupId}:${optimisticItem.id}`;
       const uploadPromise = uploadProductImageValue(file, { filename: file?.name || `color-image-${index + 1}.png` })
         .then((uploadedUrl) => {
           if (uploadedUrl) colorImageUrlsRef.current.set(colorGroupId, uploadedUrl);
-          return { preview: uploadedUrl || "", image_url: uploadedUrl || "", name: file?.name || `Color image ${index + 1}` };
+          updateColorGroupImages(colorGroupId, (images) =>
+            images.map((image) =>
+              String(image.id) === String(optimisticItem.id)
+                ? { ...image, preview: uploadedUrl || image.preview, image_url: uploadedUrl || "", uploading: false }
+                : image
+            )
+          );
+          revokeObjectPreviewUrl(optimisticItem.preview);
+          return uploadedUrl;
         })
         .catch((error) => {
           console.warn("[products:add] color image upload failed:", {
@@ -1452,7 +1475,9 @@ function CreateProduct() {
             responseBody: error?.responseBody,
           });
           toast.error(t("products.editor.colorImageUploadFailed"));
-          return { preview: "", image_url: "", name: file?.name || `Color image ${index + 1}` };
+          updateColorGroupImages(colorGroupId, (images) => images.filter((image) => String(image.id) !== String(optimisticItem.id)));
+          revokeObjectPreviewUrl(optimisticItem.preview);
+          return "";
         });
       pendingColorUploadsRef.current.set(uploadKey, uploadPromise);
       try {
@@ -1460,16 +1485,6 @@ function CreateProduct() {
       } finally {
         pendingColorUploadsRef.current.delete(uploadKey);
       }
-    });
-    updateColorGroupImages(colorGroupId, (images) => {
-      const normalized = dedupeImages([
-        ...images,
-        ...uploads.map((item, index) => createColorImageItem({ ...item, is_primary: images.length === 0 && index === 0 }, index + images.length)).filter(Boolean),
-      ]);
-      if (!normalized.some((item) => item.is_primary) && normalized.length > 0) {
-        normalized[0] = { ...normalized[0], is_primary: true };
-      }
-      return normalized;
     });
   };
 
