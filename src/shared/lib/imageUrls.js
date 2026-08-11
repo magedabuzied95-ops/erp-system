@@ -84,6 +84,16 @@ export const resolveProductImageUrl = (value) => {
   return joinAssetUrl(`/uploads/products/${imageUrl}`);
 };
 
+export const resolveBrandImageUrl = (value) => {
+  const imageUrl = String(value || "").trim();
+  if (!imageUrl) return "";
+  if (/^\/?branding\//i.test(imageUrl) || /^\/?favicon(?:\.|\/)/i.test(imageUrl)) {
+    const frontendPath = imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`;
+    return resolveFrontendPublicAsset(frontendPath);
+  }
+  return resolveProductImageUrl(imageUrl);
+};
+
 export const resolveEmployeeProfileImageUrl = (value) => {
   const imageUrl = String(value || "").trim();
   if (!imageUrl) return "";

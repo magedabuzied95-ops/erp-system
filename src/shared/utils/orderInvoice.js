@@ -2,6 +2,7 @@ import { displayPublicOrderNumber } from "./publicOrderNumber";
 import { resolveInvoiceItemImageValue } from "../lib/invoiceItemImages";
 import { formatCurrency } from "../lib/currency";
 import { getCurrentTenant } from "../auth/authStorage";
+import { resolveBrandImageUrl } from "../lib/imageUrls";
 
 const M1_STORE_NAME = "M1 Store";
 const M1_STORE_WEBSITE_TEXT = "Www.m1store-egy.com";
@@ -56,7 +57,7 @@ const resolveStoreBrandLogoUrl = (order = {}, options = {}) => {
     tenant.settings?.logoUrl,
     tenant.settings?.logo_url,
   ];
-  return candidates.map((value) => String(value || "").trim()).find(Boolean) || "";
+  return resolveBrandImageUrl(candidates.map((value) => String(value || "").trim()).find(Boolean) || "");
 };
 
 const resolveStoreBrandName = (order = {}, options = {}) => {

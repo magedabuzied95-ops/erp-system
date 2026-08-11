@@ -1,5 +1,6 @@
 import { formatCurrency } from "../lib/currency";
 import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../lib/invoiceItemImages";
+import { resolveBrandImageUrl } from "../lib/imageUrls";
 import {
   documentHasArabicText,
   escapeHtml,
@@ -78,7 +79,7 @@ const getPublicInvoiceUrl = (invoice = {}) => {
 };
 
 const getStoreLogoUrl = (invoice = {}) =>
-  String(
+  resolveBrandImageUrl(String(
     invoice.store?.logoUrl ||
     invoice.store?.logo_url ||
     invoice.logoUrl ||
@@ -86,7 +87,7 @@ const getStoreLogoUrl = (invoice = {}) =>
     invoice.company_logo_url ||
     invoice.companyLogoUrl ||
     ""
-  ).trim();
+  ).trim());
 
 const renderStoreLogoMarkup = (invoice = {}) => {
   const logoUrl = getStoreLogoUrl(invoice);

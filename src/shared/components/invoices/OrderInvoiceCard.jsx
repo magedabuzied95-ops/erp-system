@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { formatCurrency } from "../../lib/currency";
 import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../../lib/invoiceItemImages";
+import { resolveBrandImageUrl } from "../../lib/imageUrls";
 import { useLocale } from "../../lib/locale";
 import { getCurrentTenant } from "../../auth/authStorage";
 import { normalizeOrderInvoiceData } from "../../utils/orderInvoice";
@@ -102,11 +103,11 @@ const getStoreBranding = () => {
         settings["storefront.store_name"] ||
         "M1 Store"
     ).trim(),
-    logoUrl: String(
+    logoUrl: resolveBrandImageUrl(String(
       settings["general.company_logo_url"] ||
         settings["storefront.store_logo_url"] ||
         ""
-    ).trim(),
+    ).trim()),
   };
 };
 
@@ -212,7 +213,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
           ...normalizedData.store,
           ...(invoice.store || {}),
           name: String(invoice.store?.name || normalizedData.store?.name || storeBranding.name || "M1 Store").trim(),
-          logoUrl: String(invoice.store?.logoUrl || normalizedData.store?.logoUrl || storeBranding.logoUrl || "").trim(),
+          logoUrl: resolveBrandImageUrl(String(invoice.store?.logoUrl || normalizedData.store?.logoUrl || storeBranding.logoUrl || "").trim()),
         },
         status: invoice.status ?? normalizedData.status,
       }

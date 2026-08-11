@@ -41,7 +41,7 @@ import { formatCurrency } from "../lib/posUtils";
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { matchesPhoneSearch, normalizePhone } from "../lib/phoneSearch";
-import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { resolveBrandImageUrl, resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { getCurrentTenant } from "../../../shared/auth/authStorage";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 
@@ -55,7 +55,7 @@ const M1_RECEIPT_THERMAL_LOGO = "https://res.cloudinary.com/dpnyfsjvz/image/uplo
 const M1_CUSTOMER_SERVICE_PHONE = "01000659301";
 
 const resolveThermalStoreLogo = (value = "") => {
-  const logoUrl = String(value || "").trim();
+  const logoUrl = resolveBrandImageUrl(value);
   if (!logoUrl) return "";
   return logoUrl.includes("ocxppxsepj5qfewqgch6") ? M1_RECEIPT_THERMAL_LOGO : logoUrl;
 };
