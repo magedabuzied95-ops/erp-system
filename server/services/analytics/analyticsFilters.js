@@ -223,8 +223,8 @@ export const parseAnalyticsFilters = (req = {}) => {
     page,
     // R3 product-attribute filters. Bound as parameters by the services, never
     // interpolated. sort/dimension are validated against allowlists downstream.
+    // brandId is already resolved above; R3 reuses it rather than declaring it twice.
     productType: cleanString(query.productType ?? query.product_type),
-    brandId: positiveInt(query.brandId ?? query.brand_id),
     gender: cleanString(query.gender),
     category: cleanString(query.category),
     search: cleanString(query.search),

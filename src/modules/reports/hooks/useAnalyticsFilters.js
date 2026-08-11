@@ -84,19 +84,33 @@ export const availableComparisons = (from, to) => {
 const DEFAULT_PRESET = "last30";
 const DEFAULT_COMPARE = "previous_period";
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isUsableRange = (from, to) => ISO_DATE.test(from || "") && ISO_DATE.test(to || "") && from <= to;
+
+/**
+ * Resolve the window from the URL.
+ *
+ * Explicit dates win over the preset. Otherwise a link that names a range would render
+ * the default window instead, and the numbers would look right while covering a
+ * different period — the worst kind of wrong for a report someone is about to act on.
+ */
+export const resolveWindow = ({ preset, from, to }) => {
+  if (isUsableRange(from, to)) return { preset: "custom", from, to };
+  const effective = PERIOD_PRESETS.includes(preset) && preset !== "custom" ? preset : DEFAULT_PRESET;
+  return { preset: effective, ...resolvePreset(effective) };
+};
+
 export default function useAnalyticsFilters() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const preset = searchParams.get("preset") || DEFAULT_PRESET;
-  const resolved = useMemo(() => {
-    if (preset === "custom") {
-      const from = searchParams.get("from");
-      const to = searchParams.get("to");
-      if (from && to) return { from, to };
-      return resolvePreset(DEFAULT_PRESET);
-    }
-    return resolvePreset(preset);
-  }, [preset, searchParams]);
+  const presetParam = searchParams.get("preset") || DEFAULT_PRESET;
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
+  const resolved = useMemo(
+    () => resolveWindow({ preset: presetParam, from: fromParam, to: toParam }),
+    [presetParam, fromParam, toParam]
+  );
+  const preset = resolved.preset;
 
   const allowed = useMemo(() => availableComparisons(resolved.from, resolved.to), [resolved.from, resolved.to]);
   const requestedCompare = searchParams.get("compare") || DEFAULT_COMPARE;

@@ -1,11 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Area,
   CartesianGrid,
   ComposedChart,
   Line,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -21,10 +20,52 @@ import { formatCurrency, formatNumber } from "../../../shared/lib/currency";
  * recharts leaves a gap there — deliberately, so a missing profit reads as missing
  * rather than as a drop to zero.
  */
+
+/**
+ * Width of the chart host, measured directly and handed to recharts explicitly.
+ *
+ * An SVG chart cannot size itself from CSS, so something has to measure the column.
+ * ResponsiveContainer would do it, but it adds a wrapper whose own width participates
+ * in the measurement — and the wrapper only shrinks if every ancestor is min-w-0.
+ * Measuring the host we control, and passing an explicit pixel width, keeps the
+ * measurement and the layout in one place.
+ *
+ * Both signals are wired up because neither alone covers every case: a ResizeObserver
+ * catches layout changes that leave the window alone (a sidebar opening, a panel
+ * collapsing), and window.resize catches environments that reflow the layout without
+ * notifying observers. Whichever fires first wins; the state setter ignores no-ops.
+ */
+const useObservedWidth = (ref) => {
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+
+    const measure = () => {
+      const next = Math.round(node.getBoundingClientRect().width);
+      setWidth((current) => (Math.abs(current - next) > 1 ? next : current));
+    };
+
+    measure();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    observer?.observe(node);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [ref]);
+
+  return width;
+};
+
 export default function OverviewTrendChart({ trend = [], granularity = "day", showProfit = true, height = 260 }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const isArabic = String(language || "").toLowerCase().startsWith("ar");
+  const hostRef = useRef(null);
+  const observedWidth = useObservedWidth(hostRef);
 
   const data = useMemo(
     () =>
@@ -44,9 +85,9 @@ export default function OverviewTrendChart({ trend = [], granularity = "day", sh
   }
 
   return (
-    <div style={{ height }} className="w-full min-w-0 overflow-hidden">
-      <ResponsiveContainer width="100%" height="100%" debounce={80}>
-        <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
+    <div ref={hostRef} style={{ height }} className="w-full min-w-0 overflow-hidden">
+      {observedWidth > 0 ? (
+        <ComposedChart width={observedWidth} height={height} data={data} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
           <defs>
             <linearGradient id="overviewNetSales" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.22} />
@@ -123,7 +164,7 @@ export default function OverviewTrendChart({ trend = [], granularity = "day", sh
             />
           ) : null}
         </ComposedChart>
-      </ResponsiveContainer>
+      ) : null}
     </div>
   );
 }

@@ -152,6 +152,9 @@ const buildScope = ({ filters, columns, includeCost }) => {
     inPrevious: previousFrom ? `o.created_at >= ${previousFrom}::date AND o.created_at < (${previousTo}::date + INTERVAL '1 day')` : "FALSE",
     orderWhere: whereSql(orderClauses),
     lineWhere: lineClauses.length ? `WHERE ${lineClauses.join(" AND ")}` : "",
+    // The category ladder reads cat.name, so filtering by category requires the join
+    // in EVERY query that applies lineWhere, not just the category breakdown.
+    filterJoins: filters.category ? "LEFT JOIN categories cat ON cat.id = p.category_id" : "",
     categoriesJoin: "LEFT JOIN categories cat ON cat.id = p.category_id",
   };
 };
@@ -180,7 +183,8 @@ const linesCte = ({ scope, itemColumns, includeCost, extraJoins = "" }) => {
         ${nanSafe(lineNet)}        AS line_net,
         ${netQty}                  AS net_qty,
         ${nanSafe(itemDiscount)}   AS line_discount,
-        COALESCE(oi.returned_quantity, 0) AS returned_qty
+        COALESCE(oi.returned_quantity, 0) AS returned_qty,
+        oi.order_id
         ${includeCost ? `, (${netQty}) * GREATEST(${scope.costContext.unitCostExpr}, 0) AS line_cogs,
         CASE WHEN GREATEST(${scope.costContext.unitCostExpr}, 0) > 0 THEN (${netQty}) ELSE 0 END AS costed_qty` : ""}
       FROM order_items oi
@@ -188,6 +192,7 @@ const linesCte = ({ scope, itemColumns, includeCost, extraJoins = "" }) => {
       JOIN orders o ON o.id = oi.order_id
       ${scope.costContext.joins}
       ${extraJoins}
+      ${scope.filterJoins}
       ${scope.lineWhere}
     )`;
 };
@@ -221,6 +226,7 @@ const buildTrendQuery = ({ scope, itemColumns, includeCost, granularity }) => {
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     ${scope.costContext.joins}
+    ${scope.filterJoins}
     ${scope.orderWhere}
       AND ${scope.inCurrent}
       ${scope.lineWhere ? scope.lineWhere.replace(/^WHERE/, "AND") : ""}
@@ -250,6 +256,7 @@ const buildMoversQuery = ({ scope, itemColumns, includeCost }) => `
     JOIN scoped_orders so ON so.id = oi.order_id
     JOIN orders o ON o.id = oi.order_id
     ${scope.costContext.joins}
+    ${scope.filterJoins}
     ${scope.lineWhere}
   )
   SELECT product_id,
@@ -306,7 +313,10 @@ const buildOrderTotalsQuery = ({ scope, orderColumns }) => {
 
 const buildLineTotalsQuery = ({ scope, itemColumns, includeCost }) => `
   WITH ${linesCte({ scope, itemColumns, includeCost })}
-  SELECT COALESCE(SUM(net_qty) FILTER (WHERE in_current),0)      AS units_current,
+  SELECT COUNT(DISTINCT order_id) FILTER (WHERE in_current)::int  AS line_orders_current,
+         COUNT(DISTINCT order_id) FILTER (WHERE in_previous)::int AS line_orders_previous,
+         COALESCE(SUM(line_net) FILTER (WHERE in_previous),0)     AS line_net_previous,
+         COALESCE(SUM(net_qty) FILTER (WHERE in_current),0)      AS units_current,
          COALESCE(SUM(net_qty) FILTER (WHERE in_previous),0)     AS units_previous,
          COALESCE(SUM(line_net) FILTER (WHERE in_current),0)     AS line_net_current,
          COALESCE(SUM(line_discount) FILTER (WHERE in_current),0) AS item_discount_current,
@@ -341,6 +351,7 @@ const buildBreakdownQuery = ({ scope, itemColumns, includeCost, dimension }) => 
       JOIN orders o ON o.id = oi.order_id
       ${scope.costContext.joins}
       ${extraJoins}
+      ${dimension === "category" ? "" : scope.filterJoins}
       ${scope.lineWhere}
     )
     SELECT dim,
@@ -397,6 +408,7 @@ const buildProductsQuery = ({ scope, itemColumns, includeCost, variantColumns })
       JOIN orders o ON o.id = oi.order_id
       ${scope.costContext.joins}
       LEFT JOIN brands br ON br.id = p.brand_id
+      ${scope.filterJoins}
       ${scope.lineWhere}
     ),
     agg AS (
@@ -447,6 +459,7 @@ const buildSizesQuery = ({ scope, itemColumns, includeCost, variantColumns }) =>
       JOIN scoped_orders so ON so.id = oi.order_id
       JOIN orders o ON o.id = oi.order_id
       ${scope.costContext.joins}
+      ${scope.filterJoins}
       ${scope.lineWhere}
     ),
     sold_agg AS (
@@ -500,13 +513,33 @@ const loadColumns = async (client) => {
 
 const num = (value) => (value === null || value === undefined ? null : Number(value));
 
+/**
+ * Bind only the parameters a statement actually uses, renumbered densely.
+ *
+ * These queries share one parameter list but reference different subsets — the trend
+ * query uses the tenant, the current window and the product filter, but not the
+ * comparison window. Slicing to the highest index leaves a hole, and Postgres rejects a
+ * statement containing a parameter it can neither reference nor type
+ * ("could not determine data type of parameter $5"). Renumbering closes the hole.
+ */
+export const densifyParams = (sql, params) => {
+  const used = [...new Set([...sql.matchAll(/\$(\d+)/g)].map((match) => Number(match[1])))].sort((a, b) => a - b);
+  if (!used.length) return { sql, params: [] };
+  const remap = new Map(used.map((index, position) => [index, position + 1]));
+  return {
+    sql: sql.replace(/\$(\d+)/g, (_match, index) => "$" + remap.get(Number(index))),
+    params: used.map((index) => params[index - 1]),
+  };
+};
+
 const runTimed = async (client, sql, params, timings, name) => {
-  const highest = Math.max(0, ...[...sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+  const bound = densifyParams(sql, params);
   const startedAt = Date.now();
-  const result = await client.query(sql, params.slice(0, highest));
+  const result = await client.query(bound.sql, bound.params);
   timings[name] = Date.now() - startedAt;
   return result;
 };
+
 
 /* ------------------------------------------------------------------ summary */
 
@@ -539,12 +572,33 @@ export const getSalesSummary = async ({ filters, permissions = {}, client = db }
   const returnsPrevious = filters.comparison ? toMoney(num(returnsRow.returns_previous)) : null;
   const deductReturns = (value, returned) => (value === null ? null : toMoney(value - (returned ?? 0)));
 
-  const netSales = deductReturns(toMoney(num(totals.revenue_current) ?? 0), returnsCurrent);
-  const netSalesPrev = filters.comparison
-    ? deductReturns(toMoney(num(totals.revenue_previous) ?? 0), returnsPrevious)
-    : null;
-  const orders = num(totals.orders_current) ?? 0;
-  const ordersPrev = filters.comparison ? num(totals.orders_previous) ?? 0 : null;
+  // With a product-attribute filter active, the order-level figure would describe the
+  // whole store rather than the filtered slice, so the basis switches to line level.
+  // Returns cannot follow - they are not attributable to a product line - so the switch
+  // is disclosed instead of silently changing what "net sales" means.
+  const productFiltered = Boolean(
+    filters.productType || filters.brandId || filters.category || filters.gender || filters.productId
+  );
+
+  const netSales = productFiltered
+    ? toMoney(num(lineTotals.line_net_current) ?? 0)
+    : deductReturns(toMoney(num(totals.revenue_current) ?? 0), returnsCurrent);
+
+  const netSalesPrev = !filters.comparison
+    ? null
+    : productFiltered
+      ? toMoney(num(lineTotals.line_net_previous) ?? 0)
+      : deductReturns(toMoney(num(totals.revenue_previous) ?? 0), returnsPrevious);
+
+  if (productFiltered) {
+    collector.add(
+      "FILTERED_EXCLUDES_RETURNS",
+      "With a product filter active, totals are line-level and before unattributed returns.",
+      {}
+    );
+  }
+  const orders = productFiltered ? num(lineTotals.line_orders_current) ?? 0 : num(totals.orders_current) ?? 0;
+  const ordersPrev = !filters.comparison ? null : productFiltered ? num(lineTotals.line_orders_previous) ?? 0 : num(totals.orders_previous) ?? 0;
   const units = num(lineTotals.units_current) ?? 0;
   const unitsPrev = filters.comparison ? num(lineTotals.units_previous) ?? 0 : null;
   const gross = toMoney(num(totals.gross_current) ?? 0);
@@ -563,7 +617,7 @@ export const getSalesSummary = async ({ filters, permissions = {}, client = db }
   const grossProfitPrev = includeProfit && cogsPrev !== null && netSalesPrev !== null ? toMoney(netSalesPrev - cogsPrev) : null;
 
   const DIRECTION = {
-    netSales: "higher", grossProfit: "higher", grossMargin: "higher", unitsSold: "higher",
+    netSales: "higher", grossProfit: "higher", grossMargin: "higher", itemsSold: "higher",
     orders: "higher", averageOrderValue: "higher", discountRate: "lower", returnRate: "lower",
   };
   const kpi = (key, current, previous) => ({
@@ -575,7 +629,7 @@ export const getSalesSummary = async ({ filters, permissions = {}, client = db }
     netSales: kpi("netSales", netSales, netSalesPrev),
     grossProfit: kpi("grossProfit", grossProfit, grossProfitPrev),
     grossMargin: kpi("grossMargin", safeRatio(grossProfit, netSales), safeRatio(grossProfitPrev, netSalesPrev)),
-    unitsSold: kpi("unitsSold", units, unitsPrev),
+    itemsSold: kpi("itemsSold", units, unitsPrev),
     orders: kpi("orders", orders, ordersPrev),
     averageOrderValue: kpi("averageOrderValue", safeRatio(netSales, orders), safeRatio(netSalesPrev, ordersPrev)),
     discountRate: kpi("discountRate", safeRatio(discount, gross), safeRatio(discountPrev, grossPrev)),
@@ -723,7 +777,7 @@ export const getSalesBreakdown = async ({ filters, permissions = {}, client = db
   );
 
   return {
-    data: { dimension, rows: mapped, total: toMoney(total) },
+    data: { dimension, rows: mapped, total: toMoney(total), quality: assessDimensionQuality(dimension, mapped, total) },
     meta: {
       generatedAt: new Date().toISOString(),
       contractVersion: CONTRACT_VERSION,
@@ -732,6 +786,34 @@ export const getSalesBreakdown = async ({ filters, permissions = {}, client = db
       timings,
     },
     warnings: collector.list(),
+  };
+};
+
+
+/**
+ * Whether a dimension actually segments the selected data.
+ *
+ * A breakdown where everything collapses into the unknown bucket is not an insight,
+ * it is a chart of one bar. The UI uses this to disable or annotate the dimension
+ * instead of rendering a giant "بدون علامة" column. Computed per request, so a
+ * dimension that is useless for one period becomes available again for another -
+ * production's current shape is never hardcoded into the client.
+ */
+export const UNKNOWN_DIMENSION_KEYS = Object.freeze(["بدون علامة", "غير مصنف", "غير محدد"]);
+
+export const assessDimensionQuality = (dimension, rows, total) => {
+  const unknownRows = rows.filter((row) => UNKNOWN_DIMENSION_KEYS.includes(row.key));
+  const unknownValue = unknownRows.reduce((sum, row) => sum + (row.netSales || 0), 0);
+  const meaningful = rows.filter((row) => !UNKNOWN_DIMENSION_KEYS.includes(row.key) && (row.netSales || 0) > 0);
+  const unknownShare = safeRatio(unknownValue, total);
+
+  return {
+    dimension,
+    distinctMeaningfulValues: meaningful.length,
+    unknownContribution: toMoney(unknownValue),
+    unknownContributionPercent: unknownShare,
+    // Useful means: at least two real buckets, and the unknown bucket is not the story.
+    usable: meaningful.length >= 2 && (unknownShare === null || unknownShare < 0.9),
   };
 };
 
@@ -996,6 +1078,10 @@ export const getSalesSizes = async ({ filters, permissions = {}, client = db }) 
     data: {
       productType: filters.productType,
       gender: filters.gender || null,
+      // Whether size analysis is meaningful for this product type at all. Bags are
+      // colour-only with inch/one-size labels, so a size axis says nothing; the UI
+      // renders a not-applicable state rather than an empty chart.
+      applicable: rows.length > 0 && rows.some((row) => row.units > 0 || row.currentStock > 0),
       rows,
       totals: {
         units: totalUnits,

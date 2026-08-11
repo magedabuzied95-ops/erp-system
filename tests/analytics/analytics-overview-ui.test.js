@@ -12,6 +12,7 @@ import {
   PERIOD_PRESETS,
   availableComparisons,
   resolvePreset,
+  resolveWindow,
   toIso,
 } from "../../src/modules/reports/hooks/useAnalyticsFilters.js";
 import {
@@ -62,6 +63,31 @@ test("lastMonth is a whole calendar month ending before this month", () => {
 test("toIso formats without timezone drift", () => {
   assert.equal(toIso(new Date(2026, 0, 5)), "2026-01-05");
   assert.equal(toIso(new Date(2026, 11, 31)), "2026-12-31");
+});
+
+/* --------------------------------------------------------- window resolution */
+
+test("a link that names a range shows that range, whatever the preset says", () => {
+  // A URL carrying explicit dates used to be ignored unless preset=custom, so the page
+  // silently rendered the default window while the link claimed another one.
+  for (const preset of [undefined, "last30", "thisMonth", "custom"]) {
+    const window = resolveWindow({ preset, from: "2026-05-23", to: "2026-06-21" });
+    assert.equal(window.from, "2026-05-23", `preset=${preset} must not override explicit dates`);
+    assert.equal(window.to, "2026-06-21");
+    assert.equal(window.preset, "custom", "an explicit range reports itself as custom");
+  }
+});
+
+test("without explicit dates the preset decides, and an unknown preset falls back", () => {
+  assert.deepEqual(resolveWindow({ preset: "last7" }), { preset: "last7", ...resolvePreset("last7") });
+  assert.equal(resolveWindow({ preset: "nonsense" }).preset, "last30");
+  assert.equal(resolveWindow({ preset: "custom" }).preset, "last30", "custom without dates is not a window");
+});
+
+test("a malformed or inverted range is refused rather than queried", () => {
+  for (const [from, to] of [["not-a-date", "2026-06-21"], ["2026-06-21", ""], ["2026-06-21", "2026-05-23"]]) {
+    assert.equal(resolveWindow({ preset: "last30", from, to }).preset, "last30", `${from}..${to} must not be used`);
+  }
 });
 
 /* ----------------------------------------------------- comparison validity */
@@ -260,11 +286,23 @@ test("legacy reporting routes are untouched by R2", async () => {
 
 test("the trend chart cannot paint outside its column when the viewport shrinks", async () => {
   const source = await read("../../src/modules/reports/components/OverviewTrendChart.jsx");
-  // recharts' ResponsiveContainer measures its parent. Without min-w-0 a grid item
-  // never shrinks, and without overflow-hidden a stale-wide SVG re-inflates the parent
-  // so the container measures the old width forever after a viewport shrink.
+  // An SVG cannot size itself from CSS, so the host is measured and the width passed in.
+  // Without min-w-0 a grid item never shrinks, and without overflow-hidden a stale-wide
+  // SVG re-inflates its parent, so the next measurement reads the old width forever.
   assert.match(source, /className="w-full min-w-0 overflow-hidden"/, "chart wrapper must be min-w-0 and clipped");
-  assert.match(source, /debounce=\{\d+\}/, "ResponsiveContainer should debounce re-measurement");
+  assert.match(source, /<ComposedChart width=\{observedWidth\}/, "the chart must be given a measured width");
+});
+
+test("the chart re-measures on both resize signals, not just one", async () => {
+  const source = await read("../../src/modules/reports/components/OverviewTrendChart.jsx");
+  // A ResizeObserver catches layout changes that leave the window size alone; a window
+  // resize listener catches environments that reflow without notifying observers.
+  assert.match(source, /new ResizeObserver\(measure\)/);
+  assert.match(source, /window\.addEventListener\("resize", measure\)/);
+  assert.match(source, /observer\?\.disconnect\(\)/, "the observer must be torn down");
+  assert.match(source, /window\.removeEventListener\("resize", measure\)/, "the listener must be torn down");
+  // Nothing may render before a real measurement, otherwise the first paint is 0-wide.
+  assert.match(source, /observedWidth > 0 \?/);
 });
 
 test("panels are min-w-0 so grid columns can shrink", async () => {
