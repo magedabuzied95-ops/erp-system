@@ -38,6 +38,7 @@ import { api } from "../../../shared/api/api";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
+import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import {
   buildSearchText,
@@ -1566,6 +1567,7 @@ function OrderCode({ order }) {
         {orderCode(order)}
       </div>
       <div className="mt-0.5 truncate text-[10px] font-semibold text-zinc-500">#{order.id}</div>
+      <div className="mt-1 flex justify-center"><AiInboxOrderLink order={order} compact /></div>
     </div>
   );
 }

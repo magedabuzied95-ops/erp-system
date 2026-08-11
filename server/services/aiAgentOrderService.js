@@ -144,7 +144,11 @@ export const warmAiAgentOrderMetadataCache = async (clientOrPool = db) => {
 };
 
 const normalizeOrderChannel = (value = "") => {
-  const channel = lower(value).replace("storefront_chat", "web_chat").replace("storefront_chat_image", "web_chat");
+  const channel = lower(value)
+    .replace("storefront_chat_image", "web_chat")
+    .replace("storefront_chat", "web_chat")
+    .replace("facebook_messenger", "facebook")
+    .replace("messenger", "facebook");
   return ORDER_CHANNELS.has(channel) ? channel : "web_chat";
 };
 
@@ -900,6 +904,8 @@ export const createAiOrderDraft = async (payload = {}) => {
         ai_agent_status: "ai_draft",
         ai_agent_confidence: numeric(product.confidence, 0),
         ai_agent_metadata: json({
+          conversation_id: conversationId,
+          session_id: text(payload.session_id || conversationId),
           matched_product_id: safeProductId,
           matched_variant_id: safeVariantId,
           original_customer_message: text(payload.original_customer_message || payload.message),

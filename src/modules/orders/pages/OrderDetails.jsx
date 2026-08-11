@@ -39,6 +39,7 @@ import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "../../
 import OrdersShell from "../components/OrdersShell";
 import "./OrderDetails.css";
 import StatusBadge from "../components/StatusBadge";
+import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import {
@@ -973,6 +974,7 @@ function OrderDetails() {
                   <span dir="ltr" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black text-zinc-100">
                     {order.invoice_number}
                   </span>
+                  <AiInboxOrderLink order={order} />
                   {getAttributionLabel(order) ? (
                     <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200">
                       {getAttributionLabel(order)}

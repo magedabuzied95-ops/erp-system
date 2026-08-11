@@ -1,6 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -82,6 +82,7 @@ import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
 import { channelWindow, channelsForFilter, mergeConversationPages } from "../services/inboxChannels";
+import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -4408,6 +4409,9 @@ function RightToolsTabsPanel({
 
 export default function AiInbox() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const deepLinkConversationRef = useRef(clean(searchParams.get("conversation") || searchParams.get("conversation_id") || searchParams.get("session_id") || ""));
+  const deepLinkChannelRef = useRef(normalizeInboxDeepLinkChannel(searchParams.get("channel") || ""));
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const pageVisible = usePageVisible();
@@ -4419,7 +4423,7 @@ export default function AiInbox() {
   const [leadFilter, setLeadFilter] = useState("all");
   const [leadSort, setLeadSort] = useState("recent");
   const [favoriteFilter, setFavoriteFilter] = useState("all");
-  const [channelFilter, setChannelFilter] = useState("all");
+  const [channelFilter, setChannelFilter] = useState(() => deepLinkChannelRef.current || "all");
   const [mobileView, setMobileView] = useState("list");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -4637,6 +4641,7 @@ export default function AiInbox() {
     // Which channels this refresh covers. A specific tab is exactly one request;
     // "All" is one bounded request per message channel. Declared out here because
     // both the warm-cache read and the network round below need them.
+    const deepLinkConversationId = clean(deepLinkConversationRef.current);
     const warmChannels = channelsForFilter(channelFilter);
     // Cache entries are per-channel (keyed by the backend channel name), never one
     // giant unscoped "all" blob — a merged blob would re-introduce exactly the
@@ -4683,7 +4688,7 @@ export default function AiInbox() {
           tenant_id: tenantId,
           filter,
           channel_filter: backendChannel,
-          search: debouncedSearch,
+          search: debouncedSearch || deepLinkConversationId,
           limit: channelWindow(backendChannel),
         },
         headers,
@@ -4750,7 +4755,21 @@ export default function AiInbox() {
         if (failedChannels.includes(backendChannel)) return;
         inboxCache.saveList(channelPages[index], backendChannel);
       });
-      if (activeSection === "conversations" && !activeConversationSelectedId && nextConversations[0]?.conversation_key) {
+      const deepLinkedConversation = findDeepLinkedConversation(
+        nextConversations,
+        deepLinkConversationId,
+        deepLinkChannelRef.current
+      );
+      if (deepLinkedConversation) {
+        const selectedKey = clean(deepLinkedConversation.conversation_key || conversationKey(deepLinkedConversation));
+        selectedConversationCacheRef.current = deepLinkedConversation;
+        setInboxSection("conversations");
+        setSelectedSessionId(selectedKey);
+        setSelectedSocialCommentId("");
+        setMobileView("chat");
+        deepLinkConversationRef.current = "";
+      }
+      if (!deepLinkedConversation && activeSection === "conversations" && !activeConversationSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
       }
       // Conversation list is usable now — unblock render BEFORE fetching the
