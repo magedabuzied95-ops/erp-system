@@ -6533,6 +6533,88 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   -webkit-text-fill-color: currentColor !important;
 }
 
+/*
+ * Product details deliberately use dark cards in every storefront mode.
+ * Embedded Meta/Messenger WebViews can restore the document without the
+ * storefront-dark body class, which previously activated legacy light-theme
+ * text colors while leaving these card backgrounds dark. Keep this surface
+ * self-contained so text contrast does not depend on a body class.
+ */
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] :is(
+  .sf-product-summary-card,
+  .sf-product-option-card,
+  .sf-product-quantity-card
+) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: #0b0b0b !important;
+  background-image: linear-gradient(180deg, #080808 0%, #111111 100%) !important;
+  color: #ffffff !important;
+  color-scheme: dark;
+}
+
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] :is(
+  .sf-product-summary-card h1,
+  .sf-product-summary-card h2,
+  .sf-product-option-card h1,
+  .sf-product-option-card h2,
+  .sf-product-quantity-card h1,
+  .sf-product-quantity-card h2,
+  .sf-product-summary-card .text-white,
+  .sf-product-option-card .text-white,
+  .sf-product-quantity-card .text-white
+) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] :is(
+  .sf-product-summary-card [class*="text-white/"],
+  .sf-product-option-card [class*="text-white/"],
+  .sf-product-quantity-card [class*="text-white/"]
+) {
+  color: rgba(255, 255, 255, 0.7) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.7) !important;
+  opacity: 1 !important;
+}
+
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-summary-card button,
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-quantity-card button {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-option-card .sf-product-size-choice.is-available:not(.is-active),
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-option-card a {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.86) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.86) !important;
+}
+
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-option-card .sf-product-size-choice.is-active {
+  border-color: #ffffff !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-option-card .sf-product-size-choice.is-unavailable {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-cta {
+  border-color: transparent !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
 .sf-mobile-bottom-nav__surface {
   height: 58px;
   border: 1px solid;

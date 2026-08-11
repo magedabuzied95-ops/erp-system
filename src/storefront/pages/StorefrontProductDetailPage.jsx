@@ -589,7 +589,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   }
 
   return (
-    <section dir={isRtl ? "rtl" : "ltr"} className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-2 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
+    <section dir={isRtl ? "rtl" : "ltr"} data-surface-theme="dark" className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-2 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
       <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
       <div className="grid gap-4 md:gap-6 lg:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)] lg:items-start">
         <div className="sf-product-gallery-shell overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.12),transparent_34%),linear-gradient(180deg,#090909_0%,#111111_100%)] p-2 shadow-[0_28px_80px_rgba(0,0,0,0.32)] md:rounded-[2rem] md:p-3">
