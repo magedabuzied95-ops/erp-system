@@ -21,6 +21,12 @@ export const METRIC_KIND = Object.freeze({
   returnRate: "percent",
   newCustomers: "integer",
   inventoryValue: "currency",
+  // R4 inventory metrics.
+  unitsInStock: "integer",
+  stockedProducts: "integer",
+  stockedVariants: "integer",
+  unitsSoldPeriod: "integer",
+  netSalesPeriod: "currency",
 });
 
 const isNumber = (value) => typeof value === "number" && Number.isFinite(value);

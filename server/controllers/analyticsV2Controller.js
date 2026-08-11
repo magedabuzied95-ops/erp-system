@@ -14,6 +14,12 @@ import {
   getSalesSizes,
   getSalesSummary,
 } from "../services/analytics/analyticsSalesService.js";
+import {
+  getInventoryBreakdown,
+  getInventoryProducts,
+  getInventorySizes,
+  getInventorySummary,
+} from "../services/analytics/analyticsInventoryService.js";
 import { resolveAnalyticsPermissions } from "../services/analytics/analyticsScope.js";
 
 export async function getOverview(req, res) {
@@ -57,10 +63,10 @@ export async function getOverview(req, res) {
 }
 
 /**
- * Shared handler shape for the R3 sales endpoints. Filter errors are 400 with a
+ * Shared handler shape for the analytical endpoints. Filter errors are 400 with a
  * machine-readable code; anything else is a 500 naming the failing area, never a zero.
  */
-const salesHandler = (name, run) => async (req, res) => {
+const analyticsHandler = (area, name, code, run) => async (req, res) => {
   let filters;
   try {
     filters = parseAnalyticsFilters(req);
@@ -78,21 +84,30 @@ const salesHandler = (name, run) => async (req, res) => {
     const payload = await run({ filters, permissions });
     return res.status(200).json({ success: true, ...payload });
   } catch (error) {
-    console.error(`[analytics-v2] sales/${name} failed`, {
+    console.error(`[analytics-v2] ${area}/${name} failed`, {
       requestId: req.id, tenantId: filters?.tenantId, from: filters?.from, to: filters?.to,
       message: error.message, code: error.code, stack: error.stack,
     });
     return res.status(500).json({
       success: false,
-      code: "SALES_QUERY_FAILED",
-      message: `Failed to compute sales ${name}`,
-      metric: `sales.${name}`,
+      code,
+      message: `Failed to compute ${area} ${name}`,
+      metric: `${area}.${name}`,
       error: error.message,
     });
   }
 };
 
+const salesHandler = (name, run) => analyticsHandler("sales", name, "SALES_QUERY_FAILED", run);
+const inventoryHandler = (name, run) => analyticsHandler("inventory", name, "INVENTORY_QUERY_FAILED", run);
+
 export const getSalesSummaryController   = salesHandler("summary", getSalesSummary);
 export const getSalesBreakdownController = salesHandler("breakdown", getSalesBreakdown);
 export const getSalesProductsController  = salesHandler("products", getSalesProducts);
 export const getSalesSizesController     = salesHandler("sizes", getSalesSizes);
+
+// R4 — Inventory Intelligence. Same envelope, same error policy.
+export const getInventorySummaryController   = inventoryHandler("summary", getInventorySummary);
+export const getInventoryBreakdownController = inventoryHandler("breakdown", getInventoryBreakdown);
+export const getInventoryProductsController  = inventoryHandler("products", getInventoryProducts);
+export const getInventorySizesController     = inventoryHandler("sizes", getInventorySizes);

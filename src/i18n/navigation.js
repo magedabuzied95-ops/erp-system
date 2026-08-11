@@ -53,6 +53,7 @@ const ITEM_LABEL_KEYS = {
   "Employee Analytics": "sidebar.employeeAnalytics",
   "Executive Overview": "sidebar.executiveOverview",
   "Sales Intelligence": "sidebar.salesIntelligence",
+  "Inventory Intelligence": "sidebar.inventoryIntelligence",
   Reports: "sidebar.reports",
   Analytics: "sidebar.analytics",
   Billing: "sidebar.billing",

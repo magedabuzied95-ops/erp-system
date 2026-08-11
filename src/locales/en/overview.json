@@ -48,7 +48,12 @@
     "returns": "Returns",
     "returnRate": "Return Rate",
     "newCustomers": "New Customers",
-    "inventoryValue": "Inventory Value"
+    "inventoryValue": "Inventory Value",
+    "unitsInStock": "Units in stock",
+    "stockedProducts": "Stocked products",
+    "stockedVariants": "Stocked variants",
+    "unitsSoldPeriod": "Sold in period",
+    "netSalesPeriod": "Net sales in period"
   },
   "definition": {
     "netSales": "Total sales after discounts and returns, per the approved reporting rules.",
@@ -146,7 +151,12 @@
     "SIZES_SOLD_OUT": "Some sizes sold during the period and now have no stock.",
     "count": "{{count}} data quality note(s)",
     "show": "Show details",
-    "hide": "Hide details"
+    "hide": "Hide details",
+    "UNKNOWN_MOVEMENT_TYPE": "Inventory movement types are present that the system does not define; they are excluded from every calculation rather than classified by guess.",
+    "VELOCITY_UNKNOWN_AGE": "Some products have no receipt history, so their movement class (fast/slow/stagnant) cannot be determined.",
+    "VELOCITY_UNCLASSIFIED": "Some products fall between the classification thresholds and are shown without a movement class.",
+    "DIMENSION_NOT_USABLE": "This dimension has no real segmentation in the current catalogue.",
+    "MISSING_SIZES": "Some sizes exist as variants but currently have no stock."
   },
   "states": {
     "loading": "Loading data...",

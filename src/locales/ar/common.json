@@ -737,7 +737,8 @@
     },
     "searchModules": "بحث في الوحدات...",
     "executiveOverview": "النظرة التنفيذية",
-    "salesIntelligence": "تحليل المبيعات والأرباح"
+    "salesIntelligence": "تحليل المبيعات والأرباح",
+    "inventoryIntelligence": "ذكاء المخزون"
   },
   "language": {
     "label": "اللغة",

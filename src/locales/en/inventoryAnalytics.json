@@ -1,0 +1,140 @@
+{
+  "title": "Inventory Intelligence",
+  "subtitle": "Where inventory value sits, what moves, and what needs attention",
+  "units": "units",
+  "timeSemantics": {
+    "stock": "Stock: current position",
+    "sales": "Sales and movement: over the selected period. Changing the period does not recalculate past stock."
+  },
+  "groups": {
+    "primary": "Inventory value",
+    "period": "In the period"
+  },
+  "sections": {
+    "health": "Stock movement health",
+    "highlights": "Management highlights",
+    "breakdown": "Inventory value breakdown",
+    "deadCandidates": "Stagnation candidates",
+    "matrix": "Stock vs demand",
+    "sizes": "Size analysis",
+    "table": "Inventory details"
+  },
+  "nav": {
+    "label": "Page sections",
+    "overview": "Overview",
+    "health": "Movement",
+    "breakdown": "Breakdown",
+    "matrix": "Stock vs demand",
+    "sizes": "Sizes",
+    "table": "Inventory details"
+  },
+  "filters": {
+    "more": "More filters",
+    "less": "Hide filters",
+    "productType": "Product type",
+    "brand": "Brand",
+    "category": "Category",
+    "gender": "Audience",
+    "velocity": "Movement class",
+    "clear": "Clear filters"
+  },
+  "health": {
+    "title": "Stock movement health",
+    "method": "Classification uses first receipt and last sale: “new” is under {{tooNew}} days since receipt; “fast” sold within {{recent}} days with at least {{units}} units in {{window}} days; “steady” sold within {{window}} days; “slow” is over {{established}} days since receipt with past sales but none recently; “stagnation candidate” is over {{established}} days since receipt and never sold.",
+    "empty": "No stock to report on.",
+    "productsCount": "{{count}} products in stock",
+    "fast": "Fast moving",
+    "fastHint": "Sold recently and in volume",
+    "steady": "Steady",
+    "steadyHint": "Sold within the last 30 days",
+    "slow": "Slow moving",
+    "slowHint": "Has past sales but nothing recent",
+    "dead_candidate": "Stagnation candidate",
+    "dead_candidateHint": "Over 30 days since receipt and never sold",
+    "too_new": "New — too early to judge",
+    "too_newHint": "Received recently, not enough time to judge",
+    "unknown_age": "Unknown age",
+    "unknown_ageHint": "No receipt history, so its age cannot be determined",
+    "unclassified": "Outside the thresholds",
+    "unclassifiedHint": "Received 14–30 days ago and not yet sold — the current rules do not cover this band"
+  },
+  "breakdown": {
+    "product_type": "Product type",
+    "brand": "Brand",
+    "category": "Category",
+    "stock": "Stock",
+    "products": "Products",
+    "sold": "Sold in period",
+    "netSales": "Net sales",
+    "empty": "No data for this breakdown.",
+    "unusableHint": "This dimension has no real segmentation, so it cannot be analysed.",
+    "unknownWarning": "{{percent}} of the value has no value for this dimension.",
+    "filterHint": "Click to filter the page"
+  },
+  "matrix": {
+    "title": "Stock vs demand",
+    "method": "Split on the period's own median stock and median sales, not fixed numbers. Stock is the current position; sales cover the selected period.",
+    "medianSold": "Median sold",
+    "medianStock": "Median stock",
+    "stock": "stock",
+    "sold": "sold",
+    "replenish": "Needs replenishment",
+    "replenishHint": "High demand, low stock",
+    "healthy_core": "Healthy core stock",
+    "healthy_coreHint": "High demand, sufficient stock",
+    "overstock": "Overstocked",
+    "overstockHint": "High stock, low demand",
+    "low_priority": "Low priority",
+    "low_priorityHint": "Low demand and low stock",
+    "noneHere": "No products in this group",
+    "empty": "Too few products to build a meaningful matrix."
+  },
+  "deadCandidates": {
+    "subtitle": "Over 30 days since receipt with no sale at all",
+    "empty": "No stagnation candidates right now.",
+    "stock": "Stock",
+    "sinceReceipt": "{{days}} days since receipt",
+    "lifetimeSold": "Sold all time: {{count}}"
+  },
+  "sizes": {
+    "pickType": "Choose a product type to see size analysis",
+    "pickTypeWhy": "Size ranges are not comparable across types, so the analysis covers one type at a time.",
+    "notApplicableFor": "Size analysis is not available for “{{productType}}”",
+    "notApplicableWhy": "This type does not use comparable sizes, or its products are colour-only and one-size.",
+    "empty": "No sizes to show for this type",
+    "emptyWhy": "No sized stock or sales exist for this type right now.",
+    "scopeNote": "Scoped to “{{productType}}”. Colour-only and one-size products are excluded.",
+    "size": "Size",
+    "stock": "Current stock",
+    "sold": "Sold in period",
+    "value": "Inventory value",
+    "signal": "Signal",
+    "missing": "Missing size",
+    "replenish": "Replenish",
+    "overstock": "Overstocked",
+    "summary": "{{stock}} sizes in stock · {{missing}} existing size variants now out of stock"
+  },
+  "table": {
+    "search": "Search by product or brand",
+    "product": "Product",
+    "stock": "Stock",
+    "value": "Inventory value",
+    "sold": "Sold in period",
+    "netSales": "Net sales",
+    "velocity": "Movement",
+    "lastSale": "Last sale",
+    "firstReceipt": "First receipt",
+    "missingSizes": "{{count}} sizes out",
+    "empty": "No matching products.",
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "count": "{{count}} products",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "highlights": {
+    "inventoryConcentration": "{{percent}} of inventory value sits in {{count}} models.",
+    "deadCandidates": "{{products}} models worth {{value}} are stagnation candidates ({{units}} units).",
+    "tooNewShare": "{{percent}} of products were received recently, too early to judge their movement.",
+    "inventoryCoverage": "Cost is known for only {{percent}} of stock, so inventory value is partial."
+  }
+}

@@ -737,7 +737,8 @@
       "systemSettings": "System Settings"
     },
     "executiveOverview": "Executive Overview",
-    "salesIntelligence": "Sales & Profit Intelligence"
+    "salesIntelligence": "Sales & Profit Intelligence",
+    "inventoryIntelligence": "Inventory Intelligence"
   },
   "language": {
     "label": "Language",

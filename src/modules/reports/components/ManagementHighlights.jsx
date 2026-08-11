@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { CircleAlert, Info, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
 
-import { formatPercentValue } from "../lib/metricFormat";
+import { formatMoney, formatPercentValue } from "../lib/metricFormat";
+import { formatNumber } from "../../../shared/lib/currency";
 
 /**
  * Deterministic management highlights.
@@ -17,7 +18,7 @@ const SEVERITY = {
   info: { Icon: Info, tone: "text-[var(--info)]", bar: "bg-[var(--info)]" },
 };
 
-export default function ManagementHighlights({ highlights = [] }) {
+export default function ManagementHighlights({ highlights = [], namespace = "overview" }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
 
@@ -39,7 +40,7 @@ export default function ManagementHighlights({ highlights = [] }) {
             <span className={`absolute inset-y-0 start-0 w-[3px] ${severity.bar}`} aria-hidden="true" />
             <Icon className={`mt-px h-4 w-4 shrink-0 ${severity.tone}`} aria-hidden="true" />
             <p className="min-w-0 text-[13px] leading-5 text-[var(--text)]">
-              {t(`overview.${highlight.messageKey}`, buildValues(highlight, language))}
+              {t(`${namespace}.${highlight.messageKey}`, buildValues(highlight, language))}
             </p>
           </li>
         );
@@ -48,7 +49,15 @@ export default function ManagementHighlights({ highlights = [] }) {
   );
 }
 
+/**
+ * Interpolation values for one highlight.
+ *
+ * R2 highlights carry flat comparison fields; R4 carries a `values` object. Both are
+ * handled here so the backend keeps returning codes and raw numbers, and every bit of
+ * wording stays in the bundle.
+ */
 const buildValues = (highlight, language) => ({
+  ...formatHighlightValues(highlight.values, language),
   percent:
     typeof highlight.changePercent === "number"
       ? formatPercentValue(Math.abs(highlight.changePercent), language)
@@ -59,3 +68,21 @@ const buildValues = (highlight, language) => ({
   current: typeof highlight.currentValue === "number" ? formatPercentValue(highlight.currentValue, language) : "",
   previous: typeof highlight.comparisonValue === "number" ? formatPercentValue(highlight.comparisonValue, language) : "",
 });
+
+/** Format a raw values object: ratios as percentages, money as money, counts as-is. */
+const formatHighlightValues = (values, language) => {
+  if (!values || typeof values !== "object") return {};
+  const formatted = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (typeof value !== "number") {
+      formatted[key] = value;
+    } else if (key === "percent" || key.endsWith("Percent")) {
+      formatted[key] = formatPercentValue(value, language);
+    } else if (key === "value" || key.endsWith("Value")) {
+      formatted[key] = formatMoney(value, language);
+    } else {
+      formatted[key] = formatNumber(value, language);
+    }
+  }
+  return formatted;
+};
