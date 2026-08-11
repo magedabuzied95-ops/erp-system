@@ -128,10 +128,10 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
       return { action: "unavailable", confidence: 0.85, cards,
         answer: `${typeLabel}${colorTxt}${sizeTxt} مش متوفر حاليًا. تحب أسجلك إشعار أبلغك أول ما يرجع؟` };
     }
-    // Ambiguous EU→canonical mapping — do NOT guess; ask for the M/W marking.
-    if (sr?.matchType === "AMBIGUOUS_CONVERSION") {
+    // Genuinely ambiguous for the requested color (maps to >1 real variant size) — do NOT guess.
+    if (variantGrounding?.ambiguousInColor) {
       return { action: "clarify_size", confidence: 0.4, cards,
-        answer: `مقاس ${entities.size} في ${typeLabel} ليه أكتر من اختيار (${sr.euSize}). تحب تحدد المقاس المكتوب M/W على الكروكس؟` };
+        answer: `مقاس ${entities.size} في ${typeLabel}${colorTxt} ليه أكتر من اختيار (${sr?.euSize || "M/W"}). تحب تحدد المقاس المكتوب M/W على الكروكس؟` };
     }
     // Size resolves and exists, but not in the requested color — no availability claim for that color.
     if (variantGrounding?.sizeAvailableOtherColor) {
@@ -210,19 +210,23 @@ export const applyInboxGroundingGate = async ({ tenantId, message, deps = {} } =
       const availableSizesDisplay = [...new Set(hintSource.map((v) => toDisplaySize(v.size, entities.productType)).filter(Boolean))];
       if (entities.size) {
         const sizeResolution = resolveFootwearSize({ productType: entities.productType, requestedSize: entities.size, availableVariantSizes: [...new Set(allVariants.map((v) => v.size).filter(Boolean))] });
-        let exactVariant = null, exactStock = 0, sizeAvailableOtherColor = false;
+        let exactVariant = null, exactStock = 0, sizeAvailableOtherColor = false, ambiguousInColor = false;
         if (sizeResolution.canonicalMatches.length) {
           const sizeMatched = allVariants.filter((v) => sizeResolution.canonicalMatches.includes(v.size));
           const colorSizeMatched = entities.color ? sizeMatched.filter((v) => matchesRequestedColor(v.color, entities.color)) : sizeMatched;
-          if (colorSizeMatched.length) {
+          const distinctColorSizes = [...new Set(colorSizeMatched.map((v) => v.size))];
+          if (colorSizeMatched.length && distinctColorSizes.length === 1) {
+            // Unambiguous within the requested color → exact variant, best-stock representative.
             const best = colorSizeMatched.reduce((a, b) => (b.stock > (a?.stock ?? -1) ? b : a), null);
             exactVariant = { productId: best.productId, variantId: best.variantId, size: best.size, color: best.color, displaySize: toDisplaySize(best.size, entities.productType) };
             exactStock = best.stock;
+          } else if (colorSizeMatched.length && distinctColorSizes.length > 1) {
+            ambiguousInColor = true; // genuinely ambiguous for the requested color → clarify, never guess
           } else if (entities.color && sizeMatched.length) {
-            sizeAvailableOtherColor = true;
+            sizeAvailableOtherColor = true; // size exists but not in the requested color
           }
         }
-        variantGrounding = { sizeResolution, exactVariant, exactStock, sizeAvailableOtherColor, availableSizesDisplay };
+        variantGrounding = { sizeResolution, exactVariant, exactStock, sizeAvailableOtherColor, ambiguousInColor, availableSizesDisplay };
       } else {
         variantGrounding = { sizeResolution: null, exactVariant: null, colorExists: colorVariants.length > 0, availableSizesDisplay };
       }
