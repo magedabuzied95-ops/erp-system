@@ -41,6 +41,11 @@ test("desktop order composer loads Bosta hierarchy and supports shipping provide
   assert.match(inbox, /shipping\/zones\?provider=bosta&dropoff=1&cityId=/);
   assert.match(inbox, /shipping\/districts\?provider=bosta&dropoff=1&zoneId=/);
   assert.match(inbox, /shipping_provider_id: shippingProvider/);
+  assert.match(inbox, /role="radiogroup" aria-label="شركة الشحن"/);
+  assert.match(inbox, /المدينة \*/);
+  assert.match(inbox, /المنطقة \*/);
+  assert.match(inbox, /الحي \*/);
+  assert.doesNotMatch(inbox, /مدينة Bosta|منطقة Bosta|حي Bosta/);
 });
 
 test("conversation draft route persists reviewed customer shipping fields", () => {

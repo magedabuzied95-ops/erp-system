@@ -3201,36 +3201,46 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-1 flex items-center gap-2 font-black text-white"><Truck className="h-4 w-4 text-cyan-300" />شركة الشحن وبيانات التوصيل</div>
-            <p className="mb-3 text-xs text-slate-400">اختار شركة الشحن. عند اختيار Bosta هتظهر مدن ومناطق وأحياء Bosta المعتمدة.</p>
+            <p className="mb-3 text-xs text-slate-400">اختار شركة الشحن. مع Bosta هنستخدم قائمة المدن والمناطق والأحياء المعتمدة عند الشركة لضمان قبول الشحنة.</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="sm:col-span-2">
+              <div className="sm:col-span-2">
                 <span className="mb-1.5 block text-xs font-black text-slate-300">شركة الشحن *</span>
-                <select
-                  value={shippingProvider}
-                  onChange={(event) => {
-                    setShippingProvider(event.target.value);
-                    setShippingCityId("");
-                    setShippingZoneId("");
-                    setShippingDistrictId("");
-                  }}
-                  className="h-11 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-black text-white outline-none"
-                >
-                  {AI_INBOX_SHIPPING_PROVIDERS.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
-                </select>
-              </label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="شركة الشحن">
+                  {AI_INBOX_SHIPPING_PROVIDERS.map((provider) => {
+                    const active = shippingProvider === provider.id;
+                    return (
+                      <button
+                        key={provider.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => {
+                          setShippingProvider(provider.id);
+                          setShippingCityId("");
+                          setShippingZoneId("");
+                          setShippingDistrictId("");
+                        }}
+                        className={`h-11 rounded-xl border px-2 text-xs font-black transition ${active ? "border-amber-300 bg-amber-400/15 text-amber-100 ring-1 ring-amber-300/30" : "border-white/10 bg-slate-950/70 text-slate-200 hover:border-white/25"}`}
+                      >
+                        {provider.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {shippingProvider === "bosta" ? (
                 <>
                   <select value={shippingCityId} onChange={(event) => { setShippingCityId(event.target.value); setShippingZoneId(""); setShippingDistrictId(""); }} disabled={shippingLocations.loading} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50">
-                    <option value="">{shippingLocations.loading ? "تحميل مدن Bosta..." : "مدينة Bosta *"}</option>
+                    <option value="">{shippingLocations.loading ? "تحميل المدن..." : "المدينة *"}</option>
                     {shippingLocations.cities.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                   <select value={shippingZoneId} onChange={(event) => { setShippingZoneId(event.target.value); setShippingDistrictId(""); }} disabled={!shippingCityId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50">
-                    <option value="">منطقة Bosta *</option>
+                    <option value="">المنطقة *</option>
                     {shippingLocations.zones.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                   <select value={shippingDistrictId} onChange={(event) => setShippingDistrictId(event.target.value)} disabled={!shippingZoneId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50 sm:col-span-2">
-                    <option value="">حي Bosta *</option>
+                    <option value="">الحي *</option>
                     {shippingLocations.districts.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                 </>
