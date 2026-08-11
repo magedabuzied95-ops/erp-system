@@ -334,8 +334,8 @@ function CashRegisters() {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-[1040px] w-full text-left text-sm">
+        <div className="m1-table-container overflow-x-auto">
+          <table className="m1-table m1-table--compact min-w-[1040px] w-full text-left text-sm">
             <thead className="bg-white/[0.03] text-[11px] uppercase tracking-[0.16em] text-zinc-500">
               <tr>
                 <Th>{t("accounting.cashDrawer.labels.cashier")}</Th>
@@ -348,7 +348,7 @@ function CashRegisters() {
                 <Th>{t("accounting.cashDrawer.status.closed")}</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody>
               {history.length ? history.map((shift) => (
                 <tr key={shift.id} className="bg-zinc-950/80 text-zinc-300 transition hover:bg-white/[0.04]">
                   <Td className="font-black text-white">{shift.cashier_name || t("accounting.auditTrail.fallbacks.userNumber", { id: shift.opened_by })}</Td>

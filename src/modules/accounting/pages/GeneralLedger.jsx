@@ -195,8 +195,8 @@ function GeneralLedger() {
         ) : payload.rows.length === 0 ? (
           <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حركات ضمن الفلاتر الحالية.</div>
         ) : (
-          <div className="mt-5 overflow-x-auto">
-            <table className="min-w-[1080px] w-full text-right text-sm" dir="rtl">
+          <div className="m1-table-container mt-5 overflow-x-auto">
+            <table className="m1-table m1-table--compact min-w-[1080px] w-full text-right text-sm" dir="rtl">
               <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                 <tr>
                   <Th>التاريخ</Th>
@@ -208,7 +208,7 @@ function GeneralLedger() {
                   <Th align="right">الرصيد الجاري</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody>
                 {payload.rows.map((row, index) => (
                   <tr key={`${row.journal_entry_id}-${index}`} className="transition hover:bg-white/[0.03]">
                     <Td>{formatDateTime(row.date)}</Td>

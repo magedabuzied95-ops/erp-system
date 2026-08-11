@@ -141,8 +141,8 @@ function TrialBalance() {
         ) : nonZeroRows.length === 0 ? (
           <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد أرصدة ضمن الفترة الحالية.</div>
         ) : (
-          <div className="mt-5 overflow-x-auto">
-            <table className="min-w-[980px] w-full text-right text-sm" dir="rtl">
+          <div className="m1-table-container mt-5 overflow-x-auto">
+            <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
               <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                 <tr>
                   <Th>كود الحساب</Th>
@@ -152,7 +152,7 @@ function TrialBalance() {
                   <Th align="right">إجمالي الدائن</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody>
                 {nonZeroRows.map((row) => (
                   <tr key={row.account_id} className="transition hover:bg-white/[0.03]">
                     <Td className="font-black text-cyan-200">{row.account_code || "-"}</Td>

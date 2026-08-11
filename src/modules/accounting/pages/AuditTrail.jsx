@@ -154,8 +154,8 @@ function AuditTrail() {
         ) : null}
 
         {!loading && rows.length ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-[1120px] w-full divide-y divide-white/10 text-left">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact min-w-[1120px] w-full text-left">
               <thead className="bg-white/[0.03] text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
                 <tr>
                   <th className="px-4 py-3">{t("accounting.common.labels.date")}</th>
@@ -167,7 +167,7 @@ function AuditTrail() {
                   <th className="px-4 py-3">{t("accounting.auditTrail.labels.metadata")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody>
                 {rows.map((row) => (
                   <tr key={row.id} className="bg-zinc-950/80 text-sm text-zinc-200 transition hover:bg-white/[0.04]">
                     <td className="px-4 py-4 text-zinc-300">{formatDate(row.created_at)}</td>

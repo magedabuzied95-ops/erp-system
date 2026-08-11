@@ -253,8 +253,8 @@ function Accounts() {
             ) : filteredAccounts.length === 0 ? (
               <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حسابات مطابقة للبحث.</div>
             ) : (
-              <div className="mt-5 overflow-x-auto">
-                <table className="min-w-[860px] w-full text-right text-sm" dir="rtl">
+              <div className="m1-table-container mt-5 overflow-x-auto">
+                <table className="m1-table m1-table--compact min-w-[860px] w-full text-right text-sm" dir="rtl">
                   <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                     <tr>
                       <Th align="right">الكود</Th>
@@ -265,7 +265,7 @@ function Accounts() {
                       <Th align="right">تاريخ الإنشاء</Th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/10">
+                  <tbody>
                     {filteredAccounts.map((account) => (
                       <tr key={account.id} className="transition hover:bg-white/[0.03]">
                         <Td align="right" className="font-black text-cyan-200">{account.account_code || "-"}</Td>
@@ -348,8 +348,8 @@ function Accounts() {
             {rows.length === 0 ? (
               <div className="m-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حركات ضمن الفلاتر الحالية.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-[980px] w-full text-right text-sm" dir="rtl">
+              <div className="m1-table-container overflow-x-auto">
+                <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
                   <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                     <tr>
                       <Th align="right">{t("accounting.common.labels.date")}</Th>
@@ -362,7 +362,7 @@ function Accounts() {
                       <Th align="right">{t("accounting.common.labels.balance")}</Th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/10">
+                  <tbody>
                     {rows.map((row, index) => (
                       <tr key={`${row.reference}-${row.source_type}-${index}`} className="transition hover:bg-white/[0.03]">
                         <Td align="right">{formatDateTime(row.date)}</Td>

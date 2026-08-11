@@ -263,8 +263,8 @@ export default function Treasury() {
           </datalist>
         </div>
 
-        <div className="mt-5 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+        <div className="m1-table-container mt-5 overflow-x-auto">
+          <table className="m1-table m1-table--compact min-w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-[0.16em] text-zinc-500">
               <tr>
                 <th className="px-4 py-3">التاريخ</th>
@@ -276,7 +276,7 @@ export default function Treasury() {
                 <th className="px-4 py-3 text-right">الرصيد</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody>
               {transactions.map((tx) => (
                 <tr key={tx.id} className="text-zinc-200">
                   <td className="px-4 py-3 text-zinc-400">{tx.created_at ? new Date(tx.created_at).toLocaleString() : "-"}</td>

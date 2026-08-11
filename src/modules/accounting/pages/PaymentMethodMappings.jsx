@@ -184,8 +184,8 @@ function PaymentMethodMappings() {
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-zinc-200">{t("accounting.paymentMappings.rulesCount", { count: mappings.length })}</div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[920px] w-full text-left text-sm">
+        <div className="m1-table-container overflow-x-auto">
+          <table className="m1-table m1-table--compact min-w-[920px] w-full text-left text-sm">
             <thead className="bg-white/[0.03] text-[11px] uppercase tracking-[0.16em] text-zinc-500">
               <tr>
                 <Th>{t("accounting.paymentMappings.labels.paymentMethod")}</Th>
@@ -196,7 +196,7 @@ function PaymentMethodMappings() {
                 <Th align="right">{t("accounting.paymentMappings.labels.actions")}</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody>
               {mappings.length ? mappings.map((mapping) => (
                 <tr key={mapping.id} className="bg-zinc-950/80 text-zinc-300">
                   <Td className="font-black text-white">{label(mapping.payment_method)}</Td>

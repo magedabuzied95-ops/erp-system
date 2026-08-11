@@ -90,6 +90,14 @@
 }
 
 /* ---- header -------------------------------------------------------------- */
+/* The group itself is painted too. Migrating pages carry a legacy background on
+   <thead> (`bg-white/5`, `bg-zinc-950`, `bg-slate-100`, …) and the canonical
+   header must cover it rather than let it show through a transparent gap. At
+   (0,1,1) this outranks the utility without anyone editing the markup. */
+.m1-table > thead {
+  background: var(--table-head);
+}
+
 .m1-table > thead > tr > th {
   padding-block: var(--m1-table-head-pb);
   padding-inline: var(--m1-table-cell-pi);

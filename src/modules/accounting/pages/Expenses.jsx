@@ -915,8 +915,8 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
             </div>
           </Panel>
           <Panel title={copy.advances}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
+            <div className="m1-table-container overflow-x-auto">
+              <table className="m1-table m1-table--compact w-full min-w-[760px] text-sm">
                 <thead className="text-left text-[10px] uppercase tracking-[0.16em] text-zinc-500"><tr><Th>{copy.employee}</Th><Th>{copy.amount}</Th><Th>{copy.deducted}</Th><Th>{copy.month}</Th><Th>{copy.status}</Th><Th>{copy.actions}</Th></tr></thead>
                 <tbody>
                   {advances.map((advance) => (
@@ -1221,8 +1221,8 @@ function Filters({ filters, setFilters, onApply, copy, t, language }) {
 
 function ExpensesTable({ rows, copy, onEdit, onAction, t, language }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-zinc-950/90">
-      <table className="w-full min-w-[980px] text-sm">
+    <div className="m1-table-container m1-table-container--plain overflow-x-auto rounded-2xl border border-white/10 bg-zinc-950/90">
+      <table className="m1-table m1-table--compact w-full min-w-[980px] text-sm">
         <thead className="bg-white/[0.03] text-left text-[10px] uppercase tracking-[0.16em] text-zinc-500">
           <tr><Th>{copy.title}</Th><Th>{copy.category}</Th><Th>{copy.date}</Th><Th>{copy.amount}</Th><Th>{copy.payment}</Th><Th>{copy.status}</Th><Th>{copy.links}</Th><Th>{copy.actions}</Th></tr>
         </thead>
@@ -1289,8 +1289,8 @@ function TrendCard({ rows }) {
 
 function CompactTable({ rows, columns, empty, moneyColumns = [], t, language }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-sm">
+    <div className="m1-table-container overflow-x-auto">
+      <table className="m1-table m1-table--compact w-full min-w-[640px] text-sm">
         <thead className="text-left text-[10px] uppercase tracking-[0.16em] text-zinc-500"><tr>{columns.map((col) => <Th key={col}>{col.replace(/_/g, " ")}</Th>)}</tr></thead>
         <tbody>
           {rows.map((row) => (

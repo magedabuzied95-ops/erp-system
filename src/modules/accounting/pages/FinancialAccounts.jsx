@@ -299,8 +299,8 @@ function FinancialAccounts() {
         <div className="border-b border-white/10 p-4">
           <h3 className="text-xl font-black text-white">{t("accounting.financialAccounts.transfers.title")}</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[820px] w-full text-left text-sm">
+        <div className="m1-table-container overflow-x-auto">
+          <table className="m1-table m1-table--compact min-w-[820px] w-full text-left text-sm">
             <thead className="bg-white/[0.03] text-[11px] uppercase tracking-[0.16em] text-zinc-500">
               <tr>
                 <Th>{t("accounting.common.labels.from")}</Th>
@@ -310,7 +310,7 @@ function FinancialAccounts() {
                 <Th>{t("accounting.common.labels.created")}</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody>
               {transfers.length ? transfers.map((transfer) => (
                 <tr key={transfer.id} className="bg-zinc-950/80 text-zinc-300">
                   <Td className="font-semibold text-white">{transfer.from_account_name}</Td>

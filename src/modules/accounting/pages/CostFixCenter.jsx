@@ -258,8 +258,8 @@ function CostFixCenter() {
         ) : null}
 
         {!loading && catalogRows.length ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact min-w-full">
               <thead className="bg-white/[0.03]">
                 <tr className="text-left text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
                   <th className="px-4 py-3">{t("accounting.costFix.labels.product")}</th>
@@ -272,7 +272,7 @@ function CostFixCenter() {
                   <th className="px-4 py-3 text-right">{t("accounting.common.actions.save")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody>
                 {catalogRows.map((row) => {
                   const key = rowKey(row);
                   const canSaveRow = Boolean(row.product_id || row.variant_id);
@@ -334,8 +334,8 @@ function CostFixCenter() {
         ) : null}
 
         {!loading && historicalRows.length ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact min-w-full">
               <thead className="bg-white/[0.03]">
                 <tr className="text-left text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
                   <th className="px-4 py-3">{t("accounting.costFix.labels.order")}</th>
@@ -347,7 +347,7 @@ function CostFixCenter() {
                   <th className="px-4 py-3 text-right">{t("accounting.common.actions.save")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody>
                 {historicalRows.map((row) => {
                   const key = rowKey(row);
                   return (
