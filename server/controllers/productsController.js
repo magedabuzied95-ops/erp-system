@@ -3895,6 +3895,28 @@ export const getProductsWithVariants = async (req, res) => {
         )`,
       ].filter(Boolean).join("\n");
     }
+    // Colour filter, mirroring the size block above. The AI Inbox picker is
+    // paginated, so a colour predicate applied client-side would only ever see the
+    // current page: picking "Black" showed the handful of black products that
+    // happened to be in the first 24 rows instead of every black product in the
+    // catalog. Matching here means page 1 is the first 24 MATCHES.
+    const requestedColor = String(req.query.color ?? req.query.selectedColor ?? req.query.selected_color ?? "").trim();
+    if (requestedColor && requestedColor.toLowerCase() !== "all") {
+      productQueryValues.push(requestedColor);
+      const colorToken = `$${productQueryValues.length}`;
+      productWhereSql = [
+        productWhereSql,
+        `${productWhereSql ? "AND" : "WHERE"} EXISTS (
+          SELECT 1
+          FROM product_variants color_variant
+          WHERE color_variant.product_id = p.id
+            AND color_variant.is_active IS DISTINCT FROM FALSE
+            AND color_variant.deleted_at IS NULL
+            AND LOWER(TRIM(COALESCE(color_variant.color, ''))) = LOWER(TRIM(${colorToken}))
+            AND COALESCE(color_variant.stock, 0) > 0
+        )`,
+      ].filter(Boolean).join("\n");
+    }
     const inStockOnly = ["1", "true", "yes", "on"].includes(String(req.query.inStockOnly ?? req.query.in_stock_only ?? "").trim().toLowerCase());
     if (inStockOnly && !requestedSize) {
       productWhereSql = [
@@ -3924,7 +3946,37 @@ export const getProductsWithVariants = async (req, res) => {
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, limitCap) : null;
     const offset = limit ? (page - 1) * limit : 0;
     const limitSql = limit ? `LIMIT $${productQueryValues.length + 1} OFFSET $${productQueryValues.length + 2}` : "";
+    // How many products match in total, counted BEFORE the page slice and with the
+    // exact same WHERE. Paginated callers need it to drive "load more" and to show
+    // "X products match" — and it is what distinguishes "only 1 result exists" from
+    // "pagination/filtering is broken". Only for paginated requests: unpaginated
+    // callers already receive every row, so the extra query would be pure cost.
+    const filterMatchValues = [...productQueryValues];
     if (limit) productQueryValues.push(limit, offset);
+    let matchTotal = null;
+    if (limit) {
+      try {
+        const countResult = await runTimedProductQuery({
+          route: "GET /api/products/with-variants",
+          label: "list-products-count",
+          text: `
+            SELECT COUNT(DISTINCT p.id)::int AS total
+            FROM products p
+            LEFT JOIN categories c ON c.id = p.category_id
+            LEFT JOIN brands b ON b.id = p.brand_id
+            LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+            LEFT JOIN units u ON u.id = p.unit_id
+            ${productWhereSql}
+          `,
+          values: filterMatchValues,
+          scope,
+        });
+        matchTotal = Number(countResult.rows?.[0]?.total) || 0;
+      } catch (countError) {
+        // A failed count must never fail the page itself.
+        console.error("[products/with-variants] match count failed:", countError.message);
+      }
+    }
     console.log("[products] final where scope", {
       route: "GET /api/products/with-variants",
       userId: scope.userId,
@@ -4104,6 +4156,16 @@ export const getProductsWithVariants = async (req, res) => {
       ? projectPosCatalogProducts(withSearchMeta, req.query.pos)
       : projectCompactPickerProducts(withSearchMeta, req.query.compact);
     const payload = normalizeResponse(projectedProducts);
+    // Additive pagination metadata for paginated callers (the AI Inbox picker).
+    // Existing consumers read `products`/`data` and are unaffected.
+    if (limit) {
+      payload.page = page;
+      payload.limit = limit;
+      if (matchTotal !== null) {
+        payload.total = matchTotal;
+        payload.has_more = page * limit < matchTotal;
+      }
+    }
 
     res.json(payload);
     console.log("[products] response sent", {

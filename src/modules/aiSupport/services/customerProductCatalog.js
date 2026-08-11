@@ -1,6 +1,7 @@
 import { api } from "../../../shared/api/api";
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
-import { getPosSellableProducts } from "../../pos/services/posProductsApi";
+import { getPosSellableProducts, normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
+import { PICKER_PAGE_SIZE, buildPickerParams, pickerQueryKey } from "./pickerQuery";
 
 const readSettings = (payload = {}) =>
   payload?.settings && typeof payload.settings === "object" ? payload.settings : payload;
@@ -21,7 +22,7 @@ let catalogRequest = null;
 // so sale-mode / effective-price resolution and stock/active flags stay
 // byte-for-byte identical. The only change is asking the server for one bounded,
 // pre-filtered page instead of everything.
-export const PICKER_PAGE_SIZE = 24; // /products/with-variants hard-caps limit at 48
+export { PICKER_PAGE_SIZE, SERVER_FILTER_KEYS, buildPickerParams, pickerQueryKey } from "./pickerQuery";
 
 const SETTINGS_TTL_MS = 5 * 60 * 1000;
 let saleModeCache = null;
@@ -60,9 +61,17 @@ const loadSaleModeSettings = async ({ headers } = {}) => {
  * Concurrent identical requests share one promise, and results are briefly
  * cached so closing and reopening the picker is effectively instant.
  */
-export const searchCustomerProducts = async ({ search = "", limit = PICKER_PAGE_SIZE, page = 1, headers, signal } = {}) => {
-  const term = String(search ?? "").trim();
-  const key = `${term}|${page}|${limit}`;
+/**
+ * One bounded page of picker products, filtered SERVER-SIDE across the whole
+ * catalog. Same endpoint and same normalization/pricing pipeline as the
+ * full-catalog path (normalizePosSellableProducts → normalizePosCatalogProduct),
+ * so prices and stock stay byte-identical — only bounded and pre-filtered.
+ * Returns the match total so callers can paginate and show "X products match"
+ * without loading them all.
+ */
+export const searchCustomerProducts = async ({ search = "", filters = {}, limit = PICKER_PAGE_SIZE, page = 1, headers, signal } = {}) => {
+  const params = buildPickerParams({ search, filters, page, limit });
+  const key = pickerQueryKey(params);
   const cached = searchCache.get(key);
   if (cached && Date.now() - cached.loadedAt < SEARCH_TTL_MS) return cached.value;
   const inFlight = searchInFlight.get(key);
@@ -70,15 +79,24 @@ export const searchCustomerProducts = async ({ search = "", limit = PICKER_PAGE_
 
   const promise = (async () => {
     const saleModeSettings = await loadSaleModeSettings({ headers });
-    const products = await getPosSellableProducts(saleModeSettings, {
-      requestOptions: {
-        params: { compact: 1, limit, page, ...(term ? { search: term } : {}) },
-        headers: { ...(headers || {}), "Cache-Control": "no-cache", Pragma: "no-cache" },
-        signal,
-        perfComponent: "ProductCardPicker.search",
-      },
+    const response = await api.get("/products/with-variants", {
+      params,
+      headers: { ...(headers || {}), "Cache-Control": "no-cache", Pragma: "no-cache" },
+      signal,
+      perfComponent: "ProductCardPicker.search",
     });
-    const value = { products, saleModeSettings };
+    const rows = Array.isArray(response?.products)
+      ? response.products
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+          ? response
+          : [];
+    // EXACT same pipeline getPosSellableProducts uses — pricing parity by construction.
+    const products = normalizePosSellableProducts(rows, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
+    const total = Number.isFinite(Number(response?.total)) ? Number(response.total) : null;
+    const hasMore = typeof response?.has_more === "boolean" ? response.has_more : products.length >= limit;
+    const value = { products, saleModeSettings, total, hasMore, page };
     searchCache.set(key, { loadedAt: Date.now(), value });
     return value;
   })();

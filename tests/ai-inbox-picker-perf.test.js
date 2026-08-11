@@ -11,12 +11,15 @@ import test from "node:test";
 
 const picker = fs.readFileSync(new URL("../src/modules/aiSupport/components/ProductCardPicker.jsx", import.meta.url), "utf8");
 const service = fs.readFileSync(new URL("../src/modules/aiSupport/services/customerProductCatalog.js", import.meta.url), "utf8");
+// Pure query-building was extracted into its own module so the filter contract
+// is unit-testable without pulling in the api client.
+const query = fs.readFileSync(new URL("../src/modules/aiSupport/services/pickerQuery.js", import.meta.url), "utf8");
 const inbox = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
 const controller = fs.readFileSync(new URL("../server/controllers/productsController.js", import.meta.url), "utf8");
 
 const catalogEffect = picker.slice(
   picker.indexOf("if (sizeMode && !sizeCatalogFallback) return undefined;"),
-  picker.indexOf("}, [open, sizeMode, sizeCatalogFallback, search]);")
+  picker.indexOf("}, [open, sizeMode, sizeCatalogFallback, search, serverFilters]);")
 );
 
 // ---- no full catalog on picker open --------------------------------------
@@ -37,9 +40,9 @@ test("product-card mode never downloads the whole catalog", () => {
 });
 
 test("the bounded request carries an explicit limit", () => {
-  assert.match(picker, /searchCustomerProducts\(\{ search: term, limit: PICKER_PAGE_SIZE/);
-  assert.match(service, /export const PICKER_PAGE_SIZE = (\d+)/);
-  const size = Number((service.match(/export const PICKER_PAGE_SIZE = (\d+)/) || [])[1]);
+  assert.match(picker, /searchCustomerProducts\(\{ search: term, filters: serverFilters, page: 1, limit: PICKER_PAGE_SIZE/);
+  assert.match(query, /export const PICKER_PAGE_SIZE = (\d+)/);
+  const size = Number((query.match(/export const PICKER_PAGE_SIZE = (\d+)/) || [])[1]);
   assert.ok(size > 0 && size <= 48, `page size ${size} must be within the server cap of 48`);
 });
 
@@ -53,8 +56,8 @@ test("an absent limit is exactly what made the server return everything", () => 
 
 test("the bounded path reuses the SAME pipeline, so pricing cannot drift", () => {
   // Same endpoint, same normaliser: no new price formula anywhere.
-  assert.match(service, /getPosSellableProducts\(saleModeSettings, \{/);
-  assert.match(service, /params: \{ compact: 1, limit, page/);
+  assert.match(service, /normalizePosSellableProducts\(rows, saleModeSettings\)\.map\(\(product\) => normalizePosCatalogProduct\(product\)\)/);
+  assert.match(query, /const params = \{ compact: 1, limit, page \};/);
   assert.doesNotMatch(service, /by-size/, "the by-size projection uses a raw column price — not authoritative");
 });
 
@@ -76,13 +79,13 @@ test("no bespoke price or stock maths was introduced in the picker service", () 
 test("search is server-side, debounced, abortable and stale-guarded", () => {
   assert.match(catalogEffect, /const controller = new AbortController\(\);/);
   assert.match(catalogEffect, /signal: controller\.signal/);
-  assert.match(catalogEffect, /const delay = term && isNewTerm \? 300 : 0;/);
+  assert.match(catalogEffect, /const delay = term && isNewQuery \? 300 : 0;/);
   assert.match(catalogEffect, /requestId !== searchRequestIdRef\.current\) return;/);
   assert.match(catalogEffect, /controller\.abort\(\);/);
 });
 
-test("the effect re-runs on search so typing queries the server", () => {
-  assert.match(picker, /\}, \[open, sizeMode, sizeCatalogFallback, search\]\);/);
+test("the effect re-runs on search AND on filter changes so both query the server", () => {
+  assert.match(picker, /\}, \[open, sizeMode, sizeCatalogFallback, search, serverFilters\]\);/);
 });
 
 test("an aborted request never surfaces as an error to the user", () => {
@@ -133,7 +136,9 @@ test("sale-mode settings are cached separately, not refetched per keystroke", ()
 });
 
 test("reopening with an unchanged term skips the debounce", () => {
-  assert.match(catalogEffect, /const isNewTerm = term !== lastSearchTermRef\.current;/);
+  // The signature now covers search AND filters, so an unchanged query — not just
+  // an unchanged term — is what skips the debounce.
+  assert.match(catalogEffect, /const isNewQuery = querySignature !== lastSearchTermRef\.current;/);
 });
 
 test("nothing sensitive is cached", () => {

@@ -377,6 +377,27 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const filterColor = "all";
   const filterSize = "all";
   const stockFilter = "in_stock";
+  // Filters the SERVER applies across the whole catalog. Previously every POS
+  // smart filter ran client-side over the current page, so a filter could only
+  // ever match among the 24 rows that happened to be fetched — picking a brand
+  // showed "1 product" while many more matched in the ERP. The client predicates
+  // below are kept as a harmless second pass (they also cover the multi-select
+  // case the endpoint cannot express yet: it accepts one brand/manufacturer, so
+  // only a single selection is pushed server-side).
+  const singleValue = (value) => {
+    const values = asArray(value).map((item) => clean(item)).filter(Boolean);
+    return values.length === 1 ? values[0] : "";
+  };
+  const serverFilters = useMemo(() => ({
+    brand: singleValue(brand),
+    manufacturer: singleValue(manufacturer),
+    gender: singleValue(gender),
+    product_type: productType && productType !== "all" ? productType : "",
+    grade: grade && grade !== "all" ? grade : "",
+    color: filterColor !== "all" ? filterColor : "",
+    size: filterSize !== "all" ? filterSize : "",
+    inStockOnly: stockFilter === "in_stock",
+  }), [brand, manufacturer, gender, productType, grade, filterColor, filterSize, stockFilter]);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
@@ -402,6 +423,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // e.g. reopening the picker — that path should feel instant).
   const searchRequestIdRef = useRef(0);
   const lastSearchTermRef = useRef(null);
+  const [resultTotal, setResultTotal] = useState(null);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [resultPage, setResultPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   // The order composer uses the same dark product surface as POS, including the
   // shared SmartPosFilters drawer, instead of the lightweight PWA list.
@@ -458,17 +483,23 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const controller = new AbortController();
     const requestId = searchRequestIdRef.current + 1;
     searchRequestIdRef.current = requestId;
-    const isNewTerm = term !== lastSearchTermRef.current;
-    const delay = term && isNewTerm ? 300 : 0;
+    const querySignature = `${term}|${JSON.stringify(serverFilters)}`;
+    const isNewQuery = querySignature !== lastSearchTermRef.current;
+    const delay = term && isNewQuery ? 300 : 0;
     let cancelled = false;
     setError("");
     setLoading(true);
     const timer = window.setTimeout(() => {
-      searchCustomerProducts({ search: term, limit: PICKER_PAGE_SIZE, signal: controller.signal })
-        .then(({ products: data }) => {
+      // page 1 for any new query — changing a filter must restart pagination,
+      // never append onto results from the previous filter.
+      searchCustomerProducts({ search: term, filters: serverFilters, page: 1, limit: PICKER_PAGE_SIZE, signal: controller.signal })
+        .then(({ products: data, total, hasMore }) => {
           if (cancelled || requestId !== searchRequestIdRef.current) return;
-          lastSearchTermRef.current = term;
+          lastSearchTermRef.current = querySignature;
           setProducts(asArray(data));
+          setResultTotal(total);
+          setHasMoreResults(Boolean(hasMore));
+          setResultPage(1);
         })
         .catch((err) => {
           if (cancelled || requestId !== searchRequestIdRef.current) return;
@@ -484,7 +515,31 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [open, sizeMode, sizeCatalogFallback, search]);
+  }, [open, sizeMode, sizeCatalogFallback, search, serverFilters]);
+
+  // Append the next page of MATCHES. One in-flight request per page, and the
+  // result is merged by product id so rapid clicking cannot duplicate rows.
+  const loadMoreProducts = useCallback(() => {
+    if (sizeMode || loadingMore || !hasMoreResults) return;
+    const nextPage = resultPage + 1;
+    const requestId = searchRequestIdRef.current;
+    setLoadingMore(true);
+    searchCustomerProducts({ search: clean(search), filters: serverFilters, page: nextPage, limit: PICKER_PAGE_SIZE })
+      .then(({ products: data, total, hasMore }) => {
+        // A filter/search change during the fetch bumps the sequence — drop this.
+        if (requestId !== searchRequestIdRef.current) return;
+        setProducts((current) => {
+          const seen = new Set(asArray(current).map((item) => String(item?.id ?? item?.product_id ?? "")));
+          const fresh = asArray(data).filter((item) => !seen.has(String(item?.id ?? item?.product_id ?? "")));
+          return [...asArray(current), ...fresh];
+        });
+        setResultTotal(total);
+        setHasMoreResults(Boolean(hasMore));
+        setResultPage(nextPage);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [sizeMode, loadingMore, hasMoreResults, resultPage, search, serverFilters]);
 
   // Product-card mode: pull the brand/type facets once from the same tiny
   // endpoint the size flow uses, so the POS filter dropdowns stay complete even
@@ -1347,6 +1402,25 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                       </button>
                     );
                   })}
+                  {/* Results are server-filtered pages, so "load more" fetches the
+                      next page of MATCHES rather than revealing already-loaded rows.
+                      The total comes from a COUNT over the same WHERE, which is what
+                      distinguishes "only 1 match exists" from "filtering is broken". */}
+                  {!sizeMode && hasMoreResults ? (
+                    <button
+                      type="button"
+                      onClick={loadMoreProducts}
+                      disabled={loadingMore}
+                      className="col-span-full mt-1 inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-xs font-black text-slate-100 transition hover:border-amber-300/25 disabled:opacity-50"
+                    >
+                      {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {loadingMore
+                        ? "جاري التحميل..."
+                        : resultTotal !== null
+                          ? `تحميل المزيد (${visibleProducts.length} من ${resultTotal})`
+                          : "تحميل المزيد"}
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
