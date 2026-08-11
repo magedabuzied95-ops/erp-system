@@ -243,15 +243,17 @@ export const CardFooter = ({ children, className = "" }) => <footer className={c
 
 // Semantic only. Domain state (paid / cancelled / pending) is mapped to a
 // variant by the calling page, so business meaning never leaks into the UI kit.
-export function StatusBadge({ tone = "neutral", children }) {
-  return <span className={`m1-status m1-status--${tone}`}><i aria-hidden="true" />{children}</span>;
+export function StatusBadge({ tone = "neutral", children, className = "" }) {
+  // className APPENDS; the tone classes stay first so semantic colour remains
+  // owned by the kit and a caller can only add to it, not silently replace it.
+  return <span className={cx("m1-status", `m1-status--${tone}`, className)}><i aria-hidden="true" />{children}</span>;
 }
 
 export const Badge = StatusBadge;
 
-export function MetricCard({ label, value, change, icon: Icon, tone = "neutral" }) {
+export function MetricCard({ label, value, change, icon: Icon, tone = "neutral", className = "" }) {
   return (
-    <article className={`m1-metric m1-metric--${tone}`}>
+    <article className={cx("m1-metric", `m1-metric--${tone}`, className)}>
       <div className="m1-metric__top"><span>{label}</span>{Icon ? <span className="m1-metric__icon"><Icon size={19} /></span> : null}</div>
       <strong>{value}</strong>
       {change ? <small>{change}</small> : null}

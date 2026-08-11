@@ -208,3 +208,34 @@ test("DataTable and Pagination are untouched — frozen for Phase 3", () => {
   assert.match(jsx, /export function DataTable\(\{ columns, rows, rowKey = "id", emptyLabel = "لا توجد بيانات" \}\)/);
   assert.match(jsx, /export function Pagination\(\{ page = 1, pages = 1, onChange \}\)/);
 });
+
+// ---- Phase 2A.1: composition capability ----------------------------------
+
+test("StatusBadge and MetricCard accept className like every other primitive", () => {
+  // Evidence: Checkbox, Radio, Switch, Card, PageHeader, Tabs, Skeleton (and
+  // Button/Input/IconButton via native spread) all compose. These two were the
+  // only outliers, which blocked real adoption in Manager Portal.
+  assert.match(jsx, /export function StatusBadge\(\{ tone = "neutral", children, className = "" \}\)/);
+  assert.match(jsx, /export function MetricCard\(\{ label, value, change, icon: Icon, tone = "neutral", className = "" \}\)/);
+});
+
+test("caller classes APPEND — semantic tone stays owned by the kit", () => {
+  // cx() puts the base and tone classes first, so a caller can add but cannot
+  // silently replace the semantic colour.
+  assert.match(jsx, /cx\("m1-status", `m1-status--\$\{tone\}`, className\)/);
+  assert.match(jsx, /cx\("m1-metric", `m1-metric--\$\{tone\}`, className\)/);
+});
+
+test("className is optional — every existing consumer is unaffected", () => {
+  assert.match(jsx, /className = ""/);
+  // ComponentsPreview still calls StatusBadge/MetricCard without className
+  const preview = fs.readFileSync(new URL("../src/pages/ComponentsPreview.jsx", import.meta.url), "utf8");
+  assert.match(preview, /<StatusBadge tone="success">/);
+  assert.match(preview, /<MetricCard tone="primary"/);
+});
+
+test("no portal- or page-specific concept leaked into the kit", () => {
+  for (const term of ["manager", "MiniMetric", "CompactStat", "kpi-card-readable", "sub ="]) {
+    assert.ok(!jsx.includes(term), `M1UI must not know about "${term}"`);
+  }
+});
