@@ -87,7 +87,31 @@ const resolveOrderTotal = (order = {}) =>
   );
 
 const resolveShippingFee = (order = {}) =>
-  toNumber(order.shipping_fee ?? order.delivery_fee ?? order.service_fee ?? order.totals?.shipping ?? order.totals?.service, 0);
+  toNumber(order.shipping_fee ?? order.delivery_fee ?? order.totals?.shipping, 0);
+
+const parsePaymentBreakdown = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const normalizePaymentMethod = (value = "") =>
+  String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+const resolveCollectedPaymentMethod = (order = {}) => {
+  const rows = parsePaymentBreakdown(order.payment_breakdown ?? order.paymentBreakdown ?? order.payments);
+  const methods = Array.from(new Set(rows
+    .filter((payment) => Number(payment?.amount ?? payment?.paid_amount ?? payment?.value ?? 0) > 0)
+    .map((payment) => normalizePaymentMethod(payment?.method || payment?.payment_method))
+    .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit"].includes(method))));
+  if (methods.length > 1) return "split";
+  return methods[0] || firstText(order.collected_payment_method, order.actual_payment_method, order.totals?.collected_payment_method, order.payment_method, order.totals?.payment_method);
+};
 
 const resolveDiscount = (order = {}) =>
   toNumber(order.discount_amount ?? order.invoice_discount ?? order.discount ?? order.totals?.discount, 0);
@@ -160,6 +184,11 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
   const exchangeCredit = toNumber(order.exchange_credit_amount ?? order.exchangeCreditAmount ?? order.totals?.exchange_credit, 0);
   const newItemsTotal = toNumber(order.new_order_total ?? order.newOrderTotal ?? order.totals?.new_items_total, 0) || grandTotal;
   const amountPaidNow = toNumber(order.amount_due_now ?? order.amountDueNow ?? order.totals?.amount_paid_now ?? order.paid_amount, 0);
+  const paidAmount = toNumber(order.paid_amount ?? order.amount_paid ?? order.total_paid ?? order.totals?.paid_amount ?? order.totals?.paid, 0);
+  const remainingAmount = Math.max(0, toNumber(
+    order.remaining_amount ?? order.remainingAmount ?? order.due_amount ?? order.totals?.remaining_amount ?? order.totals?.remaining,
+    Math.max(0, grandTotal - paidAmount)
+  ));
   const exchangeMode = Boolean(order.exchange_mode || order.exchangeMode || exchangeCredit > 0);
 
   return {
@@ -196,7 +225,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
       address: firstText(order.customer_address, order.address, order.customer?.address),
     },
     status: firstText(order.status, order.order_status, "pending"),
-    paymentMethod: firstText(order.payment_method, order.totals?.payment_method, options.paymentMethod, "cod"),
+    paymentMethod: firstText(resolveCollectedPaymentMethod(order), options.paymentMethod, "cod"),
     paymentStatus: firstText(order.payment_status, order.paymentStatus, "pending"),
     createdAt: firstText(order.created_at, order.order_date, order.date, new Date().toISOString()),
     items,
@@ -210,6 +239,8 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
       exchangeCredit,
       newItemsTotal,
       amountPaidNow,
+      paidAmount,
+      remainingAmount,
       remainingCustomerCredit: Math.max(0, exchangeCredit - newItemsTotal),
     },
     currency: firstText(options.currency, order.currency, order.currency_code, order.store?.currency),

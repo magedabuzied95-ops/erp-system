@@ -529,6 +529,16 @@ const normalizePaymentMethodKey = (value = "") =>
     .toLowerCase()
     .replace(/[\s-]+/g, "_");
 
+const resolveCollectedPaymentMode = (order = {}, fallback = "") => {
+  const methods = Array.from(new Set(parsePaymentBreakdownRows(
+    order.payment_breakdown ?? order.paymentBreakdown ?? order.payments
+  )
+    .filter((payment) => Number(payment?.amount ?? payment?.paid_amount ?? payment?.value ?? 0) > 0)
+    .map((payment) => normalizePaymentMethodKey(payment?.method || payment?.payment_method))
+    .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit"].includes(method))));
+  return methods.length > 1 ? "split" : methods[0] || fallback;
+};
+
 const resolveEditOrderTotal = (order = {}) => {
   const candidates = [
     order.original_total,
@@ -6466,7 +6476,7 @@ function POSPro() {
       ...paymentSummary,
       paymentStatus: order.paymentStatus || orderPayment.paymentStatus || paymentSummary.paymentStatus,
       paidAmount: Number(orderPayment.paidAmount ?? order.paid_amount ?? paymentSummary.paidAmount ?? renderedTotals.total ?? 0),
-      dueAmount: Number(orderPayment.dueAmount ?? order.due_amount ?? paymentSummary.dueAmount ?? 0),
+      dueAmount: Number(orderPayment.dueAmount ?? order.due_amount ?? order.remaining_amount ?? order.remainingAmount ?? paymentSummary.dueAmount ?? 0),
       changeAmount: Number(orderPayment.changeAmount ?? order.change_amount ?? paymentSummary.changeAmount ?? 0),
       exchangeMode: Boolean(order.exchange_mode || order.exchangeMode || orderPayment.exchangeMode),
       exchangeInvoiceNumber: order.exchange_invoice_number || order.exchangeInvoiceNumber || orderPayment.exchangeInvoiceNumber || "",
@@ -6514,7 +6524,7 @@ function POSPro() {
       cart: renderedCart,
       totals: renderedTotals,
       paymentSummary: renderedPaymentSummary,
-      paymentMode: orderPayment.method || order.payment_method || paymentMode,
+      paymentMode: resolveCollectedPaymentMode(order, orderPayment.method || order.payment_method || paymentMode),
       loyaltyProfile: order.loyalty || loyaltyProfile,
       loyaltyValidation,
       walletCashbackToEarn: Number(order.loyalty?.cashbackAmount ?? walletCashbackToEarn ?? 0),

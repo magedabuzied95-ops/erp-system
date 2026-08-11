@@ -107,6 +107,8 @@ const getPaymentLabel = (invoice = {}) => {
     card: "بطاقة",
     visa: "بطاقة",
     wallet: "محفظة",
+    instapay: "InstaPay",
+    vodafone_cash: "Vodafone Cash",
     split: "دفع متعدد",
     transfer: "تحويل",
     bank_transfer: "تحويل بنكي",
@@ -173,7 +175,9 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language) => {
     Number(invoice.totals?.itemDiscountTotal || 0) +
     Number(invoice.totals?.invoiceDiscount || 0) +
     Number(invoice.totals?.loyaltyDiscount || 0);
-  const shipping = Number(invoice.totals?.service || invoice.totals?.serviceFee || invoice.totals?.shipping || 0);
+  const shipping = Number(invoice.totals?.shipping || 0);
+  const paid = Number(invoice.totals?.paidAmount ?? invoice.totals?.paid_amount ?? invoice.totals?.paid ?? invoice.paid_amount ?? 0);
+  const remaining = Math.max(0, Number(invoice.totals?.remainingAmount ?? invoice.totals?.remaining_amount ?? invoice.totals?.remaining ?? invoice.remaining_amount ?? 0));
   const seller = getSellerName(invoice);
   const createdAt = invoice.createdAt || Date.now();
   const body = `
@@ -216,6 +220,8 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language) => {
         <div>عدد المنتجات: <span class="number">${items.length}</span></div>
         <div>إجمالي الكمية: <span class="number">${items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</span></div>
         <div class="total">الإجمالي الكلي: <span class="amount">${escapeHtml(formatCurrency(invoice.totals?.total || 0))}</span></div>
+        <div>المدفوع: <span class="amount">${escapeHtml(formatCurrency(paid))}</span></div>
+        <div>المتبقي: <span class="amount">${escapeHtml(formatCurrency(remaining))}</span></div>
       </section>
       <section class="print-card policy">${ARABIC_RETURN_POLICY_HTML}</section>
       ${social ? `<section class="print-card" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">${social}</section>` : ""}

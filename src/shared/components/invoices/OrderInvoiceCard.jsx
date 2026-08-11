@@ -46,6 +46,9 @@ const AR_INVOICE_COPY = {
   exchangeCredit: "رصيد الاستبدال من الفاتورة {{invoice}}",
   amountPaidNow: "المبلغ المدفوع الآن",
   remainingCredit: "الرصيد المتبقي للعميل",
+  paidAmount: "المدفوع",
+  remainingAmount: "المتبقي",
+  deferredRemainder: "والباقي آجل",
 };
 
 const EN_INVOICE_COPY = {
@@ -85,6 +88,9 @@ const EN_INVOICE_COPY = {
   exchangeCredit: "Exchange credit from invoice {{invoice}}",
   amountPaidNow: "Amount paid now",
   remainingCredit: "Remaining customer credit",
+  paidAmount: "Paid",
+  remainingAmount: "Remaining",
+  deferredRemainder: "remainder deferred",
 };
 
 const safeLabel = (value, fallback) => (typeof value === "string" ? value : fallback);
@@ -152,6 +158,9 @@ const getPaymentMethodLabel = (value = "", copy = EN_INVOICE_COPY) => {
     split: copy.split,
     transfer: copy.transfer,
     bank_transfer: copy.bankTransfer,
+    instapay: "InstaPay",
+    vodafone_cash: "Vodafone Cash",
+    credit_sale: copy === AR_INVOICE_COPY ? "آجل" : "Deferred sale",
   };
   return labels[normalized] || (value || copy.notSpecified);
 };
@@ -229,7 +238,11 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
   const articleClass = luxury
     ? "overflow-hidden rounded-[2rem] border border-amber-200/70 bg-[#fffdf8] text-slate-950 shadow-[0_34px_100px_rgba(0,0,0,0.36),0_2px_0_rgba(255,255,255,0.9)_inset] print:rounded-none print:border-slate-200 print:bg-white print:text-slate-950 print:shadow-none"
     : "overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white text-stone-950 shadow-[0_18px_50px_rgba(39,20,75,0.07)]";
-  const resolvedPaymentMethod = getPaymentMethodLabel(paymentMethod || data?.paymentMethod, copy);
+  const outstandingAmount = Math.max(0, Number(totals?.remainingAmount || 0));
+  const resolvedPaymentMethodBase = getPaymentMethodLabel(paymentMethod || data?.paymentMethod, copy);
+  const resolvedPaymentMethod = outstandingAmount > 0 && paymentMethod !== "credit_sale"
+    ? `${resolvedPaymentMethodBase} — ${copy.deferredRemainder}`
+    : resolvedPaymentMethodBase;
 
   return (
     <article dir={dir} className={`${articleClass} ${textAlignClass} ${className}`}>
@@ -357,7 +370,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
         <div className={`mt-5 w-full max-w-sm rounded-2xl border p-4 ${luxury ? "border-slate-200/90 bg-slate-50/90 shadow-[0_16px_45px_rgba(15,23,42,0.08)] print:border-slate-200 print:bg-slate-50 print:shadow-none" : "border-stone-200 bg-stone-50"} ${isRtl ? "mr-auto" : "ml-auto"}`}>
           <Summary luxury={luxury} label={copy.subtotal} value={formatCurrency(totals?.subtotal)} />
           <Summary luxury={luxury} label={copy.discount} value={`- ${formatCurrency(totals?.discount)}`} />
-          <Summary luxury={luxury} label={shippingLabel} value={formatCurrency(totals?.shipping)} />
+          {Number(totals?.shipping || 0) > 0 ? <Summary luxury={luxury} label={shippingLabel} value={formatCurrency(totals?.shipping)} /> : null}
           {totals?.exchangeMode ? (
             <>
               <Summary luxury={luxury} label={copy.newItemsTotal} value={formatCurrency(totals?.newItemsTotal || totals?.grandTotal)} />
@@ -370,6 +383,8 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
             <span>{copy.grandTotal}</span>
             <span className={`${luxury ? "text-xl text-emerald-700" : "text-emerald-700"}`}>{formatCurrency(totals?.grandTotal)}</span>
           </div>
+          <Summary luxury={luxury} label={copy.paidAmount} value={formatCurrency(totals?.paidAmount)} />
+          <Summary luxury={luxury} label={copy.remainingAmount} value={formatCurrency(outstandingAmount)} />
           {publicView ? (
             <div className={`mt-3 border-t pt-3 text-sm font-black ${luxury ? "border-slate-200 text-slate-950" : "border-stone-200"}`}>
               {copy.paymentMethod}: {resolvedPaymentMethod || unavailable}

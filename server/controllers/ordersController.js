@@ -1392,6 +1392,8 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
       o.service_fee,
       o.total,
       o.paid_amount,
+      ${orderColumns.has("remaining_amount") ? "COALESCE(o.remaining_amount, GREATEST(COALESCE(o.total, 0) - COALESCE(o.paid_amount, 0), 0))" : "GREATEST(COALESCE(o.total, 0) - COALESCE(o.paid_amount, 0), 0)"} AS remaining_amount,
+      ${orderColumns.has("payment_breakdown") ? "COALESCE(o.payment_breakdown, '[]'::jsonb)" : "'[]'::jsonb"} AS payment_breakdown,
       o.payment_method,
       ${orderColumns.has("exchange_mode") ? "COALESCE(o.exchange_mode, FALSE)" : "FALSE"} AS exchange_mode,
       ${orderColumns.has("original_order_id") ? "o.original_order_id" : "NULL"} AS original_order_id,
@@ -1539,6 +1541,15 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
       images: publicImageArray(item.variant?.images),
     },
   }));
+  const collectedPaymentMethods = Array.from(new Set(
+    (Array.isArray(order.payment_breakdown) ? order.payment_breakdown : [])
+      .filter((payment) => Number(payment?.amount ?? payment?.paid_amount ?? payment?.value ?? 0) > 0)
+      .map((payment) => normalizeMoneyPaymentMethod(payment?.method || payment?.payment_method))
+      .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit"].includes(method))
+  ));
+  const collectedPaymentMethod = collectedPaymentMethods.length > 1
+    ? "split"
+    : collectedPaymentMethods[0] || order.payment_method || "n/a";
 
   return {
     invoice_number: order.invoice_number,
@@ -1585,7 +1596,11 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
       service: normalizeInvoiceMoney(order.service_fee),
       total: normalizeInvoiceMoney(order.total),
       paid: normalizeInvoiceMoney(order.paid_amount),
-      payment_method: order.payment_method || "n/a",
+      paid_amount: normalizeInvoiceMoney(order.paid_amount),
+      remaining: normalizeInvoiceMoney(order.remaining_amount),
+      remaining_amount: normalizeInvoiceMoney(order.remaining_amount),
+      payment_method: collectedPaymentMethod,
+      collected_payment_method: collectedPaymentMethod,
       exchange_mode: Boolean(order.exchange_mode),
       original_order_id: order.original_order_id || null,
       exchange_invoice_number: order.exchange_invoice_number || "",
@@ -1604,6 +1619,11 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     } : null,
     status: order.status || "Pending",
     payment_status: order.payment_status || "unpaid",
+    payment_method: collectedPaymentMethod,
+    collected_payment_method: collectedPaymentMethod,
+    paid_amount: normalizeInvoiceMoney(order.paid_amount),
+    remaining_amount: normalizeInvoiceMoney(order.remaining_amount),
+    payment_breakdown: order.payment_breakdown || [],
   };
 };
 const buildPublicInvoicePdfBuffer = async (invoice) => {
@@ -1680,18 +1700,22 @@ const buildPublicInvoicePdfBuffer = async (invoice) => {
 
   const footerY = (doc.lastAutoTable?.finalY || 96) + 8;
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, footerY, pageWidth - margin * 2, 32, 2, 2, "S");
+  doc.roundedRect(margin, footerY, pageWidth - margin * 2, 37, 2, 2, "S");
   doc.setFont("helvetica", "bold");
   doc.text("Totals", margin + 3, footerY + 6);
   doc.setFont("helvetica", "normal");
   doc.text(`Subtotal: ${normalizeInvoiceMoney(invoice.totals?.subtotal).toFixed(2)}`, margin + 3, footerY + 12);
   doc.text(`Discount: ${normalizeInvoiceMoney(invoice.totals?.discount).toFixed(2)}`, margin + 3, footerY + 17);
-  doc.text(`Service: ${normalizeInvoiceMoney(invoice.totals?.service).toFixed(2)}`, margin + 70, footerY + 12);
+  if (normalizeInvoiceMoney(invoice.totals?.service) > 0) {
+    doc.text(`Service: ${normalizeInvoiceMoney(invoice.totals?.service).toFixed(2)}`, margin + 70, footerY + 12);
+  }
   doc.text(`Paid: ${normalizeInvoiceMoney(invoice.totals?.paid).toFixed(2)}`, margin + 70, footerY + 17);
+  doc.text(`Remaining: ${normalizeInvoiceMoney(invoice.totals?.remaining).toFixed(2)}`, margin + 70, footerY + 22);
+  doc.text(`Payment method: ${invoice.collected_payment_method || invoice.payment_method || "n/a"}`, margin + 3, footerY + 27);
   doc.setFont("helvetica", "bold");
-  doc.text(`Total: ${normalizeInvoiceMoney(invoice.totals?.total).toFixed(2)}`, margin + 70, footerY + 22);
+  doc.text(`Total: ${normalizeInvoiceMoney(invoice.totals?.total).toFixed(2)}`, margin + 70, footerY + 27);
   doc.setFont("helvetica", "normal");
-  doc.text(`Public link: ${invoice.public_invoice_url || "n/a"}`, margin, footerY + 40, { maxWidth: pageWidth - margin * 2 });
+  doc.text(`Public link: ${invoice.public_invoice_url || "n/a"}`, margin, footerY + 45, { maxWidth: pageWidth - margin * 2 });
 
   return Buffer.from(doc.output("arraybuffer"));
 };
