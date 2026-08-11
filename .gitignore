@@ -45,6 +45,11 @@ server/services/*
 !server/services/metaReviewerInboxService.js
 !server/services/inboundMediaService.js
 !server/services/aiWorkflow*.js
+# Reporting & Analytics Center v2. `server/services/*` above ignores the whole
+# directory, so the analytics package needs its directory un-ignored before its
+# contents can be matched.
+!server/services/analytics/
+!server/services/analytics/**
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -67,3 +72,8 @@ server/services/*
 !server/services/metaReviewerInboxService.js
 !server/services/inboundMediaService.js
 !server/services/aiWorkflow*.js
+# Reporting & Analytics Center v2. `server/services/*` above ignores the whole
+# directory, so the analytics package needs its directory un-ignored before its
+# contents can be matched.
+!server/services/analytics/
+!server/services/analytics/**

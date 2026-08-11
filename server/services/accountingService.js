@@ -1,4 +1,18 @@
 import db from "../database/db.js";
+// Canonical SQL expressions. These were defined in this file and were MOVED, not copied,
+// to server/services/analytics/accountingCanon.js so the accounting layer and Analytics
+// v2 share one implementation. Behaviour is unchanged; guarded by
+// tests/analytics/analytics-pl-parity.test.js.
+import {
+  addScopedWhere,
+  coalesceColumnExpr,
+  columnExpr,
+  firstColumn,
+  paidOrderClauses,
+  positiveCoalesceColumnExpr,
+  purchaseCostLookup,
+  whereSql,
+} from "./analytics/accountingCanon.js";
 
 const DEFAULT_ACCOUNTS = [
   { code: "1200", name: "Inventory Asset", type: "asset" },
@@ -280,23 +294,6 @@ export const reconcileMoneyAccountUniqueness = async (clientOrPool, options = {}
   return { merged: duplicateResult.rows.length, normalized };
 };
 
-const firstColumn = (columns, names = []) => names.find((name) => columns.has(name)) || null;
-
-const columnExpr = (alias, columns, names = [], fallback = "0") => {
-  const column = firstColumn(columns, names);
-  return column ? `${alias}.${column}` : fallback;
-};
-
-const coalesceColumnExpr = (alias, columns, names = [], fallback = "0") => {
-  const expressions = names.filter((name) => columns.has(name)).map((name) => `${alias}.${name}`);
-  return expressions.length ? `COALESCE(${[...expressions, fallback].join(", ")})` : fallback;
-};
-
-const positiveCoalesceColumnExpr = (alias, columns, names = [], fallback = "0") => {
-  const expressions = names.filter((name) => columns.has(name)).map((name) => `NULLIF(${alias}.${name}, 0)`);
-  return expressions.length ? `COALESCE(${[...expressions, fallback].join(", ")})` : fallback;
-};
-
 const parseDateFilter = (value) => {
   if (!value) return null;
   const parsed = new Date(value);
@@ -311,99 +308,6 @@ const numericFilter = (value) => {
 const textFilter = (value) => {
   const parsed = String(value || "").trim().toLowerCase();
   return parsed || null;
-};
-
-const addScopedWhere = ({ clauses, params, alias, columns, tenantId, fromDate, toDate, branchId, dateColumns = ["created_at"] }) => {
-  const add = (value) => {
-    params.push(value);
-    return `$${params.length}`;
-  };
-  if (tenantId !== null && columns.has("tenant_id")) clauses.push(`${alias}.tenant_id = ${add(tenantId)}`);
-  const dateColumn = firstColumn(columns, dateColumns);
-  if (dateColumn && fromDate) clauses.push(`DATE(${alias}.${dateColumn}) >= ${add(fromDate)}`);
-  if (dateColumn && toDate) clauses.push(`DATE(${alias}.${dateColumn}) <= ${add(toDate)}`);
-  if (branchId && columns.has("branch_id")) clauses.push(`${alias}.branch_id = ${add(branchId)}`);
-  return { add };
-};
-
-const whereSql = (clauses) => (clauses.length ? `WHERE ${clauses.join(" AND ")}` : "");
-
-const paidOrderClauses = (orderColumns) => {
-  const statusExpr = orderColumns.has("status") ? "LOWER(COALESCE(o.status, ''))" : "''";
-  const paymentStatusExpr = orderColumns.has("payment_status") ? "LOWER(COALESCE(o.payment_status, ''))" : "''";
-  const personalExpr = orderColumns.has("is_personal_transaction") ? "COALESCE(o.is_personal_transaction, FALSE)" : "FALSE";
-  return [
-    `${statusExpr} NOT IN ('cancelled', 'canceled', 'void', 'refunded', 'returned', 'draft', 'deleted')`,
-    `${personalExpr} = FALSE`,
-    `(
-      ${paymentStatusExpr} IN ('paid', 'completed', 'complete', 'partially_paid', 'partial')
-      OR ${statusExpr} IN ('paid', 'completed', 'complete', 'delivered')
-    )`,
-  ];
-};
-
-const purchaseCostLookup = ({
-  purchaseColumns,
-  purchaseItemColumns,
-  variantColumns,
-  productIdExpr,
-  variantIdExpr,
-  tenantParam = "$1",
-  alias = "pcost",
-}) => {
-  if (!purchaseColumns.size || !purchaseItemColumns.size) {
-    return { join: "", expr: "0" };
-  }
-
-  const purchaseCostExpr = positiveCoalesceColumnExpr("pi", purchaseItemColumns, ["unit_cost", "cost_price", "purchase_price", "purchase_cost", "price"], "0");
-  const purchaseProductIdExpr = purchaseItemColumns.has("product_id")
-    ? `COALESCE(pi.product_id, ${variantColumns.size && purchaseItemColumns.has("variant_id") ? "ppv.product_id" : "NULL::bigint"})`
-    : variantColumns.size && purchaseItemColumns.has("variant_id")
-      ? "ppv.product_id"
-      : "NULL::bigint";
-  const purchaseVariantIdExpr = purchaseItemColumns.has("variant_id") ? "pi.variant_id" : "NULL::bigint";
-  const purchaseDateExpr = columnExpr("pu", purchaseColumns, ["created_at", "purchase_date", "date"], "CURRENT_TIMESTAMP");
-  const purchaseVariantJoin = variantColumns.size && purchaseItemColumns.has("variant_id") ? "LEFT JOIN product_variants ppv ON ppv.id = pi.variant_id AND ppv.tenant_id = pu.tenant_id" : "";
-  const purchaseTenantClause = purchaseItemColumns.has("tenant_id") ? `AND pi.tenant_id = ${tenantParam}` : "";
-  const purchaseStatusClause = purchaseColumns.has("status") ? "AND LOWER(COALESCE(pu.status, '')) NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')" : "";
-  const matchClause = `
-    ${purchaseProductIdExpr} = (${productIdExpr})
-    AND (
-      ((${variantIdExpr}) IS NOT NULL AND ${purchaseVariantIdExpr} = (${variantIdExpr}))
-      OR ((${variantIdExpr}) IS NULL)
-    )
-  `;
-  const baseFrom = `
-    FROM purchase_items pi
-    JOIN purchases pu ON pu.id = pi.purchase_id AND pu.tenant_id = ${tenantParam}
-    ${purchaseVariantJoin}
-    WHERE (${productIdExpr}) IS NOT NULL
-      ${purchaseTenantClause}
-      ${purchaseStatusClause}
-      AND GREATEST(${purchaseCostExpr}, 0) > 0
-      AND ${matchClause}
-  `;
-
-  return {
-    join: `
-      LEFT JOIN LATERAL (
-        SELECT COALESCE(
-          (
-            SELECT GREATEST(${purchaseCostExpr}, 0)::numeric
-            ${baseFrom}
-            ORDER BY ${purchaseDateExpr} DESC, pi.id DESC
-            LIMIT 1
-          ),
-          (
-            SELECT AVG(GREATEST(${purchaseCostExpr}, 0))::numeric
-            ${baseFrom}
-          ),
-          0
-        ) AS unit_cost
-      ) ${alias} ON TRUE
-    `,
-    expr: `${alias}.unit_cost`,
-  };
 };
 
 const ensureColumns = async (client) => {
