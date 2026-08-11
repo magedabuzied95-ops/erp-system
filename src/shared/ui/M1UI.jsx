@@ -251,12 +251,24 @@ export function StatusBadge({ tone = "neutral", children, className = "" }) {
 
 export const Badge = StatusBadge;
 
-export function MetricCard({ label, value, change, icon: Icon, tone = "neutral", className = "" }) {
+// `density` is an explicit per-instance decision, NOT derived from the theme.
+// The global .theme-density-compact class governs control heights (a user
+// preference); whether a given dashboard tile is compact is a layout choice the
+// page makes. Keeping them separate stops the two systems fighting. Default
+// stays "comfortable" so every existing consumer renders byte-identically.
+//
+// `supporting` is a generic ReactNode slot with no business meaning: no trend,
+// no positive/negative colouring. A domain component derives its own content and
+// may pass a styled node. `change` is untouched and keeps its existing
+// treatment; the two can coexist.
+export function MetricCard({ label, value, change, icon: Icon, tone = "neutral", density = "comfortable", supporting, className = "" }) {
+  const densityClass = density === "compact" ? "m1-metric--compact" : "m1-metric--comfortable";
   return (
-    <article className={cx("m1-metric", `m1-metric--${tone}`, className)}>
-      <div className="m1-metric__top"><span>{label}</span>{Icon ? <span className="m1-metric__icon"><Icon size={19} /></span> : null}</div>
+    <article className={cx("m1-metric", densityClass, `m1-metric--${tone}`, className)}>
+      <div className="m1-metric__top"><span>{label}</span>{Icon ? <span className="m1-metric__icon"><Icon size={density === "compact" ? 16 : 19} /></span> : null}</div>
       <strong>{value}</strong>
       {change ? <small>{change}</small> : null}
+      {supporting ? <div className="m1-metric__supporting">{supporting}</div> : null}
     </article>
   );
 }

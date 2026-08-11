@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Filter, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import {
   Button, IconButton, Input, Textarea, Select, Checkbox, Radio, Switch, SearchInput,
-  Card, StatusBadge, Modal, Drawer, Tabs, TabPanel, PageHeader, Toolbar, ToolbarGroup,
+  Card, MetricCard, StatusBadge, Modal, Drawer, Tabs, TabPanel, PageHeader, Toolbar, ToolbarGroup,
   ToolbarSpacer, FilterBar,
 } from "../shared/ui";
 
@@ -106,6 +106,14 @@ export default function ComponentsPreviewPrimitives() {
           <StatusBadge tone="warning">تحذير</StatusBadge>
           <StatusBadge tone="danger">خطر</StatusBadge>
           <StatusBadge tone="info">معلومة</StatusBadge>
+        </div>
+      </Card>
+
+      <Card title="MetricCard density" subtitle="نفس المكوّن بكثافتين، مع محتوى مساند اختياري.">
+        <div className="components-preview__button-row">
+          <MetricCard label="إجمالي المبيعات" value="34,850" change="+12.4%" />
+          <MetricCard label="الطلبات" value="34" density="compact" />
+          <MetricCard label="متوسط الطلب" value="1,025" density="compact" supporting="مقارنة بالأسبوع الماضي" />
         </div>
       </Card>
 

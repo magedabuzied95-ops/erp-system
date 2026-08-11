@@ -111,3 +111,16 @@
 .m1-drawer>footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border)}
 
 @media(max-width:700px){.m1-drawer{width:100%}.m1-filter-bar{padding:10px}}
+
+/* MetricCard density. `comfortable` is the untouched baseline; `compact` is a
+   canonical denser tile derived from the recurring compact metrics across the
+   analytics / attendance / portal dashboards, not copied from any single one.
+   Supporting content is generic secondary text: muted, never coloured by
+   meaning, because trend semantics belong to the calling domain component. */
+.m1-metric--compact{min-height:96px;padding:12px}
+.m1-metric--compact .m1-metric__top{font-size:11px}
+.m1-metric--compact .m1-metric__icon{width:30px;height:30px;border-radius:9px}
+.m1-metric--compact strong{margin-top:8px;font-size:20px}
+.m1-metric--compact small{margin-top:5px;font-size:10px}
+.m1-metric__supporting{margin-top:7px;color:var(--muted);font-size:11px;line-height:1.45}
+.m1-metric--compact .m1-metric__supporting{margin-top:5px;font-size:10px}

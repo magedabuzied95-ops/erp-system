@@ -216,14 +216,14 @@ test("StatusBadge and MetricCard accept className like every other primitive", (
   // Button/Input/IconButton via native spread) all compose. These two were the
   // only outliers, which blocked real adoption in Manager Portal.
   assert.match(jsx, /export function StatusBadge\(\{ tone = "neutral", children, className = "" \}\)/);
-  assert.match(jsx, /export function MetricCard\(\{ label, value, change, icon: Icon, tone = "neutral", className = "" \}\)/);
+  assert.ok(jsx.includes(String.raw`export function MetricCard({ label, value, change, icon: Icon, tone = "neutral", density = "comfortable", supporting, className = "" })`), "MetricCard must accept className");
 });
 
 test("caller classes APPEND — semantic tone stays owned by the kit", () => {
   // cx() puts the base and tone classes first, so a caller can add but cannot
   // silently replace the semantic colour.
   assert.match(jsx, /cx\("m1-status", `m1-status--\$\{tone\}`, className\)/);
-  assert.match(jsx, /cx\("m1-metric", `m1-metric--\$\{tone\}`, className\)/);
+  assert.ok(jsx.includes(String.raw`cx("m1-metric", densityClass, ` + "`m1-metric--${tone}`" + String.raw`, className)`), "metric classes must append");
 });
 
 test("className is optional — every existing consumer is unaffected", () => {
@@ -237,5 +237,54 @@ test("className is optional — every existing consumer is unaffected", () => {
 test("no portal- or page-specific concept leaked into the kit", () => {
   for (const term of ["manager", "MiniMetric", "CompactStat", "kpi-card-readable", "sub ="]) {
     assert.ok(!jsx.includes(term), `M1UI must not know about "${term}"`);
+  }
+});
+
+// ---- Phase 2A.2: MetricCard density + supporting -------------------------
+
+test("MetricCard defaults to comfortable — existing consumers are untouched", () => {
+  assert.match(jsx, /density = "comfortable"/);
+  assert.match(jsx, /const densityClass = density === "compact" \? "m1-metric--compact" : "m1-metric--comfortable"/);
+  // the comfortable baseline must keep its original measurements
+  assert.match(css, /\.m1-metric\{min-height:132px;padding:18px/);
+});
+
+test("compact is a real density step, not a token change", () => {
+  assert.match(css, /\.m1-metric--compact\{min-height:96px;padding:12px\}/);
+  for (const rule of ["\.m1-metric--compact \.m1-metric__top", "\.m1-metric--compact strong", "\.m1-metric--compact \.m1-metric__icon"]) {
+    assert.match(css, new RegExp(rule), `compact must scale ${rule}`);
+  }
+  assert.match(jsx, /size=\{density === "compact" \? 16 : 19\}/, "the icon scales with density too");
+});
+
+test("density is explicit, not derived from the theme density class", () => {
+  // Theme density governs control heights; tile density is a page layout choice.
+  // Coupling them would make two systems fight.
+  assert.doesNotMatch(css, /theme-density-compact[^}]*m1-metric/);
+  assert.match(jsx, /NOT derived from the theme/);
+});
+
+test("supporting renders only when provided and stays business-agnostic", () => {
+  assert.match(jsx, /\{supporting \? <div className="m1-metric__supporting">\{supporting\}<\/div> : null\}/);
+  assert.match(css, /\.m1-metric__supporting\{[^}]*color:var\(--muted\)/);
+  // must not colour by meaning
+  assert.doesNotMatch(css, /\.m1-metric__supporting[^}]*var\(--success\)|\.m1-metric__supporting[^}]*var\(--danger\)/);
+});
+
+test("supporting does not replace `change` — both can coexist", () => {
+  const mc = jsx.slice(jsx.indexOf("export function MetricCard"), jsx.indexOf("export function MetricCard") + 1200);
+  assert.match(mc, /\{change \? <small>\{change\}<\/small> : null\}/, "change keeps its original treatment");
+  assert.match(mc, /supporting \?/);
+});
+
+test("compact composes with supporting and className", () => {
+  assert.match(css, /\.m1-metric--compact \.m1-metric__supporting/, "supporting scales inside compact");
+  assert.match(jsx, /cx\("m1-metric", densityClass, `m1-metric--\$\{tone\}`, className\)/);
+});
+
+test("no domain naming or accent-border API leaked into MetricCard", () => {
+  const mc = jsx.slice(jsx.indexOf("export function MetricCard"), jsx.indexOf("export function MetricCard") + 1200);
+  for (const bad of ["sub =", "subtitle", "trend", "delta", "borderTone", "accent", "topBorder"]) {
+    assert.ok(!mc.includes(bad), `MetricCard must not expose "${bad}"`);
   }
 });
