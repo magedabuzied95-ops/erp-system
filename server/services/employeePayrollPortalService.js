@@ -196,6 +196,26 @@ const countExpectedWorkingDays = ({ workingDays, periodStart, periodEnd }) => {
   return count;
 };
 
+const previousIsoDate = (value) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+};
+
+const expectedWorkingDates = ({ workingDays, periodStart, periodEnd }) => {
+  const days = new Set(normalizeWorkingDayCodes(workingDays));
+  if (!days.size) return [];
+  const cursor = new Date(`${periodStart}T12:00:00Z`);
+  const end = new Date(`${periodEnd}T12:00:00Z`);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime())) return [];
+  const dates = [];
+  while (cursor <= end) {
+    if (days.has(weekdayCodes[cursor.getUTCDay()])) dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+};
+
 const normalizeShiftForPortal = (row = null) => {
   if (!row) return null;
   const workingDays = normalizeWorkingDayCodes(row.working_days);
@@ -843,14 +863,17 @@ const getEmployeeScheduledShifts = async ({ tenantId, employeeId, timeZone = "Af
   }
 };
 
-const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodEnd, currentShift = null }) => {
+const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodEnd, currentShift = null, timeZone = "Africa/Cairo" }) => {
   try {
-    const result = await db.query(
+    const [result, exclusionsResult] = await Promise.all([
+      db.query(
       `
       SELECT
         COUNT(*)::int AS records_count,
         COUNT(*) FILTER (WHERE COALESCE(check_in_at, check_in) IS NOT NULL)::int AS attended_days,
         COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'absent')::int AS absence_days,
+        COALESCE(ARRAY_AGG(attendance_date::text) FILTER (WHERE attendance_date IS NOT NULL), ARRAY[]::text[]) AS recorded_dates,
+        COALESCE(ARRAY_AGG(attendance_date::text) FILTER (WHERE LOWER(COALESCE(status, '')) = 'absent'), ARRAY[]::text[]) AS explicit_absence_dates,
         COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'late')::int AS late_days,
         COUNT(*) FILTER (WHERE COALESCE(check_out_at, check_out) IS NULL AND COALESCE(check_in_at, check_in) IS NOT NULL)::int AS missing_checkout_days,
         COALESCE(SUM(overtime_minutes), 0) AS overtime_minutes,
@@ -861,8 +884,48 @@ const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodE
         AND attendance_date BETWEEN $3::date AND $4::date
       `,
       [employeeId, tenantId, periodStart, periodEnd]
-    );
+      ),
+      db.query(
+        `
+        SELECT DISTINCT excluded_date::text AS excluded_date
+        FROM (
+          SELECT GENERATE_SERIES(COALESCE(leave_date, start_date), COALESCE(leave_date, end_date, start_date), INTERVAL '1 day')::date AS excluded_date
+          FROM employee_leaves
+          WHERE employee_id::text = $1::text
+            AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+            AND LOWER(COALESCE(status, '')) = 'approved'
+            AND COALESCE(leave_date, start_date) <= $4::date
+            AND COALESCE(leave_date, end_date, start_date) >= $3::date
+          UNION ALL
+          SELECT GENERATE_SERIES(COALESCE(vacation_date, start_date), COALESCE(vacation_date, end_date, start_date), INTERVAL '1 day')::date AS excluded_date
+          FROM employee_vacations
+          WHERE employee_id::text = $1::text
+            AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+            AND LOWER(COALESCE(status, '')) = 'approved'
+            AND COALESCE(vacation_date, start_date) <= $4::date
+            AND COALESCE(vacation_date, end_date, start_date) >= $3::date
+          UNION ALL
+          SELECT holiday_date::date AS excluded_date
+          FROM holidays
+          WHERE ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
+            AND holiday_date BETWEEN $3::date AND $4::date
+        ) excluded
+        `,
+        [employeeId, tenantId, periodStart, periodEnd]
+      ),
+    ]);
     const row = result.rows[0] || {};
+    const recordedDates = new Set((row.recorded_dates || []).map((date) => String(date).slice(0, 10)));
+    const excludedDates = new Set(exclusionsResult.rows.map((item) => String(item.excluded_date).slice(0, 10)));
+    const explicitAbsenceDates = (row.explicit_absence_dates || []).map((date) => String(date).slice(0, 10));
+    const yesterday = previousIsoDate(localIsoDate(new Date(), timeZone));
+    const elapsedPeriodEnd = periodEnd < yesterday ? periodEnd : yesterday;
+    const generatedAbsenceDates = elapsedPeriodEnd < periodStart ? [] : expectedWorkingDates({
+      workingDays: currentShift?.working_days || currentShift?.workingDays || [],
+      periodStart,
+      periodEnd: elapsedPeriodEnd,
+    }).filter((date) => !recordedDates.has(date) && !excludedDates.has(date));
+    const absenceDates = [...new Set([...explicitAbsenceDates, ...generatedAbsenceDates])].sort();
     const expectedWorkingDays = countExpectedWorkingDays({
       workingDays: currentShift?.working_days || currentShift?.workingDays || [],
       periodStart,
@@ -871,7 +934,8 @@ const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodE
     return {
       records_count: Number(row.records_count || 0),
       attended_days: Number(row.attended_days || 0),
-      absence_days: Number(row.absence_days || 0),
+      absence_days: absenceDates.length,
+      absence_dates: absenceDates,
       late_days: Number(row.late_days || 0),
       missing_checkout_days: Number(row.missing_checkout_days || 0),
       overtime_hours: Number(((Number(row.overtime_minutes || 0)) / 60).toFixed(2)),
@@ -885,6 +949,7 @@ const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodE
       records_count: 0,
       attended_days: 0,
       absence_days: 0,
+      absence_dates: [],
       late_days: 0,
       missing_checkout_days: 0,
       overtime_hours: 0,
@@ -1805,6 +1870,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     getEmployeeScheduledShifts({ tenantId: employee.tenant_id, employeeId: employee.id, timeZone }),
   ]);
   const effectiveCurrentShift = scheduledShifts.today || currentShift;
+  const attendanceCalendarShift = currentShift || effectiveCurrentShift;
   recordTiming(timings, "payroll_related_ms", startedAt);
 
   startedAt = nowMs();
@@ -1813,15 +1879,40 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     employeeId: employee.id,
     periodStart: bounds.start,
     periodEnd: bounds.end,
-    currentShift: effectiveCurrentShift,
+    currentShift: attendanceCalendarShift,
+    timeZone,
   });
-  const attendanceTimeline = await getAttendanceTimeline({
+  const recordedAttendanceTimeline = await getAttendanceTimeline({
     tenantId: employee.tenant_id,
     employeeId: employee.id,
     periodStart: bounds.start,
     periodEnd: bounds.end,
     currentShift: effectiveCurrentShift,
   });
+  const generatedAbsenceTimeline = (attendanceSummary.absence_dates || [])
+    .filter((date) => !recordedAttendanceTimeline.some((row) => String(row.date || row.attendance_date).slice(0, 10) === date))
+    .map((date) => ({
+      id: `absence-${date}`,
+      date,
+      attendance_date: date,
+      check_in: null,
+      check_out: null,
+      status: "absent",
+      attendance_status: "absent",
+      late_minutes: 0,
+      early_leave_minutes: 0,
+      overtime_hours: 0,
+      notes: "",
+      selected_shift_id: effectiveCurrentShift?.id || null,
+      shift_id: effectiveCurrentShift?.id || null,
+      shift_name: effectiveCurrentShift?.shift_name || effectiveCurrentShift?.shiftName || "",
+      resolved_shift_start_time: effectiveCurrentShift?.start_time || effectiveCurrentShift?.startTime || "",
+      resolved_shift_end_time: effectiveCurrentShift?.end_time || effectiveCurrentShift?.endTime || "",
+    }));
+  const attendanceTimeline = [...recordedAttendanceTimeline, ...generatedAbsenceTimeline]
+    .sort((left, right) => String(right.date || right.attendance_date).localeCompare(String(left.date || left.attendance_date)))
+    .slice(0, 31);
+  const { absence_dates: _absenceDates, ...attendanceSummaryPublic } = attendanceSummary;
   recordTiming(timings, "attendance_summary_ms", startedAt);
 
   startedAt = nowMs();
@@ -1853,7 +1944,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       achievements: [],
       lazy: true,
     },
-    fn: () => buildPerformanceSystem({ employee, period, bounds, attendanceSummary, persist: false, includeRewardHistory: includeOptional }),
+    fn: () => buildPerformanceSystem({ employee, period, bounds, attendanceSummary: attendanceSummaryPublic, persist: false, includeRewardHistory: includeOptional }),
   });
   recordTiming(timings, "gamification_ms", startedAt);
 
@@ -2011,7 +2102,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     payslip,
     attendance: {
       summary: {
-        ...attendanceSummary,
+        ...attendanceSummaryPublic,
         deducted_absence_amount: absenceDeduction,
       },
       timeline: attendanceTimeline,
@@ -2051,13 +2142,13 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     finalized_at: payrollRun?.finalized_at || null,
     recent_advances: recentAdvances,
     recent_attendance_summary: {
-      ...attendanceSummary,
+      ...attendanceSummaryPublic,
       deducted_absence_amount: absenceDeduction,
-      attended_days: toNumber(snapshot.attended_days, toNumber(attendanceSnapshot.attended_days, attendanceSummary.attended_days)),
-      absence_days: toNumber(snapshot.absence_days, toNumber(attendanceSnapshot.absence_days, attendanceSummary.absence_days)),
+      attended_days: toNumber(snapshot.attended_days, toNumber(attendanceSnapshot.attended_days, attendanceSummaryPublic.attended_days)),
+      absence_days: toNumber(snapshot.absence_days, toNumber(attendanceSnapshot.absence_days, attendanceSummaryPublic.absence_days)),
       missing_hours: toNumber(snapshot.missing_hours, toNumber(attendanceSnapshot.missing_hours)),
       late_hours: toNumber(snapshot.late_hours, toNumber(attendanceSnapshot.late_hours)),
-      expected_working_days: toNumber(attendanceSummary.expected_working_days, toNumber(snapshot.expected_working_days, toNumber(attendanceSnapshot.expected_working_days))),
+      expected_working_days: toNumber(attendanceSummaryPublic.expected_working_days, toNumber(snapshot.expected_working_days, toNumber(attendanceSnapshot.expected_working_days))),
     },
   };
 };

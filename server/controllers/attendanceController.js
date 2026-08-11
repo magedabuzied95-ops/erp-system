@@ -3448,9 +3448,25 @@ const centerNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const centerIsExpectedWeekday = (dateValue, workingDaysPerWeek = 6) => {
+const centerWeekdayCodes = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+const centerWorkingDayCodes = (workingDays) => {
+  let source = workingDays;
+  if (typeof source === "string") {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = source.split(",");
+    }
+  }
+  return new Set((Array.isArray(source) ? source : []).map((day) => String(day || "").trim().toLowerCase().slice(0, 3)).filter(Boolean));
+};
+
+const centerIsExpectedWeekday = (dateValue, workingDays = [], workingDaysPerWeek = 6) => {
   const date = new Date(`${centerDateKey(dateValue)}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return false;
+  const configuredDays = centerWorkingDayCodes(workingDays);
+  if (configuredDays.size) return configuredDays.has(centerWeekdayCodes[date.getUTCDay()]);
   return date.getUTCDay() < Math.max(1, Math.min(7, Math.round(centerNumber(workingDaysPerWeek, 6))));
 };
 
@@ -3516,9 +3532,18 @@ const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeG
       COALESCE(e.daily_work_hours, 8)::numeric AS daily_work_hours,
       COALESCE(e.working_days_per_month, 26)::int AS working_days_per_month,
       COALESCE(e.working_days_per_week, 6)::int AS working_days_per_week,
+      COALESCE(active_shift.working_days, '[]'::jsonb) AS working_days,
       b.name AS branch_name
     FROM employees e
     LEFT JOIN branches b ON b.id = e.branch_id
+    LEFT JOIN LATERAL (
+      SELECT es.working_days
+      FROM employee_shifts es
+      WHERE es.employee_id = e.id
+        AND (e.tenant_id IS NULL OR es.tenant_id = e.tenant_id OR es.tenant_id IS NULL)
+      ORDER BY es.updated_at DESC NULLS LAST, es.created_at DESC NULLS LAST, es.id DESC
+      LIMIT 1
+    ) active_shift ON TRUE
     WHERE ${employeeWhere.join(" AND ")}
     ORDER BY b.name NULLS LAST, e.full_name
     LIMIT 500
@@ -3619,7 +3644,7 @@ const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeG
   const expectedDatesByEmployee = new Map();
   employees.forEach((employee) => {
     const candidates = dates.filter((date) =>
-      centerIsExpectedWeekday(date, employee.working_days_per_week) &&
+      centerIsExpectedWeekday(date, employee.working_days, employee.working_days_per_week) &&
       !approvedLeaveDates.has(`${employee.id}:${date}`) &&
       !holidays.has(date)
     );
@@ -3633,7 +3658,7 @@ const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeG
       if (!includeGenerated && !log) return;
       const leave = approvedLeaveDates.get(`${employee.id}:${date}`);
       const holiday = holidays.get(date);
-      const weeklyExpected = centerIsExpectedWeekday(date, employee.working_days_per_week);
+      const weeklyExpected = centerIsExpectedWeekday(date, employee.working_days, employee.working_days_per_week);
       const expectedDate = expectedDatesByEmployee.get(String(employee.id))?.has(date);
       const workedMinutes = centerNumber(log?.worked_minutes);
       const dailyMinutes = Math.round(centerNumber(employee.daily_work_hours, 8) * 60);
