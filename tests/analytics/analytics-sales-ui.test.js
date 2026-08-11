@@ -154,7 +154,7 @@ test("an incomplete category dimension warns instead of quietly under-reporting"
 test("the breakdown states plainly that it excludes returns", async () => {
   const page = await read("../../src/modules/reports/pages/SalesIntelligence.jsx");
   assert.match(page, /breakdown\.beforeReturns/, "the returns basis difference must be visible, not buried in docs");
-  const ar = JSON.parse(await read("../../src/locales/ar/sales.json"));
+  const ar = JSON.parse(await read("../../src/locales/ar/salesAnalytics.json"));
   assert.match(ar.breakdown.beforeReturns, /[؀-ۿ]/, "the explanation must be in Arabic");
   assert.match(ar.breakdown.beforeReturns, /مرتجع/, "it must actually name returns");
   // The same distinction reaches the generic warnings list, so it needs copy there too.
@@ -218,7 +218,7 @@ test("size analysis refuses to mix incomparable size vocabularies", async () => 
 });
 
 test("the size scope note names the type it is scoped to", async () => {
-  const ar = JSON.parse(await read("../../src/locales/ar/sales.json"));
+  const ar = JSON.parse(await read("../../src/locales/ar/salesAnalytics.json"));
   assert.match(ar.sizes.scopeNote, /\{\{productType\}\}/, "the note must interpolate the actual type");
   assert.match(ar.sizes.notApplicable, /[؀-ۿ]/);
 });
@@ -318,8 +318,8 @@ test("Arabic and English sales bundles have identical key shapes", async () => {
     Object.entries(node).flatMap(([key, value]) =>
       value && typeof value === "object" ? flatten(value, `${prefix}${key}.`) : [`${prefix}${key}`]
     );
-  const ar = flatten(JSON.parse(await read("../../src/locales/ar/sales.json"))).sort();
-  const en = flatten(JSON.parse(await read("../../src/locales/en/sales.json"))).sort();
+  const ar = flatten(JSON.parse(await read("../../src/locales/ar/salesAnalytics.json"))).sort();
+  const en = flatten(JSON.parse(await read("../../src/locales/en/salesAnalytics.json"))).sort();
   assert.deepEqual(ar, en, "Arabic and English sales bundles have drifted");
 });
 
@@ -328,8 +328,38 @@ test("the sales bundle is registered under the key the components address", asyn
   assert.match(i18n, /salesAnalytics/, "the bundle must be registered as salesAnalytics");
 });
 
+test("no two i18n namespaces share a bundle file", async () => {
+  const i18n = await read("../../src/i18n/i18n.js");
+
+  // The analytics bundle was first written to locales/*/sales.json, a path already held
+  // by the Employee Sales Commissions bundle. Both namespaces then imported the same
+  // file, so the commissions screen would have shipped with entirely the wrong copy.
+  const imports = [...i18n.matchAll(/^import\s+(\w+)\s+from\s+"\.\.\/locales\/(\w+)\/([\w.-]+)"/gm)];
+  assert.ok(imports.length > 10, "expected the locale imports to be found");
+
+  const byFile = new Map();
+  for (const [, binding, language, file] of imports) {
+    const key = `${language}/${file}`;
+    byFile.set(key, [...(byFile.get(key) || []), binding]);
+  }
+  for (const [file, bindings] of byFile) {
+    assert.equal(bindings.length, 1, `${file} is imported as ${bindings.join(" and ")}; one bundle, one namespace`);
+  }
+});
+
+test("the analytics bundle did not displace the commissions bundle", async () => {
+  // Two distinct files with distinct content. The regression this guards against was
+  // one file being asked to serve two unrelated screens.
+  const commissions = JSON.parse(await read("../../src/locales/ar/sales.json"));
+  const analytics = JSON.parse(await read("../../src/locales/ar/salesAnalytics.json"));
+  assert.ok(commissions.payroll, "the commissions bundle must still carry its payroll copy");
+  assert.ok(commissions.penalties, "the commissions bundle must still carry its penalties copy");
+  assert.ok(analytics.matrix, "the analytics bundle must carry the matrix copy");
+  assert.ok(!analytics.payroll, "the analytics bundle must not absorb commissions copy");
+});
+
 test("Arabic plurals are interpolated, not left to a rule this bundle does not define", async () => {
-  const ar = JSON.parse(await read("../../src/locales/ar/sales.json"));
+  const ar = JSON.parse(await read("../../src/locales/ar/salesAnalytics.json"));
   // Arabic needs six plural forms; a bare `_one`/`_other` pair silently falls through.
   const flatten = (node, prefix = "") =>
     Object.entries(node).flatMap(([key, value]) =>
