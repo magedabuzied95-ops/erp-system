@@ -1,0 +1,148 @@
+{
+  "title": "Executive Overview",
+  "subtitle": "Store performance for the selected period",
+  "period": {
+    "label": "Period",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "last7": "Last 7 days",
+    "last30": "Last 30 days",
+    "thisWeek": "This week",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "thisYear": "This year",
+    "custom": "Custom range",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "cancel": "Cancel",
+    "days_one": "1 day",
+    "days_other": "{{count}} days"
+  },
+  "compare": {
+    "label": "Compare",
+    "none": "No comparison",
+    "previous_period": "Previous period",
+    "previous_month": "Previous month",
+    "previous_year": "Previous year",
+    "vs": "vs",
+    "new": "New",
+    "noBase": "No comparison period"
+  },
+  "groups": {
+    "primary": "Financial performance",
+    "operating": "Operating indicators",
+    "health": "Health indicators"
+  },
+  "kpi": {
+    "netSales": "Net Sales",
+    "grossProfit": "Gross Profit",
+    "grossMargin": "Gross Margin",
+    "orders": "Orders",
+    "averageOrderValue": "Average Order Value",
+    "itemsSold": "Items Sold",
+    "itemsPerOrder": "Items per Order",
+    "discountRate": "Discount Rate",
+    "returns": "Returns",
+    "returnRate": "Return Rate",
+    "newCustomers": "New Customers",
+    "inventoryValue": "Inventory Value"
+  },
+  "definition": {
+    "netSales": "Total sales after discounts and returns, per the approved reporting rules.",
+    "grossProfit": "Net sales minus cost of goods sold.",
+    "grossMargin": "Gross profit as a share of net sales.",
+    "orders": "Orders recognised as sales in the period.",
+    "averageOrderValue": "Net sales divided by order count.",
+    "itemsSold": "Units sold, net of returns.",
+    "itemsPerOrder": "Average units per order.",
+    "discountRate": "Discounts as a share of gross sales.",
+    "returns": "Refunded value for returns processed in the period.",
+    "returnRate": "Returns as a share of gross sales.",
+    "newCustomers": "Customers registered for the first time in the period.",
+    "inventoryValue": "Current on-hand stock valued at cost."
+  },
+  "formula": {
+    "netSales": "Gross sales − discounts − returns",
+    "grossProfit": "Net sales − cost of goods sold",
+    "grossMargin": "Gross profit ÷ net sales",
+    "averageOrderValue": "Net sales ÷ orders",
+    "itemsPerOrder": "Items sold ÷ orders",
+    "discountRate": "Discounts ÷ gross sales",
+    "returnRate": "Returns ÷ gross sales",
+    "inventoryValue": "On-hand quantity × unit cost"
+  },
+  "coverage": {
+    "label": "Cost coverage",
+    "high": "High confidence",
+    "partial": "Profit figures may be inaccurate",
+    "critical": "Insufficient cost data",
+    "explain": "Share of sold units with a recorded cost. The lower it is, the less reliable profit becomes.",
+    "unavailable": "Not reliably available",
+    "unavailableReason": "Cost coverage is below 50%, so no trustworthy profit figure can be shown."
+  },
+  "trend": {
+    "title": "Sales and profit over the period",
+    "netSales": "Net Sales",
+    "grossProfit": "Gross Profit",
+    "orders": "Orders",
+    "margin": "Margin",
+    "profitUnavailable": "Profit unavailable for this bucket",
+    "empty": "No sales in the selected period."
+  },
+  "categories": {
+    "title": "Top categories by net sales",
+    "netSales": "Net Sales",
+    "units": "Units",
+    "grossProfit": "Profit",
+    "margin": "Margin",
+    "contribution": "Share",
+    "other": "Other categories",
+    "otherDetail": "{{count}} categories",
+    "uncategorised": "Uncategorised",
+    "empty": "No category data for the selected period."
+  },
+  "highlights": {
+    "title": "Management highlights",
+    "empty": "No material changes in this period.",
+    "salesUp": "Sales rose {{percent}} versus the previous period.",
+    "salesDown": "Sales fell {{percent}} versus the previous period.",
+    "marginUp": "Gross margin improved by {{points}} points.",
+    "marginDown": "Gross margin fell by {{points}} points.",
+    "marginDownSalesUp": "Gross margin fell {{points}} points despite sales growth.",
+    "returnRateUp": "Return rate rose from {{previous}} to {{current}}.",
+    "aovUp": "Average order value rose {{percent}}.",
+    "aovDown": "Average order value fell {{percent}}.",
+    "cogsCoverageLow": "Cost coverage is only {{percent}}, so profit figures need review."
+  },
+  "warnings": {
+    "title": "Data notes",
+    "COGS_COVERAGE_LOW": "Some sold units have no recorded cost, so profit may be overstated.",
+    "COGS_COVERAGE_CRITICAL": "Cost data is insufficient to show a trustworthy profit.",
+    "INVENTORY_COST_COVERAGE_LOW": "Some stock items have no recorded cost, so inventory value is understated.",
+    "COMPARISON_BASE_ZERO": "The comparison period has no data, so percentage change cannot be calculated.",
+    "EXCHANGE_COGS_UNREVERSED": "Exchange orders do not reverse the original order's cost, so cost may be double-counted.",
+    "EXCHANGE_CREDIT_RETAINED": "Net sales include {{creditRetained}} of exchange credit the customer has not used.",
+    "ORPHAN_RETURN_ITEMS": "Some return lines are not linked to a sold line and cannot be attributed to products.",
+    "STOCK_SOURCE_DIVERGENCE": "The legacy product stock figure disagrees with live variant stock.",
+    "UNCATEGORISED_SALES_HIGH": "A large share of sales has no category assigned.",
+    "RETURNS_FALLBACK_USED": "Return tables could not be read, so returns were not deducted.",
+    "NAN_VALUES_IGNORED": "Corrupt numeric values were ignored in the calculation."
+  },
+  "states": {
+    "loading": "Loading data...",
+    "emptyTitle": "No data",
+    "emptyBody": "No sales were recorded in the selected period. Try widening the range.",
+    "errorTitle": "Could not load the executive overview",
+    "errorBody": "Something failed while computing the data. No numbers are shown, to avoid presenting incorrect information.",
+    "retry": "Retry",
+    "restricted": "You do not have permission to view this metric",
+    "restrictedShort": "Restricted",
+    "unavailable": "Unavailable",
+    "partialTitle": "Partial data",
+    "noComparison": "—"
+  },
+  "actions": {
+    "refresh": "Refresh"
+  }
+}

@@ -10,6 +10,7 @@ import ordersAr from "../locales/ar/orders.json";
 import inventoryAr from "../locales/ar/inventory.json";
 import analyticsAr from "../locales/ar/analytics.json";
 import reportsAr from "../locales/ar/reports.json";
+import overviewAr from "../locales/ar/overview.json";
 import suppliersAr from "../locales/ar/suppliers.json";
 import purchasesAr from "../locales/ar/purchases.json";
 import accountingAr from "../locales/ar/accounting.json";
@@ -33,6 +34,7 @@ import ordersEn from "../locales/en/orders.json";
 import inventoryEn from "../locales/en/inventory.json";
 import analyticsEn from "../locales/en/analytics.json";
 import reportsEn from "../locales/en/reports.json";
+import overviewEn from "../locales/en/overview.json";
 import suppliersEn from "../locales/en/suppliers.json";
 import purchasesEn from "../locales/en/purchases.json";
 import accountingEn from "../locales/en/accounting.json";
@@ -134,6 +136,7 @@ const resources = {
       inventory: inventoryAr,
       analytics: analyticsAr,
       reports: reportsAr,
+      overview: overviewAr,
       suppliers: suppliersAr,
       purchases: purchasesAr,
       accounting: accountingAr,
@@ -163,6 +166,7 @@ const resources = {
       inventory: inventoryEn,
       analytics: analyticsEn,
       reports: reportsEn,
+      overview: overviewEn,
       suppliers: suppliersEn,
       purchases: purchasesEn,
       accounting: accountingEn,

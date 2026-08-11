@@ -109,7 +109,7 @@ export const MODULE_ACTIONS = Object.freeze({
   staff_tasks: ["view", "create", "update", "manage"],
   website: ["view", "orders", "settings"],
   employees: ["view", "edit", "delete", "export", "print"],
-  reports: ["view", "export", "print"],
+  reports: ["view", "export", "print", "cost", "profit"],
   settings: ["view", "edit", "approve"],
   users: ["view", "create", "edit", "delete"],
   roles: ["view", "create", "edit", "delete", "export"],
@@ -430,6 +430,7 @@ const RAW_SIDEBAR_SECTIONS = [
     items: [
       { label: "Employees", to: "/employees", permission: "employees.view", icon: UsersRound },
       { label: "Attendance Center", to: "/employees/attendance", permission: "attendance.view", icon: CalendarClock },
+      { label: "Executive Overview", to: "/reports/overview", permission: "reports.view", icon: LineChart, keywords: "overview executive analytics reporting center نظرة تنفيذية تحليلات" },
       { label: "Reports", to: "/reports", permission: "reports.view", icon: BarChart3 },
     ],
   },
