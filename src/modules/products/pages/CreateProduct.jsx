@@ -33,6 +33,7 @@ import ImageThumbnailActions from "../components/ImageThumbnailActions";
 import ManufacturerSelect from "../components/ManufacturerSelect";
 import MultiVersionGenerator from "../components/MultiVersionGenerator";
 import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
+import CrocsSizeSelector from "../components/CrocsSizeSelector";
 import { normalizeArticleCodes } from "../../../../shared/articleCode";
 import "./CreateProduct.m1.css";
 
@@ -55,15 +56,13 @@ import {
 import {
   applyBulkSizesToGroups,
   applyBulkStockToGroups,
-  CROCS_SIZE_LIBRARY_OPTIONS,
   createVariantRow,
-  getCrocsSizeInputDisplayLabel,
-  getCrocsSizeLibraryItems,
   isCrocsProductType,
   parseBulkSizes,
   parseBulkStock,
   sortProductSizes,
 } from "../lib/variantBulkSizes";
+import { crocsSizeKey, normalizeCrocsSizeValue } from "../../../shared/lib/crocsSizes";
 import { dedupeImages } from "../lib/dedupeImages";
 import {
   buildMissingRequiredProductFieldsMessage,
@@ -1494,13 +1493,10 @@ function CreateProduct() {
     );
   };
 
-  const applyCrocsSizeLibrary = (colorGroupId, libraryId) => {
-    const library = CROCS_SIZE_LIBRARY_OPTIONS.find((item) => item.id === libraryId);
-    if (!library) return;
-
+  const applyCrocsSizeLibrary = (colorGroupId, selectedSizes = []) => {
     const { groups: updatedGroups, addedCount } = applyBulkSizesToGroups({
       groups: colorGroups,
-      sizes: library.sizes.map((size) => size.eu),
+      sizes: selectedSizes.map(normalizeCrocsSizeValue),
       targetGroupId: colorGroupId,
       price: regularPrice || 0,
     });
@@ -1681,6 +1677,17 @@ function CreateProduct() {
   };
 
   const updateSizeRow = (colorGroupId, sizeRowId, field, value) => {
+    const nextValue = field === "size" && isCrocsProductType(productType)
+      ? normalizeCrocsSizeValue(value)
+      : value;
+    if (field === "size" && crocsSizeKey(nextValue)) {
+      const targetGroup = colorGroups.find((group) => group.id === colorGroupId);
+      const duplicate = targetGroup?.sizes?.some((row) => row.id !== sizeRowId && crocsSizeKey(row.size) === crocsSizeKey(nextValue));
+      if (duplicate) {
+        toast("المقاس موجود بالفعل في هذا اللون");
+        return;
+      }
+    }
     setColorGroups((prev) =>
       buildAutoVariantGroups(
         prev.map((group) =>
@@ -1691,7 +1698,7 @@ function CreateProduct() {
                   row.id === sizeRowId
                     ? {
                         ...row,
-                        [field]: field === "barcode" ? String(value || "") : field === "sku" ? String(value || "").toUpperCase().replace(/[^A-Z0-9-]/g, "") : value,
+                        [field]: field === "barcode" ? String(nextValue || "") : field === "sku" ? String(nextValue || "").toUpperCase().replace(/[^A-Z0-9-]/g, "") : nextValue,
                         ...(field === "size" ? { sizeManualOverride: true } : {}),
                         ...(field === "sku" ? { skuManualOverride: true } : {}),
                         ...(field === "barcode" ? { barcodeManualOverride: true } : {}),
@@ -3944,42 +3951,11 @@ function CreateProduct() {
                                         + إضافة مقاسات كروكس
                                       </button>
                                       {crocsLibraryGroupId === group.id ? (
-                                        <div className="absolute left-0 top-full z-30 mt-2 w-[280px] rounded-[16px] border border-white/10 bg-zinc-950 p-3 shadow-2xl shadow-black/40">
-                                          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">{t("products.editor.crocsSizeLibrary", "مكتبة مقاسات كروكس")}</p>
-                                          <p className="mt-2 text-[11px] leading-5 text-zinc-400">
-                                            سيتم إضافة المقاس الأوروبي فقط إلى المنتج، وتظهر بيانات US/CM داخل دليل المقاسات في المتجر.
-                                          </p>
-                                          <div className="mt-3 grid gap-2">
-                                            {CROCS_SIZE_LIBRARY_OPTIONS.map((option) => (
-                                              <button
-                                                key={option.id}
-                                                type="button"
-                                                onClick={() => applyCrocsSizeLibrary(group.id, option.id)}
-                                                className="rounded-[14px] border border-white/10 bg-white/5 px-3 py-3 text-right transition hover:border-amber-300/30 hover:bg-amber-400/10"
-                                              >
-                                                <div className="text-sm font-black text-white">{option.label}</div>
-                                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                                  {getCrocsSizeLibraryItems(option.id).map((size) => (
-                                                    <span
-                                                      key={size.eu}
-                                                      className="inline-flex flex-col rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[10px] font-semibold text-zinc-200"
-                                                    >
-                                                      <span className="text-[11px] font-black text-white">{size.eu}</span>
-                                                      <span className="text-[9px] leading-4 text-zinc-400">{size.us} - {size.cm} CM</span>
-                                                    </span>
-                                                  ))}
-                                                </div>
-                                              </button>
-                                            ))}
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => setCrocsLibraryGroupId("")}
-                                            className="mt-3 inline-flex h-9 items-center justify-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-300 transition hover:bg-white/10"
-                                          >
-                                            إغلاق
-                                          </button>
-                                        </div>
+                                        <CrocsSizeSelector
+                                          existingSizes={(group.sizes || []).map((row) => row.size).filter(Boolean)}
+                                          onApply={(sizes) => applyCrocsSizeLibrary(group.id, sizes)}
+                                          onClose={() => setCrocsLibraryGroupId("")}
+                                        />
                                       ) : null}
                                     </div>
                                   ) : null}
@@ -4028,11 +4004,6 @@ function CreateProduct() {
                                           placeholder="40"
                                           className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                         />
-                                        {isCrocsProductType(productType) ? (
-                                          <p className="mt-1 text-[11px] font-semibold leading-4 text-cyan-200/90">
-                                            {getCrocsSizeInputDisplayLabel(row.size)}
-                                          </p>
-                                        ) : null}
                                       </div> : null}
                                       <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.editor.stockQty", "الكمية المخزنة")}</label>
