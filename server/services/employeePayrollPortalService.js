@@ -202,6 +202,15 @@ const previousIsoDate = (value) => {
   return date.toISOString().slice(0, 10);
 };
 
+const attendanceDateKey = (value) => {
+  if (!value) return "";
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString().slice(0, 10);
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : raw.slice(0, 10);
+};
+
 const expectedWorkingDates = ({ workingDays, periodStart, periodEnd }) => {
   const days = new Set(normalizeWorkingDayCodes(workingDays));
   if (!days.size) return [];
@@ -1890,7 +1899,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     currentShift: effectiveCurrentShift,
   });
   const generatedAbsenceTimeline = (attendanceSummary.absence_dates || [])
-    .filter((date) => !recordedAttendanceTimeline.some((row) => String(row.date || row.attendance_date).slice(0, 10) === date))
+    .filter((date) => !recordedAttendanceTimeline.some((row) => attendanceDateKey(row.date || row.attendance_date) === date))
     .map((date) => ({
       id: `absence-${date}`,
       date,
@@ -1910,7 +1919,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       resolved_shift_end_time: effectiveCurrentShift?.end_time || effectiveCurrentShift?.endTime || "",
     }));
   const attendanceTimeline = [...recordedAttendanceTimeline, ...generatedAbsenceTimeline]
-    .sort((left, right) => String(right.date || right.attendance_date).localeCompare(String(left.date || left.attendance_date)))
+    .sort((left, right) => attendanceDateKey(right.date || right.attendance_date).localeCompare(attendanceDateKey(left.date || left.attendance_date)))
     .slice(0, 31);
   const { absence_dates: _absenceDates, ...attendanceSummaryPublic } = attendanceSummary;
   recordTiming(timings, "attendance_summary_ms", startedAt);

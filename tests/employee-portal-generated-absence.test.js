@@ -12,6 +12,7 @@ test("employee portal generates elapsed absences from the configured shift calen
   assert.match(portalSource, /absence_days: absenceDates\.length/);
   assert.match(portalSource, /status: "absent"/);
   assert.match(portalSource, /generatedAbsenceTimeline/);
+  assert.match(portalSource, /attendanceDateKey\(right\.date \|\| right\.attendance_date\)\.localeCompare\(attendanceDateKey\(left\.date \|\| left\.attendance_date\)\)/);
 });
 
 test("approved leave, vacation and holidays do not become employee portal absences", () => {
