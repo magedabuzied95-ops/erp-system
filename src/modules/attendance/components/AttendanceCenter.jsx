@@ -1067,9 +1067,9 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
             <span className="rounded-full bg-[var(--card)] px-3 py-1 text-xs font-black text-[var(--muted)]">{dateRows.length} {isArabic ? "موظف" : "employees"}</span>
           </div>
           <div className="overflow-auto">
-            <table className="min-w-[1280px] w-full text-sm">
+            <table className="m1-table m1-table--compact min-w-[1280px] w-full text-sm">
               <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]"><tr>{headers.map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr></thead>
-              <tbody className="divide-y divide-[var(--border)]">{renderRows(dateRows)}</tbody>
+              <tbody className="divide-[var(--border)]">{renderRows(dateRows)}</tbody>
             </table>
           </div>
         </div>
@@ -1180,11 +1180,11 @@ function PayrollImpact({ rows, text, onSelect }) {
   return (
     <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
       <div className="overflow-auto">
-        <table className="min-w-[1360px] w-full text-sm">
+        <table className="m1-table m1-table--compact min-w-[1360px] w-full text-sm">
           <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]">
             <tr>{[text.columns.employee, text.columns.presentDays, text.columns.absenceDays, text.columns.missingHours, text.columns.lateCount, text.columns.paidLeaves, text.columns.deductedLeaves, text.columns.leaveDeduction, text.columns.approvedOvertime, text.columns.overtimePay, text.columns.deduction, text.columns.penalties, text.columns.netImpact].map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr>
           </thead>
-          <tbody className="divide-y divide-[var(--border)]">
+          <tbody className="divide-[var(--border)]">
             {rows.map((row) => (
               <tr key={row.employee_id} className="cursor-pointer hover:bg-[var(--surface)]" onClick={() => onSelect(row)}>
                 <td className="px-3 py-3"><div className="table-cell-stack"><div className="font-black text-[var(--text)]">{row.employee_name}</div><div className="text-xs text-[var(--muted)]">{row.explanation}</div></div></td>
@@ -1237,9 +1237,9 @@ function SimpleTable({ headers, rows, empty }) {
   return (
     <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
       <div className="overflow-auto">
-        <table className="min-w-[900px] w-full text-sm">
+        <table className="m1-table m1-table--compact min-w-[900px] w-full text-sm">
           <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]"><tr>{headers.map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr></thead>
-          <tbody className="divide-y divide-[var(--border)]">
+          <tbody className="divide-[var(--border)]">
             {rows.length ? rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex} className="px-3 py-3">{cell || "-"}</td>)}</tr>) : <tr><td colSpan={headers.length} className="p-8 text-center text-[var(--muted)]">{empty}</td></tr>}
           </tbody>
         </table>

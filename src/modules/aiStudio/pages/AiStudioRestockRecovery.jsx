@@ -263,8 +263,8 @@ export default function AiStudioRestockRecovery() {
             ) : intents.length === 0 ? (
               <div className="flex flex-col items-center gap-2 p-10 text-center text-sm text-slate-500"><Tag className="h-6 w-6 opacity-60" />No restock requests yet. Customers create these from the storefront ("بلغني لما يتوفر") on an out-of-stock variant.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+              <div className="m1-table-container overflow-x-auto">
+                <table className="m1-table m1-table--compact w-full text-left text-sm">
                   <thead className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
                     <tr className="border-b border-white/10"><th className="px-4 py-3">Customer</th><th className="px-4 py-3">Product</th><th className="px-4 py-3">Variant / Size</th><th className="px-4 py-3">Match</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Requested</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th></tr>
                   </thead>
@@ -314,8 +314,8 @@ export default function AiStudioRestockRecovery() {
         ) : recoveries.length === 0 ? (
           <div className="flex flex-col items-center gap-2 p-10 text-center text-sm text-slate-500"><Users className="h-6 w-6 opacity-60" />No recovery records yet. When a restocked product has waiting customers and the workflow is active, recovery follow-ups appear here.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact w-full text-left text-sm">
               <thead className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
                 <tr className="border-b border-white/10">
                   <th className="px-4 py-3">Customer</th><th className="px-4 py-3">Product</th><th className="px-4 py-3">Priority</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Follow-up</th><th className="px-4 py-3">When</th><th className="px-4 py-3">Reason</th>

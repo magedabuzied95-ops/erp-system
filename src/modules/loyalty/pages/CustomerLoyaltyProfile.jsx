@@ -137,7 +137,7 @@ function CustomerLoyaltyProfile() {
             <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tierStyles[loyalty?.tier] || tierStyles.Bronze}`}>{loyalty?.tier || "Bronze"}</span>
           </div>
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
-            <table className="min-w-full text-left text-sm">
+            <table className="m1-table m1-table--compact min-w-full text-left text-sm">
               <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-zinc-500">
                 <tr>
                   <th className="px-4 py-3">النوع</th>

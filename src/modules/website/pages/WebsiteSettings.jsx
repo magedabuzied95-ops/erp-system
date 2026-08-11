@@ -548,8 +548,8 @@ function WebsiteSettings() {
               ) : null}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-[1280px] w-full border-separate border-spacing-0 text-sm">
+            <div className="m1-table-container overflow-x-auto">
+              <table className="m1-table m1-table--compact min-w-[1280px] w-full text-sm">
                 <thead className="bg-[var(--card)] text-xs font-black uppercase tracking-[0.12em] text-[var(--muted)]">
                   <tr>
                     <th className="w-12 px-4 py-4 text-start"><input type="checkbox" checked={filteredZones.length > 0 && filteredZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => setSelectedIds(event.target.checked ? filteredZones.map((zone) => zone.id) : [])} /></th>

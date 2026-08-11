@@ -153,8 +153,8 @@ export default function AiStudioWorkflows() {
         ) : rows.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500">No workflows yet. Use “New workflow” for a blank canvas, or “From template” for a safe read-only example.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact w-full text-left text-sm">
               <thead className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
                 <tr className="border-b border-white/10">
                   <th className="px-4 py-3">Name</th><th className="px-4 py-3">Trigger</th><th className="px-4 py-3">Last run</th><th className="px-4 py-3">Last auto</th><th className="px-4 py-3">Enabled</th><th className="px-4 py-3 text-right">Actions</th>

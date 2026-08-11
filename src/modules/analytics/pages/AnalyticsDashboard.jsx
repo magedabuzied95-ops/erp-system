@@ -833,8 +833,8 @@ function AnalyticsDashboard() {
             </div>
 
             <div className="overflow-hidden rounded-[26px] border border-white/10 bg-white/5">
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-0">
+              <div className="m1-table-container overflow-x-auto">
+                <table className="m1-table m1-table--compact min-w-full">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
                       <th className="px-4 py-3">{t("analytics.labels.customer", "Customer")}</th>
@@ -886,8 +886,8 @@ function AnalyticsDashboard() {
       <Panel title={t("analytics.sections.reorder")} subtitle={t("analytics.sections.reorder")}>
         {data.reorderSuggestions.length > 0 ? (
           <div className="overflow-hidden rounded-[26px] border border-white/10 bg-white/5">
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-0">
+            <div className="m1-table-container overflow-x-auto">
+              <table className="m1-table m1-table--compact min-w-full">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
                     <th className="px-4 py-3">Product</th>
@@ -948,8 +948,8 @@ function AnalyticsDashboard() {
               />
             </div>
             <div className="overflow-hidden rounded-[26px] border border-white/10 bg-white/5">
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-0">
+              <div className="m1-table-container overflow-x-auto">
+                <table className="m1-table m1-table--compact min-w-full">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
                       <th className="px-4 py-3">Product</th>

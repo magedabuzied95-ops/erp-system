@@ -474,7 +474,7 @@ export default function SocialCalendar() {
           </div>
 
           <div className="overflow-hidden rounded-3xl border border-white/10">
-            <table className="min-w-full border-separate border-spacing-0">
+            <table className="m1-table m1-table--compact min-w-full">
               <thead className="bg-white/[0.03]">
                 <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
                   <th className="border-b border-white/10 px-4 py-3 font-semibold">{t("marketing.socialCalendar.history.headers.time")}</th>

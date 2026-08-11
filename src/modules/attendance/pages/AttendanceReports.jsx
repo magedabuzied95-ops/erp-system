@@ -316,8 +316,8 @@ export default function AttendanceReports() {
             <div className="text-sm text-slate-400">{rows.length} rows</div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-0">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact min-w-full">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Employee</th>

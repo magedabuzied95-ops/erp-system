@@ -280,8 +280,8 @@ export default function MarketingAttribution() {
               <h2 className="text-lg font-black text-white">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
               <p className="text-sm text-slate-400">{t("marketing.analytics.attribution.bestPerformers")}</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-0">
+            <div className="m1-table-container overflow-x-auto">
+              <table className="m1-table m1-table--compact min-w-full">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
                     <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.post")}</th>

@@ -147,8 +147,8 @@ function SupplierStatement() {
                 الترتيب زمني من الأقدم إلى الأحدث
               </p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-[1100px] w-full text-left text-sm">
+            <div className="m1-table-container overflow-x-auto">
+              <table className="m1-table m1-table--compact min-w-[1100px] w-full text-left text-sm">
                 <thead className="bg-white/[0.03] text-[11px] uppercase tracking-[0.16em] text-zinc-500">
                   <tr>
                     <Th>{isArabic ? "التاريخ" : "Date"}</Th>
@@ -160,7 +160,7 @@ function SupplierStatement() {
                     <Th align="right">{isArabic ? "الرصيد" : "Balance"}</Th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10">
+                <tbody>
                   {rows.length ? rows.map((row) => (
                     <tr key={`${row.kind}-${row.id}-${row.created_at}`} className="bg-zinc-950/80 text-zinc-300">
                       <Td>{formatDateTime(row.created_at)}</Td>

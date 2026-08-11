@@ -21,7 +21,7 @@ export default function UsersTable({
 
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
 
-      <table className="w-full">
+      <table className="m1-table m1-table--compact w-full">
 
         <thead className="bg-zinc-800">
 

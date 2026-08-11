@@ -130,8 +130,8 @@ export default function Campaigns() {
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-0">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact min-w-full">
               <thead>
                 <tr className="text-start text-[11px] uppercase tracking-[0.18em] text-slate-400">
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaigns.headers.name")}</th>

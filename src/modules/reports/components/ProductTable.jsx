@@ -60,7 +60,7 @@ export default function ProductTable({ data, pagination, sort, showProfit, showC
         </p>
       ) : (
         <div className="-mx-1 max-h-[640px] overflow-auto rounded-xl border border-[var(--border)]">
-          <table className="w-full min-w-[720px] text-[13px]">
+          <table className="m1-table m1-table--compact w-full min-w-[720px] text-[13px]">
             {/* Sticky header: the table can run to 25 rows, and a column heading that
                 scrolls away turns a numeric grid into an unlabelled block of digits. */}
             <thead className="sticky top-0 z-10 bg-[var(--card)]">

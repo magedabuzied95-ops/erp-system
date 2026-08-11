@@ -71,7 +71,7 @@ export default function InventoryTable({
         </p>
       ) : (
         <div className="-mx-1 max-h-[640px] overflow-auto rounded-xl border border-[var(--border)]">
-          <table className="w-full min-w-[860px] text-[13px]">
+          <table className="m1-table m1-table--compact w-full min-w-[860px] text-[13px]">
             <thead className="sticky top-0 z-10 bg-[var(--card)]">
               <tr className="border-b border-[var(--border)]">
                 {columns.map((column) => (

@@ -537,9 +537,9 @@ function Sales() {
         "
       >
 
-        <div className="overflow-x-auto">
+        <div className="m1-table-container overflow-x-auto">
 
-          <table className="w-full">
+          <table className="m1-table m1-table--compact w-full">
 
             <thead
               className="

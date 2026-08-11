@@ -773,7 +773,7 @@ function CurrentStockSummary({ loading, error, rows }) {
 
       <div className="mt-4 hidden lg:block">
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-          <table className="min-w-full border-collapse text-left text-sm">
+          <table className="m1-table m1-table--compact min-w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-zinc-500">
                 <th className="px-4 py-3 font-semibold">اللون</th>

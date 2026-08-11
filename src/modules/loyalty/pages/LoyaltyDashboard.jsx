@@ -178,7 +178,7 @@ function LoyaltyDashboard() {
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
           <h2 className="text-lg font-bold">Transaction History</h2>
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
-            <table className="min-w-full text-left text-sm">
+            <table className="m1-table m1-table--compact min-w-full text-left text-sm">
               <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-zinc-500">
                 <tr>
                   <th className="px-4 py-3">Type</th>

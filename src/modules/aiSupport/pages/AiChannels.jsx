@@ -912,8 +912,8 @@ export default function AiChannels() {
             {loading ? (
               <div className="space-y-3"><SkeletonBlock /><SkeletonBlock /></div>
             ) : latestConversations.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[48rem] text-start text-sm">
+              <div className="m1-table-container overflow-x-auto">
+                <table className="m1-table m1-table--compact w-full min-w-[48rem] text-start text-sm">
                   <thead className="text-xs uppercase tracking-[0.14em] text-slate-500">
                     <tr>
                       <th className="px-3 py-2 text-start font-black">{tr("inbox.customer", "العميل")}</th>
@@ -924,7 +924,7 @@ export default function AiChannels() {
                       <th className="px-3 py-2 text-start font-black">{tr("inbox.time", "الوقت")}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/10">
+                  <tbody>
                     {latestConversations.map((conversation, index) => (
                       <tr key={conversation.session_id || index}>
                         <td className="px-3 py-3 font-black text-white">{conversation.customer_name || tr("empty.guest", "عميل ضيف")}</td>

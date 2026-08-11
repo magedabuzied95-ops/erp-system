@@ -1313,7 +1313,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               </div>
             ) : (
               <div ref={staffTableRef} className="max-h-[32rem] overflow-auto rounded-2xl border border-[var(--border)]">
-                <table className="w-full min-w-[820px] text-sm">
+                <table className="m1-table m1-table--compact w-full min-w-[820px] text-sm">
                   <thead className={`sticky top-0 z-10 ${tableHeadClass}`}>
                     <tr>
                       <th className="px-4 py-3">{t("sales.staff.name", "Name")}</th>
@@ -1396,7 +1396,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             <Metric label={t("sales.reports.commissions", "Commissions")} value={formatCurrency(report.summary.earned_commissions || 0)} emphasis isRtl={isRtl} />
           </div>
           <div ref={reportTableRef} className="mt-4 max-h-[560px] overflow-auto rounded-2xl border border-[var(--border)]">
-            <table className="w-full min-w-[780px] text-sm">
+            <table className="m1-table m1-table--compact w-full min-w-[780px] text-sm">
               <thead className={`sticky top-0 z-10 ${tableHeadClass}`}>
                 <tr>
                   <th className="px-4 py-3">{t("sales.reports.employee", "Employee")}</th>
@@ -1531,7 +1531,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               </div>
             ) : (
               <div ref={penaltiesTableRef} className="max-h-[32rem] overflow-auto rounded-2xl border border-[var(--border)]">
-                <table className="w-full min-w-[920px] text-sm">
+                <table className="m1-table m1-table--compact w-full min-w-[920px] text-sm">
                   <thead className={`sticky top-0 z-10 ${tableHeadClass}`}>
                     <tr>
                       <th className="px-4 py-3">{t("sales.penalties.date", "Date")}</th>

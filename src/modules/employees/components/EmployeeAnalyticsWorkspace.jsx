@@ -465,7 +465,7 @@ export default function EmployeeAnalyticsWorkspace() {
             {t("common.employeeHub.analytics.sections.salesPerformance")}
           </div>
           <div className="overflow-hidden rounded-3xl border border-white/10">
-            <table className={`min-w-full text-sm ${isRtl ? "text-right" : "text-left"}`}>
+            <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
               <thead className="bg-white/5 text-zinc-400">
                 <tr>
                   <th className="px-4 py-3">{t("common.employeeHub.analytics.table.employee")}</th>
@@ -599,7 +599,7 @@ export default function EmployeeAnalyticsWorkspace() {
           <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
             <div className={isRtl ? "mb-4 text-xs font-bold text-cyan-300" : "mb-4 text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.commissions.transactions")}</div>
             <div className="overflow-hidden rounded-3xl border border-white/10">
-              <table className={`min-w-full text-sm ${isRtl ? "text-right" : "text-left"}`}>
+              <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <th className="px-4 py-3">{t("common.employeeHub.analytics.table.employee")}</th>
@@ -695,7 +695,7 @@ export default function EmployeeAnalyticsWorkspace() {
           <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
             <div className={isRtl ? "mb-3 text-xs font-bold text-cyan-300" : "mb-3 text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.sections.branchPerformance")}</div>
             <div className="overflow-hidden rounded-3xl border border-white/10">
-              <table className={`min-w-full text-sm ${isRtl ? "text-right" : "text-left"}`}>
+              <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <th className="px-4 py-3">{t("common.employeeHub.analytics.table.branch")}</th>
