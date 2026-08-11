@@ -908,6 +908,12 @@ const buildCustomerIntelligence = async (tenantId, filters = {}) => {
     branchColumn: "branch_id",
   });
   const orderJoinClause = scope.where ? scope.where.replace(/^ WHERE\s+/i, " AND ") : "";
+  // Tenant isolation: the customers and order_items CTEs must be scoped in their own
+  // right. Scoping only the LEFT JOIN to orders leaves every other tenant's customer
+  // rows in the result set (with zero totals) and this endpoint returns name/phone/email.
+  // tenantId is null only for super-admin callers, who are intentionally unscoped.
+  const customerTenantClause = tenantId === null || tenantId === undefined ? "" : "WHERE c.tenant_id = $1";
+  const itemTenantClause = tenantId === null || tenantId === undefined ? "" : "WHERE oi.tenant_id = $1";
 
   const rows = await safeRows(
     `
@@ -923,6 +929,7 @@ const buildCustomerIntelligence = async (tenantId, filters = {}) => {
         MAX(o.created_at) AS last_order_date
       FROM customers c
       LEFT JOIN orders o ON o.customer_id = c.id ${orderJoinClause}
+      ${customerTenantClause}
       GROUP BY c.id, c.name, c.phone, c.email
     ),
     product_mix AS (
@@ -934,6 +941,7 @@ const buildCustomerIntelligence = async (tenantId, filters = {}) => {
       LEFT JOIN orders o ON o.id = oi.order_id ${orderJoinClause}
       LEFT JOIN products p ON p.id = oi.product_id
       LEFT JOIN categories cat ON cat.id = p.category_id
+      ${itemTenantClause}
       GROUP BY COALESCE(o.customer_id, 0)
     )
     SELECT

@@ -4,6 +4,7 @@ import { isSuperAdminUser } from "../utils/requestScope.js";
 const MARKETING_ACTIONS = ["view", "create", "update", "delete", "publish", "settings"];
 const ADMIN_ROLES = ["admin", "super_admin", "super admin", "superadmin"];
 const CORE_PERMISSIONS = [
+  ["dashboard", "view"],
   ["ai_inbox_messenger", "view"],
   ["ai_inbox_messenger", "reply"],
   ["ai_inbox_instagram", "view"],
@@ -164,6 +165,42 @@ const ensureCorePermissions = async () => {
             WHERE rp.role_id = r.id
               AND rp.permission_id = p.id
           )
+        `
+      );
+
+      // /api/dashboard/* previously ran on `protect` alone. Gating it on
+      // dashboard:view would revoke access from every non-admin role, so grant the
+      // new permission once to every role that already exists. This preserves the
+      // current effective access exactly while making the endpoints revocable from
+      // the Permissions screen. The NOT EXISTS guard keeps it idempotent, so an
+      // admin who later removes the grant does not have it silently restored.
+      await db.query(
+        `
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM roles r
+        CROSS JOIN permissions p
+        WHERE p.module = 'dashboard'
+          AND p.action = 'view'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM role_permissions rp
+            WHERE rp.role_id = r.id
+              AND rp.permission_id = p.id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM system_settings s
+            WHERE s.key = 'permissions.dashboard_view_backfilled'
+          )
+        `
+      );
+
+      await db.query(
+        `
+        INSERT INTO system_settings (key, value, category)
+        VALUES ('permissions.dashboard_view_backfilled', 'true'::jsonb, 'permissions')
+        ON CONFLICT (key) DO NOTHING
         `
       );
     })().catch((error) => {
