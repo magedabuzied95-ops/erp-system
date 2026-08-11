@@ -9,6 +9,7 @@ import CoverageBadge from "../components/CoverageBadge";
 import OverviewTrendChart from "../components/OverviewTrendChart";
 import CategoryContribution from "../components/CategoryContribution";
 import ManagementHighlights from "../components/ManagementHighlights";
+import { Card, PeriodFootnote, ReportsHeader, ReportsPage, Subtle } from "../components/ReportsLayout";
 import {
   OverviewEmpty,
   OverviewError,
@@ -49,15 +50,9 @@ export default function ExecutiveOverview() {
   }, [data]);
 
   return (
-    <div dir={isArabic ? "rtl" : "ltr"} className="min-h-full bg-[var(--bg)] px-[var(--page-inline)] py-5">
-      <div className="mx-auto w-full max-w-[var(--content-max)] space-y-5">
-        <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-[19px] font-extrabold tracking-tight text-[var(--text)] sm:text-[22px]">
-              {t("overview.title")}
-            </h1>
-            <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{t("overview.subtitle")}</p>
-          </div>
+    <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
+      <div className="space-y-5">
+        <ReportsHeader title={t("overview.title")} subtitle={t("overview.subtitle")}>
           <PeriodSelector
             filters={filters}
             allowedComparisons={allowedComparisons}
@@ -66,7 +61,7 @@ export default function ExecutiveOverview() {
             onRefresh={refresh}
             busy={busy}
           />
-        </header>
+        </ReportsHeader>
 
         {status === "forbidden" ? (
           <OverviewForbidden />
@@ -87,7 +82,7 @@ export default function ExecutiveOverview() {
 
             {/* Level 1 — the four figures that answer "how did we do?" */}
             <section aria-label={t("overview.groups.primary")}>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:gap-4">
                 {PRIMARY.map((metric) => (
                   <KpiTile
                     key={metric}
@@ -104,72 +99,58 @@ export default function ExecutiveOverview() {
               </div>
             </section>
 
-            {/* Level 2 — operating detail */}
-            <section aria-label={t("overview.groups.operating")}>
-              <SectionHeading>{t("overview.groups.operating")}</SectionHeading>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {OPERATING.map((metric) => (
-                  <KpiTile key={metric} metric={metric} kpi={data.kpis[metric]} level={2} />
-                ))}
-              </div>
-            </section>
-
-            {/* Trend + highlights side by side on wide screens */}
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-              <Panel title={t("overview.trend.title")}>
+            {/*
+              Trend leads, highlights sit beside it, and the operating KPIs tuck under
+              the highlights rather than claiming a full row of their own. That removes
+              the tall empty column the old 2fr/1fr split left whenever highlights were
+              short, and keeps the chart as the visual anchor.
+            */}
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] 2xl:gap-5">
+              <Card
+                title={t("overview.trend.title")}
+                className="min-h-0"
+                bodyClassName="flex min-h-0 flex-col"
+              >
                 <OverviewTrendChart
                   trend={data.trend}
                   granularity={data.period?.granularity}
                   showProfit={showProfit}
                 />
-              </Panel>
+              </Card>
 
-              <Panel title={t("overview.highlights.title")}>
-                <ManagementHighlights highlights={data.highlights} />
-              </Panel>
+              <div className="flex min-w-0 flex-col gap-4">
+                <Card title={t("overview.highlights.title")} className="min-h-0">
+                  <ManagementHighlights highlights={data.highlights} />
+                </Card>
+                <Subtle title={t("overview.groups.operating")}>
+                  <div className="grid gap-3 grid-cols-2">
+                    {OPERATING.map((metric) => (
+                      <KpiTile key={metric} metric={metric} kpi={data.kpis[metric]} level={2} />
+                    ))}
+                  </div>
+                </Subtle>
+              </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-              <Panel title={t("overview.categories.title")}>
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] 2xl:gap-5">
+              <Card title={t("overview.categories.title")}>
                 <CategoryContribution categories={data.categories} showProfit={showProfit} />
-              </Panel>
+              </Card>
 
-              {/* Level 3 — health indicators, compact */}
-              <section aria-label={t("overview.groups.health")}>
-                <SectionHeading>{t("overview.groups.health")}</SectionHeading>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {/* Level 3 — health indicators, compact rows rather than four cards. */}
+              <Subtle title={t("overview.groups.health")}>
+                <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
                   {HEALTH.map((metric) => (
-                    <KpiTile key={metric} metric={metric} kpi={data.kpis[metric]} level={3} compact />
+                    <KpiTile key={metric} metric={metric} kpi={data.kpis[metric]} level={3} />
                   ))}
                 </div>
-              </section>
+              </Subtle>
             </div>
 
-            <p className="pt-1 text-[11px] text-[var(--text-tertiary)]">
-              {data.period.from} → {data.period.to}
-              {data.comparison ? ` · ${t("overview.compare.vs")} ${data.comparison.from} → ${data.comparison.to}` : ""}
-            </p>
+            <PeriodFootnote period={data.period} comparison={data.comparison} />
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function SectionHeading({ children }) {
-  return (
-    <h2 className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">{children}</h2>
-  );
-}
-
-function Panel({ title, children }) {
-  // min-w-0 is required: a grid item defaults to min-width:auto, which lets a wide
-  // child (recharts' ResponsiveContainer) pin the column open and never shrink back
-  // down on narrow viewports.
-  return (
-    <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
-      <h2 className="mb-3.5 text-[13px] font-bold text-[var(--text)]">{title}</h2>
-      <div className="min-w-0">{children}</div>
-    </section>
+    </ReportsPage>
   );
 }

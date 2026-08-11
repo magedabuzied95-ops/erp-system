@@ -27,7 +27,9 @@
     "previous_year": "Previous year",
     "vs": "vs",
     "new": "New",
-    "noBase": "No comparison period"
+    "noBase": "No comparison period",
+    "thinBaseline": "Thin baseline",
+    "thinBaselineHint": "The previous period holds limited data, so this percentage change overstates the movement."
   },
   "groups": {
     "primary": "Financial performance",
@@ -141,7 +143,10 @@
     "PRODUCT_LIST_TRUNCATED": "There are more products than the display limit, so only the highest-selling ones are shown.",
     "SIZE_SCOPE_REQUIRED": "Choose a single product type to see size analysis, because size ranges differ between types.",
     "SIZE_SCOPE_APPLIED": "Colour-only and one-size products are excluded from size analysis.",
-    "SIZES_SOLD_OUT": "Some sizes sold during the period and now have no stock."
+    "SIZES_SOLD_OUT": "Some sizes sold during the period and now have no stock.",
+    "count": "{{count}} data quality note(s)",
+    "show": "Show details",
+    "hide": "Hide details"
   },
   "states": {
     "loading": "Loading data...",

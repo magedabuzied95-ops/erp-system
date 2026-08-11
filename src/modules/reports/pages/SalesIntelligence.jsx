@@ -19,6 +19,8 @@ import ProductRankings from "../components/ProductRankings";
 import SizeIntelligence from "../components/SizeIntelligence";
 import ProductTable from "../components/ProductTable";
 import { OverviewEmpty, OverviewForbidden, OverviewSkeleton, OverviewWarnings } from "../components/OverviewStates";
+import { PeriodFootnote, ReportsHeader, ReportsPage } from "../components/ReportsLayout";
+import { dimensionLabel } from "../lib/dimensionLabels";
 
 /**
  * Sales & Profit Intelligence — R3.
@@ -83,15 +85,9 @@ export default function SalesIntelligence() {
   const hasAnySales = Boolean(summary.data?.kpis?.orders?.current) || Boolean(summary.data?.kpis?.netSales?.current);
 
   return (
-    <div dir={isArabic ? "rtl" : "ltr"} className="min-h-full bg-[var(--bg)] px-[var(--page-inline)] py-5">
-      <div className="mx-auto w-full max-w-[var(--content-max)] space-y-4">
-        <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-[19px] font-extrabold tracking-tight text-[var(--text)] sm:text-[22px]">
-              {t("salesAnalytics.title")}
-            </h1>
-            <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{t("salesAnalytics.subtitle")}</p>
-          </div>
+    <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
+      <div className="space-y-4">
+        <ReportsHeader title={t("salesAnalytics.title")} subtitle={t("salesAnalytics.subtitle")}>
           <div className="flex flex-wrap items-center gap-2">
             <PeriodSelector
               filters={filters.filters}
@@ -118,10 +114,10 @@ export default function SalesIntelligence() {
               ) : null}
             </button>
           </div>
-        </header>
+        </ReportsHeader>
 
         {showFilters || filters.activeFilterCount ? (
-          <ActiveFilters filters={filters} t={t} />
+          <ActiveFilters filters={filters} t={t} language={i18n.language} />
         ) : null}
 
         {summary.status === "forbidden" ? (
@@ -156,16 +152,10 @@ export default function SalesIntelligence() {
                   </div>
                 </section>
 
-                <section aria-label={t("overview.groups.operating")}>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    {SECONDARY_KPIS.map((metric) => (
-                      <KpiTile key={metric} metric={metric} kpi={summary.data.kpis[metric]} level={3} compact />
-                    ))}
-                  </div>
-                </section>
-
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                  <SectionCard title={t("overview.trend.title")} skeletonHeight={260}>
+                {/* Trend anchors the page; highlights and the operating KPIs share the
+                    side column so neither leaves a tall empty card beside the chart. */}
+                <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] 2xl:gap-5">
+                  <SectionCard title={t("overview.trend.title")} skeletonHeight={340}>
                     <OverviewTrendChart
                       trend={summary.data.trend}
                       granularity={summary.data.period?.granularity}
@@ -173,12 +163,19 @@ export default function SalesIntelligence() {
                     />
                   </SectionCard>
 
-                  <SectionCard title={t("overview.highlights.title")} skeletonHeight={260}>
-                    <ManagementHighlights highlights={summary.data.highlights} />
-                  </SectionCard>
+                  <div className="flex min-w-0 flex-col gap-4">
+                    <SectionCard title={t("overview.highlights.title")} skeletonHeight={200}>
+                      <ManagementHighlights highlights={summary.data.highlights} />
+                    </SectionCard>
+                    <div className="grid grid-cols-2 gap-3">
+                      {SECONDARY_KPIS.map((metric) => (
+                        <KpiTile key={metric} metric={metric} kpi={summary.data.kpis[metric]} level={3} />
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-5">
                   <SectionCard
                     title={t("salesAnalytics.sections.breakdown")}
                     status={breakdown.status === "idle" ? "success" : breakdown.status}
@@ -222,6 +219,7 @@ export default function SalesIntelligence() {
                   error={products.error}
                   onRetry={products.refresh}
                   collapsible
+                  openOnDesktop
                   skeletonHeight={280}
                 >
                   <ProductMatrix matrix={products.data?.matrix} showProfit={showProfit} onSelectProduct={openProduct} />
@@ -233,6 +231,7 @@ export default function SalesIntelligence() {
                   error={sizes.error}
                   onRetry={sizes.refresh}
                   collapsible
+                  openOnDesktop
                   skeletonHeight={240}
                 >
                   <SizeIntelligence
@@ -245,10 +244,12 @@ export default function SalesIntelligence() {
 
                 <SectionCard
                   title={t("salesAnalytics.sections.table")}
+                  subtitle={products.data?.pagination ? t("salesAnalytics.table.count", { count: products.data.pagination.total }) : null}
                   status={products.status === "idle" ? "success" : products.status}
                   error={products.error}
                   onRetry={products.refresh}
                   collapsible
+                  openOnDesktop
                   skeletonHeight={320}
                   note={products.warnings?.some((w) => w.code === "PRODUCT_LIST_TRUNCATED")
                     ? t("salesAnalytics.table.truncated", { limit: 300 }) : null}
@@ -267,27 +268,24 @@ export default function SalesIntelligence() {
                   />
                 </SectionCard>
 
-                <p className="pt-1 text-[11px] text-[var(--text-tertiary)]">
-                  {summary.data.period.from} → {summary.data.period.to}
-                  {summary.data.comparison
-                    ? ` · ${t("overview.compare.vs")} ${summary.data.comparison.from} → ${summary.data.comparison.to}`
-                    : ""}
-                </p>
+                <PeriodFootnote period={summary.data.period} comparison={summary.data.comparison} />
               </>
             )}
           </div>
         )}
       </div>
-    </div>
+    </ReportsPage>
   );
 }
 
-function ActiveFilters({ filters, t }) {
+function ActiveFilters({ filters, t, language }) {
+  // Chips display a translated label; `filters.*` still holds the stored value, so
+  // clearing and re-sending a filter uses the original string either way.
   const chips = [
-    filters.productType ? { key: "productType", label: t("salesAnalytics.filters.productType"), value: filters.productType, clear: () => filters.setProductType("") } : null,
+    filters.productType ? { key: "productType", label: t("salesAnalytics.filters.productType"), value: dimensionLabel("product_type", filters.productType, language), clear: () => filters.setProductType("") } : null,
     filters.category ? { key: "category", label: t("salesAnalytics.filters.category"), value: filters.category, clear: () => filters.setCategory("") } : null,
     filters.brandId ? { key: "brandId", label: t("salesAnalytics.filters.brand"), value: filters.brandId, clear: () => filters.setBrand("") } : null,
-    filters.gender ? { key: "gender", label: t("salesAnalytics.filters.gender"), value: filters.gender, clear: () => filters.setGender("") } : null,
+    filters.gender ? { key: "gender", label: t("salesAnalytics.filters.gender"), value: dimensionLabel("gender", filters.gender, language), clear: () => filters.setGender("") } : null,
   ].filter(Boolean);
 
   if (!chips.length) return null;

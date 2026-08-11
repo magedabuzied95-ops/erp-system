@@ -1,5 +1,5 @@
 // Explicit .js so this module is loadable by Node's test runner as well as Vite.
-import { formatCurrency, formatNumber } from "../../../shared/lib/currency.js";
+import { formatCurrency, formatCurrencyParts, formatNumber } from "../../../shared/lib/currency.js";
 
 /**
  * Presentation helpers for the Executive Overview.
@@ -69,15 +69,35 @@ export const formatPoints = (value, language = "") => {
 };
 
 /**
+ * Money for analytics, without a trailing ".00" on whole amounts.
+ *
+ * A column of "348,870.00 ج.م" spends two characters per row on zeros that carry no
+ * information, and the noise is what makes a wall of figures hard to scan. Piastres
+ * still print whenever they exist, so nothing financially meaningful is dropped, and
+ * the exact value remains available in tooltips.
+ *
+ * Built on the shared currency utility rather than reimplementing EGP formatting: the
+ * symbol, locale and RTL placement stay identical to the rest of the ERP. Only the
+ * fraction is trimmed, and only here — POS, invoices and accounting are untouched.
+ */
+export const formatMoney = (value, language = "") => {
+  if (!isNumber(value)) return null;
+  const parts = formatCurrencyParts(value, language);
+  if (!Number.isInteger(value)) return parts.text;
+  // Strip a fraction of zeros only, whatever separator the locale used.
+  const amount = parts.amount.replace(/[.,]0+$/, "");
+  return parts.isRtl ? `${amount} ${parts.symbol}`.trim() : `${parts.symbol} ${amount}`.trim();
+};
+
+/**
  * KPI values are always exact. Compacting money hurts more than it helps: a manager
  * comparing 113,091 against 98,400 needs the digits, and "113 ألف" hides them.
- * The `compact` flag is accepted for call-site symmetry but never abbreviates currency.
  */
 export const formatMetricValue = (metric, value, language = "") => {
   if (!isNumber(value)) return null;
   switch (METRIC_KIND[metric]) {
     case "currency":
-      return formatCurrency(value, language);
+      return formatMoney(value, language);
     case "percent":
       return formatPercentValue(value, language);
     case "decimal":
@@ -88,9 +108,17 @@ export const formatMetricValue = (metric, value, language = "") => {
   }
 };
 
-/** Exact, never compacted — for tooltips. */
-export const formatMetricExact = (metric, value, language = "") =>
-  formatMetricValue(metric, value, language, { compact: false });
+/**
+ * Full precision, for tooltips and title attributes.
+ *
+ * Money keeps its decimals here even when the tile trimmed them, so the exact figure is
+ * always one hover away.
+ */
+export const formatMetricExact = (metric, value, language = "") => {
+  if (!isNumber(value)) return null;
+  if (METRIC_KIND[metric] === "currency") return formatCurrency(value, language);
+  return formatMetricValue(metric, value, language);
+};
 
 /**
  * Whether a movement is good for the business.

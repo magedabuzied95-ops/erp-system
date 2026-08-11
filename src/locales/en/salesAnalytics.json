@@ -54,7 +54,8 @@
     "empty": "Not enough products to build a meaningful matrix.",
     "needsProfit": "Profit permission is required to build the matrix.",
     "stock": "Stock",
-    "productsCount": "{{count}} products"
+    "productsCount": "{{count}} products",
+    "noneHere": "No products in this group"
   },
   "rankings": {
     "title": "Product rankings",
@@ -80,7 +81,8 @@
     "noStock": "No stock",
     "summary": "{{sold}} sizes sold in the period · {{stock}} sizes currently in stock",
     "soldOutWarning": "{{count}} sizes sold in this period and now have no stock.",
-    "empty": "No sized sales or stock for this type."
+    "empty": "No sized sales or stock for this type.",
+    "ratioHint": "Units sold in the period as a share of current stock."
   },
   "table": {
     "title": "Product details",
@@ -100,7 +102,8 @@
     "prev": "Previous",
     "next": "Next",
     "sortBy": "Sort by",
-    "truncated": "Only the top {{limit}} products by sales are shown."
+    "truncated": "Only the top {{limit}} products by sales are shown.",
+    "count": "{{count}} products"
   },
   "states": {
     "sectionError": "Could not load this section",

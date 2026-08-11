@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 
-import { formatPercentValue } from "../lib/metricFormat";
-import { formatCurrency, formatNumber } from "../../../shared/lib/currency";
+import { formatMoney, formatPercentValue } from "../lib/metricFormat";
+import { formatNumber } from "../../../shared/lib/currency";
 
 /**
  * Top categories by net sales, as proportional bars rather than a chart library call —
@@ -73,7 +73,7 @@ function CategoryRow({ name, detail, row, max, language, showProfit, muted = fal
           {detail ? <span className="shrink-0 text-[11px] text-[var(--text-tertiary)]">· {detail}</span> : null}
         </span>
         <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--text)]">
-          {formatCurrency(row.netSales, language)}
+          {formatMoney(row.netSales, language)}
         </span>
       </div>
 
@@ -98,7 +98,7 @@ function CategoryRow({ name, detail, row, max, language, showProfit, muted = fal
         {showProfit && row.grossProfit !== null && row.grossProfit !== undefined ? (
           <span>
             {t("overview.categories.grossProfit")}:{" "}
-            <span className="tabular-nums">{formatCurrency(row.grossProfit, language)}</span>
+            <span className="tabular-nums">{formatMoney(row.grossProfit, language)}</span>
           </span>
         ) : null}
         {showProfit && row.grossMargin !== null && row.grossMargin !== undefined ? (

@@ -8,6 +8,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import { SALES_SORT_KEYS, normaliseSalesFilters } from "../../src/modules/reports/hooks/useSalesFilters.js";
+import {
+  DIMENSION_DICTIONARIES,
+  dimensionLabel,
+  hasDimensionLabel,
+} from "../../src/modules/reports/lib/dimensionLabels.js";
 
 const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
 
@@ -20,6 +25,63 @@ const COMPONENTS = [
   "../../src/modules/reports/components/ProductTable.jsx",
   "../../src/modules/reports/components/SectionCard.jsx",
 ];
+
+/* ------------------------------------------- Arabic presentation mappings */
+
+test("stored dimension values are translated for display only", () => {
+  assert.equal(dimensionLabel("product_type", "sneakers", "ar"), "أحذية رياضية");
+  assert.equal(dimensionLabel("product_type", "bags", "ar"), "شنط");
+  assert.equal(dimensionLabel("product_type", "slippers", "ar"), "سليبرات");
+  assert.equal(dimensionLabel("gender", "men", "ar"), "رجالي");
+  assert.equal(dimensionLabel("size", "One Size", "ar"), "مقاس واحد");
+});
+
+test("the mapping never rewrites the stored value it was given", () => {
+  // The label is derived; the caller keeps the original for filtering. Proven by the
+  // English path returning the stored value untouched.
+  for (const stored of ["sneakers", "Bags", "winter_collection", "men"]) {
+    assert.equal(dimensionLabel("product_type", stored, "en"), stored);
+    assert.equal(dimensionLabel("gender", stored, "en"), stored);
+  }
+});
+
+test("an unmapped value falls through rather than vanishing", () => {
+  assert.equal(dimensionLabel("product_type", "Hoverboards", "ar"), "Hoverboards");
+  assert.equal(dimensionLabel("brand", "Adidas", "ar"), "Adidas", "brands are real names, never translated");
+  assert.equal(dimensionLabel("category", "Footwear", "ar"), "Footwear");
+  assert.equal(dimensionLabel("product_type", "", "ar"), "");
+  assert.equal(dimensionLabel("product_type", null, "ar"), "");
+});
+
+test("matching survives the casing and separators the catalogue actually uses", () => {
+  for (const variant of ["sneakers", "Sneakers", "SNEAKERS", " sneakers "]) {
+    assert.equal(dimensionLabel("product_type", variant, "ar"), "أحذية رياضية", `failed on "${variant}"`);
+  }
+  for (const variant of ["winter_collection", "Winter Collection", "winter-collection"]) {
+    assert.equal(dimensionLabel("product_type", variant, "ar"), "تشكيلة الشتاء", `failed on "${variant}"`);
+  }
+  assert.equal(hasDimensionLabel("product_type", "Sneakers"), true);
+  assert.equal(hasDimensionLabel("product_type", "Hoverboards"), false);
+});
+
+test("every mapped label is actually Arabic", () => {
+  for (const [dimension, dictionary] of Object.entries(DIMENSION_DICTIONARIES)) {
+    for (const [stored, label] of Object.entries(dictionary)) {
+      assert.match(label, /[؀-ۿ]/, `${dimension}.${stored} maps to "${label}", which is not Arabic`);
+    }
+  }
+});
+
+test("the filter round trip sends the stored value, never the label", async () => {
+  const page = await read("../../src/modules/reports/pages/SalesIntelligence.jsx");
+  // Chips display a label but clear and re-send filters.* — the stored string.
+  assert.match(page, /value: dimensionLabel\("product_type", filters\.productType, language\)/);
+  assert.match(page, /clear: \(\) => filters\.setProductType\(""\)/);
+  const hook = await read("../../src/modules/reports/hooks/useSalesFilters.js");
+  assert.ok(!/dimensionLabel/.test(hook), "the filter hook must never see a display label");
+  const api = await read("../../src/modules/reports/services/salesApi.js");
+  assert.ok(!/dimensionLabel/.test(api), "the API layer must never see a display label");
+});
 
 /* ------------------------------------------------------------------- routing */
 
@@ -201,6 +263,29 @@ test("the breakdown states plainly that it excludes returns", async () => {
   assert.ok(warnings.FILTERED_EXCLUDES_RETURNS);
 });
 
+test("the analytical sections open on a desktop and collapse on a phone", async () => {
+  const page = await read("../../src/modules/reports/pages/SalesIntelligence.jsx");
+  const card = await read("../../src/modules/reports/components/SectionCard.jsx");
+
+  // The matrix, size analysis and product table are the reason this page exists.
+  // Shipping all three collapsed on a large monitor hid the best of it behind clicks.
+  const sections = page.match(/<SectionCard[\s\S]*?>/g) || [];
+  const opened = sections.filter((section) => section.includes("openOnDesktop"));
+  assert.equal(opened.length, 3, `expected matrix, sizes and table to open on desktop, found ${opened.length}`);
+  for (const key of ["matrix", "sizes", "table"]) {
+    assert.ok(
+      sections.some((section) => section.includes(`sections.${key}`) && section.includes("openOnDesktop")),
+      `the ${key} section must open on desktop`
+    );
+  }
+
+  assert.match(card, /min-width: 1024px/, "the breakpoint must be explicit");
+  assert.match(card, /matchMedia/, "and driven by a media query, not a guess");
+  // The reader's own choice must win once expressed.
+  assert.match(card, /if \(openOnDesktop && !touched\) setOpen\(desktop\)/);
+  assert.match(card, /setTouched\(true\)/);
+});
+
 test("the matrix explains its own methodology and exposes the period medians", async () => {
   const source = await read("../../src/modules/reports/components/ProductMatrix.jsx");
   assert.match(source, /medianNetSales/);
@@ -321,9 +406,11 @@ test("nothing can force a horizontal scroll: grid children shrink and wide conte
     if (!/\bgrid\b|\bflex\b/.test(source)) continue;
     assert.match(source, /min-w-0/, `${file} must let its columns shrink below their content`);
   }
-  // A table is the one thing allowed to be wider than the viewport, inside its own scroller.
+  // A table is the one thing allowed to be wider than the viewport, inside its own
+  // scroller. It scrolls on both axes so the sticky header has something to stick to.
   const table = await read("../../src/modules/reports/components/ProductTable.jsx");
-  assert.match(table, /overflow-x-auto/, "the table must scroll inside itself, not push the page");
+  assert.match(table, /overflow-(x-)?auto/, "the table must scroll inside itself, not push the page");
+  assert.match(table, /sticky top-0/, "the column headings must survive a long scroll");
 });
 
 test("no fixed pixel width can outgrow a 375px viewport", async () => {

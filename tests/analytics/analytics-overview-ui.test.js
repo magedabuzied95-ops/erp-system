@@ -19,6 +19,8 @@ import {
   METRIC_KIND,
   formatCompactNumber,
   formatDeltaPercent,
+  formatMetricExact,
+  formatMoney,
   formatPercentValue,
   resolveSentiment,
 } from "../../src/modules/reports/lib/metricFormat.js";
@@ -137,6 +139,60 @@ test("compact numbers are for axes only, and stay exact below 1000", () => {
   assert.equal(formatCompactNumber(null, "en"), null);
 });
 
+test("whole amounts lose their .00, and fractions keep their piastres", () => {
+  // A column of "348,870.00 ج.م" spends two characters per row on zeros that carry no
+  // information. Anything financially meaningful still prints.
+  const whole = formatMoney(348870, "ar");
+  assert.ok(!/[.,]00\b/.test(whole), `whole amounts must not carry a zero fraction, got ${whole}`);
+  assert.match(whole, /348[,،]870/, "the digits themselves must be unchanged");
+
+  const fraction = formatMoney(1228.42, "ar");
+  assert.match(fraction, /42/, `a real fraction must survive, got ${fraction}`);
+
+  assert.equal(formatMoney(null, "ar"), null);
+  assert.equal(formatMoney(Number.NaN, "ar"), null);
+  assert.equal(formatMoney(0, "ar") === null, false, "a verified zero is a value, not a blank");
+});
+
+test("the currency symbol survives the trimmed fraction", () => {
+  for (const language of ["ar", "en"]) {
+    const trimmed = formatMoney(348870, language);
+    const exact = formatMetricExact("netSales", 348870, language);
+    // Same symbol, same side, only the fraction differs.
+    const symbolOf = (text) => text.replace(/[\d\s.,٠-٩]/g, "");
+    assert.equal(symbolOf(trimmed), symbolOf(exact), `${language}: symbol must not change`);
+    assert.ok(exact.length >= trimmed.length, `${language}: the exact form keeps the decimals`);
+  }
+});
+
+test("a KPI against a near-empty baseline is flagged rather than restyled", async () => {
+  const source = await read("../../src/modules/reports/components/KpiTile.jsx");
+  // +3,412% is a full month against five days. The number is right; presenting it as a
+  // plain green success is not.
+  assert.match(source, /const baselineThin =/);
+  assert.match(source, /value \/ kpi\.previous >= 5/, "the threshold must be explicit");
+  assert.match(source, /compare\.thinBaseline/, "and it must be explained to the reader");
+  // The figure itself must not be altered.
+  assert.ok(!/deltaPercent\s*=\s*[^;]*Math\.min/.test(source), "the delta must never be clamped");
+
+  const ar = JSON.parse(await read("../../src/locales/ar/overview.json"));
+  assert.match(ar.compare.thinBaseline, /[؀-ۿ]/);
+  assert.match(ar.compare.thinBaselineHint, /[؀-ۿ]/);
+});
+
+test("the warning panel collapses by default but never hides a critical note", async () => {
+  const source = await read("../../src/modules/reports/components/OverviewStates.jsx");
+  assert.match(source, /const \[open, setOpen\] = useState\(false\)/, "collapsed by default");
+  assert.match(source, /CRITICAL_WARNINGS/, "critical codes must be distinguished");
+  assert.match(source, /if \(critical\.length\) setOpen\(true\)/, "a critical note opens the panel");
+  assert.match(source, /warnings\.count/, "the count is always visible");
+  // Every warning is still rendered when open — none is filtered away.
+  assert.match(source, /warnings\.map\(\(warning\) =>/);
+
+  const ar = JSON.parse(await read("../../src/locales/ar/overview.json"));
+  for (const key of ["count", "show", "hide"]) assert.ok(ar.warnings[key], `warnings.${key} needs Arabic copy`);
+});
+
 test("every KPI has a declared display kind", () => {
   const expected = [
     "netSales", "grossProfit", "grossMargin", "orders", "averageOrderValue", "itemsSold",
@@ -192,11 +248,15 @@ test("filters live in the URL so a refresh preserves the period", async () => {
 
 test("the page is RTL-aware and uses design tokens rather than hardcoded colours", async () => {
   const page = await read("../../src/modules/reports/pages/ExecutiveOverview.jsx");
+  const layout = await read("../../src/modules/reports/components/ReportsLayout.jsx");
+  // The page resolves the direction; the shared shell applies it.
   assert.match(page, /dir=\{isArabic \? "rtl" : "ltr"\}/);
-  assert.match(page, /var\(--/, "must use theme tokens");
+  assert.match(layout, /<div dir=\{dir\}/, "the shell must apply the direction it is handed");
+  assert.match(layout, /var\(--/, "must use theme tokens");
 
   const files = [
     "../../src/modules/reports/pages/ExecutiveOverview.jsx",
+    "../../src/modules/reports/components/ReportsLayout.jsx",
     "../../src/modules/reports/components/KpiTile.jsx",
     "../../src/modules/reports/components/CategoryContribution.jsx",
     "../../src/modules/reports/components/CoverageBadge.jsx",
@@ -305,7 +365,29 @@ test("the chart re-measures on both resize signals, not just one", async () => {
   assert.match(source, /observedWidth > 0 \?/);
 });
 
-test("panels are min-w-0 so grid columns can shrink", async () => {
-  const source = await read("../../src/modules/reports/pages/ExecutiveOverview.jsx");
-  assert.match(source, /className="min-w-0 rounded-2xl/, "Panel must be min-w-0");
+test("cards are min-w-0 so grid columns can shrink", async () => {
+  const layout = await read("../../src/modules/reports/components/ReportsLayout.jsx");
+  // A grid item defaults to min-width:auto, which lets a wide child (the chart) pin the
+  // column open so it never shrinks back on a narrow viewport.
+  assert.match(layout, /className=\{`flex min-w-0 flex-col rounded-2xl/, "Card must be min-w-0");
+  assert.match(layout, /<section className=\{`min-w-0/, "Subtle must be min-w-0");
+});
+
+test("the reporting pages claim more width than the ERP default on a large monitor", async () => {
+  const layout = await read("../../src/modules/reports/components/ReportsLayout.jsx");
+  // 1480px is the ERP-wide token. Analytics opts into more only above it, so laptops
+  // and the rest of the ERP are unaffected.
+  assert.match(layout, /max-w-\[var\(--content-max\)\]/, "must keep the shared token as the base");
+  assert.match(layout, /2xl:max-w-\[1600px\]/, "must widen on a large desktop");
+  assert.match(layout, /min-\[1800px\]:max-w-\[1680px\]/, "and again on a very large one");
+
+  // The pages must go through the shell rather than setting their own container.
+  for (const page of ["ExecutiveOverview", "SalesIntelligence"]) {
+    const source = await read(`../../src/modules/reports/pages/${page}.jsx`);
+    assert.match(source, /<ReportsPage dir=/, `${page} must use the shared page shell`);
+    assert.ok(
+      !/mx-auto w-full max-w-\[var\(--content-max\)\]/.test(source),
+      `${page} must not pin its own container width`
+    );
+  }
 });

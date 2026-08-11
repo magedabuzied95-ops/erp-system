@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
 
-import { formatPercentValue, formatDeltaPercent, SENTIMENT_CLASS, resolveSentiment } from "../lib/metricFormat";
-import { formatCurrency, formatNumber } from "../../../shared/lib/currency";
+import { formatPercentValue, formatDeltaPercent, formatMoney, SENTIMENT_CLASS, resolveSentiment } from "../lib/metricFormat";
+import { formatNumber } from "../../../shared/lib/currency";
+import { dimensionLabel } from "../lib/dimensionLabels";
 import { BREAKDOWN_DIMENSIONS } from "../hooks/useSalesFilters";
 
 /**
@@ -77,28 +78,30 @@ export default function SalesBreakdown({ data, quality, showProfit, dimension, o
                   type="button"
                   onClick={() => onDrill?.(dimension, row.key)}
                   title={t("salesAnalytics.breakdown.filterHint")}
-                  className="w-full rounded-lg px-1 py-1 text-start transition hover:bg-[var(--surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                  className="group w-full rounded-xl px-2 py-2 text-start transition hover:bg-[var(--surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                 >
                   <span className="flex items-baseline justify-between gap-3">
-                    <span className="truncate text-[13px] font-semibold text-[var(--text)]">{row.key}</span>
-                    <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--text)]">
-                      {formatCurrency(row.netSales, language)}
+                    <span className="truncate text-[14px] font-semibold text-[var(--text)] group-hover:text-[var(--primary)] 2xl:text-[15px]">
+                      {dimensionLabel(dimension, row.key, language)}
+                    </span>
+                    <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--text)] 2xl:text-[15px]">
+                      {formatMoney(row.netSales, language)}
                     </span>
                   </span>
 
-                  <span className="mt-1.5 flex items-center gap-2.5">
-                    <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-soft)]">
-                      <span className="block h-full rounded-full bg-[var(--primary)]" style={{ width: `${width}%` }} />
+                  <span className="mt-2 flex items-center gap-2.5">
+                    <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-soft)]">
+                      <span className="block h-full rounded-full bg-[var(--primary)] transition-[width] duration-300" style={{ width: `${width}%` }} />
                     </span>
-                    <span className="w-10 shrink-0 text-end text-[11px] font-semibold tabular-nums text-[var(--text-tertiary)]">
+                    <span className="w-11 shrink-0 text-end text-[12px] font-bold tabular-nums text-[var(--text-secondary)]">
                       {formatPercentValue(row.contribution, language) || "—"}
                     </span>
                   </span>
 
-                  <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--text-tertiary)]">
+                  <span className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-0.5 text-[11px] text-[var(--text-tertiary)] 2xl:text-[12px]">
                     <span>{t("salesAnalytics.breakdown.units")}: <span className="tabular-nums">{formatNumber(row.units, language)}</span></span>
                     {showProfit && row.grossProfit !== null ? (
-                      <span>{t("salesAnalytics.breakdown.profit")}: <span className="tabular-nums">{formatCurrency(row.grossProfit, language)}</span></span>
+                      <span>{t("salesAnalytics.breakdown.profit")}: <span className="tabular-nums">{formatMoney(row.grossProfit, language)}</span></span>
                     ) : null}
                     {showProfit && row.grossMargin !== null ? (
                       <span>{t("salesAnalytics.breakdown.margin")}: <span className="tabular-nums">{formatPercentValue(row.grossMargin, language)}</span></span>
@@ -116,7 +119,7 @@ export default function SalesBreakdown({ data, quality, showProfit, dimension, o
 
       {rows.length ? (
         <p className="mt-3 border-t border-[var(--border)] pt-2 text-[11px] text-[var(--text-tertiary)]">
-          {t("salesAnalytics.breakdown.netSales")}: <span className="font-bold tabular-nums text-[var(--text-secondary)]">{formatCurrency(total, language)}</span>
+          {t("salesAnalytics.breakdown.netSales")}: <span className="font-bold tabular-nums text-[var(--text-secondary)]">{formatMoney(total, language)}</span>
         </p>
       ) : null}
     </div>
