@@ -51,6 +51,7 @@ server/services/*
 !server/services/messageDeliveryReconciliationService.js
 !server/services/aiInboundIntakeService.js
 !server/services/aiInboxGroundingGate.js
+!server/services/footwearSizeResolver.js
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -79,3 +80,4 @@ server/services/*
 !server/services/messageDeliveryReconciliationService.js
 !server/services/aiInboundIntakeService.js
 !server/services/aiInboxGroundingGate.js
+!server/services/footwearSizeResolver.js

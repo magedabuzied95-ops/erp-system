@@ -105,7 +105,9 @@ up.
 The suggestion is produced by the existing brain (`generateAiInboxReply`). Phase 10.6 adds a deterministic,
 failure-isolated **grounding gate** so a specific product request is never answered with an incompatible
 product and availability is never claimed without exact-variant stock evidence — otherwise it asks a
-clarifying question. See `docs/ai-inbox-grounding-quality.md`.
+clarifying question. Phase 10.7 adds footwear size grounding: customer EU sizes / Crocs markings resolve to
+exact variants via the canonical size table before the stock check. See `docs/ai-inbox-grounding-quality.md`
+and `docs/footwear-size-grounding.md`.
 
 ## 12. Known limitations / explicitly NOT built
 
