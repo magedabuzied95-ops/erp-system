@@ -209,6 +209,13 @@ export const runRestockRecovery = async ({ tenantId, productId, variantId = null
   const { candidates, matchedCount, returnedCount, hasMore } = await findWaitingCustomersForRestock({ tenantId, productId, variantId, limit });
   const ranked = prioritize(candidates);
 
+  // Phase 8: when customer messaging is enabled (preview_only or approval_send), an EXACT-variant
+  // explicit intent additionally gets a DRAFT notification (bounded, no send). Lazy-imported to
+  // avoid a static import cycle; legacy/product-only candidates never get a send path.
+  let messagingMode = "off", createDraft = null;
+  try { const m = await import("./restockNotificationService.js"); messagingMode = await m.getMessagingMode(tenantId); createDraft = m.createDraftNotification; } catch { messagingMode = "off"; }
+  let notificationsDrafted = 0;
+
   let created = 0, skippedDuplicate = 0, skippedNoStock = 0, failed = 0;
   const results = [];
   for (const cand of ranked) {
@@ -239,13 +246,17 @@ export const runRestockRecovery = async ({ tenantId, productId, variantId = null
       await updateRecovery(reserved.id, tenantId, { status: "followup_created", followup_task_id: taskId });
       // Mark the explicit intent as recovery_created (NOT customer_notified — no customer was contacted).
       if (cand.source === "restock_intent" && cand.intentId) { try { await markIntentRecoveryCreated(tenantId, cand.intentId, eventKey); } catch { /* non-fatal */ } }
+      // Phase 8: draft a customer message for an EXACT-variant explicit intent (no send; human-approved later).
+      if (messagingMode !== "off" && createDraft && cand.source === "restock_intent" && cand.matchQuality === "EXACT_VARIANT" && cand.intentId) {
+        try { const d = await createDraft({ tenantId, intentId: cand.intentId, restockEventId: eventKey, recoveryId: reserved.id }); if (d?.created) notificationsDrafted += 1; } catch { /* drafting never breaks recovery */ }
+      }
       created += 1; results.push({ requestId: cand.requestId, source: cand.source, matchQuality: cand.matchQuality, status: "followup_created", taskId });
     } catch (e) {
       await updateRecovery(reserved.id, tenantId, { status: "failed", reason: String(e?.message || e).slice(0, 300) });
       failed += 1; results.push({ requestId: cand.requestId, source: cand.source, status: "failed" });
     }
   }
-  return { ok: true, matched: matchedCount, returned: returnedCount, hasMore, created, skippedDuplicate, skippedNoStock, failed, results };
+  return { ok: true, matched: matchedCount, returned: returnedCount, hasMore, created, skippedDuplicate, skippedNoStock, failed, notificationsDrafted, messagingMode, results };
 };
 
 // Insert a recovery row; returns the row on success, null on (event,request) conflict.

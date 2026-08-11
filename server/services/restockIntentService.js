@@ -146,6 +146,24 @@ export const markIntentRecoveryCreated = async (tenantId, intentId, restockEvent
   );
 };
 
+export const getIntent = async (tenantId, id) => {
+  await ensureRestockIntentSchema();
+  const r = await db.query(`SELECT * FROM restock_intents WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [tenantId, id]);
+  return r.rows[0] || null;
+};
+
+// Set customer_notified_at ONLY after a confirmed successful send (Phase 8). Never on draft/approval.
+export const markIntentNotified = async (tenantId, id, { channel = null } = {}) => {
+  await ensureRestockIntentSchema();
+  const r = await db.query(
+    `UPDATE restock_intents SET status = 'customer_notified', customer_notified_at = NOW(),
+       metadata = jsonb_set(COALESCE(metadata,'{}'::jsonb), '{notified_channel}', to_jsonb($3::text)), updated_at = NOW()
+     WHERE tenant_id = $1 AND id = $2 AND customer_notified_at IS NULL RETURNING *`,
+    [tenantId, id, channel || ""]
+  );
+  return r.rows[0] || null;
+};
+
 export const listIntents = async (tenantId, { status = null, limit = 100, phone = null, customerId = null } = {}) => {
   await ensureRestockIntentSchema();
   const params = [tenantId];

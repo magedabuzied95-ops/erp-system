@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PackageCheck, Loader2, RefreshCw, Plus, ShieldAlert, CheckCircle2, ExternalLink, Users, Tag, Ban, Check } from "lucide-react";
+import { PackageCheck, Loader2, RefreshCw, Plus, ShieldAlert, CheckCircle2, ExternalLink, Users, Tag, Ban, Check, Send, MessageSquare, Pencil } from "lucide-react";
 import AiStudioNav from "../components/AiStudioNav";
 import { useStudioHeaders } from "../lib/studioRequest";
-import { getRestockRecovery, seedRestockRecoveryTemplate, getRestockIntents, cancelRestockIntent, fulfilRestockIntent } from "../services/aiStudioApi";
+import {
+  getRestockRecovery, seedRestockRecoveryTemplate, getRestockIntents, cancelRestockIntent, fulfilRestockIntent,
+  getRestockNotifications, setRestockMessagingMode, editRestockNotification, rejectRestockNotification, approveSendRestockNotification,
+} from "../services/aiStudioApi";
 
 const fmt = (v) => (v ? new Date(v).toLocaleString() : "—");
 const statusTone = (s) =>
@@ -20,21 +23,51 @@ export default function AiStudioRestockRecovery() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
-  const [view, setView] = useState("intents"); // intents (canonical) | recoveries
+  const [view, setView] = useState("intents"); // intents | notifications | recoveries
   const [intents, setIntents] = useState([]);
   const [intentCounts, setIntentCounts] = useState({});
+  const [notifs, setNotifs] = useState([]);
+  const [notifCounts, setNotifCounts] = useState({});
+  const [messagingMode, setMessagingMode] = useState("off");
+  const [editId, setEditId] = useState(null);
+  const [editText, setEditText] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, ri] = await Promise.all([getRestockRecovery(headers), getRestockIntents(headers).catch(() => null)]);
+      const [r, ri, rn] = await Promise.all([getRestockRecovery(headers), getRestockIntents(headers).catch(() => null), getRestockNotifications(headers).catch(() => null)]);
       setData(r || null);
       if (ri?.intents) setIntents(ri.intents);
       if (ri?.counts) setIntentCounts(ri.counts);
+      if (rn?.notifications) setNotifs(rn.notifications);
+      if (rn?.counts) setNotifCounts(rn.counts);
+      if (rn?.mode) setMessagingMode(rn.mode);
     } catch { setData(null); }
     setLoading(false);
   }, [headers]);
   useEffect(() => { void load(); }, [load]);
+
+  const doSetMode = async (mode) => {
+    if (mode === "approval_send" && !window.confirm("Enable APPROVAL_SEND? Approving a draft will send a real message to the customer through the connected channel. Drafting and approval still require a human; nothing is autonomous.")) return;
+    setBusy("mode"); setMsg("");
+    try { const r = await setRestockMessagingMode(mode, headers); if (r?.success === false) setMsg(r?.message || "Failed"); else setMessagingMode(r.mode); }
+    catch (e) { setMsg(e?.responseBody?.message || e?.message || "Failed"); }
+    setBusy("");
+  };
+  const doNotifAction = async (id, kind) => {
+    setBusy(`${kind}-${id}`); setMsg("");
+    try {
+      if (kind === "reject") { if (!window.confirm("Reject this draft? No message will be sent.")) { setBusy(""); return; } await rejectRestockNotification(id, "", headers); }
+      else if (kind === "edit") { const r = await editRestockNotification(id, editText, headers); if (r?.success !== false) { setEditId(null); setEditText(""); } }
+      else if (kind === "send") {
+        if (!window.confirm("Approve & Send this message to the customer now? This contacts the customer through the connected channel.")) { setBusy(""); return; }
+        const r = await approveSendRestockNotification(id, headers);
+        if (r?.success === false || r?.failed) setMsg(r?.message || r?.reason || "Send failed"); else if (r?.sent) setMsg("Message sent."); else if (r?.alreadySent) setMsg("Already sent.");
+      }
+      await load();
+    } catch (e) { setMsg(e?.responseBody?.message || e?.message || "Failed"); }
+    setBusy("");
+  };
 
   const doIntentAction = async (id, kind) => {
     setBusy(`${kind}-${id}`); setMsg("");
@@ -102,12 +135,88 @@ export default function AiStudioRestockRecovery() {
         <p className="mt-1.5 text-[11px] text-slate-500">Recovery follow-ups are internal only — creating one does <b>not</b> mark the customer as notified.</p>
       </section>
 
-      {/* View toggle: Waiting Requests (canonical intents) vs Recoveries */}
-      <div className="flex gap-1.5">
-        {[["intents", "Waiting Requests"], ["recoveries", "Recoveries"]].map(([k, label]) => (
-          <button key={k} type="button" onClick={() => setView(k)} className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[12px] font-black ${view === k ? "border-cyan-300/40 bg-cyan-300 text-slate-950" : "border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>{label}</button>
+      {/* View toggle + messaging-mode control */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {[["intents", "Waiting Requests"], ["notifications", "Notifications"], ["recoveries", "Recoveries"]].map(([k, label]) => (
+          <button key={k} type="button" onClick={() => setView(k)} className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[12px] font-black ${view === k ? "border-cyan-300/40 bg-cyan-300 text-slate-950" : "border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>
+            {k === "notifications" ? <MessageSquare className="h-3.5 w-3.5" /> : null}{label}{k === "notifications" && Number(notifCounts.pending_approval || 0) > 0 ? <span className="rounded-full bg-amber-400/20 px-1.5 text-[10px] text-amber-100">{notifCounts.pending_approval}</span> : null}
+          </button>
         ))}
+        <div className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">
+          <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Messaging</span>
+          {["off", "preview_only", "approval_send"].map((m) => (
+            <button key={m} type="button" onClick={() => doSetMode(m)} disabled={busy === "mode"} title={m === "approval_send" ? "Approving a draft sends a real message" : m === "preview_only" ? "Drafts + approval only; sending disabled" : "No drafts, no sends"}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-black ${messagingMode === m ? (m === "approval_send" ? "bg-rose-400 text-slate-950" : m === "preview_only" ? "bg-amber-300 text-slate-950" : "bg-slate-500 text-white") : "text-slate-400 hover:text-white"}`}>
+              {m === "off" ? "Off" : m === "preview_only" ? "Preview only" : "Approval + Send"}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {view === "notifications" ? (
+        <>
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[12px] text-slate-300">
+            <b className="text-white">Human-approved customer messaging.</b> Drafts are generated from verified facts only. <b>No message is sent until a human clicks Approve &amp; Send</b>, and only when messaging mode is <b>Approval + Send</b>. {messagingMode !== "approval_send" ? <span className="text-amber-200">Sending is currently disabled ({messagingMode === "off" ? "Off" : "Preview only"}).</span> : <span className="text-rose-200">Approval + Send is ON — approving a draft contacts the customer.</span>}
+          </section>
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[["Pending approval", notifCounts.pending_approval, "text-amber-200"], ["Sent", notifCounts.sent, "text-emerald-200"], ["Rejected", notifCounts.rejected, "text-slate-300"], ["Failed", notifCounts.failed, "text-rose-200"]].map(([label, val, tone]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3"><div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div><div className={`mt-1 text-2xl font-black ${tone}`}>{Number(val || 0)}</div></div>
+            ))}
+          </section>
+          <section className="space-y-3">
+            {loading ? <div className="flex items-center gap-2 p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
+            : notifs.length === 0 ? <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center text-sm text-slate-500">No customer-message drafts yet. They appear here when an exact restock intent is recovered while messaging is enabled.</div>
+            : notifs.map((n) => {
+              const f = n.facts || {};
+              const sent = n.status === "sent";
+              return (
+                <div key={n.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">Restock notification</div>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${sent ? "bg-emerald-400/20 text-emerald-100" : n.status === "rejected" ? "bg-slate-500/20 text-slate-300" : n.status === "failed" ? "bg-rose-500/20 text-rose-100" : "bg-amber-400/20 text-amber-100"}`}>{n.status.replace("_", " ")}</span>
+                  </div>
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[12px]">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Facts</div>
+                      <div className="mt-1 space-y-0.5 text-slate-300">
+                        <div>Customer: <b className="text-white">{n.customer_name || n.phone || "—"}</b></div>
+                        <div>Product: {n.product_name || `#${n.product_id}`}</div>
+                        <div>Variant: {[f.color, f.size ? `Size ${f.size}` : ""].filter(Boolean).join(" · ") || `#${n.variant_id}`}</div>
+                        <div>In stock now: <b className="text-emerald-200">{f.available ?? "?"}</b></div>
+                        <div>Channel: {n.channel || "—"} · <span className="text-emerald-300">explicit restock intent</span></div>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[12px]">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Draft {sent ? "(sent)" : "— not sent yet"}</div>
+                      {editId === n.id ? (
+                        <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={4} dir="rtl" className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 text-[12px] text-white focus:border-cyan-300/40 focus:outline-none" />
+                      ) : (
+                        <div dir="rtl" className="mt-1 whitespace-pre-wrap text-slate-200">{n.approved_text || n.draft_text}</div>
+                      )}
+                    </div>
+                  </div>
+                  {!sent && n.status !== "rejected" ? (
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      {editId === n.id ? (
+                        <>
+                          <button type="button" onClick={() => { setEditId(null); setEditText(""); }} className="inline-flex h-8 items-center rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300">Cancel</button>
+                          <button type="button" onClick={() => doNotifAction(n.id, "edit")} disabled={busy === `edit-${n.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-cyan-300/40 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100">Save draft</button>
+                        </>
+                      ) : (
+                        <button type="button" onClick={() => { setEditId(n.id); setEditText(n.approved_text || n.draft_text || ""); }} className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white"><Pencil className="h-3.5 w-3.5" />Edit</button>
+                      )}
+                      <button type="button" onClick={() => doNotifAction(n.id, "reject")} disabled={busy === `reject-${n.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 text-[11px] font-black text-rose-100"><Ban className="h-3.5 w-3.5" />Reject</button>
+                      <button type="button" onClick={() => doNotifAction(n.id, "send")} disabled={busy === `send-${n.id}` || messagingMode !== "approval_send"} title={messagingMode !== "approval_send" ? "Enable Approval + Send mode to send" : "Sends a real message to the customer"} className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-300/40 bg-emerald-400/15 px-3 text-[11px] font-black text-emerald-50 disabled:opacity-40">{busy === `send-${n.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}Approve &amp; Send</button>
+                    </div>
+                  ) : sent ? (
+                    <div className="mt-2 text-[11px] text-emerald-200">Sent {n.sent_at ? fmt(n.sent_at) : ""}{n.provider_message_id ? ` · id ${String(n.provider_message_id).slice(0, 12)}…` : ""}</div>
+                  ) : <div className="mt-2 text-[11px] text-slate-400">Rejected — no message was sent.</div>}
+                </div>
+              );
+            })}
+          </section>
+        </>
+      ) : null}
 
       {view === "intents" ? (
         <>
@@ -157,7 +266,7 @@ export default function AiStudioRestockRecovery() {
           </section>
           <p className="text-[11px] text-slate-500">A restock request records the customer's explicit consent to be contacted. Creating an internal follow-up does <b>not</b> notify the customer — that stays a human action.</p>
         </>
-      ) : (
+      ) : view === "recoveries" ? (
       <>
       {/* Counts (real data) */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -201,7 +310,7 @@ export default function AiStudioRestockRecovery() {
         )}
       </section>
       </>
-      )}
+      ) : null}
 
       <div className="text-[11px] text-slate-600">
         <button type="button" onClick={() => navigate("/ai-studio/executions")} className="inline-flex items-center gap-1 font-black text-cyan-200 hover:text-cyan-100">View workflow executions <ExternalLink className="h-3 w-3" /></button>
