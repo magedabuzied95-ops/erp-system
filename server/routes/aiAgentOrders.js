@@ -4856,7 +4856,7 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
     const sessionId = envText(conversation.session_id || requestedConversationId);
     const targetResult = await db.query(
       `
-      SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone, direction, sender_type
+      SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone, sender_type
       FROM ai_support_messages
       WHERE tenant_id = $1::bigint
         AND session_id = $2::text
@@ -4885,7 +4885,7 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
     ).replace(/^whatsapp:/i, "");
     const remoteDigits = rawRemoteJid.replace(/\D/g, "");
     const remoteJid = rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "";
-    const targetFromMe = req.body?.target_from_me === true || target.direction === "outbound" || ["staff", "ai", "system"].includes(envText(target.sender_type).toLowerCase());
+    const targetFromMe = req.body?.target_from_me === true || ["staff", "ai", "system"].includes(envText(target.sender_type).toLowerCase());
     const delivery = await sendWhatsappReaction({ remoteJid, targetMessageId, targetFromMe, emoji });
     const providerMessageId = envText(delivery?.result?.key?.id || delivery?.result?.messageId || delivery?.result?.message_id || `staff-reaction:${targetMessageId}:${Date.now()}`);
     const stored = await upsertAiSupportMessageReaction({

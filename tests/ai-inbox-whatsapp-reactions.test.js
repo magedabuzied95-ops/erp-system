@@ -79,6 +79,7 @@ test("outbound WhatsApp reactions use Evolution's reaction endpoint and are pers
   assert.match(routes, /\/conversations\/:conversationId\/reaction/);
   assert.match(routes, /sendWhatsappReaction\(\{ remoteJid, targetMessageId, targetFromMe, emoji \}\)/);
   assert.match(routes, /upsertAiSupportMessageReaction\(\{/);
+  assert.doesNotMatch(routes, /SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone, direction/);
 });
 
 test("ordinary text messages do not show a technical text type badge", () => {
