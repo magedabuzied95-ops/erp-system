@@ -1,5 +1,6 @@
 import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Input, MetricCard, Switch } from "../../../shared/ui";
 import {
   AlertCircle,
   Bot,
@@ -1875,17 +1876,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
 
 function SummaryTile({ icon: Icon, label, value }) {
   return (
-    <article className={`flex min-h-[7rem] rounded-2xl p-4 ${shellCard}`}>
-      <div className="flex w-full items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className={`line-clamp-2 text-[11px] font-black uppercase leading-4 tracking-[0.12em] ${mutedText}`}>{label}</div>
-          <div className={`mt-2 truncate text-2xl font-black ${headingText}`}>{value}</div>
-        </div>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-700 ring-1 ring-slate-200/70 dark:bg-white/[0.06] dark:text-slate-200 dark:ring-white/10">
-          <Icon className="h-5 w-5" />
-        </span>
-      </div>
-    </article>
+    <MetricCard icon={Icon} label={label} value={value} />
   );
 }
 
@@ -2246,13 +2237,14 @@ function ShippingRuleTester({ zones, defaultPrice, defaultProvider, copy }) {
 function TesterInput({ label, value, onChange, options }) {
   const listId = `tester-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return (
-    <label className={`rounded-2xl p-3 ${fieldSurface}`}>
-      <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{label}</span>
-      <input list={listId} value={value} onChange={(event) => onChange(event.target.value)} className={inputClass} />
+    <div className={`rounded-2xl p-3 ${fieldSurface}`}>
+      {/* Kept separate from PremiumInput: this is a datalist-backed autocomplete,
+          a genuinely different contract. Adapter preserves the string callback. */}
+      <Input label={label} list={listId} value={value} onChange={(event) => onChange(event.target.value)} />
       <datalist id={listId}>
         {options.map((option) => <option key={option} value={option} />)}
       </datalist>
-    </label>
+    </div>
   );
 }
 
@@ -3598,11 +3590,11 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
 }
 
 function TogglePill({ label, checked, onChange, compact = false }) {
+  // Adapter: M1UI Switch emits a DOM event, but every existing caller expects a
+  // boolean, so the conversion stays here and no call site changes.
+  void compact; // still accepted; density now comes from the theme
   return (
-    <label className={`inline-flex items-center gap-2 rounded-full border px-3 text-xs font-black ${compact ? "h-8" : "h-9"} ${checked ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-100" : "border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"}`}>
-      <input type="checkbox" className="h-4 w-4" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      {label}
-    </label>
+    <Switch label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} />
   );
 }
 
@@ -3623,10 +3615,10 @@ function VisualSection({ icon: Icon, title, description, children }) {
 
 function PremiumInput({ label, value, onChange }) {
   return (
-    <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-      <span className={`mb-2 block text-sm font-black ${headingText}`}>{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
-    </label>
+    <div className={`rounded-2xl p-4 ${fieldSurface}`}>
+      {/* Adapter: callers still receive a string, not the DOM event. */}
+      <Input label={label} value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
   );
 }
 
