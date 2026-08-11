@@ -239,19 +239,23 @@ const persistOutbound = async ({ tenantId, notif, text, providerMessageId }) => 
     if (notif.channel === "whatsapp") {
       const phone = String(notif.phone || notif.recipient_reference || "").trim();
       if (!phone) return;
-      // Pass the phone raw; the persistence layer canonicalizes to whatsapp:<20…> so a later inbound
-      // from the same number converges onto this same session (do NOT pre-normalize differently).
+      // Canonicalize to the SAME whatsapp:<20…> key the inbound webhook uses, so a later inbound from
+      // the same number converges onto this exact session/conversation (Phase 9 §22).
+      const { normalizeWhatsappSessionId, normalizeWhatsappPhone } = await import("../utils/whatsappIdentity.js");
+      const canonicalPhone = normalizeWhatsappPhone(phone) || phone;
+      const sessionId = normalizeWhatsappSessionId(phone, canonicalPhone) || `whatsapp:${canonicalPhone}`;
       await appendChannelOutboundSupportReply({
-        tenantId, channel: "whatsapp", sessionId: `whatsapp:${phone}`, resolvedPhone: phone,
+        tenantId, channel: "whatsapp", sessionId, resolvedPhone: canonicalPhone,
         message: text, providerMessageId, externalMessageId: providerMessageId,
         deliveryStatus: "sent", senderType: "system",
         source: "restock_notification", sessionSource: "restock_notification",
         sourcePath: "restock_notification", insertSource: "restock_notification",
       });
-      // Directory/enrichment row so the thread appears in the omnichannel inbox (mirrors inbound webhook).
+      // Directory/enrichment row so the thread appears in the omnichannel inbox (mirrors inbound webhook)
+      // — keyed identically (canonical session id + bare canonical phone) for inbound convergence.
       try {
         const { upsertChannelConversationMapping } = await import("./aiChannelAdapterService.js");
-        await upsertChannelConversationMapping({ tenantId, channel: "whatsapp", externalConversationId: `whatsapp:${phone}`, externalCustomerId: phone, lastMessageAt: new Date() });
+        await upsertChannelConversationMapping({ tenantId, channel: "whatsapp", externalConversationId: sessionId, externalCustomerId: canonicalPhone, lastMessageAt: new Date() });
       } catch (mapErr) { console.error("[restock] conversation mapping failed", String(mapErr?.message || mapErr).slice(0, 140)); }
       return;
     }
