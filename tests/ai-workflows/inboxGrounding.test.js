@@ -68,11 +68,11 @@ test("decideGrounding matrix I/J/K/L/M — availability only with exact-variant 
   // I — no compatible product → clarify, never substitute
   const I = G.decideGrounding({ entities: e, compatibleProducts: [], variantGrounding: null });
   assert.equal(I.action, "no_match"); assert.equal(I.cards.length, 0);
-  // J — size 44 requested, only 43 exists → no availability claim
-  const J = G.decideGrounding({ entities: e, compatibleProducts: [{ id: 1, name: "Crocs", product_type: "crocs" }], variantGrounding: { exactVariant: null, requestedSizeExistsForType: false, availableSizesSample: ["43"] } });
+  // J — size 44 requested, not present on product → no availability claim (clarify)
+  const J = G.decideGrounding({ entities: e, compatibleProducts: [{ id: 1, name: "Crocs", product_type: "crocs" }], variantGrounding: { sizeResolution: { matchType: "NO_VARIANT_MATCH" }, exactVariant: null, availableSizesDisplay: ["43/44"] } });
   assert.equal(J.action, "clarify_size"); assert.doesNotMatch(J.answer, /^أيوه/);
-  // K — black requested, only white (size matched) → not an availability claim
-  const K = G.decideGrounding({ entities: e, compatibleProducts: [{ id: 1, name: "Crocs", product_type: "crocs" }], variantGrounding: { exactVariant: null, requestedSizeExistsForType: true, requestedColorExistsForType: false } });
+  // K — size resolves but not in the requested color → color clarification, never an availability claim
+  const K = G.decideGrounding({ entities: e, compatibleProducts: [{ id: 1, name: "Crocs", product_type: "crocs" }], variantGrounding: { sizeResolution: { matchType: "UNIQUE_CONVERSION" }, exactVariant: null, sizeAvailableOtherColor: true } });
   assert.notEqual(K.action, "available");
   // L — exact compatible variant in stock → available
   const L = G.decideGrounding({ entities: e, compatibleProducts: [{ id: 1, name: "Crocs", product_type: "crocs" }], variantGrounding: { exactVariant: { variantId: 9, size: "44", color: "Black" }, exactStock: 3 } });

@@ -114,8 +114,11 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
       answer: `للأسف مش لاقي ${typeLabel}${colorTxt} بالمواصفات دي حاليًا. ممكن تبعتلي اسم أو صورة الموديل اللي تقصده وأساعدك؟` };
   }
 
-  // Availability requires EXACT-variant stock evidence.
+  // Availability requires EXACT-variant stock evidence, using the canonical size resolver (Phase 10.7).
   if (entities.size) {
+    const sr = variantGrounding?.sizeResolution || null;
+    const dispSizes = Array.isArray(variantGrounding?.availableSizesDisplay) ? variantGrounding.availableSizesDisplay.slice(0, 8) : [];
+    const sizesHint = dispSizes.length ? ` المقاسات المتاحة${colorTxt}: ${dispSizes.join("، ")}.` : "";
     if (variantGrounding?.exactVariant) {
       const stock = Number(variantGrounding.exactStock || 0);
       if (stock > 0) {
@@ -125,15 +128,19 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
       return { action: "unavailable", confidence: 0.85, cards,
         answer: `${typeLabel}${colorTxt}${sizeTxt} مش متوفر حاليًا. تحب أسجلك إشعار أبلغك أول ما يرجع؟` };
     }
-    // Exact variant not found — do NOT claim availability. Clarify honestly.
-    if (variantGrounding && variantGrounding.requestedSizeExistsForType === false) {
-      const sizesHint = Array.isArray(variantGrounding.availableSizesSample) && variantGrounding.availableSizesSample.length
-        ? ` المقاسات المتاحة: ${variantGrounding.availableSizesSample.slice(0, 8).join("، ")}.` : "";
+    // Ambiguous EU→canonical mapping — do NOT guess; ask for the M/W marking.
+    if (sr?.matchType === "AMBIGUOUS_CONVERSION") {
       return { action: "clarify_size", confidence: 0.4, cards,
-        answer: `مقاس ${entities.size} مش متوفر في ${typeLabel} حاليًا.${sizesHint} تحب أساعدك تختار المقاس المناسب؟` };
+        answer: `مقاس ${entities.size} في ${typeLabel} ليه أكتر من اختيار (${sr.euSize}). تحب تحدد المقاس المكتوب M/W على الكروكس؟` };
     }
+    // Size resolves and exists, but not in the requested color — no availability claim for that color.
+    if (variantGrounding?.sizeAvailableOtherColor) {
+      return { action: "clarify_color", confidence: 0.45, cards,
+        answer: `مقاس ${entities.size} متوفر بس مش باللون ${entities.colorLabel || "المطلوب"}.${sizesHint} تحب لون تاني؟` };
+    }
+    // No matching variant for the requested size (valid size not on this product, or no mapping) — clarify.
     return { action: "clarify_size", confidence: 0.4, cards,
-      answer: `عشان أتأكد من التوفر بالظبط، تحب أنهي موديل ${typeLabel}؟ وأنا أشيك على${colorTxt || " اللون"}${sizeTxt}.` };
+      answer: `مقاس ${entities.size} مش متوفر حاليًا في ${typeLabel}${colorTxt}.${sizesHint} تحب أساعدك تختار المقاس المناسب؟` };
   }
 
   // Product/category resolved, no explicit size — present compatible options + ask.
@@ -187,26 +194,38 @@ export const applyInboxGroundingGate = async ({ tenantId, message, deps = {} } =
 
     const compatibleProducts = (await queryProducts(entities.productType, entities.productTerm)).filter((p) => isCompatibleProduct(p, entities));
 
-    // Exact-variant grounding (only when a size/color was requested).
+    // Exact-variant grounding via the canonical size resolver (Phase 10.7). Available variants authoritative.
     let variantGrounding = null;
     if (compatibleProducts.length && (entities.size || entities.color)) {
-      let exactVariant = null, exactStock = 0, sizeExists = false, colorExists = false;
-      const sizesSample = new Set();
+      const allVariants = [];
       for (const product of compatibleProducts.slice(0, 5)) {
         const facts = await inventoryFacts(product.id);
-        const variants = Array.isArray(facts?.variant_stock) ? facts.variant_stock : [];
-        for (const v of variants) {
-          const sz = v.size ?? v.variant_size, col = v.color ?? v.variant_color, stk = Number(v.stock ?? v.quantity ?? 0);
-          if (sz) sizesSample.add(String(sz));
-          const sizeOk = matchesRequestedSize(sz, entities.size);
-          const colorOk = matchesRequestedColor(col, entities.color);
-          if (sizeOk) sizeExists = true;
-          if (colorOk && entities.color) colorExists = true;
-          if (sizeOk && colorOk && !exactVariant) { exactVariant = { productId: product.id, variantId: v.variant_id ?? v.id, size: sz, color: col }; exactStock = stk; }
+        for (const v of (Array.isArray(facts?.variant_stock) ? facts.variant_stock : [])) {
+          allVariants.push({ productId: product.id, variantId: v.variant_id ?? v.id, size: v.size ?? v.variant_size, color: v.color ?? v.variant_color, stock: Number(v.stock ?? v.quantity ?? 0) });
         }
-        if (exactVariant) break;
       }
-      variantGrounding = { exactVariant, exactStock, requestedSizeExistsForType: entities.size ? sizeExists : null, requestedColorExistsForType: entities.color ? colorExists : null, availableSizesSample: [...sizesSample] };
+      const { resolveFootwearSize, toDisplaySize } = await import("./footwearSizeResolver.js");
+      const colorVariants = entities.color ? allVariants.filter((v) => matchesRequestedColor(v.color, entities.color)) : allVariants;
+      const hintSource = entities.color ? colorVariants : allVariants;
+      const availableSizesDisplay = [...new Set(hintSource.map((v) => toDisplaySize(v.size, entities.productType)).filter(Boolean))];
+      if (entities.size) {
+        const sizeResolution = resolveFootwearSize({ productType: entities.productType, requestedSize: entities.size, availableVariantSizes: [...new Set(allVariants.map((v) => v.size).filter(Boolean))] });
+        let exactVariant = null, exactStock = 0, sizeAvailableOtherColor = false;
+        if (sizeResolution.canonicalMatches.length) {
+          const sizeMatched = allVariants.filter((v) => sizeResolution.canonicalMatches.includes(v.size));
+          const colorSizeMatched = entities.color ? sizeMatched.filter((v) => matchesRequestedColor(v.color, entities.color)) : sizeMatched;
+          if (colorSizeMatched.length) {
+            const best = colorSizeMatched.reduce((a, b) => (b.stock > (a?.stock ?? -1) ? b : a), null);
+            exactVariant = { productId: best.productId, variantId: best.variantId, size: best.size, color: best.color, displaySize: toDisplaySize(best.size, entities.productType) };
+            exactStock = best.stock;
+          } else if (entities.color && sizeMatched.length) {
+            sizeAvailableOtherColor = true;
+          }
+        }
+        variantGrounding = { sizeResolution, exactVariant, exactStock, sizeAvailableOtherColor, availableSizesDisplay };
+      } else {
+        variantGrounding = { sizeResolution: null, exactVariant: null, colorExists: colorVariants.length > 0, availableSizesDisplay };
+      }
     }
 
     const decision = decideGrounding({ entities, compatibleProducts, variantGrounding });
@@ -225,9 +244,9 @@ export const applyInboxGroundingGate = async ({ tenantId, message, deps = {} } =
       suggested_products: groundedCards,
       grounding: {
         requested: { productType: entities.productType, productTerm: entities.productTerm, color: entities.color || null, size: entities.size || null },
-        resolved: decision.action === "available" || decision.action === "unavailable"
-          ? { productId: variantGrounding?.exactVariant?.productId || null, variantId: variantGrounding?.exactVariant?.variantId || null, size: variantGrounding?.exactVariant?.size || null, color: variantGrounding?.exactVariant?.color || null, stock: variantGrounding?.exactStock ?? null }
-          : { candidates: compatibleProducts.length, exactVariantResolved: false },
+        resolved: (decision.action === "available" || decision.action === "unavailable")
+          ? { productId: variantGrounding?.exactVariant?.productId || null, variantId: variantGrounding?.exactVariant?.variantId || null, erpSize: variantGrounding?.exactVariant?.size || null, displaySize: variantGrounding?.exactVariant?.displaySize || entities.size || null, color: variantGrounding?.exactVariant?.color || null, stock: variantGrounding?.exactStock ?? null, matchType: variantGrounding?.sizeResolution?.matchType || null }
+          : { candidates: compatibleProducts.length, exactVariantResolved: false, matchType: variantGrounding?.sizeResolution?.matchType || null, euSize: variantGrounding?.sizeResolution?.euSize || null },
         action: decision.action,
       },
     };

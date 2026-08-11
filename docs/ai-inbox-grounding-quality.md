@@ -71,6 +71,14 @@ in-stock/out-of-stock outcomes.
   availability/size question is asked, or a restock is requested — otherwise the existing behavior is
   preserved. The dead `aiBrainV2Service`/`aiUnifiedDecisionService` stack was intentionally **not** touched.
 
+## Phase 10.7 addendum — footwear size grounding
+
+The clarify-on-size case is now resolved: `aiInboxGroundingGate` calls `footwearSizeResolver` (which reuses
+the canonical `src/shared/lib/crocsSizes.js` table) so a customer EU size ("44") maps to the exact Crocs
+variant marking ("M10/W12") **against the product's real variants**, then checks stock. Deterministic states
+(EXACT_CANONICAL / EXACT_ALIAS / UNIQUE_CONVERSION / AMBIGUOUS_CONVERSION / NO_MAPPING / NO_VARIANT_MATCH)
+decide available / unavailable / clarify. See `docs/footwear-size-grounding.md`.
+
 ## Known limitations
 
 - Crocs numeric→M/W size conversion is not performed; the correct-and-honest outcome is a size
