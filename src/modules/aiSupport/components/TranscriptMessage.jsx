@@ -1,12 +1,14 @@
 ﻿import { memo, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pin, PinOff, Reply as ReplyIcon, Sparkles, Star, UserCheck, X } from "lucide-react";
+import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
 
 import ProductCardMessage from "./ProductCardMessage";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
 const reactionEmoji = (value = "") => clean(value) === "❤" ? "❤️" : clean(value);
+const QUICK_MESSAGE_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const MORE_MESSAGE_REACTIONS = ["👏", "🔥", "🎉", "😍", "🤔", "✅"];
 const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
 const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
 const MESSAGE_PIN_CHANGE_EVENT = "m1:ai-inbox-message-pin-change";
@@ -227,25 +229,39 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
   );
 }
 
-function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", children }) {
+function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", onReact, children }) {
   const key = messageIdentity(row, message);
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [selected, setSelected] = useState(false);
   const [copied, setCopied] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  const [reactionPickerExpanded, setReactionPickerExpanded] = useState(false);
+  const [reactionSending, setReactionSending] = useState(false);
+  const [localReaction, setLocalReaction] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8 });
   const [pinned, setPinned] = useState(() => readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
   const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
   const shellRef = useRef(null);
   const text = messageBodyText(message);
   const reactions = asArray(row?.reactions).filter((reaction) => reactionEmoji(reaction?.message_text || reaction?.text || reaction?.customer_message || reaction?.staff_message));
+  const ownReaction = reactions.find((reaction) => reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff") || null;
+  const ownReactionEmoji = reactionEmoji(ownReaction?.message_text || ownReaction?.text || ownReaction?.customer_message || ownReaction?.staff_message);
+  const effectiveOwnReaction = localReaction === null ? ownReactionEmoji : localReaction;
+  const displayedReactions = [
+    ...reactions.filter((reaction) => reaction !== ownReaction),
+    ...(effectiveOwnReaction ? [{ id: `local-reaction:${key}`, message_text: effectiveOwnReaction, from_me: true, direction: "outbound", sender_type: "staff" }] : []),
+  ];
   const sender = row.kind === "customer" ? "العميل" : row.kind === "ai" ? "AI" : row.kind === "staff" ? staffSenderLabel(message) : "الرسالة";
 
   useEffect(() => {
     setPinned(readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
     setStarred(readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
     setSelected(false);
+    setReactionPickerOpen(false);
+    setReactionPickerExpanded(false);
+    setLocalReaction(null);
   }, [key]);
 
   useEffect(() => {
@@ -318,6 +334,29 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     setMenuOpen(false);
   };
 
+  const submitReaction = async (emoji) => {
+    if (!onReact || reactionSending) return;
+    const nextEmoji = effectiveOwnReaction === emoji ? "" : emoji;
+    setReactionSending(true);
+    try {
+      await onReact({
+        row,
+        message,
+        emoji: nextEmoji,
+        targetMessageId: clean(message.provider_message_id || message.external_message_id || message.whatsapp_message_id || message.message_id || message.id || key),
+        remoteJid: clean(message.remote_jid || message.resolved_reply_jid || message.channel_metadata?.remote_jid || ""),
+        targetFromMe: clean(message.direction).toLowerCase() === "outbound" || ["staff", "ai", "system"].includes(clean(message.sender_type).toLowerCase()),
+      });
+      setLocalReaction(nextEmoji);
+      setReactionPickerOpen(false);
+      setReactionPickerExpanded(false);
+    } catch {
+      // The page-level handler shows the user-facing error toast.
+    } finally {
+      setReactionSending(false);
+    }
+  };
+
   const menuItems = [
     { label: "Reply", icon: ReplyIcon, action: replyToMessage, disabled: !text },
     { label: copied ? "Copied" : "Copy", icon: Copy, action: copyMessage, disabled: !text },
@@ -342,10 +381,33 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         </div>
       ) : null}
       {children}
-      {reactions.length ? (
+      {onReact ? (
+        <div className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
+          <button
+            type="button"
+            aria-label="إضافة تفاعل"
+            title="إضافة تفاعل"
+            onClick={() => setReactionPickerOpen((current) => !current)}
+            className={`grid h-7 w-7 place-items-center rounded-full border shadow-sm transition ${variant === "pwa" ? "border-slate-200 bg-white text-slate-500" : "border-white/10 bg-[#252824] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100"}`}
+          >
+            <Smile className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
+      {reactionPickerOpen ? (
+        <div data-ai-message-reaction-picker="true" className={`relative z-50 mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
+          <div className={`inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-full border px-1.5 py-1 shadow-xl ${variant === "pwa" ? "border-slate-200 bg-white" : "border-white/10 bg-[#f8fafc]"}`}>
+            {[...QUICK_MESSAGE_REACTIONS, ...(reactionPickerExpanded ? MORE_MESSAGE_REACTIONS : [])].map((emoji) => (
+              <button key={emoji} type="button" disabled={reactionSending} onClick={() => void submitReaction(emoji)} className={`grid h-8 w-8 place-items-center rounded-full text-lg transition hover:bg-slate-100 disabled:opacity-50 ${effectiveOwnReaction === emoji ? "bg-amber-100 ring-1 ring-amber-300" : ""}`} aria-label={`تفاعل ${emoji}`}>{emoji}</button>
+            ))}
+            <button type="button" onClick={() => setReactionPickerExpanded((current) => !current)} className="grid h-8 w-8 place-items-center rounded-full text-lg font-black text-slate-500 transition hover:bg-slate-100" aria-label={reactionPickerExpanded ? "تفاعلات أقل" : "تفاعلات أكثر"}>{reactionPickerExpanded ? "−" : "+"}</button>
+          </div>
+        </div>
+      ) : null}
+      {displayedReactions.length ? (
         <div data-ai-message-reactions="true" className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <div className={`inline-flex min-h-7 items-center gap-1 rounded-full border px-2 py-0.5 shadow-sm ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-[#252824] text-white"}`}>
-            {reactions.map((reaction) => {
+            {displayedReactions.map((reaction) => {
               const emoji = reactionEmoji(reaction.message_text || reaction.text || reaction.customer_message || reaction.staff_message);
               const reactor = reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff" ? "أنت" : "العميل";
               return <span key={messageIdentity({ kind: "reaction" }, reaction)} title={`${reactor}: ${emoji}`} className="text-base leading-none">{emoji}</span>;
@@ -456,6 +518,7 @@ function TranscriptMessage({
   onOpenCorrection,
   onReplyComment,
   onPrivateMessage,
+  onReact,
   channelLabel = "",
 }) {
   const safeRow = row || {};
@@ -509,7 +572,7 @@ function TranscriptMessage({
   if (variant === "pwa") {
     if (safeRow.kind === "product_card") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className="w-[82%] max-w-sm space-y-1.5">
               <div className="px-1 text-left text-[10px] font-medium text-slate-500">{createdAt}</div>
@@ -522,7 +585,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "customer") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
           <div className="flex justify-end">
             <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
@@ -545,7 +608,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "ai") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 flex items-center gap-1 text-[10px] font-medium">
@@ -562,7 +625,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "staff") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
             <div className="ai-pwa-message-meta mb-1 text-[10px] font-medium">
@@ -581,16 +644,16 @@ function TranscriptMessage({
 
     if (isCommentMessage) {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
           <div className="flex justify-start">
-            <div data-ai-message-bubble="true" className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+            <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
               <span>{commenterName || commentLabel}</span>
               <span className="text-slate-400">/</span>
               <span>{createdAt}</span>
             </div>
-            <LinkifiedText text={bodyText(message.customer_message || message.message_text || message.text || message.body)} className="mt-3 text-[16px] leading-8 text-white" />
+            <LinkifiedText text={bodyText(message.customer_message || message.message_text || message.text || message.body)} className="mt-2 text-[15px] leading-7 text-white" />
             <MessageImageGrid urls={mediaUrls} variant="pwa" />
             <div className="mt-3 flex flex-wrap gap-2">
               {message.comment_id && onReplyComment ? (
@@ -624,7 +687,7 @@ function TranscriptMessage({
   }
 
   return (
-    <MessageActionShell row={safeRow} message={message} variant="desktop" align={safeRow.kind === "customer" || isCommentMessage ? "left" : "right"} createdAt={createdAt} channelLabel={channelLabel}>
+    <MessageActionShell row={safeRow} message={message} variant="desktop" align={safeRow.kind === "customer" || isCommentMessage ? "left" : "right"} createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
       <div className="space-y-2" style={{ contentVisibility: "auto", containIntrinsicBlockSize: "180px" }}>
       {safeRow.kind === "product_card" ? (
         <div className="flex justify-end">
@@ -635,7 +698,7 @@ function TranscriptMessage({
       ) : null}
       {safeRow.kind === "customer" ? (
         <div className="flex justify-start">
-          <div data-ai-message-bubble="true" className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-tl-sm border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
               <span>العميل</span>
               <span>/</span>
@@ -643,7 +706,7 @@ function TranscriptMessage({
               <span>/</span>
               <span>{createdAt}</span>
             </div>
-            <LinkifiedText text={bodyText(message.customer_message)} className="mt-3 text-[16px] leading-8 text-white" />
+            <LinkifiedText text={bodyText(message.customer_message)} className="mt-2 text-[15px] leading-7 text-white" />
             <MessageImageGrid urls={mediaUrls} />
             {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-3 w-full" />)}
             {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-3 max-h-80 w-full rounded-2xl border border-white/10 bg-slate-950/80" />)}
@@ -653,7 +716,7 @@ function TranscriptMessage({
       ) : null}
       {safeRow.kind === "ai" ? (
         <div className="flex justify-end">
-          <div data-ai-message-bubble="true" className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
+          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
               <Bot className="h-3.5 w-3.5" />
               <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
@@ -671,7 +734,7 @@ function TranscriptMessage({
                 </button>
               ) : null}
             </div>
-            <LinkifiedText text={bodyText(message.ai_answer)} className="mt-3 text-[16px] leading-8 text-white" />
+            <LinkifiedText text={bodyText(message.ai_answer)} className="mt-2 text-[15px] leading-7 text-white" />
             {message.suggested_products?.length ? <div className="mt-3"><ProductCardMessage message={message} cards={message.suggested_products} compact /></div> : null}
             {/* visual_attachments already feed mediaUrls via imageUrlsForMessage —
                 rendering them separately here painted every AI image twice. */}
@@ -681,7 +744,7 @@ function TranscriptMessage({
       ) : null}
       {safeRow.kind === "staff" ? (
         <div className="flex justify-end">
-          <div data-ai-message-bubble="true" className={`max-w-[88%] rounded-3xl rounded-tr-sm p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${message.message_type === "automation_error" ? "border border-rose-300/20 bg-rose-400/10" : "border border-emerald-300/15 bg-emerald-400/10"}`}>
+          <div data-ai-message-bubble="true" className={`max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-3 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${message.message_type === "automation_error" ? "border border-rose-300/20 bg-rose-400/10" : "border border-emerald-300/15 bg-emerald-400/10"}`}>
             <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${message.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"}`}>
               <UserCheck className="h-3.5 w-3.5" />
               <span>{staffSenderLabel(message)}</span>
@@ -694,7 +757,7 @@ function TranscriptMessage({
               <span className="text-slate-500">{createdAt}</span>
               {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{message.delivery_status}</span> : null}
             </div>
-            <LinkifiedText text={bodyText(message.staff_message)} className="mt-3 text-[16px] leading-8 text-white" />
+            <LinkifiedText text={bodyText(message.staff_message)} className="mt-2 text-[15px] leading-7 text-white" />
             <MessageImageGrid urls={mediaUrls} />
             {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-3 w-full" />)}
             {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-3 max-h-80 w-full rounded-2xl border border-white/10 bg-slate-950/80" />)}
@@ -705,14 +768,14 @@ function TranscriptMessage({
       ) : null}
       {isCommentMessage ? (
         <div className="flex justify-start">
-          <div data-ai-message-bubble="true" className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
               <span>{commenterName || commentLabel}</span>
               <span className="text-slate-400">/</span>
               <span>{createdAt}</span>
             </div>
-            <LinkifiedText text={bodyText(message.customer_message || message.message_text || message.text || message.body)} className="mt-3 text-[16px] leading-8 text-white" />
+            <LinkifiedText text={bodyText(message.customer_message || message.message_text || message.text || message.body)} className="mt-2 text-[15px] leading-7 text-white" />
             <MessageImageGrid urls={mediaUrls} />
             <div className="mt-3 flex flex-wrap gap-2">
               {message.comment_id && onReplyComment ? (
@@ -744,5 +807,5 @@ function TranscriptMessage({
   );
 }
 
-export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.channelLabel === next.channelLabel);
+export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.channelLabel === next.channelLabel);
 
