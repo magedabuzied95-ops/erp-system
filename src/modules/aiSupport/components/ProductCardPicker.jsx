@@ -360,7 +360,7 @@ const matchesQuery = (product = {}, query = "") => {
   return searchable.some((item) => lower(item).includes(normalized));
 };
 
-export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, mode = "" }) {
+export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, mode = "", portalTarget = null }) {
   const { theme } = useTheme();
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const [products, setProducts] = useState([]);
@@ -1202,7 +1202,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       </div>
     );
 
-    return inlineFullscreenMode ? sizeContent : createPortal(sizeContent, document.body);
+    return inlineFullscreenMode ? sizeContent : createPortal(sizeContent, portalTarget || document.body);
   }
 
   const content = (
@@ -1624,5 +1624,5 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       />
     </div>
   );
-  return inlineFullscreenMode ? content : createPortal(content, document.body);
+  return inlineFullscreenMode ? content : createPortal(content, portalTarget || document.body);
 }

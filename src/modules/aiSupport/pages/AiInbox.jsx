@@ -1,4 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -3162,7 +3163,7 @@ const AI_INBOX_SHIPPING_PROVIDERS = [
   { id: "in_store_delivery", label: "توصيل المتجر" },
 ];
 
-function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit }) {
+function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null }) {
   const profile = conversation?.customer_profile || {};
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -3254,7 +3255,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     ? Boolean(shippingCityId && shippingZoneId && shippingDistrictId && streetAddress && buildingNumber)
     : Boolean(governorate && cityArea && streetAddress);
   const canSubmit = Boolean(selectedProduct && customerName && customerPhone && shippingProvider && shippingComplete) && safeQuantity <= stock && !busy;
-  return (
+  const content = (
     <div className="fixed inset-0 z-[140] flex justify-end bg-slate-950/75 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
       <section dir="rtl" className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#111512] p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
@@ -3378,6 +3379,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
       </section>
     </div>
   );
+  return portalTarget && typeof document !== "undefined" ? createPortal(content, portalTarget) : content;
 }
 
 function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading, onRefresh, onTakeover, onUseText, onCreateDraft, onPaymentAction, onOpenProductPicker }) {
@@ -6050,6 +6052,7 @@ export default function AiInbox() {
   const selectedMessagingActive = Boolean(selectedChannelStatus.live_operational || selectedChannelStatus.effective_enabled || selectedChannelStatus.messaging_active);
   const conversationExpanded = Boolean(isConversationExpanded && selectedConversation && inboxSection === "conversations");
   const fullscreenConversation = conversationExpanded;
+  const fullscreenOverlayTarget = conversationExpanded ? fullscreenHostRef.current : null;
   // The expand button used to only stretch the conversation inside the ERP shell:
   // `fixed inset-0` covers the page but still sits under the browser's own chrome.
   // Expanding now also asks the browser for real fullscreen, so the conversation
@@ -7902,6 +7905,7 @@ export default function AiInbox() {
         sizeMode={productCardPickerConfig.sizeMode}
         allowMultiple={productCardPickerConfig.allowMultiple}
         mode="desktopInbox"
+        portalTarget={fullscreenOverlayTarget}
       />
       <ReplyCorrectionModal
         open={correctionModal.open}
@@ -8349,6 +8353,7 @@ export default function AiInbox() {
         customerId={customerDrawer.customerId}
         context={customerDrawer.context}
         title="Customer 360"
+        portalTarget={fullscreenOverlayTarget}
       />
       <InboxOrderComposer
         open={orderComposerOpen}
@@ -8358,6 +8363,7 @@ export default function AiInbox() {
         headers={headers}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={createDraftFromProduct}
+        portalTarget={fullscreenOverlayTarget}
       />
     </div>
   );
@@ -9215,6 +9221,7 @@ export default function AiInbox() {
         headers={headers}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={createDraftFromProduct}
+        portalTarget={fullscreenOverlayTarget}
       />
     </div>
   );

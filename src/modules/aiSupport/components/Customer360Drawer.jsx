@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowUpRight,
@@ -187,6 +188,7 @@ export default function Customer360Drawer({
   title = "Customer 360",
   initialTab = "summary",
   aiAnalysis = null,
+  portalTarget = null,
 }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -360,7 +362,7 @@ export default function Customer360Drawer({
 
   if (!open) return null;
 
-  return (
+  const content = (
     <div className="m1-customer-360 fixed inset-0 z-[80]">
       <button type="button" aria-label="Close customer drawer" onClick={onClose} className="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" />
       <aside className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-[#F8FAFC] shadow-[0_24px_80px_rgba(15,23,42,0.24)] sm:w-[460px] lg:w-[520px]">
@@ -718,4 +720,5 @@ export default function Customer360Drawer({
       </aside>
     </div>
   );
+  return portalTarget && typeof document !== "undefined" ? createPortal(content, portalTarget) : content;
 }

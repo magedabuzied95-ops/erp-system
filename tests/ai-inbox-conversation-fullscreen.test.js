@@ -7,6 +7,8 @@ import test from "node:test";
 // browser's own chrome. It now also requests real fullscreen so the conversation
 // takes over the whole screen.
 const src = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+const pickerSrc = fs.readFileSync(new URL("../src/modules/aiSupport/components/ProductCardPicker.jsx", import.meta.url), "utf8");
+const customerDrawerSrc = fs.readFileSync(new URL("../src/modules/aiSupport/components/Customer360Drawer.jsx", import.meta.url), "utf8");
 
 test("expanding requests real browser fullscreen", () => {
   assert.match(src, /const requestConversationFullscreen = useCallback\(/);
@@ -75,4 +77,13 @@ test("the chat panel keeps its card styling while expanded", () => {
   // Expanded should look like the normal inbox, only bigger.
   assert.doesNotMatch(src, /rounded-none border-0 bg-transparent p-0 shadow-none/);
   assert.match(src, /ai-omni-chat-panel min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border/);
+});
+
+test("commerce dialogs render inside the browser fullscreen element", () => {
+  assert.match(src, /const fullscreenOverlayTarget = conversationExpanded \? fullscreenHostRef\.current : null;/);
+  assert.equal((src.match(/portalTarget=\{fullscreenOverlayTarget\}/g) || []).length, 4);
+  assert.match(pickerSrc, /createPortal\(sizeContent, portalTarget \|\| document\.body\)/);
+  assert.match(pickerSrc, /createPortal\(content, portalTarget \|\| document\.body\)/);
+  assert.match(customerDrawerSrc, /createPortal\(content, portalTarget\)/);
+  assert.match(src, /function InboxOrderComposer\([\s\S]*?createPortal\(content, portalTarget\)/);
 });
