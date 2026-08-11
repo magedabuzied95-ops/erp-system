@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Bell, Boxes, ChevronDown, CircleDollarSign, ClipboardList, LogOut, Menu, Moon, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShoppingBag, Store, Sun, User, X } from "lucide-react";
@@ -532,6 +532,7 @@ function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => Boolean(readSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, false)));
   const [openGroups, setOpenGroups] = useState(() => readSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, {}));
   const [sidebarSearch, setSidebarSearch] = useState("");
+  const sidebarSearchInputRef = useRef(null);
   const currentTenant = getCurrentTenant();
   const workspaceName = currentTenant?.companyName || currentTenant?.company_name || currentTenant?.name || currentTenant?.slug || "MONE";
   const workspaceLogoUrl = currentTenant?.companyLogoUrl || currentTenant?.company_logo_url || currentTenant?.logoUrl || "";
@@ -617,6 +618,11 @@ function MainLayout() {
   useEffect(() => {
     writeSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed);
   }, [sidebarCollapsed]);
+
+  const openSidebarSearch = () => {
+    setSidebarCollapsed(false);
+    window.requestAnimationFrame(() => sidebarSearchInputRef.current?.focus());
+  };
 
   useEffect(() => {
     writeSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, openGroups);
@@ -721,13 +727,13 @@ function MainLayout() {
 
         <div className="flex min-h-0 flex-1 flex-col">
           <div className={["mb-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm", sidebarCompact ? "hidden p-2 lg:block" : "p-3"].join(" ")}>
-            <div className={["flex items-center gap-2", sidebarCompact ? "justify-center" : "justify-between"].join(" ")}>
+            <div className={["flex items-center gap-2", sidebarCompact ? "flex-col justify-center" : "justify-between"].join(" ")}>
               <div className={["flex min-w-0 items-center gap-3", sidebarCompact ? "justify-center" : ""].join(" ")}>
                 <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-11 w-11 rounded-2xl bg-[var(--surface-soft)]" />
-                <div className="min-w-0">
+                {sidebarCompact ? null : <div className="min-w-0">
                   <h1 className={["truncate font-black tracking-tight text-[var(--text)]", sidebarCompact ? "text-center text-lg" : "text-2xl"].join(" ")}>{workspaceName}</h1>
                   {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{t("sidebar.workspace")}</p>}
-                </div>
+                </div>}
               </div>
               <button
                 type="button"
@@ -742,15 +748,26 @@ function MainLayout() {
           </div>
 
           <div className={sidebarCompact ? "hidden lg:block" : ""}>
-            <label className="relative mb-3 block">
+            {sidebarCompact ? (
+              <button
+                type="button"
+                onClick={openSidebarSearch}
+                title={t("sidebar.searchModules")}
+                aria-label={t("sidebar.searchModules")}
+                className="mb-3 grid h-11 w-full place-items-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
+              >
+                <Search className="h-5 w-5" />
+              </button>
+            ) : <label className="relative mb-3 block">
               <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
               <input
+                ref={sidebarSearchInputRef}
                 value={sidebarSearch}
                 onChange={(event) => setSidebarSearch(event.target.value)}
                 placeholder={t("sidebar.searchModules")}
                 className="h-10 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
               />
-            </label>
+            </label>}
           </div>
 
           <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1" aria-label={t("common.mainNavigation", "التنقل الرئيسي")}>
