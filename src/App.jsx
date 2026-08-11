@@ -228,6 +228,7 @@ const AiSupportConsole = lazy(() => import("./modules/aiSupport/pages/AiSupportC
 const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSupportKnowledgeBase"));
 const AiInbox = lazy(() => import("./modules/aiSupport/pages/AiInbox"));
 const AiInboxPwa = lazy(() => import("./modules/aiSupport/pages/AiInboxPwa"));
+const AiStudio = lazy(() => import("./modules/aiStudio/pages/AiStudio"));
 const MetaReviewerInbox = lazy(() => import("./modules/aiSupport/pages/MetaReviewerInbox"));
 const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
 const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
@@ -708,6 +709,16 @@ function App() {
           element={
             <ProtectedRoute adminOnly>
               <AdminTenants />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* AI STUDIO — centralized AI control plane (additive; existing AI routes unchanged) */}
+        <Route
+          path="ai-studio"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <AiStudio />
             </ProtectedRoute>
           }
         />

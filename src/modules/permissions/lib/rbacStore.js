@@ -434,6 +434,12 @@ const RAW_SIDEBAR_SECTIONS = [
     ],
   },
   {
+    title: "AI Studio",
+    items: [
+      { label: "AI Studio", to: "/ai-studio", permission: "settings.view", icon: Sparkles, adminOnly: true },
+    ],
+  },
+  {
     title: "Marketing",
     items: [
       { label: "Marketing", to: "/marketing", permission: "marketing.view", icon: Megaphone, devOnly: true },
