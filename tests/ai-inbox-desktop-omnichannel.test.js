@@ -19,7 +19,9 @@ test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopSource, /ai-omni-list-panel/);
   assert.match(desktopSource, /ai-omni-chat-panel/);
   assert.doesNotMatch(desktopSource, /ai-omni-tools-panel/);
-  assert.match(desktopCss, /grid-template-columns:\s*58px minmax\(270px, 310px\) minmax\(420px, 1fr\)/);
+  assert.match(desktopCss, /grid-template-columns:\s*58px minmax\(320px, 360px\) minmax\(390px, 1fr\)/);
+  assert.match(desktopCss, /\.ai-inbox-desktop \.ai-omni-list-panel \{[\s\S]*?border-color:\s*rgba\(255, 255, 255, 0\.14\)[\s\S]*?border-radius:\s*1\.125rem/);
+  assert.match(desktopCss, /\.ai-omni-list-panel > div:last-child[\s\S]*?scrollbar-gutter:\s*stable/);
   assert.doesNotMatch(desktopCss, /ai-omni-workspace--tools/);
   assert.match(pwaSource, /AIInboxAnalysisPanel/);
 });
