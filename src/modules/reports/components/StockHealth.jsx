@@ -19,7 +19,9 @@ const CLASSES = [
   { key: "steady", bar: "bg-[var(--primary)]", tone: "text-[var(--primary)]" },
   { key: "slow", bar: "bg-[var(--warning)]", tone: "text-[var(--warning)]" },
   { key: "dead_candidate", bar: "bg-[var(--danger)]", tone: "text-[var(--danger)]" },
-  { key: "too_new", bar: "bg-[var(--border-strong)]", tone: "text-[var(--text-tertiary)]" },
+  // The three neutral classes share muted styling: none of them is a verdict.
+  { key: "evaluating", bar: "bg-[var(--border-strong)]", tone: "text-[var(--text-secondary)]" },
+  { key: "too_new", bar: "bg-[var(--border)]", tone: "text-[var(--text-tertiary)]" },
   { key: "unknown_age", bar: "bg-[var(--border)]", tone: "text-[var(--text-tertiary)]" },
 ];
 
@@ -28,11 +30,10 @@ export default function StockHealth({ health, showValue, onSelectClass, selected
   const language = i18n.language;
   const buckets = health?.buckets || {};
 
-  // Products that match no rule are shown, not hidden: without them the bar would sum
-  // to fewer products than the KPI above it and the two would visibly disagree.
-  const unclassified = health?.unclassified || 0;
-  const classified = CLASSES.reduce((sum, item) => sum + (buckets[item.key]?.products || 0), 0);
-  const totalProducts = classified + unclassified;
+  // Every stocked product now lands in exactly one class, so the bar sums to the same
+  // number as the KPI above it. A leftover would mean the rules grew a hole; the backend
+  // raises that as a warning rather than letting the UI paper over it.
+  const totalProducts = CLASSES.reduce((sum, item) => sum + (buckets[item.key]?.products || 0), 0);
   if (!totalProducts) {
     return (
       <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
@@ -72,13 +73,6 @@ export default function StockHealth({ health, showValue, onSelectClass, selected
             />
           );
         })}
-        {unclassified ? (
-          <span
-            className="bg-[var(--surface-soft)]"
-            style={{ width: `${(unclassified / totalProducts) * 100}%` }}
-            title={t("inventory.health.unclassified")}
-          />
-        ) : null}
       </div>
 
       <ul className="mt-3 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -116,24 +110,6 @@ export default function StockHealth({ health, showValue, onSelectClass, selected
             </li>
           );
         })}
-        {unclassified ? (
-          <li>
-            <span className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--surface-soft)] ring-1 ring-[var(--border)]" aria-hidden="true" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[12px] font-semibold text-[var(--text-tertiary)] 2xl:text-[13px]">
-                  {t("inventory.health.unclassified")}
-                </span>
-                <span className="block truncate text-[10px] text-[var(--text-tertiary)] 2xl:text-[11px]">
-                  {t("inventory.health.unclassifiedHint")}
-                </span>
-              </span>
-              <span className="shrink-0 text-end">
-                <span className="block text-[13px] font-bold tabular-nums text-[var(--text-secondary)]">{unclassified}</span>
-              </span>
-            </span>
-          </li>
-        ) : null}
       </ul>
     </div>
   );

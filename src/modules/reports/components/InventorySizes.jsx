@@ -24,7 +24,22 @@ export default function InventorySizes({ data, productTypes, selectedType, onSel
     return (
       <div className="min-w-0">
         <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} language={language} />
-        <EmptyState title={t("inventory.sizes.pickType")} body={t("inventory.sizes.pickTypeWhy")} />
+        <EmptyState title={t("inventory.sizes.pickType")} body={t("inventory.sizes.pickTypeWhy")}>
+          {productTypes?.length ? (
+            <div className="mt-1 flex flex-wrap justify-center gap-1.5">
+              {productTypes.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => onSelectType(type)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-[12px] font-semibold text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px]"
+                >
+                  {dimensionLabel("product_type", type, language)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </EmptyState>
       </div>
     );
   }
@@ -152,12 +167,13 @@ function Badge({ tone, children }) {
   return <span className={`inline-block rounded-md px-1.5 py-0.5 text-[11px] font-bold ${toneClass}`}>{children}</span>;
 }
 
-function EmptyState({ title, body }) {
+function EmptyState({ title, body, children }) {
   return (
     <div className="mt-3 flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-[var(--border)] px-5 py-9 text-center">
       <Ruler className="h-5 w-5 text-[var(--text-tertiary)]" aria-hidden="true" />
       <p className="text-[14px] font-semibold text-[var(--text-secondary)]">{title}</p>
       <p className="max-w-md text-[12px] leading-5 text-[var(--text-tertiary)]">{body}</p>
+      {children}
     </div>
   );
 }

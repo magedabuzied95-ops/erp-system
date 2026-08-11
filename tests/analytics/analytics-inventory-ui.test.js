@@ -120,15 +120,32 @@ test("the stagnation bucket says candidate, never dead", async () => {
   assert.match(ar.deadCandidates.subtitle, /دون أي بيع/);
 });
 
-test("too-new and unknown-age are visually neutral, never a verdict", async () => {
+test("the three unjudged classes are visually neutral, never a verdict", async () => {
   const source = await read("../../src/modules/reports/components/StockHealth.jsx");
-  const tooNew = source.match(/\{ key: "too_new"[^}]*\}/)?.[0];
-  const unknown = source.match(/\{ key: "unknown_age"[^}]*\}/)?.[0];
-  for (const [name, entry] of [["too_new", tooNew], ["unknown_age", unknown]]) {
+  for (const name of ["evaluating", "too_new", "unknown_age"]) {
+    const entry = source.match(new RegExp(`\\{ key: "${name}"[^}]*\\}`))?.[0];
     assert.ok(entry, `${name} must be present`);
     assert.ok(!/danger|warning|success/.test(entry), `${name} must not use a judgement colour`);
-    assert.match(entry, /text-\[var\(--text-tertiary\)\]/, `${name} must read as neutral`);
+    assert.match(entry, /text-\[var\(--text-(secondary|tertiary)\)\]/, `${name} must read as neutral`);
   }
+});
+
+test("evaluating is explained so nobody reads it as slow", async () => {
+  const ar = JSON.parse(await read("../../src/locales/ar/inventoryAnalytics.json"));
+  assert.equal(ar.health.evaluating, "قيد التقييم");
+  assert.match(ar.health.evaluatingHint, /١٤ و٣٠ يومًا/, "the hint must state the band");
+  assert.match(ar.health.evaluatingHint, /للحكم على بطء حركتها/, "and why no verdict is given yet");
+  // It must never borrow the stagnation or slow wording.
+  assert.ok(!/راكد/.test(ar.health.evaluating));
+  assert.ok(!/بطيء الحركة/.test(ar.health.evaluating));
+});
+
+test("the health section no longer renders a leftover bucket", async () => {
+  const source = await read("../../src/modules/reports/components/StockHealth.jsx");
+  // Classification is complete, so a remainder in the UI would be a lie about the data.
+  assert.ok(!/unclassified/i.test(source), "no remainder may be displayed");
+  const ar = JSON.parse(await read("../../src/locales/ar/inventoryAnalytics.json"));
+  assert.equal(ar.health.unclassified, undefined, "and its copy is gone");
 });
 
 test("the movement thresholds are explained rather than assumed", async () => {
@@ -159,6 +176,26 @@ test("a missing size is an existing variant at zero stock, never an invented run
   assert.match(service, /zero_stock_variants/);
   // No interpolation of an ideal run anywhere.
   assert.ok(!/idealRun|expectedSizes|fullRun/i.test(sizes + service));
+});
+
+test("the size empty state offers the eligible types through the canonical filter", async () => {
+  const sizes = await read("../../src/modules/reports/components/InventorySizes.jsx");
+  const page = await read("../../src/modules/reports/pages/InventoryIntelligence.jsx");
+
+  // Quick choices inside the empty state, so picking a type is a click rather than a hunt.
+  const emptyBranch = sizes.slice(sizes.indexOf("if (!selectedType)"), sizes.indexOf("if (data && data.applicable === false)"));
+  assert.match(emptyBranch, /productTypes\?\.length/, "the eligible types must be offered");
+  assert.match(emptyBranch, /onClick=\{\(\) => onSelectType\(type\)\}/);
+  assert.match(emptyBranch, /dimensionLabel\("product_type", type, language\)/, "labelled, not raw");
+
+  // It goes through the same canonical URL filter the picker uses — no second source of
+  // truth for the selection, so back/forward and a shared link still behave.
+  assert.match(page, /onSelectType=\{filters\.setProductType\}/);
+  assert.ok(!/useState\([^)]*\)\s*;\s*\/\/\s*size/i.test(sizes), "no local size filter state");
+  assert.ok(!/useState/.test(sizes), "the component holds no selection state of its own");
+
+  const hook = await read("../../src/modules/reports/hooks/useInventoryFilters.js");
+  assert.match(hook, /setProductType: \(value\) => patch\(\{ productType: value \|\| null \}\)/);
 });
 
 test("size analysis excludes what cannot be compared", async () => {

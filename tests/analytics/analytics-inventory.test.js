@@ -11,6 +11,7 @@ import {
   unknownMovementTypes,
 } from "../../server/services/analytics/inventoryMovementContract.js";
 import {
+  NEUTRAL_VELOCITY_CLASSES,
   DEFAULT_INVENTORY_DIMENSION,
   DEFAULT_INVENTORY_SORT,
   INVENTORY_DIMENSIONS,
@@ -373,4 +374,131 @@ test("highlights are codes and raw values, never Arabic prose from the backend",
   const codes = highlights.map((item) => item.code);
   assert.ok(codes.includes("DEAD_CANDIDATE_VALUE_HIGH"));
   assert.ok(codes.includes("COST_COVERAGE_LOW"));
+});
+
+/* ------------------------------------------------- R4.1 evaluating band */
+
+test("the 14 and 30 day boundaries are exact", () => {
+  const at = (days) =>
+    classifyVelocity({ daysSinceFirstReceipt: days, daysSinceLastSale: null, unitsSoldWindow: 0, hasEverSold: false });
+
+  // 13 is still too new to watch; 14 starts the evaluating window.
+  assert.equal(at(13), "too_new");
+  assert.equal(at(14), "evaluating");
+  // 30 is the last evaluating day; 31 is established enough to judge.
+  assert.equal(at(30), "evaluating");
+  assert.equal(at(31), "dead_candidate");
+});
+
+test("evaluating covers the band, and real sales activity still wins", () => {
+  const inBand = (extra) =>
+    classifyVelocity({ daysSinceFirstReceipt: 20, daysSinceLastSale: null, unitsSoldWindow: 0, hasEverSold: false, ...extra });
+
+  assert.equal(inBand({}), "evaluating");
+  // A product in the band that is genuinely selling is classified on that, not on its age.
+  assert.equal(inBand({ daysSinceLastSale: 3, unitsSoldWindow: 4, hasEverSold: true }), "fast");
+  assert.equal(inBand({ daysSinceLastSale: 20, unitsSoldWindow: 1, hasEverSold: true }), "steady");
+});
+
+test("evaluating never means slow, dead or overstocked", () => {
+  assert.ok(NEUTRAL_VELOCITY_CLASSES.includes("evaluating"));
+  assert.ok(NEUTRAL_VELOCITY_CLASSES.includes("too_new"));
+  assert.ok(NEUTRAL_VELOCITY_CLASSES.includes("unknown_age"));
+  // The judgement classes stay out of the neutral set.
+  for (const judged of ["fast", "steady", "slow", "dead_candidate"]) {
+    assert.ok(!NEUTRAL_VELOCITY_CLASSES.includes(judged), `${judged} is a verdict, not neutral`);
+  }
+});
+
+test("too_new, evaluating and unknown_age remain three separate states", () => {
+  const noSale = { daysSinceLastSale: null, unitsSoldWindow: 0, hasEverSold: false };
+  assert.equal(classifyVelocity({ daysSinceFirstReceipt: 5, ...noSale }), "too_new");
+  assert.equal(classifyVelocity({ daysSinceFirstReceipt: 20, ...noSale }), "evaluating");
+  assert.equal(classifyVelocity({ daysSinceFirstReceipt: null, ...noSale }), "unknown_age");
+  assert.equal(new Set(["too_new", "evaluating", "unknown_age"]).size, 3);
+});
+
+test("every product lands in exactly one class — the rules have no hole", () => {
+  // A hole would show up as a null, which the caller would have to display as an
+  // unexplained remainder. Sweep the whole input space instead of trusting the reading.
+  const seen = new Set();
+  let nulls = 0;
+  for (let received = 0; received <= 90; received += 1) {
+    for (const lastSale of [null, 0, 1, 6, 7, 8, 29, 30, 31, 200]) {
+      for (const units of [0, 1, 2, 9]) {
+        for (const ever of [true, false]) {
+          const result = classifyVelocity({
+            daysSinceFirstReceipt: received, daysSinceLastSale: lastSale, unitsSoldWindow: units, hasEverSold: ever,
+          });
+          if (result === null) nulls += 1;
+          else seen.add(result);
+        }
+      }
+    }
+  }
+  assert.equal(nulls, 0, "no input may fall outside the classes");
+  // Every class except unknown_age is reachable with a receipt date.
+  for (const key of VELOCITY_CLASSES.filter((k) => k !== "unknown_age")) {
+    assert.ok(seen.has(key), `${key} is unreachable`);
+  }
+});
+
+test("the buckets reconcile against the eligible products", () => {
+  const now = Date.now();
+  const ago = (days) => new Date(now - days * 86400000).toISOString();
+  const rows = [
+    { units: 10, value: 100, unitsSold: 5, lifetimeUnits: 9, lastSoldAt: ago(2), firstReceivedAt: ago(60) },
+    { units: 4, value: 40, unitsSold: 0, lifetimeUnits: 0, lastSoldAt: null, firstReceivedAt: ago(60) },
+    { units: 7, value: 70, unitsSold: 0, lifetimeUnits: 0, lastSoldAt: null, firstReceivedAt: ago(20) },
+    { units: 3, value: 30, unitsSold: 0, lifetimeUnits: 0, lastSoldAt: null, firstReceivedAt: ago(5) },
+    { units: 2, value: 20, unitsSold: 0, lifetimeUnits: 0, lastSoldAt: null, firstReceivedAt: null },
+  ];
+  const health = buildHealth(rows);
+
+  assert.equal(health.buckets.fast.products, 1);
+  assert.equal(health.buckets.dead_candidate.products, 1);
+  assert.equal(health.buckets.evaluating.products, 1);
+  assert.equal(health.buckets.too_new.products, 1);
+  assert.equal(health.buckets.unknown_age.products, 1);
+
+  // The whole point of R4.1: nothing is left over.
+  assert.equal(health.unclassified, 0);
+  assert.equal(health.reconciliation.eligibleProducts, rows.length);
+  assert.equal(health.reconciliation.classifiedProducts, rows.length);
+  assert.equal(health.reconciliation.balanced, true);
+
+  // Units reconcile too.
+  const bucketUnits = VELOCITY_CLASSES.reduce((sum, key) => sum + health.buckets[key].units, 0);
+  assert.equal(bucketUnits, rows.reduce((sum, row) => sum + row.units, 0));
+});
+
+test("an unbalanced classification is a warning, never a silent remainder", async () => {
+  const source = await service();
+  assert.match(source, /if \(!health\.reconciliation\.balanced\)/);
+  assert.match(source, /"VELOCITY_UNCLASSIFIED"/);
+  assert.match(source, /Movement classification did not account for every stocked product/);
+  // The UI must not render its own leftover bucket any more.
+  const ui = await read("../../src/modules/reports/components/StockHealth.jsx");
+  assert.ok(!/health\?\.unclassified/.test(ui), "the UI must not display a remainder");
+  assert.ok(!/const unclassified =/.test(ui), "and must not compute one");
+});
+
+test("a large evaluating share never becomes a negative alert", () => {
+  const now = Date.now();
+  const ago = (days) => new Date(now - days * 86400000).toISOString();
+  // A catalogue that is almost entirely young: a shop that has just restocked.
+  const rows = Array.from({ length: 10 }, () => ({
+    units: 5, value: 50, unitsSold: 0, lifetimeUnits: 0, lastSoldAt: null, firstReceivedAt: ago(20),
+  }));
+  const health = buildHealth(rows);
+  assert.equal(health.buckets.evaluating.products, 10);
+
+  const highlights = buildInventoryHighlights({ rows, health, costCoverage: 1, includeCost: true });
+  for (const item of highlights) {
+    assert.notEqual(item.severity, "warning", `${item.code} must not warn about young stock`);
+    assert.notEqual(item.severity, "critical");
+  }
+  const share = highlights.find((item) => item.code === "TOO_NEW_SHARE_HIGH");
+  assert.ok(share, "the share is still reported as context");
+  assert.equal(share.severity, "info");
 });

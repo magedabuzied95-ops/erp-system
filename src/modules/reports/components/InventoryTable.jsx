@@ -20,6 +20,7 @@ const VELOCITY_TONE = {
   steady: "text-[var(--primary)]",
   slow: "text-[var(--warning)]",
   dead_candidate: "text-[var(--danger)]",
+  evaluating: "text-[var(--text-secondary)]",
   too_new: "text-[var(--text-tertiary)]",
   unknown_age: "text-[var(--text-tertiary)]",
 };

@@ -78,9 +78,20 @@ export const VELOCITY_CLASSES = Object.freeze([
   "steady",
   "slow",
   "dead_candidate",
+  "evaluating",
   "too_new",
   "unknown_age",
 ]);
+
+/**
+ * Classes that carry no judgement about the stock.
+ *
+ * A product can be unjudged for three different reasons, and none of them is a problem:
+ * it arrived days ago, it arrived weeks ago but its history is still too short to call
+ * slow, or it has no receipt record at all. Grouping them here keeps the UI and the
+ * highlight rules from ever treating "we cannot say yet" as "this is bad".
+ */
+export const NEUTRAL_VELOCITY_CLASSES = Object.freeze(["evaluating", "too_new", "unknown_age"]);
 
 /**
  * Why a product could not be aged.
@@ -103,9 +114,14 @@ export const UNKNOWN_AGE_REASON = "NO_RECEIPT_HISTORY";
  * too new to judge or old enough to be stagnant, and either guess would be a judgement
  * the data cannot support.
  *
- * Returns null only when a product HAS an age but matches no rule — received 14-30 days
- * ago, sold once long ago, nothing recently. That is genuinely between definitions, and
- * inventing a bucket for it would be inventing.
+ * The 14-30 day band is "evaluating": long enough to start watching, too short to call
+ * slow or stagnant. On production this is most of the catalogue, because most of it
+ * arrived recently — which is a fact about the shop's history, not a problem with the
+ * stock, and the class is neutral for exactly that reason.
+ *
+ * The function is total: every product lands in exactly one class. A null return would
+ * mean the rules had a hole, so the caller treats one as a defect rather than a
+ * remainder to display.
  */
 export const classifyVelocity = ({ daysSinceFirstReceipt, daysSinceLastSale, unitsSoldWindow, hasEverSold }) => {
   const { tooNewDays, recentSaleDays, fastMinUnits, establishedDays } = VELOCITY_RULES;
@@ -133,10 +149,10 @@ export const classifyVelocity = ({ daysSinceFirstReceipt, daysSinceLastSale, uni
   if (soldInWindow) return "steady";
 
   const established = received > establishedDays;
-  if (established && !hasEverSold) return "dead_candidate";
-  if (established && hasEverSold) return "slow";
+  if (established) return hasEverSold ? "slow" : "dead_candidate";
 
-  return null;
+  // What remains is exactly the 14-30 day band with no qualifying sales activity.
+  return "evaluating";
 };
 
 /* ------------------------------------------------------------------- SQL scope */
@@ -414,8 +430,9 @@ export const getInventorySummary = async ({ filters, permissions = {}, client = 
 
   const health = buildHealth(rows);
 
-  // Both conditions are visible, and they are not the same thing: one is missing
-  // history, the other is a product that falls between the approved thresholds.
+  // Unknown age is a legitimate state and says so. An unbalanced classification is not:
+  // it means the rules developed a hole, and it is reported as a defect rather than
+  // shown as a silent remainder.
   if (health.unknownAge.products > 0) {
     collector.add(
       "VELOCITY_UNKNOWN_AGE",
@@ -423,11 +440,15 @@ export const getInventorySummary = async ({ filters, permissions = {}, client = 
       { products: health.unknownAge.products, reason: UNKNOWN_AGE_REASON }
     );
   }
-  if (health.unclassified > 0) {
+  if (!health.reconciliation.balanced) {
     collector.add(
       "VELOCITY_UNCLASSIFIED",
-      "Some stocked products fall between the movement thresholds and are reported without a class.",
-      { products: health.unclassified }
+      "Movement classification did not account for every stocked product.",
+      {
+        products: health.unclassified,
+        eligible: health.reconciliation.eligibleProducts,
+        classified: health.reconciliation.classifiedProducts,
+      }
     );
   }
 
@@ -481,15 +502,28 @@ export const buildHealth = (rows = []) => {
       continue;
     }
     if (velocity === "unknown_age") unknownAgeProducts += 1;
+    if (!buckets[velocity]) {
+      // A class the contract does not know about would silently vanish from the totals.
+      unclassified += 1;
+      continue;
+    }
     buckets[velocity].products += 1;
     buckets[velocity].units += toFiniteNumber(row.units) ?? 0;
     buckets[velocity].value += toFiniteNumber(row.value) ?? 0;
   }
 
   for (const key of VELOCITY_CLASSES) buckets[key].value = toMoney(buckets[key].value);
+  const classified = VELOCITY_CLASSES.reduce((sum, key) => sum + buckets[key].products, 0);
   return {
     buckets,
     unclassified,
+    // Proof the classification is complete, carried in the payload so the client and the
+    // tests check the same number rather than trusting the caller.
+    reconciliation: {
+      eligibleProducts: rows.length,
+      classifiedProducts: classified,
+      balanced: classified === rows.length && unclassified === 0,
+    },
     unknownAge: { products: unknownAgeProducts, reason: UNKNOWN_AGE_REASON },
     rules: VELOCITY_RULES,
   };
@@ -527,16 +561,22 @@ export const buildInventoryHighlights = ({ rows = [], health, costCoverage, incl
     });
   }
 
-  const tooNew = health?.buckets?.too_new;
+  // A catalogue that is mostly young is context, not a problem. This reports the whole
+  // not-yet-judged share at "info" severity and never as a warning: a shop that has just
+  // restocked would otherwise be told its inventory is failing, which would be false.
   const totalProducts = VELOCITY_CLASSES.reduce((sum, key) => sum + (health?.buckets?.[key]?.products ?? 0), 0);
-  const tooNewShare = safeRatio(tooNew?.products ?? 0, totalProducts);
-  if (tooNewShare !== null && tooNewShare >= 0.4) {
+  const notYetJudged = NEUTRAL_VELOCITY_CLASSES.reduce(
+    (sum, key) => sum + (health?.buckets?.[key]?.products ?? 0),
+    0
+  );
+  const notYetJudgedShare = safeRatio(notYetJudged, totalProducts);
+  if (notYetJudgedShare !== null && notYetJudgedShare >= 0.4) {
     highlights.push({
       code: "TOO_NEW_SHARE_HIGH",
       severity: "info",
       metric: "tooNew",
       messageKey: "highlights.tooNewShare",
-      values: { percent: tooNewShare, products: tooNew.products },
+      values: { percent: notYetJudgedShare, products: notYetJudged },
     });
   }
 

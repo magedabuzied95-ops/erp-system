@@ -55,8 +55,8 @@
     "too_newHint": "Received recently, not enough time to judge",
     "unknown_age": "Unknown age",
     "unknown_ageHint": "No receipt history, so its age cannot be determined",
-    "unclassified": "Outside the thresholds",
-    "unclassifiedHint": "Received 14–30 days ago and not yet sold — the current rules do not cover this band"
+    "evaluating": "Evaluating",
+    "evaluatingHint": "Products aged 14–30 days without enough history yet to judge slow movement"
   },
   "breakdown": {
     "product_type": "Product type",
@@ -134,7 +134,7 @@
   "highlights": {
     "inventoryConcentration": "{{percent}} of inventory value sits in {{count}} models.",
     "deadCandidates": "{{products}} models worth {{value}} are stagnation candidates ({{units}} units).",
-    "tooNewShare": "{{percent}} of products were received recently, too early to judge their movement.",
+    "tooNewShare": "{{percent}} of products do not yet have enough history to judge their movement ({{products}} products).",
     "inventoryCoverage": "Cost is known for only {{percent}} of stock, so inventory value is partial."
   }
 }
