@@ -153,7 +153,9 @@ builder additionally hides/disables edit controls when the user lacks `settings.
 Unsaved changes are tracked (definition incl. positions, name, enabled). A `beforeunload` guard
 covers refresh/close/hard-navigation, and the in-editor "← Workflows" back button confirms before
 discarding. Undo/redo (Ctrl+Z / Ctrl+Y) is a lightweight in-session history stack (no extra
-dependency).
+dependency) covering **canvas structure** — add / move / delete / connect nodes and edges;
+per-keystroke config-field edits are intentionally not history entries (they would flood the
+stack and clone the graph on every character).
 
 ---
 

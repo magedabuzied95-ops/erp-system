@@ -184,13 +184,15 @@ export default function AiStudioWorkflowEditor() {
     return n ? { id: n.id, type: n.data?.nodeType || n.type, config: n.data?.config || {} } : null;
   }, [nodes, selectedId]);
 
+  // Config-field edits are not pushed to the undo stack (undo/redo covers canvas structure —
+  // add/move/delete/connect — not per-keystroke form typing). Any edit clears stale server errors.
   const updateSelectedConfig = useCallback(
     (nextConfig) => {
       if (!canEdit) return;
-      commit();
+      setServerErrors(null);
       setNodes((nds) => nds.map((n) => (n.id === selectedId ? { ...n, data: { ...n.data, config: nextConfig } } : n)));
     },
-    [canEdit, commit, selectedId]
+    [canEdit, selectedId]
   );
 
   const deleteSelected = useCallback(() => {
@@ -266,6 +268,7 @@ export default function AiStudioWorkflowEditor() {
     }
     let input;
     try { input = inputText.trim() ? JSON.parse(inputText) : {}; } catch { setStatus({ kind: "error", msg: "Run input is not valid JSON." }); setDrawerOpen(true); return; }
+    if (pollRef.current) clearTimeout(pollRef.current); // cancel any in-flight poll chain
     setDrawerOpen(true); setRunning(true); setRun(null); setSteps([]); setStatus({ kind: "", msg: "" });
     try {
       const res = await runWorkflow(id, input, headers);

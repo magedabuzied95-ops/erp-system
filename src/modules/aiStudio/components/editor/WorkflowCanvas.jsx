@@ -70,8 +70,10 @@ function CanvasInner({ nodes, edges, setNodes, setEdges, onCommit, onSelect, onD
 
   const onSelectionChange = useCallback(({ nodes: sel }) => onSelect(sel && sel[0] ? sel[0].id : null), [onSelect]);
 
-  const onNodeDragStart = useCallback(() => { dragSnapshot.current = true; }, []);
-  const onNodeDragStop = useCallback(() => { if (dragSnapshot.current) { onCommit(true); dragSnapshot.current = null; } }, [onCommit]);
+  // Snapshot BEFORE the move so undo restores the pre-drag position. Guard against the
+  // repeated drag-start events xyflow can fire during a single grab.
+  const onNodeDragStart = useCallback(() => { if (!dragSnapshot.current) { dragSnapshot.current = true; onCommit(); } }, [onCommit]);
+  const onNodeDragStop = useCallback(() => { dragSnapshot.current = false; }, []);
 
   const onDragOver = useCallback((e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }, []);
   const onDrop = useCallback(
