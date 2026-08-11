@@ -4509,7 +4509,11 @@
 
   .dashboard-premium h1 {
     color: var(--dashboard-ink) !important;
-    font-family: "NeueHaasGrotesk Display", "Inter Variable", Inter, Helvetica, Arial, sans-serif;
+    /* Was a Latin-only stack with no Arabic fallback, so an Arabic <h1> here
+       dropped to a generic sans while every other heading in the product used
+       the canonical family. --app-font already resolves to Cairo under
+       dir=rtl and Inter under dir=ltr. */
+    font-family: var(--app-font);
     font-weight: 500 !important;
     letter-spacing: 0.01em;
   }

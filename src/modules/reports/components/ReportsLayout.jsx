@@ -38,7 +38,7 @@ export function ReportsHeader({ title, subtitle, children }) {
   return (
     <header className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
       <div className="min-w-0">
-        <h1 className="text-[20px] font-extrabold tracking-tight text-[var(--text)] sm:text-[24px] 2xl:text-[27px]">
+        <h1 className="text-[20px] font-extrabold tracking-tight text-[var(--text)] sm:text-[24px] 2xl:text-[28px]">
           {title}
         </h1>
         {subtitle ? (

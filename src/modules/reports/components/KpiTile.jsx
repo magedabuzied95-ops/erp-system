@@ -50,10 +50,10 @@ export default function KpiTile({ metric, kpi, level = 2, coverage = null }) {
   // difference reads as an accident; primary has to win the page at a glance.
   const sizeClass =
     level === 1
-      ? "text-[28px] leading-[1.1] sm:text-[34px] xl:text-[38px] 2xl:text-[42px]"
+      ? "text-[28px] leading-[1.1] sm:text-[34px] xl:text-[34px] 2xl:text-[34px]"
       : level === 2
-        ? "text-[20px] leading-[1.2] sm:text-[23px] 2xl:text-[25px]"
-        : "text-[17px] leading-[1.2] 2xl:text-[19px]";
+        ? "text-[20px] leading-[1.2] sm:text-[24px] 2xl:text-[24px]"
+        : "text-[16px] leading-[1.2] 2xl:text-[20px]";
 
   const paddingClass = level === 1 ? "p-4 sm:p-5 2xl:p-6" : level === 3 ? "px-3.5 py-3" : "p-4";
 

@@ -600,7 +600,7 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
       <div data-tone={tone} className="manager-portal-compact-stat manager-portal-compact-stat--emphasis h-full min-h-[112px] rounded-2xl border border-[color-mix(in_srgb,var(--primary)_48%,var(--border))] bg-surface p-3 text-text shadow-[var(--shadow-card)]">
         <div className="flex h-full items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className={`text-[10.5px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
+            <div className={`text-[10px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
             <div className={`manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none sm:text-[1.25rem] ${valueText}`}>{value || formatNumber(0)}</div>
           </div>
           {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${iconChip}`}><Icon className="h-4 w-4" /></div> : null}
@@ -612,7 +612,7 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
     <div data-tone={tone} className={`manager-portal-compact-stat h-full min-h-[112px] rounded-2xl border p-3 shadow-[var(--shadow-card)] ${shell}`}>
       <div className="flex h-full items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className={`text-[10.5px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
+          <div className={`text-[10px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
           <div className={`manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none sm:text-[1.15rem] ${valueText}`}>{value || formatNumber(0)}</div>
         </div>
         {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${iconChip}`}><Icon className="h-4 w-4" /></div> : null}
@@ -2502,7 +2502,7 @@ export default function ManagerPortal() {
                       </div>
                       <div className="shrink-0 text-left">
                         <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">مبيعات اليوم</div>
-                        <div className="mt-0.5 text-[17px] font-black leading-none text-slate-950">
+                        <div className="mt-0.5 text-[16px] font-black leading-none text-slate-950">
                           {formatCurrency(employee.sales_today || 0)}
                         </div>
                       </div>

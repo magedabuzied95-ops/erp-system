@@ -1504,7 +1504,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 shadow-sm">
           <ShoppingBag className="h-7 w-7" />
         </div>
-        <div className="mt-2 text-[22px] font-black tracking-[0.08em] text-zinc-950">{premiumStore.name}</div>
+        <div className="mt-2 text-[20px] font-black tracking-[0.08em] text-zinc-950">{premiumStore.name}</div>
         {premiumStore.tagline ? (
           <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-600">
             {premiumStore.tagline}

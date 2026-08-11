@@ -1235,7 +1235,7 @@ function EmployeeStatsCards({ cards = [] }) {
                 <Icon className="h-3.5 w-3.5" />
               </span>
             </div>
-            <div className={`mt-3 break-words text-[18px] font-black leading-5 tabular-nums text-slate-950 ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
+            <div className={`mt-3 break-words text-[16px] font-black leading-5 tabular-nums text-slate-950 ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
             <div className="mt-1 text-[10px] font-bold leading-4 text-slate-400">{subtitle}</div>
           </div>
         );

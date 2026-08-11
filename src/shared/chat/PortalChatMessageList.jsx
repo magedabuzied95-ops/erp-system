@@ -122,7 +122,7 @@ export default function PortalChatMessageList({
         {onReact ? (
           <div className="mb-2 flex items-center justify-between gap-1 rounded-2xl bg-[#111b21] px-2 py-2 shadow-inner" dir="ltr">
             {QUICK_REACTIONS.map((emoji) => (
-              <button key={emoji} type="button" onClick={() => { onReact(activeMessage, emoji); closeActions(); }} className="grid h-9 w-9 place-items-center rounded-full text-[23px] transition hover:-translate-y-1 hover:bg-white/10 active:scale-90" aria-label={`${labels.react || "تفاعل"} ${emoji}`}>{emoji}</button>
+              <button key={emoji} type="button" onClick={() => { onReact(activeMessage, emoji); closeActions(); }} className="grid h-9 w-9 place-items-center rounded-full text-[24px] transition hover:-translate-y-1 hover:bg-white/10 active:scale-90" aria-label={`${labels.react || "تفاعل"} ${emoji}`}>{emoji}</button>
             ))}
           </div>
         ) : null}

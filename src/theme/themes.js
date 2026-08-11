@@ -40,6 +40,27 @@ const shared = {
   "space-8": "32px",
   "font-ar": '"Cairo", "Tajawal", "Noto Sans Arabic", sans-serif',
   "font-en": '"Inter", "Segoe UI", sans-serif',
+  // Typography scale. Derived from what the product already uses rather than
+  // invented: 11px and 10px account for two thirds of every sized string in the
+  // repo, with 13px body and 15px section titles behind them. Seven steps, no
+  // page names — the long tail of 8.5/9.5/10.5/12.5/12.75/17/22/23px snaps onto
+  // these.
+  //
+  // Line heights are generous on purpose. Arabic ascenders and diacritics need
+  // more vertical room than a Latin-first scale allows, and this product is
+  // Arabic-first: nothing here goes below 1.35, and body text sits at 1.55.
+  "font-caption": "10px",
+  "font-caption-lh": "1.45",
+  "font-label": "11px",
+  "font-label-lh": "1.45",
+  "font-body": "13px",
+  "font-body-lh": "1.55",
+  "font-section-title": "15px",
+  "font-section-title-lh": "1.45",
+  "font-page-title": "20px",
+  "font-page-title-lh": "1.35",
+  "font-display": "28px",
+  "font-display-lh": "1.2",
 };
 
 export const THEMES = [

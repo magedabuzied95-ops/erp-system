@@ -61,6 +61,56 @@
   .m1-data-table th { background: var(--table-head); color: var(--text-tertiary); font-weight: 600; text-align: start; }
   .m1-data-table th, .m1-data-table td { border-bottom: 1px solid var(--border); padding: 10px 12px; }
   .m1-data-table tbody tr:hover { background: var(--table-hover); }
+
+  /* ==========================================================================
+     CANONICAL TYPOGRAPHY SCALE
+     --------------------------------------------------------------------------
+     Seven steps, no page names, one hierarchy shared by the ERP, the Manager
+     Portal and the Employee Portal. The sizes are DERIVED from what the product
+     already uses — 11px and 10px carry two thirds of every sized string in the
+     repo — so adopting a step is a rename, not a redesign.
+
+     Arabic is first-class here. Every line height is set for ascenders and
+     diacritics rather than for Latin: body sits at 1.55 and nothing drops below
+     1.2, so no step clips a shadda or a tanween. Sizes are never shrunk to fit
+     an English-centric rhythm.
+
+     Weight is part of the step, because "section title" means a size AND a
+     weight; a caller that needs a different weight simply adds one, since a
+     utility class wins over these @layer components rules.
+     ====================================================================== */
+  .m1-caption { font-size: var(--font-caption); line-height: var(--font-caption-lh); font-weight: 600; }
+  .m1-label { font-size: var(--font-label); line-height: var(--font-label-lh); font-weight: 700; }
+  .m1-body { font-size: var(--font-body); line-height: var(--font-body-lh); font-weight: 500; }
+  .m1-body-strong { font-size: var(--font-body); line-height: var(--font-body-lh); font-weight: 700; }
+  .m1-section-title { font-size: var(--font-section-title); line-height: var(--font-section-title-lh); font-weight: 800; color: var(--text); }
+  .m1-page-title { font-size: var(--font-page-title); line-height: var(--font-page-title-lh); font-weight: 800; color: var(--text); letter-spacing: 0; }
+  .m1-display { font-size: var(--font-display); line-height: var(--font-display-lh); font-weight: 800; color: var(--text); }
+  .m1-muted { color: var(--muted); }
+
+  /* ==========================================================================
+     CANONICAL LAYOUT RHYTHM
+     --------------------------------------------------------------------------
+     themes.js has shipped --space-1..8 since Phase 1 and nothing used it. These
+     classes are the adoption surface: the vertical rhythm between a page header,
+     its toolbar, its filters and its sections, expressed once.
+
+     Logical properties throughout, so RTL needs no mirrored rule.
+     ====================================================================== */
+  .m1-page-body { display: flex; flex-direction: column; gap: var(--space-6); padding-block: var(--space-6); }
+  .m1-section { display: flex; flex-direction: column; gap: var(--space-4); }
+  .m1-stack { display: flex; flex-direction: column; gap: var(--space-3); }
+  .m1-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+  .m1-card-padding { padding: var(--space-5); }
+  .m1-card-padding--compact { padding: var(--space-3); }
+}
+
+/* The portals are the same language at a tighter density, not a different
+   product: they inherit every step above and only shorten the rhythm. */
+@media (max-width: 767px) {
+  .m1-page-body { gap: var(--space-4); padding-block: var(--space-4); }
+  .m1-section { gap: var(--space-3); }
+  .m1-card-padding { padding: var(--space-4); }
 }
 
 @media (max-width: 767px) {

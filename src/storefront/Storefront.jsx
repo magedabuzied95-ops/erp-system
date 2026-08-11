@@ -3720,7 +3720,7 @@ function SimpleHomeProductGrid({ title, subtitle, viewAllTo = "/products", produ
 function SectionIntro({ eyebrow, title, subtitle, compact = false }) {
   return (
     <div className={compact ? "max-w-2xl" : "max-w-3xl"}>
-      <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#d4af37] dark:text-[#f3d77a] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{eyebrow}</div>
+      <div className="mb-0.5 text-[9px] font-black uppercase tracking-[0.15em] text-[#d4af37] dark:text-[#f3d77a] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{eyebrow}</div>
       <h2 className={`${compact ? "text-[1.4rem] md:text-[2.2rem]" : "text-[1.65rem] md:text-[2.6rem]"} font-black tracking-tight text-stone-950 dark:text-stone-100`}>{title}</h2>
       {subtitle ? <p className="mt-1.5 text-xs font-semibold leading-5 text-stone-500 dark:text-stone-400 md:mt-2.5 md:text-sm md:leading-6">{subtitle}</p> : null}
       <div className="mt-2 h-1 w-12 rounded-full bg-gradient-to-l from-[#d4af37] to-[#f3d77a] md:mt-2.5 md:h-[3px] md:w-16" />
@@ -4207,7 +4207,7 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
     <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-2 md:py-4">
       <div className="mb-2 flex items-end justify-between gap-3 text-right md:mb-4 md:gap-4">
         <div className="min-w-0">
-          <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#d4af37] dark:text-[#f3d77a] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow")}</div>
+          <div className="mb-0.5 text-[9px] font-black uppercase tracking-[0.15em] text-[#d4af37] dark:text-[#f3d77a] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow")}</div>
           <h2 className="text-[1.25rem] font-black tracking-normal md:text-3xl">{title}</h2>
           {subtitle ? <p className="mt-0.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 md:mt-1 md:text-sm">{subtitle}</p> : null}
           <div className="mt-1 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#d4af37] to-[#f3d77a] md:mt-1.5 md:h-1 md:w-14" />
@@ -4490,7 +4490,7 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
           <h3 className="text-[11px] font-black md:text-xs">{t("storefront.filters.availableSize")}</h3>
         </div>
         {selectedSize ? (
-          <button type="button" onClick={() => onSelect("")} className="rounded-full bg-stone-100 px-2 py-1 text-[9.5px] font-black text-stone-600 transition hover:bg-stone-950 hover:text-white dark:bg-white/8 dark:text-stone-200 md:px-3 md:py-1 md:text-[11px]">
+          <button type="button" onClick={() => onSelect("")} className="rounded-full bg-stone-100 px-2 py-1 text-[9px] font-black text-stone-600 transition hover:bg-stone-950 hover:text-white dark:bg-white/8 dark:text-stone-200 md:px-3 md:py-1 md:text-[11px]">
             {t("storefront.filters.showAllSizes")}
           </button>
         ) : null}
@@ -4719,7 +4719,7 @@ function MobileFilterChip({ active, label, count, icon: Icon = Sparkles, color, 
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9.5px] font-black transition ${
+      className={`inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-black transition ${
         active
           ? "scale-[1.03] border-[#d4af37]/60 bg-[linear-gradient(135deg,rgba(212,175,55,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(212,175,55,0.34)]"
           : "border-white/10 bg-white/6 text-white/65"
@@ -6141,7 +6141,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     hero: {
       image: "aspect-[0.9/1] p-0",
       body: "px-[12px] pb-[10px] pt-[5px]",
-      title: "min-h-10 text-[12.75px] leading-[1.22rem]",
+      title: "min-h-10 text-[13px] leading-[1.22rem]",
       price: "text-[20px]",
       sizes: "gap-1.5",
       chip: "h-6 px-2 text-[8.5px]",
@@ -6152,7 +6152,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       image: "aspect-[0.92/1] p-0",
       body: "px-[11px] pb-[10px] pt-[5px] md:px-[12px]",
       title: "min-h-10 text-[13px] leading-[1.2rem]",
-      price: "text-[19.5px]",
+      price: "text-[20px]",
       sizes: "gap-1.5",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-[22px] w-[22px]",
@@ -6161,8 +6161,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     compact: {
       image: "aspect-[0.96/1] p-0",
       body: "px-[11px] pb-[9px] pt-[5px] md:px-[12px]",
-      title: "min-h-9 text-[12.75px] leading-[1.18rem]",
-      price: "text-[18.5px]",
+      title: "min-h-9 text-[13px] leading-[1.18rem]",
+      price: "text-[20px]",
       sizes: "gap-1.25",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-6 w-6",
@@ -6234,7 +6234,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         </Link>
         <div className="absolute right-3 top-[29px] z-20 flex flex-col items-end gap-2.5 md:right-3.5 md:top-[31px]">
           {rank && railType === "bestseller" && rank <= 3 ? <span className="sf-storefront-gold-badge inline-flex min-h-6 items-center gap-1 rounded-full border border-[#f3d77a]/24 bg-[linear-gradient(135deg,rgba(212,175,55,0.98),rgba(229,193,88,0.98))] px-2.5 py-0.5 text-[8.5px] font-extrabold leading-none tracking-[0.02em] text-stone-950 shadow-[0_10px_22px_rgba(212,175,55,0.24)] backdrop-blur md:min-h-7 md:px-3 md:text-[9px]"><Star className="h-3 w-3 fill-current" />TOP {rank}</span> : null}
-          {discountPercent ? <span className="sf-storefront-gold-badge inline-flex min-h-7 items-center rounded-full border border-[#f3d77a]/26 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_8px_18px_rgba(212,175,55,0.16)] backdrop-blur md:min-h-8 md:px-3 md:text-[9.5px] dark:border-[#f3d77a]/18 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
+          {discountPercent ? <span className="sf-storefront-gold-badge inline-flex min-h-7 items-center rounded-full border border-[#f3d77a]/26 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_8px_18px_rgba(212,175,55,0.16)] backdrop-blur md:min-h-8 md:px-3 md:text-[9px] dark:border-[#f3d77a]/18 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
         </div>
           <button
             onClick={(event) => { event.stopPropagation(); handleWishlist(); }}
@@ -6270,14 +6270,14 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           to={detailsUrl}
           onClick={resetStorefrontViewportScroll}
           dir="ltr"
-          className={`mt-0 flex min-h-[2.4rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition duration-200 hover:text-[#d4af37] md:min-h-[2.55rem] md:text-[13.5px] md:leading-5 dark:text-stone-100 dark:hover:text-[#f3d77a] ${densityClasses.title}`}
+          className={`mt-0 flex min-h-[2.4rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition duration-200 hover:text-[#d4af37] md:min-h-[2.55rem] md:text-[13px] md:leading-5 dark:text-stone-100 dark:hover:text-[#f3d77a] ${densityClasses.title}`}
         >
           {product.name}
         </Link>
         <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.32rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
-            {comparePrice ? <span className="sf-product-card-compare-price text-[10.5px] font-bold leading-none text-stone-400 line-through opacity-85 dark:text-white/45 md:text-[11px]">{money(comparePrice)}</span> : null}
+            {comparePrice ? <span className="sf-product-card-compare-price text-[10px] font-bold leading-none text-stone-400 line-through opacity-85 dark:text-white/45 md:text-[11px]">{money(comparePrice)}</span> : null}
           </div>
           <button
             type="button"

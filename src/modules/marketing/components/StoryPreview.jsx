@@ -412,7 +412,7 @@ export function StoryCTA({ story, template, product, campaign }) {
       onClick={(event) => {
         if (!ctaUrl) event.preventDefault();
       }}
-      className="relative flex min-h-14 min-w-[154px] items-center justify-center overflow-hidden rounded-full border border-white/45 bg-gradient-to-br from-red-600 via-rose-600 to-red-800 px-8 py-4 text-center text-[17px] font-black text-white shadow-[0_0_26px_rgba(239,68,68,.32),0_18px_34px_rgba(69,10,10,.42)] ring-1 ring-white/25"
+      className="relative flex min-h-14 min-w-[154px] items-center justify-center overflow-hidden rounded-full border border-white/45 bg-gradient-to-br from-red-600 via-rose-600 to-red-800 px-8 py-4 text-center text-[16px] font-black text-white shadow-[0_0_26px_rgba(239,68,68,.32),0_18px_34px_rgba(69,10,10,.42)] ring-1 ring-white/25"
       animate={{ y: [0, -2, 0], boxShadow: ["0 18px 38px rgba(0,0,0,.28)", "0 22px 46px rgba(255,255,255,.18)", "0 18px 38px rgba(0,0,0,.28)"] }}
       transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
     >
