@@ -21,8 +21,6 @@ import {
   BarChart3,
   Brain,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   Columns3,
   Download,
   FileSpreadsheet,
@@ -39,6 +37,7 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react";
+import { Pagination } from "../../../shared/ui";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import "./Reports.m1.css";
@@ -172,6 +171,7 @@ function Reports() {
   const [tableSearch, setTableSearch] = useState("");
   const [sort, setSort] = useState({ key: "", direction: "desc" });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [visibleColumns, setVisibleColumns] = useState({});
   const [presets, setPresets] = useState(() => {
     try {
@@ -274,7 +274,6 @@ function Reports() {
     return rows;
   }, [activeRows, sort, tableSearch]);
 
-  const pageSize = Number(filters.limit || 25);
   const totalPages = Math.max(Math.ceil(filteredRows.length / pageSize), 1);
   const pageRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
   const kpis = dashboard?.kpis || {};
@@ -480,20 +479,17 @@ function Reports() {
 
           <ReportTable columns={enabledColumns} rows={pageRows} sort={sort} setSort={setSort} loading={loading} />
 
-          <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm font-semibold text-zinc-400">
-              Showing {pageRows.length} of {filteredRows.length} rows
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page <= 1} className="rounded-xl border border-white/10 bg-white/[0.04] p-2 disabled:opacity-40">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="text-sm font-black text-zinc-200">{page} / {totalPages}</span>
-              <button type="button" onClick={() => setPage((value) => Math.min(value + 1, totalPages))} disabled={page >= totalPages} className="rounded-xl border border-white/10 bg-white/[0.04] p-2 disabled:opacity-40">
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          <Pagination
+            className="mt-4 border-t border-white/10 pt-4"
+            page={page}
+            pages={totalPages}
+            total={filteredRows.length}
+            pageSize={pageSize}
+            visible={pageRows.length}
+            disabled={loading}
+            onChange={setPage}
+            onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+          />
         </section>
       </div>
     </div>

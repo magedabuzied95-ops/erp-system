@@ -33,6 +33,7 @@ import {
 
 import toast from "react-hot-toast";
 import { isAdminUser } from "../../../shared/auth/authStorage";
+import { Pagination } from "../../../shared/ui";
 
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { canViewCostPrices, hasPermission } from "../../permissions/lib/rbacStore";
@@ -82,7 +83,7 @@ import {
   updateMarketingPost,
 } from "../../marketing/services/marketingApi";
 
-const pageSizeOptions = [8, 12, 24];
+const pageSizeOptions = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const PRODUCTS_PAGE_SIZE_STORAGE_KEY = "erp.products.list.pageSize";
 const DEFAULT_PRODUCTS_PAGE_SIZE = pageSizeOptions[0];
 const REQUEST_TIMEOUT_MS = 15000;
@@ -2047,7 +2048,6 @@ function ProductsList() {
 
   const totalPages = Math.max(1, Number(pagination.totalPages || 1) || 1);
   const currentPage = Math.min(page, totalPages);
-  const start = Number(pagination.offset || 0) || 0;
   const visibleRows = rows;
 
   useEffect(() => {
@@ -3451,46 +3451,21 @@ function ProductsList() {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col gap-4 border-t border-white/8 pt-5 lg:flex-row lg:items-center lg:justify-between">
-          <p className="text-sm text-zinc-400">
-            Showing {visibleRows.length ? start + 1 : 0}-{Math.min(start + visibleRows.length, Number(pagination.total || 0))} of {Number(pagination.total || 0)}
-          </p>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-              className="rounded-2xl border border-white/8 bg-white/5 px-4 py-2 text-white outline-none"
-            >
-              {pageSizeOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option} {t("products.page.perPage")}
-                </option>
-              ))}
-            </select>
-
-            <button
-              disabled={currentPage <= 1}
-              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              className="rounded-2xl border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {t("products.page.previous")}
-            </button>
-            <span className="text-sm text-zinc-400">
-              {t("products.page.showing")} {currentPage} {t("products.page.of")} {totalPages}
-            </span>
-            <button
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-              className="rounded-2xl border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {t("products.page.next")}
-            </button>
-          </div>
-        </div>
+        <Pagination
+          className="mt-6 border-t border-white/8 pt-5"
+          page={currentPage}
+          pages={totalPages}
+          total={Number(pagination.total || 0)}
+          pageSize={pageSize}
+          pageSizeOptions={pageSizeOptions}
+          visible={visibleRows.length}
+          disabled={loading}
+          onChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
+        />
       </div>
 
       {statusActionProduct && typeof document !== "undefined" ? createPortal((

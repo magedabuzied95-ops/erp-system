@@ -213,8 +213,20 @@ test("the Phase 3 table freeze is lifted and DataTable kept its old call shape",
   assert.match(jsx, /export function DataTable\(\{/);
   assert.match(jsx, /\n {2}rowKey = "id",/);
   assert.match(jsx, /emptyLabel = "لا توجد بيانات",/);
-  // Pagination is NOT part of this phase and keeps its existing signature.
-  assert.match(jsx, /export function Pagination\(\{ page = 1, pages = 1, onChange \}\)/);
+});
+
+test("Pagination is the recovered canonical control, not the two-arrow stub", () => {
+  // This assertion previously pinned the OLD `({ page, pages, onChange })` stub,
+  // which was correct while pagination sat outside the table phase. The
+  // recovered canonical Pagination supersedes it; the contract below is strictly
+  // larger, so this is a replacement rather than a relaxation.
+  assert.match(jsx, /export function Pagination\(\{/);
+  for (const prop of ["page = 1", "pages = 1", "total = 0", "pageSize = 10", "pageSizeOptions = DEFAULT_PAGE_SIZES", "onChange", "onPageSizeChange", "disabled = false", "labels = {}"]) {
+    assert.ok(jsx.includes(prop), `Pagination lost \`${prop}\``);
+  }
+  // and it still owns no data fetching — page/pages/total come from the caller
+  const body = jsx.slice(jsx.indexOf("export function Pagination({"));
+  assert.doesNotMatch(body.slice(0, 3000), /useEffect|fetch\(|api\./, "Pagination must not own a query");
 });
 
 // ---- Phase 2A.1: composition capability ----------------------------------

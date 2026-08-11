@@ -5,12 +5,13 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
+import { Pagination } from "../../../shared/ui";
 import customerStatementArabicFontUrl from "../../../assets/fonts/customer-statement-arabic.ttf?url";
 import { escapeHtml, formatPrintDate, normalizePrintLanguage, openPrintHtml, PRINT_FONT_STACK, wrapPrintableHtml } from "../../../shared/utils/printLocalization";
 import "./Customers.m1.css";
 
-const DEFAULT_CUSTOMERS_PAGE_SIZE = 50;
-const CUSTOMER_PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+const DEFAULT_CUSTOMERS_PAGE_SIZE = 25;
+const CUSTOMER_PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
 
 const inputClass =
@@ -66,27 +67,6 @@ const normalizeCustomersPagination = (response, fallbackLimit = DEFAULT_CUSTOMER
 
 const clampPage = (page, totalPages) =>
   Math.min(Math.max(1, page), Math.max(1, totalPages || 1));
-
-const buildPageWindow = (page, totalPages) => {
-  const safeTotal = Math.max(1, totalPages || 1);
-  if (safeTotal <= 5) {
-    return Array.from({ length: safeTotal }, (_, index) => index + 1);
-  }
-
-  const pages = new Set([1, safeTotal, page - 1, page, page + 1]);
-  if (page <= 2) {
-    pages.add(2);
-    pages.add(3);
-  }
-  if (page >= safeTotal - 1) {
-    pages.add(safeTotal - 1);
-    pages.add(safeTotal - 2);
-  }
-
-  return Array.from(pages)
-    .filter((value) => value >= 1 && value <= safeTotal)
-    .sort((a, b) => a - b);
-};
 
 const walletTypeOptions = [
   { value: "", label: "كل الحركات" },
@@ -543,9 +523,6 @@ function Customers() {
   const totalCustomers = Number(pagination.total || 0);
   const totalPages = Math.max(1, Number(pagination.totalPages || 1));
   const visibleCount = safeCustomers.length;
-  const pageStart = visibleCount ? (currentPage - 1) * pageSize + 1 : 0;
-  const pageEnd = visibleCount ? pageStart + visibleCount - 1 : 0;
-  const pageWindow = useMemo(() => buildPageWindow(currentPage, totalPages), [currentPage, totalPages]);
 
   const buildFilterQuery = useCallback(() => {
     const params = new URLSearchParams();
@@ -1063,28 +1040,6 @@ function Customers() {
         <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="border-b border-white/10 px-6 py-5">
             <h2 className="text-lg font-black text-white">{t("customers.table.title")}</h2>
-            <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <p className="text-sm text-zinc-500">
-                {pageStart && pageEnd
-                  ? `Showing ${pageStart}-${pageEnd} of ${totalCustomers.toLocaleString("en-US")} customers`
-                  : `Showing 0 of ${totalCustomers.toLocaleString("en-US")} customers`}
-              </p>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-400">
-                <span>{visibleCount.toLocaleString("en-US")} visible on this page</span>
-                <label className="flex items-center gap-2">
-                  <span>Per page</span>
-                  <select
-                    value={pageSize}
-                    onChange={(event) => changePageSize(event.target.value)}
-                    className="h-10 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50"
-                  >
-                    {CUSTOMER_PAGE_SIZE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -1217,50 +1172,18 @@ function Customers() {
           </div>
         </section>
 
-        <section className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-          <div className="text-sm text-zinc-400">
-            الصفحة {currentPage.toLocaleString("en-US")} من {totalPages.toLocaleString("en-US")}
-            {pagination.hasMore ? " | يوجد المزيد من العملاء" : ""}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => changePage(currentPage - 1)}
-              disabled={currentPage <= 1 || loading}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-slate-950/70 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              السابق
-            </button>
-            {pageWindow.map((pageNumber, index) => {
-              const previous = pageWindow[index - 1];
-              const showGap = previous && pageNumber - previous > 1;
-              return (
-                <div key={pageNumber} className="flex items-center gap-2">
-                  {showGap ? <span className="px-1 text-zinc-500">...</span> : null}
-                  <button
-                    type="button"
-                    onClick={() => changePage(pageNumber)}
-                    disabled={loading}
-                    className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl px-3 text-sm font-black transition ${
-                      pageNumber === currentPage
-                        ? "bg-emerald-400 text-slate-950"
-                        : "border border-white/10 bg-slate-950/70 text-white hover:bg-slate-800"
-                    } disabled:cursor-not-allowed disabled:opacity-40`}
-                  >
-                    {pageNumber}
-                  </button>
-                </div>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => changePage(currentPage + 1)}
-              disabled={currentPage >= totalPages || loading}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-slate-950/70 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              التالي
-            </button>
-          </div>
+        <section className="rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl">
+          <Pagination
+            page={currentPage}
+            pages={totalPages}
+            total={totalCustomers}
+            pageSize={pageSize}
+            pageSizeOptions={CUSTOMER_PAGE_SIZE_OPTIONS}
+            visible={visibleCount}
+            disabled={loading}
+            onChange={changePage}
+            onPageSizeChange={changePageSize}
+          />
         </section>
       </div>
       {importOpen ? (

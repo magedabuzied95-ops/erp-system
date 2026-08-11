@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 
 import ProductsShell from "../components/ProductsShell";
+import { Pagination } from "../../../shared/ui";
 import {
   createManufacturer,
   deleteManufacturer,
@@ -34,6 +35,8 @@ const getErrorMessage = (error, fallback) =>
 function Manufacturers() {
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -81,6 +84,9 @@ function Manufacturers() {
         .includes(query)
     );
   }, [items, search]);
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleItems = filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -288,7 +294,7 @@ function Manufacturers() {
                       </td>
                     </tr>
                   ) : (
-                    filteredItems.map((item) => (
+                    visibleItems.map((item) => (
                       <tr key={item.id} className="transition hover:bg-white/[0.03]">
                         <Td>
                           <div className="font-semibold text-white">{item.name}</div>
@@ -334,6 +340,16 @@ function Manufacturers() {
               </table>
             </div>
           </div>
+          <Pagination
+            page={currentPage}
+            pages={totalPages}
+            total={filteredItems.length}
+            pageSize={pageSize}
+            visible={visibleItems.length}
+            disabled={loading}
+            onChange={setPage}
+            onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+          />
         </section>
       </div>
     </ProductsShell>

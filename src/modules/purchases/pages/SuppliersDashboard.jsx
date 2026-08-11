@@ -25,11 +25,12 @@ import {
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
+import { Pagination } from "../../../shared/ui";
 import FlowShell from "../components/FlowShell";
 import StatusBadge from "../components/StatusBadge";
 import { formatCurrency, formatDateTime, formatPurchaseCode, getLocalPurchases, normalizeSupplier, seedSuppliers } from "../lib/flowStore";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const SUPPLIER_ACTIONS_MENU_WIDTH = 256;
 const SUPPLIER_ACTIONS_MENU_MARGIN = 12;
 const SUPPLIER_ACTIONS_MENU_ESTIMATED_HEIGHT = 280;
@@ -74,6 +75,7 @@ function SuppliersDashboard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState(null);
   const [modalSupplier, setModalSupplier] = useState(undefined);
@@ -245,9 +247,9 @@ function SuppliersDashboard() {
     return copy.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   }, [filtered, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const visible = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visible = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totals = useMemo(
     () => ({
@@ -484,18 +486,17 @@ function SuppliersDashboard() {
           onDelete={deleteSupplier}
         />
 
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-zinc-400">
-            {t("purchases.suppliersDashboard.showingSuppliers", { visible: visible.length, total: sorted.length })}
-          </div>
-          <div className="flex items-center gap-2">
-            <PagerButton onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} label={t("purchases.suppliersDashboard.prev")} />
-            <span className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300">
-              {t("purchases.suppliersDashboard.pageOf", { current: currentPage, total: totalPages })}
-            </span>
-            <PagerButton onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} label={t("purchases.suppliersDashboard.next")} />
-          </div>
-        </div>
+        <Pagination
+          className="mt-4"
+          page={currentPage}
+          pages={totalPages}
+          total={sorted.length}
+          pageSize={pageSize}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
+          visible={visible.length}
+          onChange={setPage}
+          onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+        />
       </div>
 
       {modalSupplier !== undefined ? (
@@ -770,14 +771,6 @@ function Info({ icon, label, value }) {
       <div className="flex items-center gap-2 text-zinc-500">{icon}<span>{label}</span></div>
       <span className="text-right text-white">{value}</span>
     </div>
-  );
-}
-
-function PagerButton({ onClick, disabled, label }) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
-      {label}
-    </button>
   );
 }
 

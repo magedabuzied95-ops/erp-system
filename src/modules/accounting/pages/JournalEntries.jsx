@@ -18,6 +18,7 @@ import AccountingShell from "../components/AccountingShell";
 import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency, formatDateTime } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
+import { Pagination } from "../../../shared/ui";
 
 const emptyLine = () => ({
   account_code: "",
@@ -39,7 +40,9 @@ function JournalEntries() {
   const [dateTo, setDateTo] = useState("");
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
-  const [pagination, setPagination] = useState({ total: 0, limit: 50, offset: 0 });
+  const [pagination, setPagination] = useState({ total: 0, limit: 25, offset: 0 });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [activeTab, setActiveTab] = useState("list");
 
   const [formState, setFormState] = useState({
@@ -79,10 +82,11 @@ function JournalEntries() {
         referenceType: referenceType || undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
-        limit: 100,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
       });
       setEntries(result?.entries || []);
-      setPagination(result?.pagination || { total: 0, limit: 100, offset: 0 });
+      setPagination(result?.pagination || { total: 0, limit: pageSize, offset: (page - 1) * pageSize });
     } catch (err) {
       console.log(err);
       setError("تعذر تحميل القيود اليومية ضمن الفترة الحالية.");
@@ -92,6 +96,10 @@ function JournalEntries() {
       setLoading(false);
       setRefreshing(false);
     }
+  }, [dateFrom, dateTo, page, pageSize, referenceType, search]);
+
+  useEffect(() => {
+    setPage(1);
   }, [dateFrom, dateTo, referenceType, search]);
 
   useEffect(() => {
@@ -400,6 +408,17 @@ function JournalEntries() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              className="px-4 pb-4"
+              page={page}
+              pages={Math.max(1, Math.ceil(Number(pagination.total || 0) / pageSize))}
+              total={Number(pagination.total || 0)}
+              pageSize={pageSize}
+              visible={entries.length}
+              disabled={loading}
+              onChange={setPage}
+              onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+            />
           </div>
         </div>
       ) : null}

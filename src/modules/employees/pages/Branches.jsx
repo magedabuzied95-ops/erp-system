@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../../../shared/api/api";
+import { Pagination } from "../../../shared/ui";
 
 const emptyForm = {
   name: "",
@@ -30,6 +31,8 @@ function Branches() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const loadBranches = async () => {
     try {
@@ -66,6 +69,9 @@ function Branches() {
         .includes(term)
     );
   }, [activeBranches, search]);
+  const totalPages = Math.max(1, Math.ceil(filteredBranches.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleBranches = filteredBranches.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -216,7 +222,7 @@ function Branches() {
                   </td>
                 </tr>
               ) : filteredBranches.length > 0 ? (
-                filteredBranches.map((branch, index) => (
+                visibleBranches.map((branch, index) => (
                   <tr key={branch?.id || branch?.code || index} className="border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700">
                     <td className="p-5 font-black dark:text-white">{branch?.name || "-"}</td>
                     <td className="p-5 dark:text-white">{branch?.code || "-"}</td>
@@ -251,6 +257,17 @@ function Branches() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          className="px-5 pb-5"
+          page={currentPage}
+          pages={totalPages}
+          total={filteredBranches.length}
+          pageSize={pageSize}
+          visible={visibleBranches.length}
+          disabled={loading}
+          onChange={setPage}
+          onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+        />
       </div>
     </div>
   );

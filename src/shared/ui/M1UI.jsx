@@ -1,5 +1,7 @@
+// Union of both sides: `useEffect`/`useId`/`Search` come from the Phase 2A
+// primitives, `ChevronRight` from the recovered Pagination (RTL "previous").
 import { forwardRef, useEffect, useId } from "react";
-import { ChevronLeft, Inbox, LoaderCircle, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Inbox, LoaderCircle, Search, X } from "lucide-react";
 import "./m1-ui.css";
 import "./m1-table.css";
 
@@ -545,8 +547,98 @@ export function DataTable({
   );
 }
 
-export function Pagination({ page = 1, pages = 1, onChange }) {
-  return <nav className="m1-pagination" aria-label="التنقل بين الصفحات"><span>صفحة {page} من {pages}</span><div><button disabled={page <= 1} onClick={() => onChange?.(page - 1)} aria-label="السابق"><ChevronLeft size={17} /></button><button disabled={page >= pages} onClick={() => onChange?.(page + 1)} aria-label="التالي"><ChevronLeft size={17} /></button></div></nav>;
+const DEFAULT_PAGE_SIZES = [10, 25, 50, 100, 200, 500, 1000, "all"];
+
+function paginationWindow(page, pages) {
+  if (pages <= 7) return Array.from({ length: pages }, (_, index) => index + 1);
+  const values = new Set([1, pages, page - 1, page, page + 1]);
+  if (page <= 3) [2, 3, 4].forEach((value) => values.add(value));
+  if (page >= pages - 2) [pages - 3, pages - 2, pages - 1].forEach((value) => values.add(value));
+  const sorted = [...values].filter((value) => value >= 1 && value <= pages).sort((a, b) => a - b);
+  return sorted.flatMap((value, index) => {
+    const previous = sorted[index - 1];
+    return previous && value - previous > 1 ? [`ellipsis-${value}`, value] : [value];
+  });
+}
+
+export function Pagination({
+  page = 1,
+  pages = 1,
+  total = 0,
+  pageSize = 10,
+  pageSizeOptions = DEFAULT_PAGE_SIZES,
+  visible,
+  onChange,
+  onPageSizeChange,
+  disabled = false,
+  className = "",
+  labels = {},
+}) {
+  const safePages = Math.max(1, Number(pages) || 1);
+  const safePage = Math.min(Math.max(1, Number(page) || 1), safePages);
+  const safeTotal = Math.max(0, Number(total) || 0);
+  const safePageSize = Math.max(1, Number(pageSize) || 10);
+  const numericPageSizes = pageSizeOptions.filter((option) => option !== "all").map(Number);
+  const hasAllOption = pageSizeOptions.includes("all");
+  const selectedPageSize = numericPageSizes.includes(safePageSize)
+    ? safePageSize
+    : hasAllOption ? "all" : safePageSize;
+  const shown = Math.max(0, Number(visible) || Math.min(safePageSize, Math.max(0, safeTotal - (safePage - 1) * safePageSize)));
+  const from = shown > 0 ? (safePage - 1) * safePageSize + 1 : 0;
+  const to = shown > 0 ? Math.min(safeTotal || from + shown - 1, from + shown - 1) : 0;
+  const text = {
+    show: "عرض",
+    rows: "صفوف",
+    all: "الكل",
+    previous: "السابق",
+    next: "التالي",
+    range: (start, end, count) => `عرض ${start}–${end} من أصل ${count}`,
+    page: (value) => `الصفحة ${value}`,
+    ...labels,
+  };
+
+  const goTo = (nextPage) => {
+    if (!disabled) onChange?.(Math.min(Math.max(1, nextPage), safePages));
+  };
+
+  return (
+    <nav className={`m1-pagination ${className}`.trim()} aria-label="التنقل بين الصفحات" dir="rtl">
+      <div className="m1-pagination__summary">
+        {onPageSizeChange ? (
+          <label className="m1-pagination__size">
+            <span>{text.show}</span>
+            <select
+              value={selectedPageSize}
+              disabled={disabled}
+              onChange={(event) => onPageSizeChange(event.target.value === "all" ? Math.max(1, safeTotal) : Number(event.target.value))}
+              aria-label="عدد الصفوف في الصفحة"
+            >
+              {pageSizeOptions.map((option) => <option key={option} value={option}>{option === "all" ? text.all : option.toLocaleString("en-US")}</option>)}
+            </select>
+            <span>{text.rows}</span>
+          </label>
+        ) : null}
+        <span className="m1-pagination__range" aria-live="polite">{text.range(from, to, safeTotal)}</span>
+      </div>
+      <div className="m1-pagination__pages">
+        <button type="button" className="m1-pagination__nav" disabled={disabled || safePage <= 1} onClick={() => goTo(safePage - 1)} aria-label={text.previous}>
+          <ChevronRight size={16} aria-hidden="true" /><span>{text.previous}</span>
+        </button>
+        <div className="m1-pagination__numbers">
+          {paginationWindow(safePage, safePages).map((item) => typeof item === "string" ? (
+            <span key={item} className="m1-pagination__ellipsis" aria-hidden="true">…</span>
+          ) : (
+            <button type="button" key={item} className={item === safePage ? "is-active" : ""} aria-current={item === safePage ? "page" : undefined} aria-label={text.page(item)} disabled={disabled} onClick={() => goTo(item)}>
+              {item.toLocaleString("en-US")}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="m1-pagination__nav" disabled={disabled || safePage >= safePages} onClick={() => goTo(safePage + 1)} aria-label={text.next}>
+          <span>{text.next}</span><ChevronLeft size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </nav>
+  );
 }
 
 /* --------------------------------------------------------- states, as-is -- */

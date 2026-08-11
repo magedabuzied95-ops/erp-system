@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { Pagination } from "../../../shared/ui";
 import InventoryShell from "../components/InventoryShell";
 import { formatDateTime } from "../../purchases/lib/flowStore";
 
@@ -55,7 +56,9 @@ function InventoryHistory() {
     dateTo: "",
   });
   const [movements, setMovements] = useState([]);
-  const [pagination, setPagination] = useState({ total: 0, limit: 100, offset: 0 });
+  const [pagination, setPagination] = useState({ total: 0, limit: 25, offset: 0 });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeMovement, setActiveMovement] = useState(null);
@@ -74,6 +77,8 @@ function InventoryHistory() {
         if (filters.movementType.trim()) params.set("movementType", filters.movementType.trim());
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
+        params.set("limit", String(pageSize));
+        params.set("offset", String((page - 1) * pageSize));
 
         const endpoint = routeVariantId
           ? `/inventory/variant/${routeVariantId}/history?${params.toString()}`
@@ -84,7 +89,7 @@ function InventoryHistory() {
 
         const rows = Array.isArray(response?.movements) ? response.movements : Array.isArray(response) ? response : [];
         setMovements(rows);
-        setPagination(response?.pagination || { total: rows.length, limit: rows.length || 100, offset: 0 });
+        setPagination(response?.pagination || { total: rows.length, limit: pageSize, offset: (page - 1) * pageSize });
       } catch (err) {
         console.log(err);
         if (!alive) return;
@@ -100,7 +105,11 @@ function InventoryHistory() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [filters, routeVariantId]);
+  }, [filters, page, pageSize, routeVariantId]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters.search, filters.productId, filters.variantId, filters.movementType, filters.dateFrom, filters.dateTo]);
 
   const summary = useMemo(() => {
     const inbound = movements.filter((movement) => Number(movement.quantity_change || 0) > 0).length;
@@ -267,6 +276,17 @@ function InventoryHistory() {
             </table>
           </div>
         )}
+        <Pagination
+          className="border-t border-white/10 px-4 pb-4"
+          page={page}
+          pages={Math.max(1, Math.ceil(Number(pagination.total || 0) / pageSize))}
+          total={Number(pagination.total || 0)}
+          pageSize={pageSize}
+          visible={movements.length}
+          disabled={loading}
+          onChange={setPage}
+          onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+        />
       </div>
 
       {activeMovement ? <TimelineDrawer movement={activeMovement} onClose={() => setActiveMovement(null)} /> : null}

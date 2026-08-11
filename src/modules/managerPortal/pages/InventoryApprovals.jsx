@@ -22,6 +22,7 @@ import toast from "react-hot-toast";
 import { managerPortalApi } from "../services/managerPortalApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { Pagination } from "../../../shared/ui";
 import "./ManagerPortal.m1.css";
 
 const resolveStoredToken = () => {
@@ -84,7 +85,7 @@ export default function InventoryApprovalsPage() {
   const [error, setError] = useState("");
   const [summary, setSummary] = useState({});
   const [sessions, setSessions] = useState([]);
-  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 5, totalPages: 1 });
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
   const [search, setSearch] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [selectedApproval, setSelectedApproval] = useState(null);
@@ -130,16 +131,20 @@ export default function InventoryApprovalsPage() {
     return totals;
   }, [selectedItems]);
 
-  const loadApprovals = async (nextSessionId = "") => {
+  const loadApprovals = async (nextSessionId = "", overrides = {}) => {
     if (!token) return;
     try {
       setLoading(true);
       setError("");
-      const response = await managerPortalApi.inventoryApprovals(token, { page: pagination.page || 1, limit: pagination.limit || 5, search });
+      const response = await managerPortalApi.inventoryApprovals(token, {
+        page: overrides.page || pagination.page || 1,
+        limit: overrides.limit || pagination.limit || 10,
+        search,
+      });
       const payload = response?.inventoryApprovals || {};
       setSummary(payload.summary || {});
       setSessions(Array.isArray(payload.sessions) ? payload.sessions : []);
-      setPagination(payload.pagination || { total: 0, page: 1, limit: 5, totalPages: 1 });
+      setPagination(payload.pagination || { total: 0, page: 1, limit: 10, totalPages: 1 });
       const availableSessions = Array.isArray(payload.sessions) ? payload.sessions : [];
       const requestedSession = nextSessionId
         ? availableSessions.find((session) => String(session.id) === String(nextSessionId))
@@ -185,7 +190,7 @@ export default function InventoryApprovalsPage() {
 
   const handleSearch = async (event) => {
     event.preventDefault();
-    await loadApprovals();
+    await loadApprovals("", { page: 1 });
   };
 
   const selectSession = (sessionId) => {
@@ -373,6 +378,17 @@ export default function InventoryApprovalsPage() {
                 </div>
               )}
             </div>
+            <Pagination
+              className="mt-4 border-t border-white/10 pt-4"
+              page={pagination.page || 1}
+              pages={pagination.totalPages || 1}
+              total={pagination.total || 0}
+              pageSize={pagination.limit || 10}
+              visible={sessions.length}
+              disabled={loading}
+              onChange={(page) => loadApprovals("", { page })}
+              onPageSizeChange={(limit) => loadApprovals("", { page: 1, limit })}
+            />
           </div>
 
           <div ref={detailRef} className="manager-inventory-panel scroll-mt-3 rounded-[1.5rem] border border-white/10 bg-white/5 p-3 shadow-xl backdrop-blur sm:rounded-[2rem] sm:p-4">

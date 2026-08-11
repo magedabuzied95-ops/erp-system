@@ -36,6 +36,7 @@ import toast from "react-hot-toast";
 import { socket } from "../../../socket";
 import { api } from "../../../shared/api/api";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
+import { Pagination } from "../../../shared/ui";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
 import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
@@ -58,7 +59,7 @@ import {
 } from "../../../shared/lib/imageUrls";
 import { normalizeOrderLifecycleStatus } from "../../../../shared/orderStatus.js";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const ORDERS_DEBUG = String(import.meta.env.VITE_ERP_PERF_DEBUG || "").trim().toLowerCase() === "true";
 const SOURCE_FILTERS = ["all", "pos", "website", "whatsapp", "instagram", "manual"];
 const WORKSPACES = [
@@ -602,6 +603,7 @@ function OrdersDashboard() {
   const [channelFilter, setChannelFilter] = useState(() => searchParams.get("channel") || "all");
   const [dateFilter, setDateFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [selectedIds, setSelectedIds] = useState([]);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -679,9 +681,9 @@ function OrdersDashboard() {
     });
   }, [workspaceSource, search, statusFilter, paymentFilter, channelFilter, dateFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const visibleOrders = filteredOrders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visibleOrders = filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectedOrders = useMemo(() => orders.filter((order) => selectedIds.includes(order.id)), [orders, selectedIds]);
   const selectedCount = selectedIds.length;
   useEffect(() => {
@@ -978,7 +980,16 @@ function OrdersDashboard() {
           ) : null}
 
           {workspace === "table" && !loading ? (
-            <Pager currentPage={currentPage} totalPages={totalPages} visible={visibleOrders.length} total={filteredOrders.length} t={t} setPage={setPage} />
+            <Pagination
+              page={currentPage}
+              pages={totalPages}
+              total={filteredOrders.length}
+              pageSize={pageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              visible={visibleOrders.length}
+              onChange={setPage}
+              onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+            />
           ) : null}
         </main>
         {selectedOrder && workspace === "table" ? (
@@ -1847,23 +1858,6 @@ function Select({ value, onChange, options, label, allLabel = "All", labels = {}
       </select>
     </label>
   );
-}
-
-function Pager({ currentPage, totalPages, visible, total, t, setPage }) {
-  return (
-    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-xs text-zinc-400">{t("orders.paging.showing")} {visible} {t("orders.paging.of")} {total} {t("orders.paging.records")}</div>
-      <div className="flex items-center gap-2">
-        <PagerButton onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} label={t("common.previous")} />
-        <span className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300">{t("orders.paging.page")} {currentPage} / {totalPages}</span>
-        <PagerButton onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} label={t("common.next")} />
-      </div>
-    </div>
-  );
-}
-
-function PagerButton({ onClick, disabled, label }) {
-  return <button type="button" onClick={onClick} disabled={disabled} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40">{label}</button>;
 }
 
 function MenuButton({ icon, label, onClick, tone = "zinc", disabled = false, title = "" }) {

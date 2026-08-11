@@ -21,6 +21,7 @@ import {
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
+import { Pagination } from "../../../shared/ui";
 import FlowShell from "../components/FlowShell";
 import {
   buildSearchText,
@@ -35,7 +36,7 @@ import {
 } from "../lib/flowStore";
 import { getPrintDirection, normalizePrintLanguage, openPrintHtml, tPrint, wrapPrintableHtml } from "../../../shared/utils/printLocalization";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const purchaseTableColumns = "grid-cols-[3.5rem_8.5rem_minmax(9rem,1fr)_minmax(12rem,1.3fr)_minmax(9rem,0.9fr)_7.5rem_4.5rem_9rem]";
 const ACTIONS_MENU_WIDTH = 224;
 const ACTIONS_MENU_MARGIN = 8;
@@ -88,6 +89,7 @@ function PurchasesDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState(null);
   const menuAnchorRef = useRef(null);
@@ -239,9 +241,9 @@ function PurchasesDashboard() {
     closeActionsMenu();
   }, [search, supplierFilter, statusFilter, warehouseFilter, branchFilter, paymentFilter, dateFilter, dateFromFilter, dateToFilter, closeActionsMenu]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredPurchases.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredPurchases.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const visiblePurchases = filteredPurchases.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visiblePurchases = filteredPurchases.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const purchaseKpis = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return filteredPurchases.reduce(
@@ -508,18 +510,17 @@ function PurchasesDashboard() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-zinc-400">
-            {t("purchases.paging.showing")} {visiblePurchases.length} {t("purchases.paging.of")} {filteredPurchases.length} {t("purchases.paging.records")}
-          </div>
-          <div className="flex items-center gap-2">
-            <PagerButton onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} label={t("common.previous")} />
-            <span className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300">
-              {t("purchases.paging.page")} {currentPage} / {totalPages}
-            </span>
-            <PagerButton onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} label={t("common.next")} />
-            </div>
-          </div>
+        <Pagination
+          className="mt-4"
+          page={currentPage}
+          pages={totalPages}
+          total={filteredPurchases.length}
+          pageSize={pageSize}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
+          visible={visiblePurchases.length}
+          onChange={setPage}
+          onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+        />
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {bottomKpiCards.map((card) => (
               <div
@@ -663,19 +664,6 @@ function PaymentStatusPill({ value }) {
     <span className={`inline-flex h-7 w-fit max-w-full items-center justify-center rounded-full border px-2.5 text-[11px] font-black leading-none ${tone}`}>
       <span className="truncate">{label}</span>
     </span>
-  );
-}
-
-function PagerButton({ onClick, disabled, label }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-    >
-      {label}
-    </button>
   );
 }
 

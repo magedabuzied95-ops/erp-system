@@ -10,14 +10,17 @@
 .m1-empty{min-height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px}.m1-empty__icon{width:46px;height:46px;display:grid;place-items:center;border:1px solid var(--border);border-radius:12px;color:var(--muted);background:var(--surface-soft)}.m1-empty h3{margin:12px 0 4px;font-size:15px;color:var(--text)}.m1-empty p{max-width:360px;margin:0 0 16px;color:var(--muted);font-size:12px}.m1-loading{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}.m1-spin{animation:m1-spin .8s linear infinite}@keyframes m1-spin{to{transform:rotate(360deg)}}
 .m1-skeleton{display:block;min-height:14px;border-radius:6px;background:linear-gradient(90deg,var(--surface-soft),var(--border),var(--surface-soft));background-size:200% 100%;animation:m1-shimmer 1.35s infinite}@keyframes m1-shimmer{to{background-position:-200% 0}}
 .m1-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px;background:var(--overlay-scrim)}.m1-modal{width:min(520px,100%);border:1px solid var(--border);border-radius:var(--radius-card);background:var(--card);box-shadow:var(--shadow-popover)}.m1-modal>header{display:flex;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}.m1-modal h2{margin:0;font-size:17px}.m1-modal header p{margin:4px 0 0;color:var(--muted);font-size:11px}.m1-modal header button{width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--muted)}.m1-modal__body{padding:20px}.m1-modal>footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border)}
-.m1-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:14px;color:var(--muted);font-size:11px}.m1-pagination>div{display:flex;gap:6px}.m1-pagination button{width:34px;height:32px;display:grid;place-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}.m1-pagination button:last-child{transform:rotate(180deg)}.m1-pagination button:disabled{opacity:.4}
+.m1-pagination{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:14px;color:var(--muted);font-size:12px;flex-wrap:wrap}.m1-pagination__summary,.m1-pagination__pages,.m1-pagination__size,.m1-pagination__numbers{display:flex;align-items:center;gap:7px}.m1-pagination__size select{height:34px;min-width:66px;padding:0 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font:inherit}.m1-pagination__range{white-space:nowrap}.m1-pagination button{height:34px;min-width:34px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font:inherit;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}.m1-pagination button:hover:not(:disabled){border-color:var(--accent,var(--primary));color:var(--accent,var(--primary))}.m1-pagination button.is-active{border-color:var(--accent,var(--primary));background:var(--accent,var(--primary));color:var(--primary-contrast);font-weight:800}.m1-pagination button:disabled{opacity:.4;cursor:not-allowed}.m1-pagination__ellipsis{width:24px;text-align:center;color:var(--muted)}
 
-@media(max-width:700px){.m1-card__header,.m1-card__body{padding:15px}.m1-button{width:100%}}
+@media(max-width:700px){.m1-card__header,.m1-card__body{padding:15px}.m1-button{width:100%}.m1-pagination{align-items:stretch}.m1-pagination__summary,.m1-pagination__pages{width:100%;justify-content:space-between}.m1-pagination__numbers{max-width:calc(100vw - 190px);overflow-x:auto;padding:2px}.m1-pagination__nav span{display:none}.m1-pagination__range{font-size:11px}}
 
 /* ===== Phase 2A canonical primitives =======================================
    Semantic tokens only, logical properties only (RTL by construction), no
-   !important, no page-specific selectors. DataTable/Pagination rules above are
-   frozen for Phase 3 and were not modified. */
+   !important, no page-specific selectors.
+
+   The Phase 3 freeze is over. Table rules moved out to m1-table.css; the
+   pagination rules above are the recovered canonical Pagination, whose active
+   state uses --primary-contrast rather than the #fff it shipped with. */
 
 .m1-button--outline{background:transparent;border-color:var(--border-strong);color:var(--text)}
 .m1-button--outline:hover:not(:disabled){background:var(--surface-hover)}
@@ -110,7 +113,7 @@
 .m1-drawer__body{flex:1;overflow:auto;padding:20px}
 .m1-drawer>footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border)}
 
-@media(max-width:700px){.m1-drawer{width:100%}.m1-filter-bar{padding:10px}}
+@media(max-width:700px){.m1-card__header,.m1-card__body{padding:15px}.m1-button{width:100%}.m1-pagination{align-items:stretch}.m1-pagination__summary,.m1-pagination__pages{width:100%;justify-content:space-between}.m1-pagination__numbers{max-width:calc(100vw - 190px);overflow-x:auto;padding:2px}.m1-pagination__nav span{display:none}.m1-pagination__range{font-size:11px}}
 
 /* MetricCard density. `comfortable` is the untouched baseline; `compact` is a
    canonical denser tile derived from the recurring compact metrics across the

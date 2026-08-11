@@ -4,6 +4,7 @@ import { Boxes, Plus, Search, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import ProductsShell from "../components/ProductsShell";
+import { Pagination } from "../../../shared/ui";
 
 import { saveUnits, seedUnits, slugify } from "../lib/catalog";
 
@@ -14,10 +15,15 @@ function Units() {
   const [symbol, setSymbol] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const filtered = items.filter((item) =>
     `${item.name} ${item.symbol}`.toLowerCase().includes(search.trim().toLowerCase())
   );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleCreate = () => {
     if (!name.trim()) return;
@@ -121,7 +127,7 @@ function Units() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item) => (
+                {visibleItems.map((item) => (
                   <tr key={item.id} className="rounded-3xl border border-white/8 bg-white/5">
                     <td className="px-4 py-4 font-semibold text-white">{item.name}</td>
                     <td className="px-4 py-4 text-zinc-300">{item.symbol}</td>
@@ -149,6 +155,15 @@ function Units() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={currentPage}
+            pages={totalPages}
+            total={filtered.length}
+            pageSize={pageSize}
+            visible={visibleItems.length}
+            onChange={setPage}
+            onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+          />
         </section>
       </div>
     </ProductsShell>
