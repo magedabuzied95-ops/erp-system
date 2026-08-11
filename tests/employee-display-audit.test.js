@@ -40,6 +40,14 @@ test("employee portal updates display audit cards without a page reload", async 
   assert.match(page, /activeTab === "display-audit"/);
 });
 
+test("display audit product cards resolve migrated server image paths", async () => {
+  const panel = await source("src/modules/employees/components/EmployeeDisplayAuditPanel.jsx");
+  assert.match(panel, /import \{ resolveProductImageUrl \} from "\.\.\/\.\.\/\.\.\/shared\/lib\/imageUrls\.js"/);
+  assert.match(panel, /const imageUrl = resolveProductImageUrl\(/);
+  assert.match(panel, /<img src=\{imageUrl\}/);
+  assert.doesNotMatch(panel, /<img src=\{product\.image_url\}/);
+});
+
 test("special sizes are an independent audience and start from the smallest qualifying stocked size", () => {
   const variants = [37, 41, 45, 46, 47, 49].map((size, index) => ({
     variant_id: index + 1,
