@@ -148,17 +148,18 @@ const normalizeProductCard = (card = {}, inherited = {}) => {
 const cardImage = (card = {}) =>
   firstImageValue(card.image_url, card.image, card.thumbnail_url, card.media_url, card.product_image_url, card.product_image, card.variant_image_url, card.variant_image, card.main_image);
 
-function ProductCardMessage({ message = {}, cards = [] }) {
+function ProductCardMessage({ message = {}, cards = [], compact = false }) {
   const items = asArray(cards).flatMap((card) => normalizeProductCard(card)).filter(Boolean);
   if (!items.length) return null;
   const deliveryStatus = clean(message.delivery_status || "");
 
   return (
     <div
-      className="rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-4 shadow-[0_10px_30px_rgba(8,145,178,0.14)]"
-      style={{ contentVisibility: "auto", containIntrinsicSize: "360px" }}
+      data-ai-product-card-density={compact ? "compact" : "default"}
+      className={`${compact ? "w-full max-w-[520px] rounded-2xl p-2.5" : "rounded-3xl p-4"} rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 shadow-[0_10px_30px_rgba(8,145,178,0.14)]`}
+      style={{ contentVisibility: "auto", containIntrinsicSize: compact ? "260px" : "360px" }}
     >
-      <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
+      <div className={`flex flex-wrap items-center font-black uppercase text-cyan-100 ${compact ? "gap-1.5 text-[10px] tracking-[0.1em]" : "gap-2 text-[11px] tracking-[0.14em]"}`}>
         <ShoppingBag className="h-3.5 w-3.5" />
         <span>إرسال منتج</span>
         {deliveryStatus ? (
@@ -170,7 +171,7 @@ function ProductCardMessage({ message = {}, cards = [] }) {
         {items.length > 1 ? <span className="text-slate-500">{items.length} منتجات</span> : null}
       </div>
 
-      <div className={`mt-3 grid gap-2 ${items.length > 1 ? "sm:grid-cols-2" : ""}`}>
+      <div className={`${compact ? "mt-2 gap-1.5" : "mt-3 gap-2"} grid ${items.length > 1 ? "sm:grid-cols-2" : ""}`}>
         {items.slice(0, 4).map((card, index) => {
           const image = cardImage(card);
           const priceValue = Number(card.price ?? card.final_price ?? 0);
@@ -179,40 +180,40 @@ function ProductCardMessage({ message = {}, cards = [] }) {
           return (
             <div
               key={cardKey || index}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70"
+              className={`overflow-hidden border border-white/10 bg-slate-950/70 ${compact ? "rounded-xl" : "rounded-2xl"}`}
             >
               {storefrontUrl ? (
                 <a href={storefrontUrl} target="_blank" rel="noreferrer" className="block">
                   {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || "منتج"} className="aspect-[16/10] w-full object-cover" loading="lazy" decoding="async" />
+                    <img src={image} alt={card.product_name || card.name || card.title || "منتج"} className={compact ? "h-56 w-full bg-white object-contain" : "aspect-[16/10] w-full object-cover"} loading="lazy" decoding="async" />
                   ) : (
-                    <div className="grid aspect-[16/10] w-full place-items-center bg-white/[0.05]">
-                      <ShoppingBag className="h-10 w-10 text-slate-500" />
+                    <div className={`grid w-full place-items-center bg-white/[0.05] ${compact ? "h-40" : "aspect-[16/10]"}`}>
+                      <ShoppingBag className={`${compact ? "h-7 w-7" : "h-10 w-10"} text-slate-500`} />
                     </div>
                   )}
-                  <div className="p-3">
-                    <div className="truncate text-sm font-black text-white">{card.product_name || card.name || card.title || "منتج"}</div>
+                  <div className={compact ? "p-2.5" : "p-3"}>
+                    <div className={`truncate font-black text-white ${compact ? "text-xs" : "text-sm"}`}>{card.product_name || card.name || card.title || "منتج"}</div>
                     {priceValue > 0 ? <div className="mt-1 text-xs font-bold text-emerald-100">{money(priceValue)}</div> : null}
                     <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-300">
                       {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">اللون: {card.color}</span> : null}
                       {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">المقاس: {card.size}</span> : null}
                     </div>
-                    <div className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100">
+                    <div className={`${compact ? "mt-2 rounded-lg px-2.5 py-1.5 text-[10px]" : "mt-3 rounded-xl px-3 py-2 text-[11px]"} inline-flex items-center gap-1.5 border border-cyan-300/20 bg-cyan-300/10 font-black text-cyan-100`}>
                       فتح المنتج
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     </div>
                   </div>
                 </a>
               ) : (
-                <div className="p-3">
+                <div className={compact ? "p-2.5" : "p-3"}>
                   {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || "منتج"} className="aspect-[16/10] w-full rounded-xl object-cover" loading="lazy" decoding="async" />
+                    <img src={image} alt={card.product_name || card.name || card.title || "منتج"} className={compact ? "h-56 w-full rounded-lg bg-white object-contain" : "aspect-[16/10] w-full rounded-xl object-cover"} loading="lazy" decoding="async" />
                   ) : (
-                    <div className="grid aspect-[16/10] w-full place-items-center rounded-xl bg-white/[0.05]">
-                      <ShoppingBag className="h-10 w-10 text-slate-500" />
+                    <div className={`grid w-full place-items-center bg-white/[0.05] ${compact ? "h-40 rounded-lg" : "aspect-[16/10] rounded-xl"}`}>
+                      <ShoppingBag className={`${compact ? "h-7 w-7" : "h-10 w-10"} text-slate-500`} />
                     </div>
                   )}
-                  <div className="mt-3 truncate text-sm font-black text-white">{card.product_name || card.name || card.title || "منتج"}</div>
+                  <div className={`${compact ? "mt-2 text-xs" : "mt-3 text-sm"} truncate font-black text-white`}>{card.product_name || card.name || card.title || "منتج"}</div>
                   {priceValue > 0 ? <div className="mt-1 text-xs font-bold text-emerald-100">{money(priceValue)}</div> : null}
                   <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-300">
                     {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">اللون: {card.color}</span> : null}

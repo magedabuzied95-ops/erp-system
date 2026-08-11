@@ -7,6 +7,8 @@ const desktopCss = readFileSync("src/modules/aiSupport/pages/AiInboxDesktop.css"
 const pwaSource = readFileSync("src/modules/aiSupport/pages/AiInboxPwa.jsx", "utf8");
 const mainLayoutSource = readFileSync("src/shared/layouts/MainLayout.jsx", "utf8");
 const productPickerSource = readFileSync("src/modules/aiSupport/components/ProductCardPicker.jsx", "utf8");
+const productMessageSource = readFileSync("src/modules/aiSupport/components/ProductCardMessage.jsx", "utf8");
+const transcriptMessageSource = readFileSync("src/modules/aiSupport/components/TranscriptMessage.jsx", "utf8");
 const compactHeaderSource = desktopSource.slice(
   desktopSource.indexOf("function InboxChatHeader"),
   desktopSource.indexOf("const Transcript = memo")
@@ -23,7 +25,7 @@ test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
 });
 
 test("desktop workspace keeps search while channel filters stay out of the top bar", () => {
-  assert.match(desktopSource, /Search conversations, customers or messages/);
+  assert.match(desktopSource, /ابحث عن العميل أو الرسالة/);
   assert.doesNotMatch(desktopSource, /fixedChannelSummaries\.map/);
   assert.match(desktopSource, /channels=\{fixedChannelSummaries\}/);
   assert.match(desktopSource, /AI \{aiAssistantGlobalEnabled \? "ON" : "OFF"\}/);
@@ -56,6 +58,14 @@ test("desktop chat exposes commerce actions above the transcript", () => {
   assert.match(desktopSource, /المتاح بالمقاس/);
   assert.match(desktopSource, /إنشاء عميل/);
   assert.doesNotMatch(desktopSource, /\n\s*<LeadQuickActionsBar/);
+});
+
+test("desktop conversation product cards use a compact bounded layout", () => {
+  assert.match(productMessageSource, /data-ai-product-card-density=\{compact \? "compact" : "default"\}/);
+  assert.match(productMessageSource, /max-w-\[520px\]/);
+  assert.match(productMessageSource, /h-56 w-full bg-white object-contain/);
+  assert.match(transcriptMessageSource, /<ProductCardMessage message=\{message\} cards=\{cards\} compact \/>/);
+  assert.doesNotMatch(pwaSource, /<ProductCardMessage message=\{message\} cards=\{cards\} compact \/>/);
 });
 
 test("desktop conversation header stays compact and exposes multi-label management", () => {

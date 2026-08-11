@@ -572,7 +572,7 @@ function TranscriptMessage({
       {safeRow.kind === "product_card" ? (
         <div className="flex justify-end">
           <div data-ai-message-bubble="true" className="max-w-[88%]">
-            <ProductCardMessage message={message} cards={cards} />
+            <ProductCardMessage message={message} cards={cards} compact />
           </div>
         </div>
       ) : null}
@@ -623,7 +623,7 @@ function TranscriptMessage({
               ) : null}
             </div>
             <LinkifiedText text={message.ai_answer} className="mt-3 text-[16px] leading-8 text-white" />
-            {message.suggested_products?.length ? <div className="mt-3"><ProductCardMessage message={message} cards={message.suggested_products} /></div> : null}
+            {message.suggested_products?.length ? <div className="mt-3"><ProductCardMessage message={message} cards={message.suggested_products} compact /></div> : null}
             {message.visual_attachments?.length ? (
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {message.visual_attachments.slice(0, 4).map((attachment, index) => {
