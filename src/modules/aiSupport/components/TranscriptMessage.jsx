@@ -249,6 +249,8 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const ownReaction = reactions.find((reaction) => reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff") || null;
   const ownReactionEmoji = reactionEmoji(ownReaction?.message_text || ownReaction?.text || ownReaction?.customer_message || ownReaction?.staff_message);
   const effectiveOwnReaction = localReaction === null ? ownReactionEmoji : localReaction;
+  const reactionTargetMessageId = clean(message.provider_message_id || message.external_message_id || message.whatsapp_message_id || message.message_id);
+  const canReact = Boolean(onReact && reactionTargetMessageId);
   const displayedReactions = [
     ...reactions.filter((reaction) => reaction !== ownReaction),
     ...(effectiveOwnReaction ? [{ id: `local-reaction:${key}`, message_text: effectiveOwnReaction, from_me: true, direction: "outbound", sender_type: "staff" }] : []),
@@ -335,7 +337,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   };
 
   const submitReaction = async (emoji) => {
-    if (!onReact || reactionSending) return;
+    if (!canReact || reactionSending) return;
     const nextEmoji = effectiveOwnReaction === emoji ? "" : emoji;
     setReactionSending(true);
     try {
@@ -343,7 +345,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         row,
         message,
         emoji: nextEmoji,
-        targetMessageId: clean(message.provider_message_id || message.external_message_id || message.whatsapp_message_id || message.message_id || message.id || key),
+        targetMessageId: reactionTargetMessageId,
         remoteJid: clean(message.remote_jid || message.resolved_reply_jid || message.channel_metadata?.remote_jid || ""),
         targetFromMe: clean(message.direction).toLowerCase() === "outbound" || ["staff", "ai", "system"].includes(clean(message.sender_type).toLowerCase()),
       });
@@ -381,7 +383,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         </div>
       ) : null}
       {children}
-      {onReact ? (
+      {canReact ? (
         <div className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <button
             type="button"

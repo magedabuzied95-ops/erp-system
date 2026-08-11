@@ -2447,6 +2447,7 @@ const Transcript = memo(function Transcript({
   onOpenCorrection,
   onReplyComment,
   onPrivateMessage,
+  onReact,
   olderMessagesAvailable = false,
 }) {
   const isCommentThread = isCommentConversation(conversation || {});
@@ -2519,6 +2520,7 @@ const Transcript = memo(function Transcript({
               onOpenCorrection={onOpenCorrection}
               onReplyComment={onReplyComment}
               onPrivateMessage={onPrivateMessage}
+              onReact={onReact}
               channelLabel={row.channelLabel}
             />
           </Fragment>
@@ -7321,6 +7323,24 @@ export default function AiInbox() {
     setReplyText(textValue);
   };
 
+  const reactToMessage = useCallback(async ({ emoji = "", targetMessageId = "", remoteJid = "", targetFromMe = false } = {}) => {
+    if (!selectedConversation?.session_id || !targetMessageId) return null;
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/reaction"), {
+        tenant_id: tenantId,
+        emoji,
+        target_message_id: targetMessageId,
+        remote_jid: remoteJid,
+        target_from_me: targetFromMe,
+      }, { headers, perfComponent: "AiInbox.messageReaction" });
+      setToast({ tone: "emerald", text: emoji ? `تم إضافة التفاعل ${emoji}` : "تم حذف التفاعل" });
+      return payload;
+    } catch (reactionError) {
+      setToast({ tone: "rose", text: reactionError?.message || "تعذر إرسال التفاعل" });
+      throw reactionError;
+    }
+  }, [headers, selectedConversation, selectedConversationRouteId, tenantId]);
+
   const createDraftFromProduct = async (product, options = {}) => {
     if (!selectedConversation?.session_id || !product) return;
     setError("");
@@ -8188,6 +8208,7 @@ export default function AiInbox() {
                         onOpenCorrection={openReplyCorrection}
                         onReplyComment={sendLeadCommentReplyQuick}
                         onPrivateMessage={sendLeadPrivateMessage}
+                        onReact={isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) ? reactToMessage : null}
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
                     </div>

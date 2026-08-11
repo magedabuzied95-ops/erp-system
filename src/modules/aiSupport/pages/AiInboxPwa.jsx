@@ -63,6 +63,7 @@ import "./AiInboxPwa.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+const isWhatsappChannel = (value = "") => clean(value).toLowerCase().includes("whatsapp");
 const SOCIAL_COMMENTS_CACHE_PREFIX = "m1:ai-inbox-pwa:social-posts";
 const socialCommentsCacheKey = (tenantId = "") =>
   `${SOCIAL_COMMENTS_CACHE_PREFIX}:${clean(tenantId) || "default"}`;
@@ -2430,6 +2431,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   olderMessagesAvailable = false,
   onReplyComment,
   onPrivateMessage,
+  onReact,
 }) {
   const isCommentThread = isCommentConversation(conversation || {});
   if (!rows.length && !isCommentThread) {
@@ -2510,6 +2512,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
               variant="pwa"
               onReplyComment={onReplyComment}
               onPrivateMessage={onPrivateMessage}
+              onReact={onReact}
             />
           </Fragment>
         );
@@ -4906,6 +4909,25 @@ export default function AiInboxPwa() {
     void loadOlderMessages();
   }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, tab]);
 
+  const reactToMessage = useCallback(async ({ emoji = "", targetMessageId = "", remoteJid = "", targetFromMe = false } = {}) => {
+    if (!selectedConversation?.session_id || !targetMessageId) return null;
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/reaction"), {
+        tenant_id: tenantId,
+        emoji,
+        target_message_id: targetMessageId,
+        remote_jid: remoteJid,
+        target_from_me: targetFromMe,
+      }, { headers, perfComponent: "AiInboxPwa.messageReaction" });
+      toast.success(emoji ? `تم إضافة التفاعل ${emoji}` : "تم حذف التفاعل");
+      requestRefresh("message-reaction", { silent: true, force: true });
+      return payload;
+    } catch (reactionError) {
+      toast.error(reactionError?.message || "تعذر إرسال التفاعل");
+      throw reactionError;
+    }
+  }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
+
   const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
     const explicitText = typeof overrideText === "string" ? overrideText : "";
     const message = cleanMessageText(explicitText || composerText);
@@ -6723,6 +6745,7 @@ export default function AiInboxPwa() {
                   olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                   onReplyComment={sendLeadCommentReply}
                   onPrivateMessage={sendLeadPrivateMessage}
+                  onReact={isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) ? reactToMessage : null}
                 />
               </>
             ) : filteredConversations.length ? (

@@ -5,8 +5,10 @@ import test from "node:test";
 import { extractWhatsappReactionEvent, normalizeWhatsappReactionEmoji } from "../server/utils/whatsappReaction.js";
 
 const gateway = fs.readFileSync("server/services/whatsappGatewayService.js", "utf8");
+const routes = fs.readFileSync("server/routes/aiAgentOrders.js", "utf8");
 const logService = fs.readFileSync("server/services/aiSupportLogService.js", "utf8");
 const inbox = fs.readFileSync("src/modules/aiSupport/pages/AiInbox.jsx", "utf8");
+const pwaInbox = fs.readFileSync("src/modules/aiSupport/pages/AiInboxPwa.jsx", "utf8");
 const transcript = fs.readFileSync("src/modules/aiSupport/components/TranscriptMessage.jsx", "utf8");
 const cacheStore = fs.readFileSync("src/modules/aiSupport/services/inboxCache/inboxCacheStore.js", "utf8");
 
@@ -60,6 +62,23 @@ test("AI Inbox attaches reactions to their target bubble and hides raw reaction 
   assert.match(inbox, /message_type\)\.toLowerCase\(\) !== "reaction"/);
   assert.match(transcript, /data-ai-message-reactions="true"/);
   assert.match(inbox, /const providerIds = \[\.\.\.new Set\(/);
+});
+
+test("AI Inbox and PWA expose the WhatsApp-style quick reaction picker", () => {
+  assert.match(transcript, /QUICK_MESSAGE_REACTIONS/);
+  assert.match(transcript, /data-ai-message-reaction-picker="true"/);
+  assert.match(transcript, /effectiveOwnReaction === emoji \? "" : emoji/);
+  assert.match(inbox, /onReact=\{isWhatsappChannel/);
+  assert.match(pwaInbox, /onReact=\{isWhatsappChannel/);
+});
+
+test("outbound WhatsApp reactions use Evolution's reaction endpoint and are persisted", () => {
+  assert.match(gateway, /\/message\/sendReaction\/\$\{encodeURIComponent\(current\.instanceName\)\}/);
+  assert.match(gateway, /key:\s*\{[\s\S]*remoteJid: safeRemoteJid,[\s\S]*fromMe: targetFromMe === true,[\s\S]*id: safeTargetMessageId/);
+  assert.match(gateway, /reaction: safeEmoji/);
+  assert.match(routes, /\/conversations\/:conversationId\/reaction/);
+  assert.match(routes, /sendWhatsappReaction\(\{ remoteJid, targetMessageId, targetFromMe, emoji \}\)/);
+  assert.match(routes, /upsertAiSupportMessageReaction\(\{/);
 });
 
 test("ordinary text messages do not show a technical text type badge", () => {

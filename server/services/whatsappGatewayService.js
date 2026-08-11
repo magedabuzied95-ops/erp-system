@@ -782,6 +782,37 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
   }
 };
 
+export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "", targetFromMe = false, emoji = "" } = {}) => {
+  const safeRemoteJid = text(remoteJid).replace(/^whatsapp:/i, "");
+  const safeTargetMessageId = text(targetMessageId);
+  const safeEmoji = String(emoji ?? "").trim();
+  if (!safeRemoteJid) throw gatewayError("WhatsApp conversation target is required", "WHATSAPP_REACTION_TARGET_REQUIRED", 400);
+  if (!safeTargetMessageId) throw gatewayError("WhatsApp message id is required", "WHATSAPP_REACTION_MESSAGE_ID_REQUIRED", 400);
+  const current = requireEvolutionConfig();
+  const endpoint = `/message/sendReaction/${encodeURIComponent(current.instanceName)}`;
+  const payload = {
+    key: {
+      remoteJid: safeRemoteJid,
+      fromMe: targetFromMe === true,
+      id: safeTargetMessageId,
+    },
+    reaction: safeEmoji,
+  };
+  const data = await evolutionFetch(endpoint, {
+    method: "POST",
+    body: JSON.stringify(payload),
+    timeoutMs: 10000,
+  });
+  return {
+    success: true,
+    provider: current.provider,
+    instanceName: current.instanceName,
+    targetMessageId: safeTargetMessageId,
+    emoji: safeEmoji,
+    result: data,
+  };
+};
+
 export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) => {
   if (isLidJid(phone)) throw gatewayError("Cannot send WhatsApp image to unresolved @lid JID", "WHATSAPP_LID_UNRESOLVED", 422);
   const normalizedPhone = normalizeEgyptPhone(phone);
@@ -5589,6 +5620,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
 export default {
   getStatus,
   sendTextMessage,
+  sendWhatsappReaction,
   sendOrderConfirmationMessage,
   normalizeEgyptPhone,
   verifyWebhookSecret,

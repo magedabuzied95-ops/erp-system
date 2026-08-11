@@ -113,12 +113,13 @@ import {
   markAiSupportConversationRead,
   updateAiSupportConversationAiEnabled,
   updateAiSupportConversationState,
+  upsertAiSupportMessageReaction,
 } from "../services/aiSupportLogService.js";
 import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../services/aiPersistentEventLogService.js";
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
+import { sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
 
@@ -4832,6 +4833,83 @@ router.post("/conversations/:conversationId/reply", protect, permit("settings", 
     return res.status(201).json({ success: true, message, delivery_status: "internal_note" });
   } catch (error) {
     return sendError(res, error, "Failed to save AI inbox reply");
+  }
+});
+
+router.post("/conversations/:conversationId/reaction", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const requestedConversationId = envText(req.params.conversationId);
+    const requestedTargetId = envText(req.body?.target_message_id || req.body?.message_id || req.body?.targetMessageId);
+    const emoji = String(req.body?.emoji ?? req.body?.reaction ?? "").trim();
+    if (!requestedTargetId) {
+      throw Object.assign(new Error("Message id is required for a reaction"), { status: 400, code: "REACTION_MESSAGE_ID_REQUIRED" });
+    }
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId: requestedConversationId });
+    if (!conversation) {
+      throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+    }
+    const channel = envText(conversation.channel || conversation.source).toLowerCase();
+    if (!channel.includes("whatsapp")) {
+      throw Object.assign(new Error("Message reactions are currently available for WhatsApp conversations"), { status: 409, code: "REACTION_CHANNEL_UNSUPPORTED" });
+    }
+    const sessionId = envText(conversation.session_id || requestedConversationId);
+    const targetResult = await db.query(
+      `
+      SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone, direction, sender_type
+      FROM ai_support_messages
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND (
+          provider_message_id = $3::text
+          OR external_message_id = $3::text
+          OR id::text = $3::text
+        )
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [tenantId, sessionId, requestedTargetId]
+    );
+    const target = targetResult.rows[0] || {};
+    const targetMessageId = envText(target.provider_message_id || target.external_message_id || req.body?.provider_message_id || requestedTargetId);
+    const rawRemoteJid = envText(
+      target.remote_jid ||
+      target.resolved_reply_jid ||
+      req.body?.remote_jid ||
+      conversation.remote_jid ||
+      conversation.channel_metadata?.remote_jid ||
+      conversation.channel_metadata?.resolved_reply_jid ||
+      conversation.external_customer_id ||
+      conversation.customer_phone ||
+      conversation.customer_profile?.phone
+    ).replace(/^whatsapp:/i, "");
+    const remoteDigits = rawRemoteJid.replace(/\D/g, "");
+    const remoteJid = rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "";
+    const targetFromMe = req.body?.target_from_me === true || target.direction === "outbound" || ["staff", "ai", "system"].includes(envText(target.sender_type).toLowerCase());
+    const delivery = await sendWhatsappReaction({ remoteJid, targetMessageId, targetFromMe, emoji });
+    const providerMessageId = envText(delivery?.result?.key?.id || delivery?.result?.messageId || delivery?.result?.message_id || `staff-reaction:${targetMessageId}:${Date.now()}`);
+    const stored = await upsertAiSupportMessageReaction({
+      tenantId,
+      sessionId,
+      channel: "whatsapp",
+      emoji,
+      targetMessageId,
+      fromMe: true,
+      providerMessageId,
+      remoteJid,
+      resolvedReplyJid: remoteJid,
+      resolvedPhone: target.resolved_phone || conversation.customer_phone || conversation.customer_profile?.phone || "",
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: sessionId,
+      channel: "whatsapp",
+      reason: emoji ? "staff_reaction_sent" : "staff_reaction_removed",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, emoji, target_message_id: targetMessageId, reaction: stored?.reaction || null, removed: !emoji });
+  } catch (error) {
+    return sendError(res, error, "Failed to send message reaction");
   }
 });
 
