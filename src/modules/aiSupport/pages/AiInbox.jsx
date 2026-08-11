@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -1768,6 +1768,8 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
     <div
       role="button"
       tabIndex={0}
+      dir="ltr"
+      data-ai-inbox-conversation-direction="ltr"
       onClick={() => onSelect(item)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -1834,6 +1836,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                         platform: channel,
                       });
                     }}
+                    dir="auto"
                     className="line-clamp-1 text-left text-[15px] font-black leading-5 text-white hover:underline"
                   >
                     {customerName}
@@ -1861,6 +1864,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                         platform: channel,
                       });
                     }}
+                    dir="auto"
                     className="line-clamp-2 text-left text-[15px] font-black leading-5 text-white hover:underline"
                   >
                     {customerName}
@@ -1896,13 +1900,13 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               {postImageUrl ? <img src={postImageUrl} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-white object-cover ring-1 ring-white/10" loading="lazy" /> : null}
               <div className="min-w-0 flex-1 space-y-1.5">
                 {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
-                {lastComment ? <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">{lastComment}</div> : null}
+                {lastComment ? <div dir="auto" className="line-clamp-2 text-left text-[12.5px] font-medium leading-4.5 text-slate-200">{lastComment}</div> : null}
               </div>
             </div>
           ) : (
             <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unreadCount ? "text-slate-700" : "text-slate-500"}`}>
               <CheckCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${unreadCount && !active ? "text-emerald-600" : ""}`} />
-              <span className={`line-clamp-2 text-left ${unreadCount && !active ? "font-medium" : ""}`}>{conversationPreview(item) || "No messages yet"}</span>
+              <span dir="auto" className={`line-clamp-2 text-left ${unreadCount && !active ? "font-medium" : ""}`}>{conversationPreview(item) || "No messages yet"}</span>
             </div>
           )}
           {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">غير مقروء {unreadCount}</span></div> : null}
@@ -2292,9 +2296,9 @@ function InboxChatHeader({
       : "border border-rose-300/20 bg-rose-400/10 text-rose-100";
   return (
     <>
-    <div data-ai-inbox-compact-contact-header="true" className="rounded-xl border border-white/10 bg-white/[0.05] px-2 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)] backdrop-blur">
+    <div dir="ltr" data-ai-inbox-compact-contact-header="true" className="rounded-xl border border-white/10 bg-white/[0.05] px-2 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)] backdrop-blur">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+        <div data-ai-inbox-contact-identity="left" className="flex min-w-0 items-center gap-2">
           {showBack ? (
             <button type="button" onClick={onBack} className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-100 md:hidden">
               <ChevronLeft className="h-5 w-5" />
@@ -2363,7 +2367,7 @@ function InboxChatHeader({
             {showCustomerIdentifier ? <div dir="ltr" className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">{phone}</div> : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div data-ai-inbox-header-actions="right" className="flex flex-wrap items-center justify-end gap-1.5">
           <button type="button" onClick={() => setLabelsOpen(true)} disabled={loading || labelsSaving} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-300/25 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
             <Tag className="h-3.5 w-3.5" /> Add Label
           </button>
@@ -2406,6 +2410,30 @@ function InboxChatHeader({
     </>
   );
 }
+
+// Day separators for the chat transcript ("اليوم" / "أمس" / "12 ديسمبر 2026"), matching
+// the portal chat. Styled for the AI Inbox dark theme so it stays consistent.
+const transcriptDayKey = (value) => {
+  const date = new Date(value || 0);
+  return Number.isFinite(date.getTime()) && date.getTime() > 0 ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
+};
+const transcriptDayLabel = (value) => {
+  const date = new Date(value || 0);
+  if (!Number.isFinite(date.getTime()) || date.getTime() <= 0) return "";
+  const key = transcriptDayKey(value);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (key === transcriptDayKey(today)) return "اليوم";
+  if (key === transcriptDayKey(yesterday)) return "أمس";
+  try {
+    return new Intl.DateTimeFormat("ar-EG-u-nu-latn", { day: "numeric", month: "long", year: "numeric" }).format(date);
+  } catch {
+    return date.toLocaleDateString();
+  }
+};
+const transcriptRowTime = (row = {}) =>
+  row.created_at || row.createdAt || row.timestamp || row.sent_at || row.message_created_at || row.created || row.time || "";
 
 const Transcript = memo(function Transcript({
   conversation = null,
@@ -2470,17 +2498,29 @@ const Transcript = memo(function Transcript({
           </div>
         </div>
       ) : null}
-      {rows.map((row) => (
-        <TranscriptMessage
-          key={row.key}
-          row={row}
-          variant="desktop"
-          onOpenCorrection={onOpenCorrection}
-          onReplyComment={onReplyComment}
-          onPrivateMessage={onPrivateMessage}
-          channelLabel={row.channelLabel}
-        />
-      ))}
+      {rows.map((row, index) => {
+        const rowTime = transcriptRowTime(row);
+        const rowKey = transcriptDayKey(rowTime);
+        const prevKey = index > 0 ? transcriptDayKey(transcriptRowTime(rows[index - 1])) : "";
+        const dayLabel = rowKey && rowKey !== prevKey ? transcriptDayLabel(rowTime) : "";
+        return (
+          <Fragment key={row.key}>
+            {dayLabel ? (
+              <div className="mx-auto my-1 w-max rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-[11px] font-black text-slate-300 shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
+                {dayLabel}
+              </div>
+            ) : null}
+            <TranscriptMessage
+              row={row}
+              variant="desktop"
+              onOpenCorrection={onOpenCorrection}
+              onReplyComment={onReplyComment}
+              onPrivateMessage={onPrivateMessage}
+              channelLabel={row.channelLabel}
+            />
+          </Fragment>
+        );
+      })}
       {events.length ? (
         <div className="space-y-2">
           {events.map((event, index) => (

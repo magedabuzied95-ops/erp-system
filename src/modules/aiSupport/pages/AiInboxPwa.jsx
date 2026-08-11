@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -123,6 +123,28 @@ const looksLikeMessageName = (value = "") => {
   if (/[?!؟…]/.test(normalized)) return true;
   return MESSAGE_LIKE_NAME_KEYWORDS.test(normalized);
 };
+// Day separators for the chat transcript ("اليوم" / "أمس" / "12 ديسمبر 2026").
+const transcriptDayKey = (value) => {
+  const date = new Date(value || 0);
+  return Number.isFinite(date.getTime()) && date.getTime() > 0 ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
+};
+const transcriptDayLabel = (value) => {
+  const date = new Date(value || 0);
+  if (!Number.isFinite(date.getTime()) || date.getTime() <= 0) return "";
+  const key = transcriptDayKey(value);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (key === transcriptDayKey(today)) return "اليوم";
+  if (key === transcriptDayKey(yesterday)) return "أمس";
+  try {
+    return new Intl.DateTimeFormat("ar-EG-u-nu-latn", { day: "numeric", month: "long", year: "numeric" }).format(date);
+  } catch {
+    return date.toLocaleDateString();
+  }
+};
+const transcriptRowTime = (row = {}) =>
+  row.created_at || row.createdAt || row.timestamp || row.sent_at || row.message_created_at || row.created || row.time || "";
 const firstUsefulCustomerName = (...values) =>
   values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
 
@@ -2471,15 +2493,27 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
           </div>
         </div>
       ) : null}
-      {rows.map((row) => (
-        <TranscriptMessage
-          key={row.key}
-          row={row}
-          variant="pwa"
-          onReplyComment={onReplyComment}
-          onPrivateMessage={onPrivateMessage}
-        />
-      ))}
+      {rows.map((row, index) => {
+        const rowTime = transcriptRowTime(row);
+        const rowKey = transcriptDayKey(rowTime);
+        const prevKey = index > 0 ? transcriptDayKey(transcriptRowTime(rows[index - 1])) : "";
+        const dayLabel = rowKey && rowKey !== prevKey ? transcriptDayLabel(rowTime) : "";
+        return (
+          <Fragment key={row.key}>
+            {dayLabel ? (
+              <div className="ai-pwa-day-separator mx-auto my-1 w-max rounded-full bg-slate-500/15 px-3 py-1 text-[11px] font-black text-slate-500">
+                {dayLabel}
+              </div>
+            ) : null}
+            <TranscriptMessage
+              row={row}
+              variant="pwa"
+              onReplyComment={onReplyComment}
+              onPrivateMessage={onPrivateMessage}
+            />
+          </Fragment>
+        );
+      })}
     </div>
   );
 });
