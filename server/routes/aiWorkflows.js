@@ -40,6 +40,7 @@ import { listRecoveries, getRecoveryCounts } from "../services/aiRestockRecovery
 import { createIntent, listIntents, cancelIntent, markIntentFulfilled, getIntentCounts } from "../services/restockIntentService.js";
 import { listNotifications, getNotification, getNotificationCounts, editNotificationDraft, rejectNotification, sendApprovedRestockNotification, getMessagingMode, setMessagingMode } from "../services/restockNotificationService.js";
 import { getDeliveryCounts, listUnmatchedDeliveryEvents } from "../services/messageDeliveryReconciliationService.js";
+import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats, isInboundWorkflowsEnabled } from "../services/aiInboundIntakeService.js";
 
 const router = express.Router();
 
@@ -136,6 +137,16 @@ router.get("/restock-notifications", protect, permit("settings", "view"), async 
 // Phase 9 observability: provider delivery events that could not be correlated to a known message.
 router.get("/restock-notifications/unmatched-events", protect, permit("settings", "view"), async (req, res) => {
   try { res.json({ success: true, events: await listUnmatchedDeliveryEvents(tid(req), { limit: req.query.limit }) }); } catch (error) { fail(res, error); }
+});
+// Phase 10 — inbound assisted replies (default OFF). Mode is per-tenant; capability is a global env flag.
+router.get("/inbound-ai/mode", protect, permit("settings", "view"), async (req, res) => {
+  try { res.json({ success: true, mode: await getInboundAiMode(tid(req)), capabilityEnabled: isInboundWorkflowsEnabled() }); } catch (error) { fail(res, error); }
+});
+router.post("/inbound-ai/mode", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, mode: await setInboundAiMode(tid(req), String(req.body?.mode || ""), uid(req)), capabilityEnabled: isInboundWorkflowsEnabled() }); } catch (error) { fail(res, error); }
+});
+router.get("/inbound-ai/stats", protect, permit("settings", "view"), async (req, res) => {
+  try { res.json({ success: true, ...(await getInboundIntakeStats(tid(req), { limit: req.query.limit })), capabilityEnabled: isInboundWorkflowsEnabled() }); } catch (error) { fail(res, error); }
 });
 router.get("/restock-notifications/:id", protect, permit("settings", "view"), async (req, res) => {
   try {

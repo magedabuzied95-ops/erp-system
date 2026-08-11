@@ -11,6 +11,8 @@
 export const TRIGGER_CATEGORY = Object.freeze({ MANUAL: "MANUAL", ERP_EVENT: "ERP_EVENT", SCHEDULE: "SCHEDULE", CHANNEL: "CHANNEL" });
 
 const automationEnabled = () => String(process.env.AI_WORKFLOWS_AUTOMATION_ENABLED || "").toLowerCase() === "true";
+// Phase 10 inbound intake capability (default OFF). Gates the channel.message_received trigger.
+const inboundWorkflowsEnabled = () => String(process.env.AI_INBOUND_WORKFLOWS_ENABLED || "").toLowerCase() === "true";
 
 // A matcher decides whether a given event matches a workflow's trigger-node config.
 // It is PURE and server-side only. `config` is the trigger node's config; `event` is
@@ -84,15 +86,23 @@ const TRIGGERS = [
   {
     id: "channel.message_received",
     name: "Channel Message Received",
-    description: "Coming later — inbound WhatsApp/Messenger/Instagram is NOT rerouted through workflows in this phase.",
+    description: "Fires on an inbound TEXT customer message (WhatsApp/Messenger/Instagram) to produce a grounded reply SUGGESTION for human approval. Never sends autonomously.",
     category: TRIGGER_CATEGORY.CHANNEL,
     riskLevel: "SENSITIVE",
     eventSource: "channel",
     supportsIdempotency: true,
-    // Never available in Phase 4 — prepared contract only, no emitter exists.
-    isAvailable: () => false,
-    configSchema: {},
-    match: () => false,
+    // Phase 10: available only when the inbound-intake capability is enabled (default OFF).
+    isAvailable: inboundWorkflowsEnabled,
+    configSchema: {
+      channel: { type: "enum", values: ["any", "whatsapp", "facebook_messenger", "instagram"], default: "any" },
+      messageType: { type: "enum", values: ["text"], default: "text" },
+    },
+    // Match a persisted inbound TEXT event for the configured channel. text-only in this phase.
+    match: (config = {}, event = {}) => {
+      if (String(event.messageType || "text") !== "text") return false;
+      const want = String(config.channel || "any");
+      return want === "any" || want === String(event.channel || "");
+    },
   },
 ];
 
@@ -110,7 +120,9 @@ export const isKnownTrigger = (id) => BY_ID.has(String(id || ""));
 // Whether a workflow may be SAVED with this trigger. Authoring is decoupled from the
 // automation kill switches (you can build an automation workflow before enabling it); only
 // CHANNEL triggers are never authorable (prepared contract, no emitter exists).
-export const isAuthorableTrigger = (id) => { const t = getTrigger(id); return Boolean(t && t.category !== TRIGGER_CATEGORY.CHANNEL); };
+// CHANNEL triggers become authorable once their inbound capability is enabled (Phase 10); other
+// categories are always authorable (authoring is decoupled from the automation kill switches).
+export const isAuthorableTrigger = (id) => { const t = getTrigger(id); return Boolean(t && (t.category !== TRIGGER_CATEGORY.CHANNEL || t.isAvailable())); };
 export const isTriggerAvailable = (id) => { const t = getTrigger(id); return Boolean(t && t.isAvailable()); };
 export const isGlobalAutomationEnabled = automationEnabled;
 

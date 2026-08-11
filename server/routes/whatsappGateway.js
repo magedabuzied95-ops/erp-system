@@ -15,6 +15,7 @@ import {
   verifyWebhookSecret,
 } from "../services/whatsappGatewayService.js";
 import { applyConfirmationAction, processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
+import { handleInboundMessageIntake } from "../services/aiInboundIntakeService.js";
 
 const router = express.Router();
 
@@ -211,6 +212,21 @@ router.post("/webhook", async (req, res) => {
     const aiReply = normalized.text && !["confirmed", "cancelled", "cancelled_by_customer", "edit_requested", "cancel_reason_saved"].includes(confirmation?.action)
       ? await triggerWhatsappAiAutoReply(normalized).catch((error) => ({ triggered: false, sent: false, error: error?.message || "AI auto reply failed" }))
       : { triggered: false, sent: false, reason: confirmation?.action || "no_text" };
+    // Phase 10 (default OFF): pre-generate a grounded reply SUGGESTION for human approval. Fire-and-forget
+    // so the webhook never waits on or fails because of it; it never sends and only runs on a genuinely
+    // new persisted inbound text message that the autonomous path did not already auto-send.
+    if (normalized.text && normalized.fromMe !== true && normalized.inbox?.saved === true && normalized.inbox?.duplicate !== true) {
+      handleInboundMessageIntake({
+        tenantId: normalized.inbox?.message?.tenant_id,
+        channel: "whatsapp",
+        conversationId: normalized.inbox?.session_id || normalized.inbox?.message?.session_id,
+        canonicalMessageId: normalized.inbox?.message?.id || null,
+        providerMessageId: normalized.messageId || normalized.inbox?.message?.provider_message_id || "",
+        text: normalized.text,
+        fromMe: false,
+        autoSent: aiReply?.sent === true,
+      }).catch(() => {});
+    }
     return res.status(200).json({ success: true, received: true, message: normalized.text ? "ok" : "no_text", confirmation, aiReply });
   } catch (error) {
     console.error("[whatsapp:error]", { route: "webhook", message: error?.message || error });
