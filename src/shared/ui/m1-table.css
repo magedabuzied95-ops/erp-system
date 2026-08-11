@@ -1,0 +1,226 @@
+/* ============================================================================
+   M1 CANONICAL TABLE VISUAL SYSTEM
+   ----------------------------------------------------------------------------
+   ONE visual system, not one rendering abstraction. The ERP has ~69 files with a
+   raw <table>, and their data models range from a two-column lookup to a grouped
+   trial balance with sticky totals. Forcing all of them through a column-config
+   API would be a data-layer rewrite; forcing none of them leaves the fragmenta-
+   tion in place. So this file is the seam: a table becomes canonical by wearing
+   `m1-table`, whatever renders its rows.
+
+   SPECIFICITY IS THE MIGRATION TOOL. `.m1-table > tbody > tr > td` is (0,1,3),
+   which outranks a Tailwind utility at (0,1,0). Adding the class to an existing
+   table therefore normalizes its surface, padding, borders and typography
+   WITHOUT deleting the legacy utilities from every cell first — and without a
+   single `!important`. That is deliberate: the old `.m1-table__empty` needed
+   three of them precisely because it was fighting at equal specificity.
+
+   What the canonical layer claims: surface, header, borders, cell padding, row
+   density, typography, hover, selected, empty and loading.
+   What it deliberately leaves to the call site: per-column text-align and width,
+   which are content decisions. Those sit in a `:where()` layer at (0,0,x) so any
+   utility still wins.
+
+   Tokens only. No literal colours. Logical properties throughout, so RTL needs
+   no mirrored rules.
+   ========================================================================== */
+
+/* ---- density -------------------------------------------------------------
+   Two densities, because ERP areas legitimately differ: an operational list
+   reads better comfortable, a financial ledger needs to show more rows. The
+   values live in custom properties so every rule below stays density-agnostic
+   and no page has to invent its own row padding. */
+.m1-table {
+  --m1-table-font: 13px;
+  --m1-table-head-font: 11px;
+  --m1-table-cell-pb: 12px;
+  --m1-table-cell-pi: 14px;
+  --m1-table-head-pb: 11px;
+  --m1-table-row-min: 44px;
+}
+
+.m1-table--compact {
+  --m1-table-font: 12px;
+  --m1-table-head-font: 10px;
+  --m1-table-cell-pb: 7px;
+  --m1-table-cell-pi: 10px;
+  --m1-table-head-pb: 7px;
+  --m1-table-row-min: 34px;
+}
+
+/* ---- container: the only place horizontal overflow is handled ------------ */
+.m1-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+/* Bare scroll wrapper for tables that already sit inside a bordered card and
+   only need the overflow behaviour. */
+.m1-table-container--plain {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ---- table --------------------------------------------------------------- */
+.m1-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--m1-table-font);
+  line-height: 1.5;
+}
+
+/* Opt-in, not default. The previous DataTable hardcoded min-width:720px, which
+   forces a scrollbar onto a three-column lookup table that never needed one. */
+.m1-table--wide {
+  min-width: 720px;
+}
+
+/* Content decisions — kept at (0,0,x) so a call-site utility still wins. */
+:where(.m1-table) > thead > tr > th,
+:where(.m1-table) > tbody > tr > td,
+:where(.m1-table) > tfoot > tr > td {
+  text-align: start;
+}
+
+/* ---- header -------------------------------------------------------------- */
+.m1-table > thead > tr > th {
+  padding-block: var(--m1-table-head-pb);
+  padding-inline: var(--m1-table-cell-pi);
+  background: var(--table-head);
+  color: var(--muted);
+  font-size: var(--m1-table-head-font);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.m1-table--sticky > thead > tr > th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+}
+
+/* ---- body ---------------------------------------------------------------- */
+.m1-table > tbody > tr > td {
+  padding-block: var(--m1-table-cell-pb);
+  padding-inline: var(--m1-table-cell-pi);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.m1-table > tbody > tr {
+  min-height: var(--m1-table-row-min);
+}
+
+.m1-table > tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.m1-table > tbody > tr:hover {
+  background: var(--table-hover);
+}
+
+/* Selected is the one table state with no existing token: --table-head and
+   --table-hover already existed in themes.js, selection did not. */
+.m1-table > tbody > tr[data-selected="true"],
+.m1-table > tbody > tr.is-selected {
+  background: var(--table-selected);
+}
+
+.m1-table--interactive > tbody > tr {
+  cursor: pointer;
+}
+
+.m1-table--interactive > tbody > tr:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* ---- footer / totals ----------------------------------------------------- */
+.m1-table > tfoot > tr > td {
+  padding-block: var(--m1-table-cell-pb);
+  padding-inline: var(--m1-table-cell-pi);
+  background: var(--table-head);
+  color: var(--text);
+  font-weight: 800;
+  border-top: 1px solid var(--border-strong);
+}
+
+/* ---- cell modifiers ------------------------------------------------------ */
+/* Numbers are read by magnitude, so they align to the end edge and use tabular
+   figures. This is NOT mirrored for RTL: an Arabic ledger still wants its digit
+   columns lined up on the same edge as the totals beneath them. */
+.m1-table__cell--numeric {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.m1-table__cell--actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.m1-table__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.m1-table--nowrap > tbody > tr > td {
+  white-space: nowrap;
+}
+
+/* ---- empty and loading --------------------------------------------------- */
+/* Specificity beats the generic cell rule above, so no !important is needed —
+   the old .m1-table__empty carried three. */
+.m1-table > tbody > tr > td.m1-table__empty,
+.m1-table > tbody > tr > td.m1-table__loading {
+  padding-block: 28px;
+  text-align: center;
+  color: var(--muted);
+  border-bottom: 0;
+}
+
+/* An empty state must not tower over the compact rows it replaces. */
+.m1-table--compact > tbody > tr > td.m1-table__empty,
+.m1-table--compact > tbody > tr > td.m1-table__loading {
+  padding-block: 16px;
+}
+
+.m1-table > tbody > tr:hover > td.m1-table__empty,
+.m1-table > tbody > tr:hover > td.m1-table__loading {
+  background: transparent;
+}
+
+.m1-table__loading-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+/* ---- responsive ---------------------------------------------------------- */
+/* Below the breakpoint the table stays a table and the container scrolls. Card
+   lists are a different component and pages that intentionally render cards on
+   mobile keep doing so — this system does not convert them. */
+@media (max-width: 700px) {
+  .m1-table {
+    --m1-table-cell-pi: 10px;
+    --m1-table-cell-pb: 10px;
+    --m1-table-font: 12px;
+  }
+
+  .m1-table--compact {
+    --m1-table-cell-pi: 8px;
+    --m1-table-cell-pb: 6px;
+  }
+}

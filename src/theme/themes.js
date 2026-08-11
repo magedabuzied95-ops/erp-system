@@ -73,6 +73,9 @@ export const THEMES = [
       "text-tertiary": "#8b877f",
       "table-head": "#f7f7f5",
       "table-hover": "#faf9f6",
+      // Row selection. The only table state without an existing token: head and
+      // hover already lived here, selection was being improvised per page.
+      "table-selected": "#fdf3da",
       "focus-ring": "rgba(164, 122, 18, 0.24)",
       shadow: "rgba(31, 29, 25, 0.08)",
       "shadow-card": "0 1px 2px rgba(31, 29, 25, 0.05)",
@@ -117,6 +120,7 @@ export const THEMES = [
       "text-tertiary": "#918e87",
       "table-head": "#2c2c29",
       "table-hover": "#282825",
+      "table-selected": "#3a3119",
       "focus-ring": "rgba(208, 166, 50, 0.28)",
       shadow: "rgba(0, 0, 0, 0.32)",
       "shadow-card": "0 1px 2px rgba(0, 0, 0, 0.24)",

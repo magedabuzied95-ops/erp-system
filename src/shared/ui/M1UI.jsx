@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useId } from "react";
 import { ChevronLeft, Inbox, LoaderCircle, Search, X } from "lucide-react";
 import "./m1-ui.css";
+import "./m1-table.css";
 
 // M1 canonical UI primitives.
 //
@@ -388,23 +389,159 @@ export function Drawer({ open, title, description, children, footer, onClose, pl
   );
 }
 
-/* ------------------------------------------------------ FROZEN FOR PHASE 3 */
-/* DataTable and Pagination are untouched: table unification is Phase 3.       */
-/* Known issues recorded for that phase: 3 !important in .m1-table__empty and  */
-/* references to --table-head / --table-hover which are not defined here.      */
+/* ========================================================================== */
+/* CANONICAL TABLE SYSTEM                                                      */
+/*                                                                             */
+/* Two ways in, one visual result:                                             */
+/*                                                                             */
+/*   DataTable            — column config, for tables whose rows really are     */
+/*                          rows of data.                                      */
+/*   Table / TableRow /   — presentational primitives emitting the same        */
+/*   TableCell / …          classes, for tables whose existing JSX cannot be   */
+/*                          expressed as a column array without rewriting the  */
+/*                          data model: grouped ledgers, colspan totals,       */
+/*                          per-row editors.                                   */
+/*                                                                             */
+/* The visual truth lives in m1-table.css, so a plain <table className="m1-    */
+/* table"> is equally canonical. That is what makes broad migration possible   */
+/* without touching any query, handler or calculation.                         */
+/*                                                                             */
+/* Re-audit of the two historical defects (both real, both now gone):          */
+/*   - `.m1-table__empty` carried 3 !important. Removed; the canonical rule    */
+/*     wins on specificity instead.                                           */
+/*   - `--table-head` / `--table-hover` were recorded as possibly undefined.   */
+/*     They ARE defined in themes.js for both themes — that note was stale.    */
+/*     `--table-selected` genuinely did not exist and has been added.          */
+/* ========================================================================== */
 
-export function DataTable({ columns, rows, rowKey = "id", emptyLabel = "لا توجد بيانات" }) {
+const tableClass = (density, extra) =>
+  ["m1-table", density === "compact" ? "m1-table--compact" : null, extra].filter(Boolean).join(" ");
+
+export function TableContainer({ plain = false, className = "", children, ...rest }) {
   return (
-    <div className="m1-table-wrap">
-      <table className="m1-table">
-        <thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
-        <tbody>
-          {rows.length ? rows.map((row) => (
-            <tr key={row[rowKey]}>{columns.map((column) => <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>)}</tr>
-          )) : <tr><td colSpan={columns.length} className="m1-table__empty">{emptyLabel}</td></tr>}
-        </tbody>
-      </table>
+    <div className={["m1-table-container", plain ? "m1-table-container--plain" : null, className].filter(Boolean).join(" ")} {...rest}>
+      {children}
     </div>
+  );
+}
+
+export function Table({ density = "comfortable", sticky = false, interactive = false, wide = false, nowrap = false, className = "", children, ...rest }) {
+  const modifiers = [
+    sticky ? "m1-table--sticky" : null,
+    interactive ? "m1-table--interactive" : null,
+    wide ? "m1-table--wide" : null,
+    nowrap ? "m1-table--nowrap" : null,
+    className,
+  ].filter(Boolean).join(" ");
+  return <table className={tableClass(density, modifiers)} {...rest}>{children}</table>;
+}
+
+export function TableHead({ children, ...rest }) {
+  return <thead {...rest}>{children}</thead>;
+}
+
+export function TableBody({ children, ...rest }) {
+  return <tbody {...rest}>{children}</tbody>;
+}
+
+export function TableFoot({ children, ...rest }) {
+  return <tfoot {...rest}>{children}</tfoot>;
+}
+
+export function TableRow({ selected, className = "", children, ...rest }) {
+  // data-selected rather than a class, so a call site drives it straight from
+  // its own selection state without composing class strings.
+  return (
+    <tr className={className || undefined} data-selected={selected ? "true" : undefined} {...rest}>
+      {children}
+    </tr>
+  );
+}
+
+export function TableHeaderCell({ numeric = false, className = "", children, ...rest }) {
+  return (
+    <th scope="col" className={[numeric ? "m1-table__cell--numeric" : null, className].filter(Boolean).join(" ") || undefined} {...rest}>
+      {children}
+    </th>
+  );
+}
+
+export function TableCell({ numeric = false, actions = false, className = "", children, ...rest }) {
+  const modifiers = [
+    numeric ? "m1-table__cell--numeric" : null,
+    actions ? "m1-table__cell--actions" : null,
+    className,
+  ].filter(Boolean).join(" ");
+  return <td className={modifiers || undefined} {...rest}>{children}</td>;
+}
+
+export function TableActions({ className = "", children }) {
+  return <div className={["m1-table__actions", className].filter(Boolean).join(" ")}>{children}</div>;
+}
+
+export function DataTable({
+  columns,
+  rows,
+  rowKey = "id",
+  density = "comfortable",
+  loading = false,
+  sticky = false,
+  wide = false,
+  selectedKey,
+  isRowSelected,
+  onRowClick,
+  className = "",
+  emptyLabel = "لا توجد بيانات",
+  loadingLabel = "جاري التحميل",
+}) {
+  const list = rows ?? [];
+  const keyOf = (row, index) => (typeof rowKey === "function" ? rowKey(row, index) : row[rowKey] ?? index);
+  const selected = (row, index) => {
+    if (isRowSelected) return Boolean(isRowSelected(row, index));
+    return selectedKey !== undefined && keyOf(row, index) === selectedKey;
+  };
+
+  return (
+    <TableContainer>
+      <Table density={density} sticky={sticky} wide={wide} interactive={Boolean(onRowClick)} className={className}>
+        <TableHead>
+          <tr>
+            {columns.map((column) => (
+              <TableHeaderCell key={column.key} numeric={column.numeric} style={column.width ? { width: column.width } : undefined}>
+                {column.label}
+              </TableHeaderCell>
+            ))}
+          </tr>
+        </TableHead>
+        <TableBody>
+          {loading ? (
+            <tr>
+              <td colSpan={columns.length} className="m1-table__loading">
+                <span className="m1-table__loading-inner"><LoaderCircle size={15} className="m1-spin" aria-hidden="true" />{loadingLabel}</span>
+              </td>
+            </tr>
+          ) : list.length ? (
+            list.map((row, index) => (
+              <TableRow
+                key={keyOf(row, index)}
+                selected={selected(row, index)}
+                onClick={onRowClick ? () => onRowClick(row, index) : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? (event) => { if (event.key === "Enter") onRowClick(row, index); } : undefined}
+              >
+                {columns.map((column) => (
+                  <TableCell key={column.key} numeric={column.numeric} actions={column.actions}>
+                    {column.render ? column.render(row, index) : row[column.key]}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : (
+            <tr><td colSpan={columns.length} className="m1-table__empty">{emptyLabel}</td></tr>
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 

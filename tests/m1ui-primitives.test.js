@@ -35,10 +35,12 @@ test("the danger foreground is a token, not #fff", () => {
   assert.match(themes, /"danger-foreground": "#ffffff"/, "the literal lives in the token layer");
 });
 
-test("primitives add no new !important (the 3 table ones are frozen for Phase 3)", () => {
-  assert.equal((css.match(/!important/g) || []).length, 3);
-  const frozen = css.slice(css.indexOf(".m1-table__empty"), css.indexOf(".m1-table__empty") + 200);
-  assert.equal((frozen.match(/!important/g) || []).length, 3, "all 3 remain inside the frozen table rule");
+test("the kit uses no !important at all", () => {
+  // Was 3, all inside `.m1-table__empty`, held while tables were frozen. The
+  // canonical table system wins on specificity instead, so they are gone and the
+  // kit is clean. Table rules now live in m1-table.css — see
+  // tests/canonical-table.test.js.
+  assert.equal((css.match(/!important/g) || []).length, 0);
 });
 
 // ---- Button / IconButton -------------------------------------------------
@@ -203,9 +205,15 @@ test("existing exports are preserved for backwards compatibility", () => {
   }
 });
 
-test("DataTable and Pagination are untouched — frozen for Phase 3", () => {
-  assert.match(jsx, /FROZEN FOR PHASE 3/);
-  assert.match(jsx, /export function DataTable\(\{ columns, rows, rowKey = "id", emptyLabel = "لا توجد بيانات" \}\)/);
+test("the Phase 3 table freeze is lifted and DataTable kept its old call shape", () => {
+  // The freeze marker is gone. DataTable gained density / loading / selection /
+  // row-click, but every new prop is optional, so the pre-existing call sites in
+  // FinancialReports and AiAgentAnalytics keep working untouched.
+  assert.doesNotMatch(jsx, /FROZEN FOR PHASE 3/);
+  assert.match(jsx, /export function DataTable\(\{/);
+  assert.match(jsx, /\n {2}rowKey = "id",/);
+  assert.match(jsx, /emptyLabel = "لا توجد بيانات",/);
+  // Pagination is NOT part of this phase and keeps its existing signature.
   assert.match(jsx, /export function Pagination\(\{ page = 1, pages = 1, onChange \}\)/);
 });
 
