@@ -7672,7 +7672,13 @@ export default function AiInbox() {
           ) : null}
         </section>
 
-        <section className={`ai-omni-workspace relative ${fullscreenConversation ? "!flex min-h-0 flex-1 gap-0 overflow-hidden" : ""}`}>
+        {/* Expanding must NOT restyle the workspace. `.ai-omni-workspace` is a CSS
+            grid (58px rail | list | chat); the old fullscreen branch forced
+            `!flex`, which only appeared to work because the rail was hidden at
+            the time. With the rail visible that override collapsed the columns —
+            the list stretched edge to edge and the chat disappeared. Fullscreen
+            is purely the outer wrapper's job now. */}
+        <section className="ai-omni-workspace relative">
           {/* Expanding scales up the WHOLE workspace — channel rail, conversation
               list and chat. It used to hide the rail, which turned "expand" into
               "chat only" and cost you channel switching at the exact moment you
@@ -7747,7 +7753,7 @@ export default function AiInbox() {
 	            </div>
 	          </aside>
 
-          <main dir="rtl" className={`ai-omni-panel ai-omni-chat-panel min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden ${fullscreenConversation ? "flex h-full rounded-none border-0 bg-transparent p-0 shadow-none" : "rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]"} ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
+          <main dir="rtl" className={`ai-omni-panel ai-omni-chat-panel min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
             {isSocialMode ? (
               <>
                 <div className="flex min-h-0 flex-1 overflow-hidden">

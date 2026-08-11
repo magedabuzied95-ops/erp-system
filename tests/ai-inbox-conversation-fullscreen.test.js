@@ -61,3 +61,18 @@ test("the conversation list stays visible while expanded", () => {
   const listAside = src.slice(src.indexOf("ai-omni-list-panel") - 140, src.indexOf("ai-omni-list-panel") + 300);
   assert.doesNotMatch(listAside, /fullscreenConversation \? "hidden"/);
 });
+
+test("expanding never restyles the workspace grid", () => {
+  // `.ai-omni-workspace` is a CSS grid: 58px rail | list | chat. Forcing `!flex`
+  // while expanded collapsed those columns the moment the rail became visible —
+  // the list stretched edge to edge and the chat vanished. Fullscreen is the
+  // outer wrapper's job; the inner layout must stay untouched.
+  assert.match(src, /<section className="ai-omni-workspace relative">/);
+  assert.doesNotMatch(src, /!flex min-h-0 flex-1 gap-0 overflow-hidden/);
+});
+
+test("the chat panel keeps its card styling while expanded", () => {
+  // Expanded should look like the normal inbox, only bigger.
+  assert.doesNotMatch(src, /rounded-none border-0 bg-transparent p-0 shadow-none/);
+  assert.match(src, /ai-omni-chat-panel min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border/);
+});
