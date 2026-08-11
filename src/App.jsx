@@ -229,6 +229,10 @@ const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSu
 const AiInbox = lazy(() => import("./modules/aiSupport/pages/AiInbox"));
 const AiInboxPwa = lazy(() => import("./modules/aiSupport/pages/AiInboxPwa"));
 const AiStudio = lazy(() => import("./modules/aiStudio/pages/AiStudio"));
+const AiStudioWorkflows = lazy(() => import("./modules/aiStudio/pages/AiStudioWorkflows"));
+const AiStudioExecutions = lazy(() => import("./modules/aiStudio/pages/AiStudioExecutions"));
+const AiStudioApprovals = lazy(() => import("./modules/aiStudio/pages/AiStudioApprovals"));
+const AiStudioTools = lazy(() => import("./modules/aiStudio/pages/AiStudioTools"));
 const MetaReviewerInbox = lazy(() => import("./modules/aiSupport/pages/MetaReviewerInbox"));
 const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
 const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
@@ -719,6 +723,38 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
               <AiStudio />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="ai-studio/workflows"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <AiStudioWorkflows />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="ai-studio/executions"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <AiStudioExecutions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="ai-studio/approvals"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <AiStudioApprovals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="ai-studio/tools"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <AiStudioTools />
             </ProtectedRoute>
           }
         />

@@ -47,8 +47,8 @@ Target taxonomy vs. what maps to real functionality **today**:
 | **Approvals** | reply-mode policy (`ai_channels.ai_reply_mode`) + AiFollowups | Surface policy + link |
 | **Marketing AI** | AiMarketingCenter etc. | Cross-link |
 | **Inbox (operational)** | AiInbox / `/inbox` | Cross-link (stays operational) |
-| **Workflows** | _no visual builder infra yet_ | **Deferred to Phase 2** (documented, not built) |
-| **Tools / Models / Prompts** | tools = direct fns; single provider; inline prompts | **Deferred** (no CRUD surface exists to reuse) |
+| **Workflows / Executions / Approvals / Tools** | new workflow engine (`ai_workflows*` tables + executor + Tool Registry) | **Built in Phase 2** — see `docs/ai-workflow-engine.md`. Visual node editor still deferred to Phase 3. |
+| **Models / Prompts** | single provider; inline prompts | **Deferred** (no CRUD surface exists to reuse) |
 
 **Consolidation is additive:** a new "AI Studio" sidebar section is added; **all existing AI nav items and routes keep working** unchanged (no redirects removed, no URLs renamed).
 
@@ -73,8 +73,9 @@ No new DB tables, no new backend endpoints, no new engines, no large dependencie
 
 ---
 
-## 5. Deferred (explicitly out of this foundation)
+## 5. Deferred (explicitly out of scope)
 
-- **Visual Workflow Builder** (node editor) — no supporting infra exists; adding React Flow is a large dependency. Requires a backend workflow definition/execution model first. See the Phase-2 recommendation at the end of the implementation report.
+- **Phase 2 (done):** the backend workflow definition/execution model now exists — Tool Registry, `ai_workflows*` tables, deterministic executor, approvals, APIs, and Executions/Approvals/Workflows/Tools UI. See `docs/ai-workflow-engine.md`.
+- **Visual Workflow Builder** (node editor) — still deferred to **Phase 3**. No supporting infra beyond the JSON definition; adding React Flow is a large dependency requiring explicit approval. It will read/write the existing `ai_workflows.definition` JSON.
 - **Agent abstraction / Tools registry / Prompt manager / Model registry** — would be net-new frameworks; premature. Reuse `ai_agent_settings` + reply-mode + existing tools until a real need is proven.
 - **Merging duplicates** (two settings pages, three orchestrators/memory services) — documented in the audit; a later refactor, not part of the additive foundation.

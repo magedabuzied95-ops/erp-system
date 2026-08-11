@@ -610,6 +610,8 @@ const { startMarketingAttributionSyncScheduler, resolveTrackedProductRedirect } 
 const { default: aiRegressionHarnessRoutes } = await import("./routes/aiRegressionHarness.js");
 const { default: aiSupportRoutes } = await import("./routes/aiSupport.js");
 const { default: aiAgentOrderRoutes } = await import("./routes/aiAgentOrders.js");
+const { default: aiWorkflowRoutes } = await import("./routes/aiWorkflows.js");
+const { ensureAiWorkflowSchema } = await import("./services/aiWorkflowSchema.js");
 const { default: socialCommentsRoutes, socialCommentsDebugRoutes } = await import("./routes/socialComments.js");
 const { default: metaIntegrationRoutes, metaWebhookRoutes, handleMetaWebhookVerification, handleMetaWebhookSelfTest } = await import("./routes/metaIntegration.js");
 const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.js");
@@ -1892,6 +1894,7 @@ app.use("/api/internal/ai-regression", aiRegressionHarnessRoutes);
 app.use("/api/ai-support", aiSupportRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
+app.use("/api/ai-studio", aiWorkflowRoutes);
 app.use("/api/social-comments", socialCommentsRoutes);
 app.use("/api/debug/social-comments", socialCommentsDebugRoutes);
 const registeredAiAgentEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-agent");
@@ -2269,6 +2272,8 @@ const bootstrapStartup = async () => {
     console.log("[server] single branch mode ensured");
     await ensureProductSchema();
     console.log("[server] product schema ensured");
+    await ensureAiWorkflowSchema(db);
+    console.log("[server] ai workflow schema ensured");
     await ensureProductVariantSchema();
     console.log("[server] product variant schema ensured");
     await ensureProductVariantImagesSchema(db);

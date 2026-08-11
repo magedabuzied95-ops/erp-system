@@ -24,6 +24,7 @@ import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser, isAdminUser } from "../../../shared/auth/authStorage";
 import { useTenant } from "../../saas/context/TenantContext";
 import { hasPermission } from "../../permissions/lib/rbacStore";
+import AiStudioNav from "../components/AiStudioNav";
 
 // AI Studio is a CONTROL PLANE: it surfaces real metrics from existing AI endpoints and
 // links to the existing AI pages (the execution layer). It does not re-implement any
@@ -216,6 +217,7 @@ export default function AiStudio() {
             Refresh
           </button>
         </div>
+        <div className="mt-3"><AiStudioNav /></div>
       </section>
 
       {/* Real metrics */}
