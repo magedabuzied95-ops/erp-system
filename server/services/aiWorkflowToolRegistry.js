@@ -15,6 +15,7 @@
 import * as businessTools from "./aiBusinessToolsService.js";
 import { searchAiOrderProducts, confirmAiOrder, updateAiOrderStatus } from "./aiAgentOrderService.js";
 import { createStaffTask } from "./staffTasksService.js";
+import { findWaitingCustomersForRestock, runRestockRecovery, maskPhone } from "./aiRestockRecoveryService.js";
 
 export const RISK = Object.freeze({ READ: "READ", WRITE: "WRITE", SENSITIVE: "SENSITIVE" });
 
@@ -180,6 +181,55 @@ const TOOLS = [
       );
       const taskId = task?.id ?? task?.task?.id ?? null;
       return { taskId, created: Boolean(taskId), idle: Boolean(task?.idle) };
+    },
+  },
+  // ---- Phase 6: Restock Customer Recovery (READ match + DELEGATABLE bounded recovery) ----
+  {
+    id: "restock.waiting_customers",
+    name: "Find waiting customers",
+    description: "Find customers who asked to be notified when a restocked PRODUCT is back (from the wishlist opt-in). Bounded, tenant-scoped, read-only. Matching is product-level (the wishlist does not store variant/size).",
+    category: "customers",
+    riskLevel: RISK.READ,
+    requiredPermission: "customers.view",
+    inputSchema: {
+      productId: { type: "number", required: false, description: "Defaults to the restock event's product" },
+      limit: { type: "number", required: false, description: "Max candidates (default 25, hard max 100)" },
+    },
+    outputDescription: "matchedCount, returnedCount, hasMore, and a bounded list of masked candidates.",
+    requiresApproval: false,
+    executable: true,
+    handler: async ({ tenantId, input, context }) => {
+      const t = context?.trigger?.input || {};
+      const productId = input?.productId ?? t.productId ?? null;
+      const res = await findWaitingCustomersForRestock({ tenantId, productId, limit: input?.limit });
+      return {
+        matchedCount: res.matchedCount, returnedCount: res.returnedCount, hasMore: res.hasMore,
+        candidates: res.candidates.map((c) => ({ requestId: c.requestId, customerId: c.customerId, customer: c.customerName || maskPhone(c.phone), requestedAt: c.createdAt })),
+      };
+    },
+  },
+  {
+    id: "restock.recover",
+    name: "Create restock recovery follow-ups",
+    description: "For each waiting customer of the restocked product, create ONE INTERNAL employee follow-up (bounded, deduplicated). No customer message, no order/stock/accounting change.",
+    category: "customers",
+    riskLevel: RISK.WRITE,
+    requiredPermission: "settings.edit",
+    automaticExecution: AUTO_POLICY.DELEGATABLE, // auto-runs ONLY with an explicit per-workflow grant
+    inputSchema: {
+      productId: { type: "number", required: false, description: "Defaults to the restock event's product" },
+      variantId: { type: "number", required: false },
+      limit: { type: "number", required: false, description: "Max candidates to process (default 25, hard max 100)" },
+    },
+    outputDescription: "Counts: matched, created, skippedDuplicate, skippedNoStock, failed.",
+    requiresApproval: false, // the admin grant is the authorization; no per-run approval for a granted WRITE
+    executable: true,
+    handler: async ({ tenantId, input, actorUserId, context }) => {
+      const t = context?.trigger?.input || {};
+      const productId = input?.productId ?? t.productId ?? null;
+      const variantId = input?.variantId ?? t.variantId ?? null;
+      const restockEventId = context?.trigger?.event?.id || null;
+      return runRestockRecovery({ tenantId, productId, variantId, restockEventId, actorUserId, limit: input?.limit });
     },
   },
   // ---- SENSITIVE — registered/described, NEVER auto-executed (approval enforced) ----

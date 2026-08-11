@@ -31,8 +31,12 @@ import {
   listDelegatableToolsView,
   getTenantTimezone,
   setTenantTimezone,
+  hasActiveGrant,
+  seedRestockRecoveryWorkflow,
+  RESTOCK_RECOVERY_NAME,
 } from "../services/aiWorkflowService.js";
 import { listTriggers } from "../services/aiWorkflowTriggerRegistry.js";
+import { listRecoveries, getRecoveryCounts } from "../services/aiRestockRecoveryService.js";
 
 const router = express.Router();
 
@@ -68,6 +72,20 @@ router.get("/automation/timezone", protect, permit("settings", "view"), async (r
 });
 router.post("/automation/timezone", protect, permit("settings", "edit"), async (req, res) => {
   try { res.json({ success: true, timezone: await setTenantTimezone(tid(req), String(req.body?.timezone || ""), uid(req)) }); } catch (error) { fail(res, error); }
+});
+
+// ---- Phase 6: Restock Customer Recovery ----
+router.get("/restock-recovery", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const t = tid(req);
+    const [recoveries, counts, status, workflows] = await Promise.all([listRecoveries(t, {}), getRecoveryCounts(t), getAutomationStatus(t), listWorkflows(t)]);
+    const wf = (workflows || []).find((w) => w.name === RESTOCK_RECOVERY_NAME && !w.archived_at);
+    const granted = wf ? Boolean(await hasActiveGrant(t, wf.id, "restock.recover")) : false;
+    res.json({ success: true, recoveries, counts, automation: status, workflow: wf ? { id: wf.id, enabled: wf.enabled, granted } : null });
+  } catch (error) { fail(res, error); }
+});
+router.post("/restock-recovery/seed-template", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.status(201).json({ success: true, workflow: await seedRestockRecoveryWorkflow(tid(req), uid(req)) }); } catch (error) { fail(res, error); }
 });
 
 // ---- Delegated WRITE grants (per-workflow) ----

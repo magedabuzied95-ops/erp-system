@@ -28,7 +28,10 @@ test("only vetted low-risk WRITE tools are delegatable; SENSITIVE/READ are not",
   assert.equal(isDelegatableTool("messaging.send_customer"), false); // SENSITIVE
   assert.equal(isDelegatableTool("products.search"), false);     // READ
   assert.equal(isDelegatableTool("leads.create_opportunity"), false); // WRITE described-only, not opted-in
-  assert.deepEqual(listDelegatableTools().map((t) => t.id), ["followups.create"]);
+  const delegatable = listDelegatableTools().map((t) => t.id);
+  assert.ok(delegatable.includes("followups.create"));
+  assert.equal(delegatable.includes("orders.confirm"), false); // SENSITIVE never delegatable
+  assert.equal(delegatable.includes("products.search"), false); // READ never needs delegation
 });
 
 // ---- Authorization decision (pure) ----

@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Workflow, Activity, ShieldCheck, Wrench } from "lucide-react";
+import { LayoutDashboard, Workflow, Activity, ShieldCheck, Wrench, PackageCheck } from "lucide-react";
 
 const TABS = [
   { to: "/ai-studio", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/ai-studio/workflows", label: "Workflows", icon: Workflow },
   { to: "/ai-studio/executions", label: "Executions", icon: Activity },
   { to: "/ai-studio/approvals", label: "Approvals", icon: ShieldCheck },
+  { to: "/ai-studio/restock-recovery", label: "Restock Recovery", icon: PackageCheck },
   { to: "/ai-studio/tools", label: "Tools", icon: Wrench },
 ];
 

@@ -30,5 +30,7 @@ export const listDelegatableTools = (headers) => api.get(`${BASE}/delegatable-to
 export const listWorkflowGrants = (id, headers) => api.get(`${BASE}/workflows/${encodeURIComponent(id)}/grants`, opts(headers));
 export const grantWorkflowTool = (id, toolId, headers) => api.post(`${BASE}/workflows/${encodeURIComponent(id)}/grants`, { toolId }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const revokeWorkflowTool = (id, toolId, headers) => api.delete(`${BASE}/workflows/${encodeURIComponent(id)}/grants/${encodeURIComponent(toolId)}`, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const getRestockRecovery = (headers) => api.get(`${BASE}/restock-recovery`, opts(headers));
+export const seedRestockRecoveryTemplate = (headers) => api.post(`${BASE}/restock-recovery/seed-template`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const getAutomationTimezone = (headers) => api.get(`${BASE}/automation/timezone`, opts(headers));
 export const setAutomationTimezone = (timezone, headers) => api.post(`${BASE}/automation/timezone`, { timezone }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });

@@ -235,6 +235,7 @@ const AiStudioApprovals = lazy(() => import("./modules/aiStudio/pages/AiStudioAp
 const AiStudioTools = lazy(() => import("./modules/aiStudio/pages/AiStudioTools"));
 // Visual workflow builder — lazy so @xyflow/react loads ONLY on the editor route.
 const AiStudioWorkflowEditor = lazy(() => import("./modules/aiStudio/pages/AiStudioWorkflowEditor"));
+const AiStudioRestockRecovery = lazy(() => import("./modules/aiStudio/pages/AiStudioRestockRecovery"));
 const MetaReviewerInbox = lazy(() => import("./modules/aiSupport/pages/MetaReviewerInbox"));
 const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
 const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
@@ -757,6 +758,14 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
               <AiStudioTools />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="ai-studio/restock-recovery"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <AiStudioRestockRecovery />
             </ProtectedRoute>
           }
         />

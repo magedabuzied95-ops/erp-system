@@ -372,6 +372,43 @@ export const seedExampleWorkflow = async (tenantId, userId) => {
   return createWorkflow(tenantId, { name: "Example: Product lookup (read-only)", description: "Manual trigger → search products → condition → read-only analysis. READ-only, safe, disabled by default.", triggerType: "manual", definition, enabled: false }, userId);
 };
 
+// ---- Phase 6: Restock Customer Recovery template (disabled; current tenant only) ----
+// inventory.restocked → check stock → find waiting customers → condition → analysis →
+// create internal recovery follow-ups (WRITE, grant-required). Never messages customers.
+export const RESTOCK_RECOVERY_NAME = "Restock Customer Recovery";
+export const seedRestockRecoveryWorkflow = async (tenantId, userId) => {
+  await ensureAiWorkflowSchema();
+  const existing = await db.query(`SELECT id FROM ai_workflows WHERE tenant_id = $1 AND name = $2 AND archived_at IS NULL LIMIT 1`, [tenantId, RESTOCK_RECOVERY_NAME]);
+  if (existing.rows[0]) return dbStore.getWorkflow(existing.rows[0].id, tenantId);
+  const definition = {
+    version: 1,
+    nodes: [
+      { id: "trigger", type: "trigger", config: { triggerType: "inventory.restocked" } },
+      { id: "stock", type: "tool", config: { tool: "inventory.check_stock", input: { productId: { $from: "trigger.input.productId" }, variantId: { $from: "trigger.input.variantId" } } } },
+      { id: "waiting", type: "tool", config: { tool: "restock.waiting_customers", input: { productId: { $from: "trigger.input.productId" } } } },
+      { id: "has_waiting", type: "condition", config: { condition: { left: "steps.waiting.output.matchedCount", op: "gt", right: 0 } } },
+      { id: "analyze", type: "agent", config: { mode: "read_only_analysis" } },
+      { id: "recover", type: "action", config: { tool: "restock.recover" } },
+      { id: "end_done", type: "end", config: {} },
+      { id: "end_none", type: "end", config: {} },
+    ],
+    edges: [
+      { from: "trigger", to: "stock" },
+      { from: "stock", to: "waiting" },
+      { from: "waiting", to: "has_waiting" },
+      { from: "has_waiting", to: "analyze", when: "true" },
+      { from: "has_waiting", to: "end_none", when: "false" },
+      { from: "analyze", to: "recover" },
+      { from: "recover", to: "end_done" },
+    ],
+  };
+  return createWorkflow(tenantId, {
+    name: RESTOCK_RECOVERY_NAME,
+    description: "Inventory restocked → find waiting customers → create INTERNAL sales follow-ups. Requires enabling + automation + a grant for restock.recover. Never messages customers. Disabled by default.",
+    triggerType: "inventory.restocked", definition, enabled: false,
+  }, userId);
+};
+
 // ===========================================================================
 // Phase 4 — automation: archive, tenant kill switch, status, system actor,
 // and idempotent automatic-run creation. (Event matching/emission lives in
