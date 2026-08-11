@@ -111,3 +111,48 @@ test("the tables stay frozen for Phase 3", () => {
   assert.doesNotMatch(src, /<DataTable/, "no DataTable adoption in this phase");
   assert.doesNotMatch(src, /<Pagination/, "no Pagination adoption in this phase");
 });
+
+// ---- Phase 2B-1b: presentational wrappers --------------------------------
+
+test("LogoAvatar's fallback no longer uses legacy blue/violet", () => {
+  const s = wrapper("LogoAvatar");
+  assert.doesNotMatch(s, /(?:from|to|via)-(?:blue|violet|sky|cyan|indigo)-[0-9]{2,3}/);
+  assert.match(s, /dark:from-primary dark:to-primary-hover/, "the fallback now resolves through the brand token");
+  assert.match(s, /dark:text-primary-foreground/, "contrast pairs with the token, not a fixed white");
+});
+
+test("LogoAvatar keeps its image/fallback contract", () => {
+  const s = wrapper("LogoAvatar");
+  assert.match(s, /function LogoAvatar\(\{ src, name, size = "h-12 w-12" \}\)/);
+  assert.match(s, /onError=\{\(\) => setFailed\(true\)\}/, "broken-image fallback must survive");
+  assert.match(s, /alt=""/, "the logo stays decorative — the name is rendered alongside it");
+  assert.match(s, /initialsFor\(name\)/);
+});
+
+test("carrier brand colours are preserved, not swept into semantic tones", () => {
+  // Bosta/Mylerz/ShipBlu are third-party identities. `indigo` and `sky` here are
+  // brand, not legacy debt, so a future colour sweep must not "fix" them.
+  const meta = src.slice(src.indexOf("const providerMeta ="), src.indexOf("const zoneLabel ="));
+  assert.match(meta, /bosta: \["border-rose-200/);
+  assert.match(meta, /mylerz: \["border-indigo-200/);
+  assert.match(meta, /shipblu: \["border-sky-200/);
+});
+
+test("ProviderBadge still maps provider -> presentation locally, and M1UI never learns providers", () => {
+  const s = wrapper("ProviderBadge");
+  assert.match(s, /function ProviderBadge\(\{ provider, active = false, onClick \}\)/);
+  assert.match(s, /const meta = providerMeta\(provider\)/);
+  // non-interactive renders a span, interactive renders a real button
+  assert.match(s, /if \(!onClick\) return <span/);
+  assert.match(s, /<button type="button" onClick=\{onClick\}/);
+  const kit = fs.readFileSync(new URL("../src/shared/ui/M1UI.jsx", import.meta.url), "utf8");
+  for (const p of ["bosta", "mylerz", "shipblu"]) {
+    assert.ok(!kit.includes(p), `M1UI must not know the provider "${p}"`);
+  }
+});
+
+test("VisualSection and TesterMetric keep their contracts (deliberately not migrated)", () => {
+  assert.match(wrapper("VisualSection"), /function VisualSection\(\{ icon: Icon, title, description, children \}\)/);
+  assert.match(wrapper("VisualSection"), /\{children\}/);
+  assert.match(wrapper("TesterMetric"), /function TesterMetric\(\{ label, value \}\)/);
+});

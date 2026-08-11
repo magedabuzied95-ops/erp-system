@@ -3709,7 +3709,7 @@ function LogoAvatar({ src, name, size = "h-12 w-12" }) {
   }
 
   return (
-    <div className={`grid ${size} place-items-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-600 text-sm font-black text-white dark:from-blue-500 dark:to-violet-500`}>
+    <div className={`grid ${size} place-items-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-600 text-sm font-black text-white dark:from-primary dark:to-primary-hover dark:text-primary-foreground`}>
       {initialsFor(name)}
     </div>
   );
