@@ -516,18 +516,43 @@ const stockAlertSignature = (item = {}) => [
   normalizeAlertKey(item.stock ?? item.current_stock ?? ""),
 ].filter(Boolean).join("|");
 
+/* ============================================================================
+   SHARED SURFACE SOURCE — Global Surface Normalization
+   ----------------------------------------------------------------------------
+   These local primitives are the surface source for the whole Manager Portal.
+   They hardcoded two surface models, neither of which followed the app theme:
+   fixed-LIGHT (`bg-[linear-gradient(180deg,#ffffff,#f8fafc)]`, `border-slate-200`,
+   `text-slate-700/950`) on Badge/Card/MiniMetric/EmptyState, and fixed-DARK
+   (`bg-[#0f172a]` / `bg-[#0b1120]`, `text-white`) on CompactStatCard.
+
+   ManagerPortal.m1.css was already repainting both back to semantic tokens with
+   `!important`, so the JSX described a surface nobody ever saw. These now name
+   the token the shim resolves them to. The shim stays — it still covers the
+   legacy utilities at individual call sites across this 3,456-line file.
+
+   SCOPE — surfaces and neutrals only:
+     white / slate / navy   -> surface & text tokens
+     blue / cyan / sky      -> --primary. This app's accent is gold; the shim
+                               already forces exactly that on these same
+                               elements, so it is a surface fix, not a restyle.
+     emerald / amber / rose -> untouched. Those are genuine STATUS hues, not a
+                               surface model; converging them is a later phase.
+
+   PRESERVED DELIBERATELY: MiniMetric's 1.9rem/2.05rem headline KPI typography,
+   Badge's dot-free composition, and every `data-tone` attribute (index.css
+   targets them for the mobile-dark tone tinting). */
 const Badge = ({ children, className = "" }) => (
-  <span className={`manager-portal-badge inline-flex items-center rounded-full border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-2.5 py-1.5 text-[11px] font-black leading-5 text-slate-700 ${className}`}>{children}</span>
+  <span className={`manager-portal-badge inline-flex items-center rounded-full border border-border bg-surface px-2.5 py-1.5 text-[11px] font-black leading-5 text-text ${className}`}>{children}</span>
 );
 
 const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false, tone = "gold" }) => (
-  <section data-tone={tone} className={`manager-portal-card overflow-hidden rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ${compact ? "p-3" : "p-4"} ${className}`}>
+  <section data-tone={tone} className={`manager-portal-card overflow-hidden rounded-3xl border border-border bg-surface shadow-[var(--shadow-card)] ${compact ? "p-3" : "p-4"} ${className}`}>
     <div className="flex items-start justify-between gap-2">
       <div>
-        <div className="text-[11px] font-black leading-5 tracking-normal text-slate-500">{subtitle}</div>
-        <h2 className="mt-1 text-base font-black leading-6 text-slate-950">{title}</h2>
+        <div className="text-[11px] font-black leading-5 tracking-normal text-text-muted">{subtitle}</div>
+        <h2 className="mt-1 text-base font-black leading-6 text-text">{title}</h2>
       </div>
-      {Icon ? <div className="manager-portal-card-icon rounded-2xl border border-slate-200 bg-white p-2 text-slate-700 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
+      {Icon ? <div className="manager-portal-card-icon rounded-2xl border border-border bg-surface-soft p-2 text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
     </div>
     {action ? <div className="mt-3">{action}</div> : null}
     <div className={`manager-portal-card-body mt-3 ${bodyClassName}`}>{children}</div>
@@ -535,89 +560,62 @@ const Card = ({ title, subtitle, icon: Icon, children, action, className = "", b
 );
 
 const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
+  // Top-accent rail. slate/cyan/blue were neutral-or-wrong-accent and become
+  // tokens; emerald/amber/rose are status hues and stay (see the scope note).
   const tones = {
-    slate: "border-t-slate-400",
+    slate: "border-t-border-strong",
     green: "border-t-emerald-500",
-    cyan: "border-t-sky-500",
+    cyan: "border-t-primary",
     amber: "border-t-amber-500",
     red: "border-t-rose-500",
-    blue: "border-t-blue-500",
+    blue: "border-t-primary",
   };
   return (
-    <div data-tone={tone} className={`manager-portal-mini-metric kpi-card-readable h-full min-h-[112px] rounded-3xl border border-slate-200 border-t-4 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${tones[tone] || tones.slate}`}>
+    <div data-tone={tone} className={`manager-portal-mini-metric kpi-card-readable h-full min-h-[112px] rounded-3xl border border-border border-t-4 bg-surface p-3 shadow-[var(--shadow-card)] ${tones[tone] || tones.slate}`}>
       <div className="flex h-full items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-black leading-5 text-slate-500">{label}</div>
-          <div className="manager-portal-mini-metric-value mt-1 text-[1.9rem] font-black leading-none tracking-tight text-slate-950 sm:text-[2.05rem]">{value || formatNumber(0)}</div>
-          {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{sub}</div> : null}
+          <div className="text-[11px] font-black leading-5 text-text-muted">{label}</div>
+          {/* 1.9rem / 2.05rem is the Manager headline KPI size. It is LARGER than
+              any MetricCard density and must not be swapped for one. */}
+          <div className="manager-portal-mini-metric-value mt-1 text-[1.9rem] font-black leading-none tracking-tight text-text sm:text-[2.05rem]">{value || formatNumber(0)}</div>
+          {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-text-muted">{sub}</div> : null}
         </div>
-        {Icon ? <div className="manager-portal-mini-metric-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
+        {Icon ? <div className="manager-portal-mini-metric-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface-soft text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
       </div>
     </div>
   );
 };
 
 const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = false }) => {
-  const tones = {
-    slate: {
-      shell: "border-slate-800 bg-[#0f172a] text-white",
-      icon: "bg-cyan-400/10 text-cyan-300",
-      label: "text-slate-400",
-      value: "text-white",
-    },
-    green: {
-      shell: "border-slate-800 bg-[#0f172a] text-white",
-      icon: "bg-cyan-400/10 text-cyan-300",
-      label: "text-slate-400",
-      value: "text-white",
-    },
-    cyan: {
-      shell: "border-slate-800 bg-[#0f172a] text-white",
-      icon: "bg-cyan-400/10 text-cyan-300",
-      label: "text-slate-400",
-      value: "text-white",
-    },
-    amber: {
-      shell: "border-slate-800 bg-[#0f172a] text-white",
-      icon: "bg-cyan-400/10 text-cyan-300",
-      label: "text-slate-400",
-      value: "text-white",
-    },
-    red: {
-      shell: "border-slate-800 bg-[#0f172a] text-white",
-      icon: "bg-cyan-400/10 text-cyan-300",
-      label: "text-slate-400",
-      value: "text-white",
-    },
-    blue: {
-      shell: "border-slate-800 bg-[#0f172a] text-white",
-      icon: "bg-cyan-400/10 text-cyan-300",
-      label: "text-slate-400",
-      value: "text-white",
-    },
-  };
-  const theme = tones[tone] || tones.slate;
+  // This used to be a six-entry tone map in which all six entries were byte-for-byte
+  // the SAME fixed-dark navy (`border-slate-800 bg-[#0f172a] text-white`) — the
+  // `tone` prop selected nothing. Per-tone differentiation lives in index.css,
+  // keyed off `data-tone`, which is why that attribute is still emitted below.
+  const shell = "border-border bg-surface text-text";
+  const iconChip = "bg-[var(--primary-soft)] text-primary";
+  const labelText = "text-text-muted";
+  const valueText = "text-text";
   if (emphasis) {
     return (
-      <div data-tone={tone} className="manager-portal-compact-stat manager-portal-compact-stat--emphasis h-full min-h-[112px] rounded-2xl border border-slate-800 bg-[#0b1120] p-3 text-white shadow-[0_14px_30px_rgba(2,6,23,0.18)]">
+      <div data-tone={tone} className="manager-portal-compact-stat manager-portal-compact-stat--emphasis h-full min-h-[112px] rounded-2xl border border-[color-mix(in_srgb,var(--primary)_48%,var(--border))] bg-surface p-3 text-text shadow-[var(--shadow-card)]">
         <div className="flex h-full items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="text-[10.5px] font-black leading-5 tracking-normal text-slate-400">{label}</div>
-            <div className="manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none text-white sm:text-[1.25rem]">{value || formatNumber(0)}</div>
+            <div className={`text-[10.5px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
+            <div className={`manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none sm:text-[1.25rem] ${valueText}`}>{value || formatNumber(0)}</div>
           </div>
-          {Icon ? <div className="manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300"><Icon className="h-4 w-4" /></div> : null}
+          {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${iconChip}`}><Icon className="h-4 w-4" /></div> : null}
         </div>
       </div>
     );
   }
   return (
-    <div data-tone={tone} className={`manager-portal-compact-stat h-full min-h-[112px] rounded-2xl border p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${theme.shell}`}>
+    <div data-tone={tone} className={`manager-portal-compact-stat h-full min-h-[112px] rounded-2xl border p-3 shadow-[var(--shadow-card)] ${shell}`}>
       <div className="flex h-full items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className={`text-[10.5px] font-black leading-5 tracking-normal ${theme.label}`}>{label}</div>
-          <div className={`manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none sm:text-[1.15rem] ${theme.value}`}>{value || formatNumber(0)}</div>
+          <div className={`text-[10.5px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
+          <div className={`manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none sm:text-[1.15rem] ${valueText}`}>{value || formatNumber(0)}</div>
         </div>
-        {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${theme.icon}`}><Icon className="h-4 w-4" /></div> : null}
+        {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${iconChip}`}><Icon className="h-4 w-4" /></div> : null}
       </div>
     </div>
   );
@@ -629,12 +627,14 @@ const Toggle = ({ label, checked, onChange }) => (
     onClick={() => onChange(!checked)}
     className={`manager-portal-toggle flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right transition ${
       checked
-        ? "border-emerald-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-emerald-900 shadow-sm dark:border-emerald-400/20 dark:bg-white/[0.03] dark:text-emerald-100"
-        : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"
+        ? "border-emerald-200 bg-surface text-emerald-900 shadow-[var(--shadow-card)] dark:border-emerald-400/20 dark:text-emerald-100"
+        : "border-border bg-surface text-text"
     }`}
   >
     <span className="text-sm font-black leading-6">{label}</span>
-    <span className={`rounded-full px-2.5 py-1.5 text-[11px] font-black leading-5 ${checked ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 dark:bg-white dark:text-slate-950"}`}>
+    {/* The ON pill keeps its solid emerald status fill; only the OFF pill was a
+        surface (slate/white) and becomes one. */}
+    <span className={`rounded-full px-2.5 py-1.5 text-[11px] font-black leading-5 ${checked ? "bg-emerald-500 text-white" : "bg-surface-soft text-text-muted"}`}>
       {checked ? "On" : "Off"}
     </span>
   </button>
@@ -642,7 +642,8 @@ const Toggle = ({ label, checked, onChange }) => (
 
 const StatusPill = ({ value, tone = "slate" }) => {
   const tones = {
-    slate: "border-slate-200 bg-slate-100 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200",
+    // `slate` is the neutral (surface) tone; the rest are status hues and stay.
+    slate: "border-border bg-surface-soft text-[var(--text-secondary)]",
     green: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100",
     amber: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100",
     red: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100",
@@ -655,8 +656,8 @@ const StatusPill = ({ value, tone = "slate" }) => {
 };
 
 const EmptyState = ({ title, body, compact = false }) => (
-  <div className={`manager-portal-empty rounded-2xl border border-dashed border-slate-300 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-right font-semibold leading-6 text-slate-500 shadow-sm ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
-    <div className="font-black leading-6 text-slate-800">{title}</div>
+  <div className={`manager-portal-empty rounded-2xl border border-dashed border-border bg-surface text-right font-semibold leading-6 text-text-muted shadow-[var(--shadow-card)] ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
+    <div className="font-black leading-6 text-text">{title}</div>
     <div className="mt-1 leading-6">{body}</div>
   </div>
 );
@@ -1955,6 +1956,10 @@ export default function ManagerPortal() {
     );
   };
 
+  // The page surface. This carried a four-layer fixed-light gradient (navy +
+  // amber + indigo washes over a slate ramp) with a `dark:bg-slate-950`
+  // counterpart; `.manager-portal-shell` in ManagerPortal.m1.css has been
+  // overriding the whole thing with `background: var(--bg)` regardless.
   return (
     <main
       data-testid="manager-portal-root"
@@ -1963,7 +1968,7 @@ export default function ManagerPortal() {
         paddingTop: "max(16px, env(safe-area-inset-top))",
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)",
       }}
-      className={`manager-portal-readable-v2 manager-portal-shell ${isMobilePortal ? "manager-portal-mobile-dark" : ""} min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4`}
+      className={`manager-portal-readable-v2 manager-portal-shell ${isMobilePortal ? "manager-portal-mobile-dark" : ""} min-h-[100dvh] bg-background px-3 text-right text-text md:px-4`}
     >
       <div className="mx-auto grid max-w-[96rem] gap-3 lg:grid-cols-[240px_minmax(0,1.55fr)_320px] lg:gap-4">
         <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 lg:block">

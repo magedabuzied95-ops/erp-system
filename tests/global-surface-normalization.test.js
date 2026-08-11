@@ -80,3 +80,74 @@ test("the SettingsCenter paint-over shim is still present for the un-migrated ca
   assert.match(shim, /\.m1-settings-center/);
   assert.match(settings, /import ".\/SettingsCenter\.m1\.css"/);
 });
+
+// ---------------------------------------------------------------------------
+// Step 4 — Manager Portal shared surface sources
+//
+// Scope boundary for this phase: white/slate/navy are SURFACES and become
+// tokens; blue/cyan/sky were the wrong accent for a gold product and become
+// --primary; emerald/amber/rose are genuine STATUS hues and are left alone.
+// ---------------------------------------------------------------------------
+
+const manager = read("src/modules/managerPortal/pages/ManagerPortal.jsx");
+
+// Comments are stripped: several of these components carry a note quoting the
+// fixed colour they used to hardcode, and that must not read as a violation.
+const stripComments = (s) => s.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
+const component = (src, name) => {
+  const start = src.indexOf(`const ${name} = (`);
+  assert.ok(start > -1, `Manager primitive \`${name}\` not found — has the seam moved?`);
+  const body = src.slice(start + 1);
+  const end = body.indexOf("\nconst ");
+  return stripComments(end > -1 ? body.slice(0, end) : body.slice(0, 2600));
+};
+
+const SURFACE_NEUTRALS =
+  /\b(?:bg|border|border-t|text)-(?:white|slate|gray|zinc|neutral|stone)-\d|\bbg-white\b|\btext-white\b/;
+const FIXED_NAVY = /#0f172a|#0b1120|#f8fafc|#ffffff|#eef2f7|#e2e8f0|linear-gradient\(180deg,#/;
+
+for (const name of ["Badge", "Card", "MiniMetric", "CompactStatCard", "EmptyState"]) {
+  test(`Manager \`${name}\` no longer carries a fixed surface model`, () => {
+    const s = component(manager, name);
+    assert.doesNotMatch(s, FIXED_NAVY, `${name} still hardcodes a fixed light/dark surface colour`);
+    assert.doesNotMatch(s, SURFACE_NEUTRALS, `${name} still hardcodes a neutral surface utility`);
+  });
+}
+
+// ---- the two contracts that must NOT converge ----------------------------
+
+test("MiniMetric keeps its oversized headline KPI typography", () => {
+  const s = component(manager, "MiniMetric");
+  // 1.9rem/2.05rem is LARGER than MetricCard comfortable (25px) and far larger
+  // than compact (20px). Mapping this onto MetricCard shrinks Manager KPIs by a
+  // third — it has been proposed and rejected twice.
+  assert.match(s, /text-\[1\.9rem\]/);
+  assert.match(s, /sm:text-\[2\.05rem\]/);
+  assert.doesNotMatch(s, /<MetricCard/, "MiniMetric must not be swapped for MetricCard");
+});
+
+test("Manager Badge stays dot-free", () => {
+  const s = component(manager, "Badge");
+  // M1UI StatusBadge renders a leading <i> dot with gap:6px. Manager Badge never
+  // had one, so it is not a StatusBadge and must not become one here.
+  assert.doesNotMatch(s, /<StatusBadge/, "Manager Badge must not be swapped for StatusBadge");
+  assert.doesNotMatch(s, /<i\b/, "a leading dot would change the Badge's composition");
+  assert.match(s, /<span /);
+});
+
+test("Manager per-tone tinting keeps the data-tone hooks index.css targets", () => {
+  for (const name of ["Card", "MiniMetric", "CompactStatCard"]) {
+    assert.match(component(manager, name), /data-tone=\{tone\}/, `${name} dropped data-tone`);
+  }
+});
+
+test("the Manager page shell is a token surface, not a fixed gradient", () => {
+  assert.match(manager, /manager-portal-shell \$\{[^}]*\}[^`"]*\bbg-background\b/);
+  assert.doesNotMatch(manager, /linear-gradient\(180deg,#f8fafc/, "the fixed-light page ramp is back");
+});
+
+test("the ManagerPortal paint-over shim is still present for the un-migrated call sites", () => {
+  const shim = read("src/modules/managerPortal/pages/ManagerPortal.m1.css");
+  assert.match(shim, /\.manager-portal-shell/);
+});
