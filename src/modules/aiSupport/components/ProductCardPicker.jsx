@@ -4,6 +4,7 @@ import { CheckCircle2, Eye, EyeOff, Loader2, Search, ShoppingBag, SlidersHorizon
 
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 import { loadCustomerProductCatalog, searchCustomerProducts, PICKER_PAGE_SIZE } from "../services/customerProductCatalog";
 import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pickerSizesApi";
@@ -69,7 +70,7 @@ const resolveStorefrontUrl = (product = {}, variant = null, color = "", size = "
 };
 
 const productImage = (product = {}, variant = null) =>
-  clean(
+  resolveProductImageUrl(clean(
     variant?.image_url ||
       variant?.color_image_url ||
       variant?.variant_image_url ||
@@ -80,7 +81,7 @@ const productImage = (product = {}, variant = null) =>
       product.image ||
       product.thumbnail_url ||
       ""
-  );
+  ));
 
 const productBarcode = (product = {}) =>
   clean(product.barcode || product.product_barcode || "");
@@ -901,7 +902,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       selectedProduct?.image,
       selectedProduct?.thumbnail_url
     );
-    return selectedImage || productImage(selectedProduct || {}, activeVariant);
+    return resolveProductImageUrl(selectedImage || productImage(selectedProduct || {}, activeVariant));
   }, [activeColorVariant, activeVariant, selectedProduct]);
   const activeColors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
   const activeSizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);

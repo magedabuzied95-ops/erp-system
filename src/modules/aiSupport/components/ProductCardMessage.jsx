@@ -2,6 +2,7 @@ import { memo } from "react";
 import { ArrowUpRight, ShoppingBag } from "lucide-react";
 
 import { formatCurrency } from "../../../shared/lib/currency";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -106,7 +107,7 @@ const normalizeProductCard = (card = {}, inherited = {}) => {
     inherited.share_url,
     productCardRoute(productId || merged.slug || inherited.slug || "")
   );
-  const imageUrl = firstImageValue(
+  const imageUrl = resolveProductImageUrl(firstImageValue(
     merged.image_url,
     merged.image,
     merged.thumbnail_url,
@@ -123,7 +124,7 @@ const normalizeProductCard = (card = {}, inherited = {}) => {
     inherited.product_image_url,
     inherited.variant_image_url,
     inherited.main_image
-  );
+  ));
 
   return [{
     ...merged,
@@ -146,7 +147,7 @@ const normalizeProductCard = (card = {}, inherited = {}) => {
 };
 
 const cardImage = (card = {}) =>
-  firstImageValue(card.image_url, card.image, card.thumbnail_url, card.media_url, card.product_image_url, card.product_image, card.variant_image_url, card.variant_image, card.main_image);
+  resolveProductImageUrl(firstImageValue(card.image_url, card.image, card.thumbnail_url, card.media_url, card.product_image_url, card.product_image, card.variant_image_url, card.variant_image, card.main_image));
 
 function ProductCardMessage({ message = {}, cards = [], compact = false }) {
   const items = asArray(cards).flatMap((card) => normalizeProductCard(card)).filter(Boolean);
