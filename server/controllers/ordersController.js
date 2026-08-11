@@ -3514,16 +3514,19 @@ export const createOrder = async (req, res) => {
       split_payments: Array.isArray(paymentBreakdown) ? paymentBreakdown.length : 0,
       money_account_id: financial_account_id || cash_financial_account_id || card_financial_account_id || wallet_financial_account_id || null,
     });
+    const remainingOrderAmount = normalizeInvoiceMoney(Math.max(0, computedTotal - receivedAmount));
     const paymentBreakdownResult = await timedCheckout(checkoutTiming, "payment_breakdown_ms", () => client.query(
       `
       UPDATE orders
-      SET payment_breakdown = $2::jsonb
+      SET payment_breakdown = $2::jsonb,
+          remaining_amount = $3
       WHERE id = $1
-      RETURNING payment_breakdown
+      RETURNING payment_breakdown, remaining_amount
       `,
-      [order.id, JSON.stringify(paymentBreakdown)]
+      [order.id, JSON.stringify(paymentBreakdown), remainingOrderAmount]
     ));
     order.payment_breakdown = paymentBreakdownResult.rows[0]?.payment_breakdown || paymentBreakdown;
+    order.remaining_amount = paymentBreakdownResult.rows[0]?.remaining_amount ?? remainingOrderAmount;
     order.public_token = order.public_token || publicToken;
     order = await timedCheckout(checkoutTiming, "invoice_generation_ms", () => assignSequentialInvoiceNumber(client, order));
     order = attachPublicOrderNumber(order, order.channel || order.source || channel || "pos");
@@ -3635,6 +3638,11 @@ export const createOrder = async (req, res) => {
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 
     if (!isPersonalTransaction && (!isCreditSaleTransaction || receivedAmount > 0.009)) {
+      const collectedMethods = paymentBreakdown
+        .filter((payment) => Number(payment.amount || 0) > 0)
+        .map((payment) => normalizeMoneyPaymentMethod(payment.method || payment.payment_method))
+        .filter((method) => !["exchange_credit", "return_credit", "customer_wallet"].includes(method));
+      const transactionPaymentMethod = collectedMethods.length === 1 ? collectedMethods[0] : payment_method || "cash";
       markOrderStep("create payment transaction", { order_id: order.id, payment_method: payment_method || "cash", amount: receivedAmount });
       await timedCheckout(checkoutTiming, "payment_treasury_update_ms", async () => {
         await client.query(
@@ -3642,7 +3650,7 @@ export const createOrder = async (req, res) => {
           INSERT INTO transactions (tenant_id, type, amount, payment_method, note, cashbox_id)
           VALUES ($1,$2,$3,$4,$5,$6)
           `,
-          [tenantId, "sale", receivedAmount, payment_method || "cash", `Order #${order.id}`, 1]
+          [tenantId, "sale", receivedAmount, transactionPaymentMethod, `Order #${order.id}`, 1]
         );
 
         await client.query(

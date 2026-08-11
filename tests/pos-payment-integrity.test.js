@@ -25,11 +25,19 @@ test("POS supports a deposit with the remaining balance saved as customer credit
   assert.match(cartSource, /تسجيل الباقي آجل/);
   assert.match(cartSource, /partialCreditActive/);
   assert.match(cartSource, /partialCredit:\s*true/);
+  assert.match(cartSource, /hasPartialSplitCollection/);
+  assert.match(cartSource, /onCheckout\?\.\(\{ partialCredit: true \}\)/);
   assert.match(posSource, /partialCreditCheckout/);
   assert.match(posSource, /partialCreditCheckout \? "partially_paid"/);
   assert.match(posSource, /\(creditSaleCheckout \|\| partialCreditCheckout\) \? "credit_sale"/);
   assert.match(ordersControllerSource, /isCreditSaleTransaction[\s\S]*Math\.max\(0, Number\(paid_amount \|\| 0\) \|\| 0\)/);
   assert.match(ordersControllerSource, /!isCreditSaleTransaction \|\| receivedAmount > 0\.009/);
+});
+
+test("POS persists the remaining balance and the actual collected method", () => {
+  assert.match(ordersControllerSource, /remaining_amount = \$3/);
+  assert.match(ordersControllerSource, /remainingOrderAmount/);
+  assert.match(ordersControllerSource, /transactionPaymentMethod/);
 });
 
 test("POS invoice edit treats an outstanding balance as an extra payment even when total is unchanged", () => {

@@ -460,6 +460,7 @@ function CartSidebar({
   const remainingAmount = personalPaymentActive || creditSaleActive ? totalAmount : Math.max(0, totalAmount - totalPaid);
   const hasPaymentBreakdown = appliedCredit > 0 || methodTotal > 0;
   const partialCreditActive = normalizedPaymentMode === "split" && deferSplitRemainder && hasSelectedCustomer && totalPaid > 0.009 && remainingAmount > 0.009;
+  const hasPartialSplitCollection = normalizedPaymentMode === "split" && hasSelectedCustomer && totalPaid > 0.009 && remainingAmount > 0.009;
   const paymentMismatch = personalPaymentActive || creditSaleActive || partialCreditActive ? false : Math.abs(totalAmount - totalPaid) > 0.009;
   const selectedMethod = normalizedPaymentMode === "split"
     ? (["cash", "card", "wallet", "vodafone_cash"].includes(activeSplitMethod) ? activeSplitMethod : "cash")
@@ -1078,14 +1079,20 @@ function CartSidebar({
           </button>
           <button
             type="button"
-            onClick={onCreditSale}
+            onClick={() => {
+              if (hasPartialSplitCollection) {
+                onCheckout?.({ partialCredit: true });
+                return;
+              }
+              onCreditSale?.();
+            }}
             disabled={!hasSelectedCustomer || checkoutLoading || cart.length === 0 || editRefundSelectionMissing}
-            title={!hasSelectedCustomer ? "اختر عميلاً أولاً لإنشاء بيع آجل" : "إنشاء بيع آجل للعميل المحدد"}
+            title={!hasSelectedCustomer ? "اختر عميلاً أولاً لإنشاء بيع آجل" : hasPartialSplitCollection ? "حفظ العربون وتسجيل الباقي آجل" : "إنشاء بيع آجل للعميل المحدد"}
             className="pos-checkout-credit inline-flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="inline-flex items-center justify-center gap-1.5">
               <Clock3 className="h-4 w-4" />
-              آجل
+              {hasPartialSplitCollection ? "العربون + الباقي آجل" : "آجل"}
             </span>
             <span className="text-[10px] font-bold text-amber-100/70">بيع آجل للعميل</span>
           </button>
