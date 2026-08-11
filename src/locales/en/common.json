@@ -735,7 +735,9 @@
       "aiMarketing": "AI Marketing",
       "aiSupport": "AI Support",
       "systemSettings": "System Settings"
-    }
+    },
+    "executiveOverview": "Executive Overview",
+    "salesIntelligence": "Sales & Profit Intelligence"
   },
   "language": {
     "label": "Language",

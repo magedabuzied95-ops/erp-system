@@ -51,6 +51,44 @@ test("the navigation entry exists with a resolved icon", async () => {
   assert.ok(/TrendingUp/.test(importBlock) || /^import[^;]*TrendingUp/m.test(store), "TrendingUp must be imported");
 });
 
+test("the navigation entries are translated, not left as raw English labels", async () => {
+  // Sidebar labels are English keys mapped through i18n/navigation.js. A nav item with
+  // no mapping silently falls back to its English label, which is how these two first
+  // shipped reading "Executive Overview" and "Sales Intelligence" in an Arabic sidebar.
+  const store = await read("../../src/modules/permissions/lib/rbacStore.js");
+  const navigation = await read("../../src/i18n/navigation.js");
+  const arabic = JSON.parse(await read("../../src/locales/ar/common.json"));
+
+  for (const route of ["/reports/overview", "/reports/sales"]) {
+    const entry = store.match(new RegExp(`\\{[^}]*to:\\s*"${route}"[^}]*\\}`));
+    assert.ok(entry, `${route} must have a navigation entry`);
+    const label = entry[0].match(/label:\s*"([^"]+)"/)?.[1];
+    assert.ok(label, `${route} must have a label`);
+
+    const key = navigation.match(new RegExp(`"${label}":\\s*"([\\w.]+)"`))?.[1];
+    assert.ok(key, `nav label "${label}" has no translation key in i18n/navigation.js`);
+
+    const value = key.split(".").reduce((node, part) => node?.[part], arabic);
+    assert.ok(value, `${key} has no Arabic copy`);
+    assert.match(value, /[؀-ۿ]/, `${key} must actually be Arabic, got "${value}"`);
+  }
+
+  assert.equal(arabic.sidebar.executiveOverview, "النظرة التنفيذية");
+  assert.equal(arabic.sidebar.salesIntelligence, "تحليل المبيعات والأرباح");
+});
+
+test("the new pages are grouped with the reporting entries, and the legacy one stays", async () => {
+  const layout = await read("../../src/shared/layouts/MainLayout.jsx");
+  const financeRule = layout.match(/if \(to === "\/accounting"[^\n]*return "Finance";/)?.[0];
+  assert.ok(financeRule, "the Finance grouping rule must exist");
+  for (const route of ["/reports/overview", "/reports/sales", "/reports"]) {
+    assert.ok(financeRule.includes(`"${route}"`), `${route} must group with the reporting entries`);
+  }
+
+  const store = await read("../../src/modules/permissions/lib/rbacStore.js");
+  assert.match(store, /to:\s*"\/reports"/, "the legacy Reports entry must remain in the navigation");
+});
+
 test("the route is gated by the reports permission, not left open", async () => {
   const app = await read("../../src/App.jsx");
   const routeIndex = app.indexOf('path="reports/sales"');

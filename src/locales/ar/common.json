@@ -735,7 +735,9 @@
       "aiMarketing": "الذكاء والتسويق",
       "systemSettings": "إعدادات النظام"
     },
-    "searchModules": "بحث في الوحدات..."
+    "searchModules": "بحث في الوحدات...",
+    "executiveOverview": "النظرة التنفيذية",
+    "salesIntelligence": "تحليل المبيعات والأرباح"
   },
   "language": {
     "label": "اللغة",
