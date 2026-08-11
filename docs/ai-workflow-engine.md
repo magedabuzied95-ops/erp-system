@@ -109,6 +109,11 @@ Any thrown error ⇒ step `failed`, run `failed` (clean stop). Evolving `context
 
 Phase 2 supports **`manual`** only (via `POST /workflows/:id/run`). The definition carries `triggerType` and the run records its `trigger`, so future adapters (existing webhooks, follow-up tasks) can create runs without changing the executor. **Production Meta/WhatsApp/Instagram webhooks are NOT rerouted through the executor.** No Redis/Bull/cron added — reuses existing infra patterns.
 
+> **Phase 4 (event-driven automation):** a thin post-commit adapter now creates runs from real ERP
+> events (`followup.due`, `inventory.restocked`, `schedule.interval`) through this **unchanged**
+> executor. Automatic runs use a READ-only system actor and are gated by global+tenant kill switches
+> (default OFF); idempotency reuses the existing run key. See `docs/ai-workflow-triggers.md`.
+
 ---
 
 ## 7. API (mounted at `/api/ai-studio`, `protect` + `permit`)

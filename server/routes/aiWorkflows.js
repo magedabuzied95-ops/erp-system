@@ -20,7 +20,13 @@ import {
   getToolRegistryView,
   getAiReplyMode,
   seedExampleWorkflow,
+  archiveWorkflow,
+  unarchiveWorkflow,
+  getTenantAutomation,
+  setTenantAutomation,
+  getAutomationStatus,
 } from "../services/aiWorkflowService.js";
+import { listTriggers } from "../services/aiWorkflowTriggerRegistry.js";
 
 const router = express.Router();
 
@@ -33,27 +39,64 @@ router.get("/tools", protect, permit("settings", "view"), (req, res) => {
   res.json({ success: true, ...getToolRegistryView() });
 });
 
+// ---- Triggers (read-only registry) + automation status/kill switch ----
+router.get("/triggers", protect, permit("settings", "view"), (req, res) => {
+  res.json({ success: true, triggers: listTriggers() });
+});
+
+router.get("/automation/status", protect, permit("settings", "view"), async (req, res) => {
+  try { res.json({ success: true, ...(await getAutomationStatus(tid(req))) }); } catch (error) { fail(res, error); }
+});
+
+router.get("/automation/tenant", protect, permit("settings", "view"), async (req, res) => {
+  try { res.json({ success: true, enabled: await getTenantAutomation(tid(req)) }); } catch (error) { fail(res, error); }
+});
+
+router.post("/automation/tenant", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, enabled: await setTenantAutomation(tid(req), Boolean(req.body?.enabled), uid(req)) }); } catch (error) { fail(res, error); }
+});
+
+// ---- Archive / soft-delete (never hard-delete) ----
+router.post("/workflows/:id/archive", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, workflow: await archiveWorkflow(tid(req), req.params.id, uid(req)) }); } catch (error) { fail(res, error); }
+});
+
+router.post("/workflows/:id/unarchive", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, workflow: await unarchiveWorkflow(tid(req), req.params.id, uid(req)) }); } catch (error) { fail(res, error); }
+});
+
 // ---- Overview extras (reply-mode policy surface) ----
 router.get("/overview", protect, permit("settings", "view"), async (req, res) => {
   try {
-    const [workflows, pending, replyMode] = await Promise.all([
+    const [workflows, pending, replyMode, automation, autoRuns] = await Promise.all([
       listWorkflows(tid(req)),
       listApprovals(tid(req), { status: "pending" }),
       getAiReplyMode(),
+      getAutomationStatus(tid(req)),
+      listRuns(tid(req), { limit: 200 }),
     ]);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const autoToday = autoRuns.filter((r) => r.trigger && r.trigger !== "manual" && new Date(r.created_at) >= today);
     res.json({
       success: true,
       workflow_count: workflows.length,
       enabled_workflow_count: workflows.filter((w) => w.enabled).length,
       pending_approvals: pending.length,
       ai_reply_mode: replyMode,
+      automation,
+      automatic_runs_today: autoToday.length,
+      automatic_runs_today_succeeded: autoToday.filter((r) => r.status === "completed").length,
+      automatic_runs_today_failed: autoToday.filter((r) => r.status === "failed" || r.status === "rejected").length,
     });
   } catch (error) { fail(res, error); }
 });
 
 // ---- Workflows CRUD ----
 router.get("/workflows", protect, permit("settings", "view"), async (req, res) => {
-  try { res.json({ success: true, workflows: await listWorkflows(tid(req)) }); } catch (error) { fail(res, error); }
+  try {
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    res.json({ success: true, workflows: await listWorkflows(tid(req), { includeArchived }) });
+  } catch (error) { fail(res, error); }
 });
 
 router.get("/workflows/:id", protect, permit("settings", "view"), async (req, res) => {

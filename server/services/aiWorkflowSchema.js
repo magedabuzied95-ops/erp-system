@@ -4,6 +4,7 @@
 
 import db from "../database/db.js";
 import { isKnownTool, getTool, RISK } from "./aiWorkflowToolRegistry.js";
+import { isKnownTrigger, isAuthorableTrigger } from "./aiWorkflowTriggerRegistry.js";
 
 export const NODE_TYPES = Object.freeze(["trigger", "condition", "tool", "agent", "approval", "action", "end"]);
 export const RUN_STATUSES = Object.freeze(["pending", "running", "awaiting_approval", "completed", "failed", "rejected", "cancelled"]);
@@ -99,6 +100,24 @@ export const ensureAiWorkflowSchema = async (client = db) => {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_workflow_approvals_pending ON ai_workflow_approvals (tenant_id, status, created_at DESC)`);
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_workflow_approvals_run_node ON ai_workflow_approvals (run_id, node_id)`);
+
+    // ---- Phase 4: event-driven automation (additive) ----
+    // Soft-delete / archive (never hard-delete workflows or their run history).
+    await client.query(`ALTER TABLE ai_workflows ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP NULL`);
+    await client.query(`ALTER TABLE ai_workflows ADD COLUMN IF NOT EXISTS archived_by BIGINT NULL`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_workflows_active ON ai_workflows (tenant_id, trigger_type) WHERE archived_at IS NULL AND enabled = TRUE`);
+    // Run observability: which event caused an automatic run (idempotency_key already exists).
+    await client.query(`ALTER TABLE ai_workflow_runs ADD COLUMN IF NOT EXISTS event_id TEXT NULL`);
+    // Per-tenant automation kill switch (settings service is global-only). Default OFF.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ai_workflow_tenant_settings (
+        tenant_id BIGINT PRIMARY KEY,
+        automation_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        updated_by BIGINT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
   })().catch((error) => {
     schemaReadyPromise = null;
     throw error;
@@ -148,7 +167,14 @@ export const validateWorkflowDefinition = (definition) => {
     if (!NODE_TYPES.includes(node.type)) { errors.push(`unknown node type "${node.type}" (node ${id})`); continue; }
     const config = node.config && typeof node.config === "object" ? node.config : {};
 
-    if (node.type === "trigger") triggerCount += 1;
+    if (node.type === "trigger") {
+      triggerCount += 1;
+      // Phase 4: the trigger's type must be a known, authorable trigger (CHANNEL triggers
+      // are "coming later" and cannot be saved as executable). Default to manual.
+      const tt = config.triggerType || "manual";
+      if (!isKnownTrigger(tt)) errors.push(`node ${id}: unknown trigger type "${tt}"`);
+      else if (!isAuthorableTrigger(tt)) errors.push(`node ${id}: trigger "${tt}" is not available yet (coming later)`);
+    }
 
     if (node.type === "tool" || node.type === "action") {
       if (!config.tool) errors.push(`node ${id}: tool node requires config.tool`);

@@ -5,6 +5,7 @@ import { getInventoryMovements } from "../services/inventoryMovementService.js";
 import { getVariantStockReconciliation } from "../services/stockReconciliationService.js";
 import { postInventoryAdjustment } from "../services/accountingService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
+import { notifyInventoryRestock } from "../services/aiWorkflowTriggerService.js";
 import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 
@@ -581,6 +582,11 @@ export const updateStock = async (req, res) => {
     });
 
     await client.query("COMMIT");
+
+    // AI Studio Phase 4: downstream automation only. Fires an inventory.restocked workflow
+    // event iff stock crossed <=0 -> >0. Fully failure-isolated — the adjustment above has
+    // already committed and must never be affected by workflow automation.
+    notifyInventoryRestock({ tenantId, movement: result });
 
     const lowStockSnapshot = await getProductLowStockSnapshot({ productId: result.productId, tenantId });
     const totalStock = Number(lowStockSnapshot?.total_stock || 0);

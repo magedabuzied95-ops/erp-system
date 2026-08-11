@@ -628,6 +628,7 @@ const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueT
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureTransactionalEmailSchema, processTransactionalEmailOutbox } = await import("./services/transactionalEmail/orderEmailService.js");
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
+const { runAutomationTick } = await import("./services/aiWorkflowTriggerService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation } = await import("./services/socialCommentAutomationService.js");
@@ -2200,6 +2201,17 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       backgroundIntervals.add(orderEmailInterval);
       safeProcessOrderEmails();
       console.log("[server] transactional order email scheduler started");
+
+      // AI Studio Phase 4 — workflow automation tick (schedules + due follow-ups).
+      // No-op unless AI_WORKFLOWS_AUTOMATION_ENABLED=true AND a tenant has automation on.
+      // Fully failure-isolated: a workflow error never affects any ERP operation.
+      const workflowAutomationInterval = setInterval(() => {
+        void runAutomationTick().catch((error) => {
+          console.error("[server] workflow automation tick error", { message: error?.message || String(error) });
+        });
+      }, 60 * 1000);
+      backgroundIntervals.add(workflowAutomationInterval);
+      console.log("[server] workflow automation scheduler started");
       console.log("[server] staff task schedulers started");
       console.log("[server] story scheduler started");
       console.log("[server] social publisher scheduler started");

@@ -8,6 +8,7 @@ import { getSetting } from "./settingsService.js";
 import { ensureAiWorkflowSchema, validateWorkflowDefinition, redactSecrets } from "./aiWorkflowSchema.js";
 import { listTools, getTool, RISK } from "./aiWorkflowToolRegistry.js";
 import { startRunExecution, continueRunAfterApproval } from "./aiWorkflowExecutorService.js";
+import { listTriggers, isGlobalAutomationEnabled } from "./aiWorkflowTriggerRegistry.js";
 
 const num = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
 
@@ -145,13 +146,17 @@ export const getAiReplyMode = async () => {
 };
 
 // ---- CRUD ----
-export const listWorkflows = async (tenantId) => {
+// Archived workflows are hidden by default (never auto-run, kept for history/audit).
+export const listWorkflows = async (tenantId, { includeArchived = false } = {}) => {
   await ensureAiWorkflowSchema();
+  const where = includeArchived ? `w.tenant_id = $1` : `w.tenant_id = $1 AND w.archived_at IS NULL`;
   const r = await db.query(
     `SELECT w.*,
             (SELECT status FROM ai_workflow_runs r WHERE r.workflow_id = w.id AND r.tenant_id = w.tenant_id ORDER BY r.created_at DESC LIMIT 1) AS last_run_status,
-            (SELECT created_at FROM ai_workflow_runs r WHERE r.workflow_id = w.id AND r.tenant_id = w.tenant_id ORDER BY r.created_at DESC LIMIT 1) AS last_run_at
-     FROM ai_workflows w WHERE w.tenant_id = $1 ORDER BY w.updated_at DESC`,
+            (SELECT created_at FROM ai_workflow_runs r WHERE r.workflow_id = w.id AND r.tenant_id = w.tenant_id ORDER BY r.created_at DESC LIMIT 1) AS last_run_at,
+            (SELECT created_at FROM ai_workflow_runs r WHERE r.workflow_id = w.id AND r.tenant_id = w.tenant_id AND r.trigger <> 'manual' ORDER BY r.created_at DESC LIMIT 1) AS last_auto_run_at,
+            (SELECT status FROM ai_workflow_runs r WHERE r.workflow_id = w.id AND r.tenant_id = w.tenant_id AND r.trigger <> 'manual' ORDER BY r.created_at DESC LIMIT 1) AS last_auto_run_status
+     FROM ai_workflows w WHERE ${where} ORDER BY w.updated_at DESC`,
     [tenantId]
   );
   return r.rows;
@@ -331,11 +336,12 @@ export const getToolRegistryView = () => {
         { id: "read_only_analysis", label: "Read-only analysis", available: true, description: "Deterministic, side-effect-free summary of prior step outputs. No LLM." },
         { id: "llm_grounded", label: "LLM grounded", available: llmEnabled, description: llmEnabled ? "Reuses the existing OpenAI gateway." : "Disabled on this server (set AI_WORKFLOWS_AGENT_LLM=true to enable)." },
       ],
-      triggerTypes: [
-        { id: "manual", label: "Manual", available: true, description: "Run on demand from the builder or the Workflows list." },
-        { id: "webhook", label: "Channel webhook", available: false, description: "Coming later — production Meta/WhatsApp/Instagram webhooks are not rerouted through workflows." },
-        { id: "schedule", label: "Scheduled", available: false, description: "Coming later — no scheduler is wired in this phase." },
-      ],
+      // Dynamic from the Trigger Registry (Phase 4) — the server is the source of truth
+      // for which triggers exist and are available; the browser never decides this.
+      triggerTypes: listTriggers().map((t) => ({
+        id: t.id, label: t.name, available: t.available, category: t.category,
+        description: t.description, riskLevel: t.riskLevel, configSchema: t.configSchema,
+      })),
     },
   };
 };
@@ -364,4 +370,133 @@ export const seedExampleWorkflow = async (tenantId, userId) => {
     ],
   };
   return createWorkflow(tenantId, { name: "Example: Product lookup (read-only)", description: "Manual trigger → search products → condition → read-only analysis. READ-only, safe, disabled by default.", triggerType: "manual", definition, enabled: false }, userId);
+};
+
+// ===========================================================================
+// Phase 4 — automation: archive, tenant kill switch, status, system actor,
+// and idempotent automatic-run creation. (Event matching/emission lives in
+// aiWorkflowTriggerService.js; this file owns persistence + the executor call.)
+// ===========================================================================
+
+// ---- Archive / soft-delete (never hard-delete; runs/history are retained) ----
+export const archiveWorkflow = async (tenantId, id, userId) => {
+  await ensureAiWorkflowSchema();
+  const r = await db.query(
+    `UPDATE ai_workflows SET archived_at = NOW(), archived_by = $1, enabled = FALSE, updated_at = NOW()
+     WHERE id = $2 AND tenant_id = $3 AND archived_at IS NULL RETURNING *`,
+    [num(userId), id, tenantId]
+  );
+  if (!r.rows[0]) { const e = new Error("Workflow not found or already archived"); e.status = 404; throw e; }
+  return r.rows[0];
+};
+
+export const unarchiveWorkflow = async (tenantId, id, userId) => {
+  await ensureAiWorkflowSchema();
+  const r = await db.query(
+    `UPDATE ai_workflows SET archived_at = NULL, archived_by = NULL, updated_by = $1, updated_at = NOW()
+     WHERE id = $2 AND tenant_id = $3 RETURNING *`,
+    [num(userId), id, tenantId]
+  );
+  if (!r.rows[0]) { const e = new Error("Workflow not found"); e.status = 404; throw e; }
+  return r.rows[0]; // stays disabled until an authorized user re-enables it
+};
+
+// ---- Tenant automation kill switch (default OFF; existing tenants never auto-enabled) ----
+export const getTenantAutomation = async (tenantId) => {
+  await ensureAiWorkflowSchema();
+  const r = await db.query(`SELECT automation_enabled FROM ai_workflow_tenant_settings WHERE tenant_id = $1 LIMIT 1`, [tenantId]);
+  return Boolean(r.rows[0]?.automation_enabled);
+};
+
+export const setTenantAutomation = async (tenantId, enabled, userId) => {
+  await ensureAiWorkflowSchema();
+  await db.query(
+    `INSERT INTO ai_workflow_tenant_settings (tenant_id, automation_enabled, updated_by, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (tenant_id) DO UPDATE SET automation_enabled = EXCLUDED.automation_enabled, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+    [tenantId, Boolean(enabled), num(userId)]
+  );
+  return Boolean(enabled);
+};
+
+// ---- Automation status resolver (explains exactly why automation is/ isn't live) ----
+export const getAutomationStatus = async (tenantId) => {
+  await ensureAiWorkflowSchema();
+  const globalOn = isGlobalAutomationEnabled();
+  const tenantOn = await getTenantAutomation(tenantId);
+  const active = globalOn && tenantOn;
+  const counts = await db.query(
+    `SELECT
+        COUNT(*) FILTER (WHERE enabled = TRUE AND archived_at IS NULL AND trigger_type <> 'manual') AS active_auto_workflows,
+        COUNT(*) FILTER (WHERE enabled = TRUE AND archived_at IS NULL) AS enabled_workflows
+     FROM ai_workflows WHERE tenant_id = $1`,
+    [tenantId]
+  );
+  const reasons = [];
+  if (!globalOn) reasons.push("Global automation is disabled (AI_WORKFLOWS_AUTOMATION_ENABLED).");
+  if (!tenantOn) reasons.push("Tenant automation is turned off.");
+  return {
+    active,
+    global_enabled: globalOn,
+    tenant_enabled: tenantOn,
+    active_auto_workflows: Number(counts.rows[0]?.active_auto_workflows || 0),
+    enabled_workflows: Number(counts.rows[0]?.enabled_workflows || 0),
+    reasons,
+  };
+};
+
+// ---- READ-only system actor for AUTOMATIC runs (no logged-in user) ----
+// SECURITY: automatic runs get NO superuser. They may only use READ tools. WRITE/SENSITIVE
+// permissions are denied, so an automatic run that reaches such a node fails safely at RBAC
+// and can never execute it (SENSITIVE therefore cannot be auto-run). WRITE authorization for
+// automatic runs is deferred to Phase 5 (needs a proper delegated-actor model).
+export const AUTOMATIC_READ_PERMISSIONS = Object.freeze(["products.view", "orders.view", "settings.view", "inventory.view"]);
+const systemPermissionSet = new Set(AUTOMATIC_READ_PERMISSIONS);
+export const systemPermissionChecker = async (permission) => systemPermissionSet.has(String(permission || ""));
+export const buildSystemDeps = () => ({ runAgent, hasPermission: systemPermissionChecker });
+
+// ---- Idempotent automatic-run creation for a single matched workflow ----
+// Uses the EXISTING unique index on (tenant_id, workflow_id, idempotency_key). A fresh
+// INSERT returns a row → we execute it; a conflict returns no row → it is a duplicate and
+// is NOT re-executed (safe across restarts and concurrent emits). Event data is placed under
+// context.trigger.input so downstream nodes reference it with the existing `$from` syntax.
+export const runEventForWorkflow = async ({ tenantId, workflow, triggerType, eventId, occurredAt, eventData = {} }) => {
+  await ensureAiWorkflowSchema();
+  const idempotencyKey = `evt:${triggerType}:${eventId}`;
+  const context = {
+    trigger: {
+      input: redactSecrets(eventData),
+      event: { id: String(eventId), type: triggerType, occurredAt: occurredAt || new Date().toISOString(), source: "automatic" },
+    },
+    steps: {},
+  };
+  const inserted = await db.query(
+    `INSERT INTO ai_workflow_runs (tenant_id, workflow_id, workflow_version, trigger, status, context, idempotency_key, event_id, started_by, started_at)
+     VALUES ($1,$2,$3,$4,'pending',$5,$6,$7,NULL,NOW())
+     ON CONFLICT (tenant_id, workflow_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+     RETURNING *`,
+    [tenantId, workflow.id, workflow.version, triggerType, JSON.stringify(context), idempotencyKey, String(eventId)]
+  );
+  if (!inserted.rows[0]) return { duplicate: true, workflowId: workflow.id };
+  const run = inserted.rows[0];
+  const result = await startRunExecution({ store: dbStore, deps: buildSystemDeps(), tenantId, workflow, run });
+  return { duplicate: false, workflowId: workflow.id, runId: run.id, status: result.status, result };
+};
+
+// ---- Resolve enabled, non-archived workflows for a trigger type (matching happens in the adapter) ----
+export const listAutomaticWorkflowsForTrigger = async (tenantId, triggerType) => {
+  await ensureAiWorkflowSchema();
+  const r = await db.query(
+    `SELECT * FROM ai_workflows WHERE tenant_id = $1 AND enabled = TRUE AND archived_at IS NULL AND trigger_type = $2`,
+    [tenantId, triggerType]
+  );
+  return r.rows;
+};
+
+// ---- Enumerate tenants with automation enabled (for the scheduler tick) ----
+export const listAutomationEnabledTenantIds = async () => {
+  await ensureAiWorkflowSchema();
+  if (!isGlobalAutomationEnabled()) return [];
+  const r = await db.query(`SELECT tenant_id FROM ai_workflow_tenant_settings WHERE automation_enabled = TRUE`);
+  return r.rows.map((x) => Number(x.tenant_id));
 };

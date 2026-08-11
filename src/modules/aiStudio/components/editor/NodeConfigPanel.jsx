@@ -174,16 +174,45 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
           </Section>
         ) : null}
 
-        {/* BEHAVIOR */}
-        {type === "trigger" ? (
-          <Section title="Behavior">
-            <div className={labelCls}>Trigger type</div>
-            <select value={cfg.triggerType || "manual"} onChange={(e) => set({ triggerType: e.target.value })} className={`${field} mt-1`}>
-              {triggerTypes.map((t) => <option key={t.id} value={t.id} disabled={!t.available}>{t.label}{t.available ? "" : " — coming later"}</option>)}
-            </select>
-            <p className="mt-1.5 text-[10px] text-slate-500">Only <b>manual</b> is available now. Channel webhooks are not rerouted through workflows.</p>
-          </Section>
-        ) : null}
+        {/* BEHAVIOR — trigger type + schema-driven trigger config */}
+        {type === "trigger" ? (() => {
+          const tt = cfg.triggerType || "manual";
+          const trg = triggerTypes.find((t) => t.id === tt) || null;
+          const schema = trg?.configSchema || {};
+          const isChannel = trg?.category === "CHANNEL";
+          return (
+            <Section title="Behavior">
+              <div className={labelCls}>Trigger type</div>
+              <select value={tt} onChange={(e) => set({ triggerType: e.target.value })} className={`${field} mt-1`}>
+                {triggerTypes.map((t) => (
+                  <option key={t.id} value={t.id} disabled={t.category === "CHANNEL"}>
+                    {t.label}{t.category === "CHANNEL" ? " — coming later" : t.available ? "" : " — automation off"}
+                  </option>
+                ))}
+              </select>
+              {trg?.description ? <p className="mt-1.5 text-[10px] text-slate-500">{trg.description}</p> : null}
+              {trg && !trg.available && !isChannel && tt !== "manual" ? (
+                <div className="mt-1.5 rounded-lg border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-[10px] font-bold text-amber-100">Automation is off — this trigger won’t fire until an admin enables workflow automation.</div>
+              ) : null}
+
+              {/* schema-driven trigger config fields */}
+              {Object.entries(schema).map(([fname, spec]) => (
+                <div key={fname} className="mt-2">
+                  <div className={labelCls}>{spec.label || humanizeField(fname)}</div>
+                  {spec.type === "enum" ? (
+                    <select value={cfg[fname] ?? spec.values?.[0] ?? ""} onChange={(e) => set({ [fname]: e.target.value })} className={`${field} mt-1`}>
+                      {(spec.values || []).map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  ) : (
+                    <input dir="ltr" value={cfg[fname] ?? ""} onChange={(e) => set({ [fname]: spec.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value })}
+                      placeholder={spec.type === "number" ? "Any (leave blank)" : (spec.description || "")} className={`${field} mt-1`} />
+                  )}
+                  {spec.description ? <p className="mt-0.5 text-[10px] text-slate-500">{spec.description}</p> : null}
+                </div>
+              ))}
+            </Section>
+          );
+        })() : null}
 
         {type === "agent" ? (
           <Section title="Behavior" icon={Bot}>

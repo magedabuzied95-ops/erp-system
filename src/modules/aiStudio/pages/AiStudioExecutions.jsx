@@ -5,6 +5,8 @@ import { useStudioHeaders } from "../lib/studioRequest";
 import { listRuns, getRun } from "../services/aiStudioApi";
 
 const fmt = (v) => (v ? new Date(v).toLocaleString() : "—");
+const TRIGGER_LABEL = { manual: "Manual", "followup.due": "Follow-up Due", "inventory.restocked": "Inventory Restocked", "schedule.interval": "Scheduled", "channel.message_received": "Channel" };
+const triggerLabel = (t) => TRIGGER_LABEL[t] || t || "Manual";
 const statusTone = (s) =>
   s === "completed" || s === "ok" ? "text-emerald-200" : s === "failed" || s === "rejected" ? "text-rose-200" : s === "awaiting_approval" ? "text-amber-200" : "text-slate-300";
 
@@ -54,7 +56,10 @@ export default function AiStudioExecutions() {
                 <button key={r.id} type="button" onClick={() => openRun(r.id)} className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-4 py-3 text-left hover:bg-white/[0.05] ${selected === r.id ? "bg-white/[0.06]" : ""}`}>
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-black text-white">{r.workflow_name || `Workflow #${r.workflow_id}`}</span>
-                    <span className="block text-[11px] text-slate-500">#{r.id} · {r.trigger} · {fmt(r.started_at || r.created_at)}</span>
+                    <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase ${r.trigger && r.trigger !== "manual" ? "bg-violet-300/15 text-violet-100" : "bg-slate-500/15 text-slate-300"}`}>{triggerLabel(r.trigger)}</span>
+                      #{r.id} · {fmt(r.started_at || r.created_at)}
+                    </span>
                   </span>
                   <span className={`shrink-0 text-[11px] font-black ${statusTone(r.status)}`}>{r.status}{r.pending_node_id ? ` @${r.pending_node_id}` : ""}</span>
                 </button>
@@ -73,6 +78,12 @@ export default function AiStudioExecutions() {
               <div className="mb-3 flex items-center justify-between">
                 <div className="text-sm font-black text-white">Run #{detail.run?.id} · <span className={statusTone(detail.run?.status)}>{detail.run?.status}</span></div>
                 <div className="text-[11px] text-slate-500">{fmt(detail.run?.started_at)} → {fmt(detail.run?.finished_at)}</div>
+              </div>
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                <span>Trigger: <span className={`font-black ${detail.run?.trigger && detail.run.trigger !== "manual" ? "text-violet-200" : "text-slate-200"}`}>{triggerLabel(detail.run?.trigger)}</span></span>
+                <span className="text-slate-600">·</span>
+                <span>{detail.run?.trigger && detail.run.trigger !== "manual" ? "Automatic" : "Manual"}</span>
+                {detail.run?.event_id ? <><span className="text-slate-600">·</span><span>Event: <span className="font-mono text-slate-300">{detail.run.event_id}</span></span></> : null}
               </div>
               {detail.run?.error ? <div className="mb-3 rounded-lg border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-[12px] text-rose-100">{detail.run.error}</div> : null}
               <ol className="space-y-2">
