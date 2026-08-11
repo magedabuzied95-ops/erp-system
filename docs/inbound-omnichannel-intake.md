@@ -100,6 +100,13 @@ Deployed with **`AI_INBOUND_WORKFLOWS_ENABLED` unset (capability OFF)** and tena
 suggestion generation were proven against a **synthetic inbound message** (no provider, no send), then cleaned
 up.
 
+## 11a. Grounding quality (Phase 10.6)
+
+The suggestion is produced by the existing brain (`generateAiInboxReply`). Phase 10.6 adds a deterministic,
+failure-isolated **grounding gate** so a specific product request is never answered with an incompatible
+product and availability is never claimed without exact-variant stock evidence — otherwise it asks a
+clarifying question. See `docs/ai-inbox-grounding-quality.md`.
+
 ## 12. Known limitations / explicitly NOT built
 
 - Text-only; no multimodal AI reasoning.

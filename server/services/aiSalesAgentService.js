@@ -5617,6 +5617,27 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   stageTimings.confidence_ms = Date.now() - confidenceStartedAt;
   reply.validation = validation;
   reply.confidence_engine = confidenceEngine;
+  // Phase 10.6 grounding gate: when the customer named a specific product/category, correct the draft so
+  // we never present an incompatible product (e.g. Air Jordan for a Crocs request) and never claim
+  // availability without exact-variant stock evidence — otherwise ask a clarifying question. Deterministic,
+  // failure-isolated, and it only ever edits the already-composed draft (never sends).
+  let groundingResult = { changed: false };
+  let effectiveIntent = intent;
+  try {
+    const { applyInboxGroundingGate } = await import("./aiInboxGroundingGate.js");
+    groundingResult = await applyInboxGroundingGate({ tenantId, message: lastMessage, reply, intent });
+    if (groundingResult?.requestedIntent) effectiveIntent = groundingResult.requestedIntent;
+    if (groundingResult?.changed) {
+      reply.answer = groundingResult.answer;
+      reply.suggested_products = Array.isArray(groundingResult.suggested_products) ? groundingResult.suggested_products : [];
+      reply.confidence = Number.isFinite(groundingResult.confidence) ? groundingResult.confidence : reply.confidence;
+      reply.detected_intent = effectiveIntent;
+      reply.grounding = groundingResult.grounding || null;
+      reply.visual_attachments = [];
+    }
+  } catch (gateError) {
+    console.error("[ai-inbox] grounding gate error", { error: String(gateError?.message || gateError).slice(0, 140) });
+  }
   const channelAdapterPayload = {
     channel: conversation.channel || conversation.source || "web_chat",
     text: reply.answer || "",
@@ -5638,7 +5659,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     messageType: reply.suggested_products?.length ? "product_card" : "text",
     productCards: reply.suggested_products || [],
     confidence: reply.confidence,
-    detectedIntent: intent,
+    detectedIntent: effectiveIntent,
     customerQuestion: lastMessage,
     status: "not_sent",
     metadata: {
@@ -5646,6 +5667,8 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       persist_requested: persist === true,
       validation,
       confidence_engine: confidenceEngine,
+      grounding: groundingResult?.grounding || null,
+      grounding_action: groundingResult?.changed ? groundingResult.action : null,
     },
   });
   stageTimings.draft_storage_ms = Date.now() - draftStorageStartedAt;
