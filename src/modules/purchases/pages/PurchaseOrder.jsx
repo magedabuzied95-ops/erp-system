@@ -2256,12 +2256,12 @@ function PurchaseOrder() {
             aria-label={isArabic ? "ملء الشاشة" : "Fullscreen"}
             aria-pressed={isFullscreen}
             title={isArabic ? "ملء الشاشة" : "Fullscreen"}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
           {isEditMode && editPurchase ? (
-            <button type="button" onClick={() => navigate(`/purchases/${editPurchase.id || editPurchaseId}`)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15">
+            <button type="button" onClick={() => navigate(`/purchases/${editPurchase.id || editPurchaseId}`)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15">
               <X className="h-4 w-4" />
               Cancel edit
             </button>
@@ -2347,7 +2347,7 @@ function PurchaseOrder() {
             <button
               type="button"
               onClick={() => setSupplierModalOpen(true)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
               title={isArabic ? "إضافة مورد" : "Add supplier"}
             >
               <Plus className="h-4 w-4" />
@@ -2378,14 +2378,14 @@ function PurchaseOrder() {
                   onKeyDown={handleBarcodeSubmit}
                   onFocus={() => setProductPickerOpen(true)}
                   placeholder={t("purchases.create.searchProductPlaceholder")}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                  className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
                 aria-expanded={filtersOpen}
-                className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
+                className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
                   filtersOpen
                     ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
                     : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
@@ -2467,7 +2467,7 @@ function PurchaseOrder() {
                 setProductPanelExpanded(false);
                 setProductPickerOpen(false);
               }}
-              className="fixed right-6 top-6 z-[60] inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/40 transition hover:bg-white/10 sm:right-8 sm:top-8"
+              className="fixed right-6 top-6 z-[60] inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/40 transition hover:bg-white/10 sm:right-8 sm:top-8"
               aria-label="طي لوحة المنتج"
               title="طي لوحة المنتج"
             >
@@ -2489,7 +2489,7 @@ function PurchaseOrder() {
                     setProductPanelExpanded((next) => !next);
                     setProductPickerOpen(false);
                   }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white"
+                  className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white"
                   aria-label={productPanelExpanded ? "طي لوحة المنتج" : "توسيع لوحة المنتج"}
                   title={productPanelExpanded ? "طي لوحة المنتج" : "توسيع لوحة المنتج"}
                 >
@@ -2502,7 +2502,7 @@ function PurchaseOrder() {
                       setProductPanelExpanded(false);
                       setProductPickerOpen(false);
                     }}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-rose-300/30 hover:bg-rose-400/10 hover:text-white"
+                    className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-rose-300/30 hover:bg-rose-400/10 hover:text-white"
                     aria-label="إغلاق لوحة المنتج"
                     title="إغلاق لوحة المنتج"
                   >
@@ -2904,7 +2904,7 @@ function PurchaseCart({
             type="button"
             onClick={() => onBulkPrice?.("purchase")}
             disabled={!hasItems}
-            className="group inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-2 py-1.5 text-[11px] font-black text-emerald-100 shadow-lg shadow-emerald-950/10 transition hover:border-emerald-300/60 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-2 py-1.5 text-[11px] font-black text-emerald-100 shadow-lg shadow-emerald-950/10 transition hover:border-emerald-300/60 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ReceiptText className="h-4 w-4 text-emerald-300" />
             سعر شراء جماعي
@@ -2913,7 +2913,7 @@ function PurchaseCart({
             type="button"
             onClick={() => onBulkPrice?.("selling")}
             disabled={!hasItems}
-            className="group inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 py-1.5 text-[11px] font-black text-primary shadow-lg shadow-primary/10 transition hover:border-primary/60 hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 py-1.5 text-[11px] font-black text-primary shadow-lg shadow-primary/10 transition hover:border-primary/60 hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ShoppingCart className="h-4 w-4 text-primary" />
             سعر بيع جماعي
@@ -2922,7 +2922,7 @@ function PurchaseCart({
             type="button"
             onClick={() => onBulkPrice?.("sale")}
             disabled={!hasItems}
-            className="group inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-[11px] font-black text-amber-100 shadow-lg shadow-amber-950/10 transition hover:border-amber-300/60 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-[11px] font-black text-amber-100 shadow-lg shadow-amber-950/10 transition hover:border-amber-300/60 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Percent className="h-4 w-4 text-amber-300" />
             سعر خصم جماعي
@@ -3060,7 +3060,7 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
 
   return (
     <div className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-lg shadow-black/10 transition hover:border-white/20 hover:bg-white/[0.065]">
-      <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-zinc-300 transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
+      <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-zinc-300 transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
         <Trash2 className="h-3.5 w-3.5" />
       </button>
 
@@ -3402,7 +3402,7 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
       step="0.01"
       value={product[field]}
       onChange={(event) => updateProductPrice(product.key, field, event.target.value)}
-      className="h-11 w-28 rounded-xl border border-white/10 bg-zinc-950 px-3 text-center font-black text-white outline-none transition focus:border-emerald-400/60"
+      className="h-[var(--control-height-lg)] w-28 rounded-xl border border-white/10 bg-zinc-950 px-3 text-center font-black text-white outline-none transition focus:border-emerald-400/60"
       aria-label={`${label} - ${product.group?.product_name || "Product"}`}
     />
   );
@@ -3698,7 +3698,7 @@ function ModelPriceField({ label, value, required = false, onChange }) {
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={required ? "0.00" : "اختياري"}
-        className="mt-1 h-9 w-full bg-transparent text-sm font-black text-white outline-none placeholder:text-zinc-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="mt-1 h-[var(--control-height-md)] w-full bg-transparent text-sm font-black text-white outline-none placeholder:text-zinc-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         dir="ltr"
       />
     </label>

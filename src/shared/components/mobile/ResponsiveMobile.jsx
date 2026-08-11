@@ -22,7 +22,7 @@ export function MobileBottomSheet({ open, title, children, footer, onClose, clas
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label="Close"
           >
             <X className="h-4 w-4" />

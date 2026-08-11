@@ -607,7 +607,7 @@ function CartSidebar({
           type="button"
           onClick={onAddInvoiceTab}
           disabled={invoiceTabs.length >= 5}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Plus className="h-3.5 w-3.5" />
           فاتورة
@@ -719,7 +719,7 @@ function CartSidebar({
                     <button
                       type="button"
                       onClick={() => onDecrease(item.key)}
-                      className="inline-flex h-8 w-8 items-center justify-center text-[var(--muted)] transition hover:bg-black/20 hover:text-[var(--text)]"
+                      className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center text-[var(--muted)] transition hover:bg-black/20 hover:text-[var(--text)]"
                       aria-label={posLabel("cart.decreaseQuantity", "Decrease quantity")}
                     >
                       <Minus className="h-3.5 w-3.5" />
@@ -730,7 +730,7 @@ function CartSidebar({
                     <button
                       type="button"
                       onClick={() => onIncrease(item.key)}
-                      className="inline-flex h-8 w-8 items-center justify-center text-[var(--muted)] transition hover:bg-black/20 hover:text-[var(--text)]"
+                      className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center text-[var(--muted)] transition hover:bg-black/20 hover:text-[var(--text)]"
                       aria-label={posLabel("cart.increaseQuantity", "Increase quantity")}
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -784,7 +784,7 @@ function CartSidebar({
                   <button
                     type="button"
                     onClick={() => onRemove(item.key)}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] transition hover:text-[var(--text)]"
+                    className="inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] transition hover:text-[var(--text)]"
                     aria-label={posLabel("cart.removeItem", "Remove item")}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -851,7 +851,7 @@ function CartSidebar({
                     type="button"
                     onClick={onClearExchangeCredit}
                     title={`${exchangeState?.invoiceNumber || exchangeState?.originalOrderId || posLabel("cart.returnCredit", "Return credit")} - ${formatCurrency(exchangeCreditAmount)}`}
-                    className="h-7 rounded-lg border border-white/10 bg-black/25 px-2 text-[10px] font-black text-zinc-200 transition hover:bg-white/[0.08]"
+                    className="h-[var(--control-height-sm)] rounded-lg border border-white/10 bg-black/25 px-2 text-[10px] font-black text-zinc-200 transition hover:bg-white/[0.08]"
                   >
                     {posLabel("actions.clear", "Clear")}
                   </button>
@@ -864,7 +864,7 @@ function CartSidebar({
                       ? `${exchangeState?.invoiceNumber || exchangeState?.originalOrderId || posLabel("cart.returnCredit", "Return credit")} - ${formatCurrency(exchangeCreditAmount)}`
                       : posLabel("cart.exchangeReturnCreditHint", "Scan or select an old invoice to apply return credit.")
                   }
-                  className="h-7 rounded-lg border border-amber-300/35 bg-amber-300/10 px-2.5 text-[10px] font-black text-amber-50 transition hover:border-amber-200/60 hover:bg-amber-300/15 hover:shadow-[0_0_16px_rgba(251,191,36,0.18)]"
+                  className="h-[var(--control-height-sm)] rounded-lg border border-amber-300/35 bg-amber-300/10 px-2.5 text-[10px] font-black text-amber-50 transition hover:border-amber-200/60 hover:bg-amber-300/15 hover:shadow-[0_0_16px_rgba(251,191,36,0.18)]"
                 >
                   {posLabel("cart.applyReturnCredit", "Apply Return Credit")}
                 </button>
@@ -900,7 +900,7 @@ function CartSidebar({
                 type="button"
                 onClick={applyCustomerCredit}
                 title={customerCreditHelpText}
-                className="h-9 shrink-0 rounded-xl border border-emerald-300/25 bg-emerald-400/15 px-3 text-[10px] font-black text-emerald-50"
+                className="h-[var(--control-height-md)] shrink-0 rounded-xl border border-emerald-300/25 bg-emerald-400/15 px-3 text-[10px] font-black text-emerald-50"
               >
                 {posLabel("cart.applyBalance", "Apply balance")}
               </button>
@@ -943,7 +943,7 @@ function CartSidebar({
                   <button
                     type="button"
                     onClick={() => setInvoiceDiscountOpen(true)}
-                    className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2 text-[10px] font-black transition ${
+                    className={`inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border px-2 text-[10px] font-black transition ${
                       Number(invoiceDiscount || 0) > 0
                         ? "border-amber-300/35 bg-amber-300/10 text-amber-50 hover:bg-amber-300/15"
                         : "border-white/10 bg-black/20 text-zinc-300 hover:bg-white/[0.08] hover:text-white"
@@ -956,7 +956,7 @@ function CartSidebar({
                 <button
                   type="button"
                   onClick={() => setPaymentDetailsOpen((open) => !open)}
-                  className="h-7 rounded-lg border border-white/10 bg-black/20 px-2 text-[10px] font-black text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+                  className="h-[var(--control-height-sm)] rounded-lg border border-white/10 bg-black/20 px-2 text-[10px] font-black text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
                 >
                   {posLabel("cart.paymentDetails", "Payment details")}
                 </button>
@@ -996,7 +996,7 @@ function CartSidebar({
                   <select
                     value={personalSettlementTypeValue}
                     onChange={(event) => setPersonalSettlementType?.(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
+                    className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
                   >
                     <option value="">اختر النوع</option>
                     <option value="GIFT">هدية / مصروف</option>
@@ -1073,7 +1073,7 @@ function CartSidebar({
                   ? posLabel("cart.completePaymentFirst", "Remaining must be zero before creating the order.")
                   : undefined
             }
-            className="pos-checkout-primary inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="pos-checkout-primary inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {checkoutLoading ? posLabel("cart.savingInvoice", "جارِ حفظ الفاتورة...") : `${checkoutLabel} • ${formatCurrency(totalAmount)}`}
           </button>
@@ -1088,7 +1088,7 @@ function CartSidebar({
             }}
             disabled={!hasSelectedCustomer || checkoutLoading || cart.length === 0 || editRefundSelectionMissing}
             title={!hasSelectedCustomer ? "اختر عميلاً أولاً لإنشاء بيع آجل" : hasPartialSplitCollection ? "حفظ العربون وتسجيل الباقي آجل" : "إنشاء بيع آجل للعميل المحدد"}
-            className="pos-checkout-credit inline-flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="pos-checkout-credit inline-flex min-h-[var(--control-height-md)] flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="inline-flex items-center justify-center gap-1.5">
               <Clock3 className="h-4 w-4" />
@@ -1101,7 +1101,7 @@ function CartSidebar({
             onClick={onPaymobTerminal}
             disabled={!canUsePaymobTerminal || paymobTerminalLoading || personalPaymentActive || creditSaleActive}
             title={personalPaymentActive ? "PERSONAL transactions cannot use Paymob terminal" : creditSaleActive ? "Deferred sales cannot use Paymob terminal" : canUsePaymobTerminal ? "Send payment request to Paymob terminal" : "Paymob terminal payment is not ready"}
-            className="pos-checkout-paymob inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="pos-checkout-paymob inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Smartphone className="h-4 w-4" />
             {paymobTerminalLoading ? "Processing..." : "Paymob Terminal"}
@@ -1230,7 +1230,7 @@ function InvoiceDiscountModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label={posLabel("common.close", "Close")}
           >
             <X className="h-3.5 w-3.5" />
@@ -1249,7 +1249,7 @@ function InvoiceDiscountModal({
                 setDraftType(key);
                 setDraftValue(key === "percentage" ? Math.min(100, safeValue) : Math.min(safeSubtotal, safeValue));
               }}
-              className={`min-h-10 rounded-xl border px-3 text-xs font-black transition ${
+              className={`min-h-[var(--control-height-md)] rounded-xl border px-3 text-xs font-black transition ${
                 normalizedType === key
                   ? "border-amber-300/50 bg-amber-300/15 text-amber-50 shadow-[0_0_20px_rgba(251,191,36,0.16)]"
                   : "border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] hover:text-white"
@@ -1273,7 +1273,7 @@ function InvoiceDiscountModal({
               const nextValue = Math.max(0, Number(event.target.value || 0));
               setDraftValue(normalizedType === "percentage" ? Math.min(100, nextValue) : Math.min(safeSubtotal, nextValue));
             }}
-            className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-right text-lg font-black text-white outline-none transition focus:border-amber-300/50"
+            className="mt-2 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-black/40 px-3 text-right text-lg font-black text-white outline-none transition focus:border-amber-300/50"
           />
         </label>
 
@@ -1309,7 +1309,7 @@ function InvoiceDiscountModal({
               setDraftReason("");
               onClear?.();
             }}
-            className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 transition hover:bg-white/[0.08]"
+            className="min-h-[var(--control-height-lg)] rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 transition hover:bg-white/[0.08]"
           >
             {posLabel("cart.clearDiscount", "Clear discount")}
           </button>
@@ -1317,7 +1317,7 @@ function InvoiceDiscountModal({
             type="button"
             onClick={applyDiscount}
             disabled={invalid}
-            className="min-h-12 rounded-2xl bg-amber-400 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-[var(--control-height-lg)] rounded-2xl bg-amber-400 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {posLabel("cart.apply", "Apply")}
           </button>
@@ -1370,7 +1370,7 @@ function DiscountLoyaltyModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label={posLabel("common.close", "Close")}
             title={posLabel("common.close", "Close")}
           >
@@ -1430,7 +1430,7 @@ function DiscountLoyaltyModal({
               type="button"
               onClick={() => setLoyaltyRedeemPoints(Math.max(0, maxRedeemablePoints))}
               disabled={!customer || loyaltyUnavailable || maxRedeemablePoints <= 0}
-              className="h-10 rounded-xl border border-cyan-200/25 bg-cyan-300/15 px-3 text-xs font-black text-cyan-50 transition hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="h-[var(--control-height-md)] rounded-xl border border-cyan-200/25 bg-cyan-300/15 px-3 text-xs font-black text-cyan-50 transition hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {posLabel("cart.usePoints", "Use points")}
             </button>
@@ -2022,7 +2022,7 @@ function InvoiceCustomerPicker({
                   setActiveCustomerIndex(-1);
                   window.setTimeout(() => customerSearchRef.current?.focus(), 0);
                 }}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/10 hover:text-white"
+                className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/10 hover:text-white"
                 aria-label={posLabel("customer.change", "Change customer")}
                 title={posLabel("customer.change", "Change customer")}
               >
@@ -2043,7 +2043,7 @@ function InvoiceCustomerPicker({
                 onKeyDown={handleCustomerSearchKeyDown}
                 onFocus={() => setCustomerSearchActive(true)}
                 placeholder={posLabel("customer.searchPlaceholder", "Search customer by name or phone")}
-                className="h-10 w-full rounded-xl border border-white/10 bg-black/30 px-9 text-xs font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                className="h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-black/30 px-9 text-xs font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
               />
               {customerSearch ? (
                 <button
@@ -2055,7 +2055,7 @@ function InvoiceCustomerPicker({
                     setActiveCustomerIndex(-1);
                     window.setTimeout(() => customerSearchRef.current?.focus(), 0);
                   }}
-                  className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/10 hover:text-white"
+                  className="absolute right-2 top-1/2 inline-flex h-[var(--control-height-sm)] w-7 -translate-y-1/2 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/10 hover:text-white"
                   aria-label={posLabel("customer.change", "Change customer")}
                   title={posLabel("customer.change", "Change customer")}
                 >
@@ -2068,7 +2068,7 @@ function InvoiceCustomerPicker({
         <button
           type="button"
           onClick={onOpenDiscountLoyalty}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/25 bg-violet-400/10 text-violet-100 transition hover:border-violet-300/50 hover:bg-violet-400/15"
+          className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/25 bg-violet-400/10 text-violet-100 transition hover:border-violet-300/50 hover:bg-violet-400/15"
           aria-label={posLabel("cart.discountsAndLoyalty", "Discounts & Loyalty")}
           title={posLabel("cart.discountsAndLoyalty", "Discounts & Loyalty")}
         >
@@ -2077,7 +2077,7 @@ function InvoiceCustomerPicker({
         <button
           type="button"
           onClick={onCreateCustomerClick}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-300/25 bg-emerald-400/10 text-emerald-100 transition hover:border-emerald-300/50 hover:bg-emerald-400/15"
+          className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-300/25 bg-emerald-400/10 text-emerald-100 transition hover:border-emerald-300/50 hover:bg-emerald-400/15"
           aria-label={posLabel("customer.add", "Add customer")}
           title={posLabel("customer.add", "Add customer")}
         >
@@ -2144,7 +2144,7 @@ function InvoiceCustomerPicker({
               disabled={!canChangeSalesperson}
               title={posLabel("cart.noSalesperson", "No salesperson")}
               className={[
-                "inline-flex h-7 w-auto min-w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-[11px] font-black transition",
+                "inline-flex h-[var(--control-height-sm)] w-auto min-w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-[11px] font-black transition",
                 !selectedSalespersonId
                   ? "border-white/20 bg-white text-zinc-950 shadow-[0_8px_18px_rgba(255,255,255,0.1)]"
                   : "border-white/10 bg-black/20 text-zinc-300 hover:bg-white/10",
@@ -2166,7 +2166,7 @@ function InvoiceCustomerPicker({
                 disabled={disabled || !canChangeSalesperson}
                 title={`${displayName}${disabled ? ` - ${posLabel("cart.inactive", "Inactive")}` : ""}`}
                 className={[
-                  "inline-flex h-7 w-auto min-w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-[12px] font-black transition",
+                  "inline-flex h-[var(--control-height-sm)] w-auto min-w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-[12px] font-black transition",
                   disabled || !canChangeSalesperson ? "cursor-not-allowed border-white/5 bg-white/[0.03] text-zinc-500 opacity-45" : salespersonAccent(employee),
                   active
                     ? "border-emerald-200/80 bg-emerald-400 text-zinc-950 shadow-[0_8px_18px_rgba(52,211,153,0.2)]"
@@ -2485,7 +2485,7 @@ function QuickPaymentButton({ icon, label, onClick, accent = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-2 text-xs font-black transition ${
+      className={`inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border px-2 text-xs font-black transition ${
         accent
           ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-50 hover:bg-emerald-400/20"
           : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
@@ -2659,7 +2659,7 @@ function ExchangeCreditModal({ currentTotal, onClose, onLookup, onApply }) {
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-200">{posLabel("cart.exchangeReturnCredit", "Exchange / Return Credit")}</div>
             <h3 className="mt-1 text-xl font-black">{posLabel("cart.scanOriginalInvoice", "Scan original invoice")}</h3>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+          <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -2672,9 +2672,9 @@ function ExchangeCreditModal({ currentTotal, onClose, onLookup, onApply }) {
             }}
             autoFocus
             placeholder="INV-123"
-            className="h-12 min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/40 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
+            className="h-[var(--control-height-lg)] min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/40 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
           />
-          <button type="button" onClick={lookup} disabled={loading} className="h-12 rounded-2xl bg-amber-300 px-4 text-sm font-black text-black disabled:opacity-50">
+          <button type="button" onClick={lookup} disabled={loading} className="h-[var(--control-height-lg)] rounded-2xl bg-amber-300 px-4 text-sm font-black text-black disabled:opacity-50">
             {loading ? posLabel("actions.loading", "Loading") : posLabel("actions.lookup", "Lookup")}
           </button>
         </div>
@@ -2707,7 +2707,7 @@ function ExchangeCreditModal({ currentTotal, onClose, onLookup, onApply }) {
                 invoiceNumber: order.invoice_number || order.public_order_number || String(order.id),
                 creditAmount: credit,
               })}
-              className="mt-4 h-12 w-full rounded-2xl bg-emerald-500 text-sm font-black text-black"
+              className="mt-4 h-[var(--control-height-lg)] w-full rounded-2xl bg-emerald-500 text-sm font-black text-black"
             >
               {posLabel("cart.applyExchangeCredit", "Apply exchange credit")}
             </button>
@@ -2748,7 +2748,7 @@ function SplitPaymentSheet({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label={posLabel("actions.close", "Close")}
           >
             <X className="h-4 w-4" />
@@ -2781,12 +2781,12 @@ function SplitPaymentSheet({
                   step="0.01"
                   value={methodAmounts[method.key] || 0}
                   onChange={(event) => onSetMethodAmount(method.key, event.target.value)}
-                  className="h-12 min-w-0 rounded-xl border border-white/10 bg-black/40 px-3 text-right text-base font-black text-white outline-none transition focus:border-emerald-300/50"
+                  className="h-[var(--control-height-lg)] min-w-0 rounded-xl border border-white/10 bg-black/40 px-3 text-right text-base font-black text-white outline-none transition focus:border-emerald-300/50"
                 />
                 <button
                   type="button"
                   onClick={() => onFillMethod(method.key)}
-                  className="h-12 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-50 transition hover:bg-emerald-400/15"
+                  className="h-[var(--control-height-lg)] rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-50 transition hover:bg-emerald-400/15"
                 >
                   {posLabel("cart.fill", "Fill")}
                 </button>
@@ -2828,7 +2828,7 @@ function SplitPaymentSheet({
           <button
             type="button"
             onClick={onClear}
-            className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 transition hover:bg-white/[0.08]"
+            className="min-h-[var(--control-height-lg)] rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 transition hover:bg-white/[0.08]"
           >
             {posLabel("actions.clear", "Clear")}
           </button>
@@ -2836,7 +2836,7 @@ function SplitPaymentSheet({
             type="button"
             onClick={onClose}
             disabled={!isMatched && !canSaveAsPartialCredit}
-            className="min-h-12 rounded-2xl bg-emerald-500 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-[var(--control-height-lg)] rounded-2xl bg-emerald-500 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isMatched ? posLabel("cart.done", "Done") : canSaveAsPartialCredit ? "حفظ العربون والباقي آجل" : posLabel("cart.remainingAmount", "Remaining")}
           </button>
@@ -2889,7 +2889,7 @@ function ModeButton({ active, onClick, icon, label, tone = "green", title = "" }
       title={title || undefined}
       data-tone={tone}
       data-active={active ? "true" : "false"}
-      className={`pos-payment-method relative inline-flex h-7 w-full min-w-0 items-center justify-center gap-1 rounded-lg border bg-black/25 px-2 text-xs font-black transition duration-200 ${active ? toneClasses.active : toneClasses.button}`}
+      className={`pos-payment-method relative inline-flex h-[var(--control-height-sm)] w-full min-w-0 items-center justify-center gap-1 rounded-lg border bg-black/25 px-2 text-xs font-black transition duration-200 ${active ? toneClasses.active : toneClasses.button}`}
     >
       {active ? (
         <span className={`absolute right-0.5 top-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full ${toneClasses.check}`}>
@@ -3074,7 +3074,7 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
               <button
                 type="button"
                 onClick={() => setAdjustOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
@@ -3082,7 +3082,7 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
             </div>
             <div className="mt-4 grid gap-2">
               <input
-                className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-300/60"
+                className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-300/60"
                 type="number"
                 min="0"
                 step="0.01"
@@ -3091,7 +3091,7 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
                 placeholder="Recharge amount"
               />
               <input
-                className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-300/60"
+                className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-300/60"
                 value={adjustNotes}
                 onChange={(event) => setAdjustNotes(event.target.value)}
                 placeholder="Audit note"
@@ -3099,7 +3099,7 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
               <button
                 type="submit"
                 disabled={saving}
-                className="mt-1 h-10 rounded-xl bg-emerald-400 px-3 text-sm font-black text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-1 h-[var(--control-height-md)] rounded-xl bg-emerald-400 px-3 text-sm font-black text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? "Saving..." : "Record recharge"}
               </button>

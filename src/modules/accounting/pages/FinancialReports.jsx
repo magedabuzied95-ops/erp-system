@@ -226,7 +226,7 @@ function FinancialReports() {
             <button
               type="button"
               onClick={() => setFilters({ ...defaultFilters })}
-              className="h-11 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
+              className="h-[var(--control-height-lg)] rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
             >
               {isArabic ? "إعادة ضبط" : "Reset"}
             </button>
@@ -591,7 +591,7 @@ function FilterField({ label, value, onChange, type = "text" }) {
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
+        className="h-[var(--control-height-lg)] w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
       />
     </label>
   );
@@ -604,7 +604,7 @@ function FilterSelect({ label, value, onChange, options = [] }) {
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
+        className="h-[var(--control-height-lg)] w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
       >
         {options.map((option) => (
           <option key={`${option.value}-${option.label}`} value={option.value}>

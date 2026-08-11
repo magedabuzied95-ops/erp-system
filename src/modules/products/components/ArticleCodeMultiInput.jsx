@@ -63,7 +63,7 @@ export default function ArticleCodeMultiInput({
           onBlur={() => addDraft()}
           placeholder={placeholder}
           className={`min-w-0 bg-transparent text-sm text-white outline-none placeholder:text-zinc-500 ${
-            compact ? "h-8 w-16 px-1" : "h-8 flex-1 px-2"
+            compact ? "h-[var(--control-height-sm)] w-16 px-1" : "h-[var(--control-height-sm)] flex-1 px-2"
           }`}
         />
         <button
@@ -71,7 +71,7 @@ export default function ArticleCodeMultiInput({
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => addDraft()}
           className={`inline-flex items-center justify-center rounded-[10px] border border-white/10 text-xs font-bold text-zinc-200 hover:bg-white/5 ${
-            compact ? "h-8 w-8 p-0" : "h-8 gap-1 px-2.5"
+            compact ? "h-[var(--control-height-sm)] w-8 p-0" : "h-[var(--control-height-sm)] gap-1 px-2.5"
           }`}
         >
           <Plus size={14} />

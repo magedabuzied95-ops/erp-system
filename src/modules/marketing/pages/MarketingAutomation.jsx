@@ -357,7 +357,7 @@ export default function MarketingAutomation() {
                 <h2 className="text-sm font-black">{t("marketing.automation.rules")}</h2>
                 <p className="text-xs text-slate-400">{t("marketing.automation.playbooks")}</p>
               </div>
-              <button type="button" onClick={() => applyRule(blankRule)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+              <button type="button" onClick={() => applyRule(blankRule)} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
                 <Plus className="h-4 w-4" />
               </button>
             </div>

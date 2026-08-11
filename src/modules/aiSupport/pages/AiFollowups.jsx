@@ -224,7 +224,7 @@ function FollowupCard({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => onOpenInbox?.(row)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-sm font-black text-slate-950">
+          <button type="button" onClick={() => onOpenInbox?.(row)} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-primary px-3 text-sm font-black text-slate-950">
             <ExternalLink className="h-4 w-4" />
             Open Inbox
           </button>
@@ -232,7 +232,7 @@ function FollowupCard({
             type="button"
             onClick={() => onTakeover?.(row)}
             disabled={busy}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-sm font-black text-slate-100 disabled:opacity-45"
+            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-sm font-black text-slate-100 disabled:opacity-45"
           >
             <UserCheck className="h-4 w-4" />
             {claimLabel}
@@ -241,7 +241,7 @@ function FollowupCard({
             type="button"
             onClick={() => onDone?.(row)}
             disabled={busy}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 disabled:opacity-45"
+            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 disabled:opacity-45"
           >
             <CheckCircle2 className="h-4 w-4" />
             Resolve
@@ -250,7 +250,7 @@ function FollowupCard({
             type="button"
             onClick={() => onSnooze?.(row, 1440)}
             disabled={snoozeDisabled}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-sm font-black text-slate-100 disabled:opacity-45"
+            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-sm font-black text-slate-100 disabled:opacity-45"
           >
             <Clock3 className="h-4 w-4" />
             Follow later
@@ -291,7 +291,7 @@ function FollowupCard({
                   type="button"
                   onClick={() => onSendManual?.(row)}
                   disabled={busy || !text(draft)}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-xs font-black text-slate-950 disabled:opacity-45"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-primary px-3 text-xs font-black text-slate-950 disabled:opacity-45"
                 >
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Send manual note
@@ -300,7 +300,7 @@ function FollowupCard({
                   type="button"
                   onClick={() => onSnooze?.(row, 60)}
                   disabled={snoozeDisabled}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100 disabled:opacity-45"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100 disabled:opacity-45"
                 >
                   <Clock3 className="h-4 w-4" />
                   Snooze 1h
@@ -309,7 +309,7 @@ function FollowupCard({
                   type="button"
                   onClick={() => onCancel?.(row)}
                   disabled={busy}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-45"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-45"
                 >
                   <XCircle className="h-4 w-4" />
                   Cancel
@@ -510,7 +510,7 @@ export default function AiFollowups() {
               type="button"
               onClick={loadFollowups}
               disabled={loading}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Refresh
@@ -544,7 +544,7 @@ export default function AiFollowups() {
               key={tab.key}
               type="button"
               onClick={() => setActiveStatus(tab.key)}
-              className={`h-10 rounded-xl px-4 text-sm font-black transition ${
+              className={`h-[var(--control-height-md)] rounded-xl px-4 text-sm font-black transition ${
                 activeStatus === tab.key
                   ? "bg-white text-slate-950"
                   : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10"
@@ -561,7 +561,7 @@ export default function AiFollowups() {
               key={filter.key}
               type="button"
               onClick={() => setActiveFilter(filter.key)}
-              className={`h-9 rounded-full px-3 text-xs font-black transition ${
+              className={`h-[var(--control-height-md)] rounded-full px-3 text-xs font-black transition ${
                 activeFilter === filter.key
                   ? "bg-primary text-slate-950"
                   : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10"
@@ -603,7 +603,7 @@ export default function AiFollowups() {
             <button
               type="button"
               onClick={() => setVisibleCount((current) => current + 24)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-black text-slate-100 hover:bg-white/[0.08]"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-black text-slate-100 hover:bg-white/[0.08]"
             >
               Load more
             </button>

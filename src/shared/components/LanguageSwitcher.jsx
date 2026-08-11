@@ -150,7 +150,7 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
           onClick={handleCompactToggleClick}
           className={[
             "relative z-[60] pointer-events-auto inline-flex items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-zinc-950/75 text-xs font-black text-[var(--text)] shadow-[0_10px_24px_rgba(0,0,0,0.14)] backdrop-blur transition hover:border-[var(--primary)]/45 hover:bg-[var(--surface-soft)] hover:text-[var(--text)]",
-            showCode ? "h-11 px-3" : "h-11 w-11",
+            showCode ? "h-[var(--control-height-lg)] px-3" : "h-[var(--control-height-lg)] w-11",
           ].join(" ")}
           aria-haspopup="menu"
           aria-expanded={open}

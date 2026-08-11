@@ -732,7 +732,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
-              className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${activeTab === id ? "bg-emerald-400 text-zinc-950" : "text-zinc-400 hover:bg-white/[0.06] hover:text-white"}`}
+              className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${activeTab === id ? "bg-emerald-400 text-zinc-950" : "text-zinc-400 hover:bg-white/[0.06] hover:text-white"}`}
             >
               <Icon className="h-4 w-4" />
               {label}
@@ -775,7 +775,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
                         key={`${item.type}-${item.category || item.en}`}
                         type="button"
                         onClick={() => selectQuickExpenseCategory(item)}
-                        className={`inline-flex min-h-12 items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-black transition ${
+                        className={`inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-black transition ${
                           active ? "border-emerald-300/50 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-white/20 hover:bg-white/[0.07]"
                         }`}
                       >
@@ -871,7 +871,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
             </div>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               {editingExpenseId ? <button type="button" onClick={resetExpenseForm} className="theme-button-soft px-4 py-3 text-sm"><X className="h-4 w-4" />إلغاء</button> : null}
-              <button type="button" onClick={saveExpense} disabled={saving} className="theme-button-primary min-h-12 px-5 py-3 text-sm disabled:opacity-50">
+              <button type="button" onClick={saveExpense} disabled={saving} className="theme-button-primary min-h-[var(--control-height-lg)] px-5 py-3 text-sm disabled:opacity-50">
                 <Plus className="h-4 w-4" />
                 {saving ? "جارٍ الحفظ..." : editingExpenseId ? copy.updateExpense : copy.createExpense}
               </button>
@@ -1134,7 +1134,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder, emptyT
             else if (selected && typed !== selected.label) onChange("");
           }}
           onKeyDown={handleKeyDown}
-          className={`${inputClass} h-12 rounded-2xl border-emerald-300/15 bg-slate-950/90 text-sm shadow-inner shadow-black/20 ${open ? "rounded-b-none border-emerald-300/35 ring-2 ring-emerald-300/10" : ""} ${rtl ? "pr-10 pl-9 text-right" : "pl-10 pr-9 text-left"}`}
+          className={`${inputClass} h-[var(--control-height-lg)] rounded-2xl border-emerald-300/15 bg-slate-950/90 text-sm shadow-inner shadow-black/20 ${open ? "rounded-b-none border-emerald-300/35 ring-2 ring-emerald-300/10" : ""} ${rtl ? "pr-10 pl-9 text-right" : "pl-10 pr-9 text-left"}`}
           placeholder={placeholder}
           dir="auto"
         />
@@ -1339,7 +1339,7 @@ function Td({ children, className = "" }) {
 
 function IconButton({ title, onClick, children }) {
   return (
-    <button type="button" onClick={onClick} title={title} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100">
+    <button type="button" onClick={onClick} title={title} className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100">
       {children}
     </button>
   );

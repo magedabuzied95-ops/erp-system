@@ -49,7 +49,7 @@ function CategoryNode({ item, level = 0, onDelete, items = [], t }) {
 
         <button
           onClick={() => onDelete(item.id)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/8 bg-white/5 text-red-300"
+          className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full border border-white/8 bg-white/5 text-red-300"
         >
           <Trash2 size={16} />
         </button>

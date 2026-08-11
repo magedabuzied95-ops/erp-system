@@ -109,7 +109,7 @@ export default function HRRequestsWorkspace() {
               <input type="checkbox" checked={autoCreateAdvance} onChange={(event) => setAutoCreateAdvance(event.target.checked)} />
               {isArabic ? "إنشاء سلفة عند الموافقة" : "Create advance on approval"}
             </label>
-            <button type="button" onClick={loadPortalRequests} disabled={portalRequestsLoading} className="theme-button-soft h-11 justify-center px-4 text-sm disabled:opacity-60">
+            <button type="button" onClick={loadPortalRequests} disabled={portalRequestsLoading} className="theme-button-soft h-[var(--control-height-lg)] justify-center px-4 text-sm disabled:opacity-60">
               <RefreshCw className={`h-4 w-4 ${portalRequestsLoading ? "animate-spin" : ""}`} />
               {isArabic ? "تحديث" : "Refresh"}
             </button>
@@ -125,7 +125,7 @@ export default function HRRequestsWorkspace() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={[
-                  "inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-black transition",
+                  "inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-xl border px-4 py-2 text-sm font-black transition",
                   active
                     ? "border-[var(--border)] bg-[var(--primary-soft)] text-[var(--text)]"
                     : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)]",
@@ -194,11 +194,11 @@ export default function HRRequestsWorkspace() {
                         dir="auto"
                       />
                       <div className="grid gap-2 md:grid-cols-2">
-                        <button type="button" onClick={() => reviewPortalRequest(request.id, "approved")} disabled={!canReview || Boolean(portalRequestReviewing)} className="theme-button-primary h-10 justify-center px-3 text-sm disabled:opacity-60">
+                        <button type="button" onClick={() => reviewPortalRequest(request.id, "approved")} disabled={!canReview || Boolean(portalRequestReviewing)} className="theme-button-primary h-[var(--control-height-md)] justify-center px-3 text-sm disabled:opacity-60">
                           <CheckCircle2 className="h-4 w-4" />
                           {isArabic ? "موافقة" : "Approve"}
                         </button>
-                        <button type="button" onClick={() => reviewPortalRequest(request.id, "rejected")} disabled={!canReview || Boolean(portalRequestReviewing)} className="theme-button-soft h-10 justify-center px-3 text-sm disabled:opacity-60">
+                        <button type="button" onClick={() => reviewPortalRequest(request.id, "rejected")} disabled={!canReview || Boolean(portalRequestReviewing)} className="theme-button-soft h-[var(--control-height-md)] justify-center px-3 text-sm disabled:opacity-60">
                           <X className="h-4 w-4" />
                           {isArabic ? "رفض" : "Reject"}
                         </button>

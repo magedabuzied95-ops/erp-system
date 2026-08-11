@@ -56,7 +56,7 @@ export default function PortalChatComposer({
                 <div className="truncate text-[13px] font-black text-[#ff7186]">{replyTo.sender_type === labels.outgoingSenderType ? labels.you || "أنت" : labels.management || "M1 Store"}</div>
                 <div className="truncate text-[12px] font-semibold text-slate-200/85">{portalChatMessagePreview(replyTo, labels)}</div>
               </button>
-              <button type="button" onClick={() => setReplyTo?.(null)} className="flex h-9 w-9 shrink-0 self-center items-center justify-center rounded-full text-slate-300 hover:bg-white/10 hover:text-white" aria-label={labels.cancelReply || "إلغاء الرد"}>
+              <button type="button" onClick={() => setReplyTo?.(null)} className="flex h-[var(--control-height-md)] w-9 shrink-0 self-center items-center justify-center rounded-full text-slate-300 hover:bg-white/10 hover:text-white" aria-label={labels.cancelReply || "إلغاء الرد"}>
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -67,7 +67,7 @@ export default function PortalChatComposer({
                 <div className="text-amber-200">{labels.editing || "تعديل الرسالة"}</div>
                 <div className="truncate opacity-80">{editingMessage.body}</div>
               </div>
-              <button type="button" onClick={() => { setEditingMessage?.(null); setBody?.(""); }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-red-200"><X className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => { setEditingMessage?.(null); setBody?.(""); }} className="flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-red-200"><X className="h-3.5 w-3.5" /></button>
             </div>
           ) : null}
           {attachment ? (
@@ -91,11 +91,11 @@ export default function PortalChatComposer({
               accept={CHAT_ATTACHMENT_ACCEPT}
               onChange={chooseAttachment}
             />
-            <button type="button" onClick={() => fileInputRef?.current?.click()} className={`${useTextarea ? "h-11 w-11" : "h-10 w-10"} flex shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50`} aria-label={labels.attachFile || "إرفاق ملف"} disabled={disabled}>
+            <button type="button" onClick={() => fileInputRef?.current?.click()} className={`${useTextarea ? "h-[var(--control-height-lg)] w-11" : "h-[var(--control-height-md)] w-10"} flex shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50`} aria-label={labels.attachFile || "إرفاق ملف"} disabled={disabled}>
               <Paperclip className="h-4 w-4" />
             </button>
             {recordingState.supported ? (
-              <button type="button" onClick={onStartRecording} className={`${useTextarea ? "h-11 w-11" : "h-10 w-10"} flex shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50`} aria-label={labels.recordVoice || "تسجيل صوتي"} disabled={disabled}>
+              <button type="button" onClick={onStartRecording} className={`${useTextarea ? "h-[var(--control-height-lg)] w-11" : "h-[var(--control-height-md)] w-10"} flex shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50`} aria-label={labels.recordVoice || "تسجيل صوتي"} disabled={disabled}>
                 <Mic className="h-4 w-4" />
               </button>
             ) : null}
@@ -127,7 +127,7 @@ export default function PortalChatComposer({
                 disabled={disabled}
               />
             )}
-            <button type="submit" disabled={disabled || sending || (!String(body || "").trim() && !attachment)} className={`${useTextarea ? "h-11 w-11" : "h-10 w-10"} inline-flex shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50`}>
+            <button type="submit" disabled={disabled || sending || (!String(body || "").trim() && !attachment)} className={`${useTextarea ? "h-[var(--control-height-lg)] w-11" : "h-[var(--control-height-md)] w-10"} inline-flex shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50`}>
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
           </div>

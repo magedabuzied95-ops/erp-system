@@ -327,7 +327,7 @@ function Manufacturers() {
                             <button
                               type="button"
                               onClick={() => handleDelete(item)}
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-red-300 transition hover:bg-red-500/10"
+                              className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-red-300 transition hover:bg-red-500/10"
                             >
                               <Trash2 size={16} />
                             </button>

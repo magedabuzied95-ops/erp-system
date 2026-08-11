@@ -54,7 +54,7 @@ function InboundAssistedRepliesCard() {
       <p className="mt-1.5 text-[12px] text-slate-400">On an inbound customer text, AI drafts a <b className="text-slate-200">grounded reply suggestion</b> that a human approves, edits, or rejects in the AI Inbox. <b className="text-slate-200">It never sends autonomously.</b>{!capable ? " The server capability flag is off, so no suggestions are generated yet." : ""}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {MODES.map(([val, label]) => (
-          <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black ${mode === val ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
+          <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-[var(--control-height-sm)] items-center rounded-lg border px-3 text-[11px] font-black ${mode === val ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
         ))}
         {stats ? <span className="ml-1 text-[11px] text-slate-400">Last 30d — suggested {stats.suggested || 0} · skipped {stats.skipped || 0} · errors {stats.errored || 0}</span> : null}
       </div>
@@ -248,7 +248,7 @@ export default function AiStudio() {
             type="button"
             onClick={() => void loadOverview()}
             disabled={loading}
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-white transition hover:border-white/20 disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-white transition hover:border-white/20 disabled:opacity-50"
           >
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             Refresh

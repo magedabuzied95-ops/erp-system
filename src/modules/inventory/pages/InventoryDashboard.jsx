@@ -513,7 +513,7 @@ function InventoryDashboard() {
             <select
               value={purchaseAlertFilters.brand}
               onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, brand: event.target.value }))}
-              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+              className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
             >
               {purchaseAlertOptions.brands.map((value) => (
                 <option key={value} value={value}>
@@ -529,7 +529,7 @@ function InventoryDashboard() {
             <select
               value={purchaseAlertFilters.category}
               onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, category: event.target.value }))}
-              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+              className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
             >
               {purchaseAlertOptions.categories.map((value) => (
                 <option key={value} value={value}>
@@ -545,7 +545,7 @@ function InventoryDashboard() {
             <select
               value={purchaseAlertFilters.manufacturer}
               onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, manufacturer: event.target.value }))}
-              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+              className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
             >
               {purchaseAlertOptions.manufacturers.map((value) => (
                 <option key={value} value={value}>
@@ -561,7 +561,7 @@ function InventoryDashboard() {
             <select
               value={purchaseAlertFilters.alertType}
               onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, alertType: event.target.value }))}
-              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+              className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
             >
               <option value="all">{t("inventory.purchaseAlerts.filters.all")}</option>
               <option value="missing_sizes">{t("inventory.purchaseAlerts.groups.missing_sizes")}</option>
@@ -599,7 +599,7 @@ function InventoryDashboard() {
                         <button
                           type="button"
                           onClick={() => toggleAlertSelection(alert)}
-                          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-zinc-950/80 text-white transition hover:border-emerald-400/40 hover:bg-emerald-500/15"
+                          className="absolute right-3 top-3 inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-full border border-white/10 bg-zinc-950/80 text-white transition hover:border-emerald-400/40 hover:bg-emerald-500/15"
                           aria-pressed={selected}
                           aria-label={selected ? t("inventory.purchaseAlerts.actions.deselectAlert") : t("inventory.purchaseAlerts.actions.selectAlert")}
                         >

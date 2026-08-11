@@ -716,7 +716,7 @@ export default function SharedPortalChat({
             <h2 className="mt-1 text-2xl font-black text-[var(--text)]">{headerTitle}</h2>
             <p className="mt-1 text-xs font-bold text-[var(--muted)]">التحديث الاحتياطي يعمل كل {Math.round(pollMs / 1000)} ثانية</p>
           </div>
-          <button type="button" onClick={() => { void loadThreads(); if (activeThreadId) void loadThread(activeThreadId); }} className="theme-button-soft min-h-10 px-3 text-sm">
+          <button type="button" onClick={() => { void loadThreads(); if (activeThreadId) void loadThread(activeThreadId); }} className="theme-button-soft min-h-[var(--control-height-md)] px-3 text-sm">
             <RefreshCw className={`h-4 w-4 ${loadingThreads ? "animate-spin" : ""}`} />
             تحديث
           </button>
@@ -796,7 +796,7 @@ export default function SharedPortalChat({
                     <button
                       type="button"
                       onClick={() => setMobileConversationOpen(false)}
-                      className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-white transition hover:bg-white/10 md:hidden"
+                      className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-white transition hover:bg-white/10 md:hidden"
                       aria-label="الرجوع إلى محادثات الموظفين"
                     >
                       <ArrowRight className="h-6 w-6" />
@@ -924,7 +924,7 @@ export default function SharedPortalChat({
       </div>
       {imagePreview ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <button type="button" onClick={() => setImagePreview("")} className="absolute end-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white">
+          <button type="button" onClick={() => setImagePreview("")} className="absolute end-4 top-4 flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full bg-white/10 text-white">
             <X className="h-5 w-5" />
           </button>
           <img src={imagePreview} alt="" className="max-h-full max-w-full object-contain" />
@@ -936,7 +936,7 @@ export default function SharedPortalChat({
           <div className="relative flex max-h-[78dvh] w-full max-w-md flex-col overflow-hidden rounded-t-[1.75rem] border border-white/10 bg-[#202c33] text-white shadow-2xl sm:rounded-[1.75rem]">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <div><div className="text-base font-black">إعادة توجيه إلى</div><div className="mt-0.5 text-xs text-slate-400">اختر محادثة الموظف</div></div>
-              <button type="button" onClick={() => setForwardMessage(null)} disabled={forwarding} className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setForwardMessage(null)} disabled={forwarding} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button>
             </div>
             <label className="mx-3 mt-3 flex h-11 items-center gap-2 rounded-full bg-[#111b21] px-3 text-slate-300">
               <Search className="h-4 w-4" /><input autoFocus value={forwardSearch} onChange={(event) => setForwardSearch(event.target.value)} placeholder="ابحث عن موظف" className="min-w-0 flex-1 bg-transparent text-sm font-bold text-white outline-none" />

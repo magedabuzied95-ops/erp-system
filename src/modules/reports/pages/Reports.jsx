@@ -528,7 +528,7 @@ function TextFilter({ label, value, onChange, type = "text" }) {
         {type === "date" ? <CalendarDays className="h-3.5 w-3.5" /> : null}
         {label}
       </span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-300/50" />
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-300/50" />
     </label>
   );
 }
@@ -537,7 +537,7 @@ function SelectFilter({ label, value, onChange, options }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-300/50">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-300/50">
         {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
       </select>
     </label>
@@ -546,7 +546,7 @@ function SelectFilter({ label, value, onChange, options }) {
 
 function ActionButton({ icon: Icon, label, onClick, disabled }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-zinc-100 transition hover:border-emerald-300/40 hover:bg-emerald-400/10 disabled:opacity-50">
+    <button type="button" onClick={onClick} disabled={disabled} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-zinc-100 transition hover:border-emerald-300/40 hover:bg-emerald-400/10 disabled:opacity-50">
       <Icon className="h-4 w-4" />
       {label}
     </button>

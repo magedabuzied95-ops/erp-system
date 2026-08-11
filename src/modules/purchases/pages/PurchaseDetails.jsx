@@ -822,7 +822,7 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
             const selectedProduct = productById(item.product_id);
             return (
             <div key={item.id || item.line_id || index} className="relative rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
-              <button type="button" onClick={() => removeLine(index)} title={t("purchases.details.remove")} className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rose-400/25 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15">
+              <button type="button" onClick={() => removeLine(index)} title={t("purchases.details.remove")} className="absolute right-2 top-2 inline-flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-lg border border-rose-400/25 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
               <div className="flex items-center gap-2.5 pr-9">
@@ -838,14 +838,14 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
               <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-[minmax(18rem,2fr)_minmax(12rem,1.1fr)_4rem_7rem_7rem_7rem_8rem]">
                 <label className="block sm:col-span-2 lg:col-span-1">
                   <CellLabel>{t("purchases.details.product")}</CellLabel>
-                  <select value={item.product_id || ""} onChange={(event) => selectProductForLine(index, event.target.value)} className="h-8 w-full rounded-lg border border-white/10 bg-zinc-950 px-2 text-xs font-semibold text-white outline-none">
+                  <select value={item.product_id || ""} onChange={(event) => selectProductForLine(index, event.target.value)} className="h-[var(--control-height-sm)] w-full rounded-lg border border-white/10 bg-zinc-950 px-2 text-xs font-semibold text-white outline-none">
                     <option value="">{item.product_id ? `${t("purchases.details.product")} ${item.product_id}` : t("purchases.details.selectProduct")}</option>
                     {filteredProducts.map((product) => <option key={product.id} value={product.id}>{[productDisplayName(product), productSku(product)].filter(Boolean).join(" / ")}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <CellLabel>{t("purchases.details.variant")}</CellLabel>
-                  <select value={item.variant_id || ""} onChange={(event) => selectVariantForLine(index, event.target.value)} className="h-8 w-full rounded-lg border border-white/10 bg-zinc-950 px-2 text-xs font-semibold text-white outline-none">
+                  <select value={item.variant_id || ""} onChange={(event) => selectVariantForLine(index, event.target.value)} className="h-[var(--control-height-sm)] w-full rounded-lg border border-white/10 bg-zinc-950 px-2 text-xs font-semibold text-white outline-none">
                     <option value="">{item.variant_id ? `${t("purchases.details.variant")} ${item.variant_id}` : t("purchases.details.selectVariant")}</option>
                     {variants.map((variant) => <option key={variant.id} value={variant.id}>{variantDisplayName(variant)}</option>)}
                   </select>
@@ -1085,7 +1085,7 @@ function CompactField({ label, value, onChange, type = "text", disabled = false 
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-full rounded-lg border border-white/10 bg-white/5 px-2 text-xs font-semibold text-white outline-none disabled:opacity-50"
+        className="h-[var(--control-height-sm)] w-full rounded-lg border border-white/10 bg-white/5 px-2 text-xs font-semibold text-white outline-none disabled:opacity-50"
       />
     </label>
   );

@@ -438,7 +438,7 @@ function WarehouseLivePicks() {
               <button
                 type="button"
                 onClick={handleTestSound}
-                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-50 transition hover:bg-amber-400/15"
+                className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-50 transition hover:bg-amber-400/15"
               >
                 <Speaker className="h-4 w-4" />
                 اختبار الصوت

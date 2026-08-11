@@ -112,13 +112,13 @@ export default function AiStudioRestockRecovery() {
           </div>
           <div className="flex flex-wrap gap-2">
             {!wf ? (
-              <button type="button" onClick={doSeed} disabled={busy === "seed"} className="inline-flex h-9 items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-3 text-[11px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
+              <button type="button" onClick={doSeed} disabled={busy === "seed"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-3 text-[11px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
                 {busy === "seed" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Create from template
               </button>
             ) : (
-              <button type="button" onClick={() => navigate(`/ai-studio/workflows/${wf.id}/edit`)} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20">Open workflow</button>
+              <button type="button" onClick={() => navigate(`/ai-studio/workflows/${wf.id}/edit`)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20">Open workflow</button>
             )}
-            <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
+            <button type="button" onClick={() => void load()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
           </div>
         </div>
         <div className="mt-3"><AiStudioNav /></div>
@@ -140,7 +140,7 @@ export default function AiStudioRestockRecovery() {
       {/* View toggle + messaging-mode control */}
       <div className="flex flex-wrap items-center gap-1.5">
         {[["intents", "Waiting Requests"], ["notifications", "Notifications"], ["recoveries", "Recoveries"]].map(([k, label]) => (
-          <button key={k} type="button" onClick={() => setView(k)} className={`inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[12px] font-black ${view === k ? "border-primary/40 bg-primary text-slate-950" : "border-white/10 bg-white/[0.055] text-[var(--primary-contrast)] hover:border-white/20"}`}>
+          <button key={k} type="button" onClick={() => setView(k)} className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border px-3.5 text-[12px] font-black ${view === k ? "border-primary/40 bg-primary text-slate-950" : "border-white/10 bg-white/[0.055] text-[var(--primary-contrast)] hover:border-white/20"}`}>
             {k === "notifications" ? <MessageSquare className="h-3.5 w-3.5" /> : null}{label}{k === "notifications" && Number(notifCounts.pending_approval || 0) > 0 ? <span className="rounded-full bg-amber-400/20 px-1.5 text-[10px] text-amber-100">{notifCounts.pending_approval}</span> : null}
           </button>
         ))}
@@ -207,14 +207,14 @@ export default function AiStudioRestockRecovery() {
                     <div className="mt-3 flex flex-wrap justify-end gap-2">
                       {editId === n.id ? (
                         <>
-                          <button type="button" onClick={() => { setEditId(null); setEditText(""); }} className="inline-flex h-8 items-center rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300">Cancel</button>
-                          <button type="button" onClick={() => doNotifAction(n.id, "edit")} disabled={busy === `edit-${n.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-3 text-[11px] font-black text-primary">Save draft</button>
+                          <button type="button" onClick={() => { setEditId(null); setEditText(""); }} className="inline-flex h-[var(--control-height-sm)] items-center rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300">Cancel</button>
+                          <button type="button" onClick={() => doNotifAction(n.id, "edit")} disabled={busy === `edit-${n.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-3 text-[11px] font-black text-primary">Save draft</button>
                         </>
                       ) : (
-                        <button type="button" onClick={() => { setEditId(n.id); setEditText(n.approved_text || n.draft_text || ""); }} className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white"><Pencil className="h-3.5 w-3.5" />Edit</button>
+                        <button type="button" onClick={() => { setEditId(n.id); setEditText(n.approved_text || n.draft_text || ""); }} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white"><Pencil className="h-3.5 w-3.5" />Edit</button>
                       )}
-                      <button type="button" onClick={() => doNotifAction(n.id, "reject")} disabled={busy === `reject-${n.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 text-[11px] font-black text-rose-100"><Ban className="h-3.5 w-3.5" />Reject</button>
-                      <button type="button" onClick={() => doNotifAction(n.id, "send")} disabled={busy === `send-${n.id}` || messagingMode !== "approval_send"} title={messagingMode !== "approval_send" ? "Enable Approval + Send mode to send" : "Sends a real message to the customer"} className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-300/40 bg-emerald-400/15 px-3 text-[11px] font-black text-emerald-50 disabled:opacity-40">{busy === `send-${n.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}Approve &amp; Send</button>
+                      <button type="button" onClick={() => doNotifAction(n.id, "reject")} disabled={busy === `reject-${n.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 text-[11px] font-black text-rose-100"><Ban className="h-3.5 w-3.5" />Reject</button>
+                      <button type="button" onClick={() => doNotifAction(n.id, "send")} disabled={busy === `send-${n.id}` || messagingMode !== "approval_send"} title={messagingMode !== "approval_send" ? "Enable Approval + Send mode to send" : "Sends a real message to the customer"} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-lg border border-emerald-300/40 bg-emerald-400/15 px-3 text-[11px] font-black text-emerald-50 disabled:opacity-40">{busy === `send-${n.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}Approve &amp; Send</button>
                     </div>
                   ) : sent ? (
                     <div className="mt-2 space-y-1.5">
@@ -281,8 +281,8 @@ export default function AiStudioRestockRecovery() {
                         <td className="px-4 py-3 text-right">
                           {["waiting", "recovery_created"].includes(i.status) ? (
                             <div className="inline-flex gap-1.5">
-                              <button type="button" onClick={() => doIntentAction(i.id, "fulfil")} disabled={busy === `fulfil-${i.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-2.5 text-[11px] font-black text-emerald-100 hover:bg-emerald-400/20 disabled:opacity-50"><Check className="h-3.5 w-3.5" />Fulfil</button>
-                              <button type="button" onClick={() => doIntentAction(i.id, "cancel")} disabled={busy === `cancel-${i.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 text-[11px] font-black text-rose-100 hover:bg-rose-500/20 disabled:opacity-50"><Ban className="h-3.5 w-3.5" />Cancel</button>
+                              <button type="button" onClick={() => doIntentAction(i.id, "fulfil")} disabled={busy === `fulfil-${i.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-2.5 text-[11px] font-black text-emerald-100 hover:bg-emerald-400/20 disabled:opacity-50"><Check className="h-3.5 w-3.5" />Fulfil</button>
+                              <button type="button" onClick={() => doIntentAction(i.id, "cancel")} disabled={busy === `cancel-${i.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 text-[11px] font-black text-rose-100 hover:bg-rose-500/20 disabled:opacity-50"><Ban className="h-3.5 w-3.5" />Cancel</button>
                             </div>
                           ) : null}
                         </td>

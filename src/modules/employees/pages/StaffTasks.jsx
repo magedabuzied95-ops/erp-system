@@ -288,7 +288,7 @@ function TaskRow({ task, onStart, onComplete, onEdit, onDelete, canDelete, langu
         <button
           type="button"
           onClick={() => onEdit(task)}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] hover:bg-[var(--surface-soft)]"
+          className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] hover:bg-[var(--surface-soft)]"
         >
           {taskLabel(language, "edit")}
         </button>
@@ -296,7 +296,7 @@ function TaskRow({ task, onStart, onComplete, onEdit, onDelete, canDelete, langu
           <button
             type="button"
             onClick={() => onDelete(task)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-300/40 bg-red-500/10 px-3 text-sm font-bold text-red-700"
+            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-red-300/40 bg-red-500/10 px-3 text-sm font-bold text-red-700"
           >
             <Trash2 className="h-4 w-4" />
             {taskLabel(language, "delete")}
@@ -306,7 +306,7 @@ function TaskRow({ task, onStart, onComplete, onEdit, onDelete, canDelete, langu
           <button
             type="button"
             onClick={() => onStart(task)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] hover:bg-[var(--surface-soft)]"
+            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] hover:bg-[var(--surface-soft)]"
           >
             <Play className="h-4 w-4" />
             {taskLabel(language, "start")}
@@ -316,7 +316,7 @@ function TaskRow({ task, onStart, onComplete, onEdit, onDelete, canDelete, langu
           <button
             type="button"
             onClick={() => onComplete(task)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--primary)] px-3 text-sm font-black text-white"
+            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-[var(--primary)] px-3 text-sm font-black text-white"
           >
             <CheckCircle2 className="h-4 w-4" />
             {taskLabel(language, "done")}
@@ -647,7 +647,7 @@ function StaffTasks() {
               setForm({ ...emptyForm, template_kind: "daily", is_opening_day_task: false });
               setPanelOpen(true);
             }}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white"
+            className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white"
           >
             <Plus className="h-4 w-4" />
             {tr("addDailyTask")}
@@ -658,7 +658,7 @@ function StaffTasks() {
               setForm({ ...emptyForm, template_kind: "weekly", is_opening_day_task: false });
               setPanelOpen(true);
             }}
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] hover:bg-[var(--surface-soft)]"
+            className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] hover:bg-[var(--surface-soft)]"
           >
             <Plus className="h-4 w-4" />
             {tr("addWeeklyTask")}
@@ -670,7 +670,7 @@ function StaffTasks() {
               await staffTasksApi.generateRecurring();
               await staffTasksApi.assignInventoryCounts({ limit: 20 });
             })}
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] hover:bg-[var(--surface-soft)] disabled:opacity-60"
+            className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] hover:bg-[var(--surface-soft)] disabled:opacity-60"
           >
             <Warehouse className="h-4 w-4" />
             {tr("dailyCounts")}
@@ -679,7 +679,7 @@ function StaffTasks() {
             type="button"
             disabled={busy === "absence"}
             onClick={() => runAction("absence", () => staffTasksApi.redistributeAbsent({ reason: "manual_absence_review" }))}
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] hover:bg-[var(--surface-soft)] disabled:opacity-60"
+            className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] hover:bg-[var(--surface-soft)] disabled:opacity-60"
           >
             <Route className="h-4 w-4" />
             {tr("redistribute")}
@@ -688,7 +688,7 @@ function StaffTasks() {
             type="button"
             disabled={busy === "overdue"}
             onClick={() => runAction("overdue", () => staffTasksApi.reassignUnfinished())}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-black text-white disabled:opacity-60"
+            className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-black text-white disabled:opacity-60"
           >
             <RefreshCw className="h-4 w-4" />
             {tr("reassignOverdue")}
@@ -712,12 +712,12 @@ function StaffTasks() {
             </button>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <input value={form.title} onChange={(e) => setForm((v) => ({ ...v, title: e.target.value }))} placeholder={tr("taskTitle")} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-start text-sm font-semibold text-[var(--text)] outline-none" />
-            <select value={form.branch_id} onChange={(e) => setForm((v) => ({ ...v, branch_id: e.target.value }))} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
+            <input value={form.title} onChange={(e) => setForm((v) => ({ ...v, title: e.target.value }))} placeholder={tr("taskTitle")} className="h-[var(--control-height-lg)] rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-start text-sm font-semibold text-[var(--text)] outline-none" />
+            <select value={form.branch_id} onChange={(e) => setForm((v) => ({ ...v, branch_id: e.target.value }))} className="h-[var(--control-height-lg)] rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
               <option value="">{tr("anyBranch")}</option>
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || branch.branch_name}</option>)}
             </select>
-            <select value={form.priority} onChange={(e) => setForm((v) => ({ ...v, priority: e.target.value }))} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
+            <select value={form.priority} onChange={(e) => setForm((v) => ({ ...v, priority: e.target.value }))} className="h-[var(--control-height-lg)] rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
               {["low", "medium", "high", "critical"].map((item) => <option key={item} value={item}>{priorityLabel(item, language)}</option>)}
             </select>
             <div className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--muted)]">
@@ -736,7 +736,7 @@ function StaffTasks() {
             <textarea value={form.description} onChange={(e) => setForm((v) => ({ ...v, description: e.target.value }))} placeholder={tr("taskDetails")} className="min-h-24 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-start text-sm font-semibold text-[var(--text)] outline-none md:col-span-2" />
           </div>
           <div className="mt-4 flex justify-end">
-            <button type="button" disabled={busy === "save-task" || !form.title.trim()} onClick={saveTask} className="inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-black text-white disabled:opacity-60">
+            <button type="button" disabled={busy === "save-task" || !form.title.trim()} onClick={saveTask} className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-black text-white disabled:opacity-60">
               <Save className="h-4 w-4" />
               {tr("saveTask")}
             </button>
@@ -914,19 +914,19 @@ function StaffTasks() {
               <p className="mt-1 text-sm text-[var(--muted)]">{loading ? tr("loadingTasks") : `${filteredTasks.length} ${tr("visibleTasks")}`}</p>
             </div>
             <div className="grid gap-2 md:grid-cols-5">
-              <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
+              <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
                 <option value="">{tr("allStatuses")}</option>
                 {Object.keys(statusLabels).map((key) => <option key={key} value={key}>{statusLabel(key, language)}</option>)}
               </select>
-              <select value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value)} className="h-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
+              <select value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
                 <option value="">{tr("allEmployees")}</option>
                 {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.employee_code}</option>)}
               </select>
-              <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="h-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
+              <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
                 <option value="">{tr("allBranches")}</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || branch.branch_name}</option>)}
               </select>
-              <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="h-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
+              <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
                 <option value="">{tr("allPriorities")}</option>
                 {["low", "medium", "high", "critical"].map((item) => <option key={item} value={item}>{priorityLabel(item, language)}</option>)}
               </select>

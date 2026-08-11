@@ -71,7 +71,7 @@ function Field({ label, children, hint = "" }) {
 }
 
 function TextInput(props) {
-  return <input {...props} className={`h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-primary/40 ${props.className || ""}`} />;
+  return <input {...props} className={`h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-primary/40 ${props.className || ""}`} />;
 }
 
 function TextArea(props) {
@@ -79,7 +79,7 @@ function TextArea(props) {
 }
 
 function SelectInput(props) {
-  return <select {...props} className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />;
+  return <select {...props} className="h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />;
 }
 
 function Toggle({ label, checked, onChange, hint = "" }) {
@@ -186,11 +186,11 @@ export default function AiAgentSettings() {
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Tenant-scoped controls for tone, sales rules, follow-ups, handoff triggers, and staff suggested replies.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={loadSettings} disabled={loading || saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-4 text-sm font-black text-white disabled:opacity-50">
+              <button type="button" onClick={loadSettings} disabled={loading || saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-4 text-sm font-black text-white disabled:opacity-50">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh
               </button>
-              <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
+              <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save settings
               </button>

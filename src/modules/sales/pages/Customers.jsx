@@ -958,7 +958,7 @@ function Customers() {
               setCustomerFormOpen(true);
             }}
             aria-expanded={customerFormOpen}
-            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
+            className="inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
           >
             {customerFormOpen ? <X className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
             {customerFormOpen ? t("customers.form.cancel") : t("customers.form.titleAdd")}
@@ -1020,7 +1020,7 @@ function Customers() {
           <div className="mt-5 flex flex-wrap gap-3">
             <button
               type="submit"
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-emerald-400 px-5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-300"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-xl bg-emerald-400 px-5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-300"
             >
               {editingId ? t("customers.form.submitUpdate") : t("customers.form.submitAdd")}
             </button>
@@ -1028,7 +1028,7 @@ function Customers() {
               <button
                 type="button"
                 onClick={resetForm}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-slate-800/70 px-5 text-sm font-bold text-zinc-300 transition hover:bg-slate-700/80 hover:text-white"
+                className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-xl border border-white/10 bg-slate-800/70 px-5 text-sm font-bold text-zinc-300 transition hover:bg-slate-700/80 hover:text-white"
               >
                 {t("customers.form.cancel")}
               </button>
@@ -1127,7 +1127,7 @@ function Customers() {
                           <button
                             type="button"
                             onClick={() => handleOpenProfile(customer)}
-                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/20"
+                            className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/20"
                           >
                             <FileText className="h-4 w-4" />
                             كشف حساب العميل
@@ -1135,7 +1135,7 @@ function Customers() {
                           <button
                             type="button"
                             onClick={() => editCustomer(customer)}
-                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20"
+                            className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20"
                           >
                             <Pencil className="h-4 w-4" />
                             {t("customers.actions.edit")}
@@ -1143,7 +1143,7 @@ function Customers() {
                           <button
                             type="button"
                             onClick={() => deleteCustomer(customer.id)}
-                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 transition hover:bg-rose-400/20"
+                            className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 transition hover:bg-rose-400/20"
                           >
                             <Trash2 className="h-4 w-4" />
                             {t("customers.actions.delete")}
@@ -1248,7 +1248,7 @@ function CustomerImportModal({
                 ارفع ملف Excel أو CSV، راجع المعاينة أولاً، ثم نفذ الاستيراد النهائي بدون تكرار العملاء الموجودين.
               </p>
             </div>
-            <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10">
+            <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -1306,7 +1306,7 @@ function CustomerImportModal({
                   type="button"
                   onClick={onPreview}
                   disabled={loading || !file}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-black text-slate-950 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-black text-slate-950 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FileText className="h-4 w-4" />
                   {loading && !summary ? "جاري الفحص..." : "معاينة قبل الاستيراد"}
@@ -1314,7 +1314,7 @@ function CustomerImportModal({
                 <button
                   type="button"
                   onClick={onDownloadTemplate}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-slate-950/70 px-5 text-sm font-black text-primary transition hover:bg-primary/10"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-slate-950/70 px-5 text-sm font-black text-primary transition hover:bg-primary/10"
                 >
                   <Download className="h-4 w-4" />
                   تحميل نموذج Excel
@@ -1323,7 +1323,7 @@ function CustomerImportModal({
                   type="button"
                   onClick={onConfirm}
                   disabled={loading || !preview?.summary || importDone}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Sparkles className="h-4 w-4" />
                   {loading && summary ? "جاري الاستيراد..." : importDone ? "تم الاستيراد" : "تأكيد الاستيراد"}
@@ -1332,7 +1332,7 @@ function CustomerImportModal({
                   type="button"
                   onClick={onDownloadErrors}
                   disabled={!hasInvalidRows}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Download className="h-4 w-4" />
                   تحميل تقرير الأخطاء
@@ -1435,7 +1435,7 @@ function CustomerProfileDrawer({
               type="button"
               onClick={onExportStatement}
               disabled={!canExportStatement}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
               title={canExportStatement ? "كشف حساب العميل" : "Only admin/manager can export"}
             >
               <FileText className="h-4 w-4" />
@@ -1444,7 +1444,7 @@ function CustomerProfileDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10"
+              className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10"
               aria-label="Close"
             >
               <X className="h-5 w-5" />
@@ -1496,7 +1496,7 @@ function CustomerProfileDrawer({
             </select>
             <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" className={inputClass} />
             <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder="سبب/ملاحظات التعديل" className={inputClass} />
-            <button type="submit" className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300">حفظ</button>
+            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300">حفظ</button>
           </form>
         </section>
 
@@ -1653,7 +1653,7 @@ function CustomerStatementDrawer({
               type="button"
               onClick={() => setPaymentDialogOpen(true)}
               disabled={currentBalance <= 0}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Wallet className="h-4 w-4" />
               تسجيل دفعة
@@ -1662,7 +1662,7 @@ function CustomerStatementDrawer({
               type="button"
               onClick={onExportStatement}
               disabled={!canExportStatement}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
               title={canExportStatement ? "طباعة / تحميل PDF" : "Only admin/manager can export"}
             >
               <FileText className="h-4 w-4" />
@@ -1671,7 +1671,7 @@ function CustomerStatementDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-black text-zinc-200 transition hover:bg-white/10"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-black text-zinc-200 transition hover:bg-white/10"
               aria-label="العودة للعملاء"
             >
               <ArrowRight className="h-5 w-5" />
@@ -1736,7 +1736,7 @@ function CustomerStatementDrawer({
                 <button
                   type="button"
                   onClick={() => setPaymentDialogOpen(false)}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                  className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
                   aria-label="إغلاق نافذة تسجيل الدفعة"
                 >
                   <X className="h-5 w-5" />
@@ -1772,11 +1772,11 @@ function CustomerStatementDrawer({
                   <button
                     type="button"
                     onClick={() => setPaymentDialogOpen(false)}
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-black text-zinc-200 transition hover:bg-white/10"
+                    className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-black text-zinc-200 transition hover:bg-white/10"
                   >
                     إلغاء
                   </button>
-                  <button type="submit" disabled={paymentSaving || currentBalance <= 0} className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-400 px-6 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40">
+                  <button type="submit" disabled={paymentSaving || currentBalance <= 0} className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-2xl bg-emerald-400 px-6 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40">
                     {paymentSaving ? "جاري الحفظ..." : "تسجيل الدفعة"}
                   </button>
                 </div>
@@ -1828,7 +1828,7 @@ function CustomerStatementDrawer({
             </select>
             <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" className={inputClass} />
             <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder="سبب/ملاحظات التعديل" className={inputClass} />
-            <button type="submit" className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300">حفظ</button>
+            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300">حفظ</button>
           </form>
         </section>
 

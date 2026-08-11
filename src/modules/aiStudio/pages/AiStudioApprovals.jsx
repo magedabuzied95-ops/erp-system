@@ -44,10 +44,10 @@ export default function AiStudioApprovals() {
             <p className="mt-1 text-sm text-slate-400">Human approval for sensitive AI actions. Approval never bypasses RBAC — permissions are re-checked before execution.</p>
           </div>
           <div className="flex items-center gap-2">
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-full border border-white/10 bg-slate-950/70 px-3 text-[12px] font-black text-white outline-none">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-[var(--control-height-md)] rounded-full border border-white/10 bg-slate-950/70 px-3 text-[12px] font-black text-white outline-none">
               <option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All</option>
             </select>
-            <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
+            <button type="button" onClick={() => void load()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
           </div>
         </div>
         <div className="mt-3"><AiStudioNav /></div>
@@ -76,10 +76,10 @@ export default function AiStudioApprovals() {
                 </div>
                 {a.status === "pending" ? (
                   <div className="flex shrink-0 gap-2">
-                    <button type="button" onClick={() => decide(a.id, "approve", "Approve")} disabled={busy === `approve-${a.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-3 text-[12px] font-black text-emerald-100 hover:bg-emerald-400/20 disabled:opacity-50">
+                    <button type="button" onClick={() => decide(a.id, "approve", "Approve")} disabled={busy === `approve-${a.id}`} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-3 text-[12px] font-black text-emerald-100 hover:bg-emerald-400/20 disabled:opacity-50">
                       {busy === `approve-${a.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}Approve
                     </button>
-                    <button type="button" onClick={() => decide(a.id, "reject", "Reject")} disabled={busy === `reject-${a.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-300/30 bg-rose-400/10 px-3 text-[12px] font-black text-rose-100 hover:bg-rose-400/20 disabled:opacity-50">
+                    <button type="button" onClick={() => decide(a.id, "reject", "Reject")} disabled={busy === `reject-${a.id}`} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-lg border border-rose-300/30 bg-rose-400/10 px-3 text-[12px] font-black text-rose-100 hover:bg-rose-400/20 disabled:opacity-50">
                       {busy === `reject-${a.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}Reject
                     </button>
                   </div>

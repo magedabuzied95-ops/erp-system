@@ -115,7 +115,7 @@ function PosHeader({
                       setActiveCustomerIndex(-1);
                       window.setTimeout(() => customerSearchRef.current?.focus(), 0);
                     }}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
+                    className="inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
                     aria-label={t("pos.customer.change")}
                     title={t("pos.customer.change")}
                   >
@@ -137,7 +137,7 @@ function PosHeader({
                       setCustomerSearchActive(true);
                     }}
                     placeholder={customerPlaceholder}
-                    className="h-11 w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-11 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                    className="h-[var(--control-height-lg)] w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-11 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
                   />
                   {customerSearch ? (
                     <button
@@ -149,7 +149,7 @@ function PosHeader({
                         setActiveCustomerIndex(-1);
                         window.setTimeout(() => customerSearchRef.current?.focus(), 0);
                       }}
-                      className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
+                      className="absolute right-3 top-1/2 inline-flex h-[var(--control-height-sm)] w-8 -translate-y-1/2 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
                       aria-label={t("pos.customer.change")}
                       title={t("pos.customer.change")}
                     >
@@ -162,7 +162,7 @@ function PosHeader({
             <button
               type="button"
               onClick={onCreateCustomerClick}
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-[var(--primary)]/25 bg-[var(--primary-soft)] px-3 text-xs font-black text-[var(--primary)] transition hover:border-[var(--primary)]/50 hover:bg-[var(--primary-soft)]/80 sm:w-11 sm:px-0"
+              className="inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-2xl border border-[var(--primary)]/25 bg-[var(--primary-soft)] px-3 text-xs font-black text-[var(--primary)] transition hover:border-[var(--primary)]/50 hover:bg-[var(--primary-soft)]/80 sm:w-11 sm:px-0"
               aria-label={t("pos.customer.add")}
               title={addCustomerLabel}
             >

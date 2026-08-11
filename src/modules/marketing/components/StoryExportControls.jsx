@@ -142,15 +142,15 @@ export default function StoryExportControls({ campaign, templateId, currentIndex
         {exporting ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : null}
       </div>
       <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-        <button type="button" onClick={exportCurrent} disabled={disabled} className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-primary/25 bg-primary/10 px-3 py-3 text-xs font-black leading-none text-primary transition hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={exportCurrent} disabled={disabled} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-primary/25 bg-primary/10 px-3 py-3 text-xs font-black leading-none text-primary transition hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50">
           <FileImage className="h-4 w-4" />
           {t("marketing.story.export.current")}
         </button>
-        <button type="button" onClick={exportAllPng} disabled={disabled} className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-black leading-none text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={exportAllPng} disabled={disabled} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-black leading-none text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <Download className="h-4 w-4" />
           {t("marketing.story.export.all")}
         </button>
-        <button type="button" onClick={exportZip} disabled={disabled} className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-fuchsia-300/25 bg-fuchsia-300/10 px-3 py-3 text-xs font-black leading-none text-fuchsia-50 transition hover:bg-fuchsia-300/20 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={exportZip} disabled={disabled} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-fuchsia-300/25 bg-fuchsia-300/10 px-3 py-3 text-xs font-black leading-none text-fuchsia-50 transition hover:bg-fuchsia-300/20 disabled:cursor-not-allowed disabled:opacity-50">
           <Archive className="h-4 w-4" />
           {t("marketing.story.export.downloadZip")}
         </button>

@@ -1286,7 +1286,7 @@ function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, pe
           if (ORDERS_DEBUG) console.log("[orders-dashboard] action trigger clicked", { rowId: order.id, nextOpen: !isOpen });
           setOpenMenuId(isOpen ? null : order.id);
         }}
-        className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/90 shadow-lg shadow-black/10 ring-1 ring-white/[0.03] transition-all duration-200 ease-out hover:border-primary/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/35"
+        className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/90 shadow-lg shadow-black/10 ring-1 ring-white/[0.03] transition-all duration-200 ease-out hover:border-primary/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/35"
       >
         <MoreVertical className="h-4 w-4 opacity-95" />
       </button>

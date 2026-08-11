@@ -165,19 +165,19 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        <button type="button" onClick={copyPortalLink} disabled={!hasPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={copyPortalLink} disabled={!hasPortalLink} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <Copy className="h-4 w-4" />
           {isArabic ? "نسخ الرابط" : "Copy Link"}
         </button>
-        <button type="button" onClick={openPortal} disabled={!hasPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={openPortal} disabled={!hasPortalLink} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <ExternalLink className="h-4 w-4" />
           {isArabic ? "فتح الرابط" : "Open Link"}
         </button>
-        <button type="button" onClick={shareWhatsapp} disabled={!hasPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={shareWhatsapp} disabled={!hasPortalLink} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isArabic ? "مشاركة واتساب" : "WhatsApp Share"}
         </button>
-        <button type="button" onClick={downloadQr} disabled={portalTokenBusy || !hasPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={downloadQr} disabled={portalTokenBusy || !hasPortalLink} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <Download className="h-4 w-4" />
           {isArabic ? "تنزيل QR" : "Download QR"}
         </button>
@@ -185,7 +185,7 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
           type="button"
           onClick={regeneratePortalLink}
           disabled={portalTokenBusy}
-          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
             showGenerateAction
               ? "border border-amber-300/30 bg-amber-500 px-4 text-sm font-black text-black hover:bg-amber-400"
               : "border border-white/10 bg-white/5 text-white hover:bg-white/10"

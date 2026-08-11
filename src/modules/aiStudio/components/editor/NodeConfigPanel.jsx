@@ -119,7 +119,7 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
           <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-300">{meta?.label || type}</div>
           <div className="truncate text-[10px] text-slate-500">Configure this node</div>
         </div>
-        <button type="button" onClick={onDelete} title="Delete node" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-400/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20">
+        <button type="button" onClick={onDelete} title="Delete node" className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-rose-400/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>

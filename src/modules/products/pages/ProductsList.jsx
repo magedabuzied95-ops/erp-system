@@ -1245,7 +1245,7 @@ function PriceField({ label, value, onChange, current, placeholder = "", compact
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/40 ${compact ? "h-10" : "h-11"}`}
+        className={`w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/40 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-lg)]"}`}
       />
     </label>
   );
@@ -1277,7 +1277,7 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
         aria-label={label}
         className={`w-full rounded-xl border px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 ${
           changed ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/10 bg-zinc-950"
-        } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-9" : "h-10"}`}
+        } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-md)]"}`}
       />
     </label>
   );
@@ -1598,13 +1598,13 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
               {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء الجماعي" value={bulkPurchasePrice} onBlur={normalizeFormInputs} onChange={setBulkPurchasePrice} placeholder={t("products.priceEditor.empty", "Empty")} /> : null}
               <AdvancedPriceField label={t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price")} value={bulkSellingPrice} onBlur={normalizeFormInputs} onChange={setBulkSellingPrice} placeholder={t("products.priceEditor.empty", "Empty")} />
               <AdvancedPriceField label={t("products.priceEditor.bulkSalePrice", "Bulk Sale Price")} value={bulkSalePrice} onBlur={normalizeFormInputs} onChange={setBulkSalePrice} placeholder={t("products.priceEditor.empty", "Empty")} />
-              <button type="button" onClick={applyBulkPricesToVariants} disabled={!isSimpleProduct && !form.variants.length} className="h-10 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 outline-none hover:bg-emerald-400/15 focus:border-emerald-300/60 disabled:opacity-50">
+              <button type="button" onClick={applyBulkPricesToVariants} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 outline-none hover:bg-emerald-400/15 focus:border-emerald-300/60 disabled:opacity-50">
                 {isSimpleProduct ? t("products.priceEditor.applyToProduct", "Apply to product") : t("products.priceEditor.applyToAllVariants", "Apply to all variants")}
               </button>
-              <button type="button" onClick={copyFirstVariantPriceToAll} disabled={!form.variants.length} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+              <button type="button" onClick={copyFirstVariantPriceToAll} disabled={!form.variants.length} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
                 {t("products.priceEditor.copyFirstVariant", "Copy first variant price to all")}
               </button>
-              <button type="button" onClick={clearAllDiscounts} disabled={!isSimpleProduct && !form.variants.length} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+              <button type="button" onClick={clearAllDiscounts} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
                 {t("products.priceEditor.clearDiscounts", "Clear all discount prices")}
               </button>
             </div>
@@ -1651,7 +1651,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                         {canEditPurchasePrice ? <AdvancedPriceField compact label="سعر الشراء" value={group.purchasePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { purchase_price: value })} placeholder={group.hasMixedPurchasePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} /> : null}
                         <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={group.salePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { sale_price: value })} placeholder={group.hasMixedSalePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
                         <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={group.discountPrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { discount_price: value })} placeholder={group.hasMixedDiscountPrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
-                        <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10">
+                        <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10">
                           <ChevronDown size={18} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
                         </button>
                       </div>
@@ -2996,7 +2996,7 @@ function ProductsList() {
                     <button
                       type="button"
                       onClick={() => setFiltersOpen(false)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:text-white"
+                      className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:text-white"
                       aria-label={t("common.close", "Close")}
                     >
                       <X size={14} />
@@ -3382,7 +3382,7 @@ function ProductsList() {
                                   return next;
                                 });
                               }}
-                              className="group/action relative ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100"
+                              className="group/action relative ml-1 inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100"
                               title={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                               aria-label={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                             >
@@ -3673,7 +3673,7 @@ function BarcodeQueueBulkModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
             aria-label={t("common.close", "Close")}
           >
             <X size={18} />
@@ -3965,7 +3965,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
           <button
             type="button"
             onClick={() => setMoreOpen((current) => !current)}
-            className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
+            className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
               moreOpen
                 ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-100"
                 : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"

@@ -28,7 +28,7 @@ export default function Navbar({ title, subtitle }) {
               className="w-[260px] bg-transparent text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
             />
           </div>
-          <button type="button" className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)]">
+          <button type="button" className="relative flex h-[var(--control-height-lg)] w-12 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)]">
             <Bell className="h-5 w-5" />
             <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--primary)] px-1 text-[10px] font-black text-white">
               3

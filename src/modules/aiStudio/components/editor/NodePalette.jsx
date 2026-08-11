@@ -33,7 +33,7 @@ export default function NodePalette({ palette, onAdd, disabled }) {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search nodes & tools…"
             dir="ltr"
-            className="h-8 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-8 pr-2 text-[12px] text-white placeholder:text-slate-500 focus:border-primary/40 focus:outline-none"
+            className="h-[var(--control-height-sm)] w-full rounded-lg border border-white/10 bg-white/[0.04] pl-8 pr-2 text-[12px] text-white placeholder:text-slate-500 focus:border-primary/40 focus:outline-none"
           />
         </div>
       </div>

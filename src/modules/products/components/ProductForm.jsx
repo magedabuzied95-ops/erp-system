@@ -92,7 +92,7 @@ function ProductForm({
             <button
               type="button"
               onClick={() => setBrandOpen((current) => !current)}
-              className="mt-2 flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-left text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
+              className="mt-2 flex h-[var(--control-height-lg)] w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-left text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
             >
               <span className={brand ? "truncate" : "text-zinc-500"}>{brand || t("products.form.searchBrand")}</span>
               <ChevronDown size={16} className="shrink-0 text-zinc-400" />
@@ -266,7 +266,7 @@ function ProductForm({
         {useCustomComparePrice ? (
           <div className="mt-4">
             <label className="text-sm font-semibold text-zinc-300">{t("products.fields.originalPrice", "السعر قبل الخصم")}</label>
-            <input type="number" min="0" step="0.01" value={customComparePrice} onChange={(event) => onCustomComparePriceChange?.(event.target.value)} placeholder={t("products.form.originalPricePlaceholder", "اختياري: السعر قبل الخصم")} className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-4 font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-violet-300/50" />
+            <input type="number" min="0" step="0.01" value={customComparePrice} onChange={(event) => onCustomComparePriceChange?.(event.target.value)} placeholder={t("products.form.originalPricePlaceholder", "اختياري: السعر قبل الخصم")} className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-4 font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-violet-300/50" />
           </div>
         ) : null}
       </section>
@@ -331,7 +331,7 @@ function ProductForm({
                 value={cartonSize}
                 onChange={(event) => onCartonSizeChange?.(event.target.value)}
                 placeholder={t("products.form.cartonSizePlaceholder", "اختياري")}
-                className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
+                className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
               />
               <p className="mt-2 text-xs leading-5 text-zinc-500">
                 {t("products.form.cartonSizeHelp", "حجم الكرتونة يستخدم لاحقاً في تنبيهات الكرتونة.")}
@@ -348,7 +348,7 @@ function ProductForm({
                 step="1"
                 value={suggestedPurchaseCartons}
                 onChange={(event) => onSuggestedPurchaseCartonsChange?.(event.target.value)}
-                className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
+                className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
               />
               <p className="mt-2 text-xs leading-5 text-zinc-500">
                 {t("products.form.suggestedPurchaseCartonsHelp", "عدد الكراتين المقترح يستخدم كإجراء افتراضي عند إنشاء طلب شراء.")}
@@ -405,7 +405,7 @@ function SmartClassificationSelect({ label, value, onChange, options = [], place
       <select
         value={hasSelectedOption ? normalizedValue : ""}
         onChange={(event) => onChange?.(event.target.value)}
-        className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
+        className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
       >
         <option value="">{placeholder}</option>
         {options.map((item) => (
@@ -467,7 +467,7 @@ function FormSelect({ label, value, onChange, options = [], placeholder, tabInde
         value={hasSelectedOption ? normalizedValue : ""}
         onChange={(event) => onChange?.(event.target.value)}
         tabIndex={tabIndex}
-        className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
+        className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
       >
         <option value="">{placeholder}</option>
         {options.map((item) => (

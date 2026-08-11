@@ -122,17 +122,17 @@ export default function PortalChatMessageList({
         {onReact ? (
           <div className="mb-2 flex items-center justify-between gap-1 rounded-2xl bg-[#111b21] px-2 py-2 shadow-inner" dir="ltr">
             {QUICK_REACTIONS.map((emoji) => (
-              <button key={emoji} type="button" onClick={() => { onReact(activeMessage, emoji); closeActions(); }} className="grid h-9 w-9 place-items-center rounded-full text-[24px] transition hover:-translate-y-1 hover:bg-white/10 active:scale-90" aria-label={`${labels.react || "تفاعل"} ${emoji}`}>{emoji}</button>
+              <button key={emoji} type="button" onClick={() => { onReact(activeMessage, emoji); closeActions(); }} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-full text-[24px] transition hover:-translate-y-1 hover:bg-white/10 active:scale-90" aria-label={`${labels.react || "تفاعل"} ${emoji}`}>{emoji}</button>
             ))}
           </div>
         ) : null}
         <div className="mb-1 truncate rounded-xl bg-black/15 px-3 py-2 text-xs font-semibold text-slate-300" dir="auto">{portalChatMessagePreview(activeMessage, labels)}</div>
         <div className="grid text-[15px] font-bold">
-          {onReply ? <button type="button" onClick={() => { onReply(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Reply className="h-[18px] w-[18px]" />{labels.reply || "رد"}</button> : null}
-          {onForward ? <button type="button" onClick={() => { onForward(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Forward className="h-[18px] w-[18px]" />{labels.forward || "إعادة توجيه"}</button> : null}
-          {activeMessage.body ? <button type="button" onClick={() => { navigator.clipboard?.writeText?.(activeMessage.body); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Copy className="h-[18px] w-[18px]" />{labels.copy || "نسخ"}</button> : null}
-          {activeMessage.sender_type === outgoingSenderType && activeMessage.body && onEdit ? <button type="button" onClick={() => { onEdit(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Pencil className="h-[18px] w-[18px]" />{labels.edit || "تعديل"}</button> : null}
-          {activeMessage.sender_type === outgoingSenderType && onDelete ? <button type="button" onClick={() => { onDelete(activeMessage); closeActions(); }} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-start text-red-300 hover:bg-white/10"><Trash2 className="h-[18px] w-[18px]" />{labels.delete || "حذف لدى الجميع"}</button> : null}
+          {onReply ? <button type="button" onClick={() => { onReply(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Reply className="h-[18px] w-[18px]" />{labels.reply || "رد"}</button> : null}
+          {onForward ? <button type="button" onClick={() => { onForward(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Forward className="h-[18px] w-[18px]" />{labels.forward || "إعادة توجيه"}</button> : null}
+          {activeMessage.body ? <button type="button" onClick={() => { navigator.clipboard?.writeText?.(activeMessage.body); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Copy className="h-[18px] w-[18px]" />{labels.copy || "نسخ"}</button> : null}
+          {activeMessage.sender_type === outgoingSenderType && activeMessage.body && onEdit ? <button type="button" onClick={() => { onEdit(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-xl px-3 text-start hover:bg-white/10"><Pencil className="h-[18px] w-[18px]" />{labels.edit || "تعديل"}</button> : null}
+          {activeMessage.sender_type === outgoingSenderType && onDelete ? <button type="button" onClick={() => { onDelete(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-xl px-3 text-start text-red-300 hover:bg-white/10"><Trash2 className="h-[18px] w-[18px]" />{labels.delete || "حذف لدى الجميع"}</button> : null}
         </div>
       </div>
     </div>, document.body
@@ -185,7 +185,7 @@ export default function PortalChatMessageList({
                       <button
                         type="button"
                         onClick={() => setActiveMenuId((current) => String(current) === String(message.id) ? null : message.id)}
-                        className="grid h-7 w-7 place-items-center rounded-full bg-black/10 text-white/70 opacity-70 transition hover:bg-black/20 hover:opacity-100"
+                        className="grid h-[var(--control-height-sm)] w-7 place-items-center rounded-full bg-black/10 text-white/70 opacity-70 transition hover:bg-black/20 hover:opacity-100"
                         aria-label={labels.messageActions || "إجراءات الرسالة"}
                       >
                         <MoreVertical className="h-4 w-4" />
@@ -251,7 +251,7 @@ export default function PortalChatMessageList({
       )}
       {typingLabel ? <div className="w-fit rounded-2xl bg-[#202c33] px-3 py-1.5 text-[12px] font-bold text-emerald-200">{typingLabel}</div> : null}
       {showJump ? (
-        <button type="button" onClick={onJumpToBottom} className="sticky bottom-3 z-10 ms-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#202c33] text-white shadow-lg">
+        <button type="button" onClick={onJumpToBottom} className="sticky bottom-3 z-10 ms-auto flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full bg-[#202c33] text-white shadow-lg">
           <ArrowDownCircle className="h-5 w-5" />
         </button>
       ) : null}

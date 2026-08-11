@@ -1693,7 +1693,7 @@ function AttendanceWorkspace({
                             aria-label={tr("actions.deleteEmployee")}
                             onClick={() => setDeleteTarget(employee)}
                             disabled={String(deletingEmployeeId) === String(employee.id)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-400/30 bg-rose-500/10 text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-2xl border border-rose-400/30 bg-rose-500/10 text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {String(deletingEmployeeId) === String(employee.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
@@ -1790,7 +1790,7 @@ function AttendanceWorkspace({
                           employeePhotoInputRef.current?.click();
                         }}
                         disabled={uploadingEmployeePhoto}
-                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {uploadingEmployeePhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
                         {uploadingEmployeePhoto ? (isArabic ? "جارٍ الرفع..." : "Uploading...") : (isArabic ? "رفع صورة" : "Upload photo")}
@@ -1799,7 +1799,7 @@ function AttendanceWorkspace({
                         <button
                           type="button"
                           onClick={() => setEmployeeForm((prev) => ({ ...prev, photo_url: "" }))}
-                          className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
+                          className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
                         >
                           {isArabic ? "إزالة الصورة" : "Remove photo"}
                         </button>

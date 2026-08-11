@@ -1072,11 +1072,11 @@ function OrderDetails() {
                 <button type="button" onClick={() => {
                   setShipping((prev) => ({ ...prev, provider: resolveShippingProviderKey(prev.provider) }));
                   setShippingSetupOpen(true);
-                }} className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
+                }} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   <Truck className="h-4 w-4" />
                   إضافة شحن للفاتورة
                 </button>
-                <button type="button" onClick={() => setStatusTimelineOpen(true)} className="h-10 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10">
+                <button type="button" onClick={() => setStatusTimelineOpen(true)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10">
                   سجل العملية
                 </button>
               </div>
@@ -1116,7 +1116,7 @@ function OrderDetails() {
                 <select
                   value={order.status || ""}
                   onChange={(event) => handleStatusChange(event.target.value)}
-                  className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none"
+                  className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none"
                 >
                   {ORDER_STATUSES.map((status) => (
                     <option key={status} value={status} className="bg-zinc-950 text-white">
@@ -1127,7 +1127,7 @@ function OrderDetails() {
                 <button
                   type="button"
                   onClick={() => setStatusTimelineOpen(true)}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   {t("orders.drawer.timeline")}
@@ -1209,7 +1209,7 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={handleSaveNotes}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-black"
+                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-black"
               >
                 <Save className="h-4 w-4" />
                 {t("orders.details.saveNotes")}
@@ -1304,7 +1304,7 @@ function OrderDetails() {
                       <button
                         type="button"
                         onClick={() => setPaymentProofModalOpen(true)}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-amber-300 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200"
+                        className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-amber-300 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200"
                       >
                         <Eye className="h-4 w-4" />
                         {t("orders.details.zoom")}
@@ -1312,7 +1312,7 @@ function OrderDetails() {
                       <button
                         type="button"
                         onClick={() => window.open(paymentProofUrl, "_blank", "noopener,noreferrer")}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                        className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
                       >
                         <ExternalLink className="h-4 w-4" />
                         {t("orders.details.openFullImage")}
@@ -1348,7 +1348,7 @@ function OrderDetails() {
                     type="button"
                     onClick={() => handleShippingPaymentReview("confirm")}
                     disabled={reviewingPayment || !canReviewShippingProof}
-                    className="h-10 rounded-xl bg-emerald-500 px-4 text-sm font-black text-white shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-[var(--control-height-md)] rounded-xl bg-emerald-500 px-4 text-sm font-black text-white shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {t("orders.payment.confirm")}
                   </button>
@@ -1356,7 +1356,7 @@ function OrderDetails() {
                     type="button"
                     onClick={() => handleShippingPaymentReview("reject")}
                     disabled={reviewingPayment || !canReviewShippingProof}
-                    className="h-10 rounded-xl bg-rose-500 px-4 text-sm font-black text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-[var(--control-height-md)] rounded-xl bg-rose-500 px-4 text-sm font-black text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {t("orders.payment.reject")}
                   </button>
@@ -1438,7 +1438,7 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={() => setInvoicePreviewOpen(true)}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 <Eye className="h-4 w-4" />
                 {t("orders.details.preview")}
@@ -1467,13 +1467,13 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={handleSaveShipping}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-black transition hover:bg-primary"
+                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-black transition hover:bg-primary"
               >
                 <Truck className="h-4 w-4" />
                 {t("orders.details.saveShipping")}
               </button>
               {shippingSetupOpen ? (
-                <button type="button" onClick={() => setShippingSetupOpen(false)} className="h-10 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/10">
+                <button type="button" onClick={() => setShippingSetupOpen(false)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/10">
                   إلغاء
                 </button>
               ) : null}
@@ -1579,9 +1579,9 @@ function OrderDetails() {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => handleBostaAction("create")} className="h-9 rounded-xl bg-primary px-3 text-xs font-black text-zinc-950">إنشاء شحنة Bosta</button>
-                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">تحديث الحالة</button>
-                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">إلغاء</button>
+                  <button type="button" onClick={() => handleBostaAction("create")} className="h-[var(--control-height-md)] rounded-xl bg-primary px-3 text-xs font-black text-zinc-950">إنشاء شحنة Bosta</button>
+                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">تحديث الحالة</button>
+                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-[var(--control-height-md)] rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">إلغاء</button>
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
@@ -1603,7 +1603,7 @@ function OrderDetails() {
                         <Info label="رابط الملصق" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
                       </div>
                       {shipping.shipping_label_url ? (
-                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-9 rounded-xl border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">طباعة الملصق</button>
+                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-[var(--control-height-md)] rounded-xl border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">طباعة الملصق</button>
                       ) : null}
                       {bostaActionError ? (
                         <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${
@@ -1732,22 +1732,22 @@ function OrderDetails() {
 
             <div className="mt-4 flex flex-col gap-2">
               {!hasCreatedShipment ? (
-                <button type="button" onClick={handleCreateShipment} className="h-11 rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
+                <button type="button" onClick={handleCreateShipment} className="h-[var(--control-height-lg)] rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   {t("orders.shipping.createShipment")}
                 </button>
               ) : !shipmentDelivered && !shipmentInTransit ? (
-                <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-11 rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
+                <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-[var(--control-height-lg)] rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   {t("orders.shipping.markShipped", "تم الشحن")}
                 </button>
               ) : !shipmentDelivered ? (
-                <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-11 rounded-xl bg-emerald-500 px-4 text-sm font-black text-white transition hover:bg-emerald-400">
+                <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-[var(--control-height-lg)] rounded-xl bg-emerald-500 px-4 text-sm font-black text-white transition hover:bg-emerald-400">
                   {t("orders.shipping.markDelivered", "تم التسليم")}
                 </button>
               ) : (
                 <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">تم تسليم الشحنة</div>
               )}
               {shipping.tracking_url ? (
-                <button type="button" onClick={() => window.open(shipping.tracking_url, "_blank", "noopener,noreferrer")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
+                <button type="button" onClick={() => window.open(shipping.tracking_url, "_blank", "noopener,noreferrer")} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
                   {t("orders.shipping.trackShipment")}
                 </button>
               ) : null}
@@ -1755,8 +1755,8 @@ function OrderDetails() {
                 <details className="rounded-xl border border-white/10 bg-white/[0.03]">
                   <summary className="cursor-pointer list-none px-4 py-3 text-center text-xs font-semibold text-zinc-400">إجراءات إضافية</summary>
                   <div className="grid gap-2 border-t border-white/10 p-3 sm:grid-cols-2">
-                    <button type="button" onClick={() => handleShipmentAction("retry")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">{t("orders.shipping.retryShipment", "إعادة المحاولة")}</button>
-                    <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-10 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">{t("orders.shipping.cancelShipment", "إلغاء الشحنة")}</button>
+                    <button type="button" onClick={() => handleShipmentAction("retry")} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">{t("orders.shipping.retryShipment", "إعادة المحاولة")}</button>
+                    <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-[var(--control-height-md)] rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">{t("orders.shipping.cancelShipment", "إلغاء الشحنة")}</button>
                   </div>
                 </details>
               ) : null}
@@ -1806,7 +1806,7 @@ function OrderDetails() {
         <ModalShell title={t("orders.drawer.timeline")} onClose={() => setStatusTimelineOpen(false)} closeLabel={t("common.close")}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <StatusBadge value={order.status} />
-            <button type="button" onClick={loadOrder} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
+            <button type="button" onClick={loadOrder} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
               <RefreshCcw className="h-3.5 w-3.5" />
               {t("orders.details.refresh")}
             </button>
@@ -1836,7 +1836,7 @@ function OrderDetails() {
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <Printer className="h-4 w-4" />
               {t("orders.details.printInvoice")}
@@ -1844,7 +1844,7 @@ function OrderDetails() {
             <button
               type="button"
               onClick={handlePdf}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-black transition hover:bg-primary"
+              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-black transition hover:bg-primary"
             >
               <Download className="h-4 w-4" />
               {t("orders.details.downloadPdf")}
@@ -1915,7 +1915,7 @@ function ModalShell({ title, onClose, children, closeLabel = "Close" }) {
           <button
             type="button"
             onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+            className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
             aria-label={closeLabel}
           >
             <X className="h-4 w-4" />
@@ -1932,7 +1932,7 @@ function ActionButton({ onClick, icon, label, danger = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+      className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
         danger
           ? "border-rose-500/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
           : "border-white/10 bg-white/5 text-white hover:bg-white/10"

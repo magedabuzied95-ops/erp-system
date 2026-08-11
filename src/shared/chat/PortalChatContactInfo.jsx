@@ -24,7 +24,7 @@ export default function PortalChatContactInfo({ open, onClose, contact = {}, mes
     <div className="fixed inset-0 z-[170] bg-black/70 backdrop-blur-sm" dir="rtl">
       <section className="mx-auto flex h-full w-full max-w-md flex-col overflow-y-auto bg-[#0b0b0b] text-white shadow-2xl">
         <header className="sticky top-0 z-10 flex min-h-14 items-center justify-between border-b border-white/10 bg-[#0b0b0b]/95 px-3 backdrop-blur-xl">
-          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-white/10" aria-label="إغلاق"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-full bg-white/10" aria-label="إغلاق"><X className="h-5 w-5" /></button>
           <h2 className="text-[15px] font-black">معلومات جهة الاتصال</h2>
           <span className="w-9" />
         </header>

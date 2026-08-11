@@ -340,7 +340,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
                 type="button"
                 onClick={saveCount}
                 disabled={saving}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
               >
                 <Check className="h-4 w-4" />
                 {saving ? "Saving..." : "Save Count"}
@@ -563,9 +563,9 @@ function ScanInput({ label, value, onChange, onSubmit, placeholder }) {
             if (event.key === "Enter") onSubmit();
           }}
           placeholder={placeholder}
-          className="min-h-12 flex-1 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-base font-semibold text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+          className="min-h-[var(--control-height-lg)] flex-1 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-base font-semibold text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
         />
-        <button type="button" onClick={onSubmit} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary)] text-white" aria-label={label}>
+        <button type="button" onClick={onSubmit} className="inline-flex h-[var(--control-height-lg)] w-12 items-center justify-center rounded-2xl bg-[var(--primary)] text-white" aria-label={label}>
           <ScanLine className="h-5 w-5" />
         </button>
       </div>
@@ -575,7 +575,7 @@ function ScanInput({ label, value, onChange, onSubmit, placeholder }) {
 
 function IconButton({ label, onClick, icon: Icon }) {
   return (
-    <button type="button" onClick={onClick} aria-label={label} title={label} className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)]">
+    <button type="button" onClick={onClick} aria-label={label} title={label} className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)]">
       <Icon className="h-4 w-4" />
     </button>
   );

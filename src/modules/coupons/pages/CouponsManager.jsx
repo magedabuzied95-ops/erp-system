@@ -292,7 +292,7 @@ export default function CouponsManager() {
           <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">{cText("title", "حملات الكوبونات")}</h1>
           <p className="mt-2 max-w-2xl text-sm text-zinc-400">{cText("subtitle", "أنشئ أكواد الكوبونات وولّدها وتابعها وصدّرها من داخل النظام.")}</p>
         </div>
-        <button type="button" onClick={openCreate} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-violet-400 px-4 text-sm font-black text-black shadow-lg shadow-violet-950/30">
+        <button type="button" onClick={openCreate} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-violet-400 px-4 text-sm font-black text-black shadow-lg shadow-violet-950/30">
           <Plus className="h-4 w-4" />
           {cText("new", "حملة جديدة")}
         </button>
@@ -351,15 +351,15 @@ export default function CouponsManager() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <input value={generateQty} onChange={(e) => setGenerateQty(e.target.value)} type="number" min="1" placeholder={cText("targetQty", "الكمية")} className="h-10 w-24 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none" />
-                  <button type="button" onClick={generate} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/15 px-3 text-sm font-black text-emerald-100">
+                  <input value={generateQty} onChange={(e) => setGenerateQty(e.target.value)} type="number" min="1" placeholder={cText("targetQty", "الكمية")} className="h-[var(--control-height-md)] w-24 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none" />
+                  <button type="button" onClick={generate} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/15 px-3 text-sm font-black text-emerald-100">
                     <Sparkles className="h-4 w-4" />
                     {cText("actions.generate", "إنشاء")}
                   </button>
-                  <button type="button" onClick={() => openEdit(selectedCampaign)} className="h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white">{cText("actions.edit", "تعديل")}</button>
-                  <button type="button" onClick={() => deleteCampaign(selectedCampaign)} className="h-10 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-3 text-sm font-bold text-rose-100">{cText("actions.delete", "حذف")}</button>
+                  <button type="button" onClick={() => openEdit(selectedCampaign)} className="h-[var(--control-height-md)] rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white">{cText("actions.edit", "تعديل")}</button>
+                  <button type="button" onClick={() => deleteCampaign(selectedCampaign)} className="h-[var(--control-height-md)] rounded-2xl border border-rose-300/20 bg-rose-500/10 px-3 text-sm font-bold text-rose-100">{cText("actions.delete", "حذف")}</button>
                   <div className="relative">
-                    <button type="button" onClick={() => setPrintMenuOpen((current) => !current)} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 text-sm font-bold text-amber-100">
+                    <button type="button" onClick={() => setPrintMenuOpen((current) => !current)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 text-sm font-bold text-amber-100">
                       {exportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                       طباعة ومشاركة
                       <ChevronDown className="h-4 w-4" />
@@ -376,16 +376,16 @@ export default function CouponsManager() {
                       </div>
                     ) : null}
                   </div>
-                  <button type="button" onClick={exportCsv} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white"><Download className="h-4 w-4" />{cText("actions.exportCsv", "CSV")}</button>
+                  <button type="button" onClick={exportCsv} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white"><Download className="h-4 w-4" />{cText("actions.exportCsv", "CSV")}</button>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-col gap-3 md:flex-row">
                 <label className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={cText("searchPlaceholder", "ابحث عن الكود")} className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 pl-10 pr-3 text-sm text-white outline-none" />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={cText("searchPlaceholder", "ابحث عن الكود")} className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/30 pl-10 pr-3 text-sm text-white outline-none" />
                 </label>
-                <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-11 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none">
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-[var(--control-height-lg)] rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none">
                   <option value="all">{cText("filters.allStatuses", "كل الحالات")}</option>
                   <option value="active">{cText("active", "نشط")}</option>
                   <option value="unused">{cText("headers.unused", "غير مستخدم")}</option>
@@ -413,7 +413,7 @@ export default function CouponsManager() {
                       <div className="text-zinc-300">{number(coupon.usage_count)} / {number(coupon.usage_limit)}</div>
                       <div><span className={`rounded-full px-2 py-1 text-[11px] font-black ${coupon.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>{coupon.is_active ? cText("active", "نشط") : cText("inactive", "متوقف")}</span></div>
                       <div className="text-zinc-400">{coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : "-"}</div>
-                      <button type="button" title="طباعة هذا الكوبون" onClick={() => printPdf("single", coupon.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20">
+                      <button type="button" title="طباعة هذا الكوبون" onClick={() => printPdf("single", coupon.id)} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20">
                         {exportBusy === `print-single-${coupon.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                       </button>
                     </div>
@@ -451,9 +451,9 @@ export default function CouponsManager() {
             </div>
             <label className="mt-5 block">
               <span className="mb-2 block text-xs font-bold text-zinc-400">البريد الإلكتروني</span>
-              <input autoFocus type="email" value={emailAddress} onChange={(event) => setEmailAddress(event.target.value)} onKeyDown={(event) => event.key === "Enter" && sendPdfByEmail()} placeholder="name@example.com" className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-left text-white outline-none focus:border-amber-300/40" dir="ltr" />
+              <input autoFocus type="email" value={emailAddress} onChange={(event) => setEmailAddress(event.target.value)} onKeyDown={(event) => event.key === "Enter" && sendPdfByEmail()} placeholder="name@example.com" className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-left text-white outline-none focus:border-amber-300/40" dir="ltr" />
             </label>
-            <button type="button" disabled={!emailAddress.trim() || exportBusy === "email"} onClick={sendPdfByEmail} className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 font-black text-black disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" disabled={!emailAddress.trim() || exportBusy === "email"} onClick={sendPdfByEmail} className="mt-4 inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 font-black text-black disabled:cursor-not-allowed disabled:opacity-50">
               {exportBusy === "email" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
               إرسال PDF
             </button>
@@ -505,8 +505,8 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
           </label>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black">{cText("actions.cancel", "إلغاء")}</button>
-          <button type="button" onClick={onSave} className="h-11 rounded-2xl bg-violet-400 px-5 text-sm font-black text-black">{cText("actions.save", "حفظ")}</button>
+          <button type="button" onClick={onClose} className="h-[var(--control-height-lg)] rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black">{cText("actions.cancel", "إلغاء")}</button>
+          <button type="button" onClick={onSave} className="h-[var(--control-height-lg)] rounded-2xl bg-violet-400 px-5 text-sm font-black text-black">{cText("actions.save", "حفظ")}</button>
         </div>
       </div>
     </div>
@@ -517,7 +517,7 @@ function Field({ label, value, onChange, type = "text", placeholder = "" }) {
   return (
     <label className="block">
       <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-zinc-600" />
+      <input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-zinc-600" />
     </label>
   );
 }
@@ -526,7 +526,7 @@ function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
       <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none">
         {options.map(([key, labelText]) => <option key={key} value={key}>{labelText}</option>)}
       </select>
     </label>

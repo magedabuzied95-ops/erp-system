@@ -108,7 +108,7 @@ export default function SectionCard({
                 <button
                   type="button"
                   onClick={onRetry}
-                  className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 text-[12px] font-bold text-white transition hover:brightness-110"
+                  className="mt-3 inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 text-[12px] font-bold text-white transition hover:brightness-110"
                 >
                   <RotateCcw className="h-3 w-3" aria-hidden="true" />
                   {t("salesAnalytics.states.sectionRetry")}

@@ -438,7 +438,7 @@ function NotificationBellFallback() {
   return (
     <button
       type="button"
-      className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] text-[var(--text)] opacity-70 shadow-sm"
+      className="relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] text-[var(--text)] opacity-70 shadow-sm"
       aria-label="الإشعارات"
       disabled
     >
@@ -738,7 +738,7 @@ function MainLayout() {
               <button
                 type="button"
                 onClick={() => setSidebarCollapsed((value) => !value)}
-                className="hidden h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
+                className="hidden h-[var(--control-height-sm)] w-8 shrink-0 place-items-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
                 title={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
                 aria-label={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
               >
@@ -754,7 +754,7 @@ function MainLayout() {
                 onClick={openSidebarSearch}
                 title={t("sidebar.searchModules")}
                 aria-label={t("sidebar.searchModules")}
-                className="mb-3 grid h-11 w-full place-items-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
+                className="mb-3 grid h-[var(--control-height-lg)] w-full place-items-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
               >
                 <Search className="h-5 w-5" />
               </button>
@@ -765,7 +765,7 @@ function MainLayout() {
                 value={sidebarSearch}
                 onChange={(event) => setSidebarSearch(event.target.value)}
                 placeholder={t("sidebar.searchModules")}
-                className="h-10 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
+                className="h-[var(--control-height-md)] w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
               />
             </label>}
           </div>
@@ -876,7 +876,7 @@ function MainLayout() {
             type="button"
             onClick={handleLogout}
             title={sidebarCompact ? t("common.logout") : undefined}
-            className={["flex w-full items-center justify-center rounded-xl bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-10 px-2" : "gap-2 px-3 py-2"].join(" ")}
+            className={["flex w-full items-center justify-center rounded-xl bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-[var(--control-height-md)] px-2" : "gap-2 px-3 py-2"].join(" ")}
           >
             <LogOut className="h-4 w-4" />
             {sidebarCompact ? null : t("common.logout")}
@@ -895,7 +895,7 @@ function MainLayout() {
                 <button
                   type="button"
                   onClick={() => setMobileDrawerOpen(true)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
+                  className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
                   aria-label={t("common.openMenu", "فتح القائمة")}
                 >
                   <Menu className="h-5 w-5" />
@@ -988,7 +988,7 @@ function MainLayout() {
                 <button
                   type="button"
                   onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
-                  className="m1-shell-theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
+                  className="m1-shell-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
                   aria-label={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
                   title={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
                 >
@@ -997,7 +997,7 @@ function MainLayout() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] lg:hidden"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] lg:hidden"
                   aria-label={t("common.logout")}
                 >
                   <LogOut className="h-4 w-4" />

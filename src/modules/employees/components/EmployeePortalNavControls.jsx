@@ -45,7 +45,7 @@ export default function EmployeePortalNavControls({
         <button
           type="button"
           onClick={onBack}
-          className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition ${buttonClassName}`}
+          className={`inline-flex min-h-[var(--control-height-lg)] min-w-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition ${buttonClassName}`}
         >
           <ArrowLeft className="h-4 w-4 shrink-0" />
           <span dir="auto">{backLabel}</span>
@@ -53,7 +53,7 @@ export default function EmployeePortalNavControls({
         <button
           type="button"
           onClick={onHome}
-          className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition ${buttonClassName}`}
+          className={`inline-flex min-h-[var(--control-height-lg)] min-w-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition ${buttonClassName}`}
         >
           <House className="h-4 w-4 shrink-0" />
           <span dir="auto">{homeLabel}</span>

@@ -848,7 +848,7 @@ export default function ProductColors({
                           right-2
                           z-50
                           w-8
-                          h-8
+                          h-[var(--control-height-sm)]
                           rounded-full
                           border
                           border-red-200/40

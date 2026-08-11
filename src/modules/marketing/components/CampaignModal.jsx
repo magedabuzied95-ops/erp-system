@@ -25,7 +25,7 @@ export default function CampaignModal({ open, campaign, onClose, onSave, saving 
             <CalendarClock className="h-4 w-4" />
             {t("marketing.campaigns.modal.title")}
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white">
+          <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white">
             <X className="h-4 w-4" />
           </button>
         </div>

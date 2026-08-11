@@ -127,7 +127,7 @@ export default function WhatsAppVoiceMessage({
         <button
           type="button"
           onClick={togglePlayback}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
+          className={`flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
             outgoing ? "bg-[#d9fdd3] text-[#005c4b]" : "bg-[#e9edef] text-[#202c33]"
           }`}
           aria-label={playing ? "Pause voice message" : "Play voice message"}

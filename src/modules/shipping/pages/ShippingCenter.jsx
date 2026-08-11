@@ -75,7 +75,7 @@ function KpiCard({ label, value, active, onClick }) {
 }
 
 function Select({ value, onChange, children }) {
-  return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-10 rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50">{children}</select>;
+  return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50">{children}</select>;
 }
 
 function ShipmentDrawer({ order, onClose }) {
@@ -281,15 +281,15 @@ export default function ShippingCenter() {
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input value={filters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder="Search order, customer, phone, tracking..." className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/80 pl-9 pr-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50" />
+                <input value={filters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder="Search order, customer, phone, tracking..." className="h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-slate-950/80 pl-9 pr-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50" />
               </div>
               <Select value={filters.provider} onChange={(value) => setFilter("provider", value)}><option value="">All providers</option>{(data.meta?.providers || ["bosta"]).map((provider) => <option key={provider} value={provider}>{PROVIDER_LABELS[provider] || provider}</option>)}</Select>
               <Select value={filters.branchId} onChange={(value) => setFilter("branchId", value)}><option value="">All branches</option>{(data.meta?.branches || []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
               <Select value={filters.shippingStatus} onChange={(value) => setFilter("shippingStatus", value)}><option value="">All shipping statuses</option>{STATUSES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select>
               <Select value={filters.paymentStatus} onChange={(value) => setFilter("paymentStatus", value)}><option value="">All payment statuses</option>{["paid", "unpaid", "partially_paid", "refunded"].map((status) => <option key={status} value={status}>{status}</option>)}</Select>
               <Select value={filters.paymentType} onChange={(value) => setFilter("paymentType", value)}><option value="">COD / Prepaid</option><option value="cod">COD</option><option value="prepaid">Prepaid</option></Select>
-              <input type="date" value={filters.dateFrom} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-10 rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
-              <input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-10 rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
+              <input type="date" value={filters.dateFrom} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
+              <input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950"><Send className="h-4 w-4" /> Create Shipments</button>

@@ -147,7 +147,7 @@ function HistoryActionButton({ children, tone = "neutral", ...props }) {
     <button
       type="button"
       {...props}
-      className={`inline-flex h-9 items-center gap-2 rounded-2xl px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+      className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
     >
       {children}
     </button>
@@ -258,7 +258,7 @@ export default function MarketingCampaignAnalyticsPanel({
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-2 text-base font-semibold text-white transition hover:bg-white/[0.11]"
+          className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-2 text-base font-semibold text-white transition hover:bg-white/[0.11]"
         >
           <RefreshCcw className="h-4 w-4" />
           Refresh

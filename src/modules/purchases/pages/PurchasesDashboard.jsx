@@ -417,7 +417,7 @@ function PurchasesDashboard() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t("purchases.searchPlaceholder")}
-                  className="h-10 w-full rounded-xl border border-emerald-400/20 bg-zinc-950/80 py-2 pe-3 ps-9 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                  className="h-[var(--control-height-md)] w-full rounded-xl border border-emerald-400/20 bg-zinc-950/80 py-2 pe-3 ps-9 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
                 />
               </div>
             </label>
@@ -466,7 +466,7 @@ function PurchasesDashboard() {
                       <button
                         type="button"
                         onClick={(event) => openActionsMenu(purchase.id, event.currentTarget)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-zinc-400 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+                        className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-zinc-400 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
                         aria-label={t("purchases.actionsMenu.viewInvoice")}
                         aria-expanded={openMenuId === purchase.id}
                         aria-haspopup="menu"
@@ -618,7 +618,7 @@ function Select({ value, onChange, options, label, allLabel = "All", className =
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+        className="h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
       >
         {options.map((option) => {
           const optionValue = typeof option === "object" ? option.value : option;
@@ -642,7 +642,7 @@ function DateField({ label, value, onChange, className = "" }) {
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+        className="h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
       />
     </label>
   );

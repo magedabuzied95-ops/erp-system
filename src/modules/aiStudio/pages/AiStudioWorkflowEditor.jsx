@@ -408,7 +408,7 @@ export default function AiStudioWorkflowEditor() {
     <div dir="ltr" className="flex h-[calc(100vh-64px)] flex-col text-white">
       {/* ---- header ---- */}
       <header className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-slate-950/60 px-3 py-2.5 backdrop-blur">
-        <button type="button" onClick={guardedBack} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-3 text-[12px] font-black hover:border-white/20">
+        <button type="button" onClick={guardedBack} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-3 text-[12px] font-black hover:border-white/20">
           <ArrowLeft className="h-4 w-4" /> Workflows
         </button>
         <input
@@ -416,7 +416,7 @@ export default function AiStudioWorkflowEditor() {
           onChange={(e) => setName(e.target.value)}
           disabled={!canEdit}
           placeholder="Workflow name"
-          className="h-9 min-w-[180px] flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-[14px] font-black text-white focus:border-primary/40 focus:outline-none disabled:opacity-60"
+          className="h-[var(--control-height-md)] min-w-[180px] flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-[14px] font-black text-white focus:border-primary/40 focus:outline-none disabled:opacity-60"
         />
         <span className="hidden rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-slate-300 sm:inline">v{version}</span>
 
@@ -459,21 +459,21 @@ export default function AiStudioWorkflowEditor() {
 
         <div className="ml-auto flex items-center gap-1.5">
           <button type="button" onClick={() => canEdit && setEnabled((v) => !v)} disabled={!canEdit} title="Enable/disable this workflow"
-            className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[11px] font-black ${enabled ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>
+            className={`inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-full border px-3 text-[11px] font-black ${enabled ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>
             <ShieldCheck className="h-3.5 w-3.5" /> {enabled ? "Enabled" : "Disabled"}
           </button>
 
-          <button type="button" onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Undo2 className="h-4 w-4" /></button>
-          <button type="button" onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Y)" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Redo2 className="h-4 w-4" /></button>
+          <button type="button" onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)" className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Undo2 className="h-4 w-4" /></button>
+          <button type="button" onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Y)" className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Redo2 className="h-4 w-4" /></button>
 
-          <button type="button" onClick={focusMode ? exitFocus : enterFocus} title={focusMode ? "Exit focus mode" : "Focus mode (maximize canvas)"} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20">
+          <button type="button" onClick={focusMode ? exitFocus : enterFocus} title={focusMode ? "Exit focus mode" : "Focus mode (maximize canvas)"} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20">
             {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
 
-          <button type="button" onClick={persist} disabled={!canEdit || saving} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3.5 text-[12px] font-black hover:border-white/20 disabled:opacity-50">
+          <button type="button" onClick={persist} disabled={!canEdit || saving} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3.5 text-[12px] font-black hover:border-white/20 disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
           </button>
-          <button type="button" onClick={doRun} disabled={!canEdit || running} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-primary/40 bg-primary/15 px-3.5 text-[12px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
+          <button type="button" onClick={doRun} disabled={!canEdit || running} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-full border border-primary/40 bg-primary/15 px-3.5 text-[12px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Run
           </button>
         </div>

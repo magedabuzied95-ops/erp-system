@@ -155,7 +155,7 @@ export default function AiSupportKnowledgeBase() {
               type="button"
               onClick={reset}
               disabled={saving || loading}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] transition hover:-translate-y-0.5 disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] transition hover:-translate-y-0.5 disabled:opacity-50"
             >
               <RefreshCw className="h-4 w-4" />
               تصفير
@@ -164,7 +164,7 @@ export default function AiSupportKnowledgeBase() {
               type="button"
               onClick={save}
               disabled={saving || loading || !isDirty || !phoneValid || !whatsappValid}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               حفظ
@@ -192,7 +192,7 @@ export default function AiSupportKnowledgeBase() {
                       inputMode={field.inputMode}
                       onChange={(event) => updateField(field.key, event.target.value)}
                       placeholder={field.placeholder}
-                      className={`h-12 w-full rounded-2xl border bg-[var(--card)] px-4 text-right text-sm font-semibold text-[var(--text)] outline-none transition focus:ring-4 ${
+                      className={`h-[var(--control-height-lg)] w-full rounded-2xl border bg-[var(--card)] px-4 text-right text-sm font-semibold text-[var(--text)] outline-none transition focus:ring-4 ${
                         (field.key === "phone" && !phoneValid) || (field.key === "whatsapp" && !whatsappValid)
                           ? "border-rose-400/70 focus:ring-rose-400/10"
                           : "border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/10"

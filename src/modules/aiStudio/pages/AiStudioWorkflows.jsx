@@ -102,13 +102,13 @@ export default function AiStudioWorkflows() {
             <p className="mt-1 text-sm text-slate-400">Design workflows in the visual builder, run them manually, or let ERP events trigger them automatically.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={doNewTemplate} disabled={busy === "tpl"} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20 disabled:opacity-50">
+            <button type="button" onClick={doNewTemplate} disabled={busy === "tpl"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20 disabled:opacity-50">
               {busy === "tpl" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutTemplate className="h-3.5 w-3.5" />}From template
             </button>
-            <button type="button" onClick={doNewBlank} disabled={busy === "new"} className="inline-flex h-9 items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-3 text-[11px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
+            <button type="button" onClick={doNewBlank} disabled={busy === "new"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-3 text-[11px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
               {busy === "new" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}New workflow
             </button>
-            <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20">
+            <button type="button" onClick={() => void load()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20">
               <RefreshCw className="h-3.5 w-3.5" />Refresh
             </button>
           </div>
@@ -133,7 +133,7 @@ export default function AiStudioWorkflows() {
           </div>
           <button type="button" onClick={() => doTenantAutomation(!automation.tenant_enabled)} disabled={busy === "auto" || !automation.global_enabled}
             title={!automation.global_enabled ? "Global automation is disabled on the server" : "Toggle automation for this store"}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[11px] font-black disabled:opacity-40 ${automation.tenant_enabled ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>
+            className={`inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-full border px-3 text-[11px] font-black disabled:opacity-40 ${automation.tenant_enabled ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>
             {busy === "auto" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}Tenant automation {automation.tenant_enabled ? "on" : "off"}
           </button>
         </section>
@@ -187,14 +187,14 @@ export default function AiStudioWorkflows() {
                         <div className="inline-flex gap-1.5">
                           {!archived ? (
                             <>
-                              <button type="button" onClick={() => navigate(`/ai-studio/workflows/${w.id}/edit`)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white hover:border-white/20"><Pencil className="h-3.5 w-3.5" />Edit</button>
-                              <button type="button" onClick={() => doRun(w.id)} disabled={busy === `run-${w.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-[11px] font-black text-primary hover:bg-primary/20 disabled:opacity-50">
+                              <button type="button" onClick={() => navigate(`/ai-studio/workflows/${w.id}/edit`)} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white hover:border-white/20"><Pencil className="h-3.5 w-3.5" />Edit</button>
+                              <button type="button" onClick={() => doRun(w.id)} disabled={busy === `run-${w.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-[11px] font-black text-primary hover:bg-primary/20 disabled:opacity-50">
                                 {busy === `run-${w.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Run
                               </button>
-                              <button type="button" onClick={() => doArchive(w.id, false)} disabled={busy === `a-${w.id}`} title="Archive" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-300 hover:text-white disabled:opacity-50"><Archive className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => doArchive(w.id, false)} disabled={busy === `a-${w.id}`} title="Archive" className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-300 hover:text-white disabled:opacity-50"><Archive className="h-3.5 w-3.5" /></button>
                             </>
                           ) : (
-                            <button type="button" onClick={() => doArchive(w.id, true)} disabled={busy === `a-${w.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-slate-200 hover:border-white/20 disabled:opacity-50"><ArchiveRestore className="h-3.5 w-3.5" />Restore</button>
+                            <button type="button" onClick={() => doArchive(w.id, true)} disabled={busy === `a-${w.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-slate-200 hover:border-white/20 disabled:opacity-50"><ArchiveRestore className="h-3.5 w-3.5" />Restore</button>
                           )}
                         </div>
                       </td>

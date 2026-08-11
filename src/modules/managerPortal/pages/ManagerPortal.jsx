@@ -1817,7 +1817,7 @@ export default function ManagerPortal() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={toggleExpanded} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800">
+            <button type="button" onClick={toggleExpanded} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800">
               {expanded ? "إخفاء التفاصيل" : "عرض التفاصيل"}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
             </button>
@@ -1825,7 +1825,7 @@ export default function ManagerPortal() {
               type="button"
               data-testid={`task-reopen-${task.id}`}
               onClick={() => void sendTaskAction(task.id, "reopen", { note })}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800"
             >
               <ArrowLeftRight className="h-3.5 w-3.5" />
               إعادة فتح
@@ -1836,7 +1836,7 @@ export default function ManagerPortal() {
                   type="button"
                   data-testid={`task-approve-${task.id}`}
                   onClick={() => void sendTaskAction(task.id, "approve", { note })}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   اعتماد
@@ -1845,7 +1845,7 @@ export default function ManagerPortal() {
                   type="button"
                   data-testid={`task-reject-${task.id}`}
                   onClick={() => void sendTaskAction(task.id, "reject", { note })}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-800 shadow-sm"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-800 shadow-sm"
                 >
                   <X className="h-3.5 w-3.5" />
                   رفض
@@ -2056,14 +2056,14 @@ export default function ManagerPortal() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
+                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
                     {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                   </button>
                   <button
                     type="button"
                     data-testid="refresh-button"
                     onClick={() => void loadAll({ silent: true })}
-                    className="manager-refresh-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-sm transition hover:bg-slate-800"
+                    className="manager-refresh-button inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-sm transition hover:bg-slate-800"
                     aria-label="تحديث"
                   >
                     <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -2085,7 +2085,7 @@ export default function ManagerPortal() {
                 <div className="flex flex-col items-end gap-2">
                   <Badge className="border-slate-700 bg-slate-800 text-slate-100">مباشر</Badge>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"} title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
+                    <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"} title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
                       {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </button>
                     <button
@@ -2106,7 +2106,7 @@ export default function ManagerPortal() {
                       aria-label="Open notifications"
                       aria-expanded={notificationsOpen}
                       onClick={() => setNotificationsOpen((current) => !current)}
-                      className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-700 bg-[linear-gradient(180deg,#0f172a,#111827)] text-white transition hover:border-slate-500 hover:bg-[linear-gradient(180deg,#111827,#1e293b)]"
+                      className="relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-2xl border border-slate-700 bg-[linear-gradient(180deg,#0f172a,#111827)] text-white transition hover:border-slate-500 hover:bg-[linear-gradient(180deg,#111827,#1e293b)]"
                     >
                       <Bell className="h-4 w-4" />
                       {(unreadCount || notificationsUnread) ? (
@@ -2139,7 +2139,7 @@ export default function ManagerPortal() {
                       : "أضف بوابة المدير إلى الشاشة الرئيسية لتفتح كتطبيق مستقل."}
                   </p>
                   {installPrompt ? (
-                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white">
+                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white">
                       <Download className="h-4 w-4" />
                       إضافة إلى الشاشة الرئيسية
                     </button>
@@ -2181,7 +2181,7 @@ export default function ManagerPortal() {
                     <button
                       type="button"
                       onClick={() => setNotificationsOpen(false)}
-                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white transition hover:border-slate-500 hover:bg-slate-800"
+                      className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white transition hover:border-slate-500 hover:bg-slate-800"
                       aria-label="إغلاق الإشعارات"
                     >
                       <X className="h-5 w-5" />
@@ -2294,7 +2294,7 @@ export default function ManagerPortal() {
                                 <button
                                   type="button"
                                   onClick={() => void openNotification(item)}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                                 >
                                   <ArrowUpRight className="h-3.5 w-3.5" />
                                   فتح
@@ -2304,7 +2304,7 @@ export default function ManagerPortal() {
                                 <button
                                   type="button"
                                   onClick={() => void markNotificationRead(item.id)}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-primary hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35 dark:hover:text-primary"
+                                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-primary hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35 dark:hover:text-primary"
                                 >
                                   <CheckCheck className="h-3.5 w-3.5" />
                                   تحديد كمقروء
@@ -3105,7 +3105,7 @@ export default function ManagerPortal() {
 
           {activeTab === "notifications" ? (
             <div className="space-y-4">
-              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                 <Settings className="h-4 w-4" />
                 الرجوع إلى الإعدادات
               </button>
@@ -3164,16 +3164,16 @@ export default function ManagerPortal() {
                   ) : null}
                   {pushState.message ? <div className="text-xs font-bold text-slate-500 dark:text-slate-300">{pushState.message}</div> : null}
                   <div className="grid gap-2 sm:grid-cols-2">
-                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">
+                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">
                       {pushState.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
                       {pushState.subscribed ? "تحديث إشعارات الويب الفورية" : "تفعيل إشعارات الويب الفورية"}
                     </button>
-                    <button type="button" disabled={pushState.saving || !pushState.subscribed} onClick={disablePushNotifications} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <button type="button" disabled={pushState.saving || !pushState.subscribed} onClick={disablePushNotifications} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                       <X className="h-4 w-4" />
                       إيقاف الإشعارات
                     </button>
                   </div>
-                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={sendTestPushNotification} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={sendTestPushNotification} className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <Send className="h-4 w-4" />
                     إرسال إشعار تجريبي
                   </button>
@@ -3321,7 +3321,7 @@ export default function ManagerPortal() {
                 <div className="text-xs font-black text-slate-300">تفاصيل الفاتورة</div>
                 <h2 className="mt-1 text-xl font-black text-white">{invoiceSheet.invoice?.invoice_number || "فاتورة"}</h2>
               </div>
-              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white">
+              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -3429,23 +3429,23 @@ export default function ManagerPortal() {
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-5">
-                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => window.open(invoiceSheet.invoice.public_invoice_url, "_blank", "noopener,noreferrer")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(180deg,#0f172a,#111827)] px-3 text-sm font-black text-white shadow-sm disabled:opacity-45 dark:bg-white dark:text-slate-950">
+                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => window.open(invoiceSheet.invoice.public_invoice_url, "_blank", "noopener,noreferrer")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(180deg,#0f172a,#111827)] px-3 text-sm font-black text-white shadow-sm disabled:opacity-45 dark:bg-white dark:text-slate-950">
                       <ExternalLink className="h-4 w-4" />
                       عرض الفاتورة العامة
                     </button>
-                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => copyText(invoiceSheet.invoice.public_invoice_url, "تم نسخ رابط الفاتورة")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => copyText(invoiceSheet.invoice.public_invoice_url, "تم نسخ رابط الفاتورة")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                       <Copy className="h-4 w-4" />
                       نسخ الرابط
                     </button>
-                    <button type="button" onClick={() => window.print()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <button type="button" onClick={() => window.print()} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                       <Printer className="h-4 w-4" />
                       طباعة
                     </button>
-                    <button type="button" disabled={!invoiceSheet.invoice.customer_phone} onClick={() => openWhatsappShare(invoiceSheet.invoice)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-800 shadow-sm disabled:opacity-45 dark:bg-emerald-400/10 dark:text-emerald-100">
+                    <button type="button" disabled={!invoiceSheet.invoice.customer_phone} onClick={() => openWhatsappShare(invoiceSheet.invoice)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-800 shadow-sm disabled:opacity-45 dark:bg-emerald-400/10 dark:text-emerald-100">
                       <MessageSquare className="h-4 w-4" />
                       مشاركة واتساب
                     </button>
-                    <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm">
+                    <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm">
                       <X className="h-4 w-4" />
                       إغلاق
                     </button>

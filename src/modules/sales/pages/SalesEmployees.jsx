@@ -280,12 +280,12 @@ const PenaltyRow = memo(function PenaltyRow({ penalty, t, onApprove, onCancel })
       <td className="px-4 py-3 text-end">
         <div className="flex justify-end gap-2">
           {penalty.status !== "approved" ? (
-            <button type="button" onClick={() => onApprove(penalty)} className="theme-button-soft h-9 px-3 text-xs">
+            <button type="button" onClick={() => onApprove(penalty)} className="theme-button-soft h-[var(--control-height-md)] px-3 text-xs">
               {t("sales.penalties.status.approved", "\u0645\u0639\u062a\u0645\u062f")}
             </button>
           ) : null}
           {penalty.status !== "cancelled" ? (
-            <button type="button" onClick={() => onCancel(penalty)} className="theme-button-soft h-9 px-3 text-xs text-rose-200">
+            <button type="button" onClick={() => onCancel(penalty)} className="theme-button-soft h-[var(--control-height-md)] px-3 text-xs text-rose-200">
               {t("sales.penalties.status.cancelled", "\u0645\u0644\u063a\u064a")}
             </button>
           ) : null}
@@ -1377,7 +1377,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               </div>
               <button
                 onClick={refreshReport}
-                className={`col-span-2 h-11 justify-center rounded-xl px-3 text-[13px] font-black transition xl:col-span-1 ${
+                className={`col-span-2 h-[var(--control-height-lg)] justify-center rounded-xl px-3 text-[13px] font-black transition xl:col-span-1 ${
                   reportFiltersChanged
                     ? "theme-button-primary shadow-[0_0_18px_rgba(16,185,129,0.22)]"
                     : "theme-button-soft"
@@ -1468,7 +1468,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                   <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.penalties.subtitle", "Add approved employee penalties and deduct them from payroll.")}</p>
                 </div>
               </div>
-              <button type="button" onClick={savePenalty} disabled={penaltySaving || !penaltyForm.employee_id} className="theme-button-primary h-11 justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" onClick={savePenalty} disabled={penaltySaving || !penaltyForm.employee_id} className="theme-button-primary h-[var(--control-height-lg)] justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-60">
                 <Plus className="h-4 w-4" />
                 {penaltySaving ? t("sales.penalties.saving", "Saving...") : t("sales.penalties.addPenalty", "Add Penalty")}
               </button>
@@ -1575,7 +1575,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 <h2 className="mt-1 text-2xl font-black leading-9" dir="auto">{form.name || t("sales.drawer.selectEmployee", "Select employee")}</h2>
                 <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.drawer.subtitle", "POS alias, commission rules, and product/category exclusions.")}</p>
               </div>
-              <button type="button" onClick={closeEmployeeConfig} className="theme-button-soft h-10 w-10 justify-center p-0" aria-label={t("sales.drawer.close", "Close configuration")}>
+              <button type="button" onClick={closeEmployeeConfig} className="theme-button-soft h-[var(--control-height-md)] w-10 justify-center p-0" aria-label={t("sales.drawer.close", "Close configuration")}>
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -1952,7 +1952,7 @@ function PayrollFinancialSummary({
                   type="button"
                   onClick={actionHandler}
                   disabled={actionDisabled}
-                  className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-[0_14px_34px_rgba(212,175,55,.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${isReadyForApproval ? "bg-emerald-400 text-slate-950" : "bg-[var(--primary)] text-slate-950"}`}
+                  className={`inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-[0_14px_34px_rgba(212,175,55,.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${isReadyForApproval ? "bg-emerald-400 text-slate-950" : "bg-[var(--primary)] text-slate-950"}`}
                 >
                   {actionLoading && !isPaid ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {actionLabel}
@@ -1961,7 +1961,7 @@ function PayrollFinancialSummary({
                 <button
                   type="button"
                   disabled
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-5 text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-100"
+                  className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-5 text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-100"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   {actionLabel}
@@ -2178,7 +2178,7 @@ function PayrollSalaryHero({ amount, periodLabel, isRtl, t, onFinalize, finalizi
           </div>
         </div>
 
-        <button type="button" onClick={onFinalize} disabled={finalizing} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-200/20 bg-emerald-300 px-4 text-sm font-black text-slate-950 shadow-[0_14px_34px_rgba(16,185,129,.28)] transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" onClick={onFinalize} disabled={finalizing} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-emerald-200/20 bg-emerald-300 px-4 text-sm font-black text-slate-950 shadow-[0_14px_34px_rgba(16,185,129,.28)] transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60">
           <BriefcaseBusiness className={`h-4 w-4 ${finalizing ? "animate-pulse" : ""}`} />
           {finalizing ? t("sales.payroll.finalizing", "Finalizing...") : t("sales.payroll.approvePayroll", "Approve Payroll")}
         </button>

@@ -97,7 +97,7 @@ function SmartSelectBlock({ label, options, value = "all", onChange, allLabel })
       <select
         value={value}
         onChange={(event) => onChange?.(event.target.value)}
-        className="m1-smart-filter-select h-11 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-sm font-semibold text-white outline-none transition"
+        className="m1-smart-filter-select h-[var(--control-height-lg)] w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-sm font-semibold text-white outline-none transition"
       >
         <option value="all">{allLabel}</option>
         {items.map((item) => (
@@ -197,7 +197,7 @@ function SmartPosFilters({
           <button
             type="button"
             onClick={onClose}
-            className="m1-smart-filter-close inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            className="m1-smart-filter-close inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label={copy.close}
             title={copy.close}
           >
@@ -246,14 +246,14 @@ function SmartPosFilters({
             <button
               type="button"
               onClick={onApply || onClose}
-              className="m1-smart-filter-apply inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-bold transition"
+              className="m1-smart-filter-apply inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl px-4 text-sm font-bold transition"
             >
               {copy.apply}
             </button>
             <button
               type="button"
               onClick={onReset}
-              className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-bold transition ${
+              className={`inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-bold transition ${
                 activeSmartFilterCount > 0
                   ? "border-amber-200/30 bg-white/[0.04] text-zinc-200 hover:bg-white/[0.08]"
                   : "border-white/10 bg-white/[0.03] text-zinc-500"
@@ -264,7 +264,7 @@ function SmartPosFilters({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-transparent px-4 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-transparent px-4 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
             >
               {copy.cancel}
             </button>

@@ -454,7 +454,7 @@ function WebsiteSettings() {
             ["shipping", copy.shipping],
             ["overview", copy.overview],
           ].map(([key, label]) => (
-            <button key={key} type="button" onClick={() => setActiveTab(key)} className={`h-10 rounded-lg px-4 text-sm font-black transition ${activeTab === key ? "bg-[var(--primary)] text-white shadow" : "text-[var(--muted)] hover:text-[var(--text)]"}`}>
+            <button key={key} type="button" onClick={() => setActiveTab(key)} className={`h-[var(--control-height-md)] rounded-lg px-4 text-sm font-black transition ${activeTab === key ? "bg-[var(--primary)] text-white shadow" : "text-[var(--muted)] hover:text-[var(--text)]"}`}>
               {label}
             </button>
           ))}
@@ -481,19 +481,19 @@ function WebsiteSettings() {
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">{copy.shippingText}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={seedEgyptGovernorates} className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-500 px-3 text-xs font-black text-white">
+                  <button type="button" onClick={seedEgyptGovernorates} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-emerald-500 px-3 text-xs font-black text-white">
                     <Layers3 className="h-4 w-4" />
                     {copy.addGovernorates}
                   </button>
-                  <button type="button" onClick={() => addZone()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--primary)] px-3 text-xs font-black text-white">
+                  <button type="button" onClick={() => addZone()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-[var(--primary)] px-3 text-xs font-black text-white">
                     <Plus className="h-4 w-4" />
                     {copy.addZone}
                   </button>
-                  <button type="button" onClick={() => importInputRef.current?.click()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">
+                  <button type="button" onClick={() => importInputRef.current?.click()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">
                     <FileUp className="h-4 w-4" />
                     {copy.import}
                   </button>
-                  <button type="button" onClick={exportZones} className="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">
+                  <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">
                     <Download className="h-4 w-4" />
                     {copy.export}
                   </button>
@@ -504,9 +504,9 @@ function WebsiteSettings() {
               <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_220px_180px]">
                 <label className="relative block">
                   <Search className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)] ltr:left-3 rtl:right-3" />
-                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-10 text-sm font-semibold text-[var(--text)] outline-none" />
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} className="h-[var(--control-height-lg)] w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-10 text-sm font-semibold text-[var(--text)] outline-none" />
                 </label>
-                <select value={governorateFilter} onChange={(event) => setGovernorateFilter(event.target.value)} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none">
+                <select value={governorateFilter} onChange={(event) => setGovernorateFilter(event.target.value)} className="h-[var(--control-height-lg)] rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none">
                   <option value="">{copy.allGovs}</option>
                   {governorates.map((governorate) => <option key={governorate} value={governorate}>{governorate}</option>)}
                 </select>
@@ -519,31 +519,31 @@ function WebsiteSettings() {
               <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--card)] p-3">
                 <div className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-[var(--muted)]">{copy.quickCreate}</div>
                 <div className="grid gap-2 lg:grid-cols-[210px_1fr_1fr_1fr_110px_110px]">
-                  <select value={quickMode} onChange={(event) => setQuickMode(event.target.value)} className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]">
+                  <select value={quickMode} onChange={(event) => setQuickMode(event.target.value)} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]">
                     <option value="governorate">{copy.governorateOnly}</option>
                     <option value="city">{copy.cityLevel}</option>
                     <option value="area">{copy.areaLevel}</option>
                   </select>
-                  <input value={quickZone.governorate} onChange={(event) => setQuickZone((current) => ({ ...current, governorate: event.target.value }))} placeholder={copy.governorate} className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
-                  <input disabled={quickMode === "governorate"} value={quickZone.city} onChange={(event) => setQuickZone((current) => ({ ...current, city: event.target.value }))} placeholder={copy.city} className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)] disabled:opacity-40" />
-                  <input disabled={quickMode !== "area"} value={quickZone.area} onChange={(event) => setQuickZone((current) => ({ ...current, area: event.target.value }))} placeholder={copy.area} className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)] disabled:opacity-40" />
-                  <input type="number" min="0" value={quickZone.price} onChange={(event) => setQuickZone((current) => ({ ...current, price: event.target.value }))} placeholder={copy.price} className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
-                  <button type="button" onClick={addQuickZone} className="h-10 rounded-lg bg-[var(--primary)] px-3 text-xs font-black text-white">{copy.addZone}</button>
+                  <input value={quickZone.governorate} onChange={(event) => setQuickZone((current) => ({ ...current, governorate: event.target.value }))} placeholder={copy.governorate} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
+                  <input disabled={quickMode === "governorate"} value={quickZone.city} onChange={(event) => setQuickZone((current) => ({ ...current, city: event.target.value }))} placeholder={copy.city} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)] disabled:opacity-40" />
+                  <input disabled={quickMode !== "area"} value={quickZone.area} onChange={(event) => setQuickZone((current) => ({ ...current, area: event.target.value }))} placeholder={copy.area} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)] disabled:opacity-40" />
+                  <input type="number" min="0" value={quickZone.price} onChange={(event) => setQuickZone((current) => ({ ...current, price: event.target.value }))} placeholder={copy.price} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
+                  <button type="button" onClick={addQuickZone} className="h-[var(--control-height-md)] rounded-lg bg-[var(--primary)] px-3 text-xs font-black text-white">{copy.addZone}</button>
                 </div>
               </div>
 
               {selectedCount ? (
                 <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 p-3">
                   <span className="text-sm font-black text-[var(--text)]">{selectedCount} {copy.selected}</span>
-                  <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder={copy.price} className="h-9 w-28 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
-                  <button type="button" onClick={() => bulkPrice !== "" && applyBulk({ price: Number(bulkPrice) })} className="h-9 rounded-lg bg-[var(--primary)] px-3 text-xs font-black text-white">{copy.bulkPrice}</button>
-                  <button type="button" onClick={() => applyBulk({ cod_allowed: true })} className="h-9 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkCodOn}</button>
-                  <button type="button" onClick={() => applyBulk({ cod_allowed: false })} className="h-9 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkCodOff}</button>
-                  <button type="button" onClick={() => applyBulk({ requires_shipping_proof: true })} className="h-9 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkProofOn}</button>
-                  <button type="button" onClick={() => applyBulk({ requires_shipping_proof: false })} className="h-9 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkProofOff}</button>
-                  <input value={bulkEta} onChange={(event) => setBulkEta(event.target.value)} placeholder={copy.eta} className="h-9 w-44 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
-                  <button type="button" onClick={() => bulkEta && applyBulk({ estimated_delivery_text: bulkEta })} className="h-9 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkEta}</button>
-                  <button type="button" onClick={deleteSelected} className="h-9 rounded-lg bg-rose-600 px-3 text-xs font-black text-white">{copy.deleteSelected}</button>
+                  <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder={copy.price} className="h-[var(--control-height-md)] w-28 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
+                  <button type="button" onClick={() => bulkPrice !== "" && applyBulk({ price: Number(bulkPrice) })} className="h-[var(--control-height-md)] rounded-lg bg-[var(--primary)] px-3 text-xs font-black text-white">{copy.bulkPrice}</button>
+                  <button type="button" onClick={() => applyBulk({ cod_allowed: true })} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkCodOn}</button>
+                  <button type="button" onClick={() => applyBulk({ cod_allowed: false })} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkCodOff}</button>
+                  <button type="button" onClick={() => applyBulk({ requires_shipping_proof: true })} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkProofOn}</button>
+                  <button type="button" onClick={() => applyBulk({ requires_shipping_proof: false })} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkProofOff}</button>
+                  <input value={bulkEta} onChange={(event) => setBulkEta(event.target.value)} placeholder={copy.eta} className="h-[var(--control-height-md)] w-44 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]" />
+                  <button type="button" onClick={() => bulkEta && applyBulk({ estimated_delivery_text: bulkEta })} className="h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-black text-[var(--text)]">{copy.bulkEta}</button>
+                  <button type="button" onClick={deleteSelected} className="h-[var(--control-height-md)] rounded-lg bg-rose-600 px-3 text-xs font-black text-white">{copy.deleteSelected}</button>
                 </div>
               ) : null}
             </div>
@@ -574,7 +574,7 @@ function WebsiteSettings() {
                       <EditableCell type="number" value={zone.minimum_order_for_cod} onChange={(value) => setZoneValue(zone.id, "minimum_order_for_cod", value)} compact />
                       <ToggleCell checked={zone.active} onChange={(value) => setZoneValue(zone.id, "active", value)} />
                       <td className="px-3 py-3">
-                        <button type="button" onClick={() => { setZones((current) => current.filter((item) => item.id !== zone.id)); setDirty(true); }} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-400/20 bg-rose-500/10 text-rose-300">
+                        <button type="button" onClick={() => { setZones((current) => current.filter((item) => item.id !== zone.id)); setDirty(true); }} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-lg border border-rose-400/20 bg-rose-500/10 text-rose-300">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </td>
@@ -599,7 +599,7 @@ function WebsiteSettings() {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--surface)]/95 px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <span className={`text-sm font-black ${dirty ? "text-amber-400" : "text-[var(--muted)]"}`}>{dirty ? copy.unsaved : copy.saved}</span>
-          <button type="button" onClick={saveAll} disabled={loading || saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={saveAll} disabled={loading || saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-60">
             <Save className="h-4 w-4" />
             {saving ? copy.saving : copy.saveAll}
           </button>
@@ -635,7 +635,7 @@ function OverviewTab({ copy, pricing, markPricing }) {
           <Field label="Fake compare percent" type="number" value={pricing.fake_compare_percent} onChange={(value) => markPricing({ fake_compare_percent: value })} />
           <label className="block rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
             <span className="block text-sm font-black text-[var(--text)]">Rounding mode</span>
-            <select value={pricing.fake_compare_rounding_mode} onChange={(event) => markPricing({ fake_compare_rounding_mode: event.target.value })} className="mt-3 h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)] outline-none">
+            <select value={pricing.fake_compare_rounding_mode} onChange={(event) => markPricing({ fake_compare_rounding_mode: event.target.value })} className="mt-3 h-[var(--control-height-lg)] w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)] outline-none">
               <option value="none">none</option>
               <option value="nearest_10">nearest_10</option>
               <option value="nearest_50">nearest_50</option>
@@ -649,7 +649,7 @@ function OverviewTab({ copy, pricing, markPricing }) {
               <h3 className="text-lg font-black text-[var(--text)]">Existing Sale Prices</h3>
               <p className="mt-1 text-sm font-bold text-[var(--muted)]">{saleModePreviewText(pricing)}</p>
             </div>
-            <button type="button" onClick={() => markPricing({ sale_mode_enabled: !pricing.sale_mode_enabled, sale_mode_type: "use_existing_sale_prices_only", sale_mode_value: 0 })} className={`h-11 rounded-xl px-4 text-sm font-black ${pricing.sale_mode_enabled ? "bg-amber-300 text-zinc-950" : "border border-amber-300/30 text-amber-100"}`}>
+            <button type="button" onClick={() => markPricing({ sale_mode_enabled: !pricing.sale_mode_enabled, sale_mode_type: "use_existing_sale_prices_only", sale_mode_value: 0 })} className={`h-[var(--control-height-lg)] rounded-xl px-4 text-sm font-black ${pricing.sale_mode_enabled ? "bg-amber-300 text-zinc-950" : "border border-amber-300/30 text-amber-100"}`}>
               {pricing.sale_mode_enabled ? "Disable Existing Sale Prices" : "Enable Existing Sale Prices"}
             </button>
           </div>
@@ -663,7 +663,7 @@ function Field({ label, value, onChange, type = "text" }) {
   return (
     <label className="block rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
       <span className="block text-sm font-black text-[var(--text)]">{label}</span>
-      <input type={type} value={value || ""} onChange={(event) => onChange(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)] outline-none" />
+      <input type={type} value={value || ""} onChange={(event) => onChange(event.target.value)} className="mt-3 h-[var(--control-height-lg)] w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)] outline-none" />
     </label>
   );
 }
@@ -687,7 +687,7 @@ function SummaryCard({ icon: Icon, label, value }) {
 function EditableCell({ value, onChange, type = "text", compact = false, wide = false }) {
   return (
     <td className="border-t border-[var(--border)] px-3 py-3">
-      <input type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className={`h-10 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 text-sm font-semibold text-[var(--text)] outline-none ${compact ? "w-24" : wide ? "w-48" : "w-36"}`} />
+      <input type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className={`h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 text-sm font-semibold text-[var(--text)] outline-none ${compact ? "w-24" : wide ? "w-48" : "w-36"}`} />
     </td>
   );
 }
@@ -695,7 +695,7 @@ function EditableCell({ value, onChange, type = "text", compact = false, wide = 
 function ToggleCell({ checked, onChange }) {
   return (
     <td className="border-t border-[var(--border)] px-3 py-3">
-      <button type="button" onClick={() => onChange(!checked)} className={`h-8 w-14 rounded-full p-1 transition ${checked ? "bg-emerald-500" : "bg-zinc-500/40"}`} aria-pressed={checked}>
+      <button type="button" onClick={() => onChange(!checked)} className={`h-[var(--control-height-sm)] w-14 rounded-full p-1 transition ${checked ? "bg-emerald-500" : "bg-zinc-500/40"}`} aria-pressed={checked}>
         <span className={`block h-6 w-6 rounded-full bg-white transition ${checked ? "ltr:translate-x-6 rtl:-translate-x-6" : ""}`} />
       </button>
     </td>

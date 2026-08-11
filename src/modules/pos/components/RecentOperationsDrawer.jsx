@@ -670,7 +670,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
               <h2 className="mt-1 text-2xl font-black">العمليات الأخيرة</h2>
               <p className="mt-1 text-sm text-zinc-400">عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.</p>
             </div>
-            <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300">
+            <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -681,10 +681,10 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
                 value={search}
                 onChange={handleSearchChange}
                 placeholder="بحث برقم الفاتورة أو العميل أو الهاتف"
-                className="h-12 w-full rounded-2xl border border-white/10 bg-black/40 pr-11 pl-4 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+                className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/40 pr-11 pl-4 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
             </div>
-            <button type="button" onClick={() => loadOrders({ reset: true })} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]" title="تحديث">
+            <button type="button" onClick={() => loadOrders({ reset: true })} className="inline-flex h-[var(--control-height-lg)] w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]" title="تحديث">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
@@ -723,7 +723,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
                   type="button"
                   onClick={() => loadOrders({ reset: false })}
                   disabled={loadingMore}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-100 transition hover:bg-white/[0.08] disabled:cursor-wait disabled:opacity-60"
+                  className="flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-100 transition hover:bg-white/[0.08] disabled:cursor-wait disabled:opacity-60"
                 >
                   {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {loadingMore ? "جار التحميل..." : "تحميل المزيد"}
@@ -983,7 +983,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                 key={option.key}
                 type="button"
                 onClick={() => handleMode(option.key)}
-                className={`h-11 rounded-2xl border px-3 text-sm font-black ${
+                className={`h-[var(--control-height-lg)] rounded-2xl border px-3 text-sm font-black ${
                   mode === option.key ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-50" : "border-white/10 bg-white/[0.04] text-zinc-300"
                 }`}
               >
@@ -1000,7 +1000,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                   key={item}
                   type="button"
                   onClick={() => setReason(item)}
-                  className={`h-10 rounded-2xl border px-3 text-xs font-black ${
+                  className={`h-[var(--control-height-md)] rounded-2xl border px-3 text-xs font-black ${
                     reason === item ? "border-sky-300/40 bg-sky-500/15 text-sky-50" : "border-white/10 bg-black/20 text-zinc-300"
                   }`}
                 >
@@ -1013,7 +1013,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                 value={customReason}
                 onChange={(event) => setCustomReason(event.target.value)}
                 placeholder="اكتب السبب"
-                className="mt-3 h-11 w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+                className="mt-3 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
             ) : null}
           </div>
@@ -1026,7 +1026,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                   key={item.key}
                   type="button"
                   onClick={() => setRefundMethod(item.key)}
-                  className={`h-10 rounded-2xl border px-3 text-xs font-black ${
+                  className={`h-[var(--control-height-md)] rounded-2xl border px-3 text-xs font-black ${
                     refundMethod === item.key ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-50" : "border-white/10 bg-black/20 text-zinc-300"
                   }`}
                 >
@@ -1069,7 +1069,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                       value={selected}
                       onChange={(event) => updateQuantity(item, event.target.value)}
                       disabled={max <= 0}
-                      className="mt-1 h-11 w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-center text-sm font-black text-white outline-none disabled:opacity-40"
+                      className="mt-1 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-center text-sm font-black text-white outline-none disabled:opacity-40"
                     />
                   </div>
                 </div>
@@ -1090,14 +1090,14 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
         </div>
 
         <div className="flex gap-2 border-t border-white/10 p-4">
-          <button type="button" onClick={onClose} className="h-11 flex-1 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-white">
+          <button type="button" onClick={onClose} className="h-[var(--control-height-lg)] flex-1 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-white">
             إلغاء
           </button>
           <button
             type="button"
             onClick={submit}
             disabled={submitting}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-400 text-sm font-black text-zinc-950 disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-lg)] flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-400 text-sm font-black text-zinc-950 disabled:opacity-50"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             حفظ
@@ -1249,7 +1249,7 @@ function Action({ icon: Icon, label, onClick, disabled, loading = false, danger 
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`inline-flex h-7 items-center justify-center gap-1 rounded-lg border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-45 ${className} ${
+      className={`inline-flex h-[var(--control-height-sm)] items-center justify-center gap-1 rounded-lg border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-45 ${className} ${
         danger
           ? "border-rose-400/30 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
           : "border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"

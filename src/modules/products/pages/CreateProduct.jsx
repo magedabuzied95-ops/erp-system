@@ -2427,7 +2427,7 @@ function CreateProduct() {
             type="button"
             onClick={() => regenerateDescriptions("ar")}
             disabled={descriptionGenerating.ar}
-            className="inline-flex h-9 items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100"
+            className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100"
           >
             {descriptionGenerating.ar ? t("products.editor.generatingArabic", "Generating Arabic...") : t("products.editor.regenerateArabic", "Regenerate Arabic")}
           </button>
@@ -2435,7 +2435,7 @@ function CreateProduct() {
             type="button"
             onClick={() => regenerateDescriptions("en")}
             disabled={descriptionGenerating.en}
-            className="inline-flex h-9 items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+            className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
           >
             {descriptionGenerating.en ? t("products.editor.generatingEnglish", "Generating English...") : t("products.editor.regenerateEnglish", "Regenerate English")}
           </button>
@@ -2443,7 +2443,7 @@ function CreateProduct() {
             type="button"
             onClick={() => regenerateDescriptions("all")}
             disabled={descriptionGenerating.ar || descriptionGenerating.en}
-            className="inline-flex h-9 items-center rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
+            className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
           >
             {descriptionGenerating.ar && descriptionGenerating.en ? t("products.editor.generating", "Generating...") : t("products.editor.regenerateAll", "Regenerate All")}
           </button>
@@ -2457,7 +2457,7 @@ function CreateProduct() {
             value={descriptionTone}
             onChange={(event) => setDescriptionTone(event.target.value)}
             placeholder={t("products.editor.promptPlaceholder", "premium tone, concise tone, friendly tone")}
-            className="mt-1.5 h-11 w-full rounded-[14px] border border-border bg-surface-soft px-4 text-sm text-text shadow-inner shadow-black/20 outline-none placeholder:text-text-muted transition focus:border-amber-300/35 focus:bg-surface-soft"
+            className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[14px] border border-border bg-surface-soft px-4 text-sm text-text shadow-inner shadow-black/20 outline-none placeholder:text-text-muted transition focus:border-amber-300/35 focus:bg-surface-soft"
           />
         </div>
         <div>
@@ -2505,7 +2505,7 @@ function CreateProduct() {
           type="button"
           onClick={regenerateSeoMetadata}
           disabled={seoGenerating}
-          className="inline-flex h-9 items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
+          className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
         >
           {seoGenerating ? t("products.editor.generatingSeo", "جاري توليد تحسينات البحث...") : t("products.editor.regenerateSeoMetadata", "إعادة توليد بيانات تحسين البحث")}
         </button>
@@ -2519,7 +2519,7 @@ function CreateProduct() {
               setMetaTitle(event.target.value);
               setSeoTouched((current) => ({ ...current, title: true }));
             }}
-            className="mt-1.5 h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
           />
         </div>
         <div>
@@ -2530,7 +2530,7 @@ function CreateProduct() {
               setSeoKeywords(event.target.value);
               setSeoTouched((current) => ({ ...current, keywords: true }));
             }}
-            className="mt-1.5 h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text shadow-inner shadow-black/20 outline-none"
+            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text shadow-inner shadow-black/20 outline-none"
           />
         </div>
         <div className="lg:col-span-2">
@@ -2598,7 +2598,7 @@ function CreateProduct() {
         <button
           type="button"
           onClick={applyAllAiProductSuggestions}
-          className="inline-flex h-9 items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
+          className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
         >
           {t("products.editor.applyAll")}
         </button>
@@ -2664,7 +2664,7 @@ function CreateProduct() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className={buttonClasses("primary", "h-9 rounded-[12px] px-4")}
+                  className={buttonClasses("primary", "h-[var(--control-height-md)] rounded-[12px] px-4")}
                 >
                   <Plus size={16} strokeWidth={2} />
                   {saving ? savingStep || t("products.shared.saving") : t("products.editor.saveProduct")}
@@ -2680,7 +2680,7 @@ function CreateProduct() {
                   key={section.id}
                   type="button"
                   onClick={() => scrollToSection(section.id)}
-                  className="h-9 rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-bold text-text transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-100"
+                  className="h-[var(--control-height-md)] rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-bold text-text transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-100"
                 >
                   {section.title}
                 </button>
@@ -2822,7 +2822,7 @@ function CreateProduct() {
                       aria-pressed={generateCoverThermalArtwork}
                       onClick={() => setGenerateCoverThermalArtwork((value) => !value)}
                       disabled={!coverImage}
-                      className={`inline-flex h-11 w-full items-center justify-between rounded-[16px] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-border bg-surface-soft text-text hover:bg-surface-soft"}`}
+                      className={`inline-flex h-[var(--control-height-lg)] w-full items-center justify-between rounded-[16px] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-border bg-surface-soft text-text hover:bg-surface-soft"}`}
                     >
                       <span>إنشاء Thermal للكفر عند الحفظ</span>
                       <span className={`h-5 w-9 rounded-full p-0.5 transition ${generateCoverThermalArtwork ? "bg-emerald-400" : "bg-[var(--border-strong)]"}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${generateCoverThermalArtwork ? "translate-x-4" : "translate-x-0"}`} /></span>
@@ -2831,7 +2831,7 @@ function CreateProduct() {
                       type="button"
                       onClick={handleGenerateAiProductData}
                       disabled={aiProductLoading || !coverImage}
-                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                       {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
@@ -2840,7 +2840,7 @@ function CreateProduct() {
                       type="button"
                       onClick={handleGenerateThermalImage}
                       disabled={thermalImageGenerating || !getEligibleThermalColorGroups(colorGroups).length}
-                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                       {"Generate AI Thermal Artwork"}
@@ -2923,7 +2923,7 @@ function CreateProduct() {
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveContentTab(tab.id)}
-                      className={`h-9 rounded-[12px] border px-3 text-xs font-bold transition ${
+                      className={`h-[var(--control-height-md)] rounded-[12px] border px-3 text-xs font-bold transition ${
                         activeContentTab === tab.id
                           ? "border-primary/40 bg-primary/15 text-primary"
                           : "border-border bg-surface-soft text-text hover:border-border hover:bg-surface-soft"
@@ -2975,12 +2975,12 @@ function CreateProduct() {
                             setSkuPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""));
                             setSkuPrefixTouched(true);
                           }}
-                          className="h-10 min-w-0 flex-1 rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                         />
                         <button
                           type="button"
                           onClick={regenerateSkuPrefix}
-                          className="inline-flex h-10 items-center gap-1.5 rounded-[13px] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
+                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[13px] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
                         >
                           <Sparkles className="h-3.5 w-3.5" />
                           {t("products.editor.regenerateFromProductName")}
@@ -3000,12 +3000,12 @@ function CreateProduct() {
                             setBarcode(e.target.value);
                             setBarcodePreview(e.target.value);
                           }}
-                          className="h-10 min-w-0 flex-1 rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                         />
                         <button
                           type="button"
                           onClick={generateNewBarcode}
-                          className="inline-flex h-10 items-center gap-1.5 rounded-[13px] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
+                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[13px] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
                         >
                           <ScanLine size={13} />
                           {t("products.editor.generate")}
@@ -3054,7 +3054,7 @@ function CreateProduct() {
                         value={customComparePrice}
                         onChange={(e) => setCustomComparePrice(e.target.value)}
                         placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}
-                        className="mt-3 h-10 w-full rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                        className="mt-3 h-[var(--control-height-md)] w-full rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                       />
                     ) : null}
                   </div>
@@ -3094,7 +3094,7 @@ function CreateProduct() {
                             type="button"
                             onClick={regenerateSeoMetadata}
                             disabled={seoGenerating}
-                            className="inline-flex h-9 items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
+                            className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
                           >
                             {seoGenerating ? t("products.editor.generatingSeo", "Generating SEO...") : t("products.editor.regenerateSeoMetadata", "Regenerate SEO Metadata")}
                           </button>
@@ -3146,7 +3146,7 @@ function CreateProduct() {
                                 setMetaTitle(event.target.value);
                                 setSeoTouched((current) => ({ ...current, title: true }));
                               }}
-                              className="mt-1.5 h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
                             />
                           </div>
                           <div>
@@ -3157,7 +3157,7 @@ function CreateProduct() {
                                 setCanonicalSlug(event.target.value);
                                 setSeoTouched((current) => ({ ...current, slug: true }));
                               }}
-                              className="mt-1.5 h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
                             />
                           </div>
                           <div className="lg:col-span-2">
@@ -3181,7 +3181,7 @@ function CreateProduct() {
                                 setSeoKeywords(event.target.value);
                                 setSeoTouched((current) => ({ ...current, keywords: true }));
                               }}
-                              className="mt-1.5 h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text shadow-inner shadow-black/20 outline-none"
                             />
                           </div>
                         </div>
@@ -3201,7 +3201,7 @@ function CreateProduct() {
                     <button
                       type="button"
                       onClick={applyAllAiProductSuggestions}
-                      className="inline-flex h-9 items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
+                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
                     >
                       {t("products.editor.applyAll")}
                     </button>
@@ -3386,12 +3386,12 @@ function CreateProduct() {
                         value={bulkSizesInput}
                         onChange={(event) => setBulkSizesInput(event.target.value)}
                         placeholder={t("products.editor.sizeRangePlaceholder")}
-                        className="h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                        className="h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                       />
                       <button
                         type="button"
                         onClick={() => applyBulkSizes()}
-                        className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                        className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
                       >
                         {t("products.editor.applyToAllColors")}
                       </button>
@@ -3411,13 +3411,13 @@ function CreateProduct() {
                       value={bulkStockInput}
                       onChange={(event) => setBulkStockInput(event.target.value)}
                       placeholder={t("products.editor.stockQuantityPlaceholder")}
-                      className="h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                      className="h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                     />
                   </label>
                   <button
                     type="button"
                     onClick={() => applyBulkStock()}
-                    className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
+                    className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
                   >
                     {t("products.editor.applyStockAllSizes")}
                   </button>
@@ -3435,13 +3435,13 @@ function CreateProduct() {
                       value={bulkArticleCodeInput}
                       onChange={(event) => setBulkArticleCodeInput(event.target.value)}
                       placeholder={t("products.editor.articleCodePlaceholder", "Example: L122")}
-                      className="h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                      className="h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                     />
                   </label>
                   <button
                     type="button"
                     onClick={() => applyBulkArticleCode()}
-                    className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                    className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
                   >
                     {t("products.editor.applyArticleAllColors", "Apply article to all colors")}
                   </button>
@@ -3466,7 +3466,7 @@ function CreateProduct() {
                     <button
                       type="button"
                       onClick={zeroAllColorStock}
-                      className="inline-flex h-9 items-center gap-2 rounded-full border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
+                      className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
                     >
                       <Trash2 size={16} strokeWidth={2} />
                       {t("products.editor.zeroAllColorStock", "Zero stock for all colors")}
@@ -3474,7 +3474,7 @@ function CreateProduct() {
                     <button
                       type="button"
                       onClick={addColorGroup}
-                      className={buttonClasses("primary", "h-9 rounded-full px-4")}
+                      className={buttonClasses("primary", "h-[var(--control-height-md)] rounded-full px-4")}
                     >
                       <Plus size={16} strokeWidth={2} />
                       {t("products.editor.addColor")}
@@ -3584,7 +3584,7 @@ function CreateProduct() {
                                 moveColorGroup(group.id, -1);
                               }}
                               disabled={groupIndex === 0}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-25"
+                              className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-25"
                               aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأعلى`}
                               title="تحريك لأعلى"
                             >
@@ -3597,7 +3597,7 @@ function CreateProduct() {
                                 moveColorGroup(group.id, 1);
                               }}
                               disabled={groupIndex === colorGroups.length - 1}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-25"
+                              className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-25"
                               aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأسفل`}
                               title="تحريك لأسفل"
                             >
@@ -3610,7 +3610,7 @@ function CreateProduct() {
                               event.stopPropagation();
                               removeColorGroup(group.id);
                             }}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-surface-soft text-red-300"
+                            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-border bg-surface-soft text-red-300"
                             aria-label={`Remove color group ${group.color || groupIndex + 1}`}
                           >
                             <Trash2 size={16} />
@@ -3666,7 +3666,7 @@ function CreateProduct() {
                                 aria-pressed={Boolean(group.generate_thermal_artwork)}
                                 onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
                                 disabled={!getPrimaryColorImage(group)}
-                                className={`inline-flex h-9 w-full items-center justify-between rounded-[12px] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-border bg-surface-soft text-text hover:bg-surface-soft"}`}
+                                className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[12px] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-border bg-surface-soft text-text hover:bg-surface-soft"}`}
                               >
                                 <span>إنشاء Thermal لهذا اللون عند الحفظ</span>
                                 <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
@@ -3675,7 +3675,7 @@ function CreateProduct() {
                                 type="button"
                                 onClick={() => handleGenerateThermalImage({ colorGroup: group })}
                                 disabled={thermalImageGenerating || !getPrimaryColorImage(group)}
-                                className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[12px] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[12px] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                                 {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
@@ -3754,7 +3754,7 @@ function CreateProduct() {
                                     onBlur={(e) => updateColorGroup(group.id, "color", normalizeColorName(e.target.value))}
                                     list="m1-standard-color-names"
                                     placeholder={t("products.placeholders.colorExample")}
-                                    className="mt-1.5 h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                                   />
                                   <p className="mt-1 text-xs text-text-muted">{t("products.editor.pickColorHelp")}</p>
                                   {colorDetecting[group.id] ? (
@@ -3776,7 +3776,7 @@ function CreateProduct() {
                                       value={group.edition_name || ""}
                                       onChange={(e) => updateColorGroup(group.id, "edition_name", e.target.value)}
                                       placeholder={t("products.editor.editionNamePlaceholder")}
-                                      className="mt-1.5 h-10 w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                                      className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                                     />
                                       {editionSuggestions[group.id]?.status === "loading" ? (
                                         <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-border bg-surface-soft px-3 py-2 text-xs font-semibold text-text shadow-2xl shadow-black/40">
@@ -3801,7 +3801,7 @@ function CreateProduct() {
                                             <button
                                               type="button"
                                               onClick={() => updateColorGroup(group.id, "edition_name", editionSuggestions[group.id].suggestion.edition_name)}
-                                              className="h-10 rounded-[14px] bg-surface px-3 text-xs font-black text-text"
+                                              className="h-[var(--control-height-md)] rounded-[14px] bg-surface px-3 text-xs font-black text-text"
                                             >
                                               Apply
                                             </button>
@@ -3825,7 +3825,7 @@ function CreateProduct() {
                                                   <button
                                                     type="button"
                                                     onClick={() => updateColorGroup(group.id, "edition_name", candidate.edition_name)}
-                                                    className="h-8 shrink-0 rounded-[10px] bg-surface px-2 text-[10px] font-black text-text"
+                                                    className="h-[var(--control-height-sm)] shrink-0 rounded-[10px] bg-surface px-2 text-[10px] font-black text-text"
                                                   >
                                                     Apply
                                                   </button>
@@ -3842,7 +3842,7 @@ function CreateProduct() {
                                         <button
                                           type="button"
                                           onClick={() => requestEditionSuggestion(group, { retry: true })}
-                                          className="h-10 rounded-[14px] border border-border bg-surface-soft px-3 font-black text-text"
+                                          className="h-[var(--control-height-md)] rounded-[14px] border border-border bg-surface-soft px-3 font-black text-text"
                                         >
                                           Retry
                                         </button>
@@ -3872,7 +3872,7 @@ function CreateProduct() {
                                   <label className="text-sm font-semibold text-text">الجمهور لهذا اللون</label>
                                   <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                                     {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].map((option) => (
-                                      <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-10 rounded-[12px] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-border bg-surface-soft text-text-muted hover:text-white"}`}>
+                                      <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[12px] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-border bg-surface-soft text-text-muted hover:text-white"}`}>
                                         {option.label}
                                       </button>
                                     ))}
@@ -3885,7 +3885,7 @@ function CreateProduct() {
                                     type="button"
                                     aria-pressed={group.is_storefront_visible !== false}
                                     onClick={() => updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false)}
-                                    className={`mt-1.5 flex h-10 w-full items-center justify-between rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
+                                    className={`mt-1.5 flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
                                   >
                                     <span>{group.is_storefront_visible !== false ? "ظاهر على الموقع" : "مخفي من الموقع"}</span>
                                     <span>{group.is_storefront_visible !== false ? "مفعّل" : "متوقف"}</span>
@@ -3900,7 +3900,7 @@ function CreateProduct() {
                                   type="button"
                                   onClick={() => detectColorNameForGroup(group.id, getPrimaryColorImage(group) || group.imagePreview || group.image_url, { overwrite: true })}
                                   disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
+                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
                                 >
                                   {colorDetecting[group.id] ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                                   AI Rename
@@ -3915,7 +3915,7 @@ function CreateProduct() {
                                     })
                                   }
                                   disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                                  className="inline-flex h-10 items-center justify-center rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-45"
+                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-45"
                                 >
                                   اختيار اللون
                                 </button>
@@ -3924,7 +3924,7 @@ function CreateProduct() {
                                     type="button"
                                     onClick={() => requestEditionSuggestion(group)}
                                     disabled={editionSuggestions[group.id]?.status === "loading"}
-                                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[14px] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[14px] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     {editionSuggestions[group.id]?.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                                       اقتراح الإصدار
@@ -3936,7 +3936,7 @@ function CreateProduct() {
                                     <button
                                       type="button"
                                       onClick={() => applyBulkSizes(group.id)}
-                                      className="inline-flex h-10 items-center justify-center rounded-[14px] border border-emerald-500/20 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15"
+                                      className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-emerald-500/20 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15"
                                     >
                                       تطبيق الأحجام دفعة واحدة
                                     </button>
@@ -3944,7 +3944,7 @@ function CreateProduct() {
                                   <button
                                     type="button"
                                     onClick={() => applyBulkArticleCode(group.id)}
-                                    className="inline-flex h-10 items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                                    className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
                                   >
                                     {t("products.editor.applyArticleThisColor", "Apply article to this color")}
                                   </button>
@@ -3954,7 +3954,7 @@ function CreateProduct() {
                                     <button
                                       type="button"
                                       onClick={() => addSizeRow(group.id)}
-                                      className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text"
+                                      className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text"
                                     >
                                       <Plus size={16} />
                                       إضافة مقاس
@@ -3965,7 +3965,7 @@ function CreateProduct() {
                                       <button
                                         type="button"
                                         onClick={() => setCrocsLibraryGroupId((current) => (current === group.id ? "" : group.id))}
-                                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-amber-400/20 bg-amber-400/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15"
+                                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-amber-400/20 bg-amber-400/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15"
                                       >
                                         <Plus size={16} />
                                         + إضافة مقاسات كروكس
@@ -4022,7 +4022,7 @@ function CreateProduct() {
                                           value={row.size}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
                                           placeholder="40"
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                       </div> : null}
                                       <div>
@@ -4034,7 +4034,7 @@ function CreateProduct() {
                                           value={row.stock ?? ""}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
                                           placeholder="0"
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                         <p className="mt-1 text-[10px] leading-4 text-text-muted xl:hidden">{t("products.editor.preparationOnlyStock", "للتجهيز فقط. تتم إضافة المخزون الفعلي من فواتير الشراء.")}</p>
                                       </div>
@@ -4044,7 +4044,7 @@ function CreateProduct() {
                                           value={row.sku}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "sku", e.target.value)}
                                           placeholder=""
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                       </div>
                                       <div>
@@ -4053,7 +4053,7 @@ function CreateProduct() {
                                           value={row.barcode}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
                                           placeholder={t("products.editor.scanOrEnterBarcode", "امسح أو أدخل الباركود")}
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                       </div>
                                       <div>
@@ -4073,7 +4073,7 @@ function CreateProduct() {
                                           type="button"
                                           onClick={() => removeSizeRow(group.id, row.id)}
                                           disabled={isColorOnlyMode || (group.sizes.length === 1 && rowIndex === 0)}
-                                          className="inline-flex h-10 w-full items-center justify-center rounded-[12px] border border-border bg-surface-soft px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                          className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[12px] border border-border bg-surface-soft px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                           إزالة
                                         </button>
@@ -4271,7 +4271,7 @@ function ProductActionBar({ mode = "create", saving = false, savingStep = "", ha
           type="submit"
           form={formId}
           disabled={saving}
-          className={buttonClasses("primary", "h-11 w-full rounded-[14px] px-5 sm:w-auto")}
+          className={buttonClasses("primary", "h-[var(--control-height-lg)] w-full rounded-[14px] px-5 sm:w-auto")}
         >
           {saving ? <Loader2 size={16} strokeWidth={2} className="animate-spin" /> : <Save size={16} strokeWidth={2} />}
           {saving ? savingStep || t("common.saving", "جارٍ الحفظ...") : label}

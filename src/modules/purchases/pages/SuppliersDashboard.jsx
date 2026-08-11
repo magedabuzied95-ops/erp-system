@@ -649,7 +649,7 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
             <Field label={t("purchases.supplierDetails.openingBalance")} type="number" value={form.opening_balance} onChange={(value) => setField("opening_balance", Number(value || 0))} />
             <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <span className="text-sm font-semibold text-white">{t("purchases.statusLabels.active")}</span>
-              <button type="button" onClick={() => setField("status", form.status === "active" ? "inactive" : "active")} className={`h-7 w-12 rounded-full p-1 transition ${form.status === "active" ? "bg-emerald-500" : "bg-zinc-700"}`}>
+              <button type="button" onClick={() => setField("status", form.status === "active" ? "inactive" : "active")} className={`h-[var(--control-height-sm)] w-12 rounded-full p-1 transition ${form.status === "active" ? "bg-emerald-500" : "bg-zinc-700"}`}>
                 <span className={`block h-5 w-5 rounded-full bg-white transition ${form.status === "active" ? "translate-x-5" : ""}`} />
               </button>
             </label>

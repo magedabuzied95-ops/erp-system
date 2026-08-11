@@ -76,13 +76,13 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="بحث..."
-          className="h-9 min-w-0 flex-1 rounded-xl border border-white/10 bg-black/60 px-3 text-xs font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/40"
+          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-xl border border-white/10 bg-black/60 px-3 text-xs font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/40"
         />
         {selectedSet.size ? (
           <button
             type="button"
             onClick={onClear}
-            className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-amber-200/20 bg-amber-400/10 px-2 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15"
+            className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1 rounded-xl border border-amber-200/20 bg-amber-400/10 px-2 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15"
           >
             <X className="h-3 w-3" />
             مسح الكل
@@ -121,7 +121,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
         ref={buttonRef}
         type="button"
         onClick={() => onOpenChange(open ? "" : id)}
-        className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
+        className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
           open || selectedSet.size
             ? "border-emerald-300/40 bg-emerald-400/12 text-emerald-100"
             : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10"
@@ -172,7 +172,7 @@ function QuickPosFilters({
               key={gender.id}
               type="button"
               onClick={() => onToggleGender(gender.id)}
-              className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
+              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
                 active
                   ? "border-emerald-300/50 bg-emerald-400 text-emerald-950 shadow-[0_0_14px_rgba(16,185,129,0.12)]"
                   : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10"

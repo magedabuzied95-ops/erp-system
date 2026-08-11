@@ -3581,7 +3581,7 @@ function ProductEdit() {
                 <input
                   value={product.name}
                   onChange={(event) => updateProductField("name", event.target.value)}
-                  className="mt-1.5 h-11 w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] transition focus:border-emerald-300/35 focus:bg-zinc-900"
+                  className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] transition focus:border-emerald-300/35 focus:bg-zinc-900"
                 />
               </div>
 
@@ -3594,12 +3594,12 @@ function ProductEdit() {
                       updateProductField("sku", event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""));
                       setSkuTouched(true);
                     }}
-                    className="h-10 min-w-0 flex-1 rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition focus:border-emerald-300/35 focus:bg-white/[0.06]"
+                    className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition focus:border-emerald-300/35 focus:bg-white/[0.06]"
                   />
                   <button
                     type="button"
                     onClick={regenerateSkuPrefix}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-[13px] border border-white/10 bg-white/[0.045] px-3 text-xs font-bold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-100"
+                    className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[13px] border border-white/10 bg-white/[0.045] px-3 text-xs font-bold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-100"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     Regenerate from product name
@@ -3656,7 +3656,7 @@ function ProductEdit() {
                     value={product.custom_compare_price || ""}
                     onChange={(event) => updateProductField("custom_compare_price", event.target.value)}
                     placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}
-                    className="mt-3 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-emerald-300/35 focus:border-emerald-300/50 focus:bg-white/[0.06]"
+                    className="mt-3 h-[var(--control-height-md)] w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-emerald-300/35 focus:border-emerald-300/50 focus:bg-white/[0.06]"
                   />
                 ) : null}
               </div>
@@ -3672,7 +3672,7 @@ function ProductEdit() {
                       type="button"
                       onClick={() => regenerateDescriptions("ar")}
                       disabled={descriptionGenerating.ar}
-                      className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100"
+                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100"
                     >
                       {descriptionGenerating.ar ? t("products.editor.generatingArabic", "Generating Arabic...") : t("products.editor.regenerateArabic", "Regenerate Arabic")}
                     </button>
@@ -3680,7 +3680,7 @@ function ProductEdit() {
                       type="button"
                       onClick={() => regenerateDescriptions("en")}
                       disabled={descriptionGenerating.en}
-                      className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                     >
                       {descriptionGenerating.en ? t("products.editor.generatingEnglish", "Generating English...") : t("products.editor.regenerateEnglish", "Regenerate English")}
                     </button>
@@ -3688,7 +3688,7 @@ function ProductEdit() {
                       type="button"
                       onClick={() => regenerateDescriptions("all")}
                       disabled={descriptionGenerating.ar || descriptionGenerating.en}
-                      className="inline-flex h-9 items-center rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
+                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
                     >
                       {descriptionGenerating.ar && descriptionGenerating.en ? t("products.editor.generating", "Generating...") : t("products.editor.regenerateAll", "Regenerate All")}
                     </button>
@@ -3702,7 +3702,7 @@ function ProductEdit() {
                       value={descriptionTone}
                       onChange={(event) => setDescriptionTone(event.target.value)}
                       placeholder={t("products.editor.promptPlaceholder", "premium tone, concise tone, friendly tone")}
-                      className="mt-1.5 h-11 w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 text-sm text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-amber-300/35 focus:bg-zinc-900"
+                      className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 text-sm text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-amber-300/35 focus:bg-zinc-900"
                     />
                   </div>
                   <div>
@@ -3784,7 +3784,7 @@ function ProductEdit() {
                         type="button"
                         onClick={regenerateSeoMetadata}
                         disabled={seoGenerating}
-                        className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
+                        className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
                       >
                         {seoGenerating ? t("products.editor.generatingSeo", "Generating SEO...") : t("products.editor.regenerateSeoMetadata", "Regenerate SEO Metadata")}
                       </button>
@@ -3835,7 +3835,7 @@ function ProductEdit() {
                             updateProductField("meta_title", event.target.value);
                             setSeoTouched((current) => ({ ...current, title: true }));
                           }}
-                          className="mt-1.5 h-10 w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm font-semibold text-white shadow-inner shadow-black/20 outline-none"
+                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm font-semibold text-white shadow-inner shadow-black/20 outline-none"
                         />
                       </div>
                       <div>
@@ -3846,7 +3846,7 @@ function ProductEdit() {
                             updateProductField("canonical_slug", event.target.value);
                             setSeoTouched((current) => ({ ...current, slug: true }));
                           }}
-                          className="mt-1.5 h-10 w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm font-semibold text-white shadow-inner shadow-black/20 outline-none"
+                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm font-semibold text-white shadow-inner shadow-black/20 outline-none"
                         />
                       </div>
                       <div className="lg:col-span-2">
@@ -3870,7 +3870,7 @@ function ProductEdit() {
                             updateProductField("seo_keywords", event.target.value);
                             setSeoTouched((current) => ({ ...current, keywords: true }));
                           }}
-                          className="mt-1.5 h-10 w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm text-white shadow-inner shadow-black/20 outline-none"
+                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm text-white shadow-inner shadow-black/20 outline-none"
                         />
                       </div>
                     </div>
@@ -3954,7 +3954,7 @@ function ProductEdit() {
                     aria-pressed={generateCoverThermalArtwork}
                     onClick={() => setGenerateCoverThermalArtwork((value) => !value)}
                     disabled={!coverImage}
-                    className={`inline-flex h-11 w-full items-center justify-between rounded-[16px] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}
+                    className={`inline-flex h-[var(--control-height-lg)] w-full items-center justify-between rounded-[16px] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}
                   >
                     <span>إنشاء Thermal للكفر عند الحفظ</span>
                     <span>{generateCoverThermalArtwork ? "مفعّل" : "غير مفعّل"}</span>
@@ -3964,7 +3964,7 @@ function ProductEdit() {
                       type="button"
                       onClick={() => handleRegenerateAiCover({ trigger: "manual" })}
                       disabled={aiCoverRegeneratingKey === "product:product" || !productId || !coverImage}
-                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {aiCoverRegeneratingKey === "product:product" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                       {aiCoverRegeneratingKey === "product:product" ? "Queueing AI Cover..." : "Regenerate AI Cover"}
@@ -3974,7 +3974,7 @@ function ProductEdit() {
                     type="button"
                     onClick={handleGenerateAiProductData}
                     disabled={aiProductLoading || !coverImage}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                     {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
@@ -3983,7 +3983,7 @@ function ProductEdit() {
                     type="button"
                     onClick={handleGenerateThermalImage}
                     disabled={thermalImageGenerating || !product?.id || !getEligibleThermalColorGroups(colorGroups).length}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                     {"Generate AI Thermal Artwork"}
@@ -4061,7 +4061,7 @@ function ProductEdit() {
                   <button
                     type="button"
                     onClick={applyAllAiProductSuggestions}
-                    className="inline-flex h-9 items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
+                    className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
                   >
                     Apply all
                   </button>
@@ -4174,12 +4174,12 @@ function ProductEdit() {
                       value={bulkSizesInput}
                       onChange={(event) => setBulkSizesInput(event.target.value)}
                       placeholder={t("products.editor.sizeRangePlaceholder")}
-                      className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      className="h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                     />
                     <button
                       type="button"
                       onClick={() => applyBulkSizes()}
-                      className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                      className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
                     >
                       Apply to all colors
                     </button>
@@ -4199,13 +4199,13 @@ function ProductEdit() {
                     value={bulkStockInput}
                     onChange={(event) => setBulkStockInput(event.target.value)}
                     placeholder={t("products.editor.stockQuantityPlaceholder")}
-                    className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    className="h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                   />
                 </label>
                 <button
                   type="button"
                   onClick={() => applyBulkStock()}
-                  className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
+                  className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
                 >
                   Apply stock to all sizes in all colors
                 </button>
@@ -4223,13 +4223,13 @@ function ProductEdit() {
                     value={bulkArticleCodeInput}
                     onChange={(event) => setBulkArticleCodeInput(event.target.value)}
                     placeholder={t("products.editor.articleCodePlaceholder", "Example: L122")}
-                    className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    className="h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                   />
                 </label>
                 <button
                   type="button"
                   onClick={() => applyBulkArticleCode()}
-                  className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                  className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
                 >
                   {t("products.editor.applyArticleAllColors", "Apply article to all colors")}
                 </button>
@@ -4253,7 +4253,7 @@ function ProductEdit() {
                 <button
                   type="button"
                   onClick={zeroAllColorStock}
-                  className="inline-flex h-10 items-center gap-2 rounded-[14px] border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
+                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[14px] border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
                 >
                   <Trash2 size={16} />
                   {t("products.editor.zeroAllColorStock", "Zero stock for all colors")}
@@ -4261,7 +4261,7 @@ function ProductEdit() {
                 <button
                   type="button"
                   onClick={addColorGroup}
-                  className="inline-flex h-10 items-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white"
+                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white"
                 >
                   <Plus size={16} />
                   Add color
@@ -4382,7 +4382,7 @@ function ProductEdit() {
                             moveColorGroup(group.id, -1);
                           }}
                           disabled={groupIndex === 0}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
                           aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأعلى`}
                           title="تحريك لأعلى"
                         >
@@ -4395,7 +4395,7 @@ function ProductEdit() {
                             moveColorGroup(group.id, 1);
                           }}
                           disabled={groupIndex === colorGroups.length - 1}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
                           aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأسفل`}
                           title="تحريك لأسفل"
                         >
@@ -4409,7 +4409,7 @@ function ProductEdit() {
                           event.stopPropagation();
                           updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false);
                         }}
-                        className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
+                        className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
                         title={group.is_storefront_visible !== false ? "اللون ظاهر على الموقع" : "اللون مخفي من الموقع"}
                       >
                         {group.is_storefront_visible !== false ? <Eye size={15} /> : <EyeOff size={15} />}
@@ -4420,7 +4420,7 @@ function ProductEdit() {
                         aria-pressed={Boolean(group.generate_thermal_artwork)}
                         onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
                         disabled={!getPrimaryColorImage(group)}
-                        className={`inline-flex h-9 w-full items-center justify-between rounded-[12px] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}
+                        className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[12px] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}
                       >
                         <span>إنشاء Thermal لهذا اللون عند الحفظ</span>
                         <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
@@ -4431,7 +4431,7 @@ function ProductEdit() {
                           event.stopPropagation();
                           removeColorGroup(group.id);
                         }}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-white/10 bg-zinc-950 text-red-300"
+                        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[14px] border border-white/10 bg-zinc-950 text-red-300"
                         aria-label={`Remove color group ${group.color || groupIndex + 1}`}
                       >
                         <Trash2 size={16} />
@@ -4487,7 +4487,7 @@ function ProductEdit() {
                         type="button"
                         onClick={() => handleGenerateThermalImage({ colorGroup: group })}
                         disabled={thermalImageGenerating || !product?.id || !getPrimaryColorImage(group)}
-                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[12px] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[12px] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                         {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
@@ -4498,7 +4498,7 @@ function ProductEdit() {
                           type="button"
                           onClick={() => handleRegenerateAiCover({ colorGroup: group, trigger: "manual" })}
                           disabled={aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` || !getPrimaryColorImage(group)}
-                          className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[12px] border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[12px] border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                           {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? "Queueing AI Cover..." : "Regenerate AI Cover"}
@@ -4578,7 +4578,7 @@ function ProductEdit() {
                                 onBlur={(e) => updateColorGroup(group.id, "color", normalizeColorName(e.target.value))}
                                 list="m1-standard-color-names"
                                 placeholder={t("products.placeholders.colorExample")}
-                                className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                               />
                               <datalist id="m1-standard-color-names">
                                 {STANDARD_COLOR_NAMES.map((name) => <option key={name} value={name} />)}
@@ -4606,7 +4606,7 @@ function ProductEdit() {
                                 value={group.edition_name || ""}
                                 onChange={(e) => updateColorGroup(group.id, "edition_name", e.target.value)}
                                 placeholder={t("products.editor.editionNamePlaceholder")}
-                                className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                               />
                               {editionSuggestions[group.id]?.status === "loading" ? (
                                 <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-2xl shadow-black/40">
@@ -4631,7 +4631,7 @@ function ProductEdit() {
                                       <button
                                         type="button"
                                         onClick={() => updateColorGroup(group.id, "edition_name", editionSuggestions[group.id].suggestion.edition_name)}
-                                        className="h-10 rounded-[14px] bg-white px-3 text-xs font-black text-zinc-950"
+                                        className="h-[var(--control-height-md)] rounded-[14px] bg-white px-3 text-xs font-black text-zinc-950"
                                       >
                                         Apply
                                       </button>
@@ -4655,7 +4655,7 @@ function ProductEdit() {
                                             <button
                                               type="button"
                                               onClick={() => updateColorGroup(group.id, "edition_name", candidate.edition_name)}
-                                              className="h-8 shrink-0 rounded-[10px] bg-white px-2 text-[10px] font-black text-zinc-950"
+                                              className="h-[var(--control-height-sm)] shrink-0 rounded-[10px] bg-white px-2 text-[10px] font-black text-zinc-950"
                                             >
                                               Apply
                                             </button>
@@ -4672,7 +4672,7 @@ function ProductEdit() {
                                   <button
                                     type="button"
                                     onClick={() => requestEditionSuggestion(group, { retry: true })}
-                                    className="h-10 rounded-[14px] border border-white/10 bg-white/10 px-3 font-black text-white"
+                                    className="h-[var(--control-height-md)] rounded-[14px] border border-white/10 bg-white/10 px-3 font-black text-white"
                                   >
                                     Retry
                                   </button>
@@ -4699,7 +4699,7 @@ function ProductEdit() {
                             <label className="text-sm font-semibold text-zinc-300">الجمهور لهذا اللون</label>
                             <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                               {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].map((option) => (
-                                <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-10 rounded-[12px] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-zinc-950 text-zinc-400 hover:text-white"}`}>
+                                <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[12px] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-zinc-950 text-zinc-400 hover:text-white"}`}>
                                   {option.label}
                                 </button>
                               ))}
@@ -4718,7 +4718,7 @@ function ProductEdit() {
                               })
                             }
                             disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             {colorDetecting[group.id] ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                             AI Rename
@@ -4733,7 +4733,7 @@ function ProductEdit() {
                               })
                             }
                             disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                            className="inline-flex h-10 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             Pick color
                           </button>
@@ -4742,7 +4742,7 @@ function ProductEdit() {
                               type="button"
                               onClick={() => requestEditionSuggestion(group)}
                               disabled={editionSuggestions[group.id]?.status === "loading"}
-                              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[14px] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[14px] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {editionSuggestions[group.id]?.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                               Suggest Edition
@@ -4754,7 +4754,7 @@ function ProductEdit() {
                               <button
                                 type="button"
                                 onClick={() => applyBulkSizes(group.id)}
-                                className="inline-flex h-10 items-center justify-center rounded-[14px] border border-emerald-500/20 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15"
+                                className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-emerald-500/20 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15"
                               >
                                 Apply bulk sizes
                               </button>
@@ -4762,7 +4762,7 @@ function ProductEdit() {
                             <button
                               type="button"
                               onClick={() => applyBulkArticleCode(group.id)}
-                              className="inline-flex h-10 items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                              className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
                             >
                               {t("products.editor.applyArticleThisColor", "Apply article to this color")}
                             </button>
@@ -4772,7 +4772,7 @@ function ProductEdit() {
                               <button
                                 type="button"
                                 onClick={() => addSizeRow(group.id)}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white"
+                                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white"
                               >
                                 <Plus size={16} />
                                 Add size
@@ -4783,7 +4783,7 @@ function ProductEdit() {
                                 <button
                                   type="button"
                                   onClick={() => setCrocsLibraryGroupId((current) => (current === group.id ? "" : group.id))}
-                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-amber-400/20 bg-amber-400/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15"
+                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-amber-400/20 bg-amber-400/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15"
                                 >
                                   <Plus size={16} />
                                   + إضافة مقاسات كروكس
@@ -4840,7 +4840,7 @@ function ProductEdit() {
                                     value={row.size}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
                                     placeholder="40"
-                                    className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                   />
                                 </div> : null}
                                 <div>
@@ -4852,7 +4852,7 @@ function ProductEdit() {
                                     value={row.stock ?? ""}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
                                     placeholder="0"
-                                    className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                   />
                                   {row.variantId ? (
                                     <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold leading-4 text-emerald-300">
@@ -4875,7 +4875,7 @@ function ProductEdit() {
                                     value={row.sku}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "sku", e.target.value)}
                                     placeholder=""
-                                    className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                   />
                                 </div>
                                 <div>
@@ -4884,7 +4884,7 @@ function ProductEdit() {
                                     value={row.barcode}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
                                     placeholder={t("products.editor.scanOrEnterBarcode", "Scan or enter barcode")}
-                                    className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                   />
                                 </div>
                                 <div>
@@ -4914,7 +4914,7 @@ function ProductEdit() {
                                       type="button"
                                       onClick={() => removeSizeRow(group.id, row.id)}
                                       disabled={isColorOnlyMode || (group.sizes.length === 1 && rowIndex === 0)}
-                                      className="inline-flex h-10 flex-1 items-center justify-center rounded-[12px] border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                      className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center rounded-[12px] border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                       Remove
                                     </button>
@@ -5138,7 +5138,7 @@ function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = f
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           {saving ? t("common.saving", "Saving...") : label}

@@ -32,7 +32,7 @@ export default function AiStudioTools() {
             <h1 className="mt-1 text-xl font-black">Tools</h1>
             <p className="mt-1 text-sm text-slate-400">Read-only view of the server-side tool registry. The server registry is authoritative — tools cannot be pointed at arbitrary code from the browser.</p>
           </div>
-          <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
+          <button type="button" onClick={() => void load()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
         </div>
         <div className="mt-3"><AiStudioNav /></div>
       </section>

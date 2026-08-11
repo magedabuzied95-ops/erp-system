@@ -535,7 +535,7 @@ function Field({ label, value, onChange, type = "text", placeholder = "", disabl
         disabled={disabled}
         placeholder={placeholder}
         onChange={(event) => onChange?.(event.target.value)}
-        className="h-11 w-full min-w-0 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-[#7c3aed]/60 disabled:cursor-not-allowed disabled:bg-black/30 disabled:text-zinc-500"
+        className="h-[var(--control-height-lg)] w-full min-w-0 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-[#7c3aed]/60 disabled:cursor-not-allowed disabled:bg-black/30 disabled:text-zinc-500"
       />
     </label>
   );

@@ -86,7 +86,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
     const imageUrl = resolveProductImageUrl(product.image_url || product.product_image_url || product.image);
     return <article key={`${product.product_id}:${colorKey}`} className="grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
       <div className="h-[74px] w-[74px] overflow-hidden rounded-xl bg-slate-100">{imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover" /> : <PackageCheck className="m-5 h-8 w-8 text-slate-300" />}</div>
-      <div className="min-w-0"><h5 className="line-clamp-2 text-sm font-black leading-5 text-slate-950" dir="auto">{product.name}</h5><div className="mt-1 flex flex-wrap gap-1 text-[11px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">اللون: {product.color || "-"}</span><span className="rounded-full bg-primary-subtle px-2 py-1 text-primary">أصغر مقاس: {product.size || "-"}</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">الكمية: {product.stock || 0}</span></div><button type="button" onClick={() => onMarkDisplayed?.(product)} disabled={saving} className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white transition hover:bg-emerald-700 disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}معروض</button></div>
+      <div className="min-w-0"><h5 className="line-clamp-2 text-sm font-black leading-5 text-slate-950" dir="auto">{product.name}</h5><div className="mt-1 flex flex-wrap gap-1 text-[11px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">اللون: {product.color || "-"}</span><span className="rounded-full bg-primary-subtle px-2 py-1 text-primary">أصغر مقاس: {product.size || "-"}</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">الكمية: {product.stock || 0}</span></div><button type="button" onClick={() => onMarkDisplayed?.(product)} disabled={saving} className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white transition hover:bg-emerald-700 disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}معروض</button></div>
     </article>;
   };
 
@@ -99,7 +99,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
             <h2 className="mt-2 text-xl font-black">تمم على العرض</h2>
             <p className="mt-1 text-xs font-semibold leading-5 text-slate-300">الموديلات الموجودة بالمخزن ولم يتم تأكيد عرضها على الستاند.</p>
           </div>
-          <button type="button" onClick={onRefresh} disabled={loading} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-white disabled:opacity-50" aria-label="تحديث">
+          <button type="button" onClick={onRefresh} disabled={loading} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-white disabled:opacity-50" aria-label="تحديث">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </button>
         </div>
@@ -119,7 +119,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
         </div>
 
         {sourceOptions.length ? <div className="relative mt-3">
-          <select value={selectedSource?.key || ""} onChange={(event) => setSourceKey(event.target.value)} className="h-12 w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 pl-10 text-sm font-black text-slate-950 outline-none focus:border-emerald-500">
+          <select value={selectedSource?.key || ""} onChange={(event) => setSourceKey(event.target.value)} className="h-[var(--control-height-lg)] w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 pl-10 text-sm font-black text-slate-950 outline-none focus:border-emerald-500">
             {sourceOptions.map((section) => <option key={section.key} value={section.key}>{section.label} ({section.filteredCount})</option>)}
           </select>
           <ChevronDown className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-slate-500" />

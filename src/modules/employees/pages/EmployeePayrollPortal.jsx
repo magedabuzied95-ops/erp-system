@@ -1305,12 +1305,12 @@ function AttendancePanel({
         </div>
       ) : null}
       <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4">
-        <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
+        <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
           {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
           {text.checkIn}
         </button>
         {canCheckOutToday ? (
-          <button type="button" onClick={() => onCheckOut()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
+          <button type="button" onClick={() => onCheckOut()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
             {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
             {text.checkOut}
           </button>
@@ -1340,7 +1340,7 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
       onClick={onClick}
       title={`${label}: ${count}`}
       aria-label={`${label}: ${count}`}
-      className={`relative inline-flex h-11 w-11 items-center justify-center rounded-full border shadow-sm md:h-10 md:w-10 ${toneClassName}`}
+      className={`relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full border shadow-sm md:h-[var(--control-height-md)] md:w-10 ${toneClassName}`}
     >
       <Icon className="h-4 w-4" />
       <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-950 px-1 text-[10px] font-black leading-4 text-white">
@@ -3313,7 +3313,7 @@ export default function EmployeePayrollPortal() {
           <button
             type="button"
             onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
             aria-label={theme.mode === "dark" ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
             title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
           >
@@ -3376,7 +3376,7 @@ export default function EmployeePayrollPortal() {
                 <button
                   type="button"
                   onClick={openProfileSettings}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700"
+                  className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700"
                   aria-label="إعدادات الملف الشخصي"
                 >
                   <Settings className="h-5 w-5" />
@@ -3416,7 +3416,7 @@ export default function EmployeePayrollPortal() {
                     key={key}
                     type="button"
                     onClick={() => setActiveTab(key)}
-                    className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-2xl border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${
+                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-2xl border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${
                       tone === "emerald"
                         ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                         : tone === "amber"
@@ -3438,7 +3438,7 @@ export default function EmployeePayrollPortal() {
             ) : null}
             {showHomeTabSections ? (
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
+                <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
                   <MessageCircle className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{ui("advanceRequest")}</span>
                 </button>
@@ -3447,7 +3447,7 @@ export default function EmployeePayrollPortal() {
                   onClick={() => {
                     setChatOpen(true);
                   }}
-                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm"
+                  className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-full bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm"
                 >
                   <MessageCircle className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{ui("talkToManagement")}</span>
@@ -3489,7 +3489,7 @@ export default function EmployeePayrollPortal() {
                     <button
                       type="button"
                       onClick={() => void loadSalesOpportunities()}
-                      className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-amber-200/20 bg-white/10 px-4 text-xs font-black text-white"
+                      className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl border border-amber-200/20 bg-white/10 px-4 text-xs font-black text-white"
                     >
                       <RefreshCw className="h-4 w-4" />
                       إعادة المحاولة
@@ -3536,7 +3536,7 @@ export default function EmployeePayrollPortal() {
                           <button
                             type="button"
                             onClick={() => window.location.assign(salesOpportunityRoute(token, opportunity))}
-                            className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-primary"
+                            className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-primary"
                           >
                             عرض المنتج
                           </button>
@@ -3566,7 +3566,7 @@ export default function EmployeePayrollPortal() {
                         : "أضف بوابة الموظف إلى الشاشة الرئيسية لتعمل كتطبيق مستقل."}
                     </p>
                     {installPrompt ? (
-                      <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 text-xs font-black text-white">
+                      <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 text-xs font-black text-white">
                         <Download className="h-4 w-4" />
                         {text.addHome}
                       </button>
@@ -3609,14 +3609,14 @@ export default function EmployeePayrollPortal() {
                   </p>
                 </div>
                 {!notificationsReady && notificationState !== "unsupported" ? (
-                  <button type="button" onClick={() => enableNotifications()} disabled={notificationSaving} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
+                  <button type="button" onClick={() => enableNotifications()} disabled={notificationSaving} className="inline-flex min-h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
                     {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                     تفعيل الإشعارات
                   </button>
                 ) : null}
               </div>
               {notificationsReady ? (
-                <button type="button" onClick={resetNotifications} disabled={notificationSaving} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
+                <button type="button" onClick={resetNotifications} disabled={notificationSaving} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
                   {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   <span className="text-xs">إعادة ضبط الإشعارات</span>
                 </button>
@@ -3684,7 +3684,7 @@ export default function EmployeePayrollPortal() {
                     <h3 className="text-base font-black text-slate-950">نواقص العرض</h3>
                     <p className="mt-1 text-xs font-bold text-slate-500">المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.</p>
                   </div>
-                  <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-10 items-center justify-center rounded-xl bg-slate-100 px-3 text-[11px] font-black text-slate-700">
+                  <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-xl bg-slate-100 px-3 text-[11px] font-black text-slate-700">
                     {displayRefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   </button>
                 </div>
@@ -3734,7 +3734,7 @@ export default function EmployeePayrollPortal() {
                               type="button"
                               onClick={() => resolveDisplayRefill(alert.id)}
                               disabled={isSaving}
-                              className="inline-flex h-9 min-w-[6.75rem] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-[13px] font-black text-white disabled:opacity-60"
+                              className="inline-flex h-[var(--control-height-md)] min-w-[6.75rem] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-[13px] font-black text-white disabled:opacity-60"
                             >
                               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
                               تم العرض
@@ -3742,7 +3742,7 @@ export default function EmployeePayrollPortal() {
                             <button
                               type="button"
                               onClick={() => printDisplayRefillBarcode(alert)}
-                              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-[13px] font-black text-slate-800"
+                              className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-[13px] font-black text-slate-800"
                             >
                               <Printer className="h-4 w-4" />
                               Print Barcode
@@ -3795,14 +3795,14 @@ export default function EmployeePayrollPortal() {
                               </div>
                             </div>
                             <div className="mt-2 flex items-center gap-2">
-                              <button type="button" disabled className="inline-flex h-9 min-w-[6.75rem] items-center justify-center gap-2 rounded-xl bg-slate-200 px-3 text-[13px] font-black text-slate-600">
+                              <button type="button" disabled className="inline-flex h-[var(--control-height-md)] min-w-[6.75rem] items-center justify-center gap-2 rounded-xl bg-slate-200 px-3 text-[13px] font-black text-slate-600">
                                 <CheckCheck className="h-4 w-4" />
                                 تم التنفيذ
                               </button>
                               <button
                                 type="button"
                                 onClick={() => printDisplayRefillBarcode(alert)}
-                                className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-[13px] font-black text-slate-800"
+                                className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-[13px] font-black text-slate-800"
                               >
                                 <Printer className="h-4 w-4" />
                                 Print Barcode
@@ -3815,7 +3815,7 @@ export default function EmployeePayrollPortal() {
                         <button
                           type="button"
                           onClick={() => setCompletedExpanded((current) => !current)}
-                          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700"
+                          className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700"
                         >
                           {completedExpanded
                             ? ui("displayRefillCompletedHide")
@@ -3908,7 +3908,7 @@ export default function EmployeePayrollPortal() {
                     ) : null}
                   </div>
 
-                  <button type="button" className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white shadow-sm">
+                  <button type="button" className="mt-4 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white shadow-sm">
                     <CheckCircle2 className="h-4 w-4" />
                     {payrollPrimaryActionLabel}
                   </button>
@@ -4184,24 +4184,24 @@ export default function EmployeePayrollPortal() {
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {["pending", "overdue", "reassigned"].includes(taskStatusKey(task.status)) ? (
-                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task, "in_progress")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-50">
+                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task, "in_progress")} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-50">
                                   {taskSavingId === `${task.id}:in_progress` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                                   {text.startTask}
                                 </button>
                               ) : null}
                               {taskStatusKey(task.status) === "in_progress" && isInventoryTaskRecord(task) ? (
-                                <button type="button" onClick={() => openInventoryTask(task)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-black text-amber-900">
+                                <button type="button" onClick={() => openInventoryTask(task)} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-black text-amber-900">
                                   <ClipboardList className="h-4 w-4" />
                                   فتح الجرد
                                 </button>
                               ) : null}
                               {taskStatusKey(task.status) === "in_progress" ? (
-                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "completed")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
+                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "completed")} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
                                   {taskSavingId === `${task.id}:completed` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                                   {text.completeTask}
                                 </button>
                               ) : null}
-                              <button type="button" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-600">
+                              <button type="button" className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-600">
                                 <FileText className="h-4 w-4" />
                                 {ui("uploadProof")}
                               </button>
@@ -4226,7 +4226,7 @@ export default function EmployeePayrollPortal() {
                   ["late_permission", ui("latePermission")],
                   ["hr_note", ui("hrNote")],
                 ].map(([value, label]) => (
-                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-11 rounded-2xl px-2 text-xs font-black ${(value === requestType || (value === "late_permission" && requestMessage === ui("latePermission"))) ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"}`}>
+                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-[var(--control-height-lg)] rounded-2xl px-2 text-xs font-black ${(value === requestType || (value === "late_permission" && requestMessage === ui("latePermission"))) ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"}`}>
                     {label}
                   </button>
                 ))}
@@ -4234,7 +4234,7 @@ export default function EmployeePayrollPortal() {
               <div className="mt-3 grid gap-2">
                 {requestType === "advance" ? (
                   <>
-                    <input value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} type="number" min="0" step="0.01" placeholder={text.amount} className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                    <input value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} type="number" min="0" step="0.01" placeholder={text.amount} className="min-h-[var(--control-height-lg)] rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
                     <div>
                       <div className="mb-2 text-xs font-black text-slate-600">طريقة استلام السلفة</div>
                       <div className="grid grid-cols-3 gap-2">
@@ -4243,7 +4243,7 @@ export default function EmployeePayrollPortal() {
                           ["vodafone_cash", "فودافون كاش"],
                           ["instapay", "إنستاباي"],
                         ].map(([value, label]) => (
-                          <button key={value} type="button" onClick={() => setRequestPaymentMethod(value)} className={`min-h-11 rounded-2xl border px-2 text-[11px] font-black ${requestPaymentMethod === value ? "border-amber-400 bg-amber-400 text-slate-950" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                          <button key={value} type="button" onClick={() => setRequestPaymentMethod(value)} className={`min-h-[var(--control-height-lg)] rounded-2xl border px-2 text-[11px] font-black ${requestPaymentMethod === value ? "border-amber-400 bg-amber-400 text-slate-950" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
                             {label}
                           </button>
                         ))}
@@ -4252,14 +4252,14 @@ export default function EmployeePayrollPortal() {
                   </>
                 ) : null}
                 <div className="grid grid-cols-2 gap-2">
-                  <input value={requestDate} onChange={(event) => setRequestDate(event.target.value)} type="date" aria-label={text.requestDate} className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                  <input value={requestDate} onChange={(event) => setRequestDate(event.target.value)} type="date" aria-label={text.requestDate} className="min-h-[var(--control-height-lg)] rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
                   {requestType === "vacation" ? (
-                    <input value={requestEndDate} onChange={(event) => setRequestEndDate(event.target.value)} type="date" aria-label={text.endDate} className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                    <input value={requestEndDate} onChange={(event) => setRequestEndDate(event.target.value)} type="date" aria-label={text.endDate} className="min-h-[var(--control-height-lg)] rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
                   ) : null}
                 </div>
                 <textarea value={requestMessage} onChange={(event) => setRequestMessage(event.target.value)} placeholder={text.message} className="min-h-24 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold outline-none" dir="auto" />
               </div>
-              <button type="submit" disabled={requestSaving || (requestType === "advance" && !requestAmount)} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50">
+              <button type="submit" disabled={requestSaving || (requestType === "advance" && !requestAmount)} className="mt-3 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50">
                 {requestSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                 {text.sendRequest}
               </button>
@@ -4289,7 +4289,7 @@ export default function EmployeePayrollPortal() {
                     <button
                       type="button"
                       onClick={() => setShowAllRequests((current) => !current)}
-                      className="mx-auto mt-1 inline-flex min-h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 shadow-sm"
+                      className="mx-auto mt-1 inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 shadow-sm"
                     >
                       {showAllRequests ? "عرض أقل" : `عرض المزيد${employeeRequests.length > 1 ? ` (${employeeRequests.length - 1})` : ""}`}
                     </button>
@@ -4323,10 +4323,10 @@ export default function EmployeePayrollPortal() {
               <div className="employee-chat-status-safe-area" aria-hidden="true" />
               <header className="employee-chat-whatsapp-header flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#1f2c33] px-2 py-2">
                 <div className="employee-chat-header-identity flex shrink-0 items-center gap-0.5">
-                  <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label="رجوع">
+                  <button type="button" onClick={closeEmployeeChat} className="flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label="رجوع">
                     <ArrowRight className="h-5 w-5" />
                   </button>
-                  <button type="button" onClick={() => setChatContactInfoOpen(true)} className="employee-chat-m1-avatar relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20" aria-label="معلومات M1 Store">
+                  <button type="button" onClick={() => setChatContactInfoOpen(true)} className="employee-chat-m1-avatar relative flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20" aria-label="معلومات M1 Store">
                     <img src="/branding/m-one-logo-white-fixed.png" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" />
                     <img src="/branding/m-one-logo-white-m.png" alt="" aria-hidden="true" className="employee-chat-m1-moving-part absolute inset-0 h-full w-full object-contain" />
                   </button>
@@ -4335,7 +4335,7 @@ export default function EmployeePayrollPortal() {
                   <h2 className="truncate text-[16px] font-bold leading-5">M1 Store</h2>
                   <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">حساب أعمال</p>
                 </button>
-                <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label="بحث في الرسائل">
+                <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label="بحث في الرسائل">
                   {chatSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                 </button>
               </header>
@@ -4344,7 +4344,7 @@ export default function EmployeePayrollPortal() {
                   <label className="flex h-10 items-center gap-2 rounded-full bg-[#111b21] px-3 text-slate-200">
                     <Search className="h-4 w-4 shrink-0 text-slate-400" />
                     <input autoFocus value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="ابحث في الرسائل" className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-400" />
-                    {chatSearch ? <button type="button" onClick={() => setChatSearch("")} className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10" aria-label="مسح البحث"><X className="h-4 w-4" /></button> : null}
+                    {chatSearch ? <button type="button" onClick={() => setChatSearch("")} className="grid h-[var(--control-height-sm)] w-7 place-items-center rounded-full hover:bg-white/10" aria-label="مسح البحث"><X className="h-4 w-4" /></button> : null}
                   </label>
                 </div>
               ) : null}
@@ -4435,7 +4435,7 @@ export default function EmployeePayrollPortal() {
       ) : null}
       {chatImagePreview ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
-          <button type="button" onClick={() => setChatImagePreview("")} className="absolute end-4 top-[calc(1rem+env(safe-area-inset-top))] flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white">
+          <button type="button" onClick={() => setChatImagePreview("")} className="absolute end-4 top-[calc(1rem+env(safe-area-inset-top))] flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full bg-white/10 text-white">
             <X className="h-5 w-5" />
           </button>
           <img src={chatImagePreview} alt="" className="max-h-full max-w-full object-contain" />
@@ -4447,10 +4447,10 @@ export default function EmployeePayrollPortal() {
             <h2 className="text-xl font-black text-slate-950">{ui("earlyCheckoutTitle")}</h2>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{ui("earlyCheckoutMessage")}</p>
             <div className="mt-5 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setEarlyCheckoutOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-4 text-sm font-black text-slate-700">
+              <button type="button" onClick={() => setEarlyCheckoutOpen(false)} className="min-h-[var(--control-height-lg)] rounded-2xl border border-slate-200 px-4 text-sm font-black text-slate-700">
                 {ui("cancel")}
               </button>
-              <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={!canCheckOutToday} className="min-h-12 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50">
+              <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={!canCheckOutToday} className="min-h-[var(--control-height-lg)] rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50">
                 {ui("confirmCheckout")}
               </button>
             </div>
@@ -4465,7 +4465,7 @@ export default function EmployeePayrollPortal() {
                 <h2 className="text-xl font-black text-slate-950">إعدادات الملف الشخصي</h2>
                 <p className="mt-1 text-xs font-bold text-slate-500">حدّث صورتك ورقم الموبايل</p>
               </div>
-              <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700" aria-label="إغلاق">
+              <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700" aria-label="إغلاق">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -4496,11 +4496,11 @@ export default function EmployeePayrollPortal() {
                 value={profileMobile}
                 onChange={(event) => setProfileMobile(event.target.value)}
                 placeholder="01xxxxxxxxx"
-                className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
                 dir="ltr"
               />
             </label>
-            <button type="submit" disabled={profileSaving} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60">
+            <button type="submit" disabled={profileSaving} className="mt-5 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60">
               {profileSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {profileSaving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
             </button>

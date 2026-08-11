@@ -253,7 +253,7 @@ export default function PublicInvoice() {
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300"
+              className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300"
             >
               <Printer className="h-4 w-4" />
               {invoicePrintLabel("print", "طباعة")}

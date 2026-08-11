@@ -974,7 +974,7 @@ const PosVariantColorPicker = ({
         <button
           type="button"
           onClick={onToggle}
-          className="mt-2 min-h-9 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] font-black text-zinc-200 transition hover:bg-white/10"
+          className="mt-2 min-h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] font-black text-zinc-200 transition hover:bg-white/10"
         >
           {showAll ? showLessLabel : `${showMoreLabel} (${hiddenCount})`}
         </button>
@@ -7556,7 +7556,7 @@ function POSPro() {
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-black text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.16)] transition hover:border-rose-300/50 hover:bg-rose-500/15"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-black text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.16)] transition hover:border-rose-300/50 hover:bg-rose-500/15"
             >
               <LogOut className="h-4 w-4" />
               Exit POS
@@ -7603,7 +7603,7 @@ function POSPro() {
                 <button
                   type="button"
                   onClick={() => setMobileCartOpen(true)}
-                  className="inline-flex h-11 max-w-[8.75rem] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 text-left text-[11px] font-black text-white shadow-[0_0_18px_rgba(0,0,0,0.16)]"
+                  className="inline-flex h-[var(--control-height-lg)] max-w-[8.75rem] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 text-left text-[11px] font-black text-white shadow-[0_0_18px_rgba(0,0,0,0.16)]"
                 >
                   <User className="h-4 w-4 shrink-0 text-emerald-200" />
                   <span className="truncate">{mobileSelectedCustomerLabel}</span>
@@ -7611,7 +7611,7 @@ function POSPro() {
                 <button
                   type="button"
                   onClick={() => setMobileCartOpen(true)}
-                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-emerald-500 px-3 text-[11px] font-black text-black shadow-[0_0_18px_rgba(16,185,129,0.18)]"
+                  className="inline-flex h-[var(--control-height-lg)] shrink-0 items-center gap-2 rounded-2xl bg-emerald-500 px-3 text-[11px] font-black text-black shadow-[0_0_18px_rgba(16,185,129,0.18)]"
                 >
                   <ReceiptText className="h-4 w-4 shrink-0" />
                   <span className="tabular-nums">{cartItemCount}</span>
@@ -7636,7 +7636,7 @@ function POSPro() {
                 setRecentOperationsOpenedAt(performance.now());
                 setRecentOperationsOpen(true);
               }}
-              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:border-emerald-200/50 hover:bg-emerald-400/15"
+              className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:border-emerald-200/50 hover:bg-emerald-400/15"
               dir="rtl"
             >
               <History className="h-4 w-4" />
@@ -7647,7 +7647,7 @@ function POSPro() {
                 type="button"
                 onClick={() => setQuickExpenseOpen(true)}
                 disabled={!activePosShift?.id}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-xs font-black text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-xs font-black text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                 title="مصروف / Expense"
               >
                 <ReceiptText className="h-4 w-4" />
@@ -7662,7 +7662,7 @@ function POSPro() {
             aria-label={fullscreenTooltip}
             aria-pressed={isFullscreen}
             title={fullscreenTooltip}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
@@ -7673,7 +7673,7 @@ function POSPro() {
               onClick={handleToggleSaleMode}
               disabled={saleModeSaving}
               title={salePricesEnabled ? "Sale Prices ON" : "Sale Prices OFF"}
-              className={`pos-toolbar-action pos-action-sale inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              className={`pos-toolbar-action pos-action-sale inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
                 salePricesEnabled
                   ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100 hover:border-emerald-300/50 hover:bg-emerald-400/15"
                   : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-300/50 hover:bg-amber-400/15"
@@ -7688,7 +7688,7 @@ function POSPro() {
             type="button"
             onClick={handleCloseShift}
             disabled={attendanceLoading || posShiftSource === "cache" || posShiftNetworkUnavailable}
-            className="pos-toolbar-action pos-action-shift inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 text-xs font-black text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.14)] transition hover:border-emerald-300/50 hover:bg-emerald-500/15 disabled:opacity-50"
+            className="pos-toolbar-action pos-action-shift inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 text-xs font-black text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.14)] transition hover:border-emerald-300/50 hover:bg-emerald-500/15 disabled:opacity-50"
           >
             <CheckCircle2 className="h-4 w-4" />
             Shift / Close Shift
@@ -7696,7 +7696,7 @@ function POSPro() {
           <button
             type="button"
             onClick={() => navigate("/dashboard")}
-            className="pos-toolbar-action pos-action-exit inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-black text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.16)] transition hover:border-rose-300/50 hover:bg-rose-500/15"
+            className="pos-toolbar-action pos-action-exit inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-black text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.16)] transition hover:border-rose-300/50 hover:bg-rose-500/15"
           >
             <LogOut className="h-4 w-4" />
             Exit POS
@@ -7763,7 +7763,7 @@ function POSPro() {
                     <input
                       value={quickCustomer.name}
                       onChange={(e) => setQuickCustomer((prev) => ({ ...prev, name: e.target.value }))}
-                      className="h-12 w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
+                      className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
                       placeholder="Enter customer name"
                     />
                   </label>
@@ -7773,7 +7773,7 @@ function POSPro() {
                     <input
                       value={quickCustomer.phone}
                       onChange={(e) => setQuickCustomer((prev) => ({ ...prev, phone: e.target.value }))}
-                      className="h-12 w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
+                      className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
                       placeholder="Enter phone number"
                     />
                   </label>
@@ -7790,7 +7790,7 @@ function POSPro() {
                       <select
                         value={quickCustomer.source_key}
                         onChange={(e) => setQuickCustomer((prev) => ({ ...prev, source_key: e.target.value }))}
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none focus:border-emerald-400/50"
+                        className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none focus:border-emerald-400/50"
                       >
                         <option value="">Select source</option>
                         <option value="other">Other</option>
@@ -7820,7 +7820,7 @@ function POSPro() {
                       type="button"
                       onClick={() => setCustomerCreateOpen(false)}
                       disabled={customerCreateSaving}
-                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Cancel
                     </button>
@@ -7829,7 +7829,7 @@ function POSPro() {
                       onClick={handleCreateCustomerFromToolbar}
                       disabled={customerCreateSaving}
                       aria-busy={customerCreateSaving}
-                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-wait disabled:opacity-70"
+                      className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-wait disabled:opacity-70"
                     >
                       {customerCreateSaving ? "Saving..." : "Save customer"}
                     </button>
@@ -7945,13 +7945,13 @@ function POSPro() {
                         }
                       }}
                       placeholder={t("pos.searchPlaceholder")}
-                      className="pos-catalog-search h-9 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 pl-10 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                      className="pos-catalog-search h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 pl-10 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={() => setCameraScannerOpen(true)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 xl:hidden"
+                    className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 xl:hidden"
                     aria-label="فتح ماسح الكاميرا"
                     title="فتح ماسح الكاميرا"
                   >
@@ -7962,7 +7962,7 @@ function POSPro() {
                   type="button"
                   onClick={handleSoftRefreshPos}
                   disabled={posRefreshLoading}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-3 text-xs font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-400/15 disabled:cursor-wait disabled:opacity-60"
+                  className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-3 text-xs font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-400/15 disabled:cursor-wait disabled:opacity-60"
                   title="تحديث المنتجات والمخزون والعملاء بدون إعادة تحميل الصفحة"
                 >
                   <RotateCcw className={`h-4 w-4 ${posRefreshLoading ? "animate-spin" : ""}`} />
@@ -7973,7 +7973,7 @@ function POSPro() {
                   type="button"
                   onClick={handleToggleFilters}
                   aria-expanded={filtersOpen}
-                  className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
+                  className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
                     filtersOpen
                       ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
                       : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
@@ -7990,7 +7990,7 @@ function POSPro() {
                 <button
                   type="button"
                   onClick={handleClearSmartFilters}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 text-xs font-black text-rose-100 transition hover:border-rose-200/45 hover:bg-rose-400/15"
+                  className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 text-xs font-black text-rose-100 transition hover:border-rose-200/45 hover:bg-rose-400/15"
                   title="مسح الفلاتر"
                 >
                   <RotateCcw className="h-4 w-4" />
@@ -8311,7 +8311,7 @@ function POSPro() {
                 type="button"
                 onClick={handleAddSelectedProductToCart}
                 disabled={!activeVariant || mobileProductStock <= 0}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 {t("pos.labels.addToInvoiceArabic", "إضافة إلى الفاتورة")}
@@ -8384,7 +8384,7 @@ function POSPro() {
                           onClick={() => setSelectedSize(size)}
                           onDoubleClick={() => handleVariantSizeDoubleClick(size, sizeVariant)}
                           disabled={disabled}
-                          className={`min-h-10 rounded-full border px-3 py-2 text-xs font-black transition ${
+                          className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-2 text-xs font-black transition ${
                             recentlyAdded
                               ? "border-emerald-300 bg-emerald-300 text-black ring-4 ring-emerald-400/20"
                               : selectedSize === size
@@ -8420,7 +8420,7 @@ function POSPro() {
                         type="button"
                         onClick={() => setMobileProductQuantity((current) => Math.max(1, Number(current || 1) - 1))}
                         disabled={mobileProductQuantity <= 1}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label="Decrease quantity"
                       >
                         <Minus className="h-4 w-4" />
@@ -8430,7 +8430,7 @@ function POSPro() {
                         type="button"
                         onClick={() => setMobileProductQuantity((current) => Math.min(mobileProductStock || Number.MAX_SAFE_INTEGER, Number(current || 1) + 1))}
                         disabled={mobileProductStock > 0 && mobileProductQuantity >= mobileProductStock}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label="Increase quantity"
                       >
                         <Plus className="h-4 w-4" />
@@ -8540,7 +8540,7 @@ function POSPro() {
                             onClick={() => setSelectedSize(size)}
                             onDoubleClick={() => handleVariantSizeDoubleClick(size, sizeVariant)}
                             disabled={disabled}
-                            className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${
+                            className={`min-h-[var(--control-height-md)] rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${
                               recentlyAdded
                                 ? "bg-emerald-300 text-black ring-4 ring-emerald-400/20"
                                 : selectedSize === size
@@ -8616,7 +8616,7 @@ function POSPro() {
                               type="button"
                               onClick={() => addVariantToCart(activeProduct, variant)}
                               disabled={disabled}
-                              className="inline-flex min-h-9 items-center justify-center rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl sm:px-3 sm:py-2"
+                              className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl sm:px-3 sm:py-2"
                             >
                               {t("pos.labels.add")}
                             </button>
@@ -8775,15 +8775,15 @@ function InvoiceSuccessDialog({ order, onClose, onPrint, onWhatsapp, onDownloadP
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-2">
-          <button type="button" onClick={onPrint} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10">
+          <button type="button" onClick={onPrint} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10">
             <Printer className="h-4 w-4" />
             Print
           </button>
-          <button type="button" onClick={onWhatsapp} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-400/15">
+          <button type="button" onClick={onWhatsapp} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-400/15">
             <MessageCircle className="h-4 w-4" />
             WhatsApp
           </button>
-          <button type="button" onClick={onDownloadPdf} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15">
+          <button type="button" onClick={onDownloadPdf} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15">
             <FileDown className="h-4 w-4" />
             PDF
           </button>
@@ -8978,7 +8978,7 @@ function ShiftGate({
               step="0.01"
               value={openingCash}
               onChange={(event) => setOpeningCash(event.target.value)}
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/50 px-4 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50"
+              className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/50 px-4 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50"
               placeholder="0.00"
             />
           </label>
@@ -8993,7 +8993,7 @@ function ShiftGate({
             type="button"
             onClick={onOpenShift}
             disabled={attendanceLoading || posShiftLoading || posShiftNetworkUnavailable || !hasBranch}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {attendanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
             فتح الشيفت
@@ -9258,7 +9258,7 @@ function ShiftCloseModal({
             type="button"
             onClick={onCancel}
             disabled={submitting}
-            className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
@@ -9329,10 +9329,10 @@ function ShiftCloseModal({
                 </div>
               </div>
               <div className="mt-5 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setConfirmClose(false)} disabled={submitting} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 disabled:opacity-50">
+                <button type="button" onClick={() => setConfirmClose(false)} disabled={submitting} className="h-[var(--control-height-lg)] rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 disabled:opacity-50">
                   {labels.cancel}
                 </button>
-                <button type="button" onClick={onConfirm} disabled={submitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-400 text-sm font-black text-zinc-950 disabled:opacity-50">
+                <button type="button" onClick={onConfirm} disabled={submitting} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-400 text-sm font-black text-zinc-950 disabled:opacity-50">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {copy.confirmClose}
                 </button>
@@ -9415,7 +9415,7 @@ function ShiftCloseAuditLayout({
                 type="number"
                 value={actualDrawerAmount}
                 onChange={(event) => onActualDrawerChange(event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/50 px-3 text-base font-black text-white outline-none transition focus:border-emerald-400/60"
+                className="mt-2 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-black/50 px-3 text-base font-black text-white outline-none transition focus:border-emerald-400/60"
               />
             </label>
             <div className={`rounded-2xl border p-4 ${difference === 0 ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100" : difference > 0 ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-rose-400/25 bg-rose-500/10 text-rose-100"}`}>
@@ -9472,7 +9472,7 @@ function ShiftCloseAuditLayout({
                     type="date"
                     value={nextOpeningWorkDate || ""}
                     onChange={(event) => onNextOpeningWorkDateChange?.(event.target.value)}
-                    className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm font-black text-white outline-none transition focus:border-emerald-300/60"
+                    className="mt-2 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm font-black text-white outline-none transition focus:border-emerald-300/60"
                   />
                 </label>
                 <label className="block">
@@ -9481,7 +9481,7 @@ function ShiftCloseAuditLayout({
                     value={nextOpeningEmployeeId || ""}
                     onChange={(event) => onNextOpeningEmployeeChange?.(event.target.value)}
                     disabled={nextOpeningException}
-                    className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm font-black text-white outline-none transition focus:border-emerald-300/60"
+                    className="mt-2 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm font-black text-white outline-none transition focus:border-emerald-300/60"
                   >
                     <option value="">{nextOpeningLoading ? "جاري تحميل الموظفين..." : "اختر فاتح الفرع"}</option>
                     {nextOpeningCandidates.map((candidate) => (
@@ -9572,7 +9572,7 @@ function ShiftCloseAuditLayout({
               type="button"
               onClick={() => onPrint?.({ ...(report || {}), totals: { ...totals, closing_cash: Number(actualDrawerAmount || 0), cash_difference: difference } })}
               disabled={submitting}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 text-xs font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 text-xs font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
             >
               <ReceiptText className="h-3.5 w-3.5" />
               Print
@@ -9669,7 +9669,7 @@ function ShiftCloseAuditLayout({
             type="button"
             onClick={onCancel}
             disabled={submitting}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
           >
             <X className="h-4 w-4" />
             {labels.cancel}
@@ -9678,7 +9678,7 @@ function ShiftCloseAuditLayout({
             type="button"
             onClick={() => onPrint?.({ ...(report || {}), totals: { ...totals, closing_cash: Number(actualDrawerAmount || 0), cash_difference: difference } })}
             disabled={submitting}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:opacity-50"
           >
             <ReceiptText className="h-4 w-4" />
             {copy.printReport}
@@ -9690,7 +9690,7 @@ function ShiftCloseAuditLayout({
               onActualDrawerChange?.(nextValue);
             }}
             disabled={submitting}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:opacity-50"
           >
             <RotateCcw className="h-4 w-4" />
             {copy.refreshActualDrawer}
@@ -9699,7 +9699,7 @@ function ShiftCloseAuditLayout({
             type="button"
             onClick={onConfirm}
             disabled={submitting}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:opacity-50"
           >
             <CheckCircle2 className="h-4 w-4" />
             {copy.finalizeShiftClose}
@@ -9791,7 +9791,7 @@ function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsuppor
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08]"
+            className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08]"
             aria-label="إغلاق ماسح الكاميرا"
           >
             <X className="h-4 w-4" />
@@ -9863,7 +9863,7 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
             <select
               value={value.category}
               onChange={(event) => update("category", event.target.value)}
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/70 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
+              className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
             >
               {expenseOptions.map((item) => (
                 <option key={item.value} value={item.value}>{item.label}</option>
@@ -9877,7 +9877,7 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
               <select
                 value={value.employee_id || ""}
                 onChange={(event) => update("employee_id", event.target.value)}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-black/70 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
+                className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
               >
                 <option value="">Select employee</option>
                 {employeeOptions.map((employee) => (
@@ -9896,7 +9896,7 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
               value={value.amount}
               onChange={(event) => update("amount", event.target.value)}
               autoFocus
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-lg font-black tabular-nums text-white outline-none placeholder:text-zinc-600 focus:border-amber-300/50"
+              className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-lg font-black tabular-nums text-white outline-none placeholder:text-zinc-600 focus:border-amber-300/50"
               placeholder="0.00"
             />
           </label>
@@ -9907,7 +9907,7 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
                 key={method}
                 type="button"
                 onClick={() => update("payment_method", method)}
-                className={`h-10 rounded-2xl border text-xs font-black capitalize transition ${value.payment_method === method ? "border-amber-300/40 bg-amber-300/20 text-amber-50" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08]"}`}
+                className={`h-[var(--control-height-md)] rounded-2xl border text-xs font-black capitalize transition ${value.payment_method === method ? "border-amber-300/40 bg-amber-300/20 text-amber-50" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08]"}`}
               >
                 {method}
               </button>
@@ -9927,10 +9927,10 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <button type="button" onClick={onClose} disabled={saving} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={saving} className="h-[var(--control-height-lg)] rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 disabled:opacity-50">
             Cancel
           </button>
-          <button type="button" onClick={onSave} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-amber-300 text-sm font-black text-zinc-950 transition hover:bg-amber-200 disabled:opacity-50">
+          <button type="button" onClick={onSave} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-amber-300 text-sm font-black text-zinc-950 transition hover:bg-amber-200 disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
             Save
           </button>

@@ -1194,7 +1194,7 @@ export default function PostEditorModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
+            className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
           >
             <X className="h-5 w-5" />
           </button>
@@ -1391,7 +1391,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={addTag}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
+                  className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full bg-white/5 text-white transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -1426,7 +1426,7 @@ export default function PostEditorModal({
                     const index = Math.max(0, previewMediaUrls.indexOf(form.image_url));
                     selectMainImage(previewMediaUrls[(index - 1 + previewMediaUrls.length) % previewMediaUrls.length]);
                   }}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                  className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -1437,7 +1437,7 @@ export default function PostEditorModal({
                     const index = Math.max(0, previewMediaUrls.indexOf(form.image_url));
                     selectMainImage(previewMediaUrls[(index + 1) % previewMediaUrls.length]);
                   }}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                  className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

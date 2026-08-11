@@ -261,7 +261,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                         const nextSize = color.sizes?.find((size) => size.available) || color.sizes?.[0] || null;
                         setSelectedVariantId(nextSize?.variant_id || null);
                       }}
-                      className={`min-h-9 rounded-full border px-3 py-1.5 text-left text-xs font-black transition sm:min-h-0 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${
+                      className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-1.5 text-left text-xs font-black transition sm:min-h-0 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${
                         active
                           ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-50"
                           : "border-white/10 bg-black/20 text-white hover:bg-white/10"
@@ -293,7 +293,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                           type="button"
                           disabled={!size.available}
                           onClick={() => setSelectedVariantId(size.variant_id)}
-                          className={`min-h-10 rounded-full border px-3 py-1.5 text-left transition sm:min-h-0 sm:rounded-2xl sm:px-4 sm:py-3 ${
+                          className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-1.5 text-left transition sm:min-h-0 sm:rounded-2xl sm:px-4 sm:py-3 ${
                             active
                               ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-50"
                               : !size.available
@@ -338,7 +338,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                   type="button"
                   onClick={handleAdd}
                   disabled={!canAddSelected}
-                  className="inline-flex min-h-12 w-full flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-400"
+                  className="inline-flex min-h-[var(--control-height-lg)] w-full flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-400"
                 >
                   <span className="text-base leading-none">{isOutOfStock ? t("pos.variantSelector.outOfStock", "Out of stock") : t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}</span>
                   <span className="text-[11px] font-bold leading-none text-black/75">
@@ -352,7 +352,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                     type="button"
                     onClick={handleAdd}
                     disabled={selectedStock <= 0}
-                    className="inline-flex min-h-12 w-full flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-400"
+                    className="inline-flex min-h-[var(--control-height-lg)] w-full flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-400"
                   >
                     <span className="text-base leading-none">
                       {selectedStock <= 0 ? t("pos.variantSelector.outOfStock", "Out of stock") : t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}

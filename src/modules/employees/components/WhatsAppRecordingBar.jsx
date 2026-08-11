@@ -69,7 +69,7 @@ export default function WhatsAppRecordingBar({
         type="button"
         onClick={onDelete}
         disabled={sending}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#202c33] text-red-300 transition active:scale-95 disabled:opacity-50"
+        className="flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full bg-[#202c33] text-red-300 transition active:scale-95 disabled:opacity-50"
         aria-label="Delete recording"
       >
         <Trash2 className="h-4 w-4" />
@@ -80,7 +80,7 @@ export default function WhatsAppRecordingBar({
           type="button"
           onClick={onPauseResume}
           disabled={sending}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2a3942] text-slate-100 transition active:scale-95 disabled:opacity-50"
+          className="flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full bg-[#2a3942] text-slate-100 transition active:scale-95 disabled:opacity-50"
           aria-label={paused ? "Resume recording" : "Pause recording"}
         >
           {paused ? <Play className="h-3.5 w-3.5 fill-current ps-0.5" /> : <Pause className="h-3.5 w-3.5 fill-current" />}
@@ -104,7 +104,7 @@ export default function WhatsAppRecordingBar({
         type="button"
         onClick={onSend}
         disabled={sending}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-[#062821] transition active:scale-95 disabled:opacity-50"
+        className="flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-[#062821] transition active:scale-95 disabled:opacity-50"
         aria-label="Send recording"
       >
         <Send className="h-4 w-4" />

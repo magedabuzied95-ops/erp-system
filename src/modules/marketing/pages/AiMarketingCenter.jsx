@@ -1086,7 +1086,7 @@ function InsightCard({ insights, syncing = false, onSync }) {
     <section className={`${cardClass} p-5`}>
       <div className="flex items-center justify-between gap-3">
         <SectionTitle icon={<Clock className="h-4 w-4" />} title="Best Posting Windows" />
-        <button type="button" onClick={onSync} disabled={syncing} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20 disabled:opacity-60">
+        <button type="button" onClick={onSync} disabled={syncing} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20 disabled:opacity-60">
           <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
           Sync
         </button>
@@ -1124,7 +1124,7 @@ function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatu
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionTitle icon={icon} title={title} />
         <div className="flex flex-wrap items-center gap-2">
-          <select value={statusFilter} onChange={(event) => onStatusFilter?.(event.target.value)} className="h-10 rounded-xl border border-white/10 bg-black/30 px-3 text-xs font-black text-white outline-none">
+          <select value={statusFilter} onChange={(event) => onStatusFilter?.(event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-black/30 px-3 text-xs font-black text-white outline-none">
             {QUEUE_FILTERS.map((filter) => <option key={filter.value} value={filter.value} className="bg-slate-950">{filter.label}</option>)}
           </select>
           <Badge>{items.length} shown</Badge>
@@ -1242,11 +1242,11 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
           {!isArchived && showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>موافقة</button> : null}
           {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || generatingStoryAsset || actionDisabled} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{publishing ? "جارٍ النشر..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "إعادة محاولة النشر" : "نشر"}</button> : null}
           {!isArchived ? <button type="button" onClick={onArchive} disabled={actionDisabled} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة</button> : null}
-          <button type="button" title="Duplicate" onClick={onDuplicate} disabled={actionDisabled} className="grid h-10 w-10 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+          <button type="button" title="Duplicate" onClick={onDuplicate} disabled={actionDisabled} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
             <Copy className="h-4 w-4" />
           </button>
           {normalizedStatus === "failed" ? <button type="button" onClick={onPreview} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Retry</button> : null}
-          <button type="button" title="Delete" onClick={onDelete} className="grid h-10 w-10 place-items-center rounded-xl border border-rose-300/20 bg-rose-400/10 text-rose-100">
+          <button type="button" title="Delete" onClick={onDelete} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-xl border border-rose-300/20 bg-rose-400/10 text-rose-100">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>

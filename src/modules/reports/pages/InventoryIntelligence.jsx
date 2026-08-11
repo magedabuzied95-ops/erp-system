@@ -101,7 +101,7 @@ export default function InventoryIntelligence() {
               type="button"
               onClick={() => setShowFilters((value) => !value)}
               aria-expanded={showFilters}
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-[13px] font-semibold transition ${
+              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-[13px] font-semibold transition ${
                 filters.activeFilterCount
                   ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--text)]"
                   : "border-[var(--border)] bg-[var(--card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"

@@ -194,7 +194,7 @@ function CopyButton({ value, label = "Copy" }) {
         navigator.clipboard?.writeText(String(value || ""));
         toast.success(`${label} copied`);
       }}
-      className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-100 transition hover:bg-white/10"
+      className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-100 transition hover:bg-white/10"
     >
       <Copy className="h-3.5 w-3.5" />
       {label}
@@ -242,7 +242,7 @@ function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks
         </div>
       ) : null}
       {onTest ? (
-        <button onClick={onTest} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
+        <button onClick={onTest} className="mt-4 inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
           <PlayCircle className="h-4 w-4" />
           Test live
         </button>
@@ -1021,7 +1021,7 @@ export default function MarketingSettings() {
                 {label}
               </a>
             ))}
-            <button onClick={loadMetaDiagnostics} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
+            <button onClick={loadMetaDiagnostics} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
               <RefreshCw className={`h-4 w-4 ${diagnosticsLoading ? "animate-spin" : ""}`} />
               تحديث الحالة
             </button>
@@ -1189,15 +1189,15 @@ export default function MarketingSettings() {
                       <KeyRound className="h-4 w-4" />
                       {oauthLoading ? "Connecting..." : "Connect Meta"}
                     </button>
-                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-100 disabled:opacity-60">
+                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-100 disabled:opacity-60">
                       <PlayCircle className="h-4 w-4" />
                       {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
                     </button>
-                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100 disabled:opacity-60">
+                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100 disabled:opacity-60">
                       <CheckCircle2 className="h-4 w-4" />
                       {completeSetupLoading ? "Completing..." : "Complete setup"}
                     </button>
-                    <button onClick={() => setAdvancedMode((value) => !value)} className="min-h-11 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white">
+                    <button onClick={() => setAdvancedMode((value) => !value)} className="min-h-[var(--control-height-lg)] rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white">
                       {advancedMode ? "Hide advanced mode" : "Advanced mode"}
                     </button>
                   </div>

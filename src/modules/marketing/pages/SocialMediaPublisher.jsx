@@ -1833,7 +1833,7 @@ export default function SocialMediaPublisher() {
                       <button type="button" onClick={clearCatalogProduct} className={ghostButtonClass}>
                         Clear product
                       </button>
-                      <button type="button" onClick={() => setAiTemplateOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 text-xs font-black text-amber-100 transition hover:border-amber-300/35 hover:bg-amber-400/15">
+                      <button type="button" onClick={() => setAiTemplateOpen(true)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 text-xs font-black text-amber-100 transition hover:border-amber-300/35 hover:bg-amber-400/15">
                         ✨ Generate AI Caption
                       </button>
                     </div>
