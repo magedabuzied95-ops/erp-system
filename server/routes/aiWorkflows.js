@@ -92,7 +92,8 @@ router.post("/restock-recovery/seed-template", protect, permit("settings", "edit
 // ---- Phase 7: Restock Intents (variant-level explicit requests) ----
 router.get("/restock-intents", protect, permit("settings", "view"), async (req, res) => {
   try {
-    const [intents, counts] = await Promise.all([listIntents(tid(req), { status: req.query.status || null, limit: req.query.limit }), getIntentCounts(tid(req))]);
+    const filter = { status: req.query.status || null, limit: req.query.limit, phone: req.query.phone || null, customerId: req.query.customerId || null };
+    const [intents, counts] = await Promise.all([listIntents(tid(req), filter), getIntentCounts(tid(req))]);
     res.json({ success: true, intents, counts });
   } catch (error) { fail(res, error); }
 });

@@ -34,7 +34,8 @@ import { applyProductSeo, clearProductSeo } from "../../shared/lib/socialMeta";
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
-import { Check, Heart, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
+import { BellRing, Check, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
+import { shouldShowRestockCta, restockVariantKey, restockSuccessText, RESTOCK_CTA_LABEL, RESTOCK_AVAILABLE_NOW_TEXT, RESTOCK_LOGIN_TEXT, RESTOCK_ERROR_TEXT } from "../lib/restockIntentUi";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
@@ -396,6 +397,44 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     || variants.find((item) => item.size === selected.size && (!selectedColorKey || variantColorIdentity(item) === selectedColorKey) && variantHasStock(item))
     || firstDisplayVariant(variants);
   const safeActiveVariant = activeVariant || {};
+
+  // ---- Phase 7.5: Restock Intent ("بلغني لما يتوفر") for the CURRENT selected out-of-stock variant ----
+  const [restockState, setRestockState] = useState({}); // variantKey -> loading|done|available|error|login
+  const [activeIntentKeys, setActiveIntentKeys] = useState(() => new Set());
+  const restockKey = restockVariantKey(safeActiveVariant);
+  const showRestockCta = shouldShowRestockCta(safeActiveVariant);
+  const restockStatus = restockState[restockKey] || (activeIntentKeys.has(restockKey) ? "done" : "idle");
+  useEffect(() => {
+    // One cheap fetch of the customer's existing active intents so already-requested variants show ✓.
+    const { token } = readStorefrontCustomerAuth();
+    if (!token || !product?.id) return;
+    let alive = true;
+    storefrontCustomerRequest("/storefront/restock-intents", { method: "GET" })
+      .then((res) => {
+        if (!alive) return;
+        const keys = (res?.intents || []).filter((i) => String(i.product_id) === String(product.id) && i.variant_id).map((i) => String(i.variant_id));
+        if (keys.length) setActiveIntentKeys((prev) => { const n = new Set(prev); keys.forEach((k) => n.add(k)); return n; });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [product?.id]);
+  const handleRestockNotify = async () => {
+    const variant = safeActiveVariant;
+    const key = restockVariantKey(variant);
+    if (!key || restockState[key] === "loading") return;
+    const { token } = readStorefrontCustomerAuth();
+    if (!token) { setRestockState((s) => ({ ...s, [key]: "login" })); return; }
+    setRestockState((s) => ({ ...s, [key]: "loading" }));
+    try {
+      const res = await storefrontCustomerRequest("/storefront/restock-intents", { method: "POST", body: { product_id: product.id, variant_id: variant.id } });
+      if (res?.available_now) { setRestockState((s) => ({ ...s, [key]: "available" })); }
+      else { setRestockState((s) => ({ ...s, [key]: "done" })); setActiveIntentKeys((prev) => new Set(prev).add(key)); } // duplicate active intent = success
+    } catch (e) {
+      const status = Number(e?.status || e?.response?.status || 0);
+      setRestockState((s) => ({ ...s, [key]: status === 401 || status === 403 ? "login" : "error" }));
+    }
+  };
+
   const galleryEntries = useMemo(
     () => buildSelectedColorGallery({ product, colorGroup: selectedColorGroup }),
     [product, selectedColorGroup]
@@ -698,6 +737,31 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               <ShoppingCart className="h-4 w-4" />
               {sfText("storefront.cart.addToCart", "Add to cart")}
             </button>
+
+            {showRestockCta ? (
+              restockStatus === "done" ? (
+                <div className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 text-sm font-black text-emerald-100"><Check className="h-4 w-4" />{restockSuccessText(safeActiveVariant)}</div>
+              ) : restockStatus === "available" ? (
+                <div className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/[0.08] text-sm font-black text-white"><Sparkles className="h-4 w-4" />{RESTOCK_AVAILABLE_NOW_TEXT}</div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleRestockNotify}
+                  disabled={restockStatus === "loading"}
+                  className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 text-sm font-black text-[#e5c158] transition hover:-translate-y-0.5 hover:bg-[#d4af37]/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {restockStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
+                  {RESTOCK_CTA_LABEL}
+                </button>
+              )
+            ) : null}
+            {showRestockCta && restockStatus === "login" ? (
+              <div className="col-span-full text-center text-[12px] font-bold text-white/70">{RESTOCK_LOGIN_TEXT}</div>
+            ) : null}
+            {showRestockCta && restockStatus === "error" ? (
+              <div className="col-span-full text-center text-[12px] font-bold text-rose-300">{RESTOCK_ERROR_TEXT}</div>
+            ) : null}
+
             {false && <button
               type="button"
               onClick={buyNow}

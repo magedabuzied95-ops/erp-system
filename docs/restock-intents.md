@@ -107,6 +107,35 @@ There is no reliable deterministic order↔intent link today (intents key on pho
 carry an intent id), so **no speculative auto-fulfilment** was added. An employee can manually mark an
 intent fulfilled/cancelled. A future clean link could drive auto-fulfilment.
 
+## 12.5 Phase 7.5 — UX integration (three surfaces)
+
+All three surfaces write to the **same** canonical `restock_intents` (only `source` differs) — no
+parallel models. **Phase 7.5 still sends nothing to customers and never sets `customer_notified_at`.**
+
+**Storefront** (`StorefrontProductDetailPage.jsx` + pure `lib/restockIntentUi.js`): a
+"بلغني لما يتوفر" CTA appears **only when the currently selected variant is out of stock**
+(`shouldShowRestockCta`), submitting the actual `selected.variantId`. State is keyed per variant, so
+switching Size 44 → 45 shows the new variant's state (no leaked success). Success/reuse →
+"✓ هنبلغك لما مقاس 44 يتوفر" (actual labels; **never** promises a channel). `available_now` →
+"المقاس متوفر دلوقتي" (no intent created). Duplicate active intent is treated as success. Uses the
+existing `storefrontCustomerRequest`/`readStorefrontCustomerAuth`; **authenticated-only** — logged-out
+shows "سجّل دخولك…" (existing auth, no new flow). One cheap `GET` on mount marks already-requested
+variants ✓. **Cart/checkout/wishlist untouched.**
+
+**AI Inbox / customer context** (`Customer360Drawer.jsx`, Products tab → "Restock Requests"): lists
+the customer's intents (exact-variant vs legacy badge, status, source, requested), with **Cancel**;
+plus an **explicit, human-confirmed "إنشاء طلب إبلاغ عند التوفر"** that requires a **variant id**
+(no fake exact intent) and posts to the authenticated employee endpoint (`source: ai_inbox`). The AI
+never creates an intent autonomously. `available_now` → "المقاس متوفر بالفعل". (A richer product/
+variant *picker* — vs entering the ids shown on the conversation product card — is a documented future
+enhancement.)
+
+**Customer 360**: the same "Restock Requests" section is the compact Customer 360 surface (human-
+readable product/variant/size, status, source, exact-vs-legacy), reusing existing routes; no redesign.
+
+APIs used: storefront `POST/GET/DELETE /storefront/restock-intents`; AI Studio
+`GET /api/ai-studio/restock-intents?phone=…`, `POST …/restock-intents`, `POST …/:id/cancel`.
+
 ## 13. Limitations & future
 
 - Storefront CTA button + AI Inbox UI button + Customer 360 section are thin remaining integrations

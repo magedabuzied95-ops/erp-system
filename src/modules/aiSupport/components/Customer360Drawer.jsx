@@ -194,6 +194,45 @@ export default function Customer360Drawer({
   const [loadingTab, setLoadingTab] = useState("");
   const [profileData, setProfileData] = useState(() => fallbackCustomerProfile(customerProfile || customer || {}, { ...context, customerId }));
 
+  // ---- Phase 7.5: Restock Requests (variant-level intents) for this customer ----
+  const [restockIntents, setRestockIntents] = useState([]);
+  const [restockLoading, setRestockLoading] = useState(false);
+  const [restockMsg, setRestockMsg] = useState("");
+  const [restockCreate, setRestockCreate] = useState({ open: false, productId: "", variantId: "", busy: false });
+
+  const restockPhone = clean(profileData.phone || customer?.phone || context?.phone || "");
+  const loadRestockIntents = async () => {
+    if (!restockPhone) { setRestockIntents([]); return; }
+    setRestockLoading(true);
+    try {
+      const res = await api.get(`/ai-studio/restock-intents`, { params: { phone: restockPhone }, perfComponent: "Customer360.restock", suppressErrorStatuses: [400, 403, 404, 500] });
+      setRestockIntents(safeArray(res?.intents));
+    } catch { setRestockIntents([]); }
+    setRestockLoading(false);
+  };
+  useEffect(() => { if (open && restockPhone) void loadRestockIntents(); /* one fetch per open+customer */ // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, restockPhone]);
+
+  const cancelRestockIntent = async (id) => {
+    if (!window.confirm("Cancel this restock request? A future restock will not recover it.")) return;
+    try { await api.post(`/ai-studio/restock-intents/${encodeURIComponent(id)}/cancel`, {}, { suppressErrorStatuses: [400, 403, 404, 500] }); await loadRestockIntents(); }
+    catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to cancel"); }
+  };
+  // Explicit, human-confirmed create. Variant is REQUIRED (no fake exact intent). Never autonomous.
+  const submitRestockCreate = async () => {
+    const productId = Number(restockCreate.productId), variantId = Number(restockCreate.variantId);
+    if (!productId || !variantId) { setRestockMsg("Enter both product and variant (from the conversation product card)."); return; }
+    if (!restockPhone) { setRestockMsg("This customer has no phone on record."); return; }
+    setRestockCreate((s) => ({ ...s, busy: true })); setRestockMsg("");
+    try {
+      const res = await api.post(`/ai-studio/restock-intents`, { productId, variantId, phone: restockPhone, source: "ai_inbox" }, { suppressErrorStatuses: [400, 403, 404, 409, 500] });
+      if (res?.available_now) setRestockMsg("المقاس متوفر بالفعل — no request created.");
+      else setRestockMsg(res?.reused ? "Request already existed (reused)." : "Restock request created.");
+      setRestockCreate({ open: false, productId: "", variantId: "", busy: false });
+      await loadRestockIntents();
+    } catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to create request"); setRestockCreate((s) => ({ ...s, busy: false })); }
+  };
+
   useEffect(() => {
     if (!open) return;
     setActiveTab(initialTab);
@@ -568,6 +607,51 @@ export default function Customer360Drawer({
                   </div>
                 </div>
               ))}
+
+              {/* Phase 7.5 — Restock Requests (variant-level intents). No message is ever sent to the customer. */}
+              <div className="m1-customer-products-section rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">Restock Requests</div>
+                  <button type="button" onClick={() => setRestockCreate((s) => ({ ...s, open: !s.open }))} className="inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">إنشاء طلب إبلاغ عند التوفر</button>
+                </div>
+                {restockMsg ? <div className="mt-2 rounded-xl bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]">{restockMsg}</div> : null}
+                {restockCreate.open ? (
+                  <div className="mt-2 space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
+                    <div className="text-xs text-[var(--muted)]">Enter the exact product and variant from the conversation product card. A variant is required — no request is created without it.</div>
+                    <div className="flex gap-2">
+                      <input value={restockCreate.productId} onChange={(e) => setRestockCreate((s) => ({ ...s, productId: e.target.value.replace(/\D/g, "") }))} placeholder="Product ID" className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-sm text-[var(--text)]" inputMode="numeric" />
+                      <input value={restockCreate.variantId} onChange={(e) => setRestockCreate((s) => ({ ...s, variantId: e.target.value.replace(/\D/g, "") }))} placeholder="Variant ID" className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-sm text-[var(--text)]" inputMode="numeric" />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setRestockCreate({ open: false, productId: "", variantId: "", busy: false })} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">Cancel</button>
+                      <button type="button" onClick={submitRestockCreate} disabled={restockCreate.busy} className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-black text-[var(--primary)] disabled:opacity-50">{restockCreate.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}Confirm & create</button>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="mt-3 space-y-2">
+                  {restockLoading ? (
+                    <div className="flex items-center gap-2 p-2 text-sm text-[var(--muted)]"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
+                  ) : restockIntents.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">No restock requests for this customer.</div>
+                  ) : restockIntents.map((i) => (
+                    <div key={i.id} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-black text-[var(--text)]">{clean(i.product_name) || `Product #${i.product_id}`}</div>
+                        <div className="mt-0.5 text-xs text-[var(--muted)]">{i.variant_id ? [i.color, i.size ? `Size ${i.size}` : ""].filter(Boolean).join(" · ") || `Variant #${i.variant_id}` : "Product-level — requested size unknown"} · {formatDateTime(i.created_at)}</div>
+                        <div className="mt-0.5 flex items-center gap-1.5">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${i.variant_id ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{i.variant_id ? "Exact variant" : "Legacy product-level"}</span>
+                          <span className="text-[10px] font-bold text-[var(--text-secondary)]">{i.status}</span>
+                          <span className="text-[10px] text-[var(--muted)]">{i.source}</span>
+                        </div>
+                      </div>
+                      {["waiting", "recovery_created"].includes(i.status) ? (
+                        <button type="button" onClick={() => cancelRestockIntent(i.id)} className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] font-black text-[var(--text)] hover:border-rose-300 hover:text-rose-500">Cancel</button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 text-[10px] text-[var(--muted)]">Creating or holding a request does not notify the customer — outreach is a manual action.</div>
+              </div>
             </div>
           ) : null}
 
