@@ -4331,6 +4331,7 @@ export default function AiInbox() {
   const previousLatestMessageKeyRef = useRef("");
   const restoreScrollStateRef = useRef(null);
   const transcriptScrollRef = useRef(null);
+  const pinToBottomAfterRefreshRef = useRef(false);
   const messengerProfileSyncAttemptedRef = useRef(new Set());
   const selectedSessionIdRef = useRef("");
   const selectedSocialCommentIdRef = useRef("");
@@ -4366,6 +4367,16 @@ export default function AiInbox() {
     }
     isRefreshingRef.current = true;
     isHydratingConversationRef.current = true;
+    // Snapshot whether the transcript is pinned to the bottom BEFORE the reload mutates
+    // the DOM, so a refresh keeps the user on the latest messages instead of snapping to
+    // the top of the thread. Read synchronously here (pre-fetch) so it can't race a
+    // scroll-reset event fired during the re-render.
+    {
+      const pinScroller = transcriptScrollRef.current;
+      pinToBottomAfterRefreshRef.current = Boolean(
+        pinScroller && pinScroller.scrollHeight - pinScroller.scrollTop - pinScroller.clientHeight <= 140
+      );
+    }
     const seq = ++requestSeqRef.current;
     // Which channels this refresh covers. A specific tab is exactly one request;
     // "All" is one bounded request per message channel. Declared out here because
@@ -5592,6 +5603,8 @@ export default function AiInbox() {
     const restoreState = restoreScrollStateRef.current;
     const frame = window.requestAnimationFrame(() => {
       if (!scroller) return;
+      const pinBottomAfterRefresh = pinToBottomAfterRefreshRef.current;
+      pinToBottomAfterRefreshRef.current = false;
       if (restoreState) {
         scroller.scrollTop = Math.max(0, restoreState.scrollTop + (scroller.scrollHeight - restoreState.scrollHeight));
         restoreScrollStateRef.current = null;
@@ -5610,7 +5623,7 @@ export default function AiInbox() {
       const conversationChanged = previousConversationKeyRef.current !== conversationKey;
       const latestMessageAppended = latestMessageKey && latestMessageKey !== previousLatestMessageKeyRef.current;
 
-      if (conversationChanged || (latestMessageAppended && userIsNearBottom)) {
+      if (conversationChanged || (latestMessageAppended && userIsNearBottom) || pinBottomAfterRefresh) {
         scroller.scrollTop = scroller.scrollHeight;
         setUserIsNearBottom(true);
       } else {
