@@ -103,6 +103,21 @@ export const purchaseCostLookup = ({
   variantIdExpr,
   tenantParam = "$1",
   alias = "pcost",
+  /**
+   * SQL for the cost resolved by the EARLIER rungs (override -> variant -> product),
+   * NULL when none of them resolved. Optional; omitting it keeps the original
+   * always-evaluate behaviour.
+   *
+   * A LEFT JOIN LATERAL is evaluated for every driving row whether or not the outer
+   * COALESCE ever reads it. On production, 100% of sold lines resolve at the variant
+   * or product rung, so this subquery ran ~400 times per query and contributed nothing.
+   * The guard wraps it in a CASE so it is only evaluated when the earlier rungs are NULL.
+   *
+   * Behaviour-preserving by construction: when an earlier rung resolved, the outer
+   * COALESCE returns that value and never reads this column, so yielding NULL here
+   * instead of a computed cost cannot change any result.
+   */
+  skipWhenResolved = null,
 }) => {
   if (!purchaseColumns.size || !purchaseItemColumns.size) {
     return { join: "", expr: "0" };
@@ -137,10 +152,8 @@ export const purchaseCostLookup = ({
       AND ${matchClause}
   `;
 
-  return {
-    join: `
-      LEFT JOIN LATERAL (
-        SELECT COALESCE(
+  const lookupExpr = `
+        COALESCE(
           (
             SELECT GREATEST(${purchaseCostExpr}, 0)::numeric
             ${baseFrom}
@@ -152,12 +165,43 @@ export const purchaseCostLookup = ({
             ${baseFrom}
           ),
           0
-        ) AS unit_cost
+        )`;
+
+  // CASE arms are evaluated lazily, so the subqueries are skipped entirely for rows
+  // whose cost already resolved at an earlier rung.
+  const guardedExpr = skipWhenResolved
+    ? `CASE WHEN (${skipWhenResolved}) IS NOT NULL THEN NULL::numeric ELSE ${lookupExpr} END`
+    : lookupExpr;
+
+  return {
+    join: `
+      LEFT JOIN LATERAL (
+        SELECT ${guardedExpr} AS unit_cost
       ) ${alias} ON TRUE
     `,
     expr: `${alias}.unit_cost`,
   };
 };
+
+/**
+ * The unit cost resolvable WITHOUT touching purchase history: override -> variant ->
+ * product. NULL when none of those rungs has a non-zero value.
+ *
+ * Used as the guard for purchaseCostLookup, and as the first rungs of itemUnitCostExpr,
+ * so the two can never drift apart.
+ */
+export const preLookupUnitCostExpr = ({ overrideColumns, variantColumns, productColumns }) =>
+  positiveCoalesceColumnExpr(
+    "aoc",
+    overrideColumns,
+    ["unit_cost"],
+    positiveCoalesceColumnExpr(
+      "pv",
+      variantColumns,
+      ["last_purchase_cost", "purchase_cost", "cost_price", "unit_cost"],
+      positiveCoalesceColumnExpr("p", productColumns, ["last_purchase_cost", "purchase_cost", "cost_price", "unit_cost"], "NULL")
+    )
+  );
 
 /* ------------------------------------------------------------------------------ */
 /* Named fragments below are NEW (no legacy counterpart) but are pure re-expressions

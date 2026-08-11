@@ -179,3 +179,48 @@ test("live: getProfitLossReport still returns a coherent, finite P&L", async (t)
   assert.ok(Math.abs(net - report.cogs.total_cogs - report.gross_profit) <= 0.01, "gross_profit must equal net_sales - cogs");
   assert.ok(Math.abs(report.gross_profit - report.total_expenses - report.net_profit) <= 0.01, "net_profit must equal gross_profit - expenses");
 });
+
+/* ------------------------------------------------- purchase-history guard (R3) */
+
+test("the purchase-history LATERAL is guarded so it only evaluates when earlier rungs fail", async () => {
+  const { purchaseCostLookup, preLookupUnitCostExpr } = await import("../../server/services/analytics/accountingCanon.js");
+
+  const columns = {
+    purchaseColumns: new Set(["id", "tenant_id", "created_at", "status"]),
+    purchaseItemColumns: new Set(["id", "purchase_id", "tenant_id", "product_id", "variant_id", "unit_cost", "cost_price"]),
+    variantColumns: new Set(["id", "product_id", "last_purchase_cost", "cost_price"]),
+    productIdExpr: "oi.product_id",
+    variantIdExpr: "oi.variant_id",
+  };
+
+  const guard = preLookupUnitCostExpr({
+    overrideColumns: new Set(["unit_cost"]),
+    variantColumns: new Set(["last_purchase_cost", "cost_price"]),
+    productColumns: new Set(["last_purchase_cost", "cost_price"]),
+  });
+
+  const unguarded = purchaseCostLookup(columns);
+  const guarded = purchaseCostLookup({ ...columns, skipWhenResolved: guard });
+
+  assert.ok(!unguarded.join.includes("CASE WHEN"), "omitting the guard must keep the original behaviour");
+  assert.match(guarded.join, /CASE WHEN \(.*\) IS NOT NULL THEN NULL::numeric ELSE/s, "guarded form must short-circuit");
+
+  // The guard must be exactly the earlier rungs, so the two can never disagree.
+  assert.match(guard, /aoc\.unit_cost/);
+  assert.match(guard, /pv\.last_purchase_cost/);
+  assert.match(guard, /p\.cost_price/);
+  assert.ok(!guard.includes("pcost"), "the guard must not reference the lookup it guards");
+  // NULL fallback is what makes "unresolved" detectable.
+  assert.match(guard, /, NULL\)/);
+
+  // Both forms must expose the same column, so the ladder is unchanged.
+  assert.equal(unguarded.expr, guarded.expr);
+});
+
+test("every accountingService cost site passes the guard", async () => {
+  const source = await read("../../server/services/accountingService.js");
+  const lookups = (source.match(/purchaseCostLookup\(\{/g) || []).length;
+  const guards = (source.match(/skipWhenResolved: preLookupUnitCostExpr\(/g) || []).length;
+  assert.ok(lookups > 0, "expected purchaseCostLookup call sites");
+  assert.equal(guards, lookups, `${lookups} lookup sites but only ${guards} guarded`);
+});

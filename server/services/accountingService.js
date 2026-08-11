@@ -10,6 +10,7 @@ import {
   firstColumn,
   paidOrderClauses,
   positiveCoalesceColumnExpr,
+  preLookupUnitCostExpr,
   purchaseCostLookup,
   whereSql,
 } from "./analytics/accountingCanon.js";
@@ -3516,6 +3517,7 @@ export const rebuildLedgerEntries = async (clientOrPool, data = {}) => {
         variantColumns,
         productIdExpr,
         variantIdExpr,
+        skipWhenResolved: preLookupUnitCostExpr({ overrideColumns, variantColumns, productColumns }),
       });
       const itemCostExpr = positiveCoalesceColumnExpr(
         "aoc",
@@ -3737,6 +3739,7 @@ export const rebuildLedgerEntries = async (clientOrPool, data = {}) => {
         variantColumns,
         productIdExpr,
         variantIdExpr,
+        skipWhenResolved: preLookupUnitCostExpr({ overrideColumns, variantColumns, productColumns }),
       });
       const itemCostExpr = positiveCoalesceColumnExpr(
         "aoc",
@@ -4916,6 +4919,7 @@ export const getProfitLossReport = async (clientOrPool, data = {}) => {
       productIdExpr,
       variantIdExpr,
       tenantParam: tenantId !== null ? "$1" : "o.tenant_id",
+      skipWhenResolved: preLookupUnitCostExpr({ overrideColumns, variantColumns, productColumns }),
     });
     const itemCostExpr = positiveCoalesceColumnExpr(
       "aoc",

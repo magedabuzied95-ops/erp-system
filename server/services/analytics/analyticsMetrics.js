@@ -17,6 +17,7 @@ import {
   itemUnitCostExpr,
   netQuantityExpr,
   paidOrderClauses,
+  preLookupUnitCostExpr,
   positiveCoalesceColumnExpr,
   purchaseCostLookup,
 } from "./accountingCanon.js";
@@ -152,6 +153,10 @@ export const buildCostContext = ({ orderColumns, itemColumns, productColumns, va
     productIdExpr,
     variantIdExpr,
     tenantParam: tenantId !== null && tenantId !== undefined ? "$1" : "o.tenant_id",
+    // Skip the purchase-history subquery entirely for lines whose cost already
+    // resolved at the override/variant/product rung. Behaviour-preserving: the outer
+    // COALESCE never reads this column in that case.
+    skipWhenResolved: preLookupUnitCostExpr({ overrideColumns, variantColumns, productColumns }),
   });
 
   const unitCost = itemUnitCostExpr({
