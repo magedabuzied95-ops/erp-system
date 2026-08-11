@@ -47,7 +47,8 @@ Target taxonomy vs. what maps to real functionality **today**:
 | **Approvals** | reply-mode policy (`ai_channels.ai_reply_mode`) + AiFollowups | Surface policy + link |
 | **Marketing AI** | AiMarketingCenter etc. | Cross-link |
 | **Inbox (operational)** | AiInbox / `/inbox` | Cross-link (stays operational) |
-| **Workflows / Executions / Approvals / Tools** | new workflow engine (`ai_workflows*` tables + executor + Tool Registry) | **Built in Phase 2** — see `docs/ai-workflow-engine.md`. Visual node editor still deferred to Phase 3. |
+| **Workflows / Executions / Approvals / Tools** | new workflow engine (`ai_workflows*` tables + executor + Tool Registry) | **Built in Phase 2** — see `docs/ai-workflow-engine.md`. |
+| **Visual Workflow Builder** (`/ai-studio/workflows/:id/edit`) | the Phase 2 definition JSON + validator + executor (unchanged) | **Built in Phase 3** — lazy `@xyflow/react` editor; pure edit/visualization layer. See `docs/ai-workflow-builder.md`. |
 | **Models / Prompts** | single provider; inline prompts | **Deferred** (no CRUD surface exists to reuse) |
 
 **Consolidation is additive:** a new "AI Studio" sidebar section is added; **all existing AI nav items and routes keep working** unchanged (no redirects removed, no URLs renamed).
@@ -76,6 +77,6 @@ No new DB tables, no new backend endpoints, no new engines, no large dependencie
 ## 5. Deferred (explicitly out of scope)
 
 - **Phase 2 (done):** the backend workflow definition/execution model now exists — Tool Registry, `ai_workflows*` tables, deterministic executor, approvals, APIs, and Executions/Approvals/Workflows/Tools UI. See `docs/ai-workflow-engine.md`.
-- **Visual Workflow Builder** (node editor) — still deferred to **Phase 3**. No supporting infra beyond the JSON definition; adding React Flow is a large dependency requiring explicit approval. It will read/write the existing `ai_workflows.definition` JSON.
+- **Visual Workflow Builder** (node editor) — **done in Phase 3** (`@xyflow/react`, lazy-loaded). Reads/writes the existing `ai_workflows.definition` JSON; no new execution semantics. See `docs/ai-workflow-builder.md`.
 - **Agent abstraction / Tools registry / Prompt manager / Model registry** — would be net-new frameworks; premature. Reuse `ai_agent_settings` + reply-mode + existing tools until a real need is proven.
 - **Merging duplicates** (two settings pages, three orchestrators/memory services) — documented in the audit; a later refactor, not part of the additive foundation.

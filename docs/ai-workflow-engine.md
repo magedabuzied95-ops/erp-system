@@ -13,6 +13,11 @@ declarative definition + the server-side Tool Registry are the sole source of ex
 
 Stored in `ai_workflows.definition`. No executable code is ever stored.
 
+> **Layout fields (Phase 3).** The visual builder persists a per-node `position:{x,y}` and an
+> optional top-level `viewport`. The validator only inspects `id`/`type`/`config` (and edge
+> `from`/`to`/`when`), so these layout fields round-trip untouched and are **ignored by the
+> executor** — they carry no execution meaning. See `docs/ai-workflow-builder.md`.
+
 ```jsonc
 {
   "version": 1,
@@ -111,6 +116,14 @@ Phase 2 supports **`manual`** only (via `POST /workflows/:id/run`). The definiti
 | Method | Path | Permission |
 |---|---|---|
 | GET | `/tools` | settings.view |
+
+`GET /tools` also returns `capabilities` — `agentModes` (with `read_only_analysis` always
+available and `llm_grounded` gated by `AI_WORKFLOWS_AGENT_LLM`) and `triggerTypes` (`manual`
+available; `webhook`/`schedule` marked unavailable) — so the visual builder renders an accurate,
+non-fake palette. Read-only/additive.
+
+| Method | Path | Permission |
+|---|---|---|
 | GET | `/overview` | settings.view |
 | GET | `/workflows` · `/workflows/:id` | settings.view |
 | POST | `/workflows` · `/workflows/:id` (PUT) · `/workflows/:id/enable` · `/workflows/seed-example` | settings.edit |

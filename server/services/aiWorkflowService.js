@@ -313,14 +313,29 @@ export const decideApproval = async (tenantId, approvalId, { decision, userId, r
 };
 
 // ---- Tools (read-only registry view) ----
+// `capabilities` lets the visual builder render an ACCURATE palette/config instead of
+// guessing: it reflects the same server-side gates the executor enforces (agent LLM mode
+// gated by env; only `manual` triggers are wired in this phase). Additive/read-only.
 export const getToolRegistryView = () => {
   const tools = listTools();
+  const llmEnabled = String(process.env.AI_WORKFLOWS_AGENT_LLM || "").toLowerCase() === "true";
   return {
     tools,
     grouped: {
       READ: tools.filter((t) => t.riskLevel === RISK.READ),
       WRITE: tools.filter((t) => t.riskLevel === RISK.WRITE),
       SENSITIVE: tools.filter((t) => t.riskLevel === RISK.SENSITIVE),
+    },
+    capabilities: {
+      agentModes: [
+        { id: "read_only_analysis", label: "Read-only analysis", available: true, description: "Deterministic, side-effect-free summary of prior step outputs. No LLM." },
+        { id: "llm_grounded", label: "LLM grounded", available: llmEnabled, description: llmEnabled ? "Reuses the existing OpenAI gateway." : "Disabled on this server (set AI_WORKFLOWS_AGENT_LLM=true to enable)." },
+      ],
+      triggerTypes: [
+        { id: "manual", label: "Manual", available: true, description: "Run on demand from the builder or the Workflows list." },
+        { id: "webhook", label: "Channel webhook", available: false, description: "Coming later — production Meta/WhatsApp/Instagram webhooks are not rerouted through workflows." },
+        { id: "schedule", label: "Scheduled", available: false, description: "Coming later — no scheduler is wired in this phase." },
+      ],
     },
   };
 };

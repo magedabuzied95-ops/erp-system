@@ -6,6 +6,9 @@ const opts = (headers) => ({ headers, suppressErrorStatuses: [400, 403, 404, 409
 export const getStudioOverview = (headers) => api.get(`${BASE}/overview`, opts(headers));
 export const listWorkflows = (headers) => api.get(`${BASE}/workflows`, opts(headers));
 export const getWorkflow = (id, headers) => api.get(`${BASE}/workflows/${encodeURIComponent(id)}`, opts(headers));
+export const createWorkflow = (payload, headers) => api.post(`${BASE}/workflows`, payload || {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const updateWorkflow = (id, payload, headers) => api.put(`${BASE}/workflows/${encodeURIComponent(id)}`, payload || {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const validateDefinition = (definition, headers) => api.post(`${BASE}/workflows/validate`, { definition }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const runWorkflow = (id, input, headers) => api.post(`${BASE}/workflows/${encodeURIComponent(id)}/run`, { input: input || {} }, { headers });
 export const setWorkflowEnabled = (id, enabled, headers) => api.post(`${BASE}/workflows/${encodeURIComponent(id)}/enable`, { enabled }, { headers });
 export const seedExampleWorkflow = (headers) => api.post(`${BASE}/workflows/seed-example`, {}, { headers });

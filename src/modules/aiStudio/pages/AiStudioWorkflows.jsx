@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Workflow, Play, Loader2, RefreshCw, Plus, CheckCircle2, XCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Workflow, Play, Loader2, RefreshCw, Plus, CheckCircle2, XCircle, Pencil, LayoutTemplate } from "lucide-react";
 import AiStudioNav from "../components/AiStudioNav";
 import { useStudioHeaders } from "../lib/studioRequest";
-import { listWorkflows, runWorkflow, setWorkflowEnabled, seedExampleWorkflow } from "../services/aiStudioApi";
+import { listWorkflows, runWorkflow, setWorkflowEnabled, seedExampleWorkflow, createWorkflow } from "../services/aiStudioApi";
+import { blankDefinition } from "../lib/workflowGraph";
 
 const fmt = (v) => (v ? new Date(v).toLocaleString() : "—");
 
@@ -11,6 +13,7 @@ const statusTone = (s) =>
 
 export default function AiStudioWorkflows() {
   const { headers } = useStudioHeaders();
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
@@ -41,9 +44,24 @@ export default function AiStudioWorkflows() {
     try { await setWorkflowEnabled(id, enabled, headers); await load(); } catch (e) { setMsg(e?.message || "Failed"); }
     setBusy("");
   };
-  const doSeed = async () => {
-    setBusy("seed"); setMsg("");
-    try { await seedExampleWorkflow(headers); setMsg("Example workflow created (disabled)."); await load(); } catch (e) { setMsg(e?.message || "Failed"); }
+  const doNewBlank = async () => {
+    setBusy("new"); setMsg("");
+    try {
+      const res = await createWorkflow({ name: "Untitled workflow", description: "", triggerType: "manual", definition: blankDefinition(), enabled: false }, headers);
+      const wid = res?.workflow?.id;
+      if (wid) navigate(`/ai-studio/workflows/${wid}/edit`);
+      else await load();
+    } catch (e) { setMsg(e?.responseBody?.message || e?.message || "Failed"); }
+    setBusy("");
+  };
+  const doNewTemplate = async () => {
+    setBusy("tpl"); setMsg("");
+    try {
+      const res = await seedExampleWorkflow(headers);
+      const wid = res?.workflow?.id;
+      if (wid) navigate(`/ai-studio/workflows/${wid}/edit`);
+      else await load();
+    } catch (e) { setMsg(e?.responseBody?.message || e?.message || "Failed"); }
     setBusy("");
   };
 
@@ -54,11 +72,14 @@ export default function AiStudioWorkflows() {
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100"><Workflow className="h-4 w-4" />AI Studio</div>
             <h1 className="mt-1 text-xl font-black">Workflows</h1>
-            <p className="mt-1 text-sm text-slate-400">Manage executable workflows. This phase is management-only — the visual builder comes later.</p>
+            <p className="mt-1 text-sm text-slate-400">Manage executable workflows. Open the visual builder to design them, run tests, and watch execution live.</p>
           </div>
-          <div className="flex gap-2">
-            <button type="button" onClick={doSeed} disabled={busy === "seed"} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20 disabled:opacity-50">
-              {busy === "seed" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}Create example
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={doNewTemplate} disabled={busy === "tpl"} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20 disabled:opacity-50">
+              {busy === "tpl" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutTemplate className="h-3.5 w-3.5" />}From template
+            </button>
+            <button type="button" onClick={doNewBlank} disabled={busy === "new"} className="inline-flex h-9 items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-300/15 px-3 text-[11px] font-black text-cyan-50 hover:bg-cyan-300/25 disabled:opacity-50">
+              {busy === "new" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}New workflow
             </button>
             <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20">
               <RefreshCw className="h-3.5 w-3.5" />Refresh
@@ -74,7 +95,7 @@ export default function AiStudioWorkflows() {
         {loading ? (
           <div className="flex items-center gap-2 p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">No workflows yet. Use “Create example” to add a safe read-only proof workflow.</div>
+          <div className="p-8 text-center text-sm text-slate-500">No workflows yet. Use “New workflow” for a blank canvas, or “From template” for a safe read-only example.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -96,9 +117,14 @@ export default function AiStudioWorkflows() {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button type="button" onClick={() => doRun(w.id)} disabled={busy === `run-${w.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100 hover:bg-cyan-300/20 disabled:opacity-50">
-                        {busy === `run-${w.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Run now
-                      </button>
+                      <div className="inline-flex gap-1.5">
+                        <button type="button" onClick={() => navigate(`/ai-studio/workflows/${w.id}/edit`)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white hover:border-white/20">
+                          <Pencil className="h-3.5 w-3.5" />Edit
+                        </button>
+                        <button type="button" onClick={() => doRun(w.id)} disabled={busy === `run-${w.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100 hover:bg-cyan-300/20 disabled:opacity-50">
+                          {busy === `run-${w.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Run now
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

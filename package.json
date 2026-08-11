@@ -39,6 +39,7 @@
     "start": "npm --prefix \"./server\" run start"
   },
   "dependencies": {
+    "@xyflow/react": "^12.11.2",
     "axios": "^1.16.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
