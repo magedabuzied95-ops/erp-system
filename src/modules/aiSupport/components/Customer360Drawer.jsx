@@ -189,7 +189,15 @@ export default function Customer360Drawer({
 
   useEffect(() => {
     if (!open) return undefined;
-    const id = clean(customerId || customerProfile?.id || customer?.customer_profile_id || customer?.profile_id || "");
+    const id = clean(
+      customerId ||
+      customer?.erp_customer_id ||
+      customer?.customer_id ||
+      customer?.phone ||
+      customerProfile?.erp_customer_id ||
+      customerProfile?.phone ||
+      ""
+    );
     if (!id) return undefined;
 
     let cancelled = false;

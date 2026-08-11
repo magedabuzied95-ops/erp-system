@@ -16,6 +16,10 @@ const compactHeaderSource = desktopSource.slice(
 const activeDesktopReturnStart = desktopSource.indexOf('className="ai-inbox-desktop');
 const activeDesktopReturnEnd = desktopSource.indexOf("\n  return (", activeDesktopReturnStart);
 const activeDesktopReturnSource = desktopSource.slice(activeDesktopReturnStart, activeDesktopReturnEnd);
+const customer360IdentitySource = desktopSource.slice(
+  desktopSource.indexOf("const customer360Identifier"),
+  desktopSource.indexOf("const storefrontProductUrl")
+);
 
 test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopSource, /ai-omni-workspace/);
@@ -87,7 +91,11 @@ test("desktop conversation header stays compact and exposes multi-label manageme
 test("desktop customer name and avatar open the shared Customer 360 drawer", () => {
   assert.match(compactHeaderSource, /onOpenCustomer360\?\.\(conversation/);
   assert.match(compactHeaderSource, /Open customer details for/);
-  assert.match(desktopSource, /context\.customerId[\s\S]*?customer\.customer_profile_id[\s\S]*?customerProfile\.id/);
+  assert.match(compactHeaderSource, /customerId: customer360Identifier\(conversation\)/);
+  assert.match(customer360IdentitySource, /customer\?\.erp_customer_id/);
+  assert.match(customer360IdentitySource, /metadata\?\.resolved_phone/);
+  assert.match(customer360IdentitySource, /channel\.includes\("whatsapp"\) \? customer\?\.external_customer_id/);
+  assert.doesNotMatch(customer360IdentitySource, /customer_profile_id/);
   assert.match(activeDesktopReturnSource, /<Customer360Drawer[\s\S]*?open=\{customerDrawer\.open\}[\s\S]*?customerId=\{customerDrawer\.customerId\}[\s\S]*?title="Customer 360"/);
   assert.equal((desktopSource.match(/<Customer360Drawer/g) || []).length, 1);
 });

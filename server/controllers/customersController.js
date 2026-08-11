@@ -789,11 +789,37 @@ const getCustomerByIdentifier = async (identifier, tenantId) => {
     WHERE (${phoneMatch})
       ${columns.tenantIdColumn ? "AND ($2::bigint IS NULL OR tenant_id = $2::bigint)" : ""}
     ORDER BY updated_at DESC NULLS LAST, id DESC
-    LIMIT 1
+    LIMIT 25
     `,
     params
   );
-  return result.rows[0] ? normalizeCustomerRow(result.rows[0]) : null;
+  if (!result.rows.length) return null;
+  if (result.rows.length === 1 || !(await tableExists("orders"))) {
+    return normalizeCustomerRow(result.rows[0]);
+  }
+
+  const candidateIds = result.rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
+  const orderParams = [candidateIds];
+  const orderWhere = ["customer_id = ANY($1::bigint[])"];
+  if (await columnExists("orders", "tenant_id")) {
+    orderParams.push(tenantId);
+    orderWhere.push(`($${orderParams.length}::bigint IS NULL OR tenant_id = $${orderParams.length}::bigint OR tenant_id IS NULL)`);
+  }
+  const orderCountsResult = await pool.query(
+    `
+    SELECT customer_id, COUNT(*)::int AS order_count
+    FROM orders
+    WHERE ${orderWhere.join(" AND ")}
+    GROUP BY customer_id
+    `,
+    orderParams
+  );
+  const orderCounts = new Map(orderCountsResult.rows.map((row) => [String(row.customer_id), Number(row.order_count || 0)]));
+  const selectedRow = result.rows.reduce((best, row) => {
+    if (!best) return row;
+    return (orderCounts.get(String(row.id)) || 0) > (orderCounts.get(String(best.id)) || 0) ? row : best;
+  }, null);
+  return selectedRow ? normalizeCustomerRow(selectedRow) : null;
 };
 
 const getUsableCustomerOrderCounts = async ({ customerIds = [], tenantId = null } = {}) => {
