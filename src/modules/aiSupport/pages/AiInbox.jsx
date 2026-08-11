@@ -1916,7 +1916,15 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   );
 });
 
-function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "all", onSelectChannel }) {
+function InboxChannelSidebar({
+  channels = [],
+  allUnread = 0,
+  activeChannel = "all",
+  onSelectChannel,
+  socialCommentsCount = 0,
+  socialCommentsActive = false,
+  onSelectSocialComments,
+}) {
   const channelIcon = (key, active = false) => {
     const baseIconClass = "h-6 w-6";
     const iconClass = active ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.45)]" : "";
@@ -1969,7 +1977,7 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
         type="button"
         onClick={() => onSelectChannel("all")}
         className={`relative mb-2 flex h-[58px] w-12 items-center justify-center text-center transition ${
-          activeChannel === "all" ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white"
+          !socialCommentsActive && activeChannel === "all" ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white"
         }`}
       >
         {Number(allUnread || 0) > 0 ? (
@@ -1977,7 +1985,7 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
             {allUnread}
           </span>
         ) : null}
-        {channelIcon("all", activeChannel === "all")}
+        {channelIcon("all", !socialCommentsActive && activeChannel === "all")}
       </button>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         {channels.map((channel) => (
@@ -1987,7 +1995,7 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
             onClick={() => onSelectChannel(channel.key)}
             title={channelBadgeLabel(channel.key)}
             className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${
-              activeChannel === channel.key ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white"
+              !socialCommentsActive && activeChannel === channel.key ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white"
             }`}
           >
             {Number(channel.unread || 0) > 0 ? (
@@ -1995,10 +2003,33 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
                 {channel.unread}
               </span>
             ) : null}
-            {channelIcon(channel.key, activeChannel === channel.key)}
+            {channelIcon(channel.key, !socialCommentsActive && activeChannel === channel.key)}
           </button>
         ))}
       </div>
+      {onSelectSocialComments ? (
+        <div className="mt-2 border-t border-white/10 pt-2">
+          <button
+            type="button"
+            onClick={onSelectSocialComments}
+            title="Social Comments"
+            aria-label="Social Comments"
+            aria-pressed={socialCommentsActive}
+            className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${
+              socialCommentsActive
+                ? "text-amber-200 drop-shadow-[0_0_12px_rgba(212,175,55,0.4)]"
+                : "text-amber-200/80 hover:text-amber-100"
+            }`}
+          >
+            {Number(socialCommentsCount || 0) > 0 ? (
+              <span dir="ltr" className="absolute right-0 top-0 inline-flex min-w-[18px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black leading-[18px] text-slate-950 shadow-[0_8px_18px_rgba(212,175,55,0.28)]">
+                {socialCommentsCount}
+              </span>
+            ) : null}
+            <MessageSquareText className="h-7 w-7" aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -7758,7 +7789,7 @@ export default function AiInbox() {
 
   if (isSocialMode) {
     return (
-      <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
+      <div dir="ltr" className="ai-inbox-desktop overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)]">
         {toast.text ? (
           <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
             toast.tone === "rose"
@@ -7784,9 +7815,24 @@ export default function AiInbox() {
             </div>
           </div>
         ) : null}
-        <div className="flex h-[100dvh] w-full min-w-0 flex-col gap-2 overflow-hidden p-2 md:p-3">
-          {renderCompactHeader()}
-          {renderSocialCommentsWorkspaceFrame()}
+        <div className="flex h-full w-full min-w-0 gap-2 overflow-hidden p-2">
+          <InboxChannelSidebar
+            channels={[]}
+            allUnread={channelSummaries.all.unread}
+            activeChannel="all"
+            socialCommentsCount={socialCommentsPanelCount}
+            socialCommentsActive
+            onSelectChannel={() => {
+              setInboxSection("conversations");
+              setChannelFilter("all");
+              setSelectedSocialCommentId("");
+              setMobileView("list");
+            }}
+            onSelectSocialComments={() => setInboxSection("social_comments")}
+          />
+          <div dir="rtl" className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            {renderSocialCommentsWorkspaceFrame()}
+          </div>
         </div>
       </div>
     );
@@ -7871,8 +7917,6 @@ export default function AiInbox() {
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
           </div>
         ) : null}
-      {renderCompactHeader()}
-
         <details className="hidden rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div>
@@ -7960,7 +8004,16 @@ export default function AiInbox() {
               channels={fixedChannelSummaries}
               allUnread={channelSummaries.all.unread}
               activeChannel={channelFilter}
-            onSelectChannel={(value) => {
+              socialCommentsCount={socialCommentsPanelCount}
+              socialCommentsActive={false}
+              onSelectSocialComments={() => {
+                setInboxSection("social_comments");
+                setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
+                setSelectedSessionId("");
+                setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+                setMobileView("chat");
+              }}
+              onSelectChannel={(value) => {
                 setInboxSection("conversations");
                 setChannelFilter(value);
                 setMobileView("list");
