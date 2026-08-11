@@ -24058,6 +24058,22 @@ export const processMetaWebhook = async ({ req } = {}) => {
       });
     });
     await recordLeadSignals({ config, message, reason: "inbound_message" }).catch(() => {});
+    // Phase 10 (default OFF): pre-generate a grounded reply SUGGESTION for human approval — no send.
+    // Fire-and-forget + failure-isolated (must never reject this webhook / trigger Meta retries). Skips
+    // fully_automatic (handled autonomously below), human-controlled conversations, and non-text.
+    try {
+      const { handleInboundMessageIntake } = await import("./aiInboundIntakeService.js");
+      handleInboundMessageIntake({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        canonicalMessageId: null,
+        providerMessageId: message.external_message_id || message.provider_message_id || "",
+        text: message.message_text || "",
+        fromMe: message.from_me === true,
+        autoReplyMode,
+      }).catch(() => {});
+    } catch { /* never break the webhook */ }
     let latestDebugClassification = null;
     let latestDebugRoute = "";
     if (!["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {

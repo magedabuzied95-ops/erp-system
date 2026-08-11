@@ -616,6 +616,7 @@ const { ensureRestockRecoverySchema } = await import("./services/aiRestockRecove
 const { ensureRestockIntentSchema } = await import("./services/restockIntentService.js");
 const { ensureRestockNotificationSchema } = await import("./services/restockNotificationService.js");
 const { ensureMessageDeliverySchema } = await import("./services/messageDeliveryReconciliationService.js");
+const { ensureInboundIntakeSchema } = await import("./services/aiInboundIntakeService.js");
 const { default: socialCommentsRoutes, socialCommentsDebugRoutes } = await import("./routes/socialComments.js");
 const { default: metaIntegrationRoutes, metaWebhookRoutes, handleMetaWebhookVerification, handleMetaWebhookSelfTest } = await import("./routes/metaIntegration.js");
 const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.js");
@@ -2298,6 +2299,8 @@ const bootstrapStartup = async () => {
     console.log("[server] restock notification schema ensured");
     await ensureMessageDeliverySchema(db);
     console.log("[server] message delivery reconciliation schema ensured");
+    await ensureInboundIntakeSchema(db);
+    console.log("[server] inbound intake schema ensured");
     await ensureProductVariantSchema();
     console.log("[server] product variant schema ensured");
     await ensureProductVariantImagesSchema(db);
