@@ -7712,16 +7712,9 @@ export default function AiInbox() {
 	                      <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
 	                      <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو الرسالة" className="h-10 w-full min-w-0 rounded-xl bg-transparent pr-9 pl-3 text-sm font-bold text-white outline-none placeholder:text-slate-600" />
 	                    </label>
-	                      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
-  <Star className="h-4 w-4 text-amber-300" />
-  <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-    {FAVORITE_FILTERS.map((item) => (
-      <option key={item.key} value={item.key}>
-        {item.label}
-      </option>
-    ))}
-  </select>
-</label>
+	                      <button type="button" onClick={() => setFavoriteFilter(favoriteFilter === "favorites" ? "all" : "favorites")} title="المفضلة" aria-label="المفضلة" aria-pressed={favoriteFilter === "favorites"} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${favoriteFilter === "favorites" ? "border-amber-300/40 bg-amber-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}>
+	                        <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "text-amber-300 fill-amber-300" : "text-slate-400"}`} />
+	                      </button>
 	                  </div>
 	                </div>
 	              ) : null}
