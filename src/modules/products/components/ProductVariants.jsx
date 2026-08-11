@@ -197,13 +197,12 @@ export default function ProductVariants({
 
         variants.length > 0 && (
 
-          <div className="overflow-x-auto">
+          <div className="m1-table-container overflow-x-auto">
 
             <table
-              className="
+              className="m1-table m1-table--compact m1-table--separate 
               w-full
               border-separate
-              border-spacing-y-3
               "
             >
 

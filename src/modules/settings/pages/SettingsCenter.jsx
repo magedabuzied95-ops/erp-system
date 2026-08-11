@@ -2094,13 +2094,13 @@ function BostaIntegrationPanel({ copy }) {
           </div>
         </div>
         <div className="max-h-[28rem] overflow-auto rounded-2xl border border-slate-200 dark:border-white/10">
-          <table className="min-w-full text-sm">
+          <table className="m1-table m1-table--compact min-w-full text-sm">
             <thead className="sticky top-0 bg-slate-100 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
               <tr>
                 {["City", "Zone", "District", "Availability"].map((header) => <th key={header} className="px-4 py-3 text-start">{header}</th>)}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+            <tbody className="dark:divide-white/10">
               {locations.map((location) => (
                 <tr key={`${location.city_id}-${location.zone_id}-${location.district_id}`} className="bg-white dark:bg-slate-950/40">
                   <td className="px-4 py-3 font-bold text-slate-900 dark:text-white"><div className="table-cell-stack"><div>{location.city_name_en}</div><div className="text-xs text-slate-500">{location.city_name_ar}</div></div></td>
@@ -2940,7 +2940,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
       </div>
 
       <div className="overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
-        <table className="min-w-[1320px] w-full border-separate border-spacing-0 text-sm">
+        <table className="m1-table m1-table--compact min-w-[1320px] w-full text-sm">
           <thead className="sticky top-0 bg-slate-50 text-[11px] font-black uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
             <tr>{["Governorate", "City / Markaz", "District", "Zone", "Provider", "Provider IDs", "Active", ""].map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr>
           </thead>
@@ -3223,7 +3223,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
     const tableHeight = fullScreenMode ? "h-[calc(100vh-9.5rem)]" : "max-h-[42rem]";
     return (
       <div className={`${tableHeight} overflow-auto rounded-2xl border ${fullScreenMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70"}`}>
-        <table className={`${tableMinWidth} w-full border-separate border-spacing-0 ${tableDensity === "ultra" ? "text-xs" : "text-sm"}`}>
+        <table className={`m1-table m1-table--compact ${tableMinWidth} w-full ${tableDensity === "ultra" ? "text-xs" : "text-sm"}`}>
           <thead className={`sticky top-0 z-10 text-[11px] font-black uppercase ${fullScreenMode ? "bg-slate-900 text-slate-300" : "bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400"}`}>
             <tr>
               <th className={`${frozen ? "sticky left-0 z-20 bg-inherit" : ""} w-10 px-3 py-3 text-start`}></th>

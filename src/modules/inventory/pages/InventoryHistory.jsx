@@ -222,8 +222,8 @@ function InventoryHistory() {
             <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">لا توجد حركات مسجلة.</div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-y-2 px-3 pb-3">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact m1-table--separate min-w-full border-separate px-3 pb-3">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
                   <th className="px-3 py-2">الوقت</th>

@@ -200,8 +200,8 @@ function Branches() {
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-white shadow-lg dark:bg-gray-800">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="m1-table-container overflow-x-auto">
+          <table className="m1-table m1-table--compact w-full">
             <thead className="bg-black text-white">
               <tr>
                 <th className="p-5 text-left">Branch</th>

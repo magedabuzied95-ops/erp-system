@@ -356,8 +356,8 @@ function JournalEntries() {
           </label>
 
           <div className="mt-5 overflow-hidden rounded-3xl border border-white/10">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-white/10 text-right text-sm" dir="rtl">
+            <div className="m1-table-container overflow-x-auto">
+              <table className="m1-table m1-table--compact min-w-full text-right text-sm" dir="rtl">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <Th className="text-right">{t("accounting.common.labels.reference")}</Th>
@@ -369,7 +369,7 @@ function JournalEntries() {
                     <Th className="text-right">{t("accounting.journal.labels.lines")}</Th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10 bg-zinc-950/70">
+                <tbody className="bg-zinc-950/70">
                   {loading ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-10 text-center text-zinc-400">
@@ -453,8 +453,8 @@ function JournalEntries() {
             <textarea value={formState.notes} onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))} rows={2} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
           </Field>
 
-          <div className="mt-5 overflow-x-auto">
-            <table className="min-w-[980px] w-full text-right text-sm" dir="rtl">
+          <div className="m1-table-container mt-5 overflow-x-auto">
+            <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
               <thead className="bg-white/5 text-zinc-400">
                 <tr>
                   <Th className="text-right">الحساب</Th>
@@ -464,7 +464,7 @@ function JournalEntries() {
                   <Th className="text-right">حذف</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody>
                 {formState.lines.map((line, index) => (
                   <tr key={index}>
                     <Td className="text-right">
@@ -557,8 +557,8 @@ function JournalEntries() {
           {previewResult.items.length === 0 ? (
             <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد نتائج معاينة حتى الآن.</div>
           ) : (
-            <div className="mt-5 overflow-x-auto">
-              <table className="min-w-[1120px] w-full text-right text-sm" dir="rtl">
+            <div className="m1-table-container mt-5 overflow-x-auto">
+              <table className="m1-table m1-table--compact min-w-[1120px] w-full text-right text-sm" dir="rtl">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <Th className="text-right">المصدر</Th>
@@ -570,7 +570,7 @@ function JournalEntries() {
                     <Th className="text-right">السبب</Th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10">
+                <tbody>
                   {previewResult.items.map((item, index) => (
                     <tr key={`${item.source_type}-${item.source_id}-${index}`}>
                       <Td className="text-right font-semibold text-white">{translateReferenceType(item.source_type)} #{item.source_id}</Td>
@@ -648,7 +648,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
             </div>
 
             <div className="mt-4 overflow-hidden rounded-3xl border border-white/10">
-              <table className="min-w-full divide-y divide-white/10 text-right text-sm" dir="rtl">
+              <table className="m1-table m1-table--compact min-w-full text-right text-sm" dir="rtl">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <Th className="text-right">{t("accounting.common.labels.account")}</Th>
@@ -658,7 +658,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
                     <Th className="text-right">{t("accounting.common.labels.notes")}</Th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10 bg-zinc-950/70">
+                <tbody className="bg-zinc-950/70">
                   {(entry.lines || []).map((line) => (
                     <tr key={line.id}>
                       <Td className="text-right">

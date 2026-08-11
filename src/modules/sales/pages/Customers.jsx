@@ -1042,8 +1042,8 @@ function Customers() {
             <h2 className="text-lg font-black text-white">{t("customers.table.title")}</h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px]">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact w-full min-w-[1080px]">
               <colgroup>
                 <col style={{ width: "30%", minWidth: "320px" }} />
                 <col style={{ width: "14%" }} />
@@ -1065,7 +1065,7 @@ function Customers() {
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-white/10">
+              <tbody>
                 {loading ? (
                   <tr>
                       <td colSpan="7" className="px-6 py-12 text-center text-sm font-black text-emerald-300">
@@ -1854,8 +1854,8 @@ function CustomerStatementDrawer({
               {statementError}
             </div>
           ) : null}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-sm">
+          <div className="m1-table-container overflow-x-auto">
+            <table className="m1-table m1-table--compact w-full min-w-[1180px] text-sm">
               <thead className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-xl">
                 <tr className="border-b border-white/10 text-right text-xs font-black text-zinc-400">
                   <th className="w-[150px] border-b border-l border-white/10 px-5 py-4 text-center">

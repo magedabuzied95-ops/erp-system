@@ -265,8 +265,8 @@ function Manufacturers() {
           </div>
 
           <div className="mt-6 overflow-hidden rounded-[28px] border border-white/8">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-white/8">
+            <div className="m1-table-container overflow-x-auto">
+              <table className="m1-table m1-table--compact min-w-full">
                 <thead className="bg-white/5">
                   <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
                     <Th>{t("products.manufacturers.name")}</Th>
@@ -280,7 +280,7 @@ function Manufacturers() {
                     <Th className="text-right">{t("products.table.actions")}</Th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/8 bg-zinc-950/60">
+                <tbody className="bg-zinc-950/60">
                   {loading ? (
                     <tr>
                       <td colSpan={9} className="px-5 py-12 text-center text-sm text-zinc-400">

@@ -347,8 +347,8 @@ function PurchaseDetails() {
 
       <section className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5">
         <h2 className="text-lg font-black text-white">{t("purchases.details.products")}</h2>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-[980px] w-full text-left text-sm">
+        <div className="m1-table-container mt-4 overflow-x-auto">
+          <table className="m1-table m1-table--compact min-w-[980px] w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-[0.16em] text-zinc-500">
               <tr>
                 <th className="py-3">{t("purchases.details.image")}</th>
@@ -361,7 +361,7 @@ function PurchaseDetails() {
                 <th>{t("purchases.details.state")}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody>
               {(purchase.items || []).map((item, index) => (
                 <tr key={item.id || item.line_id || index} className="text-zinc-200">
                   <td className="py-3"><PurchaseLineImage line={item} /></td>

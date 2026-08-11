@@ -705,8 +705,8 @@ function SimpleTable({ rows = [], columns = [], isArabic, compact = false }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[var(--border)]">
-      <table className={`min-w-full text-sm ${isArabic ? "text-right" : "text-left"}`}>
+    <div className="m1-table-container m1-table-container--plain overflow-x-auto rounded-2xl border border-[var(--border)]">
+      <table className={`m1-table m1-table--compact min-w-full text-sm ${isArabic ? "text-right" : "text-left"}`}>
         <thead className="bg-[var(--card)] text-[var(--muted)]">
           <tr>
             {columns.map((column) => (
@@ -716,7 +716,7 @@ function SimpleTable({ rows = [], columns = [], isArabic, compact = false }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-[var(--border)]">
+        <tbody>
           {normalizedRows.map((row, rowIndex) => (
             <tr key={row.id || row.key || row.reference || rowIndex} className="bg-[var(--surface)] text-[var(--text)]">
               {columns.map((column) => (

@@ -465,8 +465,8 @@ export default function InventoryApprovalsPage() {
                 </div>
 
                 <div className="mt-4 hidden overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/45 md:block">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-right text-sm">
+                  <div className="m1-table-container overflow-x-auto">
+                    <table className="m1-table m1-table--compact min-w-full text-right text-sm">
                       <thead className="bg-white/5 text-xs uppercase tracking-[0.18em] text-slate-300">
                         <tr>
                           <th className="px-4 py-3">المنتج</th>

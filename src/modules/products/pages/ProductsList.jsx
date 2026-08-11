@@ -1683,7 +1683,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                 })}
               </div>
               <div className="hidden">
-                <table className="min-w-full table-fixed text-left text-sm">
+                <table className="m1-table m1-table--compact min-w-full table-fixed text-left text-sm">
                   <thead className="sticky top-0 z-10 bg-zinc-950/95 text-[10px] uppercase tracking-[0.14em] text-zinc-500 backdrop-blur">
                     <tr>
                       <th className="w-28 px-3 py-2">{t("products.fields.color", "Color")}</th>
@@ -1692,7 +1692,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                       <th className="w-44 px-3 py-2">{t("products.priceEditor.discountPrice", "سعر السيل")}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/10">
+                  <tbody>
                     {form.variants.map((variant, index) => {
                       const changed = changedVariantIds.has(String(variant.id));
                       return (
@@ -3176,7 +3176,7 @@ function ProductsList() {
           </div>
 
           <div className="hidden w-full min-w-0 overflow-x-auto lg:block">
-            <table className="w-full table-fixed border-separate border-spacing-y-3">
+            <table className="m1-table m1-table--compact m1-table--separate w-full table-fixed border-separate">
               <colgroup>
                 <col className={PRODUCT_TABLE_COLUMNS.select} />
                 <col className={PRODUCT_TABLE_COLUMNS.product} />

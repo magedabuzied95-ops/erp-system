@@ -785,8 +785,8 @@ function ReportTable({ columns, rows, sort, setSort, loading }) {
     return <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm font-semibold text-zinc-400">No report rows match the current filters.</div>;
   }
   return (
-    <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
-      <table className="min-w-full text-left text-sm">
+    <div className="m1-table-container m1-table-container--plain mt-4 overflow-x-auto rounded-2xl border border-white/10">
+      <table className="m1-table m1-table--compact min-w-full text-left text-sm">
         <thead className="sticky top-0 bg-zinc-900 text-xs uppercase tracking-[0.14em] text-zinc-400">
           <tr>
             {columns.map((column) => (
@@ -803,7 +803,7 @@ function ReportTable({ columns, rows, sort, setSort, loading }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/10">
+        <tbody>
           {rows.map((row, rowIndex) => (
             <tr key={row.id || rowIndex} className="bg-zinc-950/40 transition hover:bg-white/[0.04]">
               {columns.map((column) => (

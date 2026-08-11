@@ -116,8 +116,8 @@ function Units() {
             </div>
           </div>
 
-          <div className="mt-6 overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-y-3">
+          <div className="m1-table-container mt-6 overflow-x-auto">
+            <table className="m1-table m1-table--compact m1-table--separate min-w-full border-separate ">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.22em] text-zinc-500">
                   <th className="px-4 py-2">{t("products.units.unit")}</th>

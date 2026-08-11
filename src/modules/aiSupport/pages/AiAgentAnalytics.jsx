@@ -105,12 +105,12 @@ function DataTable({ rows = [], columns = [], empty = "No rows." }) {
   const items = asArray(rows);
   if (!items.length) return <EmptyState text={empty} />;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[34rem] text-left text-sm">
+    <div className="m1-table-container overflow-x-auto">
+      <table className="m1-table m1-table--compact w-full min-w-[34rem] text-left text-sm">
         <thead className="text-xs uppercase tracking-[0.14em] text-slate-500">
           <tr>{columns.map((column) => <th key={column.key} className="px-3 py-2 font-black">{column.label}</th>)}</tr>
         </thead>
-        <tbody className="divide-y divide-white/10">
+        <tbody>
           {items.map((row, index) => (
             <tr key={row.id || row.product_id || row.objection || index}>
               {columns.map((column) => <td key={column.key} className="px-3 py-3 text-slate-200">{column.render ? column.render(row) : row[column.key]}</td>)}

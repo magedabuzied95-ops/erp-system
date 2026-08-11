@@ -919,8 +919,8 @@ function ProductDetails() {
                           </div>
                         ) : null}
 
-                        <div className="overflow-x-auto rounded-3xl border border-white/10">
-                          <table className="min-w-full border-separate border-spacing-0 text-sm">
+                        <div className="m1-table-container m1-table-container--plain overflow-x-auto rounded-3xl border border-white/10">
+                          <table className="m1-table m1-table--compact min-w-full text-sm">
                             <thead className="bg-white/5 text-zinc-400">
                               <tr>
                                 <th className="px-4 py-3 text-left">{t("products.fields.size", "Size")}</th>
@@ -1020,8 +1020,8 @@ function ProductDetails() {
               </div>
             ) : null}
 
-            <div className="mt-5 overflow-x-auto rounded-3xl border border-white/10">
-              <table className="min-w-full border-separate border-spacing-0 text-sm">
+            <div className="m1-table-container m1-table-container--plain mt-5 overflow-x-auto rounded-3xl border border-white/10">
+              <table className="m1-table m1-table--compact min-w-full text-sm">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <th className="px-4 py-3 text-left">{t("products.stock.date", "Date")}</th>
