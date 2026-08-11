@@ -1,5 +1,76 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   M1 CANONICAL DESIGN TOKENS — Tailwind semantic bridge (Phase 1)
+   ----------------------------------------------------------------------------
+   The CSS custom properties are the single source of truth. They are written at
+   runtime by src/theme/ThemeProvider.jsx from src/theme/themes.js (per theme and
+   per density), with base aliases in src/theme/foundation.css.
+
+   This block does NOT define colours. It only exposes the existing variables to
+   Tailwind so components can write `bg-surface` / `text-muted` / `border-border`
+   instead of hardcoding `bg-cyan-400`. Until now Tailwind had no way to reach the
+   tokens: this project is Tailwind v4 (CSS-first), so the legacy
+   `tailwind.config.js` `theme.extend` is inert — nothing loads it, because no
+   `@config` directive references it. That gap is a large part of why ~2,126
+   legacy cyan/blue/sky/indigo utilities exist: there was no token to reach for.
+
+   `@theme inline` is deliberate rather than plain `@theme`: it makes the
+   generated utilities emit `var(--surface)` instead of snapshotting the value at
+   build time, so ThemeProvider's runtime theme/density switching keeps working.
+
+   ADDITIVE ONLY: this creates new utility classes. No existing class changes, so
+   Phase 1 is visually neutral. Migrating call sites is Phase 4+.
+   ========================================================================== */
+@theme inline {
+  /* surfaces & text */
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-raised: var(--card);
+  --color-surface-hover: var(--surface-hover);
+  --color-text: var(--text);
+  --color-text-muted: var(--muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-text-inverse: var(--text-inverse);
+
+  /* borders */
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  /* brand — a semantic name, never a colour name, so the brand can be
+     re-pointed centrally in themes.js without touching any component */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-subtle: var(--primary-soft);
+  --color-primary-foreground: var(--primary-contrast);
+
+  /* status */
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-subtle: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-soft);
+
+  /* Shadows are deliberately NOT bridged. Tailwind's shadow namespace is
+     `--shadow-*`, which is exactly the name themes.js already writes at runtime
+     (--shadow-card / --shadow-overlay), so bridging them emits a circular
+     `--shadow-card: var(--shadow-card)` that invalidates the real variable.
+     Existing consumers keep using var(--shadow-card) directly; choosing a
+     non-colliding utility name is a Phase 2 decision.
+
+     Colours avoid this because Tailwind namespaces them `--color-*` while
+     themes.js uses bare names (surface, primary, …). */
+
+  /* typography — the Arabic/English stack is selected by dir/lang in
+     foundation.css; this only exposes it to Tailwind */
+  --font-ui: var(--app-font);
+}
+
 @layer base {
   :root {
     --bg: #f3f3f1;

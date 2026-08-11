@@ -11,6 +11,24 @@
     --shadow-popover: var(--shadow-overlay);
     --page-inline: clamp(12px, 2.1vw, 30px);
     --content-max: 1480px;
+    /* Phase 1 semantic aliases. Each is derived from a value both themes already
+       ship, so they add no new colour and cause no visual change — they exist so
+       components have a token to migrate to instead of hardcoding a palette
+       class. --text-subtle is the third text level below --text and --muted. */
+    --text-subtle: var(--border-strong);
+    --text-inverse: var(--surface);
+    --surface-raised: var(--card);
+    /* Density: --control-height already switches via .theme-density-compact
+       (ThemeProvider). Table row density gets the same treatment so the Employee
+       Portal can run compact without forking the design system. */
+    --row-height: 44px;
+    --toolbar-height: 56px;
+  }
+
+  /* Compact density profile — same design system, approved denser profile. */
+  body.theme-density-compact {
+    --row-height: 36px;
+    --toolbar-height: 48px;
   }
 
   html[dir="rtl"], html[data-language="ar"] { --app-font: var(--font-ar); }
