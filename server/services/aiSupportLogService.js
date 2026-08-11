@@ -2292,7 +2292,18 @@ export const updateAiSupportMessageDeliveryStatus = async ({
     `
     UPDATE ai_support_messages
     SET
-      delivery_status = COALESCE(NULLIF($4, ''), delivery_status),
+      delivery_status = (
+        CASE
+          WHEN NULLIF($4, '') IS NULL THEN delivery_status
+          WHEN lower($4) = 'failed' THEN
+            CASE WHEN (CASE lower(COALESCE(delivery_status, '')) WHEN 'delivered' THEN 3 WHEN 'read' THEN 4 ELSE 0 END) >= 3
+                 THEN delivery_status ELSE 'failed' END
+          WHEN (CASE lower($4) WHEN 'pending' THEN 0 WHEN 'sending' THEN 1 WHEN 'sent' THEN 2 WHEN 'delivered' THEN 3 WHEN 'read' THEN 4 WHEN 'failed' THEN 2 ELSE 0 END)
+             > (CASE lower(COALESCE(delivery_status, '')) WHEN 'pending' THEN 0 WHEN 'sending' THEN 1 WHEN 'sent' THEN 2 WHEN 'delivered' THEN 3 WHEN 'read' THEN 4 WHEN 'failed' THEN 2 ELSE 0 END)
+            THEN $4
+          ELSE delivery_status
+        END
+      ),
       delivery_error = COALESCE(NULLIF($5, ''), delivery_error),
       error_code = COALESCE(NULLIF($6, ''), error_code),
       external_message_id = COALESCE(NULLIF($3, ''), external_message_id),

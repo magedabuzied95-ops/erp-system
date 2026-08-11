@@ -39,6 +39,7 @@ import { listTriggers } from "../services/aiWorkflowTriggerRegistry.js";
 import { listRecoveries, getRecoveryCounts } from "../services/aiRestockRecoveryService.js";
 import { createIntent, listIntents, cancelIntent, markIntentFulfilled, getIntentCounts } from "../services/restockIntentService.js";
 import { listNotifications, getNotification, getNotificationCounts, editNotificationDraft, rejectNotification, sendApprovedRestockNotification, getMessagingMode, setMessagingMode } from "../services/restockNotificationService.js";
+import { getDeliveryCounts, listUnmatchedDeliveryEvents } from "../services/messageDeliveryReconciliationService.js";
 
 const router = express.Router();
 
@@ -123,9 +124,18 @@ router.post("/restock-messaging/mode", protect, permit("settings", "edit"), asyn
 });
 router.get("/restock-notifications", protect, permit("settings", "view"), async (req, res) => {
   try {
-    const [notifications, counts, mode] = await Promise.all([listNotifications(tid(req), { status: req.query.status || null, limit: req.query.limit }), getNotificationCounts(tid(req)), getMessagingMode(tid(req))]);
-    res.json({ success: true, notifications, counts, mode });
+    const [notifications, counts, mode, deliveryCounts] = await Promise.all([
+      listNotifications(tid(req), { status: req.query.status || null, limit: req.query.limit }),
+      getNotificationCounts(tid(req)),
+      getMessagingMode(tid(req)),
+      getDeliveryCounts(tid(req)),
+    ]);
+    res.json({ success: true, notifications, counts, mode, deliveryCounts });
   } catch (error) { fail(res, error); }
+});
+// Phase 9 observability: provider delivery events that could not be correlated to a known message.
+router.get("/restock-notifications/unmatched-events", protect, permit("settings", "view"), async (req, res) => {
+  try { res.json({ success: true, events: await listUnmatchedDeliveryEvents(tid(req), { limit: req.query.limit }) }); } catch (error) { fail(res, error); }
 });
 router.get("/restock-notifications/:id", protect, permit("settings", "view"), async (req, res) => {
   try {

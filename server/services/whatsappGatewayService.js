@@ -3427,10 +3427,20 @@ const isEvolutionStatusUpdatePayload = (payload = {}, envelope = null) => getEvo
 const normalizeEvolutionDeliveryStatus = (value = "") => {
   const status = text(value).toLowerCase();
   if (!status) return "sent";
-  if (status.includes("delivery_ack") || status === "ack" || status === "sent") return "sent";
+  // Baileys numeric ack levels: 0 pending, 1 server-ack (sent), 2 delivery-ack (delivered), 3 read, 4 played (read).
+  if (/^\d+$/.test(status)) {
+    const n = Number(status);
+    if (n <= 0) return "pending";
+    if (n === 1) return "sent";
+    if (n === 2) return "delivered";
+    return "read"; // 3 read, 4 played
+  }
+  // delivery_ack retains its established mapping to "sent"; failure keywords are checked before "deliver"
+  // so "undeliverable" is a failure (not a delivery). Read before deliver is harmless (no overlap).
+  if (status.includes("delivery_ack") || status === "ack" || status === "server_ack" || status === "sent") return "sent";
+  if (status.includes("read") || status === "played") return "read";
+  if (status.includes("fail") || status.includes("error") || status.includes("reject") || status.includes("undeliver")) return "failed";
   if (status.includes("deliver")) return "delivered";
-  if (status.includes("read")) return "read";
-  if (status.includes("fail") || status.includes("error")) return "failed";
   return status;
 };
 
@@ -3524,6 +3534,21 @@ const processEvolutionStatusUpdate = async (payload = {}) => {
     delivery_status: updated?.delivery_status || "",
     session_id: updated?.session_id || sessionId,
   });
+  // Phase 9: reconcile the same status onto the restock-notification delivery projection + event ledger
+  // (persistent idempotency, monotonic). Failure-isolated — never affects inbound/webhook handling.
+  try {
+    const { reconcileOutboundMessageStatus } = await import("./messageDeliveryReconciliationService.js");
+    await reconcileOutboundMessageStatus({
+      tenantId: tenantIdForWhatsapp(payload),
+      channel: "whatsapp",
+      providerMessageId,
+      providerStatus: deliveryStatus,
+      occurredAt: statusItem?.timestamp || data?.messageTimestamp || null,
+      metadata: { remote_jid: remoteJid, instance: whatsappInstance },
+    });
+  } catch (reconcileError) {
+    console.error("[whatsapp:evolution-status-reconcile-error]", { provider_message_id: providerMessageId, error: String(reconcileError?.message || reconcileError).slice(0, 160) });
+  }
   return { updated: Boolean(updated), row: updated || null, providerMessageId, deliveryStatus, remoteJid, sessionId, resolvedPhone };
 };
 

@@ -43,5 +43,7 @@ export const getRestockNotifications = (headers, status = null) => api.get(`${BA
 export const editRestockNotification = (id, text, headers) => api.post(`${BASE}/restock-notifications/${encodeURIComponent(id)}/edit`, { text }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const rejectRestockNotification = (id, reason, headers) => api.post(`${BASE}/restock-notifications/${encodeURIComponent(id)}/reject`, { reason }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const approveSendRestockNotification = (id, headers) => api.post(`${BASE}/restock-notifications/${encodeURIComponent(id)}/approve-send`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+// Phase 9 — delivery reconciliation observability.
+export const getRestockUnmatchedDeliveryEvents = (headers) => api.get(`${BASE}/restock-notifications/unmatched-events`, opts(headers));
 export const getAutomationTimezone = (headers) => api.get(`${BASE}/automation/timezone`, opts(headers));
 export const setAutomationTimezone = (timezone, headers) => api.post(`${BASE}/automation/timezone`, { timezone }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
