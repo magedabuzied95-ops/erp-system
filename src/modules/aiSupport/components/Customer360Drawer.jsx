@@ -102,6 +102,23 @@ const TabButton = ({ active, children, onClick }) => (
   </button>
 );
 
+// A Messenger lead can have its stored name be the customer's first message
+// (e.g. "ممكن صور جوردن فور") in tables the messenger-name-repair didn't touch (the
+// customers profile record). Detect that so the fetched profile can't clobber the correct
+// conversation-derived name/avatar with a message placeholder.
+const MESSAGE_LIKE_NAME_KEYWORDS = /(السلام عليكم|سلام عليكم|عليكم السلام|ممكن|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|بكام|بكاام|وريني|ورينى|ابعت|ابعتلي|ابعتلى|هاتلي|هاتلى|فين|متاح|السعر|سعر|المقاس|مقاس|اللون|لون|صوره|صور|عندكم|عندكو|available|price|size|color)/i;
+const looksLikeMessageName = (value = "") => {
+  const normalized = clean(value);
+  if (!normalized) return false;
+  if (normalized.length > 40) return true;
+  if (/[?!؟…]/.test(normalized)) return true;
+  return MESSAGE_LIKE_NAME_KEYWORDS.test(normalized);
+};
+const isRealCustomerName = (value = "") => {
+  const normalized = clean(value);
+  return Boolean(normalized) && normalized.toLowerCase() !== "customer" && !looksLikeMessageName(normalized);
+};
+
 const fallbackCustomerProfile = (customer = {}, context = {}) => {
   const profile = customer?.customer_profile || customer?.profile || {};
   return {
@@ -217,9 +234,16 @@ export default function Customer360Drawer({
           created_at: order.created_at || order.date,
           status: order.status || "open",
         }));
+        const fetchedProfile = fallbackCustomerProfile(data.customer || customerProfile || customer || {}, { ...context, customerId: id });
         setProfileData((current) => ({
           ...current,
-          ...fallbackCustomerProfile(data.customer || customerProfile || customer || {}, { ...context, customerId: id }),
+          ...fetchedProfile,
+          // Never let a stale/message-placeholder profile record clobber a good name or
+          // avatar already resolved from the conversation.
+          name: isRealCustomerName(fetchedProfile.name)
+            ? fetchedProfile.name
+            : (isRealCustomerName(current.name) ? current.name : (fetchedProfile.name || current.name)),
+          avatar_url: clean(fetchedProfile.avatar_url) || clean(current.avatar_url) || "",
           metrics: data.metrics || current.metrics,
           orders: loadedOrders.length ? loadedOrders : current.orders,
           products: {
