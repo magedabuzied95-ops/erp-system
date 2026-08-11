@@ -93,7 +93,14 @@ const manager = read("src/modules/managerPortal/pages/ManagerPortal.jsx");
 
 // Comments are stripped: several of these components carry a note quoting the
 // fixed colour they used to hardcode, and that must not read as a violation.
-const stripComments = (s) => s.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+//
+// The `\/\*` is anchored to line-start / whitespace / `{` on purpose. A bare
+// /\/\*[\s\S]*?\*\// also matches the `/*` inside `accept="image/*"`, and then
+// runs to the next real `*/` — in CreateProduct that silently deleted ~300 lines
+// of markup from the text under test and turned these assertions green by
+// deleting their evidence.
+const stripComments = (s) =>
+  s.replace(/^\s*\/\/.*$/gm, "").replace(/(^|[\s{])\/\*[\s\S]*?\*\//g, "$1");
 
 const component = (src, name) => {
   const start = src.indexOf(`const ${name} = (`);
@@ -150,4 +157,75 @@ test("the Manager page shell is a token surface, not a fixed gradient", () => {
 test("the ManagerPortal paint-over shim is still present for the un-migrated call sites", () => {
   const shim = read("src/modules/managerPortal/pages/ManagerPortal.m1.css");
   assert.match(shim, /\.manager-portal-shell/);
+});
+
+// ---------------------------------------------------------------------------
+// Step 5 — CreateProduct fixed-dark surface model
+//
+// CreateProduct had no shared surface constant to migrate: it was ~480 fixed-DARK
+// utilities (bg-zinc-950, bg-[#10172a], border-white/10, text-white, text-zinc-*)
+// spread across 4,277 lines with ZERO `dark:` variants — a page hard-wired to a
+// dark theme inside an app that ships a light one. The whole page is the seam,
+// so it was swept as one coherent surface system.
+// ---------------------------------------------------------------------------
+
+const createProduct = read("src/modules/products/pages/CreateProduct.jsx");
+const createProductCode = stripComments(createProduct);
+
+test("CreateProduct no longer hardcodes a fixed-dark surface palette", () => {
+  const leftovers = createProductCode.match(
+    /\b(?:bg|text|border|ring|divide)-(?:zinc|slate|gray|neutral|stone)-\d+(?:\/[\d.[\]]+)?/g,
+  );
+  assert.equal(leftovers, null, `fixed-dark neutrals survived: ${[...new Set(leftovers ?? [])].join(", ")}`);
+});
+
+test("CreateProduct has no raw hex or rgb colours left", () => {
+  const raw = createProductCode.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(/g);
+  assert.equal(raw, null, `raw colours survived: ${[...new Set(raw ?? [])].join(", ")}`);
+});
+
+test("CreateProduct's translucent white surfaces and borders are tokens", () => {
+  assert.doesNotMatch(createProductCode, /\bbg-white\/[\d.[\]]/, "bg-white/N is a fixed surface");
+  assert.doesNotMatch(createProductCode, /\bborder-white\/[\d.[\]]/, "border-white/N is a fixed border");
+  assert.doesNotMatch(createProductCode, /\bring-white\/[\d.[\]]/, "ring-white/N is a fixed ring");
+});
+
+test("CreateProduct keeps exactly the white fills that are NOT surfaces", () => {
+  // Open Graph / product image mattes (product photography is shot on white) and
+  // the barcode bars, whose white-on-black contrast is a scannability contract.
+  // A future sweep must not "finish the job" by theming these.
+  // 4 image mattes + 1 barcode bar + the toggle knob.
+  const plainWhite = createProductCode.match(/\bbg-white(?![-/\w])/g) ?? [];
+  assert.equal(plainWhite.length, 6, `expected the 6 deliberate white fills, found ${plainWhite.length}`);
+  assert.match(createProduct, /Deliberate white matte, NOT a surface/);
+  assert.match(createProduct, /Barcode bars/);
+});
+
+test("CreateProduct's toggle off-track stays visible under the plain-white knob", () => {
+  // bg-surface-soft here would leave a white knob on a near-white track in the
+  // light theme. border-strong reads in both.
+  assert.match(createProduct, /"bg-emerald-400" : "bg-\[var\(--border-strong\)\]"/);
+});
+
+test("CreateProduct's elevation is token-driven, not tuned for a black page", () => {
+  assert.doesNotMatch(createProductCode, /shadow-\[0[^\]]*rgba\(/, "a fixed-dark drop shadow survived");
+  assert.match(createProduct, /shadow-\[var\(--shadow-card\)\]/);
+  assert.match(createProduct, /shadow-\[var\(--shadow-overlay\)\]/);
+});
+
+test("text-white survives ONLY where it is a foreground on a saturated status fill", () => {
+  const SATURATED =
+    /\b(?:bg|from|via|to)-(?:emerald|teal|green|amber|orange|rose|red|sky|cyan|blue|indigo|violet|purple|fuchsia|pink)-\d/;
+  for (const line of createProductCode.split("\n")) {
+    if (!/\btext-white\b/.test(line)) continue;
+    assert.ok(SATURATED.test(line), `text-white on a non-fill line is fixed-dark debt:\n${line.trim()}`);
+  }
+});
+
+test("the CreateProduct submit-safety boundary is untouched by the sweep", () => {
+  // b43b74c. The canonical Button defaults to type="button"; losing any of these
+  // three breaks product creation silently. tests/create-product-submit-safety
+  // is the real guard — this is a tripwire so a surface sweep cannot drift past it.
+  assert.equal((createProduct.match(/type="submit"/g) ?? []).length, 3);
+  assert.equal((createProduct.match(/<form\b/g) ?? []).length, 1);
 });
