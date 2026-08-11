@@ -494,6 +494,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const inStock = params.get("inStock") || "";
   const quality = params.get("quality") || "";
   const productType = seoCategory?.apiFilters?.product_type || normalizeStorefrontProductTypeValue(params.get("product_type") || typeParam || "");
+  const isCrocsListing = normalizeStorefrontProductTypeValue(productType) === "crocs";
   const bagType = normalizeFilterKey(params.get("bag_type") || "");
   const selectedType = productType || "";
   const grade = params.get("grade") || "";
@@ -529,7 +530,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       product_type: productType || "",
       grade: grade || "",
       quality: quality || "",
-      size: selectedSizes.length === 1 ? selectedSizes[0] : "",
+      // Crocs filters use customer-facing EU labels while inventory keeps the
+      // original factory marking, so filter those variants client-side.
+      size: selectedSizes.length === 1 && !isCrocsListing ? selectedSizes[0] : "",
       inStock: truthyFlag(inStock) ? 1 : "",
       large_sizes: seoCategory?.largeSizes ? 1 : "",
       offer_story: saleView ? 1 : "",
@@ -537,7 +540,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       limit: SEO_PAGE_SIZE,
       offset: (page - 1) * SEO_PAGE_SIZE,
     }),
-    [backendSearchTerm, brand, category, gender, grade, inStock, page, productType, quality, saleView, selectedSizes, sort, seoCategory?.largeSizes]
+    [backendSearchTerm, brand, category, gender, grade, inStock, isCrocsListing, page, productType, quality, saleView, selectedSizes, sort, seoCategory?.largeSizes]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error, total: backendTotal } = useProducts(productsApiParams);

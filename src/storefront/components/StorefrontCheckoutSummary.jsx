@@ -49,7 +49,7 @@ const cartItemImageUrl = (item = {}) =>
 const cartItemName = (item = {}) => firstSummaryValue(item.name, item.product_name, item.title, "المنتج");
 const cartItemSku = (item = {}) => firstSummaryValue(item.sku, item.barcode);
 const cartItemColor = (item = {}) => firstSummaryValue(item.color, item.color_name, item.selectedColor);
-const cartItemSize = (item = {}) => firstSummaryValue(item.size, item.size_name, item.selectedSize);
+const cartItemSize = (item = {}) => firstSummaryValue(item.display_size, item.size, item.size_name, item.selectedSize);
 const cartItemQuantity = (item = {}) => firstSummaryNumber(item.quantity, item.qty) || 1;
 const cartItemUnitPrice = (item = {}) => firstSummaryNumber(item.price, item.unit_price, item.selling_price);
 

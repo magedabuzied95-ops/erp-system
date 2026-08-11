@@ -69,7 +69,13 @@ import {
 import { api } from "../shared/api/api";
 import { API_BASE_URL } from "../shared/constants/app";
 import { resolveProductImageUrl } from "../shared/lib/imageUrls";
-import { compareCrocsSizes, isKnownCrocsSize } from "../shared/lib/crocsSizes";
+import {
+  buildCrocsStorefrontSizeOptions,
+  compareCrocsSizes,
+  isCrocsProduct,
+  isKnownCrocsSize,
+  resolveCrocsEuSize,
+} from "../shared/lib/crocsSizes";
 import { clearStorefrontCustomerAuth, readStorefrontCustomerAuth, storefrontCustomerRequest } from "./lib/storefrontCustomerAuth";
 import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
 import useDismissableLayer from "../shared/hooks/useDismissableLayer";
@@ -1634,18 +1640,37 @@ const getActiveColorGroup = (product = {}, selectedColorId = "") => {
   }
   return groups[0] || null;
 };
-const getSizesForColorGroup = (activeColorGroup = {}) => {
+const getSizesForColorGroup = (activeColorGroup = {}, product = {}) => {
+  const variants = Array.isArray(activeColorGroup?.variants) ? activeColorGroup.variants : [];
+  if (isCrocsProduct(product)) {
+    return buildCrocsStorefrontSizeOptions(variants.filter(variantHasStock)).map((option) => ({
+      size: option.displaySize,
+      originalSize: option.originalSize,
+      collision: option.collision,
+      variant: option.variant,
+    }));
+  }
   const sizes = new Map();
-  (Array.isArray(activeColorGroup?.variants) ? activeColorGroup.variants : []).forEach((variant) => {
+  variants.forEach((variant) => {
     const size = String(variant?.size || "").trim();
     if (!size || !variantHasStock(variant) || sizes.has(size)) return;
     sizes.set(size, { size, variant });
   });
   return Array.from(sizes.values());
 };
-const getSizeOptionsForColorGroup = (activeColorGroup = {}) => {
+const getSizeOptionsForColorGroup = (activeColorGroup = {}, product = {}) => {
+  const variants = Array.isArray(activeColorGroup?.variants) ? activeColorGroup.variants : [];
+  if (isCrocsProduct(product)) {
+    return buildCrocsStorefrontSizeOptions(variants).map((option) => ({
+      size: option.displaySize,
+      originalSize: option.originalSize,
+      collision: option.collision,
+      variant: option.variant,
+      hasStock: variantHasStock(option.variant),
+    }));
+  }
   const sizes = new Map();
-  (Array.isArray(activeColorGroup?.variants) ? activeColorGroup.variants : []).forEach((variant) => {
+  variants.forEach((variant) => {
     const size = String(variant?.size || "").trim();
     if (!size || sizes.has(size)) return;
     sizes.set(size, { size, variant, hasStock: variantHasStock(variant) });
@@ -4298,8 +4323,9 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
 const productHasAvailableSize = (product = {}, size = "") => {
   const target = String(size || "").trim().toLowerCase();
   if (!target) return true;
+  const crocsProduct = isCrocsProduct(product);
   return (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
-    String(variant?.size || "").trim().toLowerCase() === target && variantHasStock(variant)
+    String(crocsProduct ? resolveCrocsEuSize(variant?.size) : variant?.size || "").trim().toLowerCase() === target && variantHasStock(variant)
   );
 };
 
@@ -4307,7 +4333,8 @@ const buildAvailableSizeOptions = (products = []) => {
   const sizes = new Map();
   for (const product of Array.isArray(products) ? products : []) {
     for (const variant of Array.isArray(product?.variants) ? product.variants : []) {
-      const size = String(variant?.size || "").trim();
+      const originalSize = String(variant?.size || "").trim();
+      const size = isCrocsProduct(product) ? resolveCrocsEuSize(originalSize) : originalSize;
       if (!size) continue;
       const current = sizes.get(size) || { size, available: false, stock: 0, productCount: 0 };
       const stock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
@@ -5894,7 +5921,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const comparePrice = pricing.comparePrice && pricing.comparePrice > sellingPrice ? pricing.comparePrice : 0;
   const discountPercent = pricing.isOnSale ? pricing.discountPercent || 0 : 0;
   const activeSizes = useMemo(
-    () => providedAvailableSizes || getSizesForColorGroup(activeColorGroup),
+    () => providedAvailableSizes || getSizesForColorGroup(activeColorGroup, product),
     [activeColorGroup, providedAvailableSizes]
   );
   const visibleSizes = useMemo(() => {
@@ -6006,7 +6033,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   useEffect(() => {
     if (!selectedVariantId || !activeSizes.length) return;
     if (activeSizes.some((item) => String(item.variant?.id) === String(selectedVariantId))) return;
-    const nextVariant = activeSizes.find((item) => String(item.size) === String(selectedVariant?.size))?.variant || activeSizes[0]?.variant;
+    const nextVariant = activeSizes.find((item) => String(item.originalSize || item.size) === String(selectedVariant?.size))?.variant || activeSizes[0]?.variant;
     if (nextVariant?.id) setSelectedVariantId(nextVariant.id);
   }, [activeSizes, selectedVariant?.size, selectedVariantId]);
   const quickAddActiveGroup = useMemo(
@@ -6014,8 +6041,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     [colorGroups, quickAddColorKey]
   );
   const quickAddSizeOptions = useMemo(
-    () => getSizeOptionsForColorGroup(quickAddActiveGroup),
-    [quickAddActiveGroup]
+    () => getSizeOptionsForColorGroup(quickAddActiveGroup, product),
+    [product, quickAddActiveGroup]
   );
   const quickAddSelectedVariant = useMemo(
     () => quickAddSizeOptions.find((item) => String(item.variant?.id) === String(quickAddVariantId))?.variant || null,
@@ -6025,14 +6052,14 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const canQuickAdd = sellableVariants.length > 0;
   const openVariantSheet = useCallback(() => {
     const nextGroup = colorGroups.length === 1 ? colorGroups[0] : null;
-    const nextSizes = getSizeOptionsForColorGroup(nextGroup);
+    const nextSizes = getSizeOptionsForColorGroup(nextGroup, product);
     const availableSizes = nextSizes.filter((item) => variantHasStock(item.variant));
     const nextVariant = availableSizes.length === 1 ? availableSizes[0]?.variant : null;
     setQuickAddColorKey(nextGroup?.key || "");
     setQuickAddVariantId(nextVariant?.id || "");
     setQuickAddQty(1);
     setQuickAddOpen(true);
-  }, [colorGroups]);
+  }, [colorGroups, product]);
   const closeVariantSheet = useCallback(() => {
     setQuickAddOpen(false);
     setQuickAddColorKey("");
@@ -6045,13 +6072,13 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [closeVariantSheet, onAddToCart, product]);
   const handleQuickAddColorChange = useCallback((colorKey) => {
     const nextGroup = colorGroups.find((group) => String(group.key) === String(colorKey)) || null;
-    const nextSizes = getSizeOptionsForColorGroup(nextGroup);
+    const nextSizes = getSizeOptionsForColorGroup(nextGroup, product);
     const availableSizes = nextSizes.filter((item) => variantHasStock(item.variant));
-    const currentSize = nextSizes.find((item) => String(item.variant?.id) === String(quickAddVariantId))?.size
+    const currentSize = quickAddSizeOptions.find((item) => String(item.variant?.id) === String(quickAddVariantId))?.originalSize
       || quickAddSizeOptions.find((item) => String(item.variant?.id) === String(quickAddVariantId))?.size
       || "";
     const sizeMatch = currentSize
-      ? nextSizes.find((item) => String(item.size) === String(currentSize) && variantHasStock(item.variant))?.variant || null
+      ? nextSizes.find((item) => String(item.originalSize || item.size) === String(currentSize) && variantHasStock(item.variant))?.variant || null
       : null;
     const nextVariant = sizeMatch
       || (availableSizes.length === 1
@@ -6060,7 +6087,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setQuickAddColorKey(nextGroup?.key || "");
     setQuickAddVariantId(nextVariant?.id || "");
     setQuickAddQty(1);
-  }, [colorGroups, quickAddSizeOptions, quickAddVariantId]);
+  }, [colorGroups, product, quickAddSizeOptions, quickAddVariantId]);
   const handleQuickAddVariantChange = useCallback((variantId) => {
     setQuickAddVariantId(variantId);
     setQuickAddQty(1);
@@ -6303,7 +6330,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               const selected = String(availableVariant?.id) === String(variant?.id);
               return (
                 <button
-                  key={`${activeColorGroup?.key || "default"}-${size}`}
+                  key={`${activeColorGroup?.key || "default"}-${variant?.id || size}`}
                   type="button"
                   onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
                   className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 active:translate-y-[1px] active:scale-[0.98] md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d4af37] bg-[linear-gradient(135deg,#d4af37,#d4af37)] text-white shadow-[0_8px_18px_rgba(212,175,55,0.12)] ring-1 ring-[#f3d77a]/12 dark:border-[#f3d77a] dark:bg-[linear-gradient(135deg,#e5c158,#d4af37)] dark:text-white dark:ring-[#f3d77a]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d4af37]/35 hover:bg-[#faf7ff] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#f3d77a]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
@@ -6384,8 +6411,8 @@ function ProductCardVariantSheet({
     [colorGroups, selectedColorKey]
   );
   const sizeOptions = useMemo(
-    () => getSizeOptionsForColorGroup(activeGroup),
-    [activeGroup]
+    () => getSizeOptionsForColorGroup(activeGroup, product),
+    [activeGroup, product]
   );
   const availableSizeOptions = useMemo(
     () => sizeOptions.filter((item) => variantHasStock(item.variant)),
@@ -6504,7 +6531,7 @@ function ProductCardVariantSheet({
             {activeGroup ? (
               <>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {sizeOptions.map(({ size, variant, hasStock }) => {
+                  {sizeOptions.map(({ size, originalSize, collision, variant, hasStock }) => {
                     const active = String(variant?.id) === String(selectedVariant?.id);
                     return (
                       <button
@@ -6515,9 +6542,10 @@ function ProductCardVariantSheet({
                           onVariantChange(variant.id);
                         }}
                         disabled={!hasStock}
-                        className={`min-h-11 rounded-2xl border text-sm font-black transition ${active ? "border-[#f3d77a]/70 bg-[#d4af37] text-white shadow-[0_12px_28px_rgba(212,175,55,0.24)]" : hasStock ? "border-white/10 bg-white/[0.055] text-white/80 hover:border-[#d4af37]/35 hover:bg-white/[0.08]" : "cursor-not-allowed border-white/[0.08] bg-white/[0.03] text-white/25 line-through opacity-60"}`}
+                        className={`min-h-11 rounded-2xl border px-1 text-sm font-black transition ${active ? "border-[#f3d77a]/70 bg-[#d4af37] text-white shadow-[0_12px_28px_rgba(212,175,55,0.24)]" : hasStock ? "border-white/10 bg-white/[0.055] text-white/80 hover:border-[#d4af37]/35 hover:bg-white/[0.08]" : "cursor-not-allowed border-white/[0.08] bg-white/[0.03] text-white/25 line-through opacity-60"}`}
                       >
-                        {size || t("storefront.products.oneSize", "مقاس واحد")}
+                        <span className="block">{size || t("storefront.products.oneSize", "مقاس واحد")}</span>
+                        {collision && originalSize !== size ? <span className="mt-0.5 block text-[9px] font-bold opacity-65">{originalSize}</span> : null}
                       </button>
                     );
                   })}
@@ -9571,7 +9599,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
         </div>
         <div className="min-w-0 flex-1 self-stretch">
           <h3 className="line-clamp-2 break-words text-sm font-black leading-5 text-white">{item.name}</h3>
-          <p className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-xs font-bold text-white/58">{item.color || sfText("storefront.products.color")} / {item.size || sfText("storefront.products.size")}</p>
+          <p className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-xs font-bold text-white/58">{item.color || sfText("storefront.products.color")} / {item.display_size || item.size || sfText("storefront.products.size")}</p>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-black text-white">
             {displayCartItemComparePrice(item) ? <span className="text-xs text-white/38 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
             <span>{money(displayCartItemPrice(item))}</span>
@@ -10000,6 +10028,8 @@ const normalizeCartLine = (product = {}, variant = {}, quantity = 1) => {
   const image = variantImage(variant) || displayImageForProduct(product, variant) || product.image_url || product.product_image_url || "";
   const price = displaySellingPrice(product, variant);
   const compareAtPrice = displayComparePrice(product, variant);
+  const originalSize = String(variant.size || "").trim();
+  const displaySize = isCrocsProduct(product) ? resolveCrocsEuSize(originalSize) : originalSize;
   return {
     lineId: [
       product.id || product.slug || product.name || "product",
@@ -10016,7 +10046,9 @@ const normalizeCartLine = (product = {}, variant = {}, quantity = 1) => {
     image_url: image,
     product_image: image,
     color: variantColorName(variant) || variant.color || "",
-    size: variant.size || "",
+    size: originalSize,
+    display_size: displaySize,
+    factory_size: originalSize,
     quantity: Math.max(1, Number(quantity || 1)),
     price,
     sale_price: price,
