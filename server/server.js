@@ -614,6 +614,7 @@ const { default: aiWorkflowRoutes } = await import("./routes/aiWorkflows.js");
 const { ensureAiWorkflowSchema } = await import("./services/aiWorkflowSchema.js");
 const { ensureRestockRecoverySchema } = await import("./services/aiRestockRecoveryService.js");
 const { ensureRestockIntentSchema } = await import("./services/restockIntentService.js");
+const { ensureRestockNotificationSchema } = await import("./services/restockNotificationService.js");
 const { default: socialCommentsRoutes, socialCommentsDebugRoutes } = await import("./routes/socialComments.js");
 const { default: metaIntegrationRoutes, metaWebhookRoutes, handleMetaWebhookVerification, handleMetaWebhookSelfTest } = await import("./routes/metaIntegration.js");
 const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.js");
@@ -2292,6 +2293,8 @@ const bootstrapStartup = async () => {
     console.log("[server] ai restock recovery schema ensured");
     await ensureRestockIntentSchema(db);
     console.log("[server] restock intent schema ensured");
+    await ensureRestockNotificationSchema(db);
+    console.log("[server] restock notification schema ensured");
     await ensureProductVariantSchema();
     console.log("[server] product variant schema ensured");
     await ensureProductVariantImagesSchema(db);

@@ -38,6 +38,7 @@ import {
 import { listTriggers } from "../services/aiWorkflowTriggerRegistry.js";
 import { listRecoveries, getRecoveryCounts } from "../services/aiRestockRecoveryService.js";
 import { createIntent, listIntents, cancelIntent, markIntentFulfilled, getIntentCounts } from "../services/restockIntentService.js";
+import { listNotifications, getNotification, getNotificationCounts, editNotificationDraft, rejectNotification, sendApprovedRestockNotification, getMessagingMode, setMessagingMode } from "../services/restockNotificationService.js";
 
 const router = express.Router();
 
@@ -110,6 +111,38 @@ router.post("/restock-intents/:id/cancel", protect, permit("settings", "edit"), 
 });
 router.post("/restock-intents/:id/fulfil", protect, permit("settings", "edit"), async (req, res) => {
   try { res.json({ success: true, intent: await markIntentFulfilled(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
+});
+
+// ---- Phase 8: Human-approved customer restock messaging ----
+const maskRecipient = (r) => (r ? `${String(r).slice(0, 2)}***${String(r).slice(-2)}` : null);
+router.get("/restock-messaging/mode", protect, permit("settings", "view"), async (req, res) => {
+  try { res.json({ success: true, mode: await getMessagingMode(tid(req)) }); } catch (error) { fail(res, error); }
+});
+router.post("/restock-messaging/mode", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, mode: await setMessagingMode(tid(req), String(req.body?.mode || ""), uid(req)) }); } catch (error) { fail(res, error); }
+});
+router.get("/restock-notifications", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const [notifications, counts, mode] = await Promise.all([listNotifications(tid(req), { status: req.query.status || null, limit: req.query.limit }), getNotificationCounts(tid(req)), getMessagingMode(tid(req))]);
+    res.json({ success: true, notifications, counts, mode });
+  } catch (error) { fail(res, error); }
+});
+router.get("/restock-notifications/:id", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const n = await getNotification(tid(req), req.params.id);
+    if (!n) return res.status(404).json({ success: false, message: "Not found" });
+    res.json({ success: true, notification: { ...n, recipient_reference: maskRecipient(n.recipient_reference) } });
+  } catch (error) { fail(res, error); }
+});
+router.post("/restock-notifications/:id/edit", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, notification: await editNotificationDraft(tid(req), req.params.id, String(req.body?.text || ""), uid(req)) }); } catch (error) { fail(res, error); }
+});
+router.post("/restock-notifications/:id/reject", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, notification: await rejectNotification(tid(req), req.params.id, { userId: uid(req), reason: req.body?.reason || "" }) }); } catch (error) { fail(res, error); }
+});
+// SENSITIVE, human-approved send. Idempotent. Blocked unless messaging mode is approval_send.
+router.post("/restock-notifications/:id/approve-send", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, ...(await sendApprovedRestockNotification({ tenantId: tid(req), notificationId: req.params.id, approvedBy: uid(req), req })) }); } catch (error) { fail(res, error); }
 });
 
 // ---- Delegated WRITE grants (per-workflow) ----

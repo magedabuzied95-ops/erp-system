@@ -36,5 +36,12 @@ export const seedRestockRecoveryTemplate = (headers) => api.post(`${BASE}/restoc
 export const getRestockIntents = (headers, status = null) => api.get(`${BASE}/restock-intents`, { headers, params: status ? { status } : {}, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const cancelRestockIntent = (id, headers) => api.post(`${BASE}/restock-intents/${encodeURIComponent(id)}/cancel`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const fulfilRestockIntent = (id, headers) => api.post(`${BASE}/restock-intents/${encodeURIComponent(id)}/fulfil`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+// Phase 8 — human-approved customer restock messaging.
+export const getRestockMessagingMode = (headers) => api.get(`${BASE}/restock-messaging/mode`, opts(headers));
+export const setRestockMessagingMode = (mode, headers) => api.post(`${BASE}/restock-messaging/mode`, { mode }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const getRestockNotifications = (headers, status = null) => api.get(`${BASE}/restock-notifications`, { headers, params: status ? { status } : {}, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const editRestockNotification = (id, text, headers) => api.post(`${BASE}/restock-notifications/${encodeURIComponent(id)}/edit`, { text }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const rejectRestockNotification = (id, reason, headers) => api.post(`${BASE}/restock-notifications/${encodeURIComponent(id)}/reject`, { reason }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const approveSendRestockNotification = (id, headers) => api.post(`${BASE}/restock-notifications/${encodeURIComponent(id)}/approve-send`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const getAutomationTimezone = (headers) => api.get(`${BASE}/automation/timezone`, opts(headers));
 export const setAutomationTimezone = (timezone, headers) => api.post(`${BASE}/automation/timezone`, { timezone }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
