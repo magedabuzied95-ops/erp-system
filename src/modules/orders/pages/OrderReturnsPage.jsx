@@ -20,6 +20,7 @@ import {
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import { isCashierUser } from "../../../shared/auth/authStorage";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
 import {
@@ -113,6 +114,7 @@ const defaultFormState = {
 function OrderReturnsPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const canViewPurchaseCost = !isCashierUser();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -444,6 +446,7 @@ function OrderReturnsPage() {
           dateTo={supplierDateTo}
           setDateTo={setSupplierDateTo}
           onMarkReturned={markSupplierReturnCompleted}
+          showPurchaseCost={canViewPurchaseCost}
         />
       )}
 
@@ -565,6 +568,7 @@ function SupplierReturnsPanel({
   dateTo,
   setDateTo,
   onMarkReturned,
+  showPurchaseCost = true,
 }) {
   const groups = useMemo(() => {
     const map = new Map();
@@ -596,9 +600,9 @@ function SupplierReturnsPanel({
 
   return (
     <>
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className={`grid gap-3 md:grid-cols-2 ${showPurchaseCost ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
         <KpiCard label="إجمالي قطع الموردين" value={summary.quantity} icon={PackageOpen} accent="amber" />
-        <KpiCard label="إجمالي سعر الشراء" value={formatCurrency(summary.purchaseCost)} icon={Wallet} accent="emerald" />
+        {showPurchaseCost ? <KpiCard label="إجمالي سعر الشراء" value={formatCurrency(summary.purchaseCost)} icon={Wallet} accent="emerald" /> : null}
         <KpiCard label="قطع بانتظار التسليم" value={summary.pending} icon={RefreshCcw} accent="cyan" />
         <KpiCard label="عدد الموردين" value={summary.suppliers} icon={FileText} accent="violet" />
       </section>
@@ -637,18 +641,17 @@ function SupplierReturnsPanel({
           <>
             <div className="mt-3 hidden overflow-auto xl:block">
               <div className="min-w-[1180px]">
-                <div className="grid grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem] rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-center text-[10px] font-bold text-zinc-400">
-                  <div>الإجراء</div><div>المورد</div><div>المنتج</div><div>الكمية</div><div>سعر الشراء</div><div>الإجمالي</div><div>المرجع</div><div>الحالة</div><div>التاريخ</div>
+                <div className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-center text-[10px] font-bold text-zinc-400`}>
+                  <div>الإجراء</div><div>المورد</div><div>المنتج</div><div>الكمية</div>{showPurchaseCost ? <><div>سعر الشراء</div><div>الإجمالي</div></> : null}<div>المرجع</div><div>الحالة</div><div>التاريخ</div>
                 </div>
                 <div className="mt-1.5 space-y-1.5">
                   {items.map((item) => (
-                    <div key={item.id} className="grid grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem] items-center rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs text-zinc-300">
+                    <div key={item.id} className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} items-center rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs text-zinc-300`}>
                       <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم</button> : <span className="text-zinc-500">—</span>}</div>
                       <div className="truncate font-bold text-white">{item.supplier_name}</div>
                       <div><div className="font-bold text-white">{item.product_name}</div><div className="text-[10px] text-zinc-500">{[item.color, item.size].filter(Boolean).join(" / ")}</div></div>
                       <div className="font-black">{item.quantity}</div>
-                      <div>{formatCurrency(item.purchase_unit_cost)}</div>
-                      <div className="font-black text-amber-100">{formatCurrency(item.purchase_total_cost)}</div>
+                      {showPurchaseCost ? <><div>{formatCurrency(item.purchase_unit_cost)}</div><div className="font-black text-amber-100">{formatCurrency(item.purchase_total_cost)}</div></> : null}
                       <div><div>{item.return_number}</div><div className="text-[10px] text-zinc-500">{item.purchase_number || item.invoice_number}</div></div>
                       <SupplierReturnStatus status={item.status} />
                       <div>{formatShortDate(item.created_at)}</div>
@@ -657,7 +660,7 @@ function SupplierReturnsPanel({
                 </div>
               </div>
             </div>
-            <div className="mt-3 xl:hidden"><SupplierReturnQueue groups={groups} onMarkReturned={onMarkReturned} /></div>
+            <div className="mt-3 xl:hidden"><SupplierReturnQueue groups={groups} onMarkReturned={onMarkReturned} showPurchaseCost={showPurchaseCost} /></div>
           </>
         ) : (
           <div className="mt-3 rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-400">لا توجد مرتجعات موردين مطابقة للفلاتر الحالية.</div>
@@ -674,7 +677,7 @@ function SupplierReturnStatus({ status }) {
   return <div><span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold ${tone}`}>{label}</span></div>;
 }
 
-function SupplierReturnQueue({ groups, onMarkReturned }) {
+function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }) {
   return (
     <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -689,7 +692,7 @@ function SupplierReturnQueue({ groups, onMarkReturned }) {
           <div key={String(group.supplierId || "unassigned")} className="rounded-2xl border border-white/10 bg-black/20 p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="font-black text-white">{group.supplierName}</div>
-              <div className="text-end"><span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-100">{group.totalQuantity} قطعة</span><div className="mt-1 text-[10px] font-bold text-zinc-400">{formatCurrency(group.totalPurchaseCost)}</div></div>
+              <div className="text-end"><span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-100">{group.totalQuantity} قطعة</span>{showPurchaseCost ? <div className="mt-1 text-[10px] font-bold text-zinc-400">{formatCurrency(group.totalPurchaseCost)}</div> : null}</div>
             </div>
             <div className="mt-2 space-y-1.5">
               {group.items.slice(0, 4).map((item) => (

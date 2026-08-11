@@ -7092,8 +7092,17 @@ export const getSupplierReturnItems = async (req, res) => {
       `,
       [tenantId, status]
     );
+    const normalizedRole = String(req.user?.role || req.user?.role_name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ");
+    const hidePurchaseCosts = ["cashier", "pos cashier"].includes(normalizedRole);
+    const items = result.rows.map((item) => hidePurchaseCosts
+      ? { ...item, purchase_unit_cost: null, purchase_total_cost: null }
+      : item);
     const supplierMap = new Map();
-    for (const item of result.rows) {
+    for (const item of items) {
       const key = String(item.supplier_id || "unassigned");
       const current = supplierMap.get(key) || {
         supplierId: item.supplier_id || null,
@@ -7107,7 +7116,6 @@ export const getSupplierReturnItems = async (req, res) => {
       current.items.push(item);
       supplierMap.set(key, current);
     }
-    const items = result.rows;
     return res.status(200).json({
       items,
       suppliers: [...supplierMap.values()],
