@@ -1626,13 +1626,15 @@ export default function EmployeePayrollPortal() {
     if (!token || !product?.product_id) return;
     const targetAudience = String(product.audience || "");
     const targetStage = String(product.display_stage_key || "");
-    const savingKey = `${product.product_id}:${targetAudience}:${targetStage}`;
+    const targetColorGroup = String(product.color_group_key || product.color || "").trim().toLowerCase();
+    const savingKey = `${product.product_id}:${targetAudience}:${targetStage}:${targetColorGroup}`;
     try {
       setDisplayAuditSavingId(savingKey);
       setDisplayAuditError("");
       await api.patch(`/employee-portal/${encodeURIComponent(token)}/display-audit/${encodeURIComponent(product.product_id)}/displayed`, {
         audience: targetAudience,
         display_stage_key: targetStage,
+        color_group_key: targetColorGroup,
       });
       setDisplayAudit((current) => {
         const sections = safeArray(current.sections).map((section) => {
@@ -1640,7 +1642,10 @@ export default function EmployeePayrollPortal() {
             if (audience.key !== targetAudience) return audience;
             const products = safeArray(audience.products).flatMap((item) => {
               if (String(item.product_id) !== String(product.product_id)) return [item];
-              const colors = safeArray(item.colors).filter((color) => String(color.display_stage_key || "") !== targetStage);
+              const colors = safeArray(item.colors).filter((color) => !(
+                String(color.display_stage_key || "") === targetStage
+                && String(color.color_group_key || color.color || "").trim().toLowerCase() === targetColorGroup
+              ));
               if (!colors.length) return [];
               const firstColor = colors[0];
               return [{ ...item, ...firstColor, colors }];

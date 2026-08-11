@@ -36,7 +36,8 @@ test("employee portal updates display audit cards without a page reload", async 
   assert.match(page, /markDisplayAuditProduct/);
   assert.match(page, /audience: targetAudience/);
   assert.match(page, /display_stage_key: targetStage/);
-  assert.match(page, /String\(color\.display_stage_key \|\| ""\) !== targetStage/);
+  assert.match(page, /color_group_key: targetColorGroup/);
+  assert.match(page, /color\.color_group_key \|\| color\.color/);
   assert.match(page, /activeTab === "display-audit"/);
 });
 
@@ -85,16 +86,29 @@ test("size 46 alone is not special and special sizes do not apply outside sneake
   }), []);
 });
 
-test("display audit persists each audience and stage independently", async () => {
+test("display audit persists each audience, stage and color independently", async () => {
   const [service, routes, panel] = await Promise.all([
     source("server/services/employeeDisplayAuditService.js"),
     source("server/routes/employeePortal.js"),
     source("src/modules/employees/components/EmployeeDisplayAuditPanel.jsx"),
   ]);
-  assert.match(service, /UNIQUE \(product_id, audience_key, display_stage_key\)/);
-  assert.match(service, /ON CONFLICT \(product_id, audience_key, display_stage_key\)/);
+  assert.match(service, /UNIQUE \(product_id, audience_key, display_stage_key, color_group_key\)/);
+  assert.match(service, /ON CONFLICT \(product_id, audience_key, display_stage_key, color_group_key\)/);
   assert.match(routes, /audience: req\.body\?\.audience/);
+  assert.match(routes, /colorGroupKey: req\.body\?\.color_group_key/);
   assert.match(panel, /key: "special", label: "خاص"/);
+});
+
+test("marking one display color leaves the model's other colors visible", async () => {
+  const [service, page, panel] = await Promise.all([
+    source("server/services/employeeDisplayAuditService.js"),
+    source("src/modules/employees/pages/EmployeePayrollPortal.jsx"),
+    source("src/modules/employees/components/EmployeeDisplayAuditPanel.jsx"),
+  ]);
+  assert.match(service, /state\?\.color_group_key/);
+  assert.match(service, /String\(color\.color_group_key \|\| ""\)/);
+  assert.match(page, /targetColorGroup/);
+  assert.match(panel, /product\.color_group_key \|\| product\.color/);
 });
 
 test("display audit exposes product, source, and audience navigation", async () => {

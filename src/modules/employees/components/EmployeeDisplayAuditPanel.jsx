@@ -80,7 +80,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
   ), [expandedSelectedProducts]);
 
   const renderProductCard = (product) => {
-    const stateKey = `${product.product_id}:${product.audience}:${product.display_stage_key || ""}`;
+    const stateKey = `${product.product_id}:${product.audience}:${product.display_stage_key || ""}:${String(product.color_group_key || product.color || "").trim().toLowerCase()}`;
     const saving = String(savingId) === stateKey;
     const colorKey = `${product.color_group_key || product.variant_id || product.color || "color"}:${product.display_stage_key || product.size || "size"}`;
     const imageUrl = resolveProductImageUrl(product.image_url || product.product_image_url || product.image);

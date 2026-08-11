@@ -696,6 +696,7 @@ router.patch("/:token/display-audit/:productId/displayed", async (req, res) => {
       productId: req.params.productId,
       audience: req.body?.audience,
       displayStageKey: req.body?.display_stage_key || req.body?.displayStageKey || "",
+      colorGroupKey: req.body?.color_group_key || req.body?.colorGroupKey || "",
     });
     return res.json({ success: true, product });
   } catch (error) {

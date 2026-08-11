@@ -60,7 +60,7 @@ export const resolveDisplayAuditColorsForAudience = ({ variants = [], audience, 
       if (!selected) continue;
       colors.push({
         variant_id: selected.variant_id,
-        color_group_key: selected.color_group_key || "",
+        color_group_key: variantColorKey(selected),
         color_sort_order: Number(selected.color_sort_order || 0),
         color: selected.color || "-",
         size: selected.size || "-",
@@ -92,7 +92,7 @@ export const resolveDisplayAuditColorsForAudience = ({ variants = [], audience, 
     for (const { range, variant: selected } of selections) {
       colors.push({
         variant_id: selected.variant_id,
-        color_group_key: selected.color_group_key || "",
+        color_group_key: variantColorKey(selected),
         color_sort_order: Number(selected.color_sort_order || 0),
         color: selected.color || "-",
         size: selected.size || "-",
@@ -131,14 +131,18 @@ export const ensureEmployeeDisplayAuditSchema = async (clientOrPool = db) => {
       product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
       audience_key TEXT NOT NULL,
       display_stage_key TEXT NOT NULL DEFAULT '',
+      color_group_key TEXT NOT NULL DEFAULT '',
       is_displayed BOOLEAN NOT NULL DEFAULT TRUE,
       displayed_by_employee_id BIGINT,
       displayed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (product_id, audience_key, display_stage_key)
+      UNIQUE (product_id, audience_key, display_stage_key, color_group_key)
     )
   `);
-  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_product_display_states_lookup ON employee_product_display_states (tenant_id, product_id, audience_key, display_stage_key, is_displayed)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_product_display_states ADD COLUMN IF NOT EXISTS color_group_key TEXT NOT NULL DEFAULT ''`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_product_display_states DROP CONSTRAINT IF EXISTS employee_product_display_stat_product_id_audience_key_displ_key`);
+  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_product_display_states_color_unique ON employee_product_display_states (product_id, audience_key, display_stage_key, color_group_key)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_product_display_states_lookup ON employee_product_display_states (tenant_id, product_id, audience_key, display_stage_key, color_group_key, is_displayed)`);
 };
 
 export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
@@ -153,6 +157,7 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
          SELECT jsonb_agg(jsonb_build_object(
            'audience_key', state.audience_key,
            'display_stage_key', state.display_stage_key,
+           'color_group_key', state.color_group_key,
            'is_displayed', state.is_displayed
          ))
          FROM employee_product_display_states state
@@ -218,6 +223,7 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
         state?.is_displayed !== false
         && state?.audience_key === audience
         && String(state?.display_stage_key || "") === String(color.display_stage_key || "")
+        && String(state?.color_group_key || "") === String(color.color_group_key || "")
       ));
       if (!pendingColors.length) continue;
       const firstColor = pendingColors[0];
@@ -255,13 +261,20 @@ export const loadEmployeeDisplayAudit = async ({ employee } = {}) => {
   return { total: sections.reduce((sum, section) => sum + section.count, 0), product_group_counts, sections };
 };
 
-export const markEmployeeProductDisplayed = async ({ employee, productId, audience, displayStageKey = "" } = {}) => {
+export const markEmployeeProductDisplayed = async ({ employee, productId, audience, displayStageKey = "", colorGroupKey = "" } = {}) => {
   await ensureEmployeeDisplayAuditSchema(db);
   const audienceKey = AUDIENCE_ORDER.includes(String(audience || "")) ? String(audience) : "";
   if (!audienceKey) {
     const error = new Error("Display audience is required");
     error.status = 400;
     error.code = "display_audience_required";
+    throw error;
+  }
+  const normalizedColorGroupKey = String(colorGroupKey || "").trim().toLowerCase();
+  if (!normalizedColorGroupKey) {
+    const error = new Error("Display color is required");
+    error.status = 400;
+    error.code = "display_color_required";
     throw error;
   }
   const product = await db.query(
@@ -276,14 +289,14 @@ export const markEmployeeProductDisplayed = async ({ employee, productId, audien
   }
   await db.query(
     `INSERT INTO employee_product_display_states (
-       tenant_id, product_id, audience_key, display_stage_key, is_displayed, displayed_by_employee_id, displayed_at, updated_at
-     ) VALUES ($1,$2,$3,$4,TRUE,$5,NOW(),NOW())
-     ON CONFLICT (product_id, audience_key, display_stage_key) DO UPDATE SET
+       tenant_id, product_id, audience_key, display_stage_key, color_group_key, is_displayed, displayed_by_employee_id, displayed_at, updated_at
+     ) VALUES ($1,$2,$3,$4,$5,TRUE,$6,NOW(),NOW())
+     ON CONFLICT (product_id, audience_key, display_stage_key, color_group_key) DO UPDATE SET
        is_displayed = TRUE,
        displayed_by_employee_id = EXCLUDED.displayed_by_employee_id,
        displayed_at = NOW(),
        updated_at = NOW()`,
-    [employee?.tenant_id || null, productId, audienceKey, String(displayStageKey || ""), employee?.id || null]
+    [employee?.tenant_id || null, productId, audienceKey, String(displayStageKey || ""), normalizedColorGroupKey, employee?.id || null]
   );
-  return { product_id: Number(productId), audience: audienceKey, display_stage_key: String(displayStageKey || ""), is_displayed: true };
+  return { product_id: Number(productId), audience: audienceKey, display_stage_key: String(displayStageKey || ""), color_group_key: normalizedColorGroupKey, is_displayed: true };
 };
