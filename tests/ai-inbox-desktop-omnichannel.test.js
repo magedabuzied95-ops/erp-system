@@ -13,6 +13,9 @@ const compactHeaderSource = desktopSource.slice(
   desktopSource.indexOf("function InboxChatHeader"),
   desktopSource.indexOf("const Transcript = memo")
 );
+const activeDesktopReturnStart = desktopSource.indexOf('className="ai-inbox-desktop');
+const activeDesktopReturnEnd = desktopSource.indexOf("\n  return (", activeDesktopReturnStart);
+const activeDesktopReturnSource = desktopSource.slice(activeDesktopReturnStart, activeDesktopReturnEnd);
 
 test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopSource, /ai-omni-workspace/);
@@ -85,7 +88,8 @@ test("desktop customer name and avatar open the shared Customer 360 drawer", () 
   assert.match(compactHeaderSource, /onOpenCustomer360\?\.\(conversation/);
   assert.match(compactHeaderSource, /Open customer details for/);
   assert.match(desktopSource, /context\.customerId[\s\S]*?customer\.customer_profile_id[\s\S]*?customerProfile\.id/);
-  assert.match(desktopSource, /<Customer360Drawer[\s\S]*?open=\{customerDrawer\.open\}[\s\S]*?customerId=\{customerDrawer\.customerId\}[\s\S]*?title="Customer 360"/);
+  assert.match(activeDesktopReturnSource, /<Customer360Drawer[\s\S]*?open=\{customerDrawer\.open\}[\s\S]*?customerId=\{customerDrawer\.customerId\}[\s\S]*?title="Customer 360"/);
+  assert.equal((desktopSource.match(/<Customer360Drawer/g) || []).length, 1);
 });
 
 test("PWA remains isolated from desktop layout styling", () => {

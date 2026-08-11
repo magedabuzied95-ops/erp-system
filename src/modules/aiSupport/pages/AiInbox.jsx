@@ -8033,6 +8033,14 @@ export default function AiInbox() {
           </main>
         </section>
       </div>
+      <Customer360Drawer
+        open={customerDrawer.open}
+        onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+        customer={customerDrawer.customer}
+        customerId={customerDrawer.customerId}
+        context={customerDrawer.context}
+        title="Customer 360"
+      />
     </div>
   );
 
@@ -8888,14 +8896,6 @@ export default function AiInbox() {
         busy={loading}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={createDraftFromProduct}
-      />
-      <Customer360Drawer
-        open={customerDrawer.open}
-        onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
-        customer={customerDrawer.customer}
-        customerId={customerDrawer.customerId}
-        context={customerDrawer.context}
-        title="Customer 360"
       />
     </div>
   );
