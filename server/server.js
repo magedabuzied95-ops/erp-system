@@ -556,6 +556,7 @@ const { default: branchRoutes } = await import("./routes/branches.js");
 const { default: tenantsRoutes } = await import("./routes/tenants.js");
 const { default: subscriptionsRoutes } = await import("./routes/subscriptions.js");
 const { default: analyticsRoutes } = await import("./routes/analytics.js");
+const { default: analyticsV2Routes } = await import("./routes/analyticsV2.js");
 const { default: reportsRoutes } = await import("./routes/reports.js");
 const { default: loyaltyRoutes } = await import("./routes/loyalty.js");
 const { default: employeeRoutes } = await import("./routes/employees.js");
@@ -1774,6 +1775,9 @@ app.use("/api/branches", branchRoutes);
 console.log("[server] branches routes mounted at /api/branches");
 app.use("/api/tenants", tenantsRoutes);
 app.use("/api/subscriptions", subscriptionsRoutes);
+// v2 must mount before the legacy /api/analytics router so its /v2/* paths are not
+// shadowed. Legacy endpoints are untouched and remain available.
+app.use("/api/analytics/v2", analyticsV2Routes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/loyalty", loyaltyRoutes);

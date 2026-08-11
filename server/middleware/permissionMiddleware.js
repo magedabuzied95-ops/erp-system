@@ -34,6 +34,11 @@ const CORE_PERMISSIONS = [
   ["employees", "delete"],
   ["reports", "view"],
   ["reports", "export"],
+  // Analytics v2 financial scopes. Deliberately NOT backfilled to existing roles: the
+  // Executive Overview is new, so there is no prior access to preserve and
+  // deny-by-default is correct. Admin/super-admin receive them via the block below.
+  ["reports", "cost"],
+  ["reports", "profit"],
   ["expenses", "view"],
   ["expenses", "create"],
   ["expenses", "edit"],
