@@ -4286,8 +4286,12 @@ export default function AiInbox() {
     const customerProfile = customer?.customer_profile || customer?.profile || {};
     const channelMetadata = customer?.channel_metadata || {};
     const customerId = clean(
-      customer.customer_id ||
+      context.customerId ||
+        customer.customer_id ||
         customer.erp_customer_id ||
+        customer.customer_profile_id ||
+        customer.profile_id ||
+        customerProfile.id ||
         customer.phone ||
         customerProfile.phone ||
         channelMetadata.resolved_phone ||
@@ -8871,6 +8875,14 @@ export default function AiInbox() {
         busy={loading}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={createDraftFromProduct}
+      />
+      <Customer360Drawer
+        open={customerDrawer.open}
+        onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+        customer={customerDrawer.customer}
+        customerId={customerDrawer.customerId}
+        context={customerDrawer.context}
+        title="Customer 360"
       />
     </div>
   );

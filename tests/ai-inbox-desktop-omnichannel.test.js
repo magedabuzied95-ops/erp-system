@@ -81,6 +81,13 @@ test("desktop conversation header stays compact and exposes multi-label manageme
   assert.match(compactHeaderSource, /<ConversationLabelsModal/);
 });
 
+test("desktop customer name and avatar open the shared Customer 360 drawer", () => {
+  assert.match(compactHeaderSource, /onOpenCustomer360\?\.\(conversation/);
+  assert.match(compactHeaderSource, /Open customer details for/);
+  assert.match(desktopSource, /context\.customerId[\s\S]*?customer\.customer_profile_id[\s\S]*?customerProfile\.id/);
+  assert.match(desktopSource, /<Customer360Drawer[\s\S]*?open=\{customerDrawer\.open\}[\s\S]*?customerId=\{customerDrawer\.customerId\}[\s\S]*?title="Customer 360"/);
+});
+
 test("PWA remains isolated from desktop layout styling", () => {
   assert.doesNotMatch(pwaSource, /AiInboxDesktop\.css/);
   assert.doesNotMatch(pwaSource, /ai-omni-workspace/);
