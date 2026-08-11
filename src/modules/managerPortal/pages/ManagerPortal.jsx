@@ -49,6 +49,7 @@ import toast from "react-hot-toast";
 
 import SharedPortalChat from "../../../shared/chat/SharedPortalChat";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { SOCKET_URL } from "../../../shared/constants/app";
 import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtimeFeedbackAudio } from "../../../services/realtimeFeedbackService";
 import { managerPortalApi } from "../services/managerPortalApi";
@@ -2372,7 +2373,7 @@ export default function ManagerPortal() {
                             <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
                               {(invoice.items || []).map((item) => (
                                 <div key={item.id || `${invoice.id}-${item.product_id}-${item.variant_id}`} className="flex items-center gap-2">
-                                  {item.image_url ? <img src={item.image_url} alt="" className="h-12 w-12 shrink-0 rounded-xl border border-slate-700 bg-white object-cover" loading="lazy" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900"><Package className="h-5 w-5 text-slate-400" /></div>}
+                                  {item.image_url ? <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-xl border border-slate-700 bg-white object-cover" loading="lazy" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900"><Package className="h-5 w-5 text-slate-400" /></div>}
                                   <div className="min-w-0 flex-1">
                                     <div className="truncate text-xs font-black text-white">{portalText(item.product_name || "منتج")}</div>
                                     <div className="mt-0.5 truncate text-[11px] font-bold text-slate-400">{[portalText(item.color || ""), portalText(item.size || ""), `${formatNumber(item.quantity || 0)} قطعة`].filter(Boolean).join(" · ")}</div>
@@ -3383,7 +3384,7 @@ export default function ManagerPortal() {
                         <div key={item.id || `${item.product_name}-${item.variant_id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             {item.image_url ? (
-                              <img src={item.image_url} alt="" className="h-14 w-14 shrink-0 rounded-2xl border border-slate-200 object-cover" loading="lazy" />
+                              <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-14 w-14 shrink-0 rounded-2xl border border-slate-200 object-cover" loading="lazy" />
                             ) : null}
                             <div className="min-w-0 flex-1">
                               <div className="line-clamp-2 font-black leading-5 text-slate-950"><InlineName className="line-clamp-2 align-bottom">{portalText(item.product_name || "منتج")}</InlineName></div>
