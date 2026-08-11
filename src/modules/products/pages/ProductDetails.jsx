@@ -23,6 +23,7 @@ import ProductsShell from "../components/ProductsShell";
 import { canViewCostPrices } from "../../permissions/lib/rbacStore";
 import { createProduct, getProductsWithVariants, normalizeVariantPayload } from "../services/productsApi";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { cleanupProductCache } from "../lib/catalog";
 import { generateBarcode } from "../lib/catalog";
 
@@ -70,26 +71,29 @@ const placeholderImage = (label = "Product image") =>
     </svg>
   `)}`;
 
-const resolveImageUrl = (value) => {
-  const imageUrl = String(value || "").trim();
-  if (!imageUrl) return "";
-  if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
-  if (/^https?:\/\//i.test(imageUrl)) {
-    try {
-      const parsed = new URL(imageUrl);
-      if (/^(localhost|127\.0\.0\.1)$/i.test(parsed.hostname)) {
-        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-      }
-    } catch {
-      return imageUrl;
-    }
-    return imageUrl;
-  }
-  if (imageUrl.startsWith("/uploads/")) return imageUrl;
-  if (imageUrl.startsWith("uploads/")) return `/${imageUrl}`;
-  if (imageUrl.startsWith("/")) return imageUrl;
-  return `/uploads/products/${imageUrl}`;
-};
+const resolveImageUrl = (value) => resolveProductImageUrl(value);
+
+const normalizeVariantImages = (value = []) =>
+  (Array.isArray(value) ? value : [])
+    .map((item, index) => {
+      const source = typeof item === "string" ? { image_url: item } : item || {};
+      const imageUrl = resolveImageUrl(
+        source.image_url ||
+          source.url ||
+          source.preview ||
+          source.image ||
+          source.path ||
+          source.file_path
+      );
+      if (!imageUrl) return null;
+      return {
+        ...source,
+        id: source.id || source.image_id || `${imageUrl}-${index}`,
+        image_url: imageUrl,
+        preview: imageUrl,
+      };
+    })
+    .filter(Boolean);
 
 const normalizeGallery = (value) => {
   if (Array.isArray(value)) {
@@ -224,7 +228,7 @@ const normalizeRowVariant = (row = {}) => {
     last_purchase_price: firstFiniteNumber(source.last_purchase_price, source.lastPurchasePrice, source.last_purchase_cost, source.lastPurchaseCost, source.purchase_price),
     manufacturer_id: source.manufacturer_id ?? source.manufacturerId ?? source.variant_manufacturer_id ?? null,
     manufacturer_name: source.manufacturer_name || source.manufacturerName || source.manufacturer || "",
-    images: Array.isArray(source.images) ? source.images : Array.isArray(source.color_images) ? source.color_images : [],
+    images: normalizeVariantImages(Array.isArray(source.images) ? source.images : source.color_images),
     image_url: resolveImageUrl(
       source.variant_image_url ||
         source.color_image_url ||
