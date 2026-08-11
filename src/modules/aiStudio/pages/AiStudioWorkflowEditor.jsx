@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Save, Play, Loader2, CheckCircle2, AlertTriangle, Undo2, Redo2, Circle, ShieldCheck,
+  Maximize2, Minimize2, PanelLeft, PanelRight, Unlink, ChevronDown,
 } from "lucide-react";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import { useStudioHeaders } from "../lib/studioRequest";
 import { getWorkflow, updateWorkflow, listTools, runWorkflow, getRun, validateDefinition } from "../services/aiStudioApi";
 import {
   definitionToGraph, graphToDefinition, buildPalette, validateGraphStructure, mapServerErrorsToNodes,
-  runToNodeStates, definitionsEqual, newNodeId, defaultConfigFor, DEFAULT_AGENT_MODES, DEFAULT_TRIGGER_TYPES,
+  definitionsEqual, newNodeId, defaultConfigFor, DEFAULT_AGENT_MODES, DEFAULT_TRIGGER_TYPES,
+  computeEditorWarnings, execStatesForRun, edgeExecClasses, disconnectedNodeIds, NODE_META,
 } from "../lib/workflowGraph";
 import WorkflowCanvas from "../components/editor/WorkflowCanvas";
 import NodePalette from "../components/editor/NodePalette";
@@ -18,6 +20,7 @@ import { fmtTime } from "../components/editor/nodeKit";
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const RUN_TERMINAL = new Set(["completed", "failed", "rejected", "cancelled", "awaiting_approval"]);
+const ORIGIN = { x: 60, y: 60 };
 
 export default function AiStudioWorkflowEditor() {
   const { id } = useParams();
@@ -60,6 +63,12 @@ export default function AiStudioWorkflowEditor() {
   const [steps, setSteps] = useState([]);
   const viewportRef = useRef(null);
   const pollRef = useRef(null);
+
+  // ---- Phase 3.5 UX state ----
+  const [focusMode, setFocusMode] = useState(false);
+  const [showPalette, setShowPalette] = useState(true);
+  const [showConfig, setShowConfig] = useState(true);
+  const [issuesOpen, setIssuesOpen] = useState(false);
 
   // ---------- load ----------
   useEffect(() => {
@@ -110,8 +119,30 @@ export default function AiStudioWorkflowEditor() {
     [clientNodeErrors, serverErrors]
   );
 
-  // ---------- execution states ----------
-  const execStates = useMemo(() => (run ? runToNodeStates(run, steps).states : {}), [run, steps]);
+  // ---------- editor warnings (advisory; distinct from server validation errors) ----------
+  const editorWarnings = useMemo(() => computeEditorWarnings(currentDefinition, registry), [currentDefinition, registry]);
+  const warningsByNode = useMemo(() => {
+    const m = {};
+    for (const w of editorWarnings) if (w.nodeId) (m[w.nodeId] = m[w.nodeId] || []).push(w.message);
+    return m;
+  }, [editorWarnings]);
+  const disconnected = useMemo(() => new Set(disconnectedNodeIds(currentDefinition)), [currentDefinition]);
+
+  // ---------- execution states (waiting/skipped enriched) ----------
+  const execInfo = useMemo(() => (run ? execStatesForRun(run, steps, currentDefinition) : { states: {}, currentNodeId: null }), [run, steps, currentDefinition]);
+  const execStates = execInfo.states;
+
+  // ---------- step options for "From previous step" selector ----------
+  const stepOptions = useMemo(() => {
+    const opts = [{ value: "trigger.input", label: "Trigger input" }];
+    for (const n of nodes) {
+      const t = n.data?.nodeType || n.type;
+      if (t === "trigger" || t === "end" || n.id === selectedId) continue;
+      const nm = n.data?.config?.label || (registry.tools.find((x) => x.id === n.data?.config?.tool)?.name) || NODE_META[t]?.label || n.id;
+      opts.push({ value: `steps.${n.id}.output`, label: `${nm} → output` });
+    }
+    return opts;
+  }, [nodes, selectedId, registry]);
 
   // ---------- display nodes (enriched) ----------
   const toolMetaFor = useCallback((toolId) => registry.tools.find((t) => t.id === toolId) || null, [registry]);
@@ -124,11 +155,24 @@ export default function AiStudioWorkflowEditor() {
           ...n.data,
           toolMeta: n.data?.config?.tool ? toolMetaFor(n.data.config.tool) : null,
           execState: execStates[n.id]?.state || null,
+          disconnected: disconnected.has(n.id),
+          warnings: warningsByNode[n.id] || [],
           errors: nodeErrorsFor(n.id),
         },
       })),
-    [nodes, selectedId, toolMetaFor, execStates, nodeErrorsFor]
+    [nodes, selectedId, toolMetaFor, execStates, disconnected, warningsByNode, nodeErrorsFor]
   );
+
+  // ---------- display edges (execution-path styling) ----------
+  const displayEdges = useMemo(() => {
+    if (!run) return edges;
+    const { path, current, failed } = edgeExecClasses(execStates, currentDefinition, execInfo.currentNodeId);
+    return edges.map((e) => {
+      const key = `${e.source}->${e.target}`;
+      const cls = current.has(key) ? "wf-edge-current" : failed.has(key) ? "wf-edge-failed" : path.has(key) ? "wf-edge-path" : "";
+      return cls ? { ...e, className: cls } : { ...e, className: "" };
+    });
+  }, [edges, run, execStates, currentDefinition, execInfo.currentNodeId]);
 
   // ---------- dirty ----------
   const isDirty = useMemo(
@@ -177,6 +221,17 @@ export default function AiStudioWorkflowEditor() {
     },
     [canEdit, commit]
   );
+
+  const addTrigger = useCallback(() => {
+    if (!canEdit) return;
+    commit();
+    const nid = newNodeId("trigger");
+    setNodes((nds) => [...nds, { id: nid, type: "trigger", position: { ...ORIGIN }, data: { nodeType: "trigger", config: { triggerType: "manual" } } }]);
+    setSelectedId(nid);
+  }, [canEdit, commit]);
+
+  const enterFocus = useCallback(() => { setFocusMode(true); setShowPalette(false); setShowConfig(false); }, []);
+  const exitFocus = useCallback(() => { setFocusMode(false); setShowPalette(true); setShowConfig(true); }, []);
 
   // ---------- config panel edits ----------
   const selectedNode = useMemo(() => {
@@ -307,8 +362,20 @@ export default function AiStudioWorkflowEditor() {
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
-  const totalErrors = clientValidation.errors.length + (serverErrors?.general?.length || 0);
-  const generalErrors = [...clientValidation.errors.filter((e) => !e.nodeId).map((e) => e.message), ...(serverErrors?.general || [])];
+  // ---------- unified issue lists (errors vs advisory warnings) ----------
+  const errorIssues = useMemo(() => {
+    const list = clientValidation.errors.map((e) => ({ nodeId: e.nodeId || null, message: e.message }));
+    for (const m of serverErrors?.general || []) list.push({ nodeId: null, message: m });
+    for (const [nid, msgs] of Object.entries(serverErrors?.nodeErrors || {})) for (const m of msgs) list.push({ nodeId: nid, message: m });
+    return list;
+  }, [clientValidation, serverErrors]);
+  const warningIssues = editorWarnings;
+  const totalErrors = errorIssues.length;
+  const totalWarnings = warningIssues.length;
+
+  const saveState = saving ? "saving" : status.kind === "error" ? "failed" : isDirty ? "unsaved" : "saved";
+
+  const focusIssue = (nid) => { if (nid) setSelectedId(nid); setIssuesOpen(false); };
 
   if (loading) {
     return (
@@ -332,35 +399,57 @@ export default function AiStudioWorkflowEditor() {
           placeholder="Workflow name"
           className="h-9 min-w-[180px] flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-[14px] font-black text-white focus:border-cyan-300/40 focus:outline-none disabled:opacity-60"
         />
-        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-slate-300">v{version}</span>
+        <span className="hidden rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-slate-300 sm:inline">v{version}</span>
 
-        {/* validation status */}
-        {totalErrors === 0 ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-black text-emerald-100"><CheckCircle2 className="h-3.5 w-3.5" /> Valid</span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/40 bg-rose-500/10 px-2.5 py-1 text-[11px] font-black text-rose-100"><AlertTriangle className="h-3.5 w-3.5" /> {totalErrors} issue{totalErrors > 1 ? "s" : ""}</span>
-        )}
+        {/* validation status — click to inspect issues */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => (totalErrors || totalWarnings) && setIssuesOpen((v) => !v)}
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-black ${
+              totalErrors ? "border-rose-400/40 bg-rose-500/10 text-rose-100" : totalWarnings ? "border-amber-300/40 bg-amber-300/10 text-amber-100" : "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+            } ${totalErrors || totalWarnings ? "cursor-pointer" : "cursor-default"}`}
+          >
+            {totalErrors ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+            {totalErrors ? `Invalid — ${totalErrors} issue${totalErrors > 1 ? "s" : ""}` : totalWarnings ? `Valid · ${totalWarnings} warning${totalWarnings > 1 ? "s" : ""}` : "Valid"}
+            {(totalErrors || totalWarnings) ? <ChevronDown className="h-3 w-3" /> : null}
+          </button>
+          {issuesOpen && (totalErrors || totalWarnings) ? (
+            <div className="absolute left-0 top-full z-30 mt-1 w-80 max-h-80 overflow-y-auto rounded-xl border border-white/15 bg-slate-900/95 p-2 shadow-2xl backdrop-blur">
+              {totalErrors ? <div className="px-1 pb-1 text-[9px] font-black uppercase tracking-wide text-rose-300">Errors (block save)</div> : null}
+              {errorIssues.map((it, i) => (
+                <button key={`e${i}`} type="button" onClick={() => focusIssue(it.nodeId)} className="flex w-full items-start gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] text-rose-100 hover:bg-white/5">
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /><span>{it.message}</span>
+                </button>
+              ))}
+              {totalWarnings ? <div className="px-1 pb-1 pt-1.5 text-[9px] font-black uppercase tracking-wide text-amber-300">Warnings (advisory)</div> : null}
+              {warningIssues.map((it, i) => (
+                <button key={`w${i}`} type="button" onClick={() => focusIssue(it.nodeId)} className="flex w-full items-start gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] text-amber-100 hover:bg-white/5">
+                  <Unlink className="mt-0.5 h-3 w-3 shrink-0" /><span>{it.message}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
-        {/* dirty */}
-        <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${isDirty ? "text-amber-200" : "text-slate-500"}`}>
-          <Circle className={`h-2.5 w-2.5 ${isDirty ? "fill-amber-300 text-amber-300" : "fill-slate-600 text-slate-600"}`} />
-          {isDirty ? "Unsaved" : updatedAt ? `Saved ${fmtTime(updatedAt)}` : "Saved"}
+        {/* save state */}
+        <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${saveState === "saving" ? "text-cyan-200" : saveState === "unsaved" ? "text-amber-200" : saveState === "failed" ? "text-rose-200" : "text-slate-500"}`}>
+          {saveState === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Circle className={`h-2.5 w-2.5 ${saveState === "unsaved" ? "fill-amber-300 text-amber-300" : saveState === "failed" ? "fill-rose-400 text-rose-400" : "fill-slate-600 text-slate-600"}`} />}
+          {saveState === "saving" ? "Saving…" : saveState === "unsaved" ? "Unsaved" : saveState === "failed" ? "Save failed" : updatedAt ? `Saved ${fmtTime(updatedAt)}` : "Saved"}
         </span>
 
         <div className="ml-auto flex items-center gap-1.5">
-          {/* enabled */}
-          <button
-            type="button"
-            onClick={() => canEdit && setEnabled((v) => !v)}
-            disabled={!canEdit}
-            title="Enable/disable this workflow"
-            className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[11px] font-black ${enabled ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}
-          >
+          <button type="button" onClick={() => canEdit && setEnabled((v) => !v)} disabled={!canEdit} title="Enable/disable this workflow"
+            className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[11px] font-black ${enabled ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>
             <ShieldCheck className="h-3.5 w-3.5" /> {enabled ? "Enabled" : "Disabled"}
           </button>
 
           <button type="button" onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Undo2 className="h-4 w-4" /></button>
           <button type="button" onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Y)" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Redo2 className="h-4 w-4" /></button>
+
+          <button type="button" onClick={focusMode ? exitFocus : enterFocus} title={focusMode ? "Exit focus mode" : "Focus mode (maximize canvas)"} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20">
+            {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
 
           <button type="button" onClick={persist} disabled={!canEdit || saving} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3.5 text-[12px] font-black hover:border-white/20 disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
@@ -378,33 +467,46 @@ export default function AiStudioWorkflowEditor() {
 
       {/* ---- body ---- */}
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-slate-950/40 lg:block">
-          <NodePalette palette={palette} onAdd={(item) => addNode(item, null)} disabled={!canEdit} />
-        </aside>
+        {showPalette ? (
+          <aside className="relative hidden w-64 shrink-0 border-r border-white/10 bg-slate-950/50 lg:block">
+            <NodePalette palette={palette} onAdd={(item) => addNode(item, null)} disabled={!canEdit} />
+            <button type="button" onClick={() => setShowPalette(false)} title="Hide palette" className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelLeft className="h-3.5 w-3.5" /></button>
+          </aside>
+        ) : (
+          <button type="button" onClick={() => setShowPalette(true)} title="Show palette" className="hidden w-8 shrink-0 items-center justify-center border-r border-white/10 bg-slate-950/50 text-slate-400 hover:text-white lg:flex"><PanelLeft className="h-4 w-4" /></button>
+        )}
 
         <main className="relative min-w-0 flex-1">
           <WorkflowCanvas
             nodes={displayNodes}
-            edges={edges}
+            edges={displayEdges}
             setNodes={setNodes}
             setEdges={setEdges}
             onCommit={commit}
             onSelect={setSelectedId}
             onDropItem={addNode}
+            onAddTrigger={addTrigger}
             isEmpty={nodes.length === 0}
           />
         </main>
 
-        <aside className="hidden w-80 shrink-0 border-l border-white/10 bg-slate-950/40 xl:block">
-          <NodeConfigPanel
-            node={selectedNode}
-            registry={registry}
-            capabilities={capabilities}
-            errors={selectedNode ? nodeErrorsFor(selectedNode.id) : []}
-            onChange={updateSelectedConfig}
-            onDelete={deleteSelected}
-          />
-        </aside>
+        {showConfig ? (
+          <aside className="relative hidden w-80 shrink-0 border-l border-white/10 bg-slate-950/50 xl:block">
+            <NodeConfigPanel
+              node={selectedNode}
+              registry={registry}
+              capabilities={capabilities}
+              stepOptions={stepOptions}
+              errors={selectedNode ? nodeErrorsFor(selectedNode.id) : []}
+              warnings={selectedNode ? (warningsByNode[selectedNode.id] || []) : []}
+              onChange={updateSelectedConfig}
+              onDelete={deleteSelected}
+            />
+            <button type="button" onClick={() => setShowConfig(false)} title="Hide config" className="absolute left-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelRight className="h-3.5 w-3.5" /></button>
+          </aside>
+        ) : (
+          <button type="button" onClick={() => setShowConfig(true)} title="Show config" className="hidden w-8 shrink-0 items-center justify-center border-l border-white/10 bg-slate-950/50 text-slate-400 hover:text-white xl:flex"><PanelRight className="h-4 w-4" /></button>
+        )}
 
         {drawerOpen ? (
           <ExecutionDrawer
@@ -426,12 +528,14 @@ export default function AiStudioWorkflowEditor() {
       <footer className="flex items-center gap-3 border-t border-white/10 bg-slate-950/60 px-3 py-1.5 text-[11px]">
         <button type="button" onClick={() => setDrawerOpen((v) => !v)} className="inline-flex items-center gap-1 font-black text-cyan-200 hover:text-cyan-100"><Play className="h-3 w-3" /> Run panel</button>
         <span className="text-slate-600">·</span>
-        {totalErrors === 0 ? (
-          <span className="text-emerald-200">No validation issues.</span>
+        {totalErrors === 0 && totalWarnings === 0 ? (
+          <span className="text-emerald-200">No issues.</span>
         ) : (
-          <span className="truncate text-rose-200" title={generalErrors.join(" | ")}>
-            {generalErrors[0] || `${totalErrors} issue(s) — see highlighted nodes.`}
-          </span>
+          <button type="button" onClick={() => setIssuesOpen(true)} className="inline-flex items-center gap-2">
+            {totalErrors ? <span className="text-rose-200">{totalErrors} error{totalErrors > 1 ? "s" : ""}</span> : null}
+            {totalWarnings ? <span className="text-amber-200">{totalWarnings} warning{totalWarnings > 1 ? "s" : ""}</span> : null}
+            <span className="text-slate-500 underline">view</span>
+          </button>
         )}
         <span className="ml-auto text-slate-600">{nodes.length} node{nodes.length === 1 ? "" : "s"} · {edges.length} edge{edges.length === 1 ? "" : "s"}</span>
       </footer>

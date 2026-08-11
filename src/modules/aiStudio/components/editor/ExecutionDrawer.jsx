@@ -35,6 +35,8 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
             <div className="mt-1 grid grid-cols-2 gap-1 text-slate-400">
               <div>Trigger: <span className="text-slate-200">{run.trigger}</span></div>
               <div>Started: <span className="text-slate-200">{fmtTime(run.started_at)}</span></div>
+              <div>Steps: <span className="text-slate-200">{steps.length}</span></div>
+              <div>Total: <span className="text-slate-200">{fmtMs(steps.reduce((a, s) => a + (s.duration_ms || 0), 0))}</span></div>
             </div>
             {run.error ? <div className="mt-1 rounded bg-rose-500/10 px-2 py-1 text-rose-200">{run.error}</div> : null}
             {awaiting ? (

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Search, Plus, Lock } from "lucide-react";
 import { RISK_BADGE } from "./nodeKit";
-import { RISK_META } from "../../lib/workflowGraph";
 
 // Left palette. Groups are built by buildPalette() from the REAL server registry, so it
 // stays dynamic as new tools are registered. Items are draggable and click-to-add.
@@ -67,12 +66,12 @@ export default function NodePalette({ palette, onAdd, disabled }) {
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-[12px] font-bold text-white">{item.label}</span>
                       {item.riskLevel ? (
-                        <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase ${RISK_BADGE[item.riskLevel]}`}>
-                          {RISK_META[item.riskLevel]?.label || item.riskLevel}
+                        <span className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase ${RISK_BADGE[item.riskLevel]}`}>
+                          {item.riskLevel === "READ" ? "Read" : item.riskLevel === "WRITE" ? "Write" : "Sensitive"}
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block truncate text-[10px] text-slate-500">{item.disabled ? item.disabledReason : item.description}</span>
+                    <span className="mt-0.5 block overflow-hidden text-[10px] leading-snug text-slate-500 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{item.disabled ? item.disabledReason : item.description}</span>
                   </span>
                 </button>
               ))}

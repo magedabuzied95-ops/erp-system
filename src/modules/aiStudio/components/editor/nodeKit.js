@@ -1,6 +1,9 @@
 // Shared visual helpers for the workflow editor. Static Tailwind class strings only
-// (v4 JIT cannot see dynamically-built class names), plus a lucide icon resolver.
-import { Zap, Bot, GitBranch, Wrench, Bolt, ShieldCheck, ShieldAlert, Flag, Eye, Pencil } from "lucide-react";
+// (v4 JIT cannot see dynamically-built class names), plus lucide icon resolvers.
+import {
+  Zap, Bot, GitBranch, Wrench, Bolt, ShieldCheck, ShieldAlert, Flag, Eye, Pencil,
+  Clock, Loader2, CheckCircle2, XCircle, Ban, Unlink,
+} from "lucide-react";
 
 export const NODE_ICON = { Zap, Bot, GitBranch, Wrench, Bolt, ShieldCheck, Flag };
 export const RISK_ICON = { Eye, Pencil, ShieldAlert };
@@ -24,24 +27,56 @@ export const RISK_BADGE = {
   SENSITIVE: "border-rose-400/50 bg-rose-500/15 text-rose-100",
 };
 
+// short human descriptors for risk (icon + label + line) — never colour alone
+export const RISK_INFO = {
+  READ: { label: "Read only", icon: "Eye", line: "No ERP changes." },
+  WRITE: { label: "Writes data", icon: "Pencil", line: "Changes ERP data; may need permission." },
+  SENSITIVE: { label: "Human approval required", icon: "ShieldAlert", line: "Sensitive action — never runs without approval." },
+};
+
 // execution state -> ring styling on the node
 export const EXEC_RING = {
-  running: "ring-2 ring-cyan-300 ring-offset-0",
-  completed: "ring-2 ring-emerald-400/70",
+  waiting: "ring-1 ring-slate-400/40",
+  running: "ring-2 ring-cyan-300",
+  completed: "ring-1 ring-emerald-400/60",
   failed: "ring-2 ring-rose-500",
   awaiting_approval: "ring-2 ring-amber-400",
   rejected: "ring-2 ring-rose-400/70",
-  skipped: "opacity-50",
+  skipped: "opacity-60",
 };
 
 export const EXEC_LABEL = {
+  waiting: "Waiting",
   running: "Running",
-  completed: "Completed",
+  completed: "Done",
   failed: "Failed",
-  awaiting_approval: "Awaiting approval",
+  awaiting_approval: "Approval",
   rejected: "Rejected",
   skipped: "Skipped",
 };
+
+export const EXEC_ICON = {
+  waiting: Clock,
+  running: Loader2,
+  completed: CheckCircle2,
+  failed: XCircle,
+  awaiting_approval: ShieldAlert,
+  rejected: Ban,
+  skipped: Ban,
+};
+
+// exec badge chip classes (icon+text; colour is a reinforcement, not the only signal)
+export const EXEC_BADGE = {
+  waiting: "bg-slate-500/20 text-slate-200",
+  running: "bg-cyan-400/20 text-cyan-100",
+  completed: "bg-emerald-400/20 text-emerald-100",
+  failed: "bg-rose-500/25 text-rose-100",
+  awaiting_approval: "bg-amber-400/20 text-amber-100",
+  rejected: "bg-rose-500/20 text-rose-100",
+  skipped: "bg-slate-600/20 text-slate-300",
+};
+
+export const DisconnectedIcon = Unlink;
 
 export const STATUS_TONE = (s) =>
   s === "completed"

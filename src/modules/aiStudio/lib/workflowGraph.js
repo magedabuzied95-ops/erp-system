@@ -341,3 +341,163 @@ export const normalizeDefinition = (definition = {}) => {
 };
 
 export const definitionsEqual = (a, b) => normalizeDefinition(a) === normalizeDefinition(b);
+
+// ============================================================================
+// Phase 3.5 — pure UX helpers (editor-only; never change executor semantics)
+// ============================================================================
+
+// The single trigger node id (mirrors the executor's start = the one trigger node).
+export const triggerNodeId = (definition = {}) => {
+  const triggers = (definition.nodes || []).filter((n) => n.type === "trigger");
+  return triggers.length === 1 ? triggers[0].id : triggers[0]?.id || null;
+};
+
+// Set of node ids reachable from the trigger by following edges (the executable path).
+// Editor UX only — the executor traverses the same edges deterministically.
+export const reachableFromTrigger = (definition = {}) => {
+  const start = triggerNodeId(definition);
+  const reachable = new Set();
+  if (!start) return reachable;
+  const ids = new Set((definition.nodes || []).map((n) => n.id));
+  if (!ids.has(start)) return reachable;
+  const adj = new Map();
+  for (const e of definition.edges || []) {
+    if (!adj.has(e.from)) adj.set(e.from, []);
+    adj.get(e.from).push(e.to);
+  }
+  const queue = [start];
+  reachable.add(start);
+  let guard = 0;
+  while (queue.length && guard < 10000) {
+    guard += 1;
+    const id = queue.shift();
+    for (const next of adj.get(id) || []) {
+      if (ids.has(next) && !reachable.has(next)) { reachable.add(next); queue.push(next); }
+    }
+  }
+  return reachable;
+};
+
+// Node ids present on the canvas but NOT reachable from the trigger — they will not execute.
+export const disconnectedNodeIds = (definition = {}) => {
+  const reachable = reachableFromTrigger(definition);
+  return (definition.nodes || []).map((n) => n.id).filter((id) => !reachable.has(id));
+};
+
+// ---- Human-friendly field labels (display only; serialized keys never change) ----
+export const FIELD_LABELS = {
+  query: "Search query",
+  productId: "Product",
+  variantId: "Variant",
+  sku: "SKU",
+  orderId: "Order",
+  orderNumber: "Order number",
+  conversationId: "Conversation",
+  governorate: "Governorate",
+  city: "City",
+  subtotal: "Subtotal",
+  status: "Status",
+  draftId: "Draft",
+  text: "Message",
+  conversation: "Conversation",
+  profile: "Customer profile",
+};
+
+const camelToTitle = (s) =>
+  String(s || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
+
+export const humanizeField = (name) => FIELD_LABELS[name] || camelToTitle(name);
+
+// Human-readable one-line summary of a condition, e.g. "IF products.length greater than 0".
+export const conditionSummary = (condition = {}) => {
+  const op = CONDITION_OPS.find((o) => o.id === condition.op);
+  const left = condition.left || "value";
+  if (!op) return `IF ${left} …`;
+  return op.needsValue ? `IF ${left} ${op.label} ${condition.right ?? ""}`.trim() : `IF ${left} ${op.label}`;
+};
+
+// ---- Editor warnings (distinct from server validation errors) ----
+// These are advisory: the server may still accept the definition (e.g. a disconnected node).
+// Each: { nodeId?, message, kind: "warning" }.
+export const computeEditorWarnings = (definition = {}, registry = {}) => {
+  const warnings = [];
+  const nodes = definition.nodes || [];
+  const edges = definition.edges || [];
+  const toolsById = new Map((registry.tools || []).map((t) => [t.id, t]));
+  const nameOf = (n) => n?.config?.label || toolsById.get(n?.config?.tool)?.name || (NODE_META[n?.type]?.label ?? n?.type);
+
+  // Disconnected-from-trigger nodes (won't execute)
+  const reachable = reachableFromTrigger(definition);
+  const hasTrigger = nodes.some((n) => n.type === "trigger");
+  for (const n of nodes) {
+    if (n.type === "trigger") continue;
+    if (hasTrigger && !reachable.has(n.id)) {
+      warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” is not connected to the Trigger and will not run.` });
+    }
+  }
+
+  // Required tool inputs left empty
+  for (const n of nodes) {
+    if (n.type !== "tool" && n.type !== "action") continue;
+    const tool = toolsById.get(n.config?.tool);
+    if (!tool || !tool.inputSchema) continue;
+    const input = n.config?.input || {};
+    for (const [field, spec] of Object.entries(tool.inputSchema)) {
+      if (!spec?.required) continue;
+      const v = input[field];
+      const empty = v === undefined || v === "" || v === null || (v && typeof v === "object" && "$from" in v && !v.$from);
+      if (empty) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” is missing ${humanizeField(field)}.` });
+    }
+  }
+
+  // Condition nodes missing a true/false branch
+  for (const n of nodes) {
+    if (n.type !== "condition") continue;
+    const outs = edges.filter((e) => e.from === n.id);
+    if (!outs.some((e) => String(e.when) === "true")) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” has no True branch connected.` });
+    if (!outs.some((e) => String(e.when) === "false")) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” has no False branch connected.` });
+  }
+
+  return warnings;
+};
+
+// ---- Execution states enriched with waiting/skipped (editor visualization) ----
+// Builds on runToNodeStates and classifies reachable-but-not-executed nodes:
+//   active run  -> "waiting";  terminal run -> "skipped".
+export const execStatesForRun = (run = {}, steps = [], definition = {}) => {
+  const base = runToNodeStates(run, steps);
+  const states = { ...base.states };
+  const reachable = reachableFromTrigger(definition);
+  const active = run.status === "running" || run.status === "awaiting_approval" || run.status === "pending";
+  const terminal = run.status === "completed" || run.status === "failed" || run.status === "rejected" || run.status === "cancelled";
+  for (const n of definition.nodes || []) {
+    if (states[n.id]) continue;
+    if (!reachable.has(n.id)) continue; // disconnected handled separately, not an exec state
+    if (active) states[n.id] = { state: "waiting", status: "waiting", durationMs: null, seq: null, error: null };
+    else if (terminal) states[n.id] = { state: "skipped", status: "skipped", durationMs: null, seq: null, error: null };
+  }
+  return { states, currentNodeId: base.currentNodeId, runStatus: run.status || null };
+};
+
+// Which edges lie on the executed path (both endpoints completed) vs lead to the current node.
+// Returns { path: Set(edgeKey), current: Set(edgeKey), failed: Set(edgeKey) } keyed by `${from}->${to}`.
+export const edgeExecClasses = (execStates = {}, definition = {}, currentNodeId = null) => {
+  const path = new Set();
+  const current = new Set();
+  const failed = new Set();
+  const st = (id) => execStates[id]?.state;
+  for (const e of definition.edges || []) {
+    const key = `${e.from}->${e.to}`;
+    const from = st(e.from);
+    const to = st(e.to);
+    if (from === "completed" && (to === "completed" || to === "failed" || to === "awaiting_approval" || to === "rejected")) path.add(key);
+    if (to === "failed" || to === "rejected") failed.add(key);
+    if (e.to === currentNodeId && (to === "running" || to === "awaiting_approval")) current.add(key);
+  }
+  return { path, current, failed };
+};

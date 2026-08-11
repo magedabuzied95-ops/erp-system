@@ -1,37 +1,78 @@
 import { useEffect, useMemo, useState } from "react";
-import { Trash2, ShieldAlert, Info, Code2, AlertTriangle, Eye } from "lucide-react";
-import { CONDITION_OPS, NODE_META, RISK_META } from "../../lib/workflowGraph";
-import { RISK_BADGE } from "./nodeKit";
+import { Trash2, ShieldAlert, Info, Code2, AlertTriangle, Eye, Pencil, GitBranch, Check, X, Bot } from "lucide-react";
+import { CONDITION_OPS, NODE_META, RISK_META, humanizeField } from "../../lib/workflowGraph";
+import { RISK_BADGE, RISK_INFO } from "./nodeKit";
 
-const label = "text-[10px] font-black uppercase tracking-[0.14em] text-slate-500";
+const labelCls = "text-[10px] font-black uppercase tracking-[0.14em] text-slate-500";
 const field = "h-9 w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[12px] text-white placeholder:text-slate-600 focus:border-cyan-300/40 focus:outline-none";
 
-// Input value can be a literal or a { $from: "context.path" } reference (executor resolves it).
-function InputField({ name, spec, value, onChange }) {
+// Section wrapper for a clear NODE / INPUTS / BEHAVIOR / SECURITY / ADVANCED hierarchy.
+function Section({ title, icon: Icon, children }) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+        {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+        {title}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// Split an existing $from path into a known base + field suffix for the structured selector.
+const splitFrom = (path, bases) => {
+  const p = String(path || "");
+  let best = null;
+  for (const b of bases) {
+    if (p === b.value) { best = { base: b.value, suffix: "" }; break; }
+    if (p.startsWith(b.value + ".")) { const cand = { base: b.value, suffix: p.slice(b.value.length + 1) }; if (!best || b.value.length > best.base.length) best = cand; }
+  }
+  return best || { base: "__custom__", suffix: p };
+};
+
+// One configurable input: Fixed value | From previous step (structured; no manual $from needed).
+function InputField({ name, spec, value, onChange, stepOptions }) {
   const isFrom = value && typeof value === "object" && typeof value.$from === "string";
   const mode = isFrom ? "from" : "value";
-  const setMode = (m) => (m === "from" ? onChange({ $from: "" }) : onChange(""));
+  const bases = stepOptions || [];
+  const parsed = isFrom ? splitFrom(value.$from, bases) : { base: bases[0]?.value || "__custom__", suffix: "" };
+
+  const setMode = (m) => (m === "from" ? onChange({ $from: bases[0]?.value || "" }) : onChange(""));
+  const setFrom = (base, suffix) => {
+    if (base === "__custom__") return onChange({ $from: suffix });
+    onChange({ $from: suffix ? `${base}.${suffix}` : base });
+  };
+
   return (
-    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2">
+    <div className="rounded-xl border border-white/8 bg-white/[0.025] p-2.5">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[11px] font-bold text-slate-200">{name}{spec?.required ? <span className="text-rose-300"> *</span> : null}</span>
-        <div className="flex rounded-md border border-white/10 text-[9px] font-black uppercase">
-          <button type="button" onClick={() => setMode("value")} className={`px-1.5 py-0.5 ${mode === "value" ? "bg-cyan-300 text-slate-950" : "text-slate-400"}`}>Value</button>
-          <button type="button" onClick={() => setMode("from")} className={`px-1.5 py-0.5 ${mode === "from" ? "bg-cyan-300 text-slate-950" : "text-slate-400"}`}>From step</button>
+        <span className="text-[12px] font-bold text-slate-200">{humanizeField(name)}{spec?.required ? <span className="text-rose-300"> *</span> : null}</span>
+        <div className="flex overflow-hidden rounded-md border border-white/10 text-[9px] font-black uppercase">
+          <button type="button" onClick={() => setMode("value")} className={`px-2 py-0.5 ${mode === "value" ? "bg-cyan-300 text-slate-950" : "text-slate-400 hover:text-slate-200"}`}>Fixed value</button>
+          <button type="button" onClick={() => setMode("from")} className={`px-2 py-0.5 ${mode === "from" ? "bg-cyan-300 text-slate-950" : "text-slate-400 hover:text-slate-200"}`}>From step</button>
         </div>
       </div>
       {spec?.description ? <div className="mt-1 text-[10px] text-slate-500">{spec.description}</div> : null}
+
       {mode === "from" ? (
-        <input dir="ltr" value={value.$from} onChange={(e) => onChange({ $from: e.target.value })} placeholder="e.g. steps.search.output.products" className={`${field} mt-1.5 font-mono`} />
+        <div className="mt-1.5 space-y-1.5">
+          <select value={parsed.base} onChange={(e) => setFrom(e.target.value, parsed.suffix)} className={field}>
+            {bases.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+            <option value="__custom__">Custom path…</option>
+          </select>
+          <input dir="ltr" value={parsed.suffix} onChange={(e) => setFrom(parsed.base, e.target.value)} placeholder={parsed.base === "__custom__" ? "full context path" : "field (optional), e.g. products.length"} className={`${field} font-mono`} />
+          <div className="text-[10px] text-slate-600">Uses the output of a previous step at run time.</div>
+        </div>
       ) : (
-        <input dir="ltr" value={value ?? ""} onChange={(e) => onChange(spec?.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)} placeholder={spec?.type === "number" ? "0" : "literal value"} className={`${field} mt-1.5`} />
+        <input dir="ltr" value={value ?? ""} onChange={(e) => onChange(spec?.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)} placeholder={spec?.type === "number" ? "0" : "Enter a value"} className={`${field} mt-1.5`} />
       )}
     </div>
   );
 }
 
-export default function NodeConfigPanel({ node, registry, capabilities, errors = [], onChange, onDelete }) {
+export default function NodeConfigPanel({ node, registry, capabilities, errors = [], warnings = [], stepOptions = [], onChange, onDelete }) {
   const [jsonOpen, setJsonOpen] = useState(false);
+  const [advOpen, setAdvOpen] = useState(false);
   const [jsonText, setJsonText] = useState("");
   const [jsonErr, setJsonErr] = useState("");
 
@@ -41,8 +82,10 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
   const tool = useMemo(() => (registry?.tools || []).find((t) => t.id === cfg.tool) || null, [registry, cfg.tool]);
   const agentModes = capabilities?.agentModes || [];
   const triggerTypes = capabilities?.triggerTypes || [];
+  const currentMode = cfg.mode || "read_only_analysis";
+  const modeInfo = agentModes.find((m) => m.id === currentMode);
 
-  useEffect(() => { setJsonOpen(false); setJsonErr(""); }, [node?.id]);
+  useEffect(() => { setJsonOpen(false); setAdvOpen(false); setJsonErr(""); }, [node?.id]);
 
   if (!node) {
     return (
@@ -56,7 +99,6 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
   const set = (patch) => onChange({ ...cfg, ...patch });
   const setCondition = (patch) => set({ condition: { ...(cfg.condition || {}), ...patch } });
   const setInput = (name, val) => set({ input: { ...(cfg.input || {}), [name]: val } });
-
   const opDef = CONDITION_OPS.find((o) => o.id === (cfg.condition?.op || "exists"));
 
   const openJson = () => { setJsonText(JSON.stringify(cfg, null, 2)); setJsonErr(""); setJsonOpen(true); };
@@ -64,157 +106,164 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
     try {
       const parsed = JSON.parse(jsonText);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Config must be a JSON object.");
-      setJsonErr("");
-      onChange(parsed);
-      setJsonOpen(false);
+      setJsonErr(""); onChange(parsed); setJsonOpen(false);
     } catch (e) { setJsonErr(e.message || "Invalid JSON"); }
   };
+
+  const RiskIcon = tool ? { READ: Eye, WRITE: Pencil, SENSITIVE: ShieldAlert }[tool.riskLevel] : null;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
         <div className="min-w-0">
-          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{meta?.label || type} config</div>
-          <div className="truncate font-mono text-[10px] text-slate-500" title={node.id}>{node.id}</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-300">{meta?.label || type}</div>
+          <div className="truncate text-[10px] text-slate-500">Configure this node</div>
         </div>
         <button type="button" onClick={onDelete} title="Delete node" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-400/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-3">
-        {errors.length ? (
-          <div className="rounded-lg border border-rose-500/50 bg-rose-500/10 px-2.5 py-2 text-[11px] font-semibold text-rose-100">
-            <div className="mb-0.5 flex items-center gap-1 font-black uppercase tracking-wide"><AlertTriangle className="h-3.5 w-3.5" />Validation</div>
-            <ul className="list-disc pl-4">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+      <div className="flex-1 space-y-4 overflow-y-auto p-3">
+        {(errors.length || warnings.length) ? (
+          <div className={`rounded-lg border px-2.5 py-2 text-[11px] font-semibold ${errors.length ? "border-rose-500/50 bg-rose-500/10 text-rose-100" : "border-amber-300/40 bg-amber-300/10 text-amber-100"}`}>
+            <div className="mb-0.5 flex items-center gap-1 font-black uppercase tracking-wide"><AlertTriangle className="h-3.5 w-3.5" />{errors.length ? "Errors" : "Warnings"}</div>
+            <ul className="list-disc pl-4">{(errors.length ? errors : warnings).map((e, i) => <li key={i}>{e}</li>)}</ul>
           </div>
         ) : null}
 
-        {/* Display name (stored as config.label — safe/ignored by executor) */}
-        {type !== "end" ? (
-          <div>
-            <div className={label}>Display name</div>
-            <input value={cfg.label || ""} onChange={(e) => set({ label: e.target.value })} placeholder={meta?.label} className={`${field} mt-1`} dir="ltr" />
-          </div>
+        {/* NODE */}
+        <Section title="Node" icon={meta?.icon === "GitBranch" ? GitBranch : undefined}>
+          {type !== "end" ? (
+            <div>
+              <div className={labelCls}>Display name</div>
+              <input value={cfg.label || ""} onChange={(e) => set({ label: e.target.value })} placeholder={tool?.name || meta?.label} className={`${field} mt-1`} dir="ltr" />
+            </div>
+          ) : <p className="text-[11px] text-slate-500">The run ends when this node is reached.</p>}
+        </Section>
+
+        {/* INPUTS */}
+        {(type === "tool" || type === "action") ? (
+          <Section title="Inputs">
+            {tool && tool.inputSchema && Object.keys(tool.inputSchema).length ? (
+              Object.entries(tool.inputSchema).map(([name, spec]) => (
+                <InputField key={name} name={name} spec={spec} value={(cfg.input || {})[name] ?? ""} onChange={(v) => setInput(name, v)} stepOptions={stepOptions} />
+              ))
+            ) : <p className="text-[11px] text-slate-500">This action takes no inputs.</p>}
+          </Section>
         ) : null}
 
+        {/* CONDITION (IF / THEN) */}
+        {type === "condition" ? (
+          <Section title="Condition" icon={GitBranch}>
+            <div className="rounded-xl border border-amber-300/25 bg-amber-300/[0.05] p-2.5 space-y-2">
+              <div className="text-[10px] font-black uppercase tracking-wide text-amber-200">If</div>
+              <input dir="ltr" value={cfg.condition?.left || ""} onChange={(e) => setCondition({ left: e.target.value })} placeholder="value to check, e.g. steps.search.output.products.length" className={`${field} font-mono`} />
+              <select value={cfg.condition?.op || "exists"} onChange={(e) => setCondition({ op: e.target.value })} className={field}>
+                {CONDITION_OPS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+              {opDef?.needsValue ? (
+                <input dir="ltr" value={cfg.condition?.right ?? ""} onChange={(e) => setCondition({ right: /^-?\d+(\.\d+)?$/.test(e.target.value) ? Number(e.target.value) : e.target.value })} placeholder="compared to…" className={field} />
+              ) : null}
+              <div className="flex items-center gap-3 border-t border-white/10 pt-2 text-[10px] font-bold">
+                <span className="text-slate-500 uppercase tracking-wide">Then</span>
+                <span className="inline-flex items-center gap-1 text-emerald-300"><Check className="h-3 w-3" />True → green handle</span>
+                <span className="inline-flex items-center gap-1 text-rose-300"><X className="h-3 w-3" />False → red handle</span>
+              </div>
+            </div>
+          </Section>
+        ) : null}
+
+        {/* BEHAVIOR */}
         {type === "trigger" ? (
-          <div>
-            <div className={label}>Trigger type</div>
+          <Section title="Behavior">
+            <div className={labelCls}>Trigger type</div>
             <select value={cfg.triggerType || "manual"} onChange={(e) => set({ triggerType: e.target.value })} className={`${field} mt-1`}>
               {triggerTypes.map((t) => <option key={t.id} value={t.id} disabled={!t.available}>{t.label}{t.available ? "" : " — coming later"}</option>)}
             </select>
-            <p className="mt-1.5 text-[10px] text-slate-500">Only <b>manual</b> is wired in this phase. Production channel webhooks are not rerouted through workflows.</p>
-          </div>
+            <p className="mt-1.5 text-[10px] text-slate-500">Only <b>manual</b> is available now. Channel webhooks are not rerouted through workflows.</p>
+          </Section>
         ) : null}
 
         {type === "agent" ? (
-          <div className="space-y-2">
-            <div>
-              <div className={label}>Agent mode</div>
-              <select value={cfg.mode || "read_only_analysis"} onChange={(e) => set({ mode: e.target.value })} className={`${field} mt-1`}>
-                {agentModes.map((m) => <option key={m.id} value={m.id} disabled={!m.available}>{m.label}{m.available ? "" : " — unavailable"}</option>)}
-              </select>
-              <p className="mt-1.5 text-[10px] text-slate-500">{agentModes.find((m) => m.id === (cfg.mode || "read_only_analysis"))?.description || "Reuses the existing AI. Read-only summary by default."}</p>
+          <Section title="Behavior" icon={Bot}>
+            <div className={labelCls}>Mode</div>
+            <select value={currentMode} onChange={(e) => set({ mode: e.target.value })} className={`${field} mt-1`}>
+              {agentModes.map((m) => <option key={m.id} value={m.id} disabled={!m.available}>{m.label}{m.available ? "" : " — unavailable"}</option>)}
+            </select>
+            <div className={`mt-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] ${modeInfo && !modeInfo.available ? "border-slate-500/30 bg-slate-500/10 text-slate-300" : "border-violet-300/25 bg-violet-300/[0.06] text-violet-100"}`}>
+              {currentMode === "read_only_analysis"
+                ? "Analyzes workflow context without changing ERP data."
+                : modeInfo && !modeInfo.available
+                ? (modeInfo.description || "Unavailable on this server.")
+                : "Uses the existing AI to produce a grounded answer."}
             </div>
-            {(cfg.mode || "read_only_analysis") === "llm_grounded" ? (
-              <div>
-                <div className={label}>Prompt (optional)</div>
+            {currentMode === "llm_grounded" && (!modeInfo || modeInfo.available) ? (
+              <div className="mt-2">
+                <div className={labelCls}>Prompt (optional)</div>
                 <textarea value={cfg.prompt || ""} onChange={(e) => set({ prompt: e.target.value })} rows={3} dir="ltr" className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-2 text-[12px] text-white focus:border-cyan-300/40 focus:outline-none" placeholder="Falls back to the trigger query if empty." />
               </div>
             ) : null}
-          </div>
-        ) : null}
-
-        {type === "condition" ? (
-          <div className="space-y-2">
-            <div>
-              <div className={label}>Source path</div>
-              <input dir="ltr" value={cfg.condition?.left || ""} onChange={(e) => setCondition({ left: e.target.value })} placeholder="e.g. steps.search.output.products.length" className={`${field} mt-1 font-mono`} />
-            </div>
-            <div>
-              <div className={label}>Operator</div>
-              <select value={cfg.condition?.op || "exists"} onChange={(e) => setCondition({ op: e.target.value })} className={`${field} mt-1`}>
-                {CONDITION_OPS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
-            </div>
-            {opDef?.needsValue ? (
-              <div>
-                <div className={label}>Comparison value</div>
-                <input dir="ltr" value={cfg.condition?.right ?? ""} onChange={(e) => setCondition({ right: /^-?\d+(\.\d+)?$/.test(e.target.value) ? Number(e.target.value) : e.target.value })} placeholder="value" className={`${field} mt-1`} />
-              </div>
-            ) : null}
-            <p className="flex items-start gap-1 text-[10px] text-slate-500"><Info className="mt-0.5 h-3 w-3 shrink-0" />Branches follow the <b className="text-emerald-300">T</b>/<b className="text-rose-300">F</b> handles on the node.</p>
-          </div>
-        ) : null}
-
-        {(type === "tool" || type === "action") ? (
-          <div className="space-y-2">
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-              <div className="flex items-center gap-2">
-                <span className="truncate font-mono text-[12px] font-bold text-white">{tool?.id || cfg.tool || "—"}</span>
-                {tool ? <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase ${RISK_BADGE[tool.riskLevel]}`}>{RISK_META[tool.riskLevel]?.label}</span> : null}
-              </div>
-              {tool ? <div className="mt-1 text-[11px] text-slate-400">{tool.description}</div> : null}
-              {tool ? (
-                <div className="mt-1.5 grid grid-cols-1 gap-1 text-[10px] text-slate-500">
-                  <div>Permission: <span className="font-mono text-slate-300">{tool.requiredPermission || "—"}</span></div>
-                  <div>Output: <span className="text-slate-400">{tool.outputDescription || "—"}</span></div>
-                </div>
-              ) : null}
-              {tool?.riskLevel === "SENSITIVE" ? (
-                <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-rose-100">
-                  <ShieldAlert className="h-3.5 w-3.5" /> Human approval required — enforced server-side
-                </div>
-              ) : tool?.riskLevel === "WRITE" ? (
-                <div className="mt-2 rounded-lg border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-[10px] font-bold text-amber-100">Approval required by default for writes.</div>
-              ) : null}
-            </div>
-
-            {tool && tool.inputSchema && Object.keys(tool.inputSchema).length ? (
-              <div className="space-y-1.5">
-                <div className={label}>Inputs</div>
-                {Object.entries(tool.inputSchema).map(([name, spec]) => (
-                  <InputField key={name} name={name} spec={spec} value={(cfg.input || {})[name] ?? ""} onChange={(v) => setInput(name, v)} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-[10px] text-slate-500">This tool takes no inputs.</p>
-            )}
-          </div>
+          </Section>
         ) : null}
 
         {type === "approval" ? (
-          <div className="space-y-2">
+          <Section title="Behavior" icon={ShieldAlert}>
             <div>
-              <div className={label}>Approval label</div>
+              <div className={labelCls}>Approval label</div>
               <input dir="ltr" value={cfg.label || ""} onChange={(e) => set({ label: e.target.value })} placeholder="Human approval" className={`${field} mt-1`} />
             </div>
             <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-2 text-[11px] text-rose-100">
-              Pauses the run and creates a pending approval. On <b>approve</b>, RBAC is re-checked and the run resumes; on <b>reject</b>, the run stops. Decide it in <b>AI Studio → Approvals</b>.
+              The workflow <b>pauses here</b> until an authorized user decides.<br />
+              <span className="inline-flex items-center gap-1 text-emerald-200"><Check className="h-3 w-3" /> Approve → continue</span> ·
+              <span className="ml-1 inline-flex items-center gap-1 text-rose-200"><X className="h-3 w-3" /> Reject → stop</span><br />
+              Decide it in <b>AI Studio → Approvals</b>. RBAC is re-checked on approval.
             </div>
-          </div>
+          </Section>
         ) : null}
 
-        {type === "end" ? <p className="text-[11px] text-slate-500">The run ends when this node is reached (or a path has no outgoing edge).</p> : null}
-
-        {/* Advanced JSON (config only — never code; validated before applying) */}
-        {type !== "end" ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.02]">
-            <button type="button" onClick={() => (jsonOpen ? setJsonOpen(false) : openJson())} className="flex w-full items-center gap-2 px-2.5 py-2 text-[11px] font-black text-slate-300">
-              <Code2 className="h-3.5 w-3.5" /> Advanced (raw config JSON)
-            </button>
-            {jsonOpen ? (
-              <div className="space-y-2 border-t border-white/10 p-2.5">
-                <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={8} dir="ltr" spellCheck={false} className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-cyan-300/40 focus:outline-none" />
-                {jsonErr ? <div className="text-[10px] font-bold text-rose-300">{jsonErr}</div> : null}
-                <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setJsonOpen(false)} className="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-300">Cancel</button>
-                  <button type="button" onClick={applyJson} className="rounded-lg border border-cyan-300/40 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-black text-cyan-100">Apply</button>
-                </div>
+        {/* SECURITY / RISK */}
+        {(type === "tool" || type === "action") && tool ? (
+          <Section title="Security / Risk" icon={RiskIcon || Info}>
+            <div className={`rounded-xl border px-2.5 py-2 ${RISK_BADGE[tool.riskLevel]}`}>
+              <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide">
+                {RiskIcon ? <RiskIcon className="h-3.5 w-3.5" /> : null}{RISK_META[tool.riskLevel]?.label}
+              </div>
+              <div className="mt-0.5 text-[10px] font-semibold opacity-90">{RISK_INFO[tool.riskLevel]?.line}</div>
+            </div>
+            {tool.riskLevel === "SENSITIVE" ? (
+              <div className="flex items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-rose-100">
+                <ShieldAlert className="h-3.5 w-3.5" /> Human approval required — cannot be disabled
               </div>
             ) : null}
-          </div>
+            <div className="text-[10px] text-slate-500">Requires permission: <span className="font-mono text-slate-300">{tool.requiredPermission || "—"}</span></div>
+          </Section>
+        ) : null}
+
+        {/* ADVANCED (technical identifiers + raw JSON) */}
+        {type !== "end" ? (
+          <Section title="Advanced" icon={Code2}>
+            <button type="button" onClick={() => setAdvOpen((v) => !v)} className="text-[11px] font-bold text-slate-400 hover:text-slate-200">{advOpen ? "Hide" : "Show"} technical details</button>
+            {advOpen ? (
+              <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
+                <div className="text-[10px] text-slate-500">Node ID: <span className="font-mono text-slate-300">{node.id}</span></div>
+                {tool ? <div className="text-[10px] text-slate-500">Tool ID: <span className="font-mono text-slate-300">{tool.id}</span></div> : null}
+                {!jsonOpen ? (
+                  <button type="button" onClick={openJson} className="inline-flex items-center gap-1 text-[11px] font-black text-cyan-200 hover:text-cyan-100"><Code2 className="h-3.5 w-3.5" /> Edit raw config JSON</button>
+                ) : (
+                  <div className="space-y-2">
+                    <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={8} dir="ltr" spellCheck={false} className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-cyan-300/40 focus:outline-none" />
+                    {jsonErr ? <div className="text-[10px] font-bold text-rose-300">{jsonErr}</div> : null}
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setJsonOpen(false)} className="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-300">Cancel</button>
+                      <button type="button" onClick={applyJson} className="rounded-lg border border-cyan-300/40 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-black text-cyan-100">Apply</button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-[9px] text-slate-600">Raw config only — never code. Validated before applying; the server re-validates on save.</p>
+              </div>
+            ) : null}
+          </Section>
         ) : null}
       </div>
     </div>

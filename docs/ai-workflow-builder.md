@@ -167,7 +167,34 @@ opens it. New workflows always start disabled.
 
 ---
 
-## 13. Limitations (Phase 3)
+## 13. Phase 3.5 — UX polish
+
+A focused, **frontend-only** refinement (no executor/API/schema changes; JSON stays identical). All new logic lives as pure helpers in `workflowGraph.js` (unit-tested) consumed by the editor.
+
+**Editor warnings vs server validation.** Two clearly separated tiers:
+- **Errors** (`validateGraphStructure` mirror + server `/validate`): block Save. Shown red; the header chip reads "Invalid — N issues".
+- **Warnings** (`computeEditorWarnings`): advisory; the server may still accept the definition. Shown amber ("Valid · N warnings"). Includes: disconnected-from-trigger nodes, missing required inputs, a condition missing its True/False branch.
+Both are listed in a click-through panel on the header chip (and the footer) — clicking an issue **focuses/selects** the offending node.
+
+**Disconnected / reachable-path logic.** `reachableFromTrigger` BFS-walks edges from the single trigger; `disconnectedNodeIds` returns the rest. Disconnected nodes get an amber **"Not in path — won't run"** badge (Unlink icon + text, not colour alone). Nodes are never auto-connected or auto-deleted — purely a visual signal. Editor UX only; the executor is unchanged.
+
+**Human-friendly labels.** Field keys are shown via `humanizeField` (`productId`→"Product", `query`→"Search query", …; unknowns are camel-cased). Tool nodes show the registry `name`. Technical identifiers (node id, tool id, raw config JSON) live under **Advanced → technical details**. Serialized keys are never altered.
+
+**Input mapping UX.** Each input is a clear **Fixed value** / **From step** toggle. "From step" shows a structured **step selector** (Trigger input + each upstream node's output) plus an optional field path — no manual `$from` typing unless the user opens a Custom path. It serializes to the exact same `{ $from: "…" }` schema.
+
+**Risk visualization.** READ = "Read only / No ERP changes"; WRITE = "Writes data"; SENSITIVE = a rose shield + **"Human approval required"** on the node and in the config panel's Security section — icon + text + badge, never colour alone, and never disableable.
+
+**Execution visualization.** `execStatesForRun` classifies every node: `waiting` (reachable, not yet run) / `running` / `completed` / `failed` / `awaiting_approval` / `rejected` / `skipped` (reachable but not run after a terminal run) — each an icon + short label + ring (completed is de-emphasised so the graph stays readable). `edgeExecClasses` styles edges: finished path (emerald), current edge (animated cyan dashes), failed (rose). Clicking a run step focuses its node.
+
+**Config panel** is sectioned: **Node / Inputs / Condition / Behavior / Security · Risk / Advanced**. Condition uses an IF → THEN layout with labelled True/False handles.
+
+**Header & save feedback.** Name (editable), version, a clickable validation chip, and an explicit save state: **Unsaved → Saving… → Saved / Save failed**. Save/Run are the visual priority.
+
+**Focus mode & panels.** A focus toggle maximises the canvas by hiding the palette + config panel; each panel also has its own collapse control. This is **editor-internal** — the ERP sidebar/layout is deliberately untouched (reaching into the shell's collapse state was judged risky for no real gain). Empty canvas shows a "Start with a Trigger" onboarding with an **Add Manual Trigger** button (manual only).
+
+**RTL/LTR.** The ERP shell stays RTL; the editor surface is explicitly `dir="ltr"` so the workflow always flows left→right and technical fields/JSON/tool-ids read correctly.
+
+## 14. Limitations (Phase 3 / 3.5)
 
 - In-SPA sidebar navigation away from the editor is not intercepted (the app uses `BrowserRouter`, not a data router, so `useBlocker` is unavailable); `beforeunload` + the guarded back button cover the primary exits.
 - Single active execution path (inherited from the executor) — no parallel/fan-out authoring.
