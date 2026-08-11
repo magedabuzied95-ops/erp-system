@@ -33,6 +33,7 @@ import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { buildProductBaseSlug, generateUniqueProductSlug } from "../utils/productSlug.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 import { buildCacheKey, invalidateCachePattern } from "../services/cacheService.js";
+import { buildInClause, normalizeAdminListFilterValue, normalizeAdminListFilterValues } from "../lib/productFilterValues.js";
 
 const invalidateProductStorefrontCache = async (tenantId) => {
   const scopes = new Set([tenantId || "public", "public"]);
@@ -1801,7 +1802,9 @@ export const attachVariantSearchMetadata = (product = {}, search = "", options =
   };
 };
 
-const normalizeAdminListFilterValue = (value = "") => String(value ?? "").trim();
+// Multi-select filter helpers live in server/lib so their semantics can be unit
+// tested without loading this controller (and a db connection). OR within one
+// filter, AND between filters — see the module for details.
 
 const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => {
   const parts = [];
@@ -1843,25 +1846,22 @@ const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => 
     }
   }
 
-  const rawBrand = normalizeAdminListFilterValue(filters.brand);
-  if (rawBrand && rawBrand.toLowerCase() !== "all") {
-    values.push(rawBrand);
-    parts.push(`COALESCE(NULLIF(TRIM(b.name), ''), NULLIF(TRIM(p.brand), ''), '') = $${values.length}`);
-    applied.brand = rawBrand;
+  const brandValues = normalizeAdminListFilterValues(filters.brand);
+  if (brandValues.length) {
+    parts.push(buildInClause(`COALESCE(NULLIF(TRIM(b.name), ''), NULLIF(TRIM(p.brand), ''), '')`, brandValues, values));
+    applied.brand = brandValues.length === 1 ? brandValues[0] : brandValues;
   }
 
-  const rawManufacturer = normalizeAdminListFilterValue(filters.manufacturer);
-  if (rawManufacturer && rawManufacturer.toLowerCase() !== "all") {
-    values.push(rawManufacturer);
-    parts.push(`COALESCE(NULLIF(TRIM(m.name), ''), NULLIF(TRIM(p.manufacturer), ''), '') = $${values.length}`);
-    applied.manufacturer = rawManufacturer;
+  const manufacturerValues = normalizeAdminListFilterValues(filters.manufacturer);
+  if (manufacturerValues.length) {
+    parts.push(buildInClause(`COALESCE(NULLIF(TRIM(m.name), ''), NULLIF(TRIM(p.manufacturer), ''), '')`, manufacturerValues, values));
+    applied.manufacturer = manufacturerValues.length === 1 ? manufacturerValues[0] : manufacturerValues;
   }
 
-  const rawCategory = normalizeAdminListFilterValue(filters.category);
-  if (rawCategory && rawCategory.toLowerCase() !== "all") {
-    values.push(rawCategory);
-    parts.push(`COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(p.category), ''), '') = $${values.length}`);
-    applied.category = rawCategory;
+  const categoryValues = normalizeAdminListFilterValues(filters.category);
+  if (categoryValues.length) {
+    parts.push(buildInClause(`COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(p.category), ''), '')`, categoryValues, values));
+    applied.category = categoryValues.length === 1 ? categoryValues[0] : categoryValues;
   }
 
   const rawVisibility = normalizeAdminListFilterValue(
@@ -3866,8 +3866,12 @@ export const getProductsWithVariants = async (req, res) => {
     const productFiltersClause = await buildProductsAdminListFiltersClause({
       values: productQueryValues,
       filters: {
-        brand: req.query.brand,
-        manufacturer: req.query.manufacturer,
+        // Axios serialises multi-selects as `brand[]=A&brand[]=B`. Express's
+        // default (qs) parser exposes that as `brand`, but read the bracketed key
+        // too so a future switch to the `simple` parser cannot silently drop the
+        // selection and quietly return an unfiltered page.
+        brand: req.query.brand ?? req.query["brand[]"],
+        manufacturer: req.query.manufacturer ?? req.query["manufacturer[]"],
         gender: req.query.gender,
         product_type: req.query.product_type ?? req.query.productType,
         grade: req.query.grade,

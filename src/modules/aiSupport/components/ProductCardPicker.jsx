@@ -388,9 +388,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const values = asArray(value).map((item) => clean(item)).filter(Boolean);
     return values.length === 1 ? values[0] : "";
   };
+  // brand/manufacturer are multi-select: the ENTIRE selection now goes to the
+  // server, which matches any of them (OR within the filter) and ANDs that
+  // against the other filters. Previously only a single selection was pushed
+  // server-side, so picking two brands fell back to filtering the current page.
+  const selectedList = (value) => asArray(value).map((item) => clean(item)).filter(Boolean);
   const serverFilters = useMemo(() => ({
-    brand: singleValue(brand),
-    manufacturer: singleValue(manufacturer),
+    brand: selectedList(brand),
+    manufacturer: selectedList(manufacturer),
     gender: singleValue(gender),
     product_type: productType && productType !== "all" ? productType : "",
     grade: grade && grade !== "all" ? grade : "",
