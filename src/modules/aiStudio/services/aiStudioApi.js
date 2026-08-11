@@ -45,5 +45,9 @@ export const rejectRestockNotification = (id, reason, headers) => api.post(`${BA
 export const approveSendRestockNotification = (id, headers) => api.post(`${BASE}/restock-notifications/${encodeURIComponent(id)}/approve-send`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 // Phase 9 — delivery reconciliation observability.
 export const getRestockUnmatchedDeliveryEvents = (headers) => api.get(`${BASE}/restock-notifications/unmatched-events`, opts(headers));
+// Phase 10 — inbound assisted replies (default OFF).
+export const getInboundAiMode = (headers) => api.get(`${BASE}/inbound-ai/mode`, opts(headers));
+export const setInboundAiMode = (mode, headers) => api.post(`${BASE}/inbound-ai/mode`, { mode }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const getInboundIntakeStats = (headers) => api.get(`${BASE}/inbound-ai/stats`, opts(headers));
 export const getAutomationTimezone = (headers) => api.get(`${BASE}/automation/timezone`, opts(headers));
 export const setAutomationTimezone = (timezone, headers) => api.post(`${BASE}/automation/timezone`, { timezone }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });

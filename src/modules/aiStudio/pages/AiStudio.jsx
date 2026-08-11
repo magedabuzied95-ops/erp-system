@@ -25,6 +25,43 @@ import { getCurrentTenant, getCurrentUser, isAdminUser } from "../../../shared/a
 import { useTenant } from "../../saas/context/TenantContext";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiStudioNav from "../components/AiStudioNav";
+import { useStudioHeaders } from "../lib/studioRequest";
+import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats } from "../services/aiStudioApi";
+
+// Phase 10 — Inbound Assisted Replies control (default OFF). AI drafts a grounded reply SUGGESTION for
+// inbound WhatsApp/Messenger/Instagram text; a human approves/edits/sends from the existing AI Inbox.
+// There is NO autonomous reply. The suggestion appears in the AI Inbox; this card only sets the mode.
+function InboundAssistedRepliesCard() {
+  const { headers } = useStudioHeaders();
+  const [mode, setMode] = useState("off");
+  const [capable, setCapable] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    const [m, s] = await Promise.all([getInboundAiMode(headers).catch(() => null), getInboundIntakeStats(headers).catch(() => null)]);
+    if (m) { setMode(m.mode || "off"); setCapable(Boolean(m.capabilityEnabled)); }
+    if (s?.counts) setStats(s.counts);
+  }, [headers]);
+  useEffect(() => { load(); }, [load]);
+  const change = async (next) => { setBusy(true); try { const r = await setInboundAiMode(next, headers); if (r?.mode) setMode(r.mode); } finally { setBusy(false); } };
+  const MODES = [["off", "Off"], ["suggest_only", "Suggest only"], ["approval_reply", "Approval + Send"]];
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-cyan-100" /><h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">Inbound Assisted Replies</h2></div>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${capable ? "bg-emerald-400/15 text-emerald-100" : "bg-slate-500/20 text-slate-300"}`}>{capable ? "Capability enabled" : "Capability off (server flag)"}</span>
+      </div>
+      <p className="mt-1.5 text-[12px] text-slate-400">On an inbound customer text, AI drafts a <b className="text-slate-200">grounded reply suggestion</b> that a human approves, edits, or rejects in the AI Inbox. <b className="text-slate-200">It never sends autonomously.</b>{!capable ? " The server capability flag is off, so no suggestions are generated yet." : ""}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {MODES.map(([val, label]) => (
+          <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black ${mode === val ? "border-cyan-300/50 bg-cyan-300/15 text-cyan-50" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
+        ))}
+        {stats ? <span className="ml-1 text-[11px] text-slate-400">Last 30d — suggested {stats.suggested || 0} · skipped {stats.skipped || 0} · errors {stats.errored || 0}</span> : null}
+      </div>
+      {mode !== "off" ? <div className="mt-2 text-[11px] text-amber-200">Suggestions are generated on inbound text. Review and send them from the AI Inbox — nothing is sent without a human.</div> : null}
+    </section>
+  );
+}
 
 // AI Studio is a CONTROL PLANE: it surfaces real metrics from existing AI endpoints and
 // links to the existing AI pages (the execution layer). It does not re-implement any
@@ -219,6 +256,8 @@ export default function AiStudio() {
         </div>
         <div className="mt-3"><AiStudioNav /></div>
       </section>
+
+      <InboundAssistedRepliesCard />
 
       {/* Real metrics */}
       <section>
