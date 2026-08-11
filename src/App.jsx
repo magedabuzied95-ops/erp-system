@@ -152,6 +152,7 @@ const OrderReturns = lazy(() => import("./modules/orders/pages/Returns"));
 
 const Reports = lazy(() => import("./modules/reports/pages/Reports"));
 const ExecutiveOverview = lazy(() => import("./modules/reports/pages/ExecutiveOverview"));
+const SalesIntelligence = lazy(() => import("./modules/reports/pages/SalesIntelligence"));
 const AnalyticsDashboard = lazy(() => import("./modules/analytics/pages/AnalyticsDashboard"));
 const EmployeeHub = lazy(() => import("./modules/employees/pages/EmployeeHub"));
 const EmployeeSalesPerformance = lazy(() => import("./modules/employees/pages/SalesPerformance"));
@@ -1355,6 +1356,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["reports.view"]}>
               <ExecutiveOverview />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/sales"
+          element={
+            <ProtectedRoute requiredPermissions={["reports.view"]}>
+              <SalesIntelligence />
             </ProtectedRoute>
           }
         />

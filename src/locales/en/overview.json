@@ -70,7 +70,8 @@
     "itemsPerOrder": "Items sold ÷ orders",
     "discountRate": "Discounts ÷ gross sales",
     "returnRate": "Returns ÷ gross sales",
-    "inventoryValue": "On-hand quantity × unit cost"
+    "inventoryValue": "On-hand quantity × unit cost",
+    "itemsSold": "Sum of quantities − returns"
   },
   "coverage": {
     "label": "Cost coverage",
@@ -113,7 +114,14 @@
     "returnRateUp": "Return rate rose from {{previous}} to {{current}}.",
     "aovUp": "Average order value rose {{percent}}.",
     "aovDown": "Average order value fell {{percent}}.",
-    "cogsCoverageLow": "Cost coverage is only {{percent}}, so profit figures need review."
+    "cogsCoverageLow": "Cost coverage is only {{percent}}, so profit figures need review.",
+    "salesGrowing": "Sales rose {{percent}} versus the previous period.",
+    "salesDeclining": "Sales fell {{percent}} versus the previous period.",
+    "productSurging": "{{entity}} sales rose {{percent}}.",
+    "productDeclining": "{{entity}} sales fell {{percent}}.",
+    "profitConcentration": "{{percent}} of gross profit comes from just 3 products.",
+    "discountDependency": "{{percent}} of sales value depends on discounts.",
+    "sizeConcentration": "{{percent}} of demand is concentrated in just 3 sizes."
   },
   "warnings": {
     "title": "Data notes",
@@ -127,7 +135,13 @@
     "STOCK_SOURCE_DIVERGENCE": "The legacy product stock figure disagrees with live variant stock.",
     "UNCATEGORISED_SALES_HIGH": "A large share of sales has no category assigned.",
     "RETURNS_FALLBACK_USED": "Return tables could not be read, so returns were not deducted.",
-    "NAN_VALUES_IGNORED": "Corrupt numeric values were ignored in the calculation."
+    "NAN_VALUES_IGNORED": "Corrupt numeric values were ignored in the calculation.",
+    "FILTERED_EXCLUDES_RETURNS": "With a product filter applied, figures come straight from order lines and returns are not deducted, because a return is not tied to a specific product.",
+    "BREAKDOWN_EXCLUDES_RETURNS": "Breakdown values are before returns that cannot be attributed to a product.",
+    "PRODUCT_LIST_TRUNCATED": "There are more products than the display limit, so only the highest-selling ones are shown.",
+    "SIZE_SCOPE_REQUIRED": "Choose a single product type to see size analysis, because size ranges differ between types.",
+    "SIZE_SCOPE_APPLIED": "Colour-only and one-size products are excluded from size analysis.",
+    "SIZES_SOLD_OUT": "Some sizes sold during the period and now have no stock."
   },
   "states": {
     "loading": "Loading data...",
