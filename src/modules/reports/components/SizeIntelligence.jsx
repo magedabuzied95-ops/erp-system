@@ -22,7 +22,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
   if (!selectedType) {
     return (
       <div className="min-w-0">
-        <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} />
+        <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} language={language} />
         <p className="mt-3 rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
           {t("salesAnalytics.sizes.pickType")}
         </p>
@@ -33,7 +33,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
   if (data && data.applicable === false) {
     return (
       <div className="min-w-0">
-        <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} />
+        <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} language={language} />
         <p className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
           <Ruler className="h-4 w-4 shrink-0" aria-hidden="true" />
           {t("salesAnalytics.sizes.notApplicable")}
@@ -59,7 +59,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
 
   return (
     <div className="min-w-0">
-      <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} />
+      <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} language={language} />
 
       <p className="mt-3 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-[11px] leading-4 text-[var(--text-secondary)]">
         {t("salesAnalytics.sizes.scopeNote", { productType: dimensionLabel("product_type", selectedType, language) })}
@@ -164,7 +164,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
   );
 }
 
-function TypePicker({ types = [], selected, onSelect }) {
+function TypePicker({ types = [], selected, onSelect, language }) {
   if (!types.length) return null;
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -172,14 +172,16 @@ function TypePicker({ types = [], selected, onSelect }) {
         <button
           key={type}
           type="button"
+          // The stored value drives the selection; only the caption is translated.
           onClick={() => onSelect(type === selected ? "" : type)}
-          className={`rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition ${
+          aria-pressed={selected === type}
+          className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${
             selected === type
               ? "bg-[var(--primary)] text-white"
               : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
           }`}
         >
-          {type}
+          {dimensionLabel("product_type", type, language)}
         </button>
       ))}
     </div>

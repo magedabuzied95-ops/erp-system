@@ -72,6 +72,26 @@ test("every mapped label is actually Arabic", () => {
   }
 });
 
+test("every place a product type reaches the screen goes through the mapping", async () => {
+  // The size-analysis type picker rendered its raw value and shipped "Sneakers" into
+  // an Arabic screen. Anywhere a stored type is displayed must be labelled.
+  const surfaces = {
+    "SizeIntelligence.jsx": ["dimensionLabel(\"product_type\", type, language)", "productType: dimensionLabel"],
+    "ProductTable.jsx": ["dimensionLabel(\"product_type\", row.productType, language)"],
+    "ProductRankings.jsx": ["dimensionLabel(\"product_type\", row.productType, language)"],
+    "SalesBreakdown.jsx": ["dimensionLabel(dimension, row.key, language)"],
+  };
+  for (const [file, expected] of Object.entries(surfaces)) {
+    const source = await read(`../../src/modules/reports/components/${file}`);
+    for (const snippet of expected) {
+      assert.ok(source.includes(snippet), `${file} must render "${snippet}"`);
+    }
+    // A bare {type} or {row.productType} in JSX would be an untranslated value.
+    assert.ok(!/>\s*\{type\}\s*</.test(source), `${file} renders a raw product type`);
+    assert.ok(!/>\s*\{row\.productType\}\s*</.test(source), `${file} renders a raw product type`);
+  }
+});
+
 test("the filter round trip sends the stored value, never the label", async () => {
   const page = await read("../../src/modules/reports/pages/SalesIntelligence.jsx");
   // Chips display a label but clear and re-send filters.* — the stored string.
