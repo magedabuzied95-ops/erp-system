@@ -108,11 +108,42 @@ const isGenericCustomerName = (value = "") => {
   const normalized = clean(value).toLowerCase().replace(/\s+/g, " ");
   return !normalized || GENERIC_CUSTOMER_NAMES.has(normalized);
 };
+// A brand-new Messenger conversation can land with customer_name set to the customer's
+// first message (e.g. "ممكن صور جوردن فور") before the Facebook profile is fetched. Detect
+// that so we can trigger a profile sync and replace it with the real name + avatar. Mirrors
+// the backend messenger-name-repair heuristic. False positives only cost one extra profile
+// fetch (gated per conversation), so this can be a little aggressive.
+const MESSAGE_LIKE_NAME_KEYWORDS = /(السلام عليكم|سلام عليكم|عليكم السلام|ممكن|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|بكام|بكاام|وريني|ورينى|ابعت|ابعتلي|ابعتلى|هاتلي|هاتلى|فين|متاح|السعر|سعر|المقاس|مقاس|اللون|لون|صوره|صور|عندكم|عندكو|available|price|size|color)/i;
+const looksLikeMessageName = (value = "") => {
+  const normalized = clean(value);
+  if (!normalized) return false;
+  if (normalized.length > 40) return true;
+  if (/[?!؟…]/.test(normalized)) return true;
+  return MESSAGE_LIKE_NAME_KEYWORDS.test(normalized);
+};
 const firstUsefulCustomerName = (...values) =>
   values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
 const customerIdentifier = (...values) => {
   const value = values.map((item) => clean(item)).find(Boolean) || "";
   return value.replace(/^whatsapp:/i, "").replace(/@(?:s\.whatsapp\.net|c\.us|lid)$/i, "").trim();
+};
+const customer360Identifier = (customer = {}) => {
+  const profile = customer?.customer_profile || customer?.profile || {};
+  const metadata = customer?.channel_metadata || {};
+  const channel = clean(customer?.channel || customer?.source || customer?.platform).toLowerCase();
+  const channelCustomerId = customerIdentifier(customer?.customer_id);
+  const phoneLikeChannelCustomerId = /^\+?\d{10,15}$/.test(channelCustomerId) ? channelCustomerId : "";
+  return customerIdentifier(
+    customer?.erp_customer_id,
+    profile?.erp_customer_id,
+    customer?.phone,
+    customer?.customer_phone,
+    profile?.phone,
+    metadata?.resolved_phone,
+    metadata?.phone,
+    channel.includes("whatsapp") ? customer?.external_customer_id : "",
+    phoneLikeChannelCustomerId
+  );
 };
 const storefrontProductUrl = (product = {}) => {
   const rawUrl = clean(product.product_url || product.storefront_url || product.url || "");
@@ -1752,7 +1783,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenCustomer360?.(item, {
-                  customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                  customerId: customer360Identifier(item),
                   source: "conversation_list",
                   platform: channel,
                 });
@@ -1773,7 +1804,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenCustomer360?.(item, {
-                  customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                  customerId: customer360Identifier(item),
                   source: "conversation_list",
                   platform: channel,
                 });
@@ -1796,7 +1827,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                     onClick={(event) => {
                       event.stopPropagation();
                       onOpenCustomer360?.(item, {
-                        customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                        customerId: customer360Identifier(item),
                         source: "conversation_list",
                         platform: channel,
                       });
@@ -1823,7 +1854,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                     onClick={(event) => {
                       event.stopPropagation();
                       onOpenCustomer360?.(item, {
-                        customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                        customerId: customer360Identifier(item),
                         source: "conversation_list",
                         platform: channel,
                       });
@@ -2006,7 +2037,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenCustomer360?.(item, {
-                  customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                  customerId: customer360Identifier(item),
                   source: "inbox_conversation",
                   platform: channel,
                 });
@@ -2022,7 +2053,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenCustomer360?.(item, {
-                  customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                  customerId: customer360Identifier(item),
                   source: "inbox_conversation",
                   platform: channel,
                 });
@@ -2045,7 +2076,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                     onClick={(event) => {
                       event.stopPropagation();
                       onOpenCustomer360?.(item, {
-                        customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                      customerId: customer360Identifier(item),
                         source: "inbox_conversation",
                         platform: channel,
                       });
@@ -2273,7 +2304,7 @@ function InboxChatHeader({
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenCustomer360?.(conversation, {
-                  customerId: clean(conversation?.customer_profile_id || conversation?.customerProfileId || conversation?.external_customer_id || conversation?.customer_profile?.id || conversation?.id || ""),
+                  customerId: customer360Identifier(conversation),
                   source: "inbox_header",
                   platform: channel,
                 });
@@ -2289,7 +2320,7 @@ function InboxChatHeader({
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenCustomer360?.(conversation, {
-                  customerId: clean(conversation?.customer_profile_id || conversation?.customerProfileId || conversation?.external_customer_id || conversation?.customer_profile?.id || conversation?.id || ""),
+                  customerId: customer360Identifier(conversation),
                   source: "inbox_header",
                   platform: channel,
                 });
@@ -2307,7 +2338,7 @@ function InboxChatHeader({
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpenCustomer360?.(conversation, {
-                    customerId: clean(conversation?.customer_profile_id || conversation?.customerProfileId || conversation?.external_customer_id || conversation?.customer_profile?.id || conversation?.id || ""),
+                    customerId: customer360Identifier(conversation),
                     source: "inbox_header",
                     platform: channel,
                   });
@@ -4286,12 +4317,10 @@ export default function AiInbox() {
     const customerProfile = customer?.customer_profile || customer?.profile || {};
     const channelMetadata = customer?.channel_metadata || {};
     const customerId = clean(
-      context.customerId ||
+      customer360Identifier(customer) ||
+        context.customerId ||
         customer.customer_id ||
         customer.erp_customer_id ||
-        customer.customer_profile_id ||
-        customer.profile_id ||
-        customerProfile.id ||
         customer.phone ||
         customerProfile.phone ||
         channelMetadata.resolved_phone ||
@@ -5588,7 +5617,10 @@ export default function AiInbox() {
   useEffect(() => {
     if (!selectedConversation || !canSyncMessengerProfile(selectedConversation)) return;
     const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || "");
-    if (currentName && currentName.toLowerCase() !== "customer" && !isLikelyMessengerExternalId(currentName)) return;
+    // Only skip the profile sync when the stored name is already a genuine real name.
+    // Also sync when it's generic, an external id, OR actually a message (new-conversation
+    // placeholder), so the real Facebook name + avatar replace it in the chat and Customer 360.
+    if (currentName && !isGenericCustomerName(currentName) && !isLikelyMessengerExternalId(currentName) && !looksLikeMessageName(currentName)) return;
     const sessionId = clean(selectedConversation.session_id || "");
     const externalCustomerId = clean(selectedConversation.external_customer_id || "");
     const attemptKey = `${sessionId}:${externalCustomerId}`;

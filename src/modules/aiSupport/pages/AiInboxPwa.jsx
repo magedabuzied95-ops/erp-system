@@ -110,6 +110,19 @@ const isGenericCustomerName = (value = "") => {
   const normalized = clean(value).toLowerCase().replace(/\s+/g, " ");
   return !normalized || GENERIC_CUSTOMER_NAMES.has(normalized);
 };
+// A brand-new Messenger conversation can land with customer_name set to the customer's
+// first message (e.g. "ممكن صور جوردن فور") before the Facebook profile is fetched. Detect
+// that so we can trigger a profile sync and replace it with the real name + avatar. Mirrors
+// the backend messenger-name-repair heuristic. False positives only cost one extra profile
+// fetch (gated per conversation), so this can be a little aggressive.
+const MESSAGE_LIKE_NAME_KEYWORDS = /(السلام عليكم|سلام عليكم|عليكم السلام|ممكن|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|بكام|بكاام|وريني|ورينى|ابعت|ابعتلي|ابعتلى|هاتلي|هاتلى|فين|متاح|السعر|سعر|المقاس|مقاس|اللون|لون|صوره|صور|عندكم|عندكو|available|price|size|color)/i;
+const looksLikeMessageName = (value = "") => {
+  const normalized = clean(value);
+  if (!normalized) return false;
+  if (normalized.length > 40) return true;
+  if (/[?!؟…]/.test(normalized)) return true;
+  return MESSAGE_LIKE_NAME_KEYWORDS.test(normalized);
+};
 const firstUsefulCustomerName = (...values) =>
   values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
 
@@ -4620,7 +4633,7 @@ export default function AiInboxPwa() {
       const sessionId = normalizeConversationSessionId(conversation.session_id, conversation.channel || conversation.source || conversation.provider || conversation.platform || "");
       if (!sessionId) return false;
       const currentName = clean(conversation.customer_name || conversation.customer_profile?.name || conversationName(conversation));
-      if (currentName && currentName.toLowerCase() !== "customer" && !isLikelyMessengerExternalId(currentName)) return false;
+      if (currentName && !isGenericCustomerName(currentName) && !isLikelyMessengerExternalId(currentName) && !looksLikeMessageName(currentName)) return false;
       const externalCustomerId = clean(conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "");
       if (!externalCustomerId) return false;
       const attemptKey = `${sessionId}:${externalCustomerId}`;
@@ -4741,7 +4754,7 @@ export default function AiInboxPwa() {
     if (!selectedConversation || tab !== "conversations") return;
     if (!isMessengerConversation(selectedConversation)) return;
     const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || conversationName(selectedConversation));
-    if (currentName && currentName.toLowerCase() !== "customer" && !isLikelyMessengerExternalId(currentName)) return;
+    if (currentName && !isGenericCustomerName(currentName) && !isLikelyMessengerExternalId(currentName) && !looksLikeMessageName(currentName)) return;
     void syncMessengerProfile(selectedConversation, { silent: true });
   }, [selectedConversation, syncMessengerProfile, tab]);
 
