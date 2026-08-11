@@ -23,6 +23,7 @@ import {
   completeAiInboxReplyLock,
 } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
+import { inboundAttachmentLabel, materializeInboundAttachments } from "./inboundMediaService.js";
 import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
 import {
   AI_AGENT_CHANNELS,
@@ -9858,7 +9859,7 @@ const logIncomingToInbox = async ({ message, config }) => {
       : ""
   ));
   const customerAvatarUrl = text(message.customer_avatar_url || messengerProfile.profile_pic || "");
-  const lastMessage = text(message.message_text) || "[attachment]";
+  const lastMessage = text(message.message_text) || inboundAttachmentLabel(message.attachments) || "[attachment]";
   const externalMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id);
   const providerMessageId = externalMessageId;
   const dedupeKey = text(message.dedupe_key) || crypto
@@ -23192,6 +23193,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
       config,
       facebookPageId: resolvedPageId || pageIds[0] || "",
       instagramBusinessAccountId: instagramBusinessAccountIds[0] || "",
+    });
+    // Meta hands us a signed CDN link that expires. Re-host it before anything
+    // downstream (inbox transcript, AI vision, debug events) captures the url.
+    message.attachments = await materializeInboundAttachments({
+      channel: channelAlias(message.channel) || text(message.channel),
+      messageId: text(message.external_message_id || message.dedupe_key || ""),
+      attachments: message.attachments,
     });
     assignInboundMessageLifecycle(message);
     console.info("[meta-inbound-message]", {

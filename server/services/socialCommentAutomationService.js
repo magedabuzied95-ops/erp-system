@@ -18,6 +18,7 @@ import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
+import { materializeInboundAttachments } from "./inboundMediaService.js";
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
@@ -5139,6 +5140,13 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     const postCreatedTime = text(resolveSocialCommentPostCreatedTime(event) || "");
     const commentCreatedTime = resolveSocialCommentCreatedTime(event);
     const commentUrl = text(event.comment_url || event.raw_payload?.comment_url || "");
+    // Comment media lives on Meta's CDN behind an expiring signature, same as DM
+    // attachments, so it gets re-hosted before the transcript row is written.
+    const commentAttachments = await materializeInboundAttachments({
+      channel,
+      messageId: text(event.comment_id || ""),
+      attachments: Array.isArray(event.attachments) ? event.attachments : [],
+    });
     const productContext = metadataObject(event.product_context || event.raw_payload?.product_context || {});
     const metadata = {
       thread_kind: threadKind,
@@ -5398,7 +5406,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         platform,
         thread_kind
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7, '', 0.98, TRUE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, $8, '', 'comment_inbound', '', 'customer', FALSE, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7, '', 0.98, TRUE, '[]'::jsonb, '[]'::jsonb, $29::jsonb, '[]'::jsonb, $8, '', 'comment_inbound', '', 'customer', FALSE, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO UPDATE SET
         customer_name = CASE
           WHEN COALESCE(NULLIF(ai_support_messages.customer_name, ''), '') = ''
@@ -5449,6 +5457,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         commentUrl || (postPermalink && event.comment_id ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(text(event.comment_id || ""))}` : ""),
         platform,
         threadKind,
+        JSON.stringify(commentAttachments),
       ]
     );
 
@@ -7200,10 +7209,26 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     comment_id: commentId,
   });
 
+  // A comment can carry a photo or video of its own (`value.photo` / `value.video`
+  // on the feed webhook). These were dropped entirely, so a customer commenting
+  // with a picture reached the inbox as an empty-looking comment.
+  const commentAttachments = [
+    ...[value.photo, value.photos, value.full_picture, value.attachment?.media?.image?.src]
+      .flatMap((entryValue) => (Array.isArray(entryValue) ? entryValue : [entryValue]))
+      .map((entryValue) => firstText(entryValue?.src, entryValue?.url, entryValue))
+      .filter(Boolean)
+      .map((url) => ({ type: "image", url })),
+    ...[value.video, value.video_id ? "" : value.attachment?.media?.source]
+      .map((entryValue) => firstText(entryValue?.src, entryValue?.url, entryValue))
+      .filter(Boolean)
+      .map((url) => ({ type: "video", url })),
+  ];
+
   return {
     tenant_id: tenantId,
     platform,
     channel,
+    attachments: commentAttachments,
     post_id: postId,
     post_permalink: postPermalink,
     post_permalink_url: postPermalink,

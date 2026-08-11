@@ -90,6 +90,7 @@ import {
   resolveLeadSourceLabel,
   syncLeadAssignmentMetadata,
 } from "../services/aiInboxLeadActionsService.js";
+import { inboundAttachmentLabel, materializeInboundAttachments } from "../services/inboundMediaService.js";
 import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
@@ -1463,10 +1464,17 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
         });
       });
       const inboundProviderId = envText(message.external_message_id || message.dedupe_key || "");
+      // Cloud API webhooks carry a media id, never a url, so the attachment has
+      // to be resolved and re-hosted before the transcript row is written.
+      message.attachments = await materializeInboundAttachments({
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        messageId: inboundProviderId,
+        attachments: message.attachments,
+      });
       const inboundRow = await appendInboundAiSupportMessage({
         tenantId,
         sessionId: message.external_conversation_id,
-        message: message.message_text || "[attachment]",
+        message: message.message_text || inboundAttachmentLabel(message.attachments) || "[attachment]",
         channel: AI_AGENT_CHANNELS.WHATSAPP,
         customerName: message.customer_name || "",
         externalMessageId: inboundProviderId,
@@ -1748,15 +1756,23 @@ router.post("/channels/meta/webhook", async (req, res) => {
       const conversationId = message.external_conversation_id;
       const customerMessage = envText(message.normalized_for_intent || message.message_text || "");
       const messageId = envText(message.external_message_id || message.dedupe_key || "");
+      // Same treatment for both directions: Meta CDN links expire, so the inbox
+      // keeps its own copy of anything the provider sent us.
+      message.attachments = await materializeInboundAttachments({
+        channel,
+        messageId,
+        attachments: message.attachments,
+      });
+      const attachmentLabel = inboundAttachmentLabel(message.attachments);
       const isProviderOutbound = message.from_me === true || message.direction === "outbound";
       if (isProviderOutbound) {
         const outboundRow = await appendChannelOutboundSupportReply({
           tenantId,
           sessionId: conversationId,
-          message: message.message_text || "[attachment]",
+          message: message.message_text || attachmentLabel || "[attachment]",
           channel,
           senderType: "staff",
-          staffMessage: message.message_text || "[attachment]",
+          staffMessage: message.message_text || attachmentLabel || "[attachment]",
           staffUserName: "أنا",
           source: "meta_provider_echo",
           sourcePath: "meta_provider_echo",
@@ -1786,7 +1802,7 @@ router.post("/channels/meta/webhook", async (req, res) => {
       const inboundRow = await appendInboundAiSupportMessage({
         tenantId,
         sessionId: conversationId,
-        message: message.message_text || "[attachment]",
+        message: message.message_text || attachmentLabel || "[attachment]",
         channel,
         customerName: message.customer_name || "",
         externalMessageId: messageId,

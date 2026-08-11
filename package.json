@@ -20,6 +20,7 @@
     "factory-reset:production": "node server/scripts/factoryResetOperationalData.js",
     "catalog:delete-all": "node server/scripts/deleteAllProducts.js",
     "thermal:backfill": "node server/scripts/backfillThermalArtwork.js",
+    "inbox:backfill-media": "node server/scripts/backfillInboundMedia.js",
     "ai:reindex-images": "node server/scripts/reindexAiProductImages.js",
     "ai:reindex-visual": "node server/scripts/reindexAiVisualProducts.js",
     "test:ai-inbox": "node server/scripts/testAiInboxFlows.js",

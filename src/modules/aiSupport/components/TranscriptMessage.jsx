@@ -56,6 +56,7 @@ const messageAttachments = (message = {}) => [
 ];
 
 const uniqueUrls = (values = []) => [...new Set(values.map((value) => clean(value)).filter(Boolean))];
+const PLACEHOLDER_BODY = /^\[(attachment|image|media|file|sticker)\]$/i;
 
 const imageUrlsForMessage = (message = {}) =>
   uniqueUrls([
@@ -407,6 +408,48 @@ function LinkifiedText({ text = "", className = "" }) {
   );
 }
 
+// Chat images are previews, not hero art. A 16:9 box with object-cover cropped
+// portrait photos (the usual phone screenshot) into an unreadable strip and let a
+// single attachment swallow the whole transcript, so keep the real aspect ratio
+// and cap the footprint. The full image is one click away.
+function MessageImageGrid({ urls = [], variant = "desktop", className = "mt-3" }) {
+  if (!urls.length) return null;
+  const size = variant === "pwa" ? "max-h-44 max-w-[180px]" : "max-h-56 max-w-[220px]";
+  return (
+    <div className={`${className} flex flex-wrap gap-2`}>
+      {urls.map((url) => (
+        <a
+          key={url}
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-block overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60"
+        >
+          <img src={url} alt="Attachment" className={`${size} w-auto object-contain`} loading="lazy" decoding="async" />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// Media rendering used to exist only on the customer bubble in the PWA, so a
+// photo the shop sent (or the AI echoed back) showed as a bare caption.
+function PwaMessageMedia({ mediaUrls = [], audioUrls = [], videoUrls = [], documentUrls = [] }) {
+  if (!mediaUrls.length && !audioUrls.length && !videoUrls.length && !documentUrls.length) return null;
+  return (
+    <>
+      <MessageImageGrid urls={mediaUrls} variant="pwa" className="mt-2" />
+      {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-2 w-full" />)}
+      {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-2 max-h-72 w-full rounded-xl" />)}
+      {documentUrls.map((url) => (
+        <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700">
+          فتح الملف
+        </a>
+      ))}
+    </>
+  );
+}
+
 function TranscriptMessage({
   row = null,
   variant = "desktop",
@@ -422,6 +465,21 @@ function TranscriptMessage({
   const audioUrls = useMemo(() => typedMediaUrls(message, ["audio", "voice", "ptt"]).slice(0, 4), [message]);
   const videoUrls = useMemo(() => typedMediaUrls(message, ["video"]).slice(0, 4), [message]);
   const documentUrls = useMemo(() => typedMediaUrls(message, ["document", "file"]).slice(0, 4), [message]);
+  // Messages stored before the webhook started writing a readable label still
+  // carry the literal "[attachment]" body. Once the media itself is on screen
+  // that string is pure noise, so swap it for the same label new rows get.
+  const bodyText = useMemo(() => {
+    const label = mediaUrls.length
+      ? "📷 صورة"
+      : videoUrls.length
+        ? "🎥 فيديو"
+        : audioUrls.length
+          ? "🎤 رسالة صوتية"
+          : documentUrls.length
+            ? "📎 ملف"
+            : "";
+    return (value) => (label && PLACEHOLDER_BODY.test(clean(value)) ? label : value);
+  }, [mediaUrls, videoUrls, audioUrls, documentUrls]);
   const createdAt = safeRow.createdAt || absoluteTime(message.created_at);
   const isCommentMessage =
     safeRow.kind === "comment" ||
@@ -469,16 +527,12 @@ function TranscriptMessage({
             <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
             <div className="ai-pwa-message-body">
-              <LinkifiedText text={message.customer_message} className="text-[14px] leading-5.5" />
+              <LinkifiedText text={bodyText(message.customer_message)} className="text-[14px] leading-5.5" />
               {message.delivery_status === "failed" ? <span className="text-[11px] text-rose-500"> · Failed</span> : null}
               {message.delivery_status === "failed" && message.delivery_error ? (
                 <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
               ) : null}
-              {mediaUrls.length ? (
-                <div className="mt-2 grid gap-2">
-                  {mediaUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt="Attachment" className="aspect-video w-full rounded-xl object-cover" loading="lazy" decoding="async" /></a>)}
-                </div>
-              ) : null}
+              <MessageImageGrid urls={mediaUrls} variant="pwa" className="mt-2" />
               {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-2 w-full" />)}
               {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-2 max-h-72 w-full rounded-xl" />)}
               {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700">فتح الملف</a>)}
@@ -498,7 +552,8 @@ function TranscriptMessage({
               <Bot className="h-3.5 w-3.5" />
               AI
             </div>
-            <LinkifiedText text={message.ai_answer} className="ai-pwa-message-body text-[14px] leading-5.5" />
+            <LinkifiedText text={bodyText(message.ai_answer)} className="ai-pwa-message-body text-[14px] leading-5.5" />
+            <PwaMessageMedia mediaUrls={mediaUrls} audioUrls={audioUrls} videoUrls={videoUrls} documentUrls={documentUrls} />
             </div>
           </div>
         </MessageActionShell>
@@ -513,7 +568,8 @@ function TranscriptMessage({
             <div className="ai-pwa-message-meta mb-1 text-[10px] font-medium">
               {message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}
             </div>
-            <LinkifiedText text={message.staff_message} className="ai-pwa-message-body text-[14px] leading-5.5" />
+            <LinkifiedText text={bodyText(message.staff_message)} className="ai-pwa-message-body text-[14px] leading-5.5" />
+            <PwaMessageMedia mediaUrls={mediaUrls} audioUrls={audioUrls} videoUrls={videoUrls} documentUrls={documentUrls} />
             {message.delivery_status === "failed" && message.delivery_error ? (
               <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
             ) : null}
@@ -534,7 +590,8 @@ function TranscriptMessage({
               <span className="text-slate-400">/</span>
               <span>{createdAt}</span>
             </div>
-            <LinkifiedText text={message.customer_message || message.message_text || message.text || message.body} className="mt-3 text-[16px] leading-8 text-white" />
+            <LinkifiedText text={bodyText(message.customer_message || message.message_text || message.text || message.body)} className="mt-3 text-[16px] leading-8 text-white" />
+            <MessageImageGrid urls={mediaUrls} variant="pwa" />
             <div className="mt-3 flex flex-wrap gap-2">
               {message.comment_id && onReplyComment ? (
                 <button
@@ -586,16 +643,8 @@ function TranscriptMessage({
               <span>/</span>
               <span>{createdAt}</span>
             </div>
-            <LinkifiedText text={message.customer_message} className="mt-3 text-[16px] leading-8 text-white" />
-            {mediaUrls.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {mediaUrls.map((url) => (
-                  <a key={url} href={url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80">
-                    <img src={url} alt="Attachment" className="aspect-video w-full object-cover" loading="lazy" decoding="async" />
-                  </a>
-                ))}
-              </div>
-            ) : null}
+            <LinkifiedText text={bodyText(message.customer_message)} className="mt-3 text-[16px] leading-8 text-white" />
+            <MessageImageGrid urls={mediaUrls} />
             {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-3 w-full" />)}
             {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-3 max-h-80 w-full rounded-2xl border border-white/10 bg-slate-950/80" />)}
             {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-black text-cyan-100">فتح الملف</a>)}
@@ -622,30 +671,11 @@ function TranscriptMessage({
                 </button>
               ) : null}
             </div>
-            <LinkifiedText text={message.ai_answer} className="mt-3 text-[16px] leading-8 text-white" />
+            <LinkifiedText text={bodyText(message.ai_answer)} className="mt-3 text-[16px] leading-8 text-white" />
             {message.suggested_products?.length ? <div className="mt-3"><ProductCardMessage message={message} cards={message.suggested_products} compact /></div> : null}
-            {message.visual_attachments?.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {message.visual_attachments.slice(0, 4).map((attachment, index) => {
-                  const url = clean(attachment?.url || attachment?.image_url || attachment?.attachment_url || "");
-                  if (!url) return null;
-                  return (
-                    <a key={`${url}-${index}`} href={url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80">
-                      <img src={url} alt="Attachment" className="aspect-video w-full object-cover" loading="lazy" decoding="async" />
-                    </a>
-                  );
-                })}
-              </div>
-            ) : null}
-            {mediaUrls.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {mediaUrls.map((url) => (
-                  <a key={url} href={url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80">
-                    <img src={url} alt="Attachment" className="aspect-video w-full object-cover" loading="lazy" decoding="async" />
-                  </a>
-                ))}
-              </div>
-            ) : null}
+            {/* visual_attachments already feed mediaUrls via imageUrlsForMessage —
+                rendering them separately here painted every AI image twice. */}
+            <MessageImageGrid urls={mediaUrls} />
           </div>
         </div>
       ) : null}
@@ -664,16 +694,8 @@ function TranscriptMessage({
               <span className="text-slate-500">{createdAt}</span>
               {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{message.delivery_status}</span> : null}
             </div>
-            <LinkifiedText text={message.staff_message} className="mt-3 text-[16px] leading-8 text-white" />
-            {mediaUrls.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {mediaUrls.map((url) => (
-                  <a key={url} href={url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80">
-                    <img src={url} alt="Attachment" className="aspect-video w-full object-cover" loading="lazy" decoding="async" />
-                  </a>
-                ))}
-              </div>
-            ) : null}
+            <LinkifiedText text={bodyText(message.staff_message)} className="mt-3 text-[16px] leading-8 text-white" />
+            <MessageImageGrid urls={mediaUrls} />
             {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-3 w-full" />)}
             {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-3 max-h-80 w-full rounded-2xl border border-white/10 bg-slate-950/80" />)}
             {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-black text-cyan-100">فتح الملف</a>)}
@@ -690,7 +712,8 @@ function TranscriptMessage({
               <span className="text-slate-400">/</span>
               <span>{createdAt}</span>
             </div>
-            <LinkifiedText text={message.customer_message || message.message_text || message.text || message.body} className="mt-3 text-[16px] leading-8 text-white" />
+            <LinkifiedText text={bodyText(message.customer_message || message.message_text || message.text || message.body)} className="mt-3 text-[16px] leading-8 text-white" />
+            <MessageImageGrid urls={mediaUrls} />
             <div className="mt-3 flex flex-wrap gap-2">
               {message.comment_id && onReplyComment ? (
                 <button

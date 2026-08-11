@@ -1007,6 +1007,11 @@ const summarizeInboxMessage = (row = {}) => {
     detected_intent: row.detected_intent || "",
     product_cards: normalizeInboxProductCards(row),
     productCards: normalizeInboxProductCards(row),
+    // The summary carries the conversation's latest message, and the PWA renders
+    // it directly whenever it considers the thread already hydrated. Dropping
+    // attachments here made an inbound photo show as text-only there while the
+    // desktop inbox (which always refetches /messages) rendered it fine.
+    visual_attachments: asArray(row.visual_attachments),
     created_at: row.created_at,
     system_events: Array.isArray(row.system_events) ? row.system_events.slice(0, 2) : [],
   };
@@ -2226,6 +2231,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       m.sender_type AS latest_sender_type,
       m.message_type,
       m.product_cards,
+      m.visual_attachments,
       m.latest_message_created_at,
       m.external_message_id,
       m.external_reply_id,
@@ -2270,6 +2276,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         msg.sender_type,
         msg.message_type,
         msg.product_cards,
+        msg.visual_attachments,
         msg.created_at AS latest_message_created_at,
         msg.external_message_id,
         msg.external_reply_id,

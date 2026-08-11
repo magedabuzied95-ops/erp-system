@@ -43,6 +43,7 @@ services/
 server/services/*
 !server/services/metaReviewerAccessService.js
 !server/services/metaReviewerInboxService.js
+!server/services/inboundMediaService.js
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -63,3 +64,4 @@ services/
 server/services/*
 !server/services/metaReviewerAccessService.js
 !server/services/metaReviewerInboxService.js
+!server/services/inboundMediaService.js
