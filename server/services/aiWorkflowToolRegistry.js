@@ -14,8 +14,17 @@
 
 import * as businessTools from "./aiBusinessToolsService.js";
 import { searchAiOrderProducts, confirmAiOrder, updateAiOrderStatus } from "./aiAgentOrderService.js";
+import { createStaffTask } from "./staffTasksService.js";
 
 export const RISK = Object.freeze({ READ: "READ", WRITE: "WRITE", SENSITIVE: "SENSITIVE" });
+
+// Phase 5 — automatic-execution policy (server-authoritative; the frontend only labels it).
+//   AUTO              – READ tools; automatic runs may execute freely.
+//   DELEGATABLE       – low-risk WRITE tools; automatic execution ONLY with an explicit
+//                       per-workflow admin grant. Manual runs still use normal RBAC.
+//   APPROVAL_REQUIRED – SENSITIVE tools; never delegated, always human approval.
+//   DENIED            – not runnable automatically (e.g. described-only WRITE).
+export const AUTO_POLICY = Object.freeze({ AUTO: "AUTO", DELEGATABLE: "DELEGATABLE", APPROVAL_REQUIRED: "APPROVAL_REQUIRED", DENIED: "DENIED" });
 
 // requiresApproval defaults: READ=false, WRITE=true (conservative for Phase 2),
 // SENSITIVE=true (and additionally can never be auto-run — enforced in the executor).
@@ -138,6 +147,41 @@ const TOOLS = [
     executable: false,
     handler: null,
   },
+  // ---- Phase 5: FIRST executable low-risk WRITE — internal follow-up/task only ----
+  {
+    id: "followups.create",
+    name: "Create internal follow-up",
+    description: "Create an INTERNAL, unassigned staff follow-up/task (e.g. \"review restocked item\"). No customer message, no order/stock/accounting change.",
+    category: "tasks",
+    riskLevel: RISK.WRITE,
+    requiredPermission: "settings.edit",
+    automaticExecution: AUTO_POLICY.DELEGATABLE, // may auto-run ONLY with an explicit workflow grant
+    inputSchema: {
+      title: { type: "string", required: true, description: "Short task title" },
+      note: { type: "string", required: false, description: "Optional details" },
+      priority: { type: "string", required: false, description: "low | medium | high" },
+    },
+    outputDescription: "The created internal task id.",
+    requiresApproval: false, // the admin grant is the authorization; no per-run approval for a granted WRITE
+    executable: true,
+    handler: async ({ tenantId, input, actorUserId }) => {
+      const priority = ["low", "medium", "high"].includes(input?.priority) ? input.priority : "medium";
+      const task = await createStaffTask(
+        {
+          tenantId,
+          title: String(input?.title || "AI follow-up").slice(0, 200),
+          description: String(input?.note || input?.description || ""),
+          priority,
+          allow_unassigned: true, // no assignee => no employee notification / no external side effect
+          task_type: "general",
+          source_module: "ai_workflow",
+        },
+        { id: actorUserId || null }
+      );
+      const taskId = task?.id ?? task?.task?.id ?? null;
+      return { taskId, created: Boolean(taskId), idle: Boolean(task?.idle) };
+    },
+  },
   // ---- SENSITIVE — registered/described, NEVER auto-executed (approval enforced) ----
   {
     id: "orders.confirm",
@@ -185,8 +229,34 @@ const TOOLS = [
 
 const TOOLS_BY_ID = new Map(TOOLS.map((tool) => [tool.id, tool]));
 
+// Server-authoritative automatic-execution policy. Explicit per-tool override wins; otherwise
+// derived: READ→AUTO, SENSITIVE→APPROVAL_REQUIRED, WRITE→DENIED (only vetted WRITE tools opt in
+// to DELEGATABLE explicitly). SENSITIVE can NEVER be DELEGATABLE.
+export const toolAutomaticPolicy = (idOrTool) => {
+  const tool = typeof idOrTool === "string" ? getTool(idOrTool) : idOrTool;
+  if (!tool) return AUTO_POLICY.DENIED;
+  if (tool.riskLevel === RISK.SENSITIVE) return AUTO_POLICY.APPROVAL_REQUIRED; // never delegatable
+  if (tool.automaticExecution && Object.values(AUTO_POLICY).includes(tool.automaticExecution)) return tool.automaticExecution;
+  if (tool.riskLevel === RISK.READ) return AUTO_POLICY.AUTO;
+  return AUTO_POLICY.DENIED; // WRITE without an explicit DELEGATABLE opt-in
+};
+
+export const isDelegatableTool = (id) => toolAutomaticPolicy(id) === AUTO_POLICY.DELEGATABLE;
+
+// Pure automatic-execution decision (no DB). `hasActiveGrant` is a boolean the caller resolves.
+// SENSITIVE is ALWAYS denied here regardless of any grant — it can never be auto-executed.
+export const automaticDecision = (toolId, hasActiveGrant) => {
+  const policy = toolAutomaticPolicy(toolId);
+  if (policy === AUTO_POLICY.AUTO) return { allow: true, policy };
+  if (policy === AUTO_POLICY.DELEGATABLE) return hasActiveGrant ? { allow: true, policy } : { allow: false, policy, reason: `automatic execution of "${toolId}" requires an admin grant` };
+  if (policy === AUTO_POLICY.APPROVAL_REQUIRED) return { allow: false, policy, reason: `"${toolId}" is SENSITIVE — human approval required; never auto-executed` };
+  return { allow: false, policy, reason: `"${toolId}" cannot be executed automatically` };
+};
+
 export const listTools = () =>
-  TOOLS.map(({ handler, ...meta }) => ({ ...meta, hasHandler: typeof handler === "function" }));
+  TOOLS.map(({ handler, ...meta }) => ({ ...meta, hasHandler: typeof handler === "function", automaticExecution: toolAutomaticPolicy(meta) }));
+
+export const listDelegatableTools = () => listTools().filter((t) => t.automaticExecution === AUTO_POLICY.DELEGATABLE);
 
 export const getTool = (id) => TOOLS_BY_ID.get(String(id || "")) || null;
 

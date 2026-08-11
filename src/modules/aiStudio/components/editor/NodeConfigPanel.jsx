@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Trash2, ShieldAlert, Info, Code2, AlertTriangle, Eye, Pencil, GitBranch, Check, X, Bot } from "lucide-react";
+import { Trash2, ShieldAlert, Info, Code2, AlertTriangle, Eye, Pencil, GitBranch, Check, X, Bot, KeyRound } from "lucide-react";
 import { CONDITION_OPS, NODE_META, RISK_META, humanizeField } from "../../lib/workflowGraph";
 import { RISK_BADGE, RISK_INFO } from "./nodeKit";
 
@@ -70,7 +70,7 @@ function InputField({ name, spec, value, onChange, stepOptions }) {
   );
 }
 
-export default function NodeConfigPanel({ node, registry, capabilities, errors = [], warnings = [], stepOptions = [], onChange, onDelete }) {
+export default function NodeConfigPanel({ node, registry, capabilities, errors = [], warnings = [], stepOptions = [], grantedToolIds = [], onGrantTool, onRevokeTool, onChange, onDelete }) {
   const [jsonOpen, setJsonOpen] = useState(false);
   const [advOpen, setAdvOpen] = useState(false);
   const [jsonText, setJsonText] = useState("");
@@ -262,9 +262,34 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
             </div>
             {tool.riskLevel === "SENSITIVE" ? (
               <div className="flex items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-rose-100">
-                <ShieldAlert className="h-3.5 w-3.5" /> Human approval required — cannot be disabled
+                <ShieldAlert className="h-3.5 w-3.5" /> Human approval required — cannot be delegated
               </div>
             ) : null}
+
+            {/* Automation Permissions — delegated WRITE grants (Phase 5) */}
+            {tool.automaticExecution === "AUTO" ? (
+              <div className="rounded-lg border border-emerald-300/25 bg-emerald-300/[0.06] px-2.5 py-1.5 text-[10px] font-bold text-emerald-100"><Eye className="mr-1 inline h-3 w-3" />Read only — automatic runs allowed.</div>
+            ) : tool.automaticExecution === "DELEGATABLE" ? (
+              (() => {
+                const granted = grantedToolIds?.includes(tool.id);
+                return (
+                  <div className={`rounded-xl border px-2.5 py-2 ${granted ? "border-emerald-300/30 bg-emerald-300/[0.06]" : "border-amber-300/30 bg-amber-300/[0.06]"}`}>
+                    <div className="text-[10px] font-black uppercase tracking-wide text-slate-300">Automation permission</div>
+                    <div className="mt-0.5 text-[10px] text-slate-400">{granted
+                      ? "Granted — automatic runs may create internal follow-ups. No customer messaging or order changes."
+                      : "Not granted — automatic runs cannot execute this write until an admin grants it."}</div>
+                    {granted ? (
+                      <button type="button" onClick={() => onRevokeTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black text-rose-100 hover:bg-rose-500/20"><KeyRound className="h-3 w-3" />Revoke automatic permission</button>
+                    ) : (
+                      <button type="button" onClick={() => onGrantTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-cyan-300/40 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black text-cyan-100 hover:bg-cyan-300/20"><KeyRound className="h-3 w-3" />Grant automatic permission</button>
+                    )}
+                  </div>
+                );
+              })()
+            ) : tool.automaticExecution === "APPROVAL_REQUIRED" ? (
+              <div className="rounded-lg border border-rose-400/25 bg-rose-500/[0.06] px-2.5 py-1.5 text-[10px] font-bold text-rose-100">Cannot be delegated — always routes to human approval.</div>
+            ) : null}
+
             <div className="text-[10px] text-slate-500">Requires permission: <span className="font-mono text-slate-300">{tool.requiredPermission || "—"}</span></div>
           </Section>
         ) : null}

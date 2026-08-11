@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import { useStudioHeaders } from "../lib/studioRequest";
-import { getWorkflow, updateWorkflow, listTools, runWorkflow, getRun, validateDefinition } from "../services/aiStudioApi";
+import { getWorkflow, updateWorkflow, listTools, runWorkflow, getRun, validateDefinition, listWorkflowGrants, grantWorkflowTool, revokeWorkflowTool } from "../services/aiStudioApi";
 import {
   definitionToGraph, graphToDefinition, buildPalette, validateGraphStructure, mapServerErrorsToNodes,
   definitionsEqual, newNodeId, defaultConfigFor, DEFAULT_AGENT_MODES, DEFAULT_TRIGGER_TYPES,
@@ -70,15 +70,33 @@ export default function AiStudioWorkflowEditor() {
   const [showConfig, setShowConfig] = useState(true);
   const [issuesOpen, setIssuesOpen] = useState(false);
 
+  // ---- Phase 5: delegated WRITE grants ----
+  const [grants, setGrants] = useState([]);
+  const grantedToolIds = useMemo(() => grants.filter((g) => !g.revoked_at).map((g) => g.tool_id), [grants]);
+  const refreshGrants = useCallback(async () => {
+    try { const r = await listWorkflowGrants(id, headers); setGrants(Array.isArray(r?.grants) ? r.grants : []); } catch { /* ignore */ }
+  }, [id, headers]);
+  const onGrantTool = useCallback(async (toolId) => {
+    if (!window.confirm(`Allow this workflow to automatically use "${toolId}"?\n\nThis permits automatic internal follow-up creation only. It does NOT allow customer messaging or order changes.`)) return;
+    try { const r = await grantWorkflowTool(id, toolId, headers); if (r?.success === false) setStatus({ kind: "error", msg: r?.message || "Grant failed" }); else { setStatus({ kind: "ok", msg: `Granted ${toolId}` }); await refreshGrants(); } }
+    catch (e) { setStatus({ kind: "error", msg: e?.responseBody?.message || e?.message || "Grant failed" }); }
+  }, [id, headers, refreshGrants]);
+  const onRevokeTool = useCallback(async (toolId) => {
+    if (!window.confirm(`Revoke automatic permission for "${toolId}"? Automatic runs will no longer execute this write.`)) return;
+    try { await revokeWorkflowTool(id, toolId, headers); setStatus({ kind: "ok", msg: `Revoked ${toolId}` }); await refreshGrants(); }
+    catch (e) { setStatus({ kind: "error", msg: e?.responseBody?.message || e?.message || "Revoke failed" }); }
+  }, [id, headers, refreshGrants]);
+
   // ---------- load ----------
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
       try {
-        const [wfRes, toolsRes] = await Promise.all([getWorkflow(id, headers), listTools(headers)]);
+        const [wfRes, toolsRes, grantsRes] = await Promise.all([getWorkflow(id, headers), listTools(headers), listWorkflowGrants(id, headers).catch(() => null)]);
         if (!alive) return;
         if (toolsRes) { setRegistry({ tools: toolsRes.tools || [] }); if (toolsRes.capabilities) setCapabilities(toolsRes.capabilities); }
+        if (grantsRes?.grants) setGrants(grantsRes.grants);
         const wf = wfRes?.workflow;
         if (!wf) { setStatus({ kind: "error", msg: "Workflow not found." }); setLoading(false); return; }
         const def = wf.definition && typeof wf.definition === "object" ? wf.definition : { version: 1, nodes: [], edges: [] };
@@ -156,11 +174,12 @@ export default function AiStudioWorkflowEditor() {
           toolMeta: n.data?.config?.tool ? toolMetaFor(n.data.config.tool) : null,
           execState: execStates[n.id]?.state || null,
           disconnected: disconnected.has(n.id),
+          granted: n.data?.config?.tool ? grantedToolIds.includes(n.data.config.tool) : false,
           warnings: warningsByNode[n.id] || [],
           errors: nodeErrorsFor(n.id),
         },
       })),
-    [nodes, selectedId, toolMetaFor, execStates, disconnected, warningsByNode, nodeErrorsFor]
+    [nodes, selectedId, toolMetaFor, execStates, disconnected, grantedToolIds, warningsByNode, nodeErrorsFor]
   );
 
   // ---------- display edges (execution-path styling) ----------
@@ -497,6 +516,9 @@ export default function AiStudioWorkflowEditor() {
               registry={registry}
               capabilities={capabilities}
               stepOptions={stepOptions}
+              grantedToolIds={grantedToolIds}
+              onGrantTool={onGrantTool}
+              onRevokeTool={onRevokeTool}
               errors={selectedNode ? nodeErrorsFor(selectedNode.id) : []}
               warnings={selectedNode ? (warningsByNode[selectedNode.id] || []) : []}
               onChange={updateSelectedConfig}

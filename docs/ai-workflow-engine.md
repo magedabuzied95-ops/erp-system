@@ -111,8 +111,13 @@ Phase 2 supports **`manual`** only (via `POST /workflows/:id/run`). The definiti
 
 > **Phase 4 (event-driven automation):** a thin post-commit adapter now creates runs from real ERP
 > events (`followup.due`, `inventory.restocked`, `schedule.interval`) through this **unchanged**
-> executor. Automatic runs use a READ-only system actor and are gated by global+tenant kill switches
-> (default OFF); idempotency reuses the existing run key. See `docs/ai-workflow-triggers.md`.
+> executor. Automatic runs are gated by global+tenant kill switches (default OFF); idempotency reuses
+> the existing run key. See `docs/ai-workflow-triggers.md`.
+>
+> **Phase 5 (delegated writes):** the executor now takes an optional `deps.authorizeTool` (delegated
+> automatic authorization — READ auto, WRITE only with an admin grant, SENSITIVE always refused) and
+> `deps.reserveWriteOp` (write-op idempotency: a side-effecting step runs at most once per run+node).
+> Manual runs still use `deps.hasPermission` (real user RBAC). See `docs/ai-workflow-delegated-writes.md`.
 
 ---
 

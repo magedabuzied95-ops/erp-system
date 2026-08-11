@@ -25,3 +25,10 @@ export const setTenantAutomation = (enabled, headers) => api.post(`${BASE}/autom
 export const archiveWorkflow = (id, headers) => api.post(`${BASE}/workflows/${encodeURIComponent(id)}/archive`, {}, { headers });
 export const unarchiveWorkflow = (id, headers) => api.post(`${BASE}/workflows/${encodeURIComponent(id)}/unarchive`, {}, { headers });
 export const listWorkflowsWithArchived = (headers) => api.get(`${BASE}/workflows`, { headers, params: { includeArchived: 1 }, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+// Phase 5 — delegated WRITE grants + tenant timezone.
+export const listDelegatableTools = (headers) => api.get(`${BASE}/delegatable-tools`, opts(headers));
+export const listWorkflowGrants = (id, headers) => api.get(`${BASE}/workflows/${encodeURIComponent(id)}/grants`, opts(headers));
+export const grantWorkflowTool = (id, toolId, headers) => api.post(`${BASE}/workflows/${encodeURIComponent(id)}/grants`, { toolId }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const revokeWorkflowTool = (id, toolId, headers) => api.delete(`${BASE}/workflows/${encodeURIComponent(id)}/grants/${encodeURIComponent(toolId)}`, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const getAutomationTimezone = (headers) => api.get(`${BASE}/automation/timezone`, opts(headers));
+export const setAutomationTimezone = (timezone, headers) => api.post(`${BASE}/automation/timezone`, { timezone }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });

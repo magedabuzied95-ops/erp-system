@@ -12,6 +12,7 @@ import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { adjustVariantStock } from "../services/inventoryService.js";
 import { recordInventoryMovement } from "../services/inventoryMovementService.js";
+import { notifyInventoryRestock } from "../services/aiWorkflowTriggerService.js";
 import { createJournalEntry, ensureAccountingSchema, postInventoryAdjustment, postMoneyTransaction, postPurchaseEntry, recordFinancialAccountActivity, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { ensureSmartReorderSchema, getSmartReorderSuggestions } from "../services/smartReorderService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
@@ -4523,13 +4524,14 @@ router.post(
       }
 
       const warehouseId = await ensureDefaultWarehouseForPurchase(client, tenantId, purchase.warehouse_id);
+      const receiveMovements = []; // Phase 5: per-variant movement rows for a post-commit restock emit
       for (const item of purchase.items || []) {
         const quantity = Number(item.quantity || item.qty || 0);
         if (quantity <= 0) continue;
         const unitCost = Number(item.unit_cost ?? item.cost_price ?? 0) || 0;
         const itemTotal = Number(item.subtotal ?? item.total ?? quantity * unitCost) || 0;
         if (item.variant_id) {
-          await adjustVariantStock(client, {
+          const adj = await adjustVariantStock(client, {
             tenantId,
             variantId: item.variant_id,
             quantityChange: quantity,
@@ -4543,6 +4545,7 @@ router.post(
             notes: `Purchase received SKU ${item.sku || item.variant_id}`,
             createdBy: req.user?.id || null,
           });
+          if (adj) receiveMovements.push(adj);
           await upsertWarehouseVariantStock(client, { tenantId, warehouseId, variantId: item.variant_id, quantity });
           await updateProductVariantAfterPurchase(client, {
             tenantId,
@@ -4587,6 +4590,8 @@ router.post(
       );
       const updated = await loadPurchaseById(client, { tenantId, purchaseId: purchase.id });
       await client.query("COMMIT");
+      // Phase 5 downstream automation only — inventory.restocked per <=0 -> >0 crossing; isolated.
+      try { for (const m of receiveMovements) notifyInventoryRestock({ tenantId, movement: m }); } catch { /* never affects receiving */ }
       res.json({ success: true, message: "Stock received", data: updated, purchase: updated, items: updated.items });
     } catch (error) {
       await client.query("ROLLBACK").catch(() => {});
@@ -5342,14 +5347,17 @@ router.post(
         return insertedItem?.id ? { ...item, id: insertedItem.id, purchase_item_id: insertedItem.id } : item;
       });
 
+      let restockMovements = []; // Phase 5: per-variant movement rows for a post-commit restock emit
       if (shouldApplyStock) {
-        await runStep("stock update", () => batchApplyVariantPurchaseStock(client, {
+        const stockResult = await runStep("stock update", () => batchApplyVariantPurchaseStock(client, {
           tenantId,
           warehouseId,
           purchaseId: purchase.id,
           items: itemsWithInsertedIds,
           userId: req.user?.id || null,
         }));
+        // Captured for a POST-COMMIT restock emit (Phase 5). Do NOT emit inside the transaction.
+        restockMovements = Array.isArray(stockResult?.stockRows) ? stockResult.stockRows : [];
       }
 
       await runStep("variant lookup/create/update", () => batchUpdateVariantPricingAfterPurchase(client, {
@@ -5466,6 +5474,10 @@ router.post(
 
       await runStep("transaction.commit", () => client.query("COMMIT"));
       transactionStarted = false;
+      // AI Studio Phase 5: downstream automation only. Emits inventory.restocked per variant that
+      // crossed <=0 -> >0 (multi-variant → distinct idempotent events by movement id). Fully
+      // failure-isolated: the purchase has already committed and must never depend on this.
+      try { for (const m of restockMovements) notifyInventoryRestock({ tenantId, movement: m }); } catch { /* never affects the purchase */ }
       console.log("[purchase:create] end", {
         requestId,
         purchase_save_id: purchaseSaveIdForLogs,

@@ -131,13 +131,29 @@ async function traverse({ store, deps, tenantId, workflow, run, definition, star
         const tool = toolId ? getTool(toolId) : null;
         const resolvedInput = resolveInput(node.config?.input || {}, context);
 
-        // RBAC enforced BEFORE anything else.
-        if (tool?.requiredPermission) {
-          const allowed = await deps.hasPermission(tool.requiredPermission);
-          if (!allowed) {
-            await recordStep({ status: "failed", risk_level: tool?.riskLevel, input: resolvedInput, error: `permission denied: ${tool.requiredPermission}` });
-            await store.updateRun(run.id, tenantId, { status: "failed", error: `permission denied: ${tool.requiredPermission}`, finished_at: new Date().toISOString() });
-            return { status: "failed", error: "permission denied" };
+        // Authorization BEFORE anything else.
+        //  - Manual runs (deps.hasPermission): the authenticated user's real RBAC — unchanged.
+        //  - Automatic runs (deps.authorizeTool): the delegated-actor policy — READ auto-allowed,
+        //    DELEGATABLE WRITE only with an active grant, SENSITIVE/DENIED refused (SENSITIVE can
+        //    never be auto-run; it fails safely here, never bypassing approval).
+        let authGrantId = null;
+        if (tool) {
+          if (typeof deps.authorizeTool === "function") {
+            const decision = await deps.authorizeTool({ tool, node, run });
+            authGrantId = decision?.grantId || null;
+            if (!decision?.allow) {
+              const reason = decision?.reason || `automatic execution not permitted for ${toolId}`;
+              await recordStep({ status: "failed", risk_level: tool.riskLevel, input: resolvedInput, error: reason });
+              await store.updateRun(run.id, tenantId, { status: "failed", error: reason, finished_at: new Date().toISOString() });
+              return { status: "failed", error: "authorization denied" };
+            }
+          } else if (tool.requiredPermission) {
+            const allowed = await deps.hasPermission(tool.requiredPermission);
+            if (!allowed) {
+              await recordStep({ status: "failed", risk_level: tool.riskLevel, input: resolvedInput, error: `permission denied: ${tool.requiredPermission}` });
+              await store.updateRun(run.id, tenantId, { status: "failed", error: `permission denied: ${tool.requiredPermission}`, finished_at: new Date().toISOString() });
+              return { status: "failed", error: "permission denied" };
+            }
           }
         }
 
@@ -175,9 +191,27 @@ async function traverse({ store, deps, tenantId, workflow, run, definition, star
           await store.updateRun(run.id, tenantId, { status: "failed", error: `tool not executable: ${toolId}`, finished_at: new Date().toISOString() });
           return { status: "failed", error: "tool not executable" };
         }
+        // Write-operation idempotency: a side-effecting (non-READ) step executes at most once
+        // per (run, node), so resume/retry never duplicates the write. DB-enforced via the store.
+        const isWrite = tool.riskLevel && tool.riskLevel !== "READ";
+        if (isWrite && typeof deps.reserveWriteOp === "function") {
+          const reservation = await deps.reserveWriteOp({ tenantId, runId: run.id, nodeId: node.id, toolId, key: `${run.id}:${node.id}` });
+          if (!reservation?.created) {
+            const priorOutput = { idempotentSkip: true, resultRef: reservation?.resultRef || null };
+            context.steps[node.id] = { output: priorOutput };
+            await recordStep({ status: "ok", risk_level: tool.riskLevel, input: resolvedInput, output: priorOutput });
+            run.__approvedNodeId = null;
+            currentId = nextNodeId(definition, node.id);
+            continue;
+          }
+        }
         const output = await tool.handler({ tenantId, input: resolvedInput, actorUserId: run.started_by || null, context });
         context.steps[node.id] = { output };
-        await recordStep({ status: "ok", risk_level: tool.riskLevel, input: resolvedInput, output });
+        await recordStep({ status: "ok", risk_level: tool.riskLevel, input: resolvedInput, output, grant_id: authGrantId });
+        // Automatic WRITE audit trail ("why was this automated write allowed?").
+        if (isWrite && typeof deps.onWriteExecuted === "function") {
+          await deps.onWriteExecuted({ tenantId, run, node, tool, grantId: authGrantId, output }).catch(() => {});
+        }
         run.__approvedNodeId = null;
         currentId = nextNodeId(definition, node.id);
         continue;

@@ -6,7 +6,7 @@ import db from "../database/db.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getSetting } from "./settingsService.js";
 import { ensureAiWorkflowSchema, validateWorkflowDefinition, redactSecrets } from "./aiWorkflowSchema.js";
-import { listTools, getTool, RISK } from "./aiWorkflowToolRegistry.js";
+import { listTools, getTool, RISK, isDelegatableTool, listDelegatableTools, automaticDecision } from "./aiWorkflowToolRegistry.js";
 import { startRunExecution, continueRunAfterApproval } from "./aiWorkflowExecutorService.js";
 import { listTriggers, isGlobalAutomationEnabled } from "./aiWorkflowTriggerRegistry.js";
 
@@ -441,6 +441,7 @@ export const getAutomationStatus = async (tenantId) => {
     tenant_enabled: tenantOn,
     active_auto_workflows: Number(counts.rows[0]?.active_auto_workflows || 0),
     enabled_workflows: Number(counts.rows[0]?.enabled_workflows || 0),
+    timezone: await getTenantTimezone(tenantId),
     reasons,
   };
 };
@@ -479,7 +480,7 @@ export const runEventForWorkflow = async ({ tenantId, workflow, triggerType, eve
   );
   if (!inserted.rows[0]) return { duplicate: true, workflowId: workflow.id };
   const run = inserted.rows[0];
-  const result = await startRunExecution({ store: dbStore, deps: buildSystemDeps(), tenantId, workflow, run });
+  const result = await startRunExecution({ store: dbStore, deps: buildDelegatedDeps({ tenantId, workflow }), tenantId, workflow, run });
   return { duplicate: false, workflowId: workflow.id, runId: run.id, status: result.status, result };
 };
 
@@ -499,4 +500,129 @@ export const listAutomationEnabledTenantIds = async () => {
   if (!isGlobalAutomationEnabled()) return [];
   const r = await db.query(`SELECT tenant_id FROM ai_workflow_tenant_settings WHERE automation_enabled = TRUE`);
   return r.rows.map((x) => Number(x.tenant_id));
+};
+
+// ===========================================================================
+// Phase 5 — delegated WRITE authorization, write-op idempotency, timezone, audit.
+// ===========================================================================
+
+// Canonical audit row (matches the repo's direct-INSERT convention). Never throws.
+export const writeAudit = async ({ tenantId, userId = null, action, entityType, entityId = null, details = {} }) => {
+  try {
+    await db.query(
+      `INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, details) VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+      [tenantId, num(userId), String(action), String(entityType), entityId != null ? Number(entityId) : null, JSON.stringify(redactSecrets(details || {}))]
+    );
+  } catch { /* audit failure must never break the operation */ }
+};
+
+// ---- Grants (per-workflow delegated WRITE authorization) ----
+export const listGrants = async (tenantId, workflowId, { includeRevoked = false } = {}) => {
+  await ensureAiWorkflowSchema();
+  const where = includeRevoked ? `tenant_id = $1 AND workflow_id = $2` : `tenant_id = $1 AND workflow_id = $2 AND revoked_at IS NULL`;
+  const r = await db.query(`SELECT * FROM ai_workflow_grants WHERE ${where} ORDER BY granted_at DESC`, [tenantId, workflowId]);
+  return r.rows;
+};
+
+export const hasActiveGrant = async (tenantId, workflowId, toolId) => {
+  await ensureAiWorkflowSchema();
+  const r = await db.query(`SELECT id FROM ai_workflow_grants WHERE tenant_id = $1 AND workflow_id = $2 AND tool_id = $3 AND revoked_at IS NULL LIMIT 1`, [tenantId, workflowId, toolId]);
+  return r.rows[0]?.id || null;
+};
+
+export const grantTool = async (tenantId, workflowId, toolId, { userId, req } = {}) => {
+  await ensureAiWorkflowSchema();
+  const tool = getTool(toolId);
+  if (!tool) { const e = new Error(`Unknown tool: ${toolId}`); e.status = 400; throw e; }
+  // A grant can ONLY target a DELEGATABLE tool — never SENSITIVE, never READ, never described-only.
+  if (!isDelegatableTool(toolId)) { const e = new Error(`Tool "${toolId}" cannot be delegated for automatic execution`); e.status = 400; throw e; }
+  const wf = await dbStore.getWorkflow(workflowId, tenantId);
+  if (!wf) { const e = new Error("Workflow not found"); e.status = 404; throw e; }
+  // Granter must also hold the tool's own business permission (defence in depth beyond settings.edit).
+  if (req && tool.requiredPermission) {
+    const ok = await buildPermissionChecker(req)(tool.requiredPermission);
+    if (!ok) { const e = new Error(`You lack the permission required to grant this tool: ${tool.requiredPermission}`); e.status = 403; throw e; }
+  }
+  const r = await db.query(
+    `INSERT INTO ai_workflow_grants (tenant_id, workflow_id, tool_id, granted_by)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (tenant_id, workflow_id, tool_id) WHERE revoked_at IS NULL DO NOTHING
+     RETURNING *`,
+    [tenantId, workflowId, toolId, num(userId)]
+  );
+  const grant = r.rows[0] || (await db.query(`SELECT * FROM ai_workflow_grants WHERE tenant_id=$1 AND workflow_id=$2 AND tool_id=$3 AND revoked_at IS NULL LIMIT 1`, [tenantId, workflowId, toolId])).rows[0];
+  await writeAudit({ tenantId, userId, action: "ai_workflow.grant", entityType: "ai_workflow", entityId: workflowId, details: { tool_id: toolId, grant_id: grant?.id } });
+  return grant;
+};
+
+export const revokeGrant = async (tenantId, workflowId, toolId, { userId } = {}) => {
+  await ensureAiWorkflowSchema();
+  const r = await db.query(
+    `UPDATE ai_workflow_grants SET revoked_at = NOW(), revoked_by = $1, updated_at = NOW()
+     WHERE tenant_id = $2 AND workflow_id = $3 AND tool_id = $4 AND revoked_at IS NULL RETURNING *`,
+    [num(userId), tenantId, workflowId, toolId]
+  );
+  if (r.rows[0]) await writeAudit({ tenantId, userId, action: "ai_workflow.revoke", entityType: "ai_workflow", entityId: workflowId, details: { tool_id: toolId, grant_id: r.rows[0].id } });
+  return r.rows[0] || null;
+};
+
+// ---- Write-op reservation (idempotency for side-effecting steps; DB-enforced) ----
+export const reserveWriteOp = async ({ tenantId, runId, nodeId, toolId, key }) => {
+  await ensureAiWorkflowSchema();
+  const r = await db.query(
+    `INSERT INTO ai_workflow_write_ops (tenant_id, run_id, node_id, tool_id, idempotency_key)
+     VALUES ($1,$2,$3,$4,$5) ON CONFLICT (tenant_id, idempotency_key) DO NOTHING RETURNING id`,
+    [tenantId, runId, nodeId, toolId || null, key]
+  );
+  if (r.rows[0]) return { created: true };
+  const existing = await db.query(`SELECT result_ref FROM ai_workflow_write_ops WHERE tenant_id = $1 AND idempotency_key = $2 LIMIT 1`, [tenantId, key]);
+  return { created: false, resultRef: existing.rows[0]?.result_ref || null };
+};
+
+// ---- Delegated automatic actor (replaces Phase 4's blanket READ-only checker) ----
+// READ -> auto; DELEGATABLE WRITE -> only with an active grant; SENSITIVE/DENIED -> refused
+// (SENSITIVE can never be auto-run; it fails safely here and never bypasses approval).
+export const buildDelegatedDeps = ({ tenantId, workflow }) => ({
+  runAgent,
+  authorizeTool: async ({ tool }) => {
+    // Resolve the active grant only for delegatable tools; the decision itself is pure.
+    const grantId = isDelegatableTool(tool.id) ? await hasActiveGrant(tenantId, workflow.id, tool.id) : null;
+    const decision = automaticDecision(tool.id, Boolean(grantId));
+    return decision.allow ? { allow: true, grantId } : { allow: false, reason: decision.reason };
+  },
+  reserveWriteOp,
+  onWriteExecuted: async ({ run, node, tool, grantId, output }) =>
+    writeAudit({ tenantId, userId: null, action: "ai_workflow.auto_write", entityType: "ai_workflow_run", entityId: run.id, details: { workflow_id: workflow.id, node_id: node.id, tool_id: tool.id, grant_id: grantId, event_id: run.event_id, result_ref: output?.taskId ?? null } }),
+});
+
+// ---- Delegatable tools view (for the grant UI) ----
+export const listDelegatableToolsView = () => listDelegatableTools();
+
+// ---- Tenant timezone (per-tenant IANA; resolved tenant -> env -> Africa/Cairo) ----
+export const DEFAULT_TIMEZONE = String(process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+
+export const isValidTimezone = (tz) => {
+  if (!tz || typeof tz !== "string") return false;
+  // IANA identifiers only — reject raw UTC offsets (e.g. "+03:00") because DST rules can change.
+  if (tz.includes(":") || /^[+-]?\d/.test(tz)) return false;
+  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; }
+};
+
+export const getTenantTimezone = async (tenantId) => {
+  await ensureAiWorkflowSchema();
+  const r = await db.query(`SELECT timezone FROM ai_workflow_tenant_settings WHERE tenant_id = $1 LIMIT 1`, [tenantId]);
+  const tz = r.rows[0]?.timezone;
+  return tz && isValidTimezone(tz) ? tz : DEFAULT_TIMEZONE;
+};
+
+export const setTenantTimezone = async (tenantId, timezone, userId) => {
+  await ensureAiWorkflowSchema();
+  if (!isValidTimezone(timezone)) { const e = new Error(`Invalid IANA timezone: ${timezone}`); e.status = 400; throw e; }
+  await db.query(
+    `INSERT INTO ai_workflow_tenant_settings (tenant_id, timezone, updated_by, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (tenant_id) DO UPDATE SET timezone = EXCLUDED.timezone, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+    [tenantId, timezone, num(userId)]
+  );
+  return timezone;
 };

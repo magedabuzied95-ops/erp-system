@@ -80,14 +80,11 @@ reasons[] }` so the UI can explain exactly why automation is or isn't live.
 
 ## 5. Execution actor / security model
 
-Automatic runs have **no logged-in user and no superuser**. They use a READ-only system actor
-(`AUTOMATIC_READ_PERMISSIONS = products.view, orders.view, settings.view, inventory.view`). The
-executor's RBAC check runs first; a WRITE/SENSITIVE tool's permission is **denied**, so an automatic
-run that reaches such a node **fails safely at RBAC and can never execute it**. Therefore SENSITIVE
-actions can never be auto-run, and no automatic customer message / order change / refund is possible
-in this phase. **WRITE authorization for automatic runs is deferred to Phase 5** (needs a proper
-delegated-actor model). All existing guarantees are preserved: tenant isolation, Tool Registry
-allowlist, SENSITIVE approval, secret redaction, server validation.
+Automatic runs have **no logged-in user and no superuser**. In Phase 4 they used a READ-only system
+actor. **Phase 5 replaced this with a delegated actor**: READ auto-allowed, low-risk WRITE only under
+an explicit per-workflow admin grant, SENSITIVE always refused (never auto-run). See
+`docs/ai-workflow-delegated-writes.md`. All existing guarantees are preserved: tenant isolation, Tool
+Registry allowlist, SENSITIVE approval, secret redaction, server validation.
 
 ---
 

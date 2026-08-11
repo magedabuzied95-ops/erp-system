@@ -49,7 +49,8 @@ Target taxonomy vs. what maps to real functionality **today**:
 | **Inbox (operational)** | AiInbox / `/inbox` | Cross-link (stays operational) |
 | **Workflows / Executions / Approvals / Tools** | new workflow engine (`ai_workflows*` tables + executor + Tool Registry) | **Built in Phase 2** — see `docs/ai-workflow-engine.md`. |
 | **Visual Workflow Builder** (`/ai-studio/workflows/:id/edit`) | the Phase 2 definition JSON + validator + executor (unchanged) | **Built in Phase 3** — lazy `@xyflow/react` editor; pure edit/visualization layer. See `docs/ai-workflow-builder.md`. |
-| **Event-driven automation** (Trigger Registry, event adapter, kill switches, archive) | existing executor + a thin post-commit adapter over canonical ERP events | **Built in Phase 4** — `followup.due` / `inventory.restocked` / `schedule.interval`; READ-only system actor; global+tenant kill switches (default OFF). See `docs/ai-workflow-triggers.md`. |
+| **Event-driven automation** (Trigger Registry, event adapter, kill switches, archive) | existing executor + a thin post-commit adapter over canonical ERP events | **Built in Phase 4** — `followup.due` / `inventory.restocked` / `schedule.interval`; global+tenant kill switches (default OFF). See `docs/ai-workflow-triggers.md`. |
+| **Delegated WRITE automation** (per-workflow grants, one internal WRITE tool, tenant timezone) | existing executor + delegated actor + Tool Registry policy | **Built in Phase 5** — automatic WRITE only via explicit admin grant (`followups.create`); SENSITIVE never delegated; write-op idempotency; purchase-receiving restock; IANA tenant timezone. See `docs/ai-workflow-delegated-writes.md`. |
 | **Models / Prompts** | single provider; inline prompts | **Deferred** (no CRUD surface exists to reuse) |
 
 **Consolidation is additive:** a new "AI Studio" sidebar section is added; **all existing AI nav items and routes keep working** unchanged (no redirects removed, no URLs renamed).

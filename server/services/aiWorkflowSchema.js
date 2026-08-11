@@ -118,6 +118,47 @@ export const ensureAiWorkflowSchema = async (client = db) => {
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // ---- Phase 5: delegated WRITE automation + tenant timezone (additive) ----
+    // Per-tenant IANA timezone for schedule slots (default explicit at read time, not stored).
+    await client.query(`ALTER TABLE ai_workflow_tenant_settings ADD COLUMN IF NOT EXISTS timezone TEXT NULL`);
+
+    // Explicit per-workflow delegated grants: an authorized admin permits THIS workflow to use
+    // THIS registered DELEGATABLE tool automatically. A grant is NOT admin/superuser; it never
+    // overrides SENSITIVE approval. Revocation is a soft revoke (audit trail retained).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ai_workflow_grants (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id BIGINT NOT NULL,
+        workflow_id BIGINT NOT NULL,
+        tool_id TEXT NOT NULL,
+        granted_by BIGINT NULL,
+        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        revoked_by BIGINT NULL,
+        revoked_at TIMESTAMP NULL,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // At most one ACTIVE grant per (workflow, tool). Revoked rows stay for history.
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_workflow_grants_active ON ai_workflow_grants (tenant_id, workflow_id, tool_id) WHERE revoked_at IS NULL`);
+
+    // Write-operation idempotency: a side-effecting (WRITE) step executes at most once per
+    // (run, node), so resume/retry never duplicates the write. DB-enforced, not in-memory.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ai_workflow_write_ops (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id BIGINT NOT NULL,
+        run_id BIGINT NOT NULL,
+        node_id TEXT NOT NULL,
+        tool_id TEXT NULL,
+        idempotency_key TEXT NOT NULL,
+        result_ref TEXT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_workflow_write_ops_key ON ai_workflow_write_ops (tenant_id, idempotency_key)`);
   })().catch((error) => {
     schemaReadyPromise = null;
     throw error;

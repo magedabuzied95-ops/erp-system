@@ -17,6 +17,7 @@ import {
   listAutomaticWorkflowsForTrigger,
   listAutomationEnabledTenantIds,
   runEventForWorkflow,
+  getTenantTimezone,
 } from "./aiWorkflowService.js";
 
 const log = (...args) => console.log("[ai-workflow-trigger]", ...args);
@@ -150,28 +151,41 @@ const emitFollowupDue = (row) => {
 let lastFollowupScanAt = null; // module memory; on boot we look back a small window
 const FOLLOWUP_LOOKBACK_MS = 2 * 60 * 1000;
 
-// Deterministic slot id for a schedule workflow at "now" (server local time; documented).
-export const computeScheduleSlot = (config = {}, now = new Date()) => {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const hh = String(now.getHours()).padStart(2, "0");
+// Wall-clock parts of `now` in an IANA timezone (native Intl; DST-safe; no date library).
+export const wallClockParts = (now, timezone) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone || undefined, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(now).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+  // Intl may emit hour "24" at midnight in some engines — normalize to "00".
+  const hh = parts.hour === "24" ? "00" : parts.hour;
+  return { y: parts.year, m: parts.month, d: parts.day, hh, mm: parts.minute };
+};
+
+// Deterministic slot id for a schedule workflow at "now", evaluated in the tenant's timezone.
+// Timezone defaults to the runtime's local zone (keeps behavior stable when tz is unset).
+export const computeScheduleSlot = (config = {}, now = new Date(), timezone = undefined) => {
+  const { y, m, d, hh, mm } = wallClockParts(now, timezone);
   if (config.frequency === "hourly") return { slotId: `${y}-${m}-${d}T${hh}:00`, due: true };
   if (config.frequency === "daily") {
     const [th, tm] = String(config.time || "09:00").split(":");
-    const targetH = Number(th); const targetM = Number(tm || 0);
-    const dueTime = new Date(now); dueTime.setHours(targetH, targetM, 0, 0);
-    return { slotId: `${y}-${m}-${d}T${String(targetH).padStart(2, "0")}:${String(targetM).padStart(2, "0")}`, due: now >= dueTime };
+    const targetH = String(Number(th)).padStart(2, "0");
+    const targetM = String(Number(tm || 0)).padStart(2, "0");
+    const nowMin = Number(hh) * 60 + Number(mm);
+    const targetMin = Number(targetH) * 60 + Number(targetM);
+    return { slotId: `${y}-${m}-${d}T${targetH}:${targetM}`, due: nowMin >= targetMin };
   }
   return { slotId: null, due: false };
 };
 
 const runDueSchedules = async (tenantId, now) => {
   const workflows = await listAutomaticWorkflowsForTrigger(tenantId, "schedule.interval");
+  if (!workflows.length) return;
+  const tz = await getTenantTimezone(tenantId);
   for (const wf of workflows) {
     try {
       const cfg = triggerNodeConfig(wf);
-      const { slotId, due } = computeScheduleSlot(cfg, now);
+      const { slotId, due } = computeScheduleSlot(cfg, now, tz);
       if (!slotId || !due) continue;
       // idempotency (evt:schedule.interval:schedule:<wfId>:<slot>) ensures one run per slot,
       // even across backend restarts.

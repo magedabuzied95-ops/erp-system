@@ -25,6 +25,12 @@ import {
   getTenantAutomation,
   setTenantAutomation,
   getAutomationStatus,
+  listGrants,
+  grantTool,
+  revokeGrant,
+  listDelegatableToolsView,
+  getTenantTimezone,
+  setTenantTimezone,
 } from "../services/aiWorkflowService.js";
 import { listTriggers } from "../services/aiWorkflowTriggerRegistry.js";
 
@@ -54,6 +60,28 @@ router.get("/automation/tenant", protect, permit("settings", "view"), async (req
 
 router.post("/automation/tenant", protect, permit("settings", "edit"), async (req, res) => {
   try { res.json({ success: true, enabled: await setTenantAutomation(tid(req), Boolean(req.body?.enabled), uid(req)) }); } catch (error) { fail(res, error); }
+});
+
+// ---- Automation timezone (per-tenant IANA) ----
+router.get("/automation/timezone", protect, permit("settings", "view"), async (req, res) => {
+  try { res.json({ success: true, timezone: await getTenantTimezone(tid(req)) }); } catch (error) { fail(res, error); }
+});
+router.post("/automation/timezone", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, timezone: await setTenantTimezone(tid(req), String(req.body?.timezone || ""), uid(req)) }); } catch (error) { fail(res, error); }
+});
+
+// ---- Delegated WRITE grants (per-workflow) ----
+router.get("/delegatable-tools", protect, permit("settings", "view"), (req, res) => {
+  res.json({ success: true, tools: listDelegatableToolsView() });
+});
+router.get("/workflows/:id/grants", protect, permit("settings", "view"), async (req, res) => {
+  try { res.json({ success: true, grants: await listGrants(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
+});
+router.post("/workflows/:id/grants", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.status(201).json({ success: true, grant: await grantTool(tid(req), req.params.id, String(req.body?.toolId || ""), { userId: uid(req), req }) }); } catch (error) { fail(res, error); }
+});
+router.delete("/workflows/:id/grants/:toolId", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, grant: await revokeGrant(tid(req), req.params.id, req.params.toolId, { userId: uid(req) }) }); } catch (error) { fail(res, error); }
 });
 
 // ---- Archive / soft-delete (never hard-delete) ----

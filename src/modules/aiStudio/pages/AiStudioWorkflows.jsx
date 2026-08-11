@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Workflow, Play, Loader2, RefreshCw, Plus, CheckCircle2, XCircle, Pencil, LayoutTemplate, Archive, ArchiveRestore, Zap, Power } from "lucide-react";
+import { Workflow, Play, Loader2, RefreshCw, Plus, CheckCircle2, XCircle, Pencil, LayoutTemplate, Archive, ArchiveRestore, Zap, Power, Clock } from "lucide-react";
 import AiStudioNav from "../components/AiStudioNav";
 import { useStudioHeaders } from "../lib/studioRequest";
 import {
   listWorkflows, listWorkflowsWithArchived, runWorkflow, setWorkflowEnabled, seedExampleWorkflow, createWorkflow,
-  getAutomationStatus, setTenantAutomation, archiveWorkflow, unarchiveWorkflow,
+  getAutomationStatus, setTenantAutomation, archiveWorkflow, unarchiveWorkflow, setAutomationTimezone,
 } from "../services/aiStudioApi";
 import { blankDefinition } from "../lib/workflowGraph";
 
@@ -68,6 +68,14 @@ export default function AiStudioWorkflows() {
     catch (e) { setMsg(e?.responseBody?.message || e?.message || "Failed"); }
     setBusy("");
   };
+  const doSetTimezone = async () => {
+    const tz = window.prompt("Automation timezone — enter an IANA name (e.g. Africa/Cairo, America/New_York). Scheduled workflows run at this local time.", automation?.timezone || "Africa/Cairo");
+    if (!tz) return;
+    setBusy("tz"); setMsg("");
+    try { const r = await setAutomationTimezone(tz.trim(), headers); if (r?.success === false) setMsg(r?.message || "Invalid timezone"); else { const a = await getAutomationStatus(headers); setAutomation(a); } }
+    catch (e) { setMsg(e?.responseBody?.message || e?.message || "Invalid timezone"); }
+    setBusy("");
+  };
   const doNewBlank = async () => {
     setBusy("new"); setMsg("");
     try {
@@ -119,6 +127,9 @@ export default function AiStudioWorkflows() {
               ? <>Automatic triggers are live for this store. {automation.active_auto_workflows} automatic workflow(s) active.</>
               : <>{(automation.reasons || []).join(" ") || "Automatic triggers are off."}</>}
             <span className="ml-1 text-slate-600">Global: {automation.global_enabled ? "on" : "off"} · Tenant: {automation.tenant_enabled ? "on" : "off"}</span>
+            <button type="button" onClick={doSetTimezone} disabled={busy === "tz"} className="ml-2 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold text-slate-300 hover:border-white/20 disabled:opacity-50" title="Change automation timezone (scheduled workflows run at this local time)">
+              <Clock className="h-3 w-3" />{automation.timezone || "Africa/Cairo"}
+            </button>
           </div>
           <button type="button" onClick={() => doTenantAutomation(!automation.tenant_enabled)} disabled={busy === "auto" || !automation.global_enabled}
             title={!automation.global_enabled ? "Global automation is disabled on the server" : "Toggle automation for this store"}

@@ -84,6 +84,13 @@ function WorkflowNodeBase({ type, data, selected }) {
           </div>
         ) : null}
 
+        {/* Delegated-WRITE grant state (Phase 5): READ auto; DELEGATABLE needs a grant to auto-run. */}
+        {hasTool && toolMeta && toolMeta.automaticExecution === "DELEGATABLE" ? (
+          <div className={`mt-1 flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-wide ${data?.granted ? "border-emerald-300/40 bg-emerald-300/10 text-emerald-100" : "border-amber-300/40 bg-amber-300/10 text-amber-100"}`}>
+            <ShieldAlert className="h-3 w-3" /> {data?.granted ? "Auto: granted" : "Auto: needs grant"}
+          </div>
+        ) : null}
+
         {/* Disconnected-from-trigger warning (editor UX; icon + text, not colour alone) */}
         {disconnected && !execState ? (
           <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-amber-300/40 bg-amber-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-100">
