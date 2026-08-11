@@ -23053,6 +23053,38 @@ export const sendMetaInboxOutboundMessage = async ({
   };
 };
 
+// Phase 9: consume Meta DELIVERY receipts and reconcile them onto the canonical outbound message +
+// restock-notification delivery projection. Correlated per-message via delivery.mids (reliable).
+// READ receipts are watermark-only (no per-message id) and are intentionally NOT applied — that is a
+// documented limitation, not a fabricated capability. Fully additive + failure-isolated: it only reads
+// the payload and calls the (itself failure-isolated) reconciler; it never alters inbound handling.
+const reconcileMetaDeliveryReceipts = async (payload = {}) => {
+  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+  const objectType = String(payload?.object || "").toLowerCase();
+  const channel = objectType.includes("instagram") ? "instagram" : "facebook_messenger";
+  let handled = 0;
+  const { reconcileOutboundMessageStatus } = await import("./messageDeliveryReconciliationService.js");
+  for (const entry of entries) {
+    const messaging = Array.isArray(entry?.messaging) ? entry.messaging : [];
+    for (const event of messaging) {
+      const delivery = event?.delivery;
+      const mids = delivery && Array.isArray(delivery.mids) ? delivery.mids : [];
+      for (const mid of mids) {
+        if (!mid) continue;
+        // tenantId 1 mirrors the rest of the single-tenant Meta webhook path (recordMetaWebhookRawEvent).
+        // Correlation is by globally-unique Meta mid, so an unmatched mid is simply recorded, not applied.
+        await reconcileOutboundMessageStatus({
+          tenantId: 1, channel, providerMessageId: String(mid), providerStatus: "delivered",
+          providerEventId: `meta-delivery:${mid}`, occurredAt: delivery.watermark || event?.timestamp || null,
+          metadata: { recipient_id: String(event?.recipient?.id || "") },
+        });
+        handled += 1;
+      }
+    }
+  }
+  if (handled) console.log("[meta-webhook] delivery receipts reconciled", { count: handled });
+};
+
 export const processMetaWebhook = async ({ req } = {}) => {
   const payload = req.body || {};
   const webhookReceivedAt = new Date().toISOString();

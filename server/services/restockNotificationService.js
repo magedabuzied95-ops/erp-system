@@ -228,13 +228,42 @@ const defaultSender = async ({ channel, recipientId, text, tenantId, conversatio
   return { ok: false, providerMessageId: null, error: "unsupported_channel" };
 };
 
-// Persist the sent message into the canonical conversation (best-effort; never fails the send record).
+// Persist the CONFIRMED-SENT message into canonical AI Inbox history (best-effort; never fails the send
+// record). Phase 9: called ONLY after a confirmed provider send. Reuses the canonical outbound path
+// (appendChannelOutboundSupportReply reads `sessionId`+`message` and upserts ai_support_sessions even
+// with no prior conversation) — this is what makes an outbound WhatsApp-by-phone appear in the Inbox.
+// No ghost messages: never invoked on draft/approval/preview/failed send.
 const persistOutbound = async ({ tenantId, notif, text, providerMessageId }) => {
   try {
-    if (!notif.conversation_id) return; // no existing conversation to append to; audited limitation
     const { appendChannelOutboundSupportReply } = await import("./aiSupportLogService.js");
-    await appendChannelOutboundSupportReply({ tenantId, conversationId: notif.conversation_id, channel: notif.channel, messageText: text, providerMessageId, externalMessageId: providerMessageId, source: "restock_notification" });
-  } catch { /* persistence is best-effort; the notification record + provider id remain authoritative */ }
+    if (notif.channel === "whatsapp") {
+      const phone = String(notif.phone || notif.recipient_reference || "").trim();
+      if (!phone) return;
+      // Pass the phone raw; the persistence layer canonicalizes to whatsapp:<20…> so a later inbound
+      // from the same number converges onto this same session (do NOT pre-normalize differently).
+      await appendChannelOutboundSupportReply({
+        tenantId, channel: "whatsapp", sessionId: `whatsapp:${phone}`, resolvedPhone: phone,
+        message: text, providerMessageId, externalMessageId: providerMessageId,
+        deliveryStatus: "sent", senderType: "system",
+        source: "restock_notification", sessionSource: "restock_notification",
+        sourcePath: "restock_notification", insertSource: "restock_notification",
+      });
+      // Directory/enrichment row so the thread appears in the omnichannel inbox (mirrors inbound webhook).
+      try {
+        const { upsertChannelConversationMapping } = await import("./aiChannelAdapterService.js");
+        await upsertChannelConversationMapping({ tenantId, channel: "whatsapp", externalConversationId: `whatsapp:${phone}`, externalCustomerId: phone, lastMessageAt: new Date() });
+      } catch (mapErr) { console.error("[restock] conversation mapping failed", String(mapErr?.message || mapErr).slice(0, 140)); }
+      return;
+    }
+    // Meta (Messenger/Instagram) only ever sends via an EXISTING conversation — persist to its session.
+    const sessionId = notif.recipient_reference ? `${notif.channel}:${notif.recipient_reference}` : null;
+    if (!sessionId) return;
+    await appendChannelOutboundSupportReply({
+      tenantId, channel: notif.channel, sessionId, message: text,
+      providerMessageId, externalMessageId: providerMessageId, deliveryStatus: "sent",
+      senderType: "system", source: "restock_notification",
+    });
+  } catch (e) { console.error("[restock] persistOutbound failed", String(e?.message || e).slice(0, 160)); }
 };
 
 export const sendApprovedRestockNotification = async ({ tenantId, notificationId, approvedBy, req = null, deps = {} } = {}) => {
