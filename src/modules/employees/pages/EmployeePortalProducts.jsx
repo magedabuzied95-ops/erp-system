@@ -196,6 +196,11 @@ const mapCompactProduct = (product = {}) => {
 
 const mapCompactCatalog = (payload) => (Array.isArray(payload) ? payload : []).map(mapCompactProduct);
 
+// Stable identity for appended pages. Falls back through the id fields the
+// compact payload can carry so a product is never appended twice.
+const stableProductKey = (product = {}) =>
+  text(product?.product_id ?? product?.id ?? product?.productId ?? product?.sku ?? product?.barcode ?? "");
+
 const scanFieldMatches = (value = "", candidate = "") => {
   const left = text(value);
   const right = text(candidate);
@@ -423,9 +428,16 @@ const expandEmployeeProductCardsByColorAndSize = (products = [], filters = {}) =
   return cards;
 };
 
-const buildListParams = ({ search, filters, selectedSize = "all" }) => {
+export const EMPLOYEE_PRODUCTS_PAGE_SIZE = 48;
+
+export const buildListParams = ({ search, filters, selectedSize = "all", page = 1 }) => {
   const hasSizeFilter = isActiveSizeFilter(selectedSize);
-  const params = { limit: hasSizeFilter ? 500 : 48, inStockOnly: 1 };
+  // One bounded page, always. This used to be `hasSizeFilter ? 500 : 48` with no
+  // `page` at all, so the list was hard-capped: when more products matched than
+  // the cap, everything past it was unreachable — there was no way to page to it.
+  // The endpoint already supports page/offset/has_more, so pagination now covers
+  // the size case too and the 500-row request is gone.
+  const params = { limit: EMPLOYEE_PRODUCTS_PAGE_SIZE, page, inStockOnly: 1 };
   const q = text(search);
   if (q) params.q = q;
   if (filters.category !== "all") params.category = filters.category;
@@ -434,6 +446,12 @@ const buildListParams = ({ search, filters, selectedSize = "all" }) => {
   if (filters.manufacturer !== "all") params.manufacturer = filters.manufacturer;
   if (filters.gender !== "all") params.gender = filters.gender;
   if (hasSizeFilter) params.size = text(selectedSize);
+  // The endpoint also supports `color`. The list UI has no colour control today
+  // (colour is picked per product inside the detail sheet), so this only fires if
+  // one is ever added — and when it is, it must go to the server rather than be
+  // applied to the already-loaded page.
+  const color = text(filters.color);
+  if (color && color !== "all") params.color = color;
   return params;
 };
 
@@ -928,6 +946,11 @@ export default function EmployeePortalProducts() {
     gender: "all",
     inStockOnly: true,
   });
+  const [productsPage, setProductsPage] = useState(1);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  // Newest-query-wins guard shared by page 1 and "تحميل المزيد".
+  const productsRequestIdRef = useRef(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState("");
@@ -981,18 +1004,26 @@ export default function EmployeePortalProducts() {
       try {
         setLoading(true);
         setError("");
+        // Any query change starts a new sequence, so a slow page-1 response from
+        // the PREVIOUS filter can never land on top of the new one, and an
+        // in-flight "load more" from the old filter is discarded on arrival.
+        const requestId = productsRequestIdRef.current + 1;
+        productsRequestIdRef.current = requestId;
         const response = await getEmployeePortalCompactProducts(
           token,
-          buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize }),
+          buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize, page: 1 }),
           { signal: controller?.signal }
         );
-        if (cancelled) return;
+        if (cancelled || requestId !== productsRequestIdRef.current) return;
         setProducts(mapCompactCatalog(response?.products));
+        setProductsPage(1);
+        setHasMoreProducts(Boolean(response?.has_more));
         setEmployee(response?.employee || null);
       } catch (err) {
         if (cancelled || err?.name === "AbortError" || err?.name === "CanceledError") return;
         setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "تعذر تحميل المنتجات");
         setProducts([]);
+        setHasMoreProducts(false);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -1016,7 +1047,37 @@ export default function EmployeePortalProducts() {
       window.clearTimeout(timer);
       controller?.abort();
     };
-  }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.manufacturer, filters.gender, filters.inStockOnly, selectedFilterSize]);
+  }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.manufacturer, filters.gender, filters.inStockOnly, filters.color, selectedFilterSize]);
+
+  // "تحميل المزيد": fetch the NEXT page of matches with the exact same filters and
+  // append. Products are deduped by stable identity so a double click or an
+  // overlapping request cannot repeat rows, and the sequence guard drops a page
+  // that arrives after the filters changed.
+  const loadMoreProducts = useCallback(async () => {
+    if (loadingMoreProducts || !hasMoreProducts) return;
+    const requestId = productsRequestIdRef.current;
+    const nextPage = productsPage + 1;
+    setLoadingMoreProducts(true);
+    try {
+      const response = await getEmployeePortalCompactProducts(
+        token,
+        buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize, page: nextPage })
+      );
+      if (requestId !== productsRequestIdRef.current) return;
+      const incoming = mapCompactCatalog(response?.products);
+      setProducts((current) => {
+        const seen = new Set((Array.isArray(current) ? current : []).map(stableProductKey));
+        return [...(Array.isArray(current) ? current : []), ...incoming.filter((item) => !seen.has(stableProductKey(item)))];
+      });
+      setProductsPage(nextPage);
+      setHasMoreProducts(Boolean(response?.has_more));
+    } catch (err) {
+      if (err?.name === "AbortError" || err?.name === "CanceledError") return;
+      toast.error(err?.responseBody?.message_ar || err?.message || "تعذر تحميل المزيد من المنتجات");
+    } finally {
+      setLoadingMoreProducts(false);
+    }
+  }, [loadingMoreProducts, hasMoreProducts, productsPage, token, deferredSearch, filters, selectedFilterSize]);
 
   useEffect(() => {
     lookupDoneRef.current = false;
@@ -1836,6 +1897,18 @@ export default function EmployeePortalProducts() {
             search={search}
             onSelectProduct={openProduct}
           />
+          {/* Reaches matches beyond the first bounded page. Without this the list
+              was hard-capped and any product past the cap was unreachable. */}
+          {hasMoreProducts && !loading ? (
+            <button
+              type="button"
+              onClick={loadMoreProducts}
+              disabled={loadingMoreProducts}
+              className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
+            >
+              {loadingMoreProducts ? "جاري التحميل..." : "تحميل المزيد"}
+            </button>
+          ) : null}
         </section>
 
         {sheetOpen && selectedProduct ? (
