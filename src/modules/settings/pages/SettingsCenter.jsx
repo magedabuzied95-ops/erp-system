@@ -386,13 +386,31 @@ const timeAgo = (date) => {
   return `${hours}h ago`;
 };
 
-const shellCard = "border border-white/70 bg-white/90 shadow-sm dark:border-white/10 dark:bg-slate-950/82 dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]";
-const fieldSurface = "border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900/82";
-const subtleSurface = "border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-slate-950";
-const headingText = "text-slate-950 dark:text-white";
-const bodyText = "text-slate-500 dark:text-slate-400";
-const mutedText = "text-slate-400 dark:text-slate-500";
-const inputClass = "w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15";
+/* ============================================================================
+   SHARED SURFACE SOURCE — Global Surface Normalization
+   ----------------------------------------------------------------------------
+   These seven constants are the surface source for ~220 call sites in this file.
+   They used to hardcode a LIGHT surface model (white/slate) with a hand-written
+   `dark:` counterpart, which meant SettingsCenter painted a blue-black
+   (slate-950) dark theme while the rest of the app paints neutral charcoal.
+
+   `SettingsCenter.m1.css` was already correcting that at paint time with
+   `!important` attribute-substring overrides — so the surface had TWO competing
+   sources of truth and the JSX no longer described what the user actually saw.
+   These constants now name the semantic token directly, which is what the shim
+   was resolving them to anyway. The shim stays: ~470 legacy utility occurrences
+   remain at individual call sites in this file and it is still their safety net.
+
+   Values are theme-aware by construction (ThemeProvider swaps the variables), so
+   no `dark:` variant is needed or wanted here — a `dark:` override would
+   reintroduce a second surface model. */
+const shellCard = "border border-border bg-surface-raised shadow-[var(--shadow-card)]";
+const fieldSurface = "border border-border bg-surface";
+const subtleSurface = "border border-border bg-surface-soft";
+const headingText = "text-text";
+const bodyText = "text-text-muted";
+const mutedText = "text-[var(--text-tertiary)]";
+const inputClass = "w-full rounded-2xl border border-border bg-surface px-3.5 py-3 text-sm font-semibold text-text outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-primary focus:ring-4 focus:ring-[color:var(--focus-ring)]";
 
 class SettingsCenterErrorBoundary extends Component {
   constructor(props) {
