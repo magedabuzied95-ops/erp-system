@@ -28,7 +28,7 @@ const priorityLabel = {
 };
 
 const priorityClass = {
-  low: "border-slate-200 bg-slate-100 text-slate-700",
+  low: "border-border bg-surface-soft text-text",
   medium: "border-sky-100 bg-sky-50 text-sky-700",
   high: "border-amber-100 bg-amber-50 text-amber-800",
   critical: "border-red-100 bg-red-50 text-red-700",
@@ -90,20 +90,26 @@ const urlBase64ToUint8Array = (base64String = "") => {
 
 function EmptyState({ children }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-sm font-bold leading-6 text-slate-500 shadow-sm">
+    <div className="rounded-2xl border border-border bg-surface px-4 py-5 text-sm font-bold leading-6 text-text-muted shadow-sm">
       {children}
     </div>
   );
 }
 
+// The hero, the install banner and the two primary actions are a DELIBERATE
+// inverted surface — dark panels on a light page. themes.js already ships the
+// token pair for exactly that (--topbar / --topbar-text), so they now follow
+// the theme instead of being pinned to slate-950. The white/10 fills and
+// white/70 text on them are translucency over a guaranteed-dark surface, not a
+// fixed-light surface model, and are correct as they stand.
 function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
   return (
-    <section className="mt-4 rounded-3xl border border-white/10 bg-slate-950/95 p-4 text-right text-white shadow-xl shadow-slate-300">
+    <section className="mt-4 rounded-3xl border border-white/10 bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
       <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
         <h2 className="text-lg font-black">ثبّت بوابة الموظف على الموبايل</h2>
-        <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">افتح التاسكات بسرعة واستقبل التنبيهات أثناء الشيفت.</p>
+        <p className="mt-2 text-sm font-semibold leading-6 text-white/70">افتح التاسكات بسرعة واستقبل التنبيهات أثناء الشيفت.</p>
         {ios && !canInstall ? (
-          <p className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-slate-100">
+          <p className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white">
             على iPhone: اضغط مشاركة ثم Add to Home Screen
           </p>
         ) : null}
@@ -112,7 +118,7 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
             type="button"
             disabled={!canInstall}
             onClick={onInstall}
-            className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
+            className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-text disabled:opacity-50"
           >
             تثبيت التطبيق
           </button>
@@ -148,11 +154,11 @@ function NotificationCard({ state, hint, onEnable }) {
         ? "المتصفح لا يدعم تنبيهات التاسكات."
         : "استقبل تنبيه عند تحديث مهام الشيفت.");
   return (
-    <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm">
-      <div className="text-sm font-black text-slate-950">تفعيل تنبيهات التاسكات</div>
-      <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{message}</p>
+    <section className="mt-4 rounded-2xl border border-border bg-surface p-4 text-right shadow-sm">
+      <div className="text-sm font-black text-text">تفعيل تنبيهات التاسكات</div>
+      <p className="mt-1 text-sm font-semibold leading-6 text-text-muted">{message}</p>
       {state !== "granted" && state !== "unsupported" ? (
-        <button type="button" onClick={onEnable} className="mt-3 w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white">
+        <button type="button" onClick={onEnable} className="mt-3 w-full rounded-2xl bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-3 text-sm font-black">
           تفعيل تنبيهات التاسكات
         </button>
       ) : null}
@@ -171,31 +177,31 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
   const notes = localizedTaskText(task, "notes") || description;
 
   return (
-    <article className={`rounded-2xl border bg-white p-3 shadow-sm ${isCompleted ? "border-emerald-100" : isOverdue ? "border-orange-200 bg-orange-50" : "border-slate-200"}`}>
+    <article className={`rounded-2xl border bg-surface p-3 shadow-sm ${isCompleted ? "border-emerald-100" : isOverdue ? "border-orange-200 bg-orange-50" : "border-border"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${priorityClass[task.priority] || priorityClass.medium}`}>
               {task.priority_label_ar || priorityLabel[task.priority] || priorityLabel.medium}
             </span>
-            <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${isCompleted ? "bg-emerald-50 text-emerald-700" : isOverdue ? "bg-orange-100 text-orange-800" : "bg-slate-100 text-slate-700"}`}>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${isCompleted ? "bg-emerald-50 text-emerald-700" : isOverdue ? "bg-orange-100 text-orange-800" : "bg-surface-soft text-text"}`}>
               {task.status_label_ar || statusLabel[task.status] || statusLabel.pending}
             </span>
             {isOverdue ? <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white">تصعيد</span> : null}
           </div>
-          <h3 className="mt-2 text-base font-black leading-6 text-slate-950">{title}</h3>
+          <h3 className="mt-2 text-base font-black leading-6 text-text">{title}</h3>
         </div>
-        {isCompleted ? <CheckCircle2 className="mt-1 h-5 w-5 flex-none text-emerald-600" /> : <ClipboardList className="mt-1 h-5 w-5 flex-none text-slate-400" />}
+        {isCompleted ? <CheckCircle2 className="mt-1 h-5 w-5 flex-none text-emerald-600" /> : <ClipboardList className="mt-1 h-5 w-5 flex-none text-text-muted" />}
       </div>
 
-      {description ? <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-600">{description}</p> : null}
+      {description ? <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-text-muted">{description}</p> : null}
 
-      <div className="mt-3 grid gap-1.5 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+      <div className="mt-3 grid gap-1.5 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold text-text">
         <div className="flex items-center gap-2">
-          <Clock3 className="h-4 w-4 text-slate-500" />
+          <Clock3 className="h-4 w-4 text-text-muted" />
           <span>الموعد: {formatTime(task.due_at)}</span>
         </div>
-        <div className="text-sm font-semibold leading-6 text-slate-600">ملاحظات: {notes || "لا توجد ملاحظات"}</div>
+        <div className="text-sm font-semibold leading-6 text-text-muted">ملاحظات: {notes || "لا توجد ملاحظات"}</div>
       </div>
 
       {isOpen ? (
@@ -204,7 +210,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
             type="button"
             disabled={readOnly || saving || (!isPending && !isOverdue)}
             onClick={() => onStatus(task.id, "in_progress")}
-            className={`${isPending || isOverdue ? "inline-flex" : "hidden"} min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-black text-slate-800 disabled:opacity-45`}
+            className={`${isPending || isOverdue ? "inline-flex" : "hidden"} min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm font-black text-text disabled:opacity-45`}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             بدء
@@ -457,7 +463,7 @@ export default function EmployeePortal() {
 
   if (loading) {
     return (
-      <main dir="rtl" className="flex min-h-[100dvh] items-center justify-center bg-slate-100 p-5 font-sans text-slate-800">
+      <main dir="rtl" className="flex min-h-[100dvh] items-center justify-center bg-background p-5 font-sans text-text">
         <Loader2 className="h-6 w-6 animate-spin" />
       </main>
     );
@@ -465,12 +471,12 @@ export default function EmployeePortal() {
 
   if (error) {
     return (
-      <main dir="rtl" className="min-h-[100dvh] bg-slate-100 px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-slate-950">
-        <section className="mx-auto max-w-md rounded-3xl border border-amber-200 bg-white p-5 text-right shadow-sm">
+      <main dir="rtl" className="min-h-[100dvh] bg-background px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-text">
+        <section className="mx-auto max-w-md rounded-3xl border border-amber-200 bg-surface p-5 text-right shadow-sm">
           <AlertTriangle className="h-8 w-8 text-amber-600" />
           <h1 className="mt-4 text-2xl font-black">بوابة الموظف غير متاحة</h1>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{error}</p>
-          <button type="button" onClick={() => loadPortal()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-4 text-sm font-black text-white">
+          <p className="mt-2 text-sm font-bold leading-6 text-text-muted">{error}</p>
+          <button type="button" onClick={() => loadPortal()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-4 text-sm font-black">
             <RefreshCw className="h-4 w-4" />
             إعادة المحاولة
           </button>
@@ -480,24 +486,24 @@ export default function EmployeePortal() {
   }
 
   return (
-    <main dir="rtl" className="min-h-[100dvh] bg-slate-100 px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-slate-950">
+    <main dir="rtl" className="min-h-[100dvh] bg-background px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-text">
       <div className="mx-auto max-w-md">
-        <header className="rounded-3xl bg-slate-950 p-4 text-right text-white shadow-xl shadow-slate-300">
-          <div className="text-xs font-black text-slate-300">بوابة الموظف</div>
+        <header className="rounded-3xl bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
+          <div className="text-xs font-black text-white/70">بوابة الموظف</div>
           <h1 className="mt-2 text-2xl font-black leading-8">{portal?.employee?.name || "مهامي"}</h1>
-          <div className="mt-1 text-sm font-semibold leading-6 text-slate-300">{portal?.employee?.branch_name || portal?.employee?.employee_code}</div>
+          <div className="mt-1 text-sm font-semibold leading-6 text-white/70">{portal?.employee?.branch_name || portal?.employee?.employee_code}</div>
           <div className="mt-4 grid grid-cols-3 gap-2">
             <div className="rounded-2xl bg-white/10 p-3 text-center">
               <div className="text-2xl font-black">{summary.today}</div>
-              <div className="text-[11px] font-bold text-slate-300">مهام اليوم</div>
+              <div className="text-[11px] font-bold text-white/70">مهام اليوم</div>
             </div>
             <div className="rounded-2xl bg-white/10 p-3 text-center">
               <div className="text-2xl font-black">{summary.pending}</div>
-              <div className="text-[11px] font-bold text-slate-300">قيد التنفيذ</div>
+              <div className="text-[11px] font-bold text-white/70">قيد التنفيذ</div>
             </div>
             <div className="rounded-2xl bg-white/10 p-3 text-center">
               <div className="text-2xl font-black">{summary.completed}</div>
-              <div className="text-[11px] font-bold text-slate-300">مكتملة</div>
+              <div className="text-[11px] font-bold text-white/70">مكتملة</div>
             </div>
           </div>
         </header>
@@ -525,7 +531,7 @@ export default function EmployeePortal() {
         <NotificationCard state={notificationState} hint={notificationHint} onEnable={enableNotifications} />
 
         <section className="mt-5">
-          <h2 className="text-sm font-black text-slate-500">المهام المطلوبة</h2>
+          <h2 className="text-sm font-black text-text-muted">المهام المطلوبة</h2>
           <div className="mt-3 grid gap-3">
             {grouped.pending.length ? (
               grouped.pending.map((task) => (
@@ -538,7 +544,7 @@ export default function EmployeePortal() {
         </section>
 
         <section className="mt-6">
-          <h2 className="text-sm font-black text-slate-500">المهام المكتملة</h2>
+          <h2 className="text-sm font-black text-text-muted">المهام المكتملة</h2>
           <div className="mt-3 grid gap-3">
             {grouped.completed.length ? (
               grouped.completed.map((task) => <TaskCard key={task.id} task={task} readOnly saving={false} onStatus={updateStatus} />)

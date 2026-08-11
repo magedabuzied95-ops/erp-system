@@ -222,6 +222,48 @@ test("text-white survives ONLY where it is a foreground on a saturated status fi
   }
 });
 
+// ---------------------------------------------------------------------------
+// Step 6 — Employee Portal
+//
+// Inspected last, and it DID carry genuine debt: unlike the other three it has
+// no .m1.css shim, no `dark:` variants and no var(--) usage, so its fixed-light
+// surfaces were rendering exactly as written with nothing correcting them.
+// ---------------------------------------------------------------------------
+
+const employee = read("src/modules/employees/pages/EmployeePortal.jsx");
+const employeeCode = stripComments(employee);
+
+test("EmployeePortal has no fixed-light surface utilities left", () => {
+  const leftovers = employeeCode.match(/\b(?:bg|border|ring)-(?:slate|gray|zinc|neutral|stone)-\d+/g);
+  assert.equal(leftovers, null, `fixed-light surfaces survived: ${[...new Set(leftovers ?? [])].join(", ")}`);
+  assert.doesNotMatch(employeeCode, /\btext-slate-\d/, "fixed-light text survived");
+});
+
+test("EmployeePortal's inverted hero uses the topbar token pair, not slate-950", () => {
+  // The dark hero / install banner / primary actions are deliberate inverted
+  // surfaces. themes.js ships --topbar / --topbar-text for precisely that, so
+  // they keep the design intent AND follow the theme.
+  assert.match(employee, /bg-\[var\(--topbar\)\] text-\[var\(--topbar-text\)\]/);
+  const inverted = employee.match(/bg-\[var\(--topbar\)\]/g) ?? [];
+  assert.equal(inverted.length, 4, `expected hero + banner + 2 primary actions, found ${inverted.length}`);
+});
+
+test("EmployeePortal's remaining white utilities are translucency over the dark hero", () => {
+  // bg-white/10 and text-white/70 on a guaranteed-dark surface are correct; a
+  // bare bg-white would not be.
+  assert.doesNotMatch(employeeCode, /\bbg-white\b(?![/-])/, "an opaque white surface survived");
+  for (const line of employeeCode.split("\n")) {
+    if (!/\btext-white\b(?![/-])/.test(line)) continue;
+    assert.ok(
+      // bg-white/N, border-white/N and the topbar token are all reliable markers
+      // that the element sits on the inverted surface; a saturated fill speaks
+      // for itself.
+      /bg-\[var\(--topbar\)\]|\b(?:bg|border)-white\/|\bbg-(?:emerald|red|rose|amber|orange|green)-\d/.test(line),
+      `bare text-white outside an inverted or saturated fill:\n${line.trim()}`,
+    );
+  }
+});
+
 test("the CreateProduct submit-safety boundary is untouched by the sweep", () => {
   // b43b74c. The canonical Button defaults to type="button"; losing any of these
   // three breaks product creation silently. tests/create-product-submit-safety
