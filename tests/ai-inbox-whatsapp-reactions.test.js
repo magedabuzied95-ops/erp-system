@@ -70,6 +70,10 @@ test("AI Inbox and PWA expose the WhatsApp-style quick reaction picker", () => {
   assert.match(transcript, /effectiveOwnReaction === emoji \? "" : emoji/);
   assert.match(inbox, /onReact=\{isWhatsappChannel/);
   assert.match(pwaInbox, /onReact=\{isWhatsappChannel/);
+  assert.ok(
+    transcript.indexOf("setLocalReaction(nextEmoji)") < transcript.indexOf("await onReact({"),
+    "the reaction must render optimistically before the provider request finishes",
+  );
 });
 
 test("outbound WhatsApp reactions use Evolution's reaction endpoint and are persisted", () => {

@@ -338,8 +338,12 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
 
   const submitReaction = async (emoji) => {
     if (!canReact || reactionSending) return;
+    const previousEmoji = effectiveOwnReaction;
     const nextEmoji = effectiveOwnReaction === emoji ? "" : emoji;
     setReactionSending(true);
+    setLocalReaction(nextEmoji);
+    setReactionPickerOpen(false);
+    setReactionPickerExpanded(false);
     try {
       await onReact({
         row,
@@ -349,11 +353,8 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         remoteJid: clean(message.remote_jid || message.resolved_reply_jid || message.channel_metadata?.remote_jid || ""),
         targetFromMe: clean(message.direction).toLowerCase() === "outbound" || ["staff", "ai", "system"].includes(clean(message.sender_type).toLowerCase()),
       });
-      setLocalReaction(nextEmoji);
-      setReactionPickerOpen(false);
-      setReactionPickerExpanded(false);
     } catch {
-      // The page-level handler shows the user-facing error toast.
+      setLocalReaction(previousEmoji);
     } finally {
       setReactionSending(false);
     }
