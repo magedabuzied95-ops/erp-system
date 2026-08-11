@@ -69,7 +69,7 @@
   },
   "sizes": {
     "title": "Size analysis",
-    "pickType": "Choose a product type to see size analysis.",
+    "pickType": "Choose a product type to see size analysis",
     "notApplicable": "This product type does not use comparable sizes, so there is no size analysis.",
     "scopeNote": "Scoped to \"{{productType}}\" because size ranges differ between types. Colour-only and one-size products are excluded.",
     "size": "Size",
@@ -81,8 +81,12 @@
     "noStock": "No stock",
     "summary": "{{sold}} sizes sold in the period · {{stock}} sizes currently in stock",
     "soldOutWarning": "{{count}} sizes sold in this period and now have no stock.",
-    "empty": "No sized sales or stock for this type.",
-    "ratioHint": "Units sold in the period as a share of current stock."
+    "empty": "No size-level sales or stock for this type",
+    "ratioHint": "Units sold in the period as a share of current stock.",
+    "pickTypeWhy": "Size ranges are not comparable across types: shoe sizes, bag sizes and one-size products cannot be read on the same axis, so the analysis covers one type at a time.",
+    "notApplicableFor": "Size analysis is not available for “{{productType}}”",
+    "notApplicableWhy": "This type does not use comparable sizes, or its products are colour-only and one-size.",
+    "emptyWhy": "No sized sales were recorded in the selected period, and no sized stock exists for this type right now."
   },
   "table": {
     "title": "Product details",
@@ -110,5 +114,14 @@
     "sectionRetry": "Retry",
     "restricted": "You do not have permission to view this metric",
     "profitRestricted": "Profit figures are not available with your current permissions"
+  },
+  "nav": {
+    "label": "Page sections",
+    "overview": "Overview",
+    "breakdown": "Breakdown",
+    "rankings": "Rankings",
+    "matrix": "Performance matrix",
+    "sizes": "Sizes",
+    "table": "Product details"
   }
 }

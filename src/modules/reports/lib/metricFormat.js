@@ -121,6 +121,23 @@ export const formatMetricExact = (metric, value, language = "") => {
 };
 
 /**
+ * Growth beyond which a comparison is treated as measured against a partial period.
+ *
+ * 3x current-to-previous is +200%. A period that tripled usually did not triple: it was
+ * measured against an incomplete one, and rendering that as a plain green success
+ * misleads. Declines are bounded at -100% and never reach this, deliberately — "sales
+ * stopped" is real information rather than an artefact of a thin base.
+ */
+export const THIN_BASELINE_RATIO = 3;
+
+/** Whether this comparison rests on a baseline too small to carry a percentage. */
+export const isBaselineThin = (current, previous) =>
+  typeof previous === "number" &&
+  previous > 0 &&
+  typeof current === "number" &&
+  current / previous >= THIN_BASELINE_RATIO;
+
+/**
  * Whether a movement is good for the business.
  *
  * `favourable` comes from the backend per metric: rising returns or a rising discount

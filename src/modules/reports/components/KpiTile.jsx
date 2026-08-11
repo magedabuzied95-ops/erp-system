@@ -8,6 +8,7 @@ import {
   formatDeltaPercent,
   formatMetricExact,
   formatMetricValue,
+  isBaselineThin,
   resolveSentiment,
 } from "../lib/metricFormat";
 
@@ -61,12 +62,12 @@ export default function KpiTile({ metric, kpi, level = 2, coverage = null }) {
   // A percentage against a near-empty baseline is arithmetically right and visually
   // misleading: +3,412% is what one full month against five days looks like, and as a
   // large green number it reads as a triumph. Flag it instead of restyling the truth.
-  const baselineThin =
-    hasComparison &&
-    typeof kpi?.previous === "number" &&
-    typeof value === "number" &&
-    kpi.previous > 0 &&
-    value / kpi.previous >= 5;
+  //
+  // The threshold is +200%: a period that tripled did not usually triple, it was
+  // measured against a partial one. Declines are bounded at -100% and never trip this —
+  // deliberately, because "sales stopped" is real information rather than an artefact
+  // of a thin base. This lives here, so every KPI on every screen inherits it.
+  const baselineThin = hasComparison && isBaselineThin(value, kpi?.previous);
 
   return (
     <div

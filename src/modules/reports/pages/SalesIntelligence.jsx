@@ -20,6 +20,7 @@ import SizeIntelligence from "../components/SizeIntelligence";
 import ProductTable from "../components/ProductTable";
 import { OverviewEmpty, OverviewForbidden, OverviewSkeleton, OverviewWarnings } from "../components/OverviewStates";
 import { PeriodFootnote, ReportsHeader, ReportsPage } from "../components/ReportsLayout";
+import SectionNav from "../components/SectionNav";
 import { dimensionLabel } from "../lib/dimensionLabels";
 
 /**
@@ -31,6 +32,16 @@ import { dimensionLabel } from "../lib/dimensionLabels";
  */
 
 const PRIMARY_KPIS = ["netSales", "grossProfit", "grossMargin", "itemsSold"];
+
+/** Anchors for the desktop section navigator, in page order. */
+const NAV_SECTIONS = [
+  { id: "sales-overview", key: "overview" },
+  { id: "sales-breakdown", key: "breakdown" },
+  { id: "sales-rankings", key: "rankings" },
+  { id: "sales-matrix", key: "matrix" },
+  { id: "sales-sizes", key: "sizes" },
+  { id: "sales-table", key: "table" },
+];
 const SECONDARY_KPIS = ["orders", "averageOrderValue", "discountRate", "returnRate"];
 
 export default function SalesIntelligence() {
@@ -136,8 +147,10 @@ export default function SalesIntelligence() {
               <OverviewEmpty />
             ) : (
               <>
+                <SectionNav sections={NAV_SECTIONS} />
+
                 {/* Lead band: the four numbers that answer "how did we do", then the trend. */}
-                <section aria-label={t("overview.groups.primary")}>
+                <section id="sales-overview" aria-label={t("overview.groups.primary")}>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {PRIMARY_KPIS.map((metric) => (
                       <KpiTile
@@ -175,7 +188,7 @@ export default function SalesIntelligence() {
                   </div>
                 </div>
 
-                <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-5">
+                <div id="sales-breakdown" className="grid scroll-mt-28 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-5">
                   <SectionCard
                     title={t("salesAnalytics.sections.breakdown")}
                     status={breakdown.status === "idle" ? "success" : breakdown.status}
@@ -196,6 +209,7 @@ export default function SalesIntelligence() {
                   </SectionCard>
 
                   <SectionCard
+                    id="sales-rankings"
                     title={t("salesAnalytics.sections.rankings")}
                     status={products.status === "idle" ? "success" : products.status}
                     error={products.error}
@@ -214,6 +228,7 @@ export default function SalesIntelligence() {
                 </div>
 
                 <SectionCard
+                  id="sales-matrix"
                   title={t("salesAnalytics.sections.matrix")}
                   status={products.status === "idle" ? "success" : products.status}
                   error={products.error}
@@ -226,6 +241,7 @@ export default function SalesIntelligence() {
                 </SectionCard>
 
                 <SectionCard
+                  id="sales-sizes"
                   title={t("salesAnalytics.sections.sizes")}
                   status={sizes.status === "idle" || sizes.status === "success" ? "success" : sizes.status}
                   error={sizes.error}
@@ -243,6 +259,7 @@ export default function SalesIntelligence() {
                 </SectionCard>
 
                 <SectionCard
+                  id="sales-table"
                   title={t("salesAnalytics.sections.table")}
                   subtitle={products.data?.pagination ? t("salesAnalytics.table.count", { count: products.data.pagination.total }) : null}
                   status={products.status === "idle" ? "success" : products.status}

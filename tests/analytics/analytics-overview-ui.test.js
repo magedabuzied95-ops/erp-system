@@ -22,6 +22,7 @@ import {
   formatMetricExact,
   formatMoney,
   formatPercentValue,
+  isBaselineThin,
   resolveSentiment,
 } from "../../src/modules/reports/lib/metricFormat.js";
 
@@ -170,7 +171,7 @@ test("a KPI against a near-empty baseline is flagged rather than restyled", asyn
   // +3,412% is a full month against five days. The number is right; presenting it as a
   // plain green success is not.
   assert.match(source, /const baselineThin =/);
-  assert.match(source, /value \/ kpi\.previous >= 5/, "the threshold must be explicit");
+  assert.match(source, /isBaselineThin/, "the rule must come from the shared, testable module");
   assert.match(source, /compare\.thinBaseline/, "and it must be explained to the reader");
   // The figure itself must not be altered.
   assert.ok(!/deltaPercent\s*=\s*[^;]*Math\.min/.test(source), "the delta must never be clamped");
@@ -178,6 +179,26 @@ test("a KPI against a near-empty baseline is flagged rather than restyled", asyn
   const ar = JSON.parse(await read("../../src/locales/ar/overview.json"));
   assert.match(ar.compare.thinBaseline, /[؀-ۿ]/);
   assert.match(ar.compare.thinBaselineHint, /[؀-ۿ]/);
+});
+
+test("the thin-baseline rule covers every KPI, at every level, in both directions", () => {
+  // The rule lives in KpiTile, so a single threshold governs primary, operating and
+  // health tiles alike — including New Customers and the red-sentiment return metrics.
+  const thin = isBaselineThin;
+
+  // Production shapes that must be flagged: a full month against a few days.
+  assert.equal(thin(350420, 10000), true, "+3,404% must be flagged");
+  assert.equal(thin(17850, 1950), true, "returns +815% must be flagged, red as well as green");
+  assert.equal(thin(13, 4), true, "new customers tripling off a tiny base must be flagged");
+
+  // Ordinary movement must not be.
+  assert.equal(thin(13, 12), false, "+8% is a normal period");
+  assert.equal(thin(108170, 118000), false, "a decline is not a thin baseline");
+  assert.equal(thin(0, 1950), false, "a collapse to zero is real information, not an artefact");
+
+  // No baseline at all is a different state, handled as "new" rather than a percentage.
+  assert.equal(thin(500, 0), false);
+  assert.equal(thin(500, null), false);
 });
 
 test("the warning panel collapses by default but never hides a critical note", async () => {

@@ -23,9 +23,13 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
     return (
       <div className="min-w-0">
         <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} language={language} />
-        <p className="mt-3 rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
-          {t("salesAnalytics.sizes.pickType")}
-        </p>
+        <div className="mt-3 flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-[var(--border)] px-5 py-9 text-center">
+          <Ruler className="h-5 w-5 text-[var(--text-tertiary)]" aria-hidden="true" />
+          <p className="text-[14px] font-semibold text-[var(--text-secondary)]">{t("salesAnalytics.sizes.pickType")}</p>
+          <p className="max-w-md text-[12px] leading-5 text-[var(--text-tertiary)]">
+            {t("salesAnalytics.sizes.pickTypeWhy")}
+          </p>
+        </div>
       </div>
     );
   }
@@ -34,10 +38,15 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
     return (
       <div className="min-w-0">
         <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} language={language} />
-        <p className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
-          <Ruler className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {t("salesAnalytics.sizes.notApplicable")}
-        </p>
+        <div className="mt-3 flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-[var(--border)] px-5 py-9 text-center">
+          <Ruler className="h-5 w-5 text-[var(--text-tertiary)]" aria-hidden="true" />
+          <p className="text-[14px] font-semibold text-[var(--text-secondary)]">
+            {t("salesAnalytics.sizes.notApplicableFor", { productType: dimensionLabel("product_type", selectedType, language) })}
+          </p>
+          <p className="max-w-md text-[12px] leading-5 text-[var(--text-tertiary)]">
+            {t("salesAnalytics.sizes.notApplicableWhy")}
+          </p>
+        </div>
       </div>
     );
   }
@@ -73,9 +82,13 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
       ) : null}
 
       {!rows.length ? (
-        <p className="mt-3 rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
-          {t("salesAnalytics.sizes.empty")}
-        </p>
+        <div className="mt-3 flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-[var(--border)] px-5 py-9 text-center">
+          <Ruler className="h-5 w-5 text-[var(--text-tertiary)]" aria-hidden="true" />
+          <p className="text-[14px] font-semibold text-[var(--text-secondary)]">{t("salesAnalytics.sizes.empty")}</p>
+          <p className="max-w-md text-[12px] leading-5 text-[var(--text-tertiary)]">
+            {t("salesAnalytics.sizes.emptyWhy")}
+          </p>
+        </div>
       ) : (
         <>
           <div className="mt-3 flex items-center gap-3 px-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] 2xl:text-[11px]">

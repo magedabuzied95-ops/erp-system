@@ -48,9 +48,26 @@ test("the mapping never rewrites the stored value it was given", () => {
 test("an unmapped value falls through rather than vanishing", () => {
   assert.equal(dimensionLabel("product_type", "Hoverboards", "ar"), "Hoverboards");
   assert.equal(dimensionLabel("brand", "Adidas", "ar"), "Adidas", "brands are real names, never translated");
-  assert.equal(dimensionLabel("category", "Footwear", "ar"), "Footwear");
   assert.equal(dimensionLabel("product_type", "", "ar"), "");
   assert.equal(dimensionLabel("product_type", null, "ar"), "");
+});
+
+test("category is free text, so only the system's own classifications are mapped", () => {
+  // products.main_category and products.category are unconstrained varchar columns that
+  // people type into: production holds "sneakers", "Sneakers", "Footwear", "footwear",
+  // "Shoes", "shoes" and "running shoes" side by side. Translating that column wholesale
+  // would mean guessing at somebody's free text.
+  assert.equal(dimensionLabel("category", "Footwear", "ar"), "أحذية", "a system classification is mapped");
+  assert.equal(dimensionLabel("category", "sneakers", "ar"), "أحذية رياضية");
+  assert.equal(dimensionLabel("category", "Sneakers", "ar"), "أحذية رياضية", "casing must not matter");
+
+  // Genuine free text is left exactly as somebody typed it.
+  assert.equal(dimensionLabel("category", "running shoes", "ar"), "running shoes");
+  assert.equal(dimensionLabel("category", "Summer 2026 Clearance", "ar"), "Summer 2026 Clearance");
+
+  // The category dictionary stays narrow — it is not a general translation table.
+  const size = Object.keys(DIMENSION_DICTIONARIES.category).length;
+  assert.ok(size <= 12, `the category dictionary should stay narrowly scoped, has ${size} entries`);
 });
 
 test("matching survives the casing and separators the catalogue actually uses", () => {
@@ -281,6 +298,36 @@ test("the breakdown states plainly that it excludes returns", async () => {
   const warnings = JSON.parse(await read("../../src/locales/ar/overview.json")).warnings;
   assert.ok(warnings.BREAKDOWN_EXCLUDES_RETURNS);
   assert.ok(warnings.FILTERED_EXCLUDES_RETURNS);
+});
+
+test("the section navigator anchors every section it lists, desktop only", async () => {
+  const nav = await read("../../src/modules/reports/components/SectionNav.jsx");
+  const page = await read("../../src/modules/reports/pages/SalesIntelligence.jsx");
+
+  // Every entry in the navigator must point at an id that exists on the page, or a
+  // click scrolls nowhere.
+  const listed = [...page.matchAll(/\{ id: "([\w-]+)", key: "(\w+)" \}/g)].map(([, id, key]) => ({ id, key }));
+  assert.ok(listed.length >= 5, `expected the page to declare its sections, found ${listed.length}`);
+  for (const { id, key } of listed) {
+    assert.ok(page.includes(`id="${id}"`), `no element carries id="${id}"`);
+    assert.ok(nav.includes("salesAnalytics.nav."), "labels must come from the bundle");
+    const ar = JSON.parse(await read("../../src/locales/ar/salesAnalytics.json"));
+    assert.ok(ar.nav[key], `nav.${key} has no Arabic copy`);
+    assert.match(ar.nav[key], /[؀-ۿ]/, `nav.${key} must be Arabic`);
+  }
+
+  // Desktop only: on a phone the page is already collapsed section by section, and a
+  // sticky bar would spend scarce vertical space solving a problem that is not there.
+  assert.match(nav, /hidden[^"]*lg:block/, "the navigator must be desktop only");
+  // Native scrolling, no dependency, and no route change to fight the filter state.
+  assert.match(nav, /scrollIntoView\(\{ behavior: reduced \? "auto" : "smooth", block: "start" \}\)/);
+  assert.match(nav, /prefers-reduced-motion: reduce/, "a motion preference must be honoured");
+  assert.ok(!/history\.|navigate\(|location\.hash/.test(nav), "must not push a hash or navigate");
+  assert.match(nav, /IntersectionObserver/, "active tracking must not run per scroll frame");
+  assert.match(nav, /observer\.disconnect\(\)/, "and must be torn down");
+  // Anchored sections need scroll margin, or the sticky bar covers what it scrolled to.
+  const card = await read("../../src/modules/reports/components/SectionCard.jsx");
+  assert.match(card, /scroll-mt-\d+/, "an anchored card must clear the sticky navigator");
 });
 
 test("the analytical sections open on a desktop and collapse on a phone", async () => {

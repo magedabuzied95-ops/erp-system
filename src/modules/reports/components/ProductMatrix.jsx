@@ -100,11 +100,13 @@ export default function ProductMatrix({ matrix, showProfit, onSelectProduct }) {
                         onClick={() => onSelectProduct?.(point)}
                         className="w-full rounded-lg border border-transparent bg-[var(--card)] px-3 py-2.5 text-start transition hover:border-[var(--border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                       >
-                        <span className="block truncate text-[13px] font-semibold text-[var(--text)] 2xl:text-[14px]" title={point.productName}>
+                        <span className="block truncate text-[14px] font-semibold text-[var(--text)] 2xl:text-[15px]" title={point.productName}>
                           {point.productName}
                         </span>
-                        <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--text-tertiary)] 2xl:text-[12px]">
-                          <span className="font-semibold tabular-nums text-[var(--text-secondary)]">{formatMoney(point.netSales, language)}</span>
+                        <span className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] text-[var(--text-tertiary)] 2xl:text-[12px]">
+                          <span className="text-[13px] font-bold tabular-nums text-[var(--text-secondary)] 2xl:text-[14px]">
+                            {formatMoney(point.netSales, language)}
+                          </span>
                           <span className="tabular-nums">{formatNumber(point.units, language)} {t("salesAnalytics.breakdown.units")}</span>
                           <span className="tabular-nums">{formatPercentValue(point.grossMargin, language)}</span>
                           {point.currentStock !== null && point.currentStock !== undefined ? (

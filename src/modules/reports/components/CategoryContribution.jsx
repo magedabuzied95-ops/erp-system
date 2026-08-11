@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { formatMoney, formatPercentValue } from "../lib/metricFormat";
+import { dimensionLabel } from "../lib/dimensionLabels";
 import { formatNumber } from "../../../shared/lib/currency";
 
 /**
@@ -31,7 +32,7 @@ export default function CategoryContribution({ categories, showProfit = true }) 
       {rows.map((row) => (
         <CategoryRow
           key={row.category}
-          name={row.category}
+          name={dimensionLabel("category", row.category, language)}
           row={row}
           max={max}
           language={language}
@@ -67,12 +68,12 @@ function CategoryRow({ name, detail, row, max, language, showProfit, muted = fal
     <li>
       <div className="flex items-baseline justify-between gap-3">
         <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className={`truncate text-[13px] font-semibold ${muted ? "text-[var(--text-tertiary)]" : "text-[var(--text)]"}`}>
+          <span className={`truncate text-[14px] font-semibold 2xl:text-[15px] ${muted ? "text-[var(--text-tertiary)]" : "text-[var(--text)]"}`}>
             {name}
           </span>
           {detail ? <span className="shrink-0 text-[11px] text-[var(--text-tertiary)]">· {detail}</span> : null}
         </span>
-        <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--text)]">
+        <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--text)] 2xl:text-[15px]">
           {formatMoney(row.netSales, language)}
         </span>
       </div>

@@ -25,6 +25,7 @@ const PRODUCT_TYPE_AR = {
   sneakers: "أحذية رياضية",
   shoes: "أحذية",
   slippers: "سليبرات",
+  crocs: "كروكس",
   sandals: "صنادل",
   boots: "بوت",
   bags: "شنط",
@@ -37,6 +38,30 @@ const PRODUCT_TYPE_AR = {
   socks: "شرابات",
   belts: "أحزمة",
   wallets: "محافظ",
+};
+
+/**
+ * Categories are free text, not an enum.
+ *
+ * `products.main_category` and `products.category` are unconstrained varchar columns
+ * that people type into, which is why production holds "sneakers", "Sneakers",
+ * "Footwear", "footwear", "Shoes", "shoes" and "running shoes" side by side. Translating
+ * that column wholesale would mean guessing at somebody's free text.
+ *
+ * So this dictionary is deliberately narrow: only the classifications the system itself
+ * uses as product types, which happen to be typed into the category column too. A
+ * genuine free-text value such as "running shoes" falls through and displays as written.
+ */
+const CATEGORY_AR = {
+  sneakers: "أحذية رياضية",
+  shoes: "أحذية",
+  footwear: "أحذية",
+  slippers: "سليبرات",
+  crocs: "كروكس",
+  sandals: "صنادل",
+  boots: "بوت",
+  bags: "شنط",
+  accessories: "إكسسوارات",
 };
 
 const GENDER_AR = {
@@ -65,6 +90,7 @@ const SIZE_AR = {
 const DICTIONARIES = {
   product_type: PRODUCT_TYPE_AR,
   productType: PRODUCT_TYPE_AR,
+  category: CATEGORY_AR,
   gender: GENDER_AR,
   size: SIZE_AR,
 };
@@ -95,6 +121,7 @@ export const hasDimensionLabel = (dimension, value) => {
 
 export const DIMENSION_DICTIONARIES = Object.freeze({
   product_type: Object.freeze({ ...PRODUCT_TYPE_AR }),
+  category: Object.freeze({ ...CATEGORY_AR }),
   gender: Object.freeze({ ...GENDER_AR }),
   size: Object.freeze({ ...SIZE_AR }),
 });

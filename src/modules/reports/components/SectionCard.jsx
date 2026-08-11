@@ -34,6 +34,7 @@ const useDesktop = () => {
  * small screens, without taking the control away from the reader.
  */
 export default function SectionCard({
+  id,
   title,
   subtitle,
   actions,
@@ -63,7 +64,8 @@ export default function SectionCard({
   };
 
   return (
-    <section className="flex min-w-0 flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+    // scroll-mt clears the sticky section navigator when this card is scrolled to.
+    <section id={id} className="flex min-w-0 scroll-mt-28 flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)]">
       <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 2xl:px-5">
         <div className="flex min-w-0 items-center gap-2">
           {collapsible ? (
