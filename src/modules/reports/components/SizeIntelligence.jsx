@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Ruler, TriangleAlert } from "lucide-react";
 
-import { formatPercentValue } from "../lib/metricFormat";
 import { formatCurrency, formatNumber } from "../../../shared/lib/currency";
 
 /**
@@ -21,7 +20,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
   if (!selectedType) {
     return (
       <div className="min-w-0">
-        <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} t={t} />
+        <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} />
         <p className="mt-3 rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
           {t("salesAnalytics.sizes.pickType")}
         </p>
@@ -32,7 +31,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
   if (data && data.applicable === false) {
     return (
       <div className="min-w-0">
-        <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} t={t} />
+        <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} />
         <p className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
           <Ruler className="h-4 w-4 shrink-0" aria-hidden="true" />
           {t("salesAnalytics.sizes.notApplicable")}
@@ -46,7 +45,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
 
   return (
     <div className="min-w-0">
-      <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} t={t} />
+      <TypePicker types={productTypes} selected={selectedType} onSelect={onSelectType} />
 
       <p className="mt-3 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-[11px] leading-4 text-[var(--text-secondary)]">
         {t("salesAnalytics.sizes.scopeNote", { productType: selectedType })}
@@ -112,7 +111,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
   );
 }
 
-function TypePicker({ types = [], selected, onSelect, t }) {
+function TypePicker({ types = [], selected, onSelect }) {
   if (!types.length) return null;
   return (
     <div className="flex flex-wrap gap-1.5">

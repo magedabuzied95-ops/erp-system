@@ -26,7 +26,7 @@ import {
  *   null        — no denominator (e.g. AOV with zero orders)
  *   0           — a verified zero
  */
-export default function KpiTile({ metric, kpi, level = 2, coverage = null, compact = false }) {
+export default function KpiTile({ metric, kpi, level = 2, coverage = null }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
 

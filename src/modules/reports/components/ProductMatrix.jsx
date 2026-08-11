@@ -23,11 +23,11 @@ const QUADRANTS = [
 export default function ProductMatrix({ matrix, showProfit, onSelectProduct }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
-  const points = matrix?.points || [];
+  const points = matrix?.points;
 
   const grouped = useMemo(() => {
     const buckets = Object.fromEntries(QUADRANTS.map((q) => [q.key, []]));
-    points.forEach((point) => {
+    (points || []).forEach((point) => {
       if (point.quadrant && buckets[point.quadrant]) buckets[point.quadrant].push(point);
     });
     Object.values(buckets).forEach((list) => list.sort((a, b) => (b.netSales || 0) - (a.netSales || 0)));
@@ -42,7 +42,7 @@ export default function ProductMatrix({ matrix, showProfit, onSelectProduct }) {
     );
   }
 
-  if (!points.length || matrix?.medianMargin === null || matrix?.medianMargin === undefined) {
+  if (!points?.length || matrix?.medianMargin === null || matrix?.medianMargin === undefined) {
     return (
       <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--text-tertiary)]">
         {t("salesAnalytics.matrix.empty")}

@@ -98,7 +98,7 @@ export const NON_SIZED_VARIATION_MODES = Object.freeze(["color_only", "simple"])
  * covering both comparison periods, the canonical predicate, and the product-attribute
  * filters. Returns the bound parameter list plus SQL fragments.
  */
-const buildScope = ({ filters, columns, includeCost }) => {
+const buildScope = ({ filters, columns }) => {
   const { orderColumns, itemColumns, productColumns, variantColumns, overrideColumns, purchaseColumns, purchaseItemColumns } = columns;
   const { tenantId, from, to, comparison, branchId } = filters;
 
@@ -213,7 +213,6 @@ const buildTrendQuery = ({ scope, itemColumns, includeCost, granularity }) => {
 
   const netQty = scope.costContext.netQuantityExpr;
   const lineNet = lineNetSalesExpr(itemColumns);
-  const revenue = nanSafe(orderRevenueExpr(new Set(["subtotal", "total_amount", "discount_amount", "exchange_mode", "amount_due_now"])));
 
   return `
     SELECT ${bucketExpr} AS bucket,
@@ -440,7 +439,7 @@ const buildProductsQuery = ({ scope, itemColumns, includeCost, variantColumns })
     LIMIT ${MATRIX_LIMIT}`;
 };
 
-const buildSizesQuery = ({ scope, itemColumns, includeCost, variantColumns }) => {
+const buildSizesQuery = ({ scope, itemColumns, includeCost }) => {
   const nonSize = NON_SIZE_VALUES.map((value) => `'${value}'`).join(", ");
   const sizeExpr = "COALESCE(NULLIF(TRIM(oi.size), ''), NULLIF(TRIM(pv.size), ''))";
 
@@ -605,8 +604,6 @@ export const getSalesSummary = async ({ filters, permissions = {}, client = db }
   const grossPrev = filters.comparison ? toMoney(num(totals.gross_previous) ?? 0) : null;
   const discount = toMoney(num(totals.discount_current) ?? 0);
   const discountPrev = filters.comparison ? toMoney(num(totals.discount_previous) ?? 0) : null;
-  const returnedUnits = num(lineTotals.returned_units_current) ?? 0;
-  const soldPlusReturned = units + returnedUnits;
 
   const cogs = includeCost ? toMoney(num(lineTotals.cogs_current) ?? 0) : null;
   const cogsPrev = includeCost && filters.comparison ? toMoney(num(lineTotals.cogs_previous) ?? 0) : null;
@@ -1110,7 +1107,7 @@ const HIGHLIGHT_LIMIT = 5;
  * Deterministic sales highlights. Backend emits codes and raw values only; the
  * frontend renders the Arabic wording from messageKey.
  */
-export const buildSalesHighlights = ({ kpis, breakdown = [], products = [], sizes = [], cogsCoverage }) => {
+export const buildSalesHighlights = ({ kpis, products = [], sizes = [], cogsCoverage }) => {
   const highlights = [];
   const pct = (delta) => (delta?.deltaPercent === null || delta?.deltaPercent === undefined ? null : delta.deltaPercent);
 
