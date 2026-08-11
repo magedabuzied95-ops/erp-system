@@ -882,6 +882,7 @@ export const createAiOrderDraft = async (payload = {}) => {
         governorate: text(payload.governorate),
         city_area: text(payload.city_area || payload.area),
         shipping_provider: text(payload.shipping_provider || payload.shippingProvider),
+        shipping_provider_id: text(payload.shipping_provider_id || payload.shippingProviderId || payload.shipping_provider || payload.shippingProvider),
         shipping_city_id: text(payload.shipping_city_id || payload.shippingCityId),
         shipping_zone_id: text(payload.shipping_zone_id || payload.shippingZoneId),
         shipping_district_id: text(payload.shipping_district_id || payload.shippingDistrictId),

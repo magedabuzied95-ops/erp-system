@@ -4376,6 +4376,7 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
       city_area: req.body?.city_area || conversation.customer_profile?.city_area || conversation.customer_profile?.area || "",
       variant_id: req.body?.variant_id || null,
       shipping_provider: req.body?.shipping_provider || "",
+      shipping_provider_id: req.body?.shipping_provider_id || req.body?.shipping_provider || "",
       shipping_city_id: req.body?.shipping_city_id || "",
       shipping_zone_id: req.body?.shipping_zone_id || "",
       shipping_district_id: req.body?.shipping_district_id || "",

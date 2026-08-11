@@ -29,9 +29,18 @@ test("desktop AI Inbox mounts the order composer in the active workspace", () =>
 });
 
 test("AI Inbox order composer forwards reviewed customer and variant data", () => {
-  for (const field of ["customer_name", "customer_phone", "customer_address", "governorate", "city_area", "quantity", "size", "color", "notes"]) {
+  for (const field of ["customer_name", "customer_phone", "customer_address", "governorate", "city_area", "quantity", "size", "color", "notes", "shipping_provider", "shipping_city_id", "shipping_zone_id", "shipping_district_id", "street_address", "building_number", "floor_number", "apartment_number", "landmark"]) {
     assert.match(inbox, new RegExp(`${field}: options\\.${field}`));
   }
+});
+
+test("desktop order composer loads Bosta hierarchy and supports shipping providers", () => {
+  assert.match(inbox, /AI_INBOX_SHIPPING_PROVIDERS/);
+  for (const provider of ["bosta", "mylerz", "shipblu", "in_store_delivery"]) assert.match(inbox, new RegExp(`id: "${provider}"`));
+  assert.match(inbox, /shipping\/cities\?provider=bosta&dropoff=1/);
+  assert.match(inbox, /shipping\/zones\?provider=bosta&dropoff=1&cityId=/);
+  assert.match(inbox, /shipping\/districts\?provider=bosta&dropoff=1&zoneId=/);
+  assert.match(inbox, /shipping_provider_id: shippingProvider/);
 });
 
 test("conversation draft route persists reviewed customer shipping fields", () => {
@@ -60,7 +69,7 @@ test("PWA order composer uses the visual catalog and Bosta hierarchy", () => {
 });
 
 test("AI draft persists Bosta-ready shipping fields", () => {
-  for (const field of ["shipping_provider", "shipping_city_id", "shipping_zone_id", "shipping_district_id", "district_id", "street_address", "building_number", "floor_number", "apartment_number", "landmark"]) assert.match(orderService, new RegExp(`${field}: text\\(payload\\.${field}`));
+  for (const field of ["shipping_provider", "shipping_provider_id", "shipping_city_id", "shipping_zone_id", "shipping_district_id", "district_id", "street_address", "building_number", "floor_number", "apartment_number", "landmark"]) assert.match(orderService, new RegExp(`${field}: text\\(payload\\.${field}`));
 });
 
 test("PWA product picker exposes POS filters and theme-aware dark styling", () => {

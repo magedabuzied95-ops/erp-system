@@ -23,6 +23,7 @@ import {
   Info as InfoIcon,
   Loader2,
   LockKeyhole,
+  MapPin,
   Image as ImageIcon,
   Maximize2,
   MessageSquareText,
@@ -49,6 +50,7 @@ import {
   Sparkles,
   Tag,
   Timer,
+  Truck,
   User,
   UserCheck,
   UserPlus,
@@ -3075,7 +3077,16 @@ function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, 
   );
 }
 
-function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, onClose, onSubmit }) {
+const shippingLocationId = (item = {}) => clean(item.id || item.provider_city_id || item.provider_zone_id || item.provider_district_id);
+const shippingLocationLabel = (item = {}) => clean(item.name_ar || item.name_en || item.name || item.city_name_ar || item.zone_name_ar || item.district_name_ar);
+const AI_INBOX_SHIPPING_PROVIDERS = [
+  { id: "bosta", label: "Bosta" },
+  { id: "mylerz", label: "Mylerz" },
+  { id: "shipblu", label: "ShipBlu" },
+  { id: "in_store_delivery", label: "توصيل المتجر" },
+];
+
+function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit }) {
   const profile = conversation?.customer_profile || {};
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -3083,9 +3094,18 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const [color, setColor] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [customerAddress, setCustomerAddress] = useState("");
+  const [shippingProvider, setShippingProvider] = useState("bosta");
+  const [shippingCityId, setShippingCityId] = useState("");
+  const [shippingZoneId, setShippingZoneId] = useState("");
+  const [shippingDistrictId, setShippingDistrictId] = useState("");
+  const [streetAddress, setStreetAddress] = useState("");
+  const [buildingNumber, setBuildingNumber] = useState("");
+  const [floorNumber, setFloorNumber] = useState("");
+  const [apartmentNumber, setApartmentNumber] = useState("");
+  const [landmark, setLandmark] = useState("");
   const [governorate, setGovernorate] = useState("");
   const [cityArea, setCityArea] = useState("");
+  const [shippingLocations, setShippingLocations] = useState({ cities: [], zones: [], districts: [], loading: false });
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
@@ -3097,18 +3117,67 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setColor(clean(conversation?.channel_metadata?.last_color || ""));
     setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
     setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
-    setCustomerAddress(clean(profile.address || conversation?.customer_address || ""));
+    setShippingProvider(clean(profile.shipping_provider || profile.shipping_provider_id || conversation?.shipping_provider || "bosta").toLowerCase());
+    setShippingCityId(clean(profile.shipping_city_id || conversation?.shipping_city_id || ""));
+    setShippingZoneId(clean(profile.shipping_zone_id || conversation?.shipping_zone_id || ""));
+    setShippingDistrictId(clean(profile.shipping_district_id || profile.district_id || conversation?.shipping_district_id || ""));
+    setStreetAddress(clean(profile.street_address || profile.address || conversation?.customer_address || ""));
+    setBuildingNumber(clean(profile.building_number || conversation?.building_number || ""));
+    setFloorNumber(clean(profile.floor_number || conversation?.floor_number || ""));
+    setApartmentNumber(clean(profile.apartment_number || conversation?.apartment_number || ""));
+    setLandmark(clean(profile.landmark || conversation?.landmark || ""));
     setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
     setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
     setNotes("");
   }, [conversation?.session_id, open, products]);
+
+  useEffect(() => {
+    if (!open || shippingProvider !== "bosta") return;
+    let active = true;
+    setShippingLocations((current) => ({ ...current, loading: true }));
+    api.get("/shipping/cities?provider=bosta&dropoff=1", { headers, suppressErrorStatuses: [404, 500] })
+      .then((data) => active && setShippingLocations((current) => ({ ...current, cities: asArray(data?.cities) })))
+      .catch(() => active && setShippingLocations((current) => ({ ...current, cities: [] })))
+      .finally(() => active && setShippingLocations((current) => ({ ...current, loading: false })));
+    return () => { active = false; };
+  }, [headers, open, shippingProvider]);
+
+  useEffect(() => {
+    if (!open || shippingProvider !== "bosta" || !shippingCityId) {
+      setShippingLocations((current) => ({ ...current, zones: [], districts: [] }));
+      return;
+    }
+    let active = true;
+    api.get(`/shipping/zones?provider=bosta&dropoff=1&cityId=${encodeURIComponent(shippingCityId)}`, { headers, suppressErrorStatuses: [404, 500] })
+      .then((data) => active && setShippingLocations((current) => ({ ...current, zones: asArray(data?.zones), districts: [] })))
+      .catch(() => active && setShippingLocations((current) => ({ ...current, zones: [], districts: [] })));
+    return () => { active = false; };
+  }, [headers, open, shippingCityId, shippingProvider]);
+
+  useEffect(() => {
+    if (!open || shippingProvider !== "bosta" || !shippingZoneId) {
+      setShippingLocations((current) => ({ ...current, districts: [] }));
+      return;
+    }
+    let active = true;
+    api.get(`/shipping/districts?provider=bosta&dropoff=1&zoneId=${encodeURIComponent(shippingZoneId)}`, { headers, suppressErrorStatuses: [404, 500] })
+      .then((data) => active && setShippingLocations((current) => ({ ...current, districts: asArray(data?.districts) })))
+      .catch(() => active && setShippingLocations((current) => ({ ...current, districts: [] })));
+    return () => { active = false; };
+  }, [headers, open, shippingProvider, shippingZoneId]);
 
   if (!open) return null;
   const selectedProduct = asArray(products).find((item) => clean(item.product_id || item.id) === clean(productId)) || null;
   const unitPrice = Number(selectedProduct?.final_price || selectedProduct?.price || selectedProduct?.sale_price || 0) || 0;
   const stock = Number(selectedProduct?.total_stock ?? selectedProduct?.stock ?? 0) || 0;
   const safeQuantity = Math.max(1, Number(quantity) || 1);
-  const canSubmit = Boolean(selectedProduct) && safeQuantity <= stock && !busy;
+  const selectedCity = shippingLocations.cities.find((item) => shippingLocationId(item) === shippingCityId) || null;
+  const selectedZone = shippingLocations.zones.find((item) => shippingLocationId(item) === shippingZoneId) || null;
+  const selectedDistrict = shippingLocations.districts.find((item) => shippingLocationId(item) === shippingDistrictId) || null;
+  const shippingComplete = shippingProvider === "bosta"
+    ? Boolean(shippingCityId && shippingZoneId && shippingDistrictId && streetAddress && buildingNumber)
+    : Boolean(governorate && cityArea && streetAddress);
+  const canSubmit = Boolean(selectedProduct && customerName && customerPhone && shippingProvider && shippingComplete) && safeQuantity <= stock && !busy;
   return (
     <div className="fixed inset-0 z-[140] flex justify-end bg-slate-950/75 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
       <section dir="rtl" className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#111512] p-5 shadow-2xl">
@@ -3125,11 +3194,59 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-3 flex items-center gap-2 font-black text-white"><User className="h-4 w-4 text-emerald-300" />بيانات العميل</div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="اسم العميل" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="رقم الهاتف" inputMode="tel" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={governorate} onChange={(e) => setGovernorate(e.target.value)} placeholder="المحافظة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={cityArea} onChange={(e) => setCityArea(e.target.value)} placeholder="المنطقة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <textarea value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} placeholder="العنوان بالتفصيل" className="min-h-20 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none sm:col-span-2" />
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="اسم العميل *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="رقم الهاتف *" inputMode="tel" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="mb-1 flex items-center gap-2 font-black text-white"><Truck className="h-4 w-4 text-cyan-300" />شركة الشحن وبيانات التوصيل</div>
+            <p className="mb-3 text-xs text-slate-400">اختار شركة الشحن. عند اختيار Bosta هتظهر مدن ومناطق وأحياء Bosta المعتمدة.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <span className="mb-1.5 block text-xs font-black text-slate-300">شركة الشحن *</span>
+                <select
+                  value={shippingProvider}
+                  onChange={(event) => {
+                    setShippingProvider(event.target.value);
+                    setShippingCityId("");
+                    setShippingZoneId("");
+                    setShippingDistrictId("");
+                  }}
+                  className="h-11 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-black text-white outline-none"
+                >
+                  {AI_INBOX_SHIPPING_PROVIDERS.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+                </select>
+              </label>
+
+              {shippingProvider === "bosta" ? (
+                <>
+                  <select value={shippingCityId} onChange={(event) => { setShippingCityId(event.target.value); setShippingZoneId(""); setShippingDistrictId(""); }} disabled={shippingLocations.loading} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50">
+                    <option value="">{shippingLocations.loading ? "تحميل مدن Bosta..." : "مدينة Bosta *"}</option>
+                    {shippingLocations.cities.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
+                  </select>
+                  <select value={shippingZoneId} onChange={(event) => { setShippingZoneId(event.target.value); setShippingDistrictId(""); }} disabled={!shippingCityId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50">
+                    <option value="">منطقة Bosta *</option>
+                    {shippingLocations.zones.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
+                  </select>
+                  <select value={shippingDistrictId} onChange={(event) => setShippingDistrictId(event.target.value)} disabled={!shippingZoneId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50 sm:col-span-2">
+                    <option value="">حي Bosta *</option>
+                    {shippingLocations.districts.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder="المحافظة *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+                  <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder="المدينة / المنطقة *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+                </>
+              )}
+
+              <div className="sm:col-span-2 flex items-center gap-2 pt-1 text-xs font-black text-slate-300"><MapPin className="h-4 w-4 text-rose-300" />العنوان التفصيلي</div>
+              <textarea value={streetAddress} onChange={(event) => setStreetAddress(event.target.value)} placeholder="اسم الشارع والعنوان بالتفصيل *" className="min-h-20 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none sm:col-span-2" />
+              <input value={buildingNumber} onChange={(event) => setBuildingNumber(event.target.value)} placeholder={shippingProvider === "bosta" ? "رقم المبنى *" : "رقم المبنى"} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder="الدور" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder="رقم الشقة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder="علامة مميزة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
             </div>
           </div>
 
@@ -3148,7 +3265,29 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
           </div>
 
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="ملاحظات الطلب" className="min-h-20 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none" />
-          <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, { quantity: safeQuantity, size, color, customer_name: customerName, customer_phone: customerPhone, customer_address: customerAddress, governorate, city_area: cityArea, notes })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
+          {!shippingComplete ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">أكمل بيانات الشحن المطلوبة لتفعيل إنشاء المسودة.</div> : null}
+          <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, {
+            quantity: safeQuantity,
+            size,
+            color,
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            customer_address: streetAddress,
+            governorate: shippingProvider === "bosta" ? shippingLocationLabel(selectedCity) : governorate,
+            city_area: shippingProvider === "bosta" ? shippingLocationLabel(selectedDistrict) || shippingLocationLabel(selectedZone) : cityArea,
+            shipping_provider: shippingProvider,
+            shipping_provider_id: shippingProvider,
+            shipping_city_id: shippingCityId,
+            shipping_zone_id: shippingZoneId,
+            shipping_district_id: shippingDistrictId,
+            district_id: shippingDistrictId,
+            street_address: streetAddress,
+            building_number: buildingNumber,
+            floor_number: floorNumber,
+            apartment_number: apartmentNumber,
+            landmark,
+            notes,
+          })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
         </div>
       </section>
     </div>
@@ -7146,6 +7285,17 @@ export default function AiInbox() {
         customer_address: options.customer_address || "",
         governorate: options.governorate || "",
         city_area: options.city_area || "",
+        shipping_provider: options.shipping_provider || "",
+        shipping_provider_id: options.shipping_provider_id || options.shipping_provider || "",
+        shipping_city_id: options.shipping_city_id || "",
+        shipping_zone_id: options.shipping_zone_id || "",
+        shipping_district_id: options.shipping_district_id || "",
+        district_id: options.district_id || options.shipping_district_id || "",
+        street_address: options.street_address || options.customer_address || "",
+        building_number: options.building_number || "",
+        floor_number: options.floor_number || "",
+        apartment_number: options.apartment_number || "",
+        landmark: options.landmark || "",
         notes: options.notes || "",
         reserve: options.reserve !== false,
         reserve_minutes: options.reserve_minutes || 20,
@@ -8078,6 +8228,7 @@ export default function AiInbox() {
         conversation={selectedConversation || {}}
         products={recommendations.sessionId === selectedConversation?.session_id ? recommendations.products : []}
         busy={loading}
+        headers={headers}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={createDraftFromProduct}
       />
@@ -8934,6 +9085,7 @@ export default function AiInbox() {
         conversation={selectedConversation || {}}
         products={recommendations.sessionId === selectedConversation?.session_id ? recommendations.products : []}
         busy={loading}
+        headers={headers}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={createDraftFromProduct}
       />
