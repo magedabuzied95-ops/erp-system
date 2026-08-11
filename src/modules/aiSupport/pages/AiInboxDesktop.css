@@ -11,7 +11,7 @@
 
 .ai-inbox-desktop .ai-omni-workspace {
   display: grid;
-  grid-template-columns: 58px minmax(320px, 360px) minmax(390px, 1fr);
+  grid-template-columns: 58px minmax(380px, 430px) minmax(390px, 1fr);
   gap: var(--ai-omni-gap);
   min-height: 0;
   flex: 1 1 auto;
@@ -256,7 +256,7 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
 
 @media (max-width: 1535px) {
   .ai-inbox-desktop .ai-omni-workspace {
-    grid-template-columns: minmax(310px, 350px) minmax(390px, 1fr);
+    grid-template-columns: minmax(360px, 400px) minmax(390px, 1fr);
   }
 
   .ai-inbox-desktop .ai-omni-channel-rail {
@@ -279,8 +279,8 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
   }
 
   .ai-inbox-desktop .ai-omni-list-panel {
-    width: min(340px, 42vw) !important;
-    max-width: min(340px, 42vw) !important;
+    width: min(370px, 44vw) !important;
+    max-width: min(370px, 44vw) !important;
   }
 }
 

@@ -26,7 +26,7 @@ test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopSource, /ai-omni-list-panel/);
   assert.match(desktopSource, /ai-omni-chat-panel/);
   assert.doesNotMatch(desktopSource, /ai-omni-tools-panel/);
-  assert.match(desktopCss, /grid-template-columns:\s*58px minmax\(320px, 360px\) minmax\(390px, 1fr\)/);
+  assert.match(desktopCss, /grid-template-columns:\s*58px minmax\(380px, 430px\) minmax\(390px, 1fr\)/);
   assert.match(desktopCss, /\.ai-inbox-desktop \.ai-omni-list-panel \{[\s\S]*?border-color:\s*rgba\(255, 255, 255, 0\.14\)[\s\S]*?border-radius:\s*1\.125rem/);
   assert.match(desktopCss, /\.ai-omni-list-panel > div:last-child[\s\S]*?scrollbar-gutter:\s*stable/);
   assert.doesNotMatch(desktopCss, /ai-omni-workspace--tools/);
@@ -78,6 +78,9 @@ test("desktop conversation product cards use a compact bounded layout", () => {
 });
 
 test("desktop conversation header stays compact and exposes multi-label management", () => {
+  assert.match(compactHeaderSource, /<div dir="ltr" data-ai-inbox-compact-contact-header="true"/);
+  assert.match(compactHeaderSource, /data-ai-inbox-contact-identity="left"/);
+  assert.match(compactHeaderSource, /data-ai-inbox-header-actions="right"/);
   assert.doesNotMatch(compactHeaderSource, />\s*Assign\s*</);
   assert.doesNotMatch(compactHeaderSource, /closeToggleLabel/);
   assert.doesNotMatch(compactHeaderSource, /onClick=\{onClose\}/);
@@ -86,6 +89,12 @@ test("desktop conversation header stays compact and exposes multi-label manageme
   assert.match(compactHeaderSource, /<Tag className="h-3\.5 w-3\.5" \/> Add Label/);
   assert.match(compactHeaderSource, /conversationLabels\.slice\(0, 4\)\.map/);
   assert.match(compactHeaderSource, /<ConversationLabelsModal/);
+});
+
+test("desktop conversation cards flow left to right while preserving message direction", () => {
+  assert.match(desktopSource, /dir="ltr"[\s\S]*?data-ai-inbox-conversation-direction="ltr"/);
+  assert.match(desktopSource, /<span dir="auto" className=\{`line-clamp-2 text-left/);
+  assert.match(desktopCss, /grid-template-columns:\s*minmax\(360px, 400px\) minmax\(390px, 1fr\)/);
 });
 
 test("desktop customer name and avatar open the shared Customer 360 drawer", () => {
