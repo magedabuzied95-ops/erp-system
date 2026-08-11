@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Box, Check, FileText, Moon, Package, Plus, Search, ShoppingCart, Sun } from "lucide-react";
 import { useTheme } from "../theme/useTheme";
 import { Button, Card, DataTable, EmptyState, Field, LoadingState, MetricCard, Modal, Pagination, Skeleton, StatusBadge } from "../shared/ui";
+import ComponentsPreviewPrimitives from "./ComponentsPreviewPrimitives";
 import "./ComponentsPreview.css";
 
 const rows = [
@@ -30,6 +31,7 @@ export default function ComponentsPreview() {
         <Card title="حقول الإدخال" subtitle="مقاسات ثابتة وحالات واضحة للنماذج كثيفة البيانات."><div className="components-preview__fields"><Field label="اسم العميل" placeholder="ابحث عن عميل..." /><Field as="select" label="الفرع" defaultValue="cairo"><option value="cairo">فرع القاهرة</option><option value="giza">فرع الجيزة</option></Field><Field label="كود المنتج" error="هذا الحقل مطلوب" placeholder="SKU-000" /></div></Card></div>
       <Card title="أحدث الطلبات" subtitle="جدول موحد قابل للاستخدام في المبيعات والمخزون والحسابات." action={<Button size="sm" icon={Search}>بحث وتصفية</Button>}><DataTable columns={columns} rows={rows} /><Pagination page={1} pages={6} /></Card>
       <div className="components-preview__grid components-preview__grid--three"><Card title="الحالة الفارغة"><EmptyState title="لا توجد طلبات" description="ستظهر الطلبات الجديدة هنا بمجرد تسجيل أول عملية بيع." action={<Button variant="primary" size="sm" icon={Plus}>إنشاء طلب</Button>} /></Card><Card title="حالة التحميل"><div className="components-preview__loading"><LoadingState /><Skeleton className="components-preview__skeleton-wide" /><Skeleton /><Skeleton className="components-preview__skeleton-short" /></div></Card><Card title="مبادئ الاستخدام"><ul className="components-preview__rules"><li><Check size={16} /> وضوح البيانات أهم من الزخرفة.</li><li><Check size={16} /> نفس السلوك في RTL وLTR.</li><li><Check size={16} /> استجابة كاملة لكل المقاسات.</li></ul></Card></div>
+      <ComponentsPreviewPrimitives />
     </div>
     <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="إنشاء عملية بيع" description="مثال للمودال الموحد دون توصيله بأي API."><div className="components-preview__modal-fields"><Field label="العميل" placeholder="اختر العميل" /><Field label="ملاحظات" placeholder="ملاحظات اختيارية" /></div><div className="components-preview__modal-actions"><Button onClick={() => setModalOpen(false)}>إلغاء</Button><Button variant="primary" onClick={() => setModalOpen(false)}>حفظ العملية</Button></div></Modal>
   </main>;

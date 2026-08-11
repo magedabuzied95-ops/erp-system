@@ -17,6 +17,11 @@ const shared = {
   success: "#198754",
   warning: "#c47a08",
   danger: "#d14343",
+  // Foreground for solid danger surfaces. Literals belong in the token layer;
+  // primitives must never hardcode one.
+  "danger-foreground": "#ffffff",
+  // Neutral dialog scrim. Same in both themes; primitives must not inline it.
+  "overlay-scrim": "rgba(0, 0, 0, 0.5)",
   info: "#4f6f8f",
   "radius-xs": "4px",
   "radius-sm": "7px",
