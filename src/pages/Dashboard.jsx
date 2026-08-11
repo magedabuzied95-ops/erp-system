@@ -639,11 +639,11 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
   };
   const deltaColors = { emerald: "text-emerald-300", rose: "text-red-300", slate: "text-slate-400" };
   const body = (
-    <article className={`min-h-[120px] rounded-2xl border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-slate-500/80" : ""}`}>
+    <article className={`flex h-full min-h-[172px] flex-col rounded-2xl border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-slate-500/80" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
-          <div className={`mt-2.5 font-black tracking-normal text-white ${textValue ? "line-clamp-2 text-base leading-6" : "text-2xl"}`}>
+          <div className="line-clamp-2 min-h-8 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
+          <div className={`mt-2 font-black tracking-normal text-white ${textValue ? "line-clamp-2 text-base leading-6" : "whitespace-nowrap text-xl 2xl:text-2xl"}`}>
             {loading ? <SkeletonLine className="h-8 w-20" /> : value}
           </div>
         </div>
@@ -651,12 +651,12 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <div className={`mt-3 border-t border-slate-700/45 pt-2.5 text-xs font-semibold ${deltaTone ? deltaColors[deltaTone] : "text-slate-400"}`}>
+      <div className={`mt-auto border-t border-slate-700/45 pt-2.5 text-xs font-semibold ${deltaTone ? deltaColors[deltaTone] : "text-slate-400"}`}>
         {loading ? <SkeletonLine className="h-4 w-24" /> : detail}
       </div>
     </article>
   );
-  return to ? <Link to={to} className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 rounded-2xl">{body}</Link> : body;
+  return to ? <Link to={to} className="block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">{body}</Link> : body;
 }
 
 // ---- Redesigned dashboard sections (dark theme, RTL, real ERP data) --------
