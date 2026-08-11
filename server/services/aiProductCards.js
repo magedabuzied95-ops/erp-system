@@ -1,6 +1,7 @@
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { filterAiEligibleProducts, resolveAiProductUrl } from "./aiProductEligibilityService.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { getPublicBackendUrl } from "../utils/publicUrl.js";
 import db from "../database/db.js";
 
 export { storefrontBaseUrl } from "./storefrontProductUrlService.js";
@@ -73,18 +74,27 @@ const parseJsonArray = (value) => {
   return [];
 };
 
-export const resolvePublicProductImageUrl = (value = "", { uploads = true, baseUrl = storefrontBaseUrl() } = {}) => {
+export const resolvePublicProductImageUrl = (
+  value = "",
+  { uploads = true, baseUrl = storefrontBaseUrl(), assetBaseUrl = getPublicBackendUrl() } = {}
+) => {
   const raw = firstImageValue(value);
   if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
-  if (!baseUrl) return raw.startsWith("/") ? raw : `/${trimSlashes(raw)}`;
   const path = trimSlashes(raw);
   if (!path) return "";
+  const publicAssetBaseUrl = text(assetBaseUrl || baseUrl).replace(/\/+$/g, "");
+  const publicPageBaseUrl = text(baseUrl).replace(/\/+$/g, "");
   if (uploads && !path.startsWith("uploads/") && !path.startsWith("shop/")) {
-    if (path.startsWith("products/")) return `${baseUrl}/uploads/${path}`;
-    return `${baseUrl}/uploads/products/${path}`;
+    if (path.startsWith("products/")) {
+      return publicAssetBaseUrl ? `${publicAssetBaseUrl}/uploads/${path}` : `/uploads/${path}`;
+    }
+    return publicAssetBaseUrl ? `${publicAssetBaseUrl}/uploads/products/${path}` : `/uploads/products/${path}`;
   }
-  return `${baseUrl}/${path}`;
+  if (path.startsWith("uploads/")) {
+    return publicAssetBaseUrl ? `${publicAssetBaseUrl}/${path}` : `/${path}`;
+  }
+  return publicPageBaseUrl ? `${publicPageBaseUrl}/${path}` : `/${path}`;
 };
 
 const slugBelongsToProduct = (slug = "", product = {}) => {

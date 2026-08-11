@@ -17,7 +17,9 @@ export const getPublicAppUrl = () =>
 
 export const getPublicBackendUrl = () =>
   publicOnly(process.env.PUBLIC_BACKEND_URL) ||
+  publicOnly(process.env.BACKEND_PUBLIC_URL) ||
   publicOnly(process.env.API_PUBLIC_URL) ||
+  publicOnly(process.env.PUBLIC_API_URL) ||
   publicOnly(process.env.VITE_API_URL);
 
 export const getMetaWebhookUrl = () => {
