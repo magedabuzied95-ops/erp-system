@@ -11,7 +11,7 @@
 
 .ai-inbox-desktop .ai-omni-workspace {
   display: grid;
-  grid-template-columns: 58px minmax(380px, 430px) minmax(390px, 1fr);
+  grid-template-columns: 72px minmax(380px, 430px) minmax(390px, 1fr);
   gap: var(--ai-omni-gap);
   min-height: 0;
   flex: 1 1 auto;
