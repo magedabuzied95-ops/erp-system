@@ -649,7 +649,7 @@ function TranscriptMessage({
       return (
         <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
           <div className="flex justify-start">
-            <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+            <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
               <span>{commenterName || commentLabel}</span>
@@ -701,7 +701,7 @@ function TranscriptMessage({
       ) : null}
       {safeRow.kind === "customer" ? (
         <div className="flex justify-start">
-          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-tl-sm border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
               <span>العميل</span>
               <span>/</span>
@@ -719,7 +719,7 @@ function TranscriptMessage({
       ) : null}
       {safeRow.kind === "ai" ? (
         <div className="flex justify-end">
-          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
+          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-br-md border border-cyan-300/15 bg-cyan-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
               <Bot className="h-3.5 w-3.5" />
               <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
@@ -747,7 +747,7 @@ function TranscriptMessage({
       ) : null}
       {safeRow.kind === "staff" ? (
         <div className="flex justify-end">
-          <div data-ai-message-bubble="true" className={`max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-3 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${message.message_type === "automation_error" ? "border border-rose-300/20 bg-rose-400/10" : "border border-emerald-300/15 bg-emerald-400/10"}`}>
+          <div data-ai-message-bubble="true" className={`max-w-[80%] rounded-2xl rounded-br-md px-4 py-3 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${message.message_type === "automation_error" ? "border border-rose-300/20 bg-rose-400/10" : "border border-emerald-300/15 bg-emerald-400/10"}`}>
             <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${message.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"}`}>
               <UserCheck className="h-3.5 w-3.5" />
               <span>{staffSenderLabel(message)}</span>
@@ -771,7 +771,7 @@ function TranscriptMessage({
       ) : null}
       {isCommentMessage ? (
         <div className="flex justify-start">
-          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
               <span>{commenterName || commentLabel}</span>
