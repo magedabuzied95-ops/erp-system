@@ -104,6 +104,15 @@ test("M size resolves but requested color absent → clarify_color (no availabil
   assert.doesNotMatch(r.answer, /^أيوه/);
 });
 
+test("ambiguous within the requested color (44 → both 43/44 and 44/45 in black) → clarify, never guess", async () => {
+  const r = await gate("عندكم كروكس اسود مقاس 44؟", [
+    { variant_id: 910, size: "M10/W12", color: "Black", stock: 0 }, // 43/44
+    { variant_id: 911, size: "44/45", color: "Black", stock: 4 },     // 44/45 in stock
+  ]);
+  assert.equal(r.action, "clarify_size"); // must NOT report "available" off the in-stock 44/45
+  assert.doesNotMatch(r.answer, /^أيوه/);
+});
+
 test("normal footwear unaffected: sneakers 44 in stock → available (no crocs conversion)", async () => {
   const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "عندكم سنيكرز اسود مقاس 44؟", deps: {
     queryProducts: async () => ([{ id: 39, name: "Air Jordan 4 Sneakers", product_type: "sneakers" }]),
