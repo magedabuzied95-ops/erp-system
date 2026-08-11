@@ -32,5 +32,9 @@ export const grantWorkflowTool = (id, toolId, headers) => api.post(`${BASE}/work
 export const revokeWorkflowTool = (id, toolId, headers) => api.delete(`${BASE}/workflows/${encodeURIComponent(id)}/grants/${encodeURIComponent(toolId)}`, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const getRestockRecovery = (headers) => api.get(`${BASE}/restock-recovery`, opts(headers));
 export const seedRestockRecoveryTemplate = (headers) => api.post(`${BASE}/restock-recovery/seed-template`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+// Phase 7 — variant-level restock intents (operator view + management).
+export const getRestockIntents = (headers, status = null) => api.get(`${BASE}/restock-intents`, { headers, params: status ? { status } : {}, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const cancelRestockIntent = (id, headers) => api.post(`${BASE}/restock-intents/${encodeURIComponent(id)}/cancel`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const fulfilRestockIntent = (id, headers) => api.post(`${BASE}/restock-intents/${encodeURIComponent(id)}/fulfil`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const getAutomationTimezone = (headers) => api.get(`${BASE}/automation/timezone`, opts(headers));
 export const setAutomationTimezone = (timezone, headers) => api.post(`${BASE}/automation/timezone`, { timezone }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });

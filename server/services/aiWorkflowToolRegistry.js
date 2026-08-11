@@ -201,10 +201,11 @@ const TOOLS = [
     handler: async ({ tenantId, input, context }) => {
       const t = context?.trigger?.input || {};
       const productId = input?.productId ?? t.productId ?? null;
-      const res = await findWaitingCustomersForRestock({ tenantId, productId, limit: input?.limit });
+      const variantId = input?.variantId ?? t.variantId ?? null;
+      const res = await findWaitingCustomersForRestock({ tenantId, productId, variantId, limit: input?.limit });
       return {
         matchedCount: res.matchedCount, returnedCount: res.returnedCount, hasMore: res.hasMore,
-        candidates: res.candidates.map((c) => ({ requestId: c.requestId, customerId: c.customerId, customer: c.customerName || maskPhone(c.phone), requestedAt: c.createdAt })),
+        candidates: res.candidates.map((c) => ({ requestId: c.requestId, customerId: c.customerId, customer: c.customerName || maskPhone(c.phone), requestedAt: c.createdAt, source: c.source, matchQuality: c.matchQuality, size: c.size })),
       };
     },
   },

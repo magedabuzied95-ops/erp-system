@@ -49,6 +49,7 @@ import {
 } from "../services/storefrontCustomerSessionService.js";
 import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAuthService.js";
 import { hasStorefrontCustomerToken, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
+import { createIntent as createRestockIntent, listIntents as listRestockIntents, cancelIntent as cancelRestockIntent } from "../services/restockIntentService.js";
 import { sendStorefrontMetaEvent } from "../services/metaConversionsApiService.js";
 import {
   storefrontRobotsHandler,
@@ -673,6 +674,36 @@ router.get("/customers/latest-shipping-address", storefrontCustomerTransitionAut
 router.post("/wishlist", ...storefrontCustomerAuthRequired, async (req, res, next) => saveWishlist(req, res, next));
 router.delete("/wishlist", ...storefrontCustomerAuthRequired, async (req, res, next) => saveWishlist(req, res, next));
 router.post("/recently-viewed", ...storefrontCustomerAuthRequired, async (req, res, next) => saveRecentlyViewed(req, res, next));
+
+// Phase 7 — variant-level Restock Intent ("بلغني لما يتوفر"). Explicit consent only; never sends a
+// message. Server validates variant∈product∈tenant + out-of-stock + identity + dedup.
+router.post("/restock-intents", ...storefrontCustomerAuthRequired, async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    const productId = Number(req.body?.product_id ?? req.body?.productId);
+    const rawV = req.body?.variant_id ?? req.body?.variantId;
+    const variantId = rawV === undefined || rawV === null || rawV === "" ? null : Number(rawV);
+    if (!productId) return res.status(400).json({ success: false, message: "product_id is required" });
+    const r = await createRestockIntent({ tenantId, customerId: req.storefrontCustomer?.customer_id || null, phone: req.storefrontCustomer?.phone, productId, variantId, source: "storefront" });
+    if (r.available_now) return res.json({ success: true, available_now: true, message: "This item is currently available." });
+    const i = r.intent;
+    return res.json({ success: true, reused: Boolean(r.reused), intent: { id: i.id, product_id: i.product_id, variant_id: i.variant_id, size: i.size, color: i.color, status: i.status } });
+  } catch (e) { res.status(e?.status || 500).json({ success: false, message: e?.message || "Failed to create restock request" }); }
+});
+router.get("/restock-intents", ...storefrontCustomerAuthRequired, async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    const rows = await listRestockIntents(tenantId, { phone: req.storefrontCustomer?.phone, limit: 100 });
+    const active = rows.filter((i) => ["waiting", "recovery_created", "customer_notified"].includes(i.status));
+    res.json({ success: true, intents: active.map((i) => ({ id: i.id, product_id: i.product_id, variant_id: i.variant_id, size: i.size, color: i.color, status: i.status, product_name: i.product_name, created_at: i.created_at })) });
+  } catch (e) { res.status(500).json({ success: false, message: e?.message || "Failed" }); }
+});
+router.delete("/restock-intents/:id", ...storefrontCustomerAuthRequired, async (req, res) => {
+  try {
+    const cancelled = await cancelRestockIntent(publicTenantId(req), Number(req.params.id), { actorPhone: req.storefrontCustomer?.phone });
+    res.json({ success: Boolean(cancelled), cancelled: Boolean(cancelled) });
+  } catch (e) { res.status(500).json({ success: false, message: e?.message || "Failed" }); }
+});
 router.get("/notifications", ...storefrontCustomerAuthRequired, async (req, res, next) => listNotifications(req, res, next));
 router.get("/shipping/providers", listShippingProviders);
 router.post("/shipping/orders/:orderId/create-shipment", protect, permit("orders", "edit"), createShipment);

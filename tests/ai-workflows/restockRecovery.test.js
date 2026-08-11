@@ -25,13 +25,16 @@ test("maskPhone hides the middle (PII safety)", () => {
   assert.equal(maskPhone(""), "");
 });
 
-test("scoreCandidate is deterministic and explainable", () => {
+test("scoreCandidate is deterministic; exact variant outranks legacy (Phase 7)", () => {
   const now = new Date("2026-08-11T12:00:00Z");
-  const fresh = scoreCandidate({ customerId: 9, createdAt: "2026-08-09T12:00:00Z", notifyBackInStock: true }, now);
-  assert.equal(fresh.score, 45); // registered 20 + within7d 15 + opted 10
-  assert.match(fresh.reason, /registered/);
-  const guestOld = scoreCandidate({ customerId: null, createdAt: "2026-06-01T12:00:00Z", notifyBackInStock: true }, now);
-  assert.equal(guestOld.score, 10); // only opted-in (older than 30d, not registered)
+  const exact = scoreCandidate({ matchQuality: "EXACT_VARIANT", source: "restock_intent", customerId: 9, createdAt: "2026-08-09T12:00:00Z" }, now);
+  assert.equal(exact.score, 75); // exact 40 + registered 20 + within7d 15
+  assert.match(exact.reason, /exact variant/);
+  const legacyFresh = scoreCandidate({ source: "legacy_wishlist", customerId: 9, createdAt: "2026-08-09T12:00:00Z" }, now);
+  assert.equal(legacyFresh.score, 35); // no match bonus + registered 20 + within7d 15
+  assert.ok(exact.score > legacyFresh.score);
+  const guestOld = scoreCandidate({ source: "legacy_wishlist", customerId: null, createdAt: "2026-06-01T12:00:00Z" }, now);
+  assert.equal(guestOld.score, 0); // legacy, guest, >30d
 });
 
 test("prioritize sorts by score desc, then oldest request first", () => {
@@ -44,28 +47,30 @@ test("prioritize sorts by score desc, then oldest request first", () => {
   assert.deepEqual(ranked.map((c) => c.requestId), [2, 3, 1]);
 });
 
-test("formatRecoveryTask is employee-readable, no raw ids/JSON, notes no auto-message", () => {
+test("formatRecoveryTask states the EXACT size for a variant intent", () => {
   const { title, note } = formatRecoveryTask({
     productName: "Nike Air Max", size: "44", color: "White", availableQty: 6,
-    candidate: { customerName: "Ahmed", createdAt: "2026-08-08T00:00:00Z" },
-    priority: { score: 45, reason: "registered customer +20" },
+    candidate: { customerName: "Ahmed", createdAt: "2026-08-08T00:00:00Z", matchQuality: "EXACT_VARIANT", size: "44", color: "White" },
+    priority: { score: 75, reason: "exact variant requested +40" },
   });
-  assert.match(title, /Restock follow-up — Nike Air Max/);
+  assert.match(title, /Restock follow-up — Nike Air Max \/ Size 44/);
   assert.match(note, /Ahmed/);
-  assert.match(note, /Nike Air Max White 44/);
-  assert.match(note, /6 available/);
+  assert.match(note, /Size 44 is back in stock \(6 available\)/);
+  assert.match(note, /exact requested variant/i);
   assert.match(note, /No message was sent automatically/i);
-  assert.doesNotMatch(note, /\{|\}|requestId/); // no JSON, no technical ids
+  assert.doesNotMatch(note, /\{|\}|requestId/);
 });
 
-test("guest candidate falls back to a masked phone label", () => {
+test("formatRecoveryTask says 'requested size unknown' for a legacy product-only waiter", () => {
   const { note } = formatRecoveryTask({
-    productName: "Shoe", availableQty: 2,
-    candidate: { phone: "01001234567", createdAt: "2026-08-08T00:00:00Z" },
-    priority: { score: 10, reason: "opted-in" },
+    productName: "Shoe", size: "44", color: "White", availableQty: 2,
+    candidate: { phone: "01001234567", createdAt: "2026-08-08T00:00:00Z", matchQuality: "PRODUCT_ONLY", source: "legacy_wishlist" },
+    priority: { score: 20, reason: "registered customer +20" },
   });
   assert.match(note, /01\*\*\*\*567/);
-  assert.doesNotMatch(note, /01001234567/); // full phone never leaks into the task
+  assert.doesNotMatch(note, /01001234567/);
+  assert.match(note, /requested size unknown/i); // never fabricate the size for legacy
+  assert.doesNotMatch(note, /Size 44/); // must NOT claim the legacy waiter wanted size 44
 });
 
 test("restock crossing gate still holds (only <=0 -> >0 qualifies)", () => {

@@ -37,6 +37,7 @@ import {
 } from "../services/aiWorkflowService.js";
 import { listTriggers } from "../services/aiWorkflowTriggerRegistry.js";
 import { listRecoveries, getRecoveryCounts } from "../services/aiRestockRecoveryService.js";
+import { createIntent, listIntents, cancelIntent, markIntentFulfilled, getIntentCounts } from "../services/restockIntentService.js";
 
 const router = express.Router();
 
@@ -86,6 +87,28 @@ router.get("/restock-recovery", protect, permit("settings", "view"), async (req,
 });
 router.post("/restock-recovery/seed-template", protect, permit("settings", "edit"), async (req, res) => {
   try { res.status(201).json({ success: true, workflow: await seedRestockRecoveryWorkflow(tid(req), uid(req)) }); } catch (error) { fail(res, error); }
+});
+
+// ---- Phase 7: Restock Intents (variant-level explicit requests) ----
+router.get("/restock-intents", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const [intents, counts] = await Promise.all([listIntents(tid(req), { status: req.query.status || null, limit: req.query.limit }), getIntentCounts(tid(req))]);
+    res.json({ success: true, intents, counts });
+  } catch (error) { fail(res, error); }
+});
+// Employee-created intent (e.g. from AI Inbox) — EXPLICIT action, never autonomous. `source` records origin.
+router.post("/restock-intents", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const r = await createIntent({ tenantId: tid(req), customerId: b.customerId || b.customer_id || null, phone: b.phone || null, productId: Number(b.productId ?? b.product_id), variantId: (b.variantId ?? b.variant_id) ? Number(b.variantId ?? b.variant_id) : null, source: b.source === "ai_inbox" ? "ai_inbox" : "admin", sourceReference: b.sourceReference || b.source_reference || null });
+    res.status(r.created ? 201 : 200).json({ success: true, ...r });
+  } catch (error) { fail(res, error); }
+});
+router.post("/restock-intents/:id/cancel", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, intent: await cancelIntent(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
+});
+router.post("/restock-intents/:id/fulfil", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, intent: await markIntentFulfilled(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
 });
 
 // ---- Delegated WRITE grants (per-workflow) ----

@@ -46,6 +46,7 @@ server/services/*
 !server/services/inboundMediaService.js
 !server/services/aiWorkflow*.js
 !server/services/aiRestockRecoveryService.js
+!server/services/restockIntentService.js
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -69,3 +70,4 @@ server/services/*
 !server/services/inboundMediaService.js
 !server/services/aiWorkflow*.js
 !server/services/aiRestockRecoveryService.js
+!server/services/restockIntentService.js

@@ -14,6 +14,7 @@
 import db from "../database/db.js";
 import { getInventoryFacts } from "./aiBusinessToolsService.js";
 import { createStaffTask } from "./staffTasksService.js";
+import { findWaitingIntents, markIntentRecoveryCreated } from "./restockIntentService.js";
 
 export const RECOVERY_DEFAULT_LIMIT = 25;
 export const RECOVERY_MAX_LIMIT = 100;
@@ -46,7 +47,13 @@ export const ensureRestockRecoverySchema = async (client = db) => {
     `);
     // Business-level dedup: at most one recovery row per (event, request). Replaying the same
     // restock event never creates a second follow-up for the same waiting request.
-    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_restock_recoveries_event_req ON ai_restock_recoveries (tenant_id, restock_event_id, request_id)`);
+    // Phase 7: intent linkage + source + match quality; dedup additionally on source so an
+    // intent-id and a wishlist-id never collide within the same restock event.
+    await client.query(`ALTER TABLE ai_restock_recoveries ADD COLUMN IF NOT EXISTS restock_intent_id BIGINT NULL`);
+    await client.query(`ALTER TABLE ai_restock_recoveries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'legacy_wishlist'`);
+    await client.query(`ALTER TABLE ai_restock_recoveries ADD COLUMN IF NOT EXISTS match_quality TEXT NULL`);
+    await client.query(`DROP INDEX IF EXISTS uq_ai_restock_recoveries_event_req`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_restock_recoveries_event_src_req ON ai_restock_recoveries (tenant_id, restock_event_id, source, request_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_restock_recoveries_tenant ON ai_restock_recoveries (tenant_id, created_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_restock_recoveries_cooldown ON ai_restock_recoveries (tenant_id, product_id, phone, created_at DESC)`);
   })().catch((e) => { schemaReady = null; throw e; });
@@ -67,10 +74,14 @@ export const maskPhone = (phone) => {
   return `${p.slice(0, 2)}****${p.slice(-3)}`;
 };
 
-// Deterministic, explainable priority from the ONLY fields the wishlist provides. No fake "AI score".
+// Deterministic, explainable priority. An EXACT_VARIANT explicit intent outranks a product-level
+// intent, which outranks a legacy product-only wishlist waiter. No fake "AI score".
 export const scoreCandidate = (candidate = {}, now = new Date()) => {
   let score = 0;
   const reasons = [];
+  if (candidate.matchQuality === "EXACT_VARIANT") { score += 40; reasons.push("exact variant requested +40"); }
+  else if (candidate.source === "restock_intent") { score += 10; reasons.push("explicit product-level intent +10"); }
+  // legacy_wishlist gets no match bonus (product-only, requested size unknown)
   if (candidate.customerId) { score += 20; reasons.push("registered customer +20"); }
   const created = candidate.createdAt ? new Date(candidate.createdAt) : null;
   if (created && Number.isFinite(created.getTime())) {
@@ -78,7 +89,6 @@ export const scoreCandidate = (candidate = {}, now = new Date()) => {
     if (ageDays <= 7) { score += 15; reasons.push("requested within 7d +15"); }
     else if (ageDays <= 30) { score += 5; reasons.push("requested within 30d +5"); }
   }
-  if (candidate.notifyBackInStock) { score += 10; reasons.push("opted into back-in-stock +10"); }
   return { score, reason: reasons.join(", ") || "no priority signals" };
 };
 
@@ -88,52 +98,88 @@ export const prioritize = (candidates = [], now = new Date()) =>
     .sort((a, b) => b.score - a.score || (new Date(a.createdAt || 0) - new Date(b.createdAt || 0)));
 
 // Employee-facing internal task content — readable without opening AI Studio, no raw JSON / no ids.
+// When the customer requested an EXACT variant we state the exact size; for a legacy product-only
+// wishlist waiter we are explicit that the requested size is unknown (never fabricate it).
 export const formatRecoveryTask = ({ productName, size, color, availableQty, candidate, priority }) => {
-  const item = [productName || "Product", color, size].filter(Boolean).join(" ");
+  const exact = candidate.matchQuality === "EXACT_VARIANT";
+  const reqSize = exact ? (candidate.size || size) : null;
+  const reqColor = exact ? (candidate.color || color) : null;
+  const item = [productName || "Product", reqColor, reqSize].filter(Boolean).join(" ");
   const who = candidate.customerName || (candidate.phone ? `Customer ${maskPhone(candidate.phone)}` : "A customer");
   const when = candidate.createdAt ? new Date(candidate.createdAt).toLocaleDateString() : "earlier";
-  const title = `Restock follow-up — ${(productName || "product").slice(0, 80)}`;
+  const titleBit = exact && reqSize ? `${productName || "product"} / Size ${reqSize}` : (productName || "product");
+  const title = `Restock follow-up — ${String(titleBit).slice(0, 90)}`;
+  const matchLine = exact ? "Match: exact requested variant." : "Match: product-level only — requested size unknown.";
+  const backLine = exact && reqSize
+    ? `Size ${reqSize} is back in stock${availableQty != null ? ` (${availableQty} available)` : ""}.`
+    : (availableQty != null ? `It is back in stock (${availableQty} available).` : `It is back in stock.`);
   const note = [
     `${who} asked to be notified when "${item}" came back in stock.`,
-    availableQty != null ? `It is back in stock (${availableQty} available).` : `It is back in stock.`,
+    backLine,
     `Requested on ${when}.`,
+    matchLine,
     priority?.reason ? `Priority: ${priority.score} (${priority.reason}).` : "",
     `Suggested next action: contact the customer to confirm interest. (No message was sent automatically.)`,
   ].filter(Boolean).join("\n");
   return { title, note };
 };
 
-// ---- Canonical matching (customer_wishlist, product-level) ----
-export const findWaitingCustomersForRestock = async ({ tenantId, productId, limit } = {}) => {
+// ---- Canonical matching: EXPLICIT variant-level intents first, then legacy product-only wishlist ----
+// Returns unified candidates, each tagged with `source` (restock_intent | legacy_wishlist) and
+// `matchQuality` (EXACT_VARIANT | PRODUCT_ONLY). Bounded across both sources.
+export const findWaitingCustomersForRestock = async ({ tenantId, productId, variantId = null, limit } = {}) => {
   await ensureRestockRecoverySchema();
   if (!tenantId || !productId) return { matchedCount: 0, returnedCount: 0, hasMore: false, candidates: [] };
   const cap = boundLimit(limit);
-  const countRes = await db.query(
-    `SELECT COUNT(*)::int AS n FROM customer_wishlist WHERE tenant_id = $1 AND product_id = $2 AND COALESCE(notify_back_in_stock, TRUE) = TRUE`,
-    [tenantId, productId]
-  );
-  const matchedCount = Number(countRes.rows[0]?.n || 0);
-  const rows = await db.query(
-    `SELECT w.id AS request_id, w.customer_id, w.phone, w.product_id, w.created_at,
-            COALESCE(w.notify_back_in_stock, TRUE) AS notify_back_in_stock,
-            c.name AS customer_name
-       FROM customer_wishlist w
-       LEFT JOIN customers c ON c.id = w.customer_id AND c.tenant_id = w.tenant_id
-      WHERE w.tenant_id = $1 AND w.product_id = $2 AND COALESCE(w.notify_back_in_stock, TRUE) = TRUE
-      ORDER BY w.created_at ASC
-      LIMIT $3`,
-    [tenantId, productId, cap]
-  );
-  const candidates = rows.rows.map((r) => ({
-    requestId: Number(r.request_id),
+
+  // 1) Explicit Restock Intents (exact variant first, then product-level intents).
+  const intents = await findWaitingIntents({ tenantId, productId, variantId, limit: cap });
+  const intentCandidates = intents.map((r) => ({
+    source: "restock_intent",
+    matchQuality: r.match_quality || (r.variant_id ? "EXACT_VARIANT" : "PRODUCT_ONLY"),
+    requestId: Number(r.id),
+    intentId: Number(r.id),
     customerId: r.customer_id != null ? Number(r.customer_id) : null,
     phone: r.phone || null,
     customerName: r.customer_name || null,
     productId: Number(r.product_id),
+    variantId: r.variant_id != null ? Number(r.variant_id) : null,
+    size: r.size || null,
+    color: r.color || null,
     createdAt: r.created_at,
-    notifyBackInStock: Boolean(r.notify_back_in_stock),
   }));
-  return { matchedCount, returnedCount: candidates.length, hasMore: matchedCount > candidates.length, candidates };
+
+  // 2) Legacy product-only wishlist fallback (never claims to know the requested size).
+  const remaining = Math.max(0, cap - intentCandidates.length);
+  let wishlistCandidates = [];
+  if (remaining > 0) {
+    const rows = await db.query(
+      `SELECT w.id AS request_id, w.customer_id, w.phone, w.product_id, w.created_at, c.name AS customer_name
+         FROM customer_wishlist w
+         LEFT JOIN customers c ON c.id = w.customer_id AND c.tenant_id = w.tenant_id
+        WHERE w.tenant_id = $1 AND w.product_id = $2 AND COALESCE(w.notify_back_in_stock, TRUE) = TRUE
+        ORDER BY w.created_at ASC LIMIT $3`,
+      [tenantId, productId, remaining]
+    );
+    wishlistCandidates = rows.rows.map((r) => ({
+      source: "legacy_wishlist",
+      matchQuality: "PRODUCT_ONLY",
+      requestId: Number(r.request_id),
+      intentId: null,
+      customerId: r.customer_id != null ? Number(r.customer_id) : null,
+      phone: r.phone || null,
+      customerName: r.customer_name || null,
+      productId: Number(r.product_id),
+      variantId: null,
+      size: null,
+      color: null,
+      createdAt: r.created_at,
+    }));
+  }
+
+  const candidates = [...intentCandidates, ...wishlistCandidates];
+  const matchedCount = candidates.length; // bounded already; intents are the authoritative source
+  return { matchedCount, returnedCount: candidates.length, hasMore: candidates.length >= cap, candidates };
 };
 
 // Re-check that a restocked variant/product actually has sellable stock right now.
@@ -160,41 +206,43 @@ export const runRestockRecovery = async ({ tenantId, productId, variantId = null
   const eventKey = String(restockEventId || `inv:${tenantId}:${productId}:${variantId}`);
 
   const stock = await readSellableStock({ tenantId, productId, variantId });
-  const { candidates, matchedCount, returnedCount, hasMore } = await findWaitingCustomersForRestock({ tenantId, productId, limit });
+  const { candidates, matchedCount, returnedCount, hasMore } = await findWaitingCustomersForRestock({ tenantId, productId, variantId, limit });
   const ranked = prioritize(candidates);
 
   let created = 0, skippedDuplicate = 0, skippedNoStock = 0, failed = 0;
   const results = [];
   for (const cand of ranked) {
-    const base = { tenant_id: tenantId, restock_event_id: eventKey, request_id: cand.requestId, customer_id: cand.customerId, phone: cand.phone, product_id: productId, variant_id: variantId, workflow_id: workflowId, run_id: runId, priority: cand.score, reason: cand.reason };
+    const base = { tenant_id: tenantId, restock_event_id: eventKey, source: cand.source || "legacy_wishlist", request_id: cand.requestId, restock_intent_id: cand.intentId || null, match_quality: cand.matchQuality || null, customer_id: cand.customerId, phone: cand.phone, product_id: productId, variant_id: variantId, workflow_id: workflowId, run_id: runId, priority: cand.score, reason: cand.reason };
     // No sellable stock right now -> record + skip (do not create a follow-up for an empty shelf).
     if (!stock.hasStock) {
       await recordRecovery({ ...base, status: "skipped_no_stock", followup_task_id: null });
-      skippedNoStock += 1; results.push({ requestId: cand.requestId, status: "skipped_no_stock" });
+      skippedNoStock += 1; results.push({ requestId: cand.requestId, source: cand.source, status: "skipped_no_stock" });
       continue;
     }
-    // Business dedup #1: one recovery per (event, request).
+    // Business dedup #1: one recovery per (event, source, request).
     const reserved = await recordRecovery({ ...base, status: "candidate", followup_task_id: null });
-    if (!reserved) { skippedDuplicate += 1; results.push({ requestId: cand.requestId, status: "skipped_duplicate" }); continue; }
+    if (!reserved) { skippedDuplicate += 1; results.push({ requestId: cand.requestId, source: cand.source, status: "skipped_duplicate" }); continue; }
     // Business dedup #2: same customer+product recovered recently (anti-spam across events).
     const recent = await hasRecentRecovery({ tenantId, productId, phone: cand.phone, excludeId: reserved.id });
     if (recent) {
       await updateRecovery(reserved.id, tenantId, { status: "skipped_duplicate" });
-      skippedDuplicate += 1; results.push({ requestId: cand.requestId, status: "skipped_duplicate" });
+      skippedDuplicate += 1; results.push({ requestId: cand.requestId, source: cand.source, status: "skipped_duplicate" });
       continue;
     }
     try {
       const { title, note } = formatRecoveryTask({ productName: stock.productName, size: stock.size, color: stock.color, availableQty: stock.available, candidate: cand, priority: { score: cand.score, reason: cand.reason } });
       const task = await createStaffTask(
-        { tenantId, title, description: note, priority: cand.score >= 30 ? "high" : "medium", allow_unassigned: true, task_type: "general", source_module: "ai_restock_recovery" },
+        { tenantId, title, description: note, priority: cand.score >= 40 ? "high" : "medium", allow_unassigned: true, task_type: "general", source_module: "ai_restock_recovery" },
         { id: actorUserId || null }
       );
       const taskId = task?.id ?? task?.task?.id ?? null;
       await updateRecovery(reserved.id, tenantId, { status: "followup_created", followup_task_id: taskId });
-      created += 1; results.push({ requestId: cand.requestId, status: "followup_created", taskId });
+      // Mark the explicit intent as recovery_created (NOT customer_notified — no customer was contacted).
+      if (cand.source === "restock_intent" && cand.intentId) { try { await markIntentRecoveryCreated(tenantId, cand.intentId, eventKey); } catch { /* non-fatal */ } }
+      created += 1; results.push({ requestId: cand.requestId, source: cand.source, matchQuality: cand.matchQuality, status: "followup_created", taskId });
     } catch (e) {
       await updateRecovery(reserved.id, tenantId, { status: "failed", reason: String(e?.message || e).slice(0, 300) });
-      failed += 1; results.push({ requestId: cand.requestId, status: "failed" });
+      failed += 1; results.push({ requestId: cand.requestId, source: cand.source, status: "failed" });
     }
   }
   return { ok: true, matched: matchedCount, returned: returnedCount, hasMore, created, skippedDuplicate, skippedNoStock, failed, results };
@@ -203,10 +251,10 @@ export const runRestockRecovery = async ({ tenantId, productId, variantId = null
 // Insert a recovery row; returns the row on success, null on (event,request) conflict.
 const recordRecovery = async (row) => {
   const r = await db.query(
-    `INSERT INTO ai_restock_recoveries (tenant_id, restock_event_id, request_id, customer_id, phone, product_id, variant_id, status, followup_task_id, priority, reason, workflow_id, run_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-     ON CONFLICT (tenant_id, restock_event_id, request_id) DO NOTHING RETURNING *`,
-    [row.tenant_id, row.restock_event_id, row.request_id, row.customer_id, row.phone, row.product_id, row.variant_id, row.status || "candidate", row.followup_task_id || null, row.priority || 0, row.reason || null, row.workflow_id || null, row.run_id || null]
+    `INSERT INTO ai_restock_recoveries (tenant_id, restock_event_id, source, request_id, restock_intent_id, match_quality, customer_id, phone, product_id, variant_id, status, followup_task_id, priority, reason, workflow_id, run_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     ON CONFLICT (tenant_id, restock_event_id, source, request_id) DO NOTHING RETURNING *`,
+    [row.tenant_id, row.restock_event_id, row.source || "legacy_wishlist", row.request_id, row.restock_intent_id || null, row.match_quality || null, row.customer_id, row.phone, row.product_id, row.variant_id, row.status || "candidate", row.followup_task_id || null, row.priority || 0, row.reason || null, row.workflow_id || null, row.run_id || null]
   );
   return r.rows[0] || null;
 };
