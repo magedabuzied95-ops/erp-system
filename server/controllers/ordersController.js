@@ -4512,7 +4512,7 @@ const queueSupplierReturnItem = async (client, {
   const productId = orderItem?.product_id || null;
   const variantId = orderItem?.variant_id || null;
   const supplierId = await resolveSupplierForReturnedItem(client, { tenantId, productId, variantId });
-  await client.query(
+  const inserted = await client.query(
     `
     INSERT INTO supplier_return_items (
       tenant_id, supplier_id, customer_return_id, return_item_id, order_id,
@@ -4520,9 +4520,82 @@ const queueSupplierReturnItem = async (client, {
     )
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
     ON CONFLICT (return_item_id) DO NOTHING
+    RETURNING id
     `,
     [tenantId, supplierId, returnId, returnItemId, orderId, orderItem.id, productId, variantId, quantity, reason || "Manufacturing defect"]
   );
+
+  // ON CONFLICT DO NOTHING returns no row when the hold already exists, so a retried
+  // or replayed return records the ledger entry exactly once.
+  if (!inserted.rows.length) return;
+
+  await recordSupplierReturnHoldMovement(client, {
+    tenantId,
+    returnId,
+    supplierReturnItemId: inserted.rows[0].id,
+    productId,
+    variantId,
+    quantity,
+    reason,
+  });
+};
+
+/**
+ * Ledger entry for a unit held for supplier return, WITHOUT moving stock.
+ *
+ * A manufacturing-defect return never restocks: `shouldRestock` is false, no
+ * applyStockDelta runs, and the unit already left sellable stock at SALE_OUT. So
+ * `product_variants.stock` is correct before this runs and must stay untouched —
+ * decrementing here would remove the unit a second time.
+ *
+ * What was missing is the trace. `supplier_return_items` knew about the hold but
+ * `inventory_movements` did not, so an inventory ledger could not explain where the unit
+ * went. This writes that trace with quantity_change = 0 and quantity_before ==
+ * quantity_after: an economic disposition change, not a stock change.
+ *
+ * Passing explicit quantities also matters mechanically — recordInventoryMovement only
+ * updates product_variants.stock when quantities are absent, so being explicit is what
+ * guarantees this can never double-decrement.
+ */
+const recordSupplierReturnHoldMovement = async (client, {
+  tenantId,
+  returnId,
+  supplierReturnItemId,
+  productId,
+  variantId,
+  quantity,
+  reason,
+}) => {
+  try {
+    // Read current stock so before == after states plainly that nothing moved.
+    let currentStock = 0;
+    if (variantId) {
+      const variant = await client.query(
+        `SELECT COALESCE(stock, 0) AS stock FROM product_variants WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint)`,
+        [variantId, tenantId ?? null]
+      );
+      currentStock = Number(variant.rows[0]?.stock ?? 0);
+    }
+
+    await recordInventoryMovement(client, {
+      tenantId,
+      productId,
+      variantId: variantId || null,
+      movementType: "SUPPLIER_RETURN_HOLD",
+      quantityDelta: 0,
+      quantityBefore: currentStock,
+      quantityAfter: currentStock,
+      quantity: Number(quantity) || 0,
+      referenceType: "supplier_return_hold",
+      referenceId: supplierReturnItemId,
+      reason: reason || "Manufacturing defect held for supplier return",
+      notes: `return:${returnId}`,
+    });
+  } catch (error) {
+    // The hold itself is the business fact and is already committed. A ledger write that
+    // fails must not roll the return back, so this is logged rather than thrown.
+    console.error("[orders] supplier return hold movement failed", error?.message || error);
+  }
 };
 
 const markCustomerTrustedForCompletedOrder = async (client, order = {}) => {
