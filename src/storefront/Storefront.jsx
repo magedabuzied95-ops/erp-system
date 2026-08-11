@@ -69,6 +69,7 @@ import {
 import { api } from "../shared/api/api";
 import { API_BASE_URL } from "../shared/constants/app";
 import { resolveProductImageUrl } from "../shared/lib/imageUrls";
+import { compareCrocsSizes, isKnownCrocsSize } from "../shared/lib/crocsSizes";
 import { clearStorefrontCustomerAuth, readStorefrontCustomerAuth, storefrontCustomerRequest } from "./lib/storefrontCustomerAuth";
 import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
 import useDismissableLayer from "../shared/hooks/useDismissableLayer";
@@ -4317,6 +4318,9 @@ const buildAvailableSizeOptions = (products = []) => {
     }
   }
   return Array.from(sizes.values()).sort((a, b) => {
+    if (isKnownCrocsSize(a.size) || isKnownCrocsSize(b.size)) {
+      return compareCrocsSizes(a.size, b.size);
+    }
     const numericA = Number(a.size);
     const numericB = Number(b.size);
     if (Number.isFinite(numericA) && Number.isFinite(numericB)) return numericA - numericB;
