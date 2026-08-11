@@ -428,8 +428,8 @@ const MobileSalesChart = ({ points = [], valueKey = "revenue", formatValue = for
   const total = values.reduce((sum, value) => sum + value, 0);
   const topIndex = values.indexOf(Math.max(...values));
   const average = rows.length ? total / rows.length : 0;
-  const accent = tone === "cyan" ? "bg-cyan-400" : "bg-amber-400";
-  const accentSoft = tone === "cyan" ? "bg-cyan-300/25" : "bg-amber-300/25";
+  const accent = tone === "cyan" ? "bg-primary" : "bg-amber-400";
+  const accentSoft = tone === "cyan" ? "bg-primary/25" : "bg-amber-300/25";
   const first = rows[0]?.day;
   const middle = rows[Math.floor(rows.length / 2)]?.day;
   const last = rows[rows.length - 1]?.day;
@@ -2256,7 +2256,7 @@ export default function ManagerPortal() {
                             key={item.id}
                             className={`overflow-hidden rounded-3xl border p-4 shadow-sm transition ${
                               unread
-                              ? "border-sky-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] ring-1 ring-sky-100 dark:border-sky-400/20 dark:bg-white/[0.03] dark:ring-sky-400/10"
+                              ? "border-primary bg-[linear-gradient(180deg,#ffffff,#f8fafc)] ring-1 ring-primary dark:border-primary/20 dark:bg-white/[0.03] dark:ring-primary/10"
                                 : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] dark:border-white/10 dark:bg-white/[0.02]"
                             }`}
                           >
@@ -2265,7 +2265,7 @@ export default function ManagerPortal() {
                               onClick={() => void openNotification(item)}
                               className="flex w-full items-start gap-3 text-right"
                             >
-                              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${unread ? "bg-white text-sky-700 ring-sky-100 dark:bg-white/[0.03] dark:text-sky-200 dark:ring-sky-400/20" : "bg-white text-slate-600 ring-slate-200 dark:bg-white/[0.03] dark:text-slate-200 dark:ring-white/10"}`}>
+                              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${unread ? "bg-white text-primary ring-primary dark:bg-white/[0.03] dark:text-primary dark:ring-primary/20" : "bg-white text-slate-600 ring-slate-200 dark:bg-white/[0.03] dark:text-slate-200 dark:ring-white/10"}`}>
                                 <Icon className="h-5 w-5" />
                               </div>
                               <div className="min-w-0 flex-1">
@@ -2276,7 +2276,7 @@ export default function ManagerPortal() {
                                       {item.message || item.body || "لا توجد تفاصيل إضافية."}
                                     </p>
                                   </div>
-                                  {unread ? <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-sky-300" /> : null}
+                                  {unread ? <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-primary" /> : null}
                                 </div>
                                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
                                   <span>{notificationTypeLabel(item)}</span>
@@ -2304,7 +2304,7 @@ export default function ManagerPortal() {
                                 <button
                                   type="button"
                                   onClick={() => void markNotificationRead(item.id)}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-cyan-300/35 dark:hover:text-cyan-100"
+                                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-primary hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35 dark:hover:text-primary"
                                 >
                                   <CheckCheck className="h-3.5 w-3.5" />
                                   تحديد كمقروء
@@ -2491,7 +2491,7 @@ export default function ManagerPortal() {
                               employee.attendance_status === "checked_in"
                                 ? "bg-emerald-500"
                                 : employee.attendance_status === "online"
-                                  ? "bg-sky-500"
+                                  ? "bg-primary"
                                   : employee.attendance_status === "late"
                                     ? "bg-amber-500"
                                     : "bg-slate-400"
@@ -2780,7 +2780,7 @@ export default function ManagerPortal() {
                   {bestCategory ? (
                     <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
                       <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-sky-500" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-primary" />
                         <div className="text-lg font-black"><InlineName>{portalText(bestCategory.name || "Uncategorized")}</InlineName></div>
                       </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
@@ -2908,7 +2908,7 @@ export default function ManagerPortal() {
                         return (
                           <div key={item.day} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                             <div className="flex h-28 items-end">
-                              <div className="w-full rounded-t-xl bg-gradient-to-t from-slate-950 to-sky-500" style={{ height: `${height}%` }} />
+                              <div className="w-full rounded-t-xl bg-gradient-to-t from-slate-950 to-primary" style={{ height: `${height}%` }} />
                             </div>
                             <div className="mt-3 text-xs font-black text-slate-500">{formatShortDay(item.day)}</div>
                             <div className="mt-1 text-sm font-black text-slate-950">{formatCurrency(item.revenue || 0)}</div>
@@ -3150,7 +3150,7 @@ export default function ManagerPortal() {
                     <Badge className={`${pushState.subscribed ? "border-emerald-200 text-emerald-700" : "border-slate-200 text-slate-700"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
                       الاشتراك: {pushState.subscribed ? "نشط" : "غير نشط"}
                     </Badge>
-                    <Badge className={`${standalone ? "border-sky-200 text-sky-700" : "border-amber-200 text-amber-800"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
+                    <Badge className={`${standalone ? "border-primary text-primary" : "border-amber-200 text-amber-800"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
                       {standalone ? "مثبتة كتطبيق" : "علامة المتصفح"}
                     </Badge>
                   </div>

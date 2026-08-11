@@ -166,7 +166,7 @@ export default function CreateUserModal({
 
             <button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl text-white w-full"
+              className="bg-primary hover:bg-primary px-5 py-3 rounded-xl text-[var(--primary-contrast)] w-full"
             >
 
               Create

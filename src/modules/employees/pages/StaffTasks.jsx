@@ -19,7 +19,7 @@ const statusLabels = {
 
 const priorityClass = {
   low: "border-slate-300/40 bg-slate-500/10 text-slate-500",
-  medium: "border-sky-300/40 bg-sky-500/10 text-sky-500",
+  medium: "border-primary/40 bg-primary/10 text-primary",
   high: "border-amber-300/40 bg-amber-500/10 text-amber-600",
   critical: "border-red-300/50 bg-red-500/10 text-red-600",
 };
@@ -88,11 +88,11 @@ function AttendanceBadge({ employee, language }) {
       ? taskLabel(language, "checkedIn")
       : taskLabel(language, "absentNotCheckedIn");
   const className = isOnline
-    ? "border-sky-300/40 bg-sky-500/10 text-sky-700"
+    ? "border-primary/40 bg-primary/10 text-primary"
     : checkedIn
       ? "border-emerald-300/40 bg-emerald-500/10 text-emerald-700"
       : "border-slate-300/40 bg-slate-500/10 text-slate-500";
-  const dotClassName = isOnline ? "bg-sky-500" : checkedIn ? "bg-emerald-500" : "bg-red-500";
+  const dotClassName = isOnline ? "bg-primary" : checkedIn ? "bg-emerald-500" : "bg-red-500";
   const checkInTime = employee?.check_in_time || employee?.check_in_at || employee?.check_in || "";
   const title = isOnline
     ? taskLabel(language, "onlineNow")
@@ -260,7 +260,7 @@ function TaskRow({ task, onStart, onComplete, onEdit, onDelete, canDelete, langu
           ) : null}
           <Pill className="border-[var(--border)] bg-[var(--surface-soft)] text-[var(--muted)]">{statusLabel(task.status, language)}</Pill>
           {recurringBadgeLabel(task, language) ? (
-            <Pill className="border-cyan-300/40 bg-cyan-500/10 text-cyan-700">{recurringBadgeLabel(task, language)}</Pill>
+            <Pill className="border-primary/40 bg-primary/10 text-primary">{recurringBadgeLabel(task, language)}</Pill>
           ) : null}
           {task.metadata?.assignment_state === "waiting_for_eligible_employee" ? (
             <Pill className="border-amber-300/40 bg-amber-500/10 text-amber-700">{taskLabel(language, "waitingEligible")}</Pill>
@@ -845,7 +845,7 @@ function StaffTasks() {
           <div className="min-w-0 flex-1">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-black text-[var(--text)]">{tr("weeklyTemplates")}</h2>
-              <Pill className="border-sky-300/40 bg-sky-500/10 text-sky-700">{weeklyTemplates.length}</Pill>
+              <Pill className="border-primary/40 bg-primary/10 text-primary">{weeklyTemplates.length}</Pill>
             </div>
             <div className="grid gap-2">
               {weeklyTemplates.length ? weeklyTemplates.map((template) => (
@@ -861,7 +861,7 @@ function StaffTasks() {
                     <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{localizedTaskText(template, "title", language) || template.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
                       <Pill className={priorityClass[template.priority] || priorityClass.medium}>{priorityLabel(template.priority, language)}</Pill>
-                      <Pill className="border-sky-300/40 bg-sky-500/10 text-sky-700">{taskLabel(language, "weeklyTask")}</Pill>
+                      <Pill className="border-primary/40 bg-primary/10 text-primary">{taskLabel(language, "weeklyTask")}</Pill>
                     </div>
                   </button>
                   <div className="flex items-center gap-2">

@@ -69,7 +69,7 @@ const itemImage = (item = {}) => resolveProductImageUrl(
 
 const statusTone = (status = "") => {
   const normalized = String(status || "").toLowerCase();
-  if (normalized === "pending_review") return "bg-sky-500/10 text-sky-100 border-sky-400/20";
+  if (normalized === "pending_review") return "bg-primary/10 text-primary border-primary/20";
   if (normalized === "rejected") return "bg-rose-500/10 text-rose-100 border-rose-400/20";
   if (normalized === "completed") return "bg-emerald-500/10 text-emerald-100 border-emerald-400/20";
   return "bg-white/5 text-slate-100 border-white/10";
@@ -589,7 +589,7 @@ function StatCard({ title, value, icon: Icon, tone = "sky" }) {
     amber: "from-amber-400/15 to-amber-500/5 text-amber-100 border-amber-300/20",
     rose: "from-rose-400/15 to-rose-500/5 text-rose-100 border-rose-300/20",
     emerald: "from-emerald-400/15 to-emerald-500/5 text-emerald-100 border-emerald-300/20",
-    sky: "from-sky-400/15 to-sky-500/5 text-sky-100 border-sky-300/20",
+    sky: "from-primary/15 to-primary/5 text-primary border-primary/20",
   };
   return (
     <div data-tone={tone} className={`manager-inventory-stat rounded-2xl border bg-gradient-to-br p-3 shadow-xl backdrop-blur sm:rounded-[1.75rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
@@ -609,7 +609,7 @@ function InfoStat({ title, value, icon: Icon, tone = "sky" }) {
     amber: "border-amber-300/20 bg-amber-500/10 text-amber-100",
     rose: "border-rose-300/20 bg-rose-500/10 text-rose-100",
     emerald: "border-emerald-300/20 bg-emerald-500/10 text-emerald-100",
-    sky: "border-sky-300/20 bg-sky-500/10 text-sky-100",
+    sky: "border-primary/20 bg-primary/10 text-primary",
   };
   return (
     <div data-tone={tone} className={`manager-inventory-stat rounded-2xl border p-3 sm:rounded-[1.5rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>

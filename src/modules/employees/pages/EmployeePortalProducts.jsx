@@ -843,30 +843,30 @@ function EmployeePortalCameraScannerModal({
             قرّب الكاميرا وخلي الكيو آر داخل الإطار
           </div>
           {isDevBuild ? (
-            <div className="mt-3 grid gap-3 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-left">
+            <div className="mt-3 grid gap-3 rounded-3xl border border-primary/20 bg-primary/10 p-3 text-left">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Scanner Debug</div>
-              <div className="text-[11px] font-bold text-cyan-100">{scanDebug?.stage ? text(scanDebug.stage).replace(/_/g, " ") : "idle"}</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">Scanner Debug</div>
+              <div className="text-[11px] font-bold text-primary">{scanDebug?.stage ? text(scanDebug.stage).replace(/_/g, " ") : "idle"}</div>
             </div>
-            <div className="grid gap-2 text-[11px] font-semibold text-cyan-50 sm:grid-cols-2">
+            <div className="grid gap-2 text-[11px] font-semibold text-primary sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Last raw value</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Last raw value</div>
                 <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.rawValue || "")}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Detected format</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Detected format</div>
                 <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.detectedFormat || "")}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Resolver called</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Resolver called</div>
                 <div className="mt-1 text-sm text-white">{scanDebug?.resolverCalled ? "yes" : "no"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Resolver result</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Resolver result</div>
                 <div className="mt-1 text-sm text-white">{formatScanDebugValue(scanDebug?.resolverResult || "idle")}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 sm:col-span-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Source</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Source</div>
                 <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.source || "")}</div>
               </div>
             </div>

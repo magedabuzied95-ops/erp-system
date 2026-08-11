@@ -155,7 +155,7 @@ export default function StaffQrAttendance() {
         <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
                 <ScanLine className="h-3.5 w-3.5" />
                 Staff QR attendance
               </div>
@@ -202,7 +202,7 @@ export default function StaffQrAttendance() {
                 </div>
               )}
             </div>
-            {processing ? <div className="mt-4 text-sm text-cyan-200">Processing QR and GPS location...</div> : null}
+            {processing ? <div className="mt-4 text-sm text-primary">Processing QR and GPS location...</div> : null}
             {error ? <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
           </section>
 
@@ -273,7 +273,7 @@ function InfoRow({ label, value }) {
 function Rule({ text }) {
   return (
     <div className="flex items-start gap-3 rounded-2xl border border-white/5 bg-slate-950/40 px-4 py-3">
-      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-cyan-300" />
+      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
       <span>{text}</span>
     </div>
   );

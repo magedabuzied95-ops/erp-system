@@ -300,7 +300,7 @@ export default function EmployeeAnalyticsWorkspace() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center rounded-[32px] border border-white/10 bg-zinc-950/80">
         <div className="inline-flex items-center gap-3 rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-zinc-200">
-          <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
           {t("common.employeeHub.analytics.loading")}
         </div>
       </div>
@@ -328,7 +328,7 @@ export default function EmployeeAnalyticsWorkspace() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <CalendarDays className="h-4 w-4 text-cyan-300" />
+              <CalendarDays className="h-4 w-4 text-primary" />
               {t("common.employeeHub.analytics.filters.title")}
             </div>
             <p className="mt-1 text-xs text-zinc-500">{t("common.employeeHub.analytics.filters.subtitle")}</p>
@@ -346,7 +346,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     ...(event.target.value === "custom" ? {} : getPresetRange(event.target.value)),
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40"
+                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40"
               >
                 {PRESET_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -369,7 +369,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     startDate: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
@@ -386,7 +386,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     endDate: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
           </div>
@@ -397,7 +397,7 @@ export default function EmployeeAnalyticsWorkspace() {
             {source === "error" ? t("common.employeeHub.analytics.status.unavailable", "Unavailable") : t("common.employeeHub.analytics.status.liveData")}
           </span>
           {error ? <span className="rounded-full bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-200">{error}</span> : null}
-          {refreshing ? <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">{t("common.employeeHub.analytics.status.refreshing")}</span> : null}
+          {refreshing ? <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{t("common.employeeHub.analytics.status.refreshing")}</span> : null}
         </div>
       </div>
 
@@ -413,10 +413,10 @@ export default function EmployeeAnalyticsWorkspace() {
             <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className={isRtl ? "text-xs font-bold text-cyan-300" : "text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.charts.revenueByEmployee")}</div>
+                  <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.charts.revenueByEmployee")}</div>
                   <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.charts.salesCommissionMix")}</h2>
                 </div>
-                <ShieldCheck className="h-5 w-5 text-cyan-300" />
+                <ShieldCheck className="h-5 w-5 text-primary" />
               </div>
               <div className="mt-5 h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -437,10 +437,10 @@ export default function EmployeeAnalyticsWorkspace() {
             <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className={isRtl ? "text-xs font-bold text-cyan-300" : "text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.charts.shiftAnalytics")}</div>
+                  <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.charts.shiftAnalytics")}</div>
                   <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.charts.shiftRevenueTrend")}</h2>
                 </div>
-                <Clock3 className="h-5 w-5 text-cyan-300" />
+                <Clock3 className="h-5 w-5 text-primary" />
               </div>
               <div className="mt-5 h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -485,7 +485,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     <td className="px-4 py-3 text-zinc-200">{formatCurrency(row.total_sales)}</td>
                     <td className="px-4 py-3 text-zinc-200">{row.total_orders || 0}</td>
                     <td className="px-4 py-3 text-zinc-200">{formatCurrency(row.average_order_value)}</td>
-                    <td className="px-4 py-3 text-cyan-200">{formatCurrency(row.commission_earned)}</td>
+                    <td className="px-4 py-3 text-primary">{formatCurrency(row.commission_earned)}</td>
                     <td className="px-4 py-3 text-rose-200">{formatCurrency(row.refunds_impact)}</td>
                   </tr>
                 ))}
@@ -504,7 +504,7 @@ export default function EmployeeAnalyticsWorkspace() {
           <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <div className={isRtl ? "text-xs font-bold text-cyan-300" : "text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.commissions.rules")}</div>
+                <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.commissions.rules")}</div>
                 <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.commissions.configurableRules")}</h2>
               </div>
             </div>
@@ -597,7 +597,7 @@ export default function EmployeeAnalyticsWorkspace() {
           </div>
 
           <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
-            <div className={isRtl ? "mb-4 text-xs font-bold text-cyan-300" : "mb-4 text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.commissions.transactions")}</div>
+            <div className={isRtl ? "mb-4 text-xs font-bold text-primary" : "mb-4 text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.commissions.transactions")}</div>
             <div className="overflow-hidden rounded-3xl border border-white/10">
               <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
@@ -616,7 +616,7 @@ export default function EmployeeAnalyticsWorkspace() {
                       <td className="px-4 py-3 text-zinc-300">{row.invoice_number || t("common.notAvailable")}</td>
                       <td className="px-4 py-3 text-zinc-200">{formatCurrency(row.sale_amount)}</td>
                       <td className="px-4 py-3 text-emerald-200">{formatCurrency(row.commission_amount)}</td>
-                      <td className="px-4 py-3 text-cyan-200">{row.status || t("common.notAvailable")}</td>
+                      <td className="px-4 py-3 text-primary">{row.status || t("common.notAvailable")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -648,7 +648,7 @@ export default function EmployeeAnalyticsWorkspace() {
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-zinc-300">
                   <div>{t("common.employeeHub.analytics.table.orders")}: <span className="font-semibold text-white">{row.total_orders || 0}</span></div>
                   <div>{t("common.employeeHub.analytics.table.avgOrder")}: <span className="font-semibold text-white">{formatCurrency(row.average_order_value)}</span></div>
-                  <div>{t("common.employeeHub.analytics.table.commission")}: <span className="font-semibold text-cyan-200">{formatCurrency(row.commission_earned)}</span></div>
+                  <div>{t("common.employeeHub.analytics.table.commission")}: <span className="font-semibold text-primary">{formatCurrency(row.commission_earned)}</span></div>
                   <div>{t("common.employeeHub.analytics.table.shift")}: <span className="font-semibold text-white">{displayShiftName(row.shift_name)}</span></div>
                 </div>
               </div>
@@ -658,7 +658,7 @@ export default function EmployeeAnalyticsWorkspace() {
 
       <section id="analytics-shifts" className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <Building2 className="h-4 w-4 text-cyan-300" />
+            <Building2 className="h-4 w-4 text-primary" />
             {t("common.employeeHub.analytics.sections.shiftAnalytics")}
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
@@ -693,7 +693,7 @@ export default function EmployeeAnalyticsWorkspace() {
           </div>
 
           <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-            <div className={isRtl ? "mb-3 text-xs font-bold text-cyan-300" : "mb-3 text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.sections.branchPerformance")}</div>
+            <div className={isRtl ? "mb-3 text-xs font-bold text-primary" : "mb-3 text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.sections.branchPerformance")}</div>
             <div className="overflow-hidden rounded-3xl border border-white/10">
               <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">

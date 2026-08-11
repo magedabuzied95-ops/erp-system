@@ -299,11 +299,15 @@ const statusClass = {
   late: "border-yellow-500/20 bg-yellow-500/10 text-yellow-300",
   missing_hours: "border-orange-500/20 bg-orange-500/10 text-orange-300",
   early_leave: "border-orange-500/20 bg-orange-500/10 text-orange-300",
-  on_leave: "border-blue-500/20 bg-blue-500/10 text-blue-300",
-  holiday: "border-blue-500/20 bg-blue-500/10 text-blue-300",
-  weekly_off: "border-sky-500/20 bg-sky-500/10 text-sky-300",
-  monthly_off: "border-sky-500/20 bg-sky-500/10 text-sky-300",
-  still_working: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
+  // Three distinguishable groups, as before the accent converged: blue was
+  // approved leave, sky was scheduled time off, cyan was an in-progress shift.
+  // Flattening all five to one token would have merged states an operator
+  // reads at a glance.
+  on_leave: "border-primary/20 bg-primary/10 text-primary",
+  holiday: "border-primary/20 bg-primary/10 text-primary",
+  weekly_off: "border-border bg-surface-soft text-text-muted",
+  monthly_off: "border-border bg-surface-soft text-text-muted",
+  still_working: "border-info/25 bg-info/10 text-info",
 };
 
 function Chip({ children, status }) {
@@ -320,8 +324,8 @@ function KpiCard({ label, value, icon: Icon, tone = "emerald", hint }) {
     rose: "bg-rose-500/10 text-rose-400",
     yellow: "bg-yellow-500/10 text-yellow-400",
     orange: "bg-orange-500/10 text-orange-400",
-    cyan: "bg-cyan-500/10 text-cyan-400",
-    blue: "bg-blue-500/10 text-blue-400",
+    cyan: "bg-primary/10 text-primary",
+    blue: "bg-primary/10 text-primary",
   }[tone] || "bg-[var(--surface)] text-[var(--muted)]";
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
@@ -1132,14 +1136,14 @@ function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
   };
 
   return (
-    <section className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4">
+    <section className="rounded-lg border border-primary/20 bg-primary/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">{isArabic ? "اعتماد المرتب" : "Payroll approval"}</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">{isArabic ? "اعتماد المرتب" : "Payroll approval"}</p>
           <h3 className="mt-1 text-lg font-black text-[var(--text)]">{isArabic ? "طلبات الأوفر تايم" : "Overtime approvals"}</h3>
           <p className="mt-1 text-sm text-[var(--muted)]">{isArabic ? "الأوفر تايم لا يدخل في المرتب إلا بعد الاعتماد." : "Overtime is included in payroll only after approval."}</p>
         </div>
-        <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-300">
+        <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-black text-primary">
           {pendingRows.length} {isArabic ? "قيد المراجعة" : "pending"}
         </span>
       </div>
@@ -1195,7 +1199,7 @@ function PayrollImpact({ rows, text, onSelect }) {
                 <td className="px-3 py-3 font-black text-emerald-400" dir="ltr">{row.paid_leave_days || 0}/{row.monthly_paid_leave_days || 3}</td>
                 <td className="px-3 py-3 font-black text-amber-300" dir="ltr">{row.deducted_leave_days || 0}</td>
                 <td className="px-3 py-3 font-black text-rose-400" dir="ltr">{formatMoney(row.leave_deduction)}</td>
-                <td className="px-3 py-3 font-black text-cyan-300" dir="ltr">{row.approved_overtime_hours || 0}</td>
+                <td className="px-3 py-3 font-black text-primary" dir="ltr">{row.approved_overtime_hours || 0}</td>
                 <td className="px-3 py-3 font-black text-emerald-400" dir="ltr">{formatMoney(row.approved_overtime_pay)}</td>
                 <td className="px-3 py-3 font-black text-rose-400" dir="ltr">{formatMoney(row.attendance_deduction)}</td>
                 <td className="px-3 py-3" dir="ltr">{formatMoney(row.penalties)}</td>

@@ -51,7 +51,7 @@ export default function RolesTable({
               ${
                 selectedRole?.id === role.id
 
-                ? "bg-blue-600/20 text-blue-400"
+                ? "bg-primary/20 text-primary"
 
                 : "text-white hover:bg-zinc-800"
               }`}

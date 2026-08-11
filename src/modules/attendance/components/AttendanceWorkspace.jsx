@@ -1841,15 +1841,15 @@ function AttendanceWorkspace({
                     <InputField label={tr("fields.nationalId")} value={employeeForm.national_id} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, national_id: value }))} />
                     <InputField label={tr("fields.salary")} type="number" value={employeeForm.salary} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, salary: value }))} />
                   </div>
-                  <div className="rounded-[28px] border border-cyan-400/20 bg-cyan-500/10 p-4">
+                  <div className="rounded-[28px] border border-primary/20 bg-primary/10 p-4">
                     <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                       <div>
-                        <div className="text-sm font-black text-cyan-100">{isArabic ? "إعدادات المسمى الوظيفي" : "Job title settings"}</div>
-                        <div className="mt-1 text-xs font-semibold leading-5 text-cyan-100/65">
+                        <div className="text-sm font-black text-primary">{isArabic ? "إعدادات المسمى الوظيفي" : "Job title settings"}</div>
+                        <div className="mt-1 text-xs font-semibold leading-5 text-primary/65">
                           {isArabic ? "اختيار المسمى هنا يضبط الدور الداخلي وصلاحيات POS وفتح الفرع تلقائياً، ويمكنك استخدام مسمى مخصص عند الحاجة." : "Choosing a title here sets the internal role, POS seller access, and branch-opening eligibility automatically. Use custom when needed."}
                         </div>
                       </div>
-                      <span className="w-fit rounded-full border border-cyan-200/20 bg-black/20 px-3 py-1 text-[11px] font-black text-cyan-100">
+                      <span className="w-fit rounded-full border border-primary/20 bg-black/20 px-3 py-1 text-[11px] font-black text-primary">
                         {employeeForm.job_title || (isArabic ? "غير محدد" : "Not set")}
                       </span>
                     </div>
@@ -1878,7 +1878,7 @@ function AttendanceWorkspace({
                             type="checkbox"
                             checked={employeeForm.can_open_branch !== false}
                             onChange={(event) => setEmployeeForm((prev) => ({ ...prev, can_open_branch: event.target.checked }))}
-                            className="h-4 w-4 accent-cyan-400"
+                            className="h-4 w-4 accent-primary"
                           />
                         </label>
                         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-zinc-200">
@@ -1887,7 +1887,7 @@ function AttendanceWorkspace({
                             type="checkbox"
                             checked={Boolean(employeeForm.is_sales_active)}
                             onChange={(event) => setEmployeeForm((prev) => ({ ...prev, is_sales_active: event.target.checked }))}
-                            className="h-4 w-4 accent-cyan-400"
+                            className="h-4 w-4 accent-primary"
                           />
                         </label>
                         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-zinc-200">
@@ -1896,7 +1896,7 @@ function AttendanceWorkspace({
                             type="checkbox"
                             checked={Boolean(employeeForm.manager_portal_enabled)}
                             onChange={(event) => setEmployeeForm((prev) => ({ ...prev, manager_portal_enabled: event.target.checked }))}
-                            className="h-4 w-4 accent-cyan-400"
+                            className="h-4 w-4 accent-primary"
                           />
                         </label>
                       </div>
@@ -2123,7 +2123,7 @@ function AttendanceWorkspace({
                     type="button"
                     onClick={handleSaveShift}
                     disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black transition hover:bg-blue-400 disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" />
                     {saving ? t("common.saving") : shiftForm.id ? tr("actions.updateShift") : tr("actions.assignShift")}
@@ -2652,7 +2652,7 @@ function StatusPill({ tone = "zinc", label }) {
   const tones = {
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-100",
-    blue: "border-blue-500/20 bg-blue-500/10 text-blue-100",
+    blue: "border-primary/20 bg-primary/10 text-primary",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-100",
     zinc: "border-white/10 bg-white/5 text-white",
   };
@@ -2699,7 +2699,7 @@ function MiniStat({ label, value, tone = "zinc", isRtl = false }) {
   const tones = {
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-100",
-    blue: "border-blue-500/20 bg-blue-500/10 text-blue-100",
+    blue: "border-primary/20 bg-primary/10 text-primary",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-100",
     zinc: "border-white/10 bg-white/5 text-white",
   };

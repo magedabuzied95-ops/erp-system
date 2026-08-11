@@ -221,7 +221,7 @@ const sessionStatusLabels = {
 const sessionStatusTone = {
   draft: "border-slate-200 bg-slate-50 text-slate-700",
   in_progress: "border-amber-200 bg-amber-50 text-amber-700",
-  pending_review: "border-sky-200 bg-sky-50 text-sky-700",
+  pending_review: "border-primary/30 bg-primary-subtle text-primary",
   rejected: "border-rose-200 bg-rose-50 text-rose-700",
   completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
   cancelled: "border-zinc-200 bg-zinc-100 text-zinc-600",
@@ -1440,7 +1440,7 @@ export default function EmployeePortalInventory() {
                 <span className="text-xs font-black uppercase tracking-[0.18em]">بوابة الموظف</span>
               </div>
               <h1 className="text-xl font-black tracking-tight text-slate-950 sm:mt-2 sm:text-3xl">الجرد</h1>
-              <div className="mt-2 hidden max-w-3xl rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold leading-5 text-sky-800 sm:inline-flex sm:text-sm">
+              <div className="mt-2 hidden max-w-3xl rounded-2xl border border-primary/30 bg-primary-subtle px-3 py-2 text-xs font-bold leading-5 text-primary sm:inline-flex sm:text-sm">
                 تُرسل كميات الجرد للمراجعة قبل الاعتماد النهائي.
               </div>
             </div>
@@ -1618,7 +1618,7 @@ export default function EmployeePortalInventory() {
                 </div>
 
                 {isPendingReview ? (
-                  <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-black text-sky-700">
+                  <div className="rounded-2xl border border-primary/30 bg-primary-subtle px-4 py-3 text-sm font-black text-primary">
                     تم إرسال الجرد للمراجعة
                   </div>
                 ) : null}

@@ -31,7 +31,7 @@ export default function EmployeeAnalyticsShell({
             <button
               type="button"
               onClick={onRefresh}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-cyan-400/30 hover:bg-cyan-500/10 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-primary/30 hover:bg-primary/10 hover:text-white"
             >
               <RefreshCcw className="h-4 w-4" />
               {actionLabels.refresh}
@@ -39,7 +39,7 @@ export default function EmployeeAnalyticsShell({
             <button
               type="button"
               onClick={onExportPdf}
-              className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/20 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/20 hover:text-white"
             >
               <Download className="h-4 w-4" />
               {actionLabels.exportPdf}

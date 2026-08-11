@@ -1093,7 +1093,7 @@ function MetricCard({ label, value, icon: Icon, tone = "slate" }) {
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-950",
     amber: "border-amber-200 bg-amber-50 text-amber-950",
     red: "border-red-200 bg-red-50 text-red-950",
-    sky: "border-sky-200 bg-sky-50 text-sky-950",
+    sky: "border-primary/30 bg-primary-subtle text-primary",
     slate: "border-slate-200 bg-white text-slate-950",
   };
   return (
@@ -1210,8 +1210,8 @@ function EmployeeStatsCards({ cards = [] }) {
             iconWrap: "bg-emerald-50 text-emerald-700",
           },
           blue: {
-            stripe: "bg-sky-500",
-            iconWrap: "bg-sky-50 text-sky-700",
+            stripe: "bg-primary",
+            iconWrap: "bg-primary-subtle text-primary",
           },
           amber: {
             stripe: "bg-amber-500",
@@ -1329,7 +1329,7 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
   const toneClassName = {
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
     amber: "border-amber-200 bg-amber-50 text-amber-700",
-    sky: "border-sky-200 bg-sky-50 text-sky-700",
+    sky: "border-primary/30 bg-primary-subtle text-primary",
     orange: "border-orange-200 bg-orange-50 text-orange-700",
     slate: "border-slate-200 bg-slate-50 text-slate-700",
   }[tone] || "border-slate-200 bg-slate-50 text-slate-700";
@@ -1963,14 +1963,14 @@ export default function EmployeePayrollPortal() {
   const payrollLifecycleBadgeClassName = payrollLifecycle.tone === "emerald"
     ? "bg-emerald-100 text-emerald-800"
     : payrollLifecycle.tone === "blue"
-      ? "bg-sky-100 text-sky-800"
+      ? "bg-primary-subtle text-primary"
       : payrollLifecycle.tone === "amber"
         ? "bg-amber-100 text-amber-800"
         : "bg-emerald-100 text-emerald-800";
   const payrollLifecycleDotClassName = payrollLifecycle.tone === "emerald"
     ? "bg-emerald-500"
     : payrollLifecycle.tone === "blue"
-      ? "bg-sky-500"
+      ? "bg-primary"
       : payrollLifecycle.tone === "amber"
         ? "bg-amber-500"
         : "bg-emerald-500";
@@ -3422,7 +3422,7 @@ export default function EmployeePayrollPortal() {
                         : tone === "amber"
                           ? "border-amber-200 bg-amber-50 text-amber-700"
                           : tone === "sky"
-                            ? "border-sky-200 bg-sky-50 text-sky-700"
+                            ? "border-primary/30 bg-primary-subtle text-primary"
                             : "border-orange-200 bg-orange-50 text-orange-700"
                     }`}
                   >
@@ -3459,13 +3459,13 @@ export default function EmployeePayrollPortal() {
               <section className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,#0b1220,#111827)] p-4 text-white shadow-[0_16px_30px_rgba(2,6,23,0.18)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200/70">Sales Opportunities</div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">Sales Opportunities</div>
                     <h2 className="mt-1 text-lg font-black leading-7">فرص البيع اليوم</h2>
                     <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.</p>
                   </div>
-                  <div className="shrink-0 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-left">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/70">Today</div>
-                    <div className="mt-0.5 text-lg font-black text-cyan-50">{salesOpportunities.length}</div>
+                  <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">Today</div>
+                    <div className="mt-0.5 text-lg font-black text-primary">{salesOpportunities.length}</div>
                   </div>
                 </div>
 
@@ -3511,12 +3511,12 @@ export default function EmployeePayrollPortal() {
                               loading="lazy"
                             />
                           ) : (
-                            <Package2 className="h-8 w-8 text-cyan-200" />
+                            <Package2 className="h-8 w-8 text-primary" />
                           )}
                         </div>
                         <div className="min-w-0 flex-1 text-right">
                           <div className="flex flex-wrap items-center justify-end gap-1.5">
-                            <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-black text-cyan-100">
+                            <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">
                               {salesOpportunityBadgeLabel(opportunity.type)}
                             </span>
                             <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-black text-slate-100">
@@ -3536,7 +3536,7 @@ export default function EmployeePayrollPortal() {
                           <button
                             type="button"
                             onClick={() => window.location.assign(salesOpportunityRoute(token, opportunity))}
-                            className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-cyan-400"
+                            className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-primary"
                           >
                             عرض المنتج
                           </button>

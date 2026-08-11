@@ -29,7 +29,7 @@ const priorityLabel = {
 
 const priorityClass = {
   low: "border-border bg-surface-soft text-text",
-  medium: "border-sky-100 bg-sky-50 text-sky-700",
+  medium: "border-primary/30 bg-primary-subtle text-primary",
   high: "border-amber-100 bg-amber-50 text-amber-800",
   critical: "border-red-100 bg-red-50 text-red-700",
 };

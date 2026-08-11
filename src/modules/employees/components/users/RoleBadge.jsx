@@ -6,7 +6,7 @@ export default function RoleBadge({
 
   return (
 
-    <span className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-sm">
+    <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-sm">
 
       {role}
 

@@ -90,7 +90,7 @@ function MiniPanel({ title, icon: Icon, children }) {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
       <div className="mb-4 flex items-center gap-2">
-        {Icon ? <Icon className="h-5 w-5 text-cyan-200" /> : null}
+        {Icon ? <Icon className="h-5 w-5 text-primary" /> : null}
         <h2 className="text-lg font-black text-white">{title}</h2>
       </div>
       {children}
@@ -150,7 +150,7 @@ export default function AttendanceReports() {
         <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
                 <Table2 className="h-3.5 w-3.5" />
                 Attendance reports
               </div>
@@ -192,7 +192,7 @@ export default function AttendanceReports() {
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((prev) => ({ ...prev, from: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-primary"
               />
             </label>
             <label className="space-y-2">
@@ -201,7 +201,7 @@ export default function AttendanceReports() {
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((prev) => ({ ...prev, to: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-primary"
               />
             </label>
             <label className="space-y-2">
@@ -211,7 +211,7 @@ export default function AttendanceReports() {
                 value={filters.employeeId}
                 onChange={(event) => setFilters((prev) => ({ ...prev, employeeId: event.target.value }))}
                 placeholder="All employees"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-primary"
               />
             </label>
           </div>
@@ -274,7 +274,7 @@ export default function AttendanceReports() {
                         <div className="font-bold text-white">{item.employee_name || `Employee #${item.employee_id}`}</div>
                         <div className="text-xs text-slate-400">{item.branch_name || "-"} آ· {String(item.work_date || "").slice(0, 10)}</div>
                       </div>
-                      <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-100">{item.source || "assigned"}</span>
+                      <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{item.source || "assigned"}</span>
                     </div>
                   </div>
                 ))}
