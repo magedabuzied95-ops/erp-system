@@ -883,7 +883,7 @@ const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodE
         COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'absent')::int AS absence_days,
         COALESCE(ARRAY_AGG(attendance_date::text) FILTER (WHERE attendance_date IS NOT NULL), ARRAY[]::text[]) AS recorded_dates,
         COALESCE(ARRAY_AGG(attendance_date::text) FILTER (WHERE LOWER(COALESCE(status, '')) = 'absent'), ARRAY[]::text[]) AS explicit_absence_dates,
-        COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'late')::int AS late_days,
+        COUNT(*) FILTER (WHERE COALESCE(late_minutes, 0) > 0 OR LOWER(COALESCE(status, '')) = 'late')::int AS late_days,
         COUNT(*) FILTER (WHERE COALESCE(check_out_at, check_out) IS NULL AND COALESCE(check_in_at, check_in) IS NOT NULL)::int AS missing_checkout_days,
         COALESCE(SUM(overtime_minutes), 0) AS overtime_minutes,
         COALESCE(SUM(late_minutes), 0) AS late_minutes
@@ -1537,7 +1537,7 @@ const buildLeaderboard = async ({ tenantId, period, bounds, limit = 10 }) => {
       SELECT
         employee_id,
         COUNT(*) FILTER (WHERE COALESCE(check_in_at, check_in) IS NOT NULL)::int AS attended_days,
-        COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'late')::int AS late_days
+        COUNT(*) FILTER (WHERE COALESCE(late_minutes, 0) > 0 OR LOWER(COALESCE(status, '')) = 'late')::int AS late_days
       FROM attendance_logs
       WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
         AND attendance_date BETWEEN $2::date AND $3::date

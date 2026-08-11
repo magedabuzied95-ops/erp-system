@@ -28,3 +28,8 @@ test("attendance center uses configured shift weekdays instead of numeric weekda
   assert.match(attendanceSource, /configuredDays\.has\(centerWeekdayCodes\[date\.getUTCDay\(\)\]\)/);
   assert.match(attendanceSource, /centerIsExpectedWeekday\(date, employee\.working_days, employee\.working_days_per_week\)/);
 });
+
+test("employee portal late-day totals come from attendance late minutes", () => {
+  const lateDayCalculation = /COUNT\(\*\) FILTER \(WHERE COALESCE\(late_minutes, 0\) > 0 OR LOWER\(COALESCE\(status, ''\)\) = 'late'\)::int AS late_days/g;
+  assert.equal((portalSource.match(lateDayCalculation) || []).length, 2);
+});
