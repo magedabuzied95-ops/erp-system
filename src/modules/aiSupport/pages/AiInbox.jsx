@@ -7714,7 +7714,6 @@ export default function AiInbox() {
 	                    </label>
 	                      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
   <Star className="h-4 w-4 text-amber-300" />
-  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المفضلة</span>
   <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
     {FAVORITE_FILTERS.map((item) => (
       <option key={item.key} value={item.key}>
