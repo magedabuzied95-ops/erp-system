@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PackageCheck, Loader2, RefreshCw, Plus, ShieldAlert, CheckCircle2, ExternalLink, Users, Tag, Ban, Check, Send, MessageSquare, Pencil } from "lucide-react";
+import { PackageCheck, Loader2, RefreshCw, Plus, ShieldAlert, CheckCircle2, ExternalLink, Users, Tag, Ban, Check, Send, MessageSquare, Pencil, CheckCheck, Eye, AlertTriangle } from "lucide-react";
 import AiStudioNav from "../components/AiStudioNav";
 import { useStudioHeaders } from "../lib/studioRequest";
 import {
@@ -28,6 +28,7 @@ export default function AiStudioRestockRecovery() {
   const [intentCounts, setIntentCounts] = useState({});
   const [notifs, setNotifs] = useState([]);
   const [notifCounts, setNotifCounts] = useState({});
+  const [deliveryCounts, setDeliveryCounts] = useState({});
   const [messagingMode, setMessagingMode] = useState("off");
   const [editId, setEditId] = useState(null);
   const [editText, setEditText] = useState("");
@@ -41,6 +42,7 @@ export default function AiStudioRestockRecovery() {
       if (ri?.counts) setIntentCounts(ri.counts);
       if (rn?.notifications) setNotifs(rn.notifications);
       if (rn?.counts) setNotifCounts(rn.counts);
+      if (rn?.deliveryCounts) setDeliveryCounts(rn.deliveryCounts);
       if (rn?.mode) setMessagingMode(rn.mode);
     } catch { setData(null); }
     setLoading(false);
@@ -163,6 +165,12 @@ export default function AiStudioRestockRecovery() {
               <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3"><div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div><div className={`mt-1 text-2xl font-black ${tone}`}>{Number(val || 0)}</div></div>
             ))}
           </section>
+          <section className="grid grid-cols-3 gap-3">
+            {[["Delivered", deliveryCounts.delivered, CheckCheck, "text-cyan-200"], ["Read", deliveryCounts.read, Eye, "text-emerald-200"], ["Delivery failed", deliveryCounts.delivery_failed, AlertTriangle, "text-rose-200"]].map(([label, val, Icon, tone]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5"><div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500"><Icon className="h-3 w-3" />{label}</div><div className={`mt-1 text-xl font-black ${tone}`}>{Number(val || 0)}</div></div>
+            ))}
+          </section>
+          <div className="text-[10px] text-slate-500">Delivery lifecycle is reconciled from real provider receipts. WhatsApp reports Sent → Delivered → Read; Messenger/Instagram report Delivered only (read receipts are watermark-only and not shown). Late/out-of-order receipts never move a message backwards.</div>
           <section className="space-y-3">
             {loading ? <div className="flex items-center gap-2 p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
             : notifs.length === 0 ? <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center text-sm text-slate-500">No customer-message drafts yet. They appear here when an exact restock intent is recovered while messaging is enabled.</div>
@@ -209,7 +217,28 @@ export default function AiStudioRestockRecovery() {
                       <button type="button" onClick={() => doNotifAction(n.id, "send")} disabled={busy === `send-${n.id}` || messagingMode !== "approval_send"} title={messagingMode !== "approval_send" ? "Enable Approval + Send mode to send" : "Sends a real message to the customer"} className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-300/40 bg-emerald-400/15 px-3 text-[11px] font-black text-emerald-50 disabled:opacity-40">{busy === `send-${n.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}Approve &amp; Send</button>
                     </div>
                   ) : sent ? (
-                    <div className="mt-2 text-[11px] text-emerald-200">Sent {n.sent_at ? fmt(n.sent_at) : ""}{n.provider_message_id ? ` · id ${String(n.provider_message_id).slice(0, 12)}…` : ""}</div>
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                        {[
+                          { key: "sent", Icon: Check, label: "Sent", at: n.sent_at, on: true, tone: "text-slate-200" },
+                          { key: "delivered", Icon: CheckCheck, label: "Delivered", at: n.delivered_at, on: ["delivered", "read"].includes(n.delivery_status) || Boolean(n.delivered_at), tone: "text-cyan-200" },
+                          { key: "read", Icon: Eye, label: "Read", at: n.read_at, on: n.delivery_status === "read" || Boolean(n.read_at), tone: "text-emerald-200" },
+                        ].map((s) => (
+                          <span key={s.key} className={`inline-flex items-center gap-1 ${s.on ? s.tone : "text-slate-600"}`}><s.Icon className="h-3.5 w-3.5" />{s.label}{s.on && s.at ? ` · ${fmt(s.at)}` : ""}</span>
+                        ))}
+                      </div>
+                      {n.delivery_status === "failed" ? (
+                        <div className="inline-flex items-center gap-1 text-[11px] text-rose-200"><AlertTriangle className="h-3.5 w-3.5" />Delivery failed{n.provider_failure_reason ? ` — ${n.provider_failure_reason}` : ""} · needs review (no automatic retry)</div>
+                      ) : null}
+                      <details className="text-[10px] text-slate-500"><summary className="cursor-pointer select-none">Advanced</summary>
+                        <div className="mt-1 space-y-0.5">
+                          <div>Provider message id: {n.provider_message_id || "—"}</div>
+                          <div>Channel: {n.channel || "—"}</div>
+                          <div>Delivery state: {n.delivery_status || "sent"}{n.last_provider_event_at ? ` · last provider event ${fmt(n.last_provider_event_at)}` : ""}</div>
+                          <div>Notified (provider accepted): {fmt(n.sent_at)}</div>
+                        </div>
+                      </details>
+                    </div>
                   ) : <div className="mt-2 text-[11px] text-slate-400">Rejected — no message was sent.</div>}
                 </div>
               );

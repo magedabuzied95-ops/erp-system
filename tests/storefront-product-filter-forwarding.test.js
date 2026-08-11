@@ -15,7 +15,8 @@ test("the product listing forwards every server-supported filter to the storefro
   assert.match(stateSource, /product_type: productType \|\| ""/);
   assert.match(stateSource, /grade: grade \|\| ""/);
   assert.match(stateSource, /quality: quality \|\| ""/);
-  assert.match(stateSource, /size: selectedSizes\.length === 1 \? selectedSizes\[0\] : ""/);
+  assert.match(stateSource, /size: selectedSizes\.length === 1 && !isCrocsListing \? selectedSizes\[0\] : ""/);
+  assert.match(stateSource, /Crocs filters use customer-facing EU labels/);
   assert.match(stateSource, /inStock: truthyFlag\(inStock\) \? 1 : ""/);
 });
 
@@ -24,7 +25,7 @@ test("changing any forwarded filter invalidates the product request", () => {
   const stateEnd = listingSource.indexOf("const productsApiParams", stateStart);
   const stateSource = listingSource.slice(stateStart, stateEnd);
 
-  for (const dependency of ["brand", "category", "gender", "grade", "inStock", "productType", "quality", "selectedSizes", "sort"]) {
+  for (const dependency of ["brand", "category", "gender", "grade", "inStock", "isCrocsListing", "productType", "quality", "selectedSizes", "sort"]) {
     assert.match(stateSource, new RegExp(`\\b${dependency}\\b`));
   }
 });

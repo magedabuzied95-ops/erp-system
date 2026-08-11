@@ -1,4 +1,13 @@
 import { storefrontPath } from "./paths";
+import { CROCS_CANONICAL_SIZE_MAP } from "../../shared/lib/crocsSizes";
+
+const CROCS_ADULT_GUIDE_ROWS = CROCS_CANONICAL_SIZE_MAP
+  .filter((entry) => entry.mwLabel)
+  .map((entry) => [entry.eu, entry.mwLabel]);
+
+const CROCS_KIDS_GUIDE_ROWS = CROCS_CANONICAL_SIZE_MAP
+  .filter((entry) => entry.c || entry.j)
+  .map((entry) => [entry.eu, entry.c || entry.j]);
 
 const SIZE_GUIDE_TYPES = {
   men: {
@@ -34,25 +43,14 @@ const SIZE_GUIDE_TYPES = {
   "crocs-adult": {
     label: "كروكس كبار",
     title: "دليل مقاسات كروكس للكبار",
-    columns: ["EU", "US", "CM"],
-    rows: [
-      ["35/36", "M3/W5", "22"], ["36/37", "M4/W6", "23"],
-      ["37/38", "M5/W7", "24"], ["38/39", "M6/W8", "25"],
-      ["39/40", "M7/W9", "25.5"], ["41/42", "M8/W10", "26.5"],
-      ["42/43", "M9/W11", "27.5"], ["43/44", "M10/W12", "28"],
-      ["44/45", "M11/W13", "29"], ["45/46", "M12", "30"],
-    ],
+    columns: ["EU", "مقاس المصنع"],
+    rows: CROCS_ADULT_GUIDE_ROWS,
   },
   "crocs-kids": {
     label: "كروكس أطفال",
     title: "دليل مقاسات كروكس للأطفال",
-    columns: ["EU", "Kids", "CM"],
-    rows: [
-      ["20/21", "C4-C5", "12"], ["22/23", "C6-C7", "13"],
-      ["24/25", "C8-C9", "14"], ["27/28", "C10-C11", "16"],
-      ["29/30", "C12-C13", "18"], ["32/33", "J1", "20"],
-      ["33/34", "J2", "21"], ["34/35", "J3", "22"],
-    ],
+    columns: ["EU", "مقاس المصنع"],
+    rows: CROCS_KIDS_GUIDE_ROWS,
   },
 };
 

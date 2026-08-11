@@ -275,7 +275,7 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
             <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
             <div className="min-w-0 flex-1">
               <div className="font-black text-white">{item.name}</div>
-              <div className="mt-1 text-xs font-bold text-white/54">{item.color || "اللون"} / {item.size || "المقاس"}</div>
+              <div className="mt-1 text-xs font-bold text-white/54">{item.color || "اللون"} / {item.display_size || item.size || "المقاس"}</div>
               <div className="mt-2 flex flex-wrap items-center gap-2 font-black">
                 {displayCartItemComparePrice(item) ? <span className="text-sm text-white/38 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
                 <span>{money(displayCartItemPrice(item))}</span>
@@ -364,7 +364,7 @@ function PremiumCartContent({ cart, updateCart, removeFromCart, helpers, compone
                     <div className="line-clamp-2 text-base font-black text-white">{item.name}</div>
                     <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black">
                       <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-white/70">{item.color || "ط§ظ„ظ„ظˆظ†"}</span>
-                      <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-white/70">{item.size || "ط§ظ„ظ…ظ‚ط§ط³"}</span>
+                      <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-white/70">{item.display_size || item.size || "ط§ظ„ظ…ظ‚ط§ط³"}</span>
                     </div>
                   </div>
                   <button onClick={() => removeFromCart(item.lineId)} className="sf-cart-remove-button rounded-full border border-rose-400/20 bg-rose-400/10 p-2.5 text-rose-200 transition hover:border-rose-300/35 hover:bg-rose-400/16" aria-label={sfText("storefront.cart.removeItem", "ط­ط°ظپ ط§ظ„ظ…ظ†طھط¬")}><Trash2 className="h-4.5 w-4.5" /></button>

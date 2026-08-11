@@ -117,3 +117,14 @@ their **own internal number** with mode `approval_send`.
 - **Autonomous customer messaging is intentionally not built** — every send is human-approved. A future
   phase could add per-tenant templated sends or delivery-status reconciliation, but must keep the
   SENSITIVE human-approval gate.
+
+## 15. Phase 9 addendum — delivery reconciliation + canonical persistence
+
+Phase 9 adds the **post-send** lifecycle on top of this (approval model unchanged): provider webhooks
+(delivered / read / failed) are correlated by `provider_message_id` and applied **monotonically** to
+`restock_notifications` delivery fields + the canonical `ai_support_messages` row. It also **fixes the Phase
+8.5 finding**: a confirmed WhatsApp-by-phone send is now persisted into canonical AI Inbox history
+(`appendChannelOutboundSupportReply` upserts `ai_support_sessions` + `upsertChannelConversationMapping`), only
+after a confirmed send. `customer_notified_at` semantics are **unchanged** (provider-accepted); delivered/read
+are separate timestamps. No delivery callback can ever create or approve a message, and there is **no
+automatic retry**. See `docs/messaging-delivery-reconciliation.md`.

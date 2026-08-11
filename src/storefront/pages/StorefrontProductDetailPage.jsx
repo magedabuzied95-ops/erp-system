@@ -38,6 +38,7 @@ import { BellRing, Check, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCa
 import { shouldShowRestockCta, restockVariantKey, restockSuccessText, RESTOCK_CTA_LABEL, RESTOCK_AVAILABLE_NOW_TEXT, RESTOCK_LOGIN_TEXT, RESTOCK_ERROR_TEXT } from "../lib/restockIntentUi";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
+import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/lib/crocsSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
 import { trackGa4ViewItem } from "../lib/ga4Events";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
@@ -386,7 +387,18 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorIdentity(selectedVariant) : "");
   const selectedColorGroup = resolveColorGroup(colorGroups, selectedColorKey);
   const variantGroup = selectedColorGroup ? variants.filter((item) => variantColorIdentity(item) === selectedColorGroup.key) : variants;
-  const sizes = sortProductSizes([...new Set(variantGroup.map((variant) => variant.size).filter(Boolean))]);
+  const crocsProduct = isCrocsProduct(product);
+  const sizeOptions = crocsProduct
+    ? buildCrocsStorefrontSizeOptions(variantGroup)
+    : sortProductSizes([...new Set(variantGroup.map((variant) => variant.size).filter(Boolean))]).map((size) => ({
+        originalSize: size,
+        displaySize: size,
+        collision: false,
+        variant: variantGroup.find((item) => String(item.size || "") === String(size) && variantHasStock(item))
+          || variantGroup.find((item) => String(item.size || "") === String(size))
+          || null,
+      }));
+  const sizes = sizeOptions.map((option) => option.originalSize);
   const colors = colorGroups;
   const hideSizeSelector = isBagProduct(product);
   const sizeGuideHref = useMemo(
@@ -690,19 +702,21 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {sizes.map((size) => {
-                const hasStock = Array.isArray(selectedColorGroup?.variants) && selectedColorGroup.variants.some((item) => String(item.size || "") === String(size) && variantHasStock(item));
-                const active = String(selected.size) === String(size);
+              {sizeOptions.map((option) => {
+                const { displaySize, originalSize, collision, variant: sizeVariant } = option;
+                const hasStock = variantHasStock(sizeVariant);
+                const active = String(selected.variantId) === String(sizeVariant?.id);
                 return (
                   <button
-                    key={size}
+                    key={sizeVariant?.id || originalSize}
                     type="button"
-                    onClick={() => selectSize(size)}
+                    onClick={() => selectVariant(sizeVariant)}
                     disabled={!hasStock}
                     className={`sf-product-option-choice sf-product-size-choice relative min-w-[3.25rem] overflow-hidden rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "is-active border-white bg-white text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.14)]" : hasStock ? "is-available border-white/10 bg-white/[0.05] text-white/78 hover:border-white/20 hover:bg-white/[0.08] hover:text-white" : "is-unavailable cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"}`}
                   >
                     {!hasStock ? <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[120%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] bg-white/35" /> : null}
-                    <span className="relative z-10">{size || sfText("storefront.products.oneSize", "One size")}</span>
+                    <span className="relative z-10 block">{displaySize || sfText("storefront.products.oneSize", "One size")}</span>
+                    {collision && originalSize !== displaySize ? <span className="relative z-10 mt-0.5 block text-[9px] font-bold opacity-60">{originalSize}</span> : null}
                   </button>
                 );
               })}
