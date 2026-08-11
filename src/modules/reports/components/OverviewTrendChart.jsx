@@ -44,7 +44,7 @@ export default function OverviewTrendChart({ trend = [], granularity = "day", sh
   }
 
   return (
-    <div style={{ height }} className="w-full min-w-0">
+    <div style={{ height }} className="w-full min-w-0 overflow-hidden">
       <ResponsiveContainer width="100%" height="100%" debounce={80}>
         <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
           <defs>

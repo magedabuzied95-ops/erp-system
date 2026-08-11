@@ -33,6 +33,7 @@ export const BREAKDOWN_DIMENSIONS = Object.freeze([
   "payment_method",
   "branch",
   "supplier",
+  "product_type",
 ]);
 
 export const TIME_GRANULARITIES = Object.freeze(["auto", "hour", "day", "week", "month"]);

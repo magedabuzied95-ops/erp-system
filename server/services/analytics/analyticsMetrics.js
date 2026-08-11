@@ -271,11 +271,49 @@ export const classifyMovementType = (movementType) => {
 /* ----------------------------------------------------------------- dimensions */
 
 /**
+ * Category resolution.
+ *
+ * Joining `categories` on `products.category_id` alone returns nothing in production:
+ * the `categories` table is empty and `category_id` is NULL on all 724 products. That
+ * is why the R2 category panel reported 100% uncategorised — an analytics-join bug,
+ * not missing data.
+ *
+ * This mirrors the ERP's own product read path (productsController resolves
+ * `categories.name -> main_category -> category`) with two corrections proven against
+ * production:
+ *   - `products.category` holds the literal sentinel 'Uncategorized' on 675 of 724
+ *     rows. That is an absence, not a category, so it resolves to NULL.
+ *   - the text columns are free-form and contain both 'sneakers'/'Sneakers' and
+ *     'Footwear'/'footwear', so values are case-folded before grouping.
+ *
+ * `product_type` is deliberately NOT merged in here. It is a separate classification
+ * axis (the storefront filters on gender/product_type/style/grade); folding it into
+ * "category" would invent a definition the ERP does not have. It is offered as its own
+ * dimension instead — and unlike category it is populated on 100% of products.
+ */
+export const UNCATEGORISED_SENTINELS = Object.freeze(["uncategorized", "uncategorised", "غير مصنف", "none", "n/a"]);
+
+/** Case-folded, sentinel-aware category name. NULL when genuinely uncategorised. */
+export const categoryNameExpr = ({ alias = "p", categoriesAlias = "cat" } = {}) => {
+  const sentinels = UNCATEGORISED_SENTINELS.map((value) => `'${value}'`).join(", ");
+  const resolved = `INITCAP(LOWER(TRIM(COALESCE(
+      NULLIF(TRIM(${categoriesAlias}.name), ''),
+      NULLIF(TRIM(${alias}.main_category), ''),
+      NULLIF(TRIM(${alias}.category), ''),
+      ''))))`;
+  return `(CASE WHEN LOWER(${resolved}) IN (${sentinels}) OR ${resolved} = '' THEN NULL ELSE ${resolved} END)`;
+};
+
+export const productTypeExpr = ({ alias = "p" } = {}) =>
+  `NULLIF(INITCAP(REPLACE(LOWER(TRIM(COALESCE(${alias}.product_type, ''))), '_', ' ')), '')`;
+
+/**
  * Dimension -> SQL. The key is validated against BREAKDOWN_DIMENSIONS by
  * analyticsFilters before it reaches here; nothing from the request is interpolated.
  */
 export const DIMENSION_SQL = Object.freeze({
-  category: { expr: "COALESCE(NULLIF(cat.name, ''), 'غير مصنف')", join: "LEFT JOIN categories cat ON cat.id = p.category_id", key: "cat.id" },
+  category: { expr: `COALESCE(${categoryNameExpr()}, 'غير مصنف')`, join: "LEFT JOIN categories cat ON cat.id = p.category_id", key: "cat.id" },
+  product_type: { expr: `COALESCE(${productTypeExpr()}, 'غير محدد')`, join: "", key: "p.product_type" },
   brand: { expr: "COALESCE(NULLIF(br.name, ''), 'بدون علامة')", join: "LEFT JOIN brands br ON br.id = p.brand_id", key: "br.id" },
   product: { expr: "COALESCE(NULLIF(p.name, ''), oi.product_name, 'غير معروف')", join: "", key: "p.id" },
   variant: { expr: "COALESCE(NULLIF(pv.sku, ''), oi.sku, oi.variant_name, 'افتراضي')", join: "", key: "pv.id" },

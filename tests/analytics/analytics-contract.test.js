@@ -433,3 +433,41 @@ test("auto granularity scales with the window", () => {
   assert.equal(resolveGranularity("auto", 365), "month");
   assert.equal(resolveGranularity("month", 1), "month", "an explicit granularity wins");
 });
+
+/* -------------------------------------------------- category resolution (R2.5) */
+
+test("category resolves through the ERP ladder, not category_id alone", async () => {
+  const { categoryNameExpr } = await import("../../server/services/analytics/analyticsMetrics.js");
+  const expr = categoryNameExpr();
+
+  // Production has an empty `categories` table and NULL category_id on every product,
+  // so a join-only expression yields nothing. All three rungs must be present.
+  assert.match(expr, /cat\.name/, "must still prefer the relational categories.name");
+  assert.match(expr, /p\.main_category/, "must fall back to main_category");
+  assert.match(expr, /p\.category\b/, "must fall back to the category text column");
+
+  // Case folding: production holds both 'sneakers' and 'Sneakers'.
+  assert.match(expr, /LOWER\(/);
+  assert.match(expr, /INITCAP\(/);
+});
+
+test("the literal 'Uncategorized' sentinel is treated as absent, not as a category", async () => {
+  const { categoryNameExpr, UNCATEGORISED_SENTINELS } = await import("../../server/services/analytics/analyticsMetrics.js");
+  const expr = categoryNameExpr();
+  assert.ok(UNCATEGORISED_SENTINELS.includes("uncategorized"));
+  for (const sentinel of UNCATEGORISED_SENTINELS) {
+    assert.ok(expr.includes(`'${sentinel}'`), `sentinel ${sentinel} must be excluded`);
+  }
+  assert.match(expr, /THEN NULL/, "a sentinel must resolve to NULL so it lands in the uncategorised bucket");
+});
+
+test("product_type is a separate dimension, never merged into category", async () => {
+  const { DIMENSION_SQL, categoryNameExpr, productTypeExpr } = await import("../../server/services/analytics/analyticsMetrics.js");
+  assert.ok(DIMENSION_SQL.product_type, "product_type must be an available dimension");
+  assert.ok(BREAKDOWN_DIMENSIONS.includes("product_type"));
+  assert.ok(
+    !categoryNameExpr().includes("product_type"),
+    "product_type is a different classification axis and must not be folded into category"
+  );
+  assert.match(productTypeExpr(), /REPLACE\(LOWER\(TRIM\(COALESCE\(p\.product_type/);
+});

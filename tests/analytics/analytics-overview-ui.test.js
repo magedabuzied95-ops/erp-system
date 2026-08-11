@@ -257,3 +257,17 @@ test("legacy reporting routes are untouched by R2", async () => {
   assert.match(app, /path="reports\/overview"/, "the v2 route must be additive");
   assert.match(app, /path="analytics"/, "the legacy /analytics route must remain");
 });
+
+test("the trend chart cannot paint outside its column when the viewport shrinks", async () => {
+  const source = await read("../../src/modules/reports/components/OverviewTrendChart.jsx");
+  // recharts' ResponsiveContainer measures its parent. Without min-w-0 a grid item
+  // never shrinks, and without overflow-hidden a stale-wide SVG re-inflates the parent
+  // so the container measures the old width forever after a viewport shrink.
+  assert.match(source, /className="w-full min-w-0 overflow-hidden"/, "chart wrapper must be min-w-0 and clipped");
+  assert.match(source, /debounce=\{\d+\}/, "ResponsiveContainer should debounce re-measurement");
+});
+
+test("panels are min-w-0 so grid columns can shrink", async () => {
+  const source = await read("../../src/modules/reports/pages/ExecutiveOverview.jsx");
+  assert.match(source, /className="min-w-0 rounded-2xl/, "Panel must be min-w-0");
+});

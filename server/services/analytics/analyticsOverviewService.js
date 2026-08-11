@@ -33,6 +33,7 @@ import {
   discountBreakdownExprs,
   exchangeCreditRetainedExpr,
   grossSalesExpr,
+  categoryNameExpr,
   lineNetSalesExpr,
   nanSafe,
   onHandUnitCostExpr,
@@ -286,9 +287,12 @@ const buildContextQuery = ({ scope, includeCost, returnColumns, returnItemColumn
 const buildCategoryQuery = ({ scope, costContext, includeCost, itemColumns }) => {
   const lineNet = lineNetSalesExpr(itemColumns);
   const netQty = costContext.netQuantityExpr;
+  // Resolved via the ERP category ladder, not categories.category_id alone - see
+  // categoryNameExpr. Joining on category_id returns nothing in production.
+  const categoryExpr = categoryNameExpr();
   return `
     SELECT
-      COALESCE(NULLIF(cat.name, ''), NULL) AS category,
+      ${categoryExpr} AS category,
       COALESCE(SUM(${nanSafe(lineNet)}), 0) AS net_sales,
       COALESCE(SUM(${netQty}), 0)           AS units
       ${includeCost ? `,
@@ -301,7 +305,7 @@ const buildCategoryQuery = ({ scope, costContext, includeCost, itemColumns }) =>
     ${scope.orderWhere}
       AND o.created_at >= ${scope.currentFrom}::date AND o.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
       ${scope.itemTenantClauseAnd}
-    GROUP BY COALESCE(NULLIF(cat.name, ''), NULL)
+    GROUP BY ${categoryExpr}
     ORDER BY net_sales DESC
   `;
 };

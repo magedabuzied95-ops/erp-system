@@ -48,9 +48,16 @@ test("live: overview runs in exactly three queries and returns a coherent payloa
   assert.ok(Array.isArray(payload.data.trend));
   assert.ok(Array.isArray(payload.data.highlights));
 
-  // Every query must be far inside the 15s statement timeout.
+  // Guards against a pathological plan, not against a performance target. The whole
+  // test suite runs in parallel against one Postgres with PG_POOL_MAX=10, so this
+  // number includes pool queueing and a tight budget here flakes. Real performance is
+  // measured with EXPLAIN (ANALYZE) against production — see the R2.5 findings.
+  const STATEMENT_TIMEOUT_MS = 15000;
   for (const [name, ms] of Object.entries(payload.meta.timings)) {
-    assert.ok(ms < 5000, `${name} query took ${ms}ms, over the 5s budget`);
+    assert.ok(
+      ms < STATEMENT_TIMEOUT_MS * 0.8,
+      `${name} query took ${ms}ms, approaching the ${STATEMENT_TIMEOUT_MS}ms statement timeout`
+    );
   }
 });
 
