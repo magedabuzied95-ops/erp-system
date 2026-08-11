@@ -2026,6 +2026,8 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
     <div
       role="button"
       tabIndex={0}
+      dir="ltr"
+      data-ai-inbox-conversation-direction="ltr"
       onClick={() => onSelect(item)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -2087,6 +2089,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                         platform: channel,
                       });
                     }}
+                    dir="auto"
                     className="line-clamp-1 text-left text-[14px] font-black leading-5 text-white hover:underline"
                   >
                     {customerName}
@@ -2104,7 +2107,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                 </>
               ) : (
                 <>
-                  <div className="truncate text-[14px] font-black leading-5 text-white">{customerName}</div>
+                  <div dir="auto" className="truncate text-left text-[14px] font-black leading-5 text-white">{customerName}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
                       <span className="inline-flex items-center gap-1">
@@ -2134,12 +2137,12 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               {inboxKind === "comment" ? (
             <div className="mt-2 space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
               {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
-              <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">{commentPreview}</div>
+              <div dir="auto" className="line-clamp-2 text-left text-[12.5px] font-medium leading-4.5 text-slate-200">{commentPreview}</div>
             </div>
           ) : (
             <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unreadCount ? "text-slate-700" : "text-slate-500"}`}>
               <CheckCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${unreadCount && !active ? "text-emerald-600" : ""}`} />
-              <span className={`line-clamp-2 text-left ${unreadCount && !active ? "font-medium" : ""}`}>{conversationPreview(item) || "No messages yet"}</span>
+              <span dir="auto" className={`line-clamp-2 text-left ${unreadCount && !active ? "font-medium" : ""}`}>{conversationPreview(item) || "No messages yet"}</span>
             </div>
           )}
           {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">Unread {unreadCount}</span></div> : null}

@@ -13,6 +13,10 @@ const compactHeaderSource = desktopSource.slice(
   desktopSource.indexOf("function InboxChatHeader"),
   desktopSource.indexOf("const Transcript = memo")
 );
+const activeConversationCardSource = desktopSource.slice(
+  desktopSource.indexOf("const InboxConversationCard"),
+  desktopSource.indexOf("function ConversationLabelsModal")
+);
 const activeDesktopReturnStart = desktopSource.indexOf('className="ai-inbox-desktop');
 const activeDesktopReturnEnd = desktopSource.indexOf("\n  return (", activeDesktopReturnStart);
 const activeDesktopReturnSource = desktopSource.slice(activeDesktopReturnStart, activeDesktopReturnEnd);
@@ -92,8 +96,9 @@ test("desktop conversation header stays compact and exposes multi-label manageme
 });
 
 test("desktop conversation cards flow left to right while preserving message direction", () => {
-  assert.match(desktopSource, /dir="ltr"[\s\S]*?data-ai-inbox-conversation-direction="ltr"/);
-  assert.match(desktopSource, /<span dir="auto" className=\{`line-clamp-2 text-left/);
+  assert.match(activeConversationCardSource, /dir="ltr"[\s\S]*?data-ai-inbox-conversation-direction="ltr"/);
+  assert.match(activeConversationCardSource, /<span dir="auto" className=\{`line-clamp-2 text-left/);
+  assert.match(activeConversationCardSource, /<div dir="auto" className="truncate text-left/);
   assert.match(desktopCss, /grid-template-columns:\s*minmax\(360px, 400px\) minmax\(390px, 1fr\)/);
 });
 
