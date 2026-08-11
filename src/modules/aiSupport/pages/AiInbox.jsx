@@ -8041,6 +8041,14 @@ export default function AiInbox() {
         context={customerDrawer.context}
         title="Customer 360"
       />
+      <InboxOrderComposer
+        open={orderComposerOpen}
+        conversation={selectedConversation || {}}
+        products={recommendations.sessionId === selectedConversation?.session_id ? recommendations.products : []}
+        busy={loading}
+        onClose={() => setOrderComposerOpen(false)}
+        onSubmit={createDraftFromProduct}
+      />
     </div>
   );
 

@@ -17,6 +17,17 @@ test("AI Inbox exposes an in-conversation order composer", () => {
   assert.match(inbox, /إنشاء مسودة الطلب/);
 });
 
+test("desktop AI Inbox mounts the order composer in the active workspace", () => {
+  const activeWorkspaceStart = inbox.indexOf('className="ai-inbox-desktop');
+  const legacyWorkspaceStart = inbox.indexOf('className="min-h-full', activeWorkspaceStart);
+  assert.notEqual(activeWorkspaceStart, -1);
+  assert.notEqual(legacyWorkspaceStart, -1);
+  const activeWorkspace = inbox.slice(activeWorkspaceStart, legacyWorkspaceStart);
+  assert.match(activeWorkspace, /<InboxOrderComposer/);
+  assert.match(activeWorkspace, /open=\{orderComposerOpen\}/);
+  assert.match(activeWorkspace, /onSubmit=\{createDraftFromProduct\}/);
+});
+
 test("AI Inbox order composer forwards reviewed customer and variant data", () => {
   for (const field of ["customer_name", "customer_phone", "customer_address", "governorate", "city_area", "quantity", "size", "color", "notes"]) {
     assert.match(inbox, new RegExp(`${field}: options\\.${field}`));
