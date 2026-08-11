@@ -337,36 +337,34 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
     const checkInTime = String(req.body?.check_in_time || req.body?.checkInTime || "").trim();
     const checkOutTime = String(req.body?.check_out_time || req.body?.checkOutTime || "").trim();
     const checkOutDate = dateKey(req.body?.check_out_date || req.body?.checkOutDate || attendanceDate);
+    const requestedScope = String(req.body?.correction_scope || req.body?.correctionScope || "").trim().toLowerCase();
+    const legacyScope = checkOutTime ? "both" : "check_in";
+    const correctionScope = ["check_in", "check_out", "both"].includes(requestedScope) ? requestedScope : legacyScope;
+    const editsCheckIn = correctionScope !== "check_out";
+    const editsCheckOut = correctionScope !== "check_in";
     const reason = String(req.body?.reason || "").trim();
 
-    if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(attendanceDate) || !checkInTime || !reason) {
+    if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(attendanceDate) || !reason || (editsCheckIn && !checkInTime) || (editsCheckOut && !checkOutTime)) {
       return res.status(400).json({
         success: false,
         code: "INVALID_MANUAL_ATTENDANCE",
-        message: "Employee, attendance date, check-in time and correction reason are required",
+        message: "Employee, attendance date, selected correction time and correction reason are required",
       });
     }
 
-    const checkInAt = parseManualAttendanceTimestamp(attendanceDate, checkInTime);
-    if (!checkInAt) {
+    const requestedCheckInAt = editsCheckIn ? parseManualAttendanceTimestamp(attendanceDate, checkInTime) : null;
+    if (editsCheckIn && !requestedCheckInAt) {
       return res.status(400).json({ success: false, code: "INVALID_CHECK_IN_TIME", message: "Invalid check-in time" });
     }
 
-    let checkOutAt = null;
-    if (checkOutTime) {
+    let requestedCheckOutAt = null;
+    if (editsCheckOut) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(checkOutDate)) {
         return res.status(400).json({ success: false, code: "INVALID_CHECK_OUT_DATE", message: "Invalid checkout date" });
       }
-      checkOutAt = parseManualAttendanceTimestamp(checkOutDate, checkOutTime);
-      if (!checkOutAt) {
+      requestedCheckOutAt = parseManualAttendanceTimestamp(checkOutDate, checkOutTime);
+      if (!requestedCheckOutAt) {
         return res.status(400).json({ success: false, code: "INVALID_CHECK_OUT_TIME", message: "Invalid check-out time" });
-      }
-      if (checkOutAt < checkInAt) {
-        return res.status(400).json({
-          success: false,
-          code: "CHECK_OUT_BEFORE_CHECK_IN",
-          message: "Checkout date and time cannot be before check-in",
-        });
       }
     }
 
@@ -384,6 +382,45 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
     const employee = employeeResult.rows[0];
     if (!employee) {
       return res.status(404).json({ success: false, code: "EMPLOYEE_NOT_FOUND", message: "Employee not found" });
+    }
+
+    await client.query("BEGIN");
+    const existingResult = await client.query(
+      `
+      SELECT *
+      FROM attendance_logs
+      WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
+      ORDER BY id DESC
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [tenantId, employeeId, attendanceDate]
+    );
+    const before = existingResult.rows[0] || null;
+    if (!before && correctionScope === "check_out") {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        code: "CHECK_IN_REQUIRED_FOR_CHECK_OUT_CORRECTION",
+        message: "A check-in record is required before correcting checkout only",
+      });
+    }
+
+    const previousCheckInAt = before?.check_in_at || before?.check_in ? new Date(before.check_in_at || before.check_in) : null;
+    const previousCheckOutAt = before?.check_out_at || before?.check_out ? new Date(before.check_out_at || before.check_out) : null;
+    const checkInAt = editsCheckIn ? requestedCheckInAt : previousCheckInAt;
+    const checkOutAt = editsCheckOut ? requestedCheckOutAt : previousCheckOutAt;
+    if (!checkInAt || !Number.isFinite(checkInAt.getTime())) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, code: "CHECK_IN_REQUIRED", message: "A valid check-in is required for this correction" });
+    }
+    if (checkOutAt && (!Number.isFinite(checkOutAt.getTime()) || checkOutAt < checkInAt)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        code: "CHECK_OUT_BEFORE_CHECK_IN",
+        message: "Checkout date and time cannot be before check-in",
+      });
     }
 
     const requestedBranchId = Number(req.body?.branch_id || req.body?.branchId || 0);
@@ -453,19 +490,6 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
     const status = checkOutAt ? "checked_out" : "checked_in";
     const auditNote = `Admin attendance correction: ${reason}`;
 
-    await client.query("BEGIN");
-    const existingResult = await client.query(
-      `
-      SELECT *
-      FROM attendance_logs
-      WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
-      ORDER BY id DESC
-      LIMIT 1
-      FOR UPDATE
-      `,
-      [tenantId, employeeId, attendanceDate]
-    );
-    const before = existingResult.rows[0] || null;
     let saved;
 
     if (before) {
@@ -558,7 +582,8 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
           employee_id: employeeId,
           employee_name: employee.full_name || null,
           attendance_date: attendanceDate,
-          check_out_date: checkOutTime ? checkOutDate : null,
+          correction_scope: correctionScope,
+          check_out_date: editsCheckOut ? checkOutDate : null,
           previous_check_in: before?.check_in_at || before?.check_in || null,
           previous_check_out: before?.check_out_at || before?.check_out || null,
           check_in: checkInAt.toISOString(),

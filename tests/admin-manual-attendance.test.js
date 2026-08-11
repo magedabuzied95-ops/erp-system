@@ -51,3 +51,23 @@ test("attendance center exposes the correction form through the admin API", () =
   assert.match(routeSource, /CHECK_OUT_BEFORE_CHECK_IN/);
   assert.doesNotMatch(uiSource, /disabled=\{!manualForm\.checkOutTime\}/);
 });
+
+test("admin can correct check-in and checkout independently without overwriting the other timestamp", () => {
+  assert.match(uiSource, /editMode: "both"/);
+  assert.match(uiSource, /\["check_in", isArabic \? "الحضور فقط"/);
+  assert.match(uiSource, /\["check_out", isArabic \? "الانصراف فقط"/);
+  assert.match(uiSource, /correction_scope: manualForm\.editMode/);
+  assert.match(routeSource, /const editsCheckIn = correctionScope !== "check_out"/);
+  assert.match(routeSource, /const editsCheckOut = correctionScope !== "check_in"/);
+  assert.match(routeSource, /const checkInAt = editsCheckIn \? requestedCheckInAt : previousCheckInAt/);
+  assert.match(routeSource, /const checkOutAt = editsCheckOut \? requestedCheckOutAt : previousCheckOutAt/);
+  assert.match(routeSource, /correction_scope: correctionScope/);
+});
+
+test("manual time entry uses simple 12-hour selectors with the requested period defaults", () => {
+  assert.match(uiSource, /checkInPeriod: "PM"/);
+  assert.match(uiSource, /checkOutPeriod: "AM"/);
+  assert.match(uiSource, /function ManualTimeInput/);
+  assert.match(uiSource, /const twelveHourTime/);
+  assert.doesNotMatch(uiSource, /<NativeInput type="time" value=\{manualForm\.check/);
+});

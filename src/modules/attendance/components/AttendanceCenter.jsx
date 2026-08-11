@@ -43,6 +43,11 @@ import {
 } from "../attendanceApi";
 
 const todayValue = () => new Date().toISOString().slice(0, 10);
+const nextDayValue = (value) => {
+  const date = new Date(`${value || todayValue()}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+};
 const monthStartValue = () => {
   const date = new Date();
   date.setDate(1);
@@ -90,6 +95,26 @@ const formatDateTime = (value) => {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 };
 const csvEscape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+const manualAttendanceForm = (employeeId = "") => ({
+  editMode: "both",
+  employeeId,
+  attendanceDate: todayValue(),
+  checkInHour: "",
+  checkInMinute: "00",
+  checkInPeriod: "PM",
+  checkOutDate: nextDayValue(todayValue()),
+  checkOutHour: "",
+  checkOutMinute: "00",
+  checkOutPeriod: "AM",
+  reason: "",
+});
+const twelveHourTime = (hour, minute, period) => {
+  const hourNumber = Number(hour);
+  const minuteNumber = Number(minute);
+  if (!Number.isInteger(hourNumber) || hourNumber < 1 || hourNumber > 12 || !Number.isInteger(minuteNumber) || minuteNumber < 0 || minuteNumber > 59) return "";
+  const hour24 = period === "PM" ? (hourNumber % 12) + 12 : hourNumber % 12;
+  return `${String(hour24).padStart(2, "0")}:${String(minuteNumber).padStart(2, "0")}`;
+};
 
 const labels = {
   en: {
@@ -327,6 +352,36 @@ function NativeInput(props) {
   return <input {...props} className={`h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)] ${props.className || ""}`} />;
 }
 
+function ManualTimeInput({ hour, minute, period, onChange, isArabic, periodDefault }) {
+  const hours = Array.from({ length: 12 }, (_, index) => String(index + 1));
+  const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
+  return (
+    <div className="grid grid-cols-[1fr_1fr_auto] gap-2" dir="ltr">
+      <NativeSelect value={hour} onChange={(event) => onChange({ hour: event.target.value })} aria-label={isArabic ? "الساعة" : "Hour"}>
+        <option value="">{isArabic ? "الساعة" : "Hour"}</option>
+        {hours.map((value) => <option key={value} value={value}>{value}</option>)}
+      </NativeSelect>
+      <NativeSelect value={minute} onChange={(event) => onChange({ minute: event.target.value })} aria-label={isArabic ? "الدقيقة" : "Minute"}>
+        {minutes.map((value) => <option key={value} value={value}>{value}</option>)}
+      </NativeSelect>
+      <div className="flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
+        {["AM", "PM"].map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onChange({ period: value })}
+            className={`min-w-11 rounded-md px-2 text-xs font-black transition ${period === value ? "bg-emerald-500 text-slate-950" : "text-[var(--muted)]"}`}
+            aria-pressed={period === value}
+            title={value === periodDefault ? (isArabic ? "الافتراضي" : "Default") : undefined}
+          >
+            {value}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DayFirstDateInput({ value, onChange, min, max, required = false }) {
   const [draft, setDraft] = useState(() => formatDayFirstDate(value));
   const pickerRef = useRef(null);
@@ -502,7 +557,7 @@ export default function AttendanceCenter() {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualSaving, setManualSaving] = useState(false);
   const [manualError, setManualError] = useState("");
-  const [manualForm, setManualForm] = useState({ employeeId: "", attendanceDate: todayValue(), checkInTime: "", checkOutDate: todayValue(), checkOutTime: "", reason: "" });
+  const [manualForm, setManualForm] = useState(() => manualAttendanceForm());
   const [filters, setFilters] = useState({
     search: "",
     branchId: "",
@@ -671,15 +726,19 @@ export default function AttendanceCenter() {
   const printPage = () => window.print();
 
   const openManualAttendance = () => {
-    setManualForm({ employeeId: filters.employeeId || "", attendanceDate: todayValue(), checkInTime: "", checkOutDate: todayValue(), checkOutTime: "", reason: "" });
+    setManualForm(manualAttendanceForm(filters.employeeId || ""));
     setManualError("");
     setManualOpen(true);
   };
 
   const handleManualAttendanceSubmit = async (event) => {
     event.preventDefault();
-    if (!manualForm.employeeId || !manualForm.attendanceDate || !manualForm.checkInTime || !manualForm.reason.trim()) {
-      setManualError(isArabic ? "اختر الموظف والتاريخ ووقت الحضور واكتب سبب التصحيح." : "Select the employee, date and check-in time, then enter the correction reason.");
+    const editsCheckIn = manualForm.editMode !== "check_out";
+    const editsCheckOut = manualForm.editMode !== "check_in";
+    const checkInTime = editsCheckIn ? twelveHourTime(manualForm.checkInHour, manualForm.checkInMinute, manualForm.checkInPeriod) : "";
+    const checkOutTime = editsCheckOut ? twelveHourTime(manualForm.checkOutHour, manualForm.checkOutMinute, manualForm.checkOutPeriod) : "";
+    if (!manualForm.employeeId || !manualForm.attendanceDate || !manualForm.reason.trim() || (editsCheckIn && !checkInTime) || (editsCheckOut && !checkOutTime)) {
+      setManualError(isArabic ? "اختر الموظف والتاريخ وأدخل الوقت المطلوب ثم اكتب سبب التصحيح." : "Select the employee and date, enter the required time, then add the correction reason.");
       return;
     }
     setManualSaving(true);
@@ -688,9 +747,10 @@ export default function AttendanceCenter() {
       await saveManualAttendance({
         employee_id: Number(manualForm.employeeId),
         attendance_date: manualForm.attendanceDate,
-        check_in_time: manualForm.checkInTime,
-        check_out_date: manualForm.checkOutTime ? manualForm.checkOutDate : null,
-        check_out_time: manualForm.checkOutTime || null,
+        correction_scope: manualForm.editMode,
+        check_in_time: editsCheckIn ? checkInTime : null,
+        check_out_date: editsCheckOut ? manualForm.checkOutDate : null,
+        check_out_time: editsCheckOut ? checkOutTime : null,
         reason: manualForm.reason.trim(),
       });
       setManualOpen(false);
@@ -801,12 +861,65 @@ export default function AttendanceCenter() {
               </div>
               <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-[var(--border)] text-[var(--muted)]"><XCircle className="h-5 w-5" /></button>
             </div>
+            <div className="mt-5 grid grid-cols-3 gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1.5">
+              {[
+                ["check_in", isArabic ? "الحضور فقط" : "Check-in only"],
+                ["check_out", isArabic ? "الانصراف فقط" : "Checkout only"],
+                ["both", isArabic ? "الحضور والانصراف" : "Both"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setManualForm((prev) => ({ ...prev, editMode: value }))}
+                  className={`min-h-10 rounded-lg px-2 text-xs font-black transition ${manualForm.editMode === value ? "bg-emerald-500 text-slate-950" : "text-[var(--muted)] hover:bg-[var(--card)]"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs font-bold text-[var(--muted)]">
+              {isArabic ? "عند اختيار الحضور فقط أو الانصراف فقط، لن تتغير القيمة الأخرى المسجلة." : "Choosing check-in only or checkout only keeps the other saved timestamp unchanged."}
+            </p>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               <Field label={isArabic ? "الموظف" : "Employee"}><NativeSelect value={manualForm.employeeId} onChange={(event) => setManualForm((prev) => ({ ...prev, employeeId: event.target.value }))} required><option value="">{isArabic ? "اختر الموظف" : "Select employee"}</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name}</option>)}</NativeSelect></Field>
-              <Field label={isArabic ? "تاريخ الحضور" : "Check-in date"}><DayFirstDateInput value={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, attendanceDate: event.target.value, checkOutDate: prev.checkOutTime ? prev.checkOutDate : event.target.value }))} required /></Field>
-              <Field label={isArabic ? "وقت الحضور" : "Check-in time"}><NativeInput type="time" value={manualForm.checkInTime} onChange={(event) => setManualForm((prev) => ({ ...prev, checkInTime: event.target.value }))} required /></Field>
-              <Field label={isArabic ? "تاريخ الانصراف (اختياري)" : "Checkout date (optional)"}><DayFirstDateInput value={manualForm.checkOutDate} min={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutDate: event.target.value }))} /></Field>
-              <Field label={isArabic ? "وقت الانصراف (اختياري)" : "Checkout time (optional)"}><NativeInput type="time" value={manualForm.checkOutTime} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutTime: event.target.value }))} /></Field>
+              <Field label={isArabic ? "تاريخ سجل الحضور" : "Attendance record date"}><DayFirstDateInput value={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, attendanceDate: event.target.value, checkOutDate: [prev.attendanceDate, nextDayValue(prev.attendanceDate)].includes(prev.checkOutDate) ? nextDayValue(event.target.value) : prev.checkOutDate }))} required /></Field>
+              {manualForm.editMode !== "check_out" ? (
+                <Field label={isArabic ? "وقت الحضور — الافتراضي PM" : "Check-in time — PM default"}>
+                  <ManualTimeInput
+                    hour={manualForm.checkInHour}
+                    minute={manualForm.checkInMinute}
+                    period={manualForm.checkInPeriod}
+                    periodDefault="PM"
+                    isArabic={isArabic}
+                    onChange={(change) => setManualForm((prev) => ({
+                      ...prev,
+                      checkInHour: change.hour ?? prev.checkInHour,
+                      checkInMinute: change.minute ?? prev.checkInMinute,
+                      checkInPeriod: change.period ?? prev.checkInPeriod,
+                    }))}
+                  />
+                </Field>
+              ) : null}
+              {manualForm.editMode !== "check_in" ? (
+                <>
+                  <Field label={isArabic ? "تاريخ الانصراف" : "Checkout date"}><DayFirstDateInput value={manualForm.checkOutDate} min={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, checkOutDate: event.target.value }))} required /></Field>
+                  <Field label={isArabic ? "وقت الانصراف — الافتراضي AM" : "Checkout time — AM default"}>
+                    <ManualTimeInput
+                      hour={manualForm.checkOutHour}
+                      minute={manualForm.checkOutMinute}
+                      period={manualForm.checkOutPeriod}
+                      periodDefault="AM"
+                      isArabic={isArabic}
+                      onChange={(change) => setManualForm((prev) => ({
+                        ...prev,
+                        checkOutHour: change.hour ?? prev.checkOutHour,
+                        checkOutMinute: change.minute ?? prev.checkOutMinute,
+                        checkOutPeriod: change.period ?? prev.checkOutPeriod,
+                      }))}
+                    />
+                  </Field>
+                </>
+              ) : null}
               <div className="md:col-span-2"><Field label={isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"}><textarea value={manualForm.reason} onChange={(event) => setManualForm((prev) => ({ ...prev, reason: event.target.value }))} required rows={3} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-500" placeholder={isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"} /></Field></div>
             </div>
             {manualError ? <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm font-bold text-rose-300">{manualError}</div> : null}
