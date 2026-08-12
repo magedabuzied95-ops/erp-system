@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 2000,
-    "english": 2627,
-    "total": 4627,
-    "mixedFiles": 53
+    "arabic": 1993,
+    "english": 2568,
+    "total": 4561,
+    "mixedFiles": 52
   },
   "files": {
     "src/App.jsx": {
@@ -397,11 +397,6 @@
       "english": 0,
       "total": 12
     },
-    "src/modules/employees/components/ChatImageAttachment.jsx": {
-      "arabic": 0,
-      "english": 3,
-      "total": 3
-    },
     "src/modules/employees/components/EmployeeAnalyticsWorkspace.jsx": {
       "arabic": 2,
       "english": 0,
@@ -422,40 +417,10 @@
       "english": 0,
       "total": 19
     },
-    "src/modules/employees/components/roles/CreateRoleModal.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
-    "src/modules/employees/components/users/CreateUserModal.jsx": {
-      "arabic": 0,
-      "english": 3,
-      "total": 3
-    },
-    "src/modules/employees/components/WhatsAppRecordingBar.jsx": {
-      "arabic": 0,
-      "english": 2,
-      "total": 2
-    },
-    "src/modules/employees/components/WhatsAppVoiceMessage.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
     "src/modules/employees/lib/employeeAnalyticsExport.js": {
       "arabic": 0,
       "english": 22,
       "total": 22
-    },
-    "src/modules/employees/pages/ActivityLogs.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
-    "src/modules/employees/pages/Branches.jsx": {
-      "arabic": 0,
-      "english": 24,
-      "total": 24
     },
     "src/modules/employees/pages/EmployeeHub.jsx": {
       "arabic": 7,
@@ -463,24 +428,14 @@
       "total": 7
     },
     "src/modules/employees/pages/EmployeePayrollPortal.jsx": {
-      "arabic": 41,
-      "english": 8,
-      "total": 49
-    },
-    "src/modules/employees/pages/EmployeePortal.jsx": {
-      "arabic": 2,
-      "english": 0,
-      "total": 2
-    },
-    "src/modules/employees/pages/EmployeePortalInventory.jsx": {
-      "arabic": 3,
-      "english": 7,
-      "total": 10
+      "arabic": 39,
+      "english": 5,
+      "total": 44
     },
     "src/modules/employees/pages/EmployeePortalProducts.jsx": {
       "arabic": 0,
-      "english": 18,
-      "total": 18
+      "english": 8,
+      "total": 8
     },
     "src/modules/inventory/pages/InventoryCount.jsx": {
       "arabic": 16,
@@ -619,8 +574,8 @@
     },
     "src/modules/orders/pages/OrdersDashboard.jsx": {
       "arabic": 30,
-      "english": 8,
-      "total": 38
+      "english": 7,
+      "total": 37
     },
     "src/modules/permissions/components/PermissionMatrix.jsx": {
       "arabic": 0,
@@ -894,8 +849,8 @@
     },
     "src/pages/Dashboard.jsx": {
       "arabic": 140,
-      "english": 12,
-      "total": 152
+      "english": 10,
+      "total": 150
     },
     "src/pages/DashboardPrototype.jsx": {
       "arabic": 57,
@@ -981,11 +936,6 @@
       "arabic": 0,
       "english": 5,
       "total": 5
-    },
-    "src/shared/lib/locale.js": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
     },
     "src/shared/notifications/NotificationBell.jsx": {
       "arabic": 6,

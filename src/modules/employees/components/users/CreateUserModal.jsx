@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 
 import { api }
@@ -9,6 +10,7 @@ export default function CreateUserModal({
   refreshUsers
 
 }) {
+  const { t } = useTranslation();
 
   const [roles, setRoles] =
     useState([]);
@@ -113,7 +115,7 @@ export default function CreateUserModal({
           <input
             type="text"
             name="name"
-            placeholder="Name"
+            placeholder={t("employeePortal.chrome.name")}
             onChange={handleChange}
             className="w-full bg-zinc-800 border border-zinc-700 rounded-[var(--radius-control)] px-4 py-3 text-white"
           />
@@ -121,7 +123,7 @@ export default function CreateUserModal({
           <input
             type="email"
             name="email"
-            placeholder="Email"
+            placeholder={t("employeePortal.chrome.email")}
             onChange={handleChange}
             className="w-full bg-zinc-800 border border-zinc-700 rounded-[var(--radius-control)] px-4 py-3 text-white"
           />
@@ -129,7 +131,7 @@ export default function CreateUserModal({
           <input
             type="password"
             name="password"
-            placeholder="Password"
+            placeholder={t("employeePortal.chrome.password")}
             onChange={handleChange}
             className="w-full bg-zinc-800 border border-zinc-700 rounded-[var(--radius-control)] px-4 py-3 text-white"
           />

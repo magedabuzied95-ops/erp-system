@@ -10,20 +10,20 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 201
-- Hardcoded Arabic UI strings: 2000
-- Hardcoded English UI strings: 2627
-- Total hardcoded UI strings: 4627
-- Mixed-language files (both scripts hardcoded): 53
+- Files with debt: 191
+- Hardcoded Arabic UI strings: 1993
+- Hardcoded English UI strings: 2568
+- Total hardcoded UI strings: 4561
+- Mixed-language files (both scripts hardcoded): 52
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 106 | 1428 | 1879 | 3307 | 36 |
-| shared | 67 | 199 | 464 | 663 | 11 |
-| employee-portal | 23 | 191 | 156 | 347 | 3 |
+| main-erp | 106 | 1428 | 1876 | 3304 | 36 |
+| shared | 66 | 199 | 463 | 662 | 11 |
 | pos | 5 | 182 | 128 | 310 | 3 |
+| employee-portal | 14 | 184 | 101 | 285 | 2 |
 
 ## Mixed-language files (ranked by density)
 
@@ -32,7 +32,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 157 | 260 | 417 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 112 | 185 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 58 | 106 | 164 |
-| src/pages/Dashboard.jsx | main-erp | 140 | 12 | 152 |
+| src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/marketing/pages/AiMarketingCenter.jsx | main-erp | 38 | 65 | 103 |
 | src/modules/orders/pages/OrderReturnsPage.jsx | main-erp | 96 | 4 | 100 |
@@ -48,13 +48,13 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/pages/AiSettings.jsx | main-erp | 7 | 48 | 55 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 44 | 8 | 52 |
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
-| src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 41 | 8 | 49 |
 | src/modules/aiSupport/pages/AiSupportConsole.jsx | main-erp | 10 | 35 | 45 |
+| src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 39 | 5 | 44 |
 | src/modules/marketing/pages/SocialMediaPublisher.jsx | main-erp | 10 | 30 | 40 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 27 | 13 | 40 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
-| src/modules/orders/pages/OrdersDashboard.jsx | main-erp | 30 | 8 | 38 |
+| src/modules/orders/pages/OrdersDashboard.jsx | main-erp | 30 | 7 | 37 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 23 | 4 | 27 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
@@ -70,7 +70,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/website/pages/WebsiteSettings.jsx | main-erp | 2 | 13 | 15 |
 | src/modules/products/pages/BarcodeLabels.jsx | main-erp | 4 | 7 | 11 |
 | src/modules/products/pages/CreateProduct.jsx | main-erp | 7 | 4 | 11 |
-| src/modules/employees/pages/EmployeePortalInventory.jsx | employee-portal | 3 | 7 | 10 |
 | src/modules/sales/pages/Customers.jsx | main-erp | 7 | 3 | 10 |
 | src/modules/notifications/pages/NotificationsCenter.jsx | main-erp | 7 | 1 | 8 |
 | src/modules/sales/pages/InvoicesLegacy.jsx | main-erp | 6 | 1 | 7 |
@@ -217,7 +216,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1459 [jsx-text/en] Company name
 - ... 124 more
 
-### src/pages/Dashboard.jsx (main-erp — ar:140 en:12)
+### src/pages/Dashboard.jsx (main-erp — ar:140 en:10)
 
 - 72 [object-key/en] Live Sales Analytics
 - 73 [object-key/en] Activity Feed
@@ -227,7 +226,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 77 [object-key/en] Branch Performance
 - 78 [object-key/en] Marketing Analytics
 - 79 [object-key/en] Best Selling Products
-- 104 [inline-ternary/en] lang === "ar") ? "ar-EG" : "en-US"
 - 117 [inline-ternary/ar] isArabic ? "تحليلات المبيعات المباشرة" : "Live Sales Analytics"
 - 118 [inline-ternary/ar] isArabic ? "سجل النشاط" : "Activity Feed"
 - 119 [inline-ternary/ar] isArabic ? "ذكاء المخزون" : "Inventory Intelligence"
@@ -259,7 +257,8 @@ of scope. The scanner is conservative and can still contain false positives.
 - 149 [inline-ternary/ar] isArabic ? "جاهز" : "Ready"
 - 150 [inline-ternary/ar] isArabic ? "الطلبات" : "Orders"
 - 151 [inline-ternary/ar] isArabic ? "منتج" : "Product"
-- ... 112 more
+- 152 [inline-ternary/ar] isArabic ? "المنتجات" : "Products"
+- ... 110 more
 
 ### src/modules/accounting/pages/FinancialReports.jsx (main-erp — ar:140 en:0)
 
@@ -1229,50 +1228,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 638 [jsx-text/en] Cancel
 - ... 9 more
 
-### src/modules/employees/pages/EmployeePayrollPortal.jsx (employee-portal — ar:41 en:8)
-
-- 71 [object-key/ar] محفظة الموظف
-- 72 [object-key/ar] رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.
-- 124 [object-key/en] Employee Portal
-- 125 [object-key/en] Your secure employee link opens payroll, attendance, and requests.
-- 229 [object-key/ar] الرسالة
-- 283 [object-key/en] Message
-- 538 [object-key/ar] طباعة باركود نواقص العرض
-- 640 [inline-ternary/en] language = "en") => (language === "ar" ? "ar-EG-u-nu-latn" : "en-US"
-- 3068 [dialog/ar] حذف هذه الرسالة لدى الجميع؟
-- 3380 [attribute/ar] إعدادات الملف الشخصي
-- 3394 [jsx-text/ar] طلب من المخزن
-- 3405 [jsx-text/ar] الجرد
-- 3454 [jsx-text/en] Sales Opportunities
-- 3455 [jsx-text/ar] فرص البيع اليوم
-- 3456 [jsx-text/ar] بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.
-- 3459 [jsx-text/en] Today
-- 3554 [jsx-text/ar] بوابة الموظف كتطبيق
-- 3582 [jsx-text/ar] تفعيل إشعارات بوابة الموظف
-- 3613 [jsx-text/ar] إعادة ضبط الإشعارات
-- 3676 [jsx-text/ar] نواقص العرض
-- 3677 [jsx-text/ar] المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.
-- 3686 [jsx-text/ar] قيد التنفيذ
-- 3702 [jsx-text/ar] قيد العرض
-- 3713 [jsx-text/ar] تم بيع مقاس:
-- 3714 [jsx-text/ar] اعرض مقاس:
-- 3720 [jsx-text/ar] المتاح:
-- 3752 [jsx-text/ar] تم التنفيذ
-- 3767 [jsx-text/ar] تم العرض
-- 3778 [jsx-text/ar] تم بيع مقاس:
-- 3779 [jsx-text/ar] اعرض مقاس:
-- 3785 [jsx-text/ar] المتاح:
-- 4165 [jsx-text/ar] المقاس:
-- 4231 [jsx-text/ar] طريقة استلام السلفة
-- 4272 [jsx-text/ar] الاستلام:
-- 4312 [attribute/ar] رجوع
-- 4315 [attribute/ar] معلومات M1 Store
-- 4316 [attribute/en] M1 Store
-- 4320 [attribute/ar] معلومات M1 Store
-- 4321 [jsx-text/en] M1 Store
-- 4322 [jsx-text/ar] حساب أعمال
-- ... 9 more
-
 ### src/modules/aiStudio/components/editor/NodeConfigPanel.jsx (shared — ar:0 en:47)
 
 - 51 [jsx-text/en] Fixed value
@@ -1537,6 +1492,50 @@ of scope. The scanner is conservative and can still contain false positives.
 - 614 [jsx-text/en] Lead Detail
 - ... 5 more
 
+### src/modules/employees/pages/EmployeePayrollPortal.jsx (employee-portal — ar:39 en:5)
+
+- 75 [object-key/ar] محفظة الموظف
+- 76 [object-key/ar] رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.
+- 132 [object-key/en] Employee Portal
+- 133 [object-key/en] Your secure employee link opens payroll, attendance, and requests.
+- 237 [object-key/ar] الرسالة
+- 291 [object-key/en] Message
+- 546 [object-key/ar] طباعة باركود نواقص العرض
+- 3076 [dialog/ar] حذف هذه الرسالة لدى الجميع؟
+- 3388 [attribute/ar] إعدادات الملف الشخصي
+- 3402 [jsx-text/ar] طلب من المخزن
+- 3413 [jsx-text/ar] الجرد
+- 3562 [jsx-text/ar] بوابة الموظف كتطبيق
+- 3590 [jsx-text/ar] تفعيل إشعارات بوابة الموظف
+- 3621 [jsx-text/ar] إعادة ضبط الإشعارات
+- 3684 [jsx-text/ar] نواقص العرض
+- 3685 [jsx-text/ar] المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.
+- 3694 [jsx-text/ar] قيد التنفيذ
+- 3710 [jsx-text/ar] قيد العرض
+- 3721 [jsx-text/ar] تم بيع مقاس:
+- 3722 [jsx-text/ar] اعرض مقاس:
+- 3728 [jsx-text/ar] المتاح:
+- 3760 [jsx-text/ar] تم التنفيذ
+- 3775 [jsx-text/ar] تم العرض
+- 3786 [jsx-text/ar] تم بيع مقاس:
+- 3787 [jsx-text/ar] اعرض مقاس:
+- 3793 [jsx-text/ar] المتاح:
+- 4173 [jsx-text/ar] المقاس:
+- 4239 [jsx-text/ar] طريقة استلام السلفة
+- 4280 [jsx-text/ar] الاستلام:
+- 4320 [attribute/ar] رجوع
+- 4323 [attribute/ar] معلومات M1 Store
+- 4324 [attribute/en] M1 Store
+- 4328 [attribute/ar] معلومات M1 Store
+- 4329 [jsx-text/en] M1 Store
+- 4330 [jsx-text/ar] حساب أعمال
+- 4332 [attribute/ar] بحث في الرسائل
+- 4340 [attribute/ar] ابحث في الرسائل
+- 4341 [attribute/ar] مسح البحث
+- 4425 [attribute/ar] ابحث في الرسائل
+- 4459 [jsx-text/ar] إعدادات الملف الشخصي
+- ... 4 more
+
 ### src/modules/attendance/pages/AttendanceReports.jsx (employee-portal — ar:0 en:41)
 
 - 157 [jsx-text/en] Export-ready attendance reports
@@ -1751,7 +1750,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1556 [jsx-text/ar] المقاسات المتاحة فقط
 - 1576 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
 
-### src/modules/orders/pages/OrdersDashboard.jsx (main-erp — ar:30 en:8)
+### src/modules/orders/pages/OrdersDashboard.jsx (main-erp — ar:30 en:7)
 
 - 319 [attribute/en] Customer
 - 502 [object-key/ar] حرج
@@ -1790,7 +1789,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1531 [attribute/ar] البائع
 - 1532 [attribute/ar] الدفع
 - 1535 [attribute/ar] دفع تعديل الفاتورة
-- 1600 [inline-ternary/en] locale = isArabicLanguage(language) ? "ar-EG" : "en-US"
 
 ### src/modules/aiStudio/lib/workflowGraph.js (main-erp — ar:0 en:33)
 
@@ -2168,33 +2166,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 215 [inline-ternary/ar] isArabic ? "جاري تحميل الطلبات..." : "Loading requests..."
 - 216 [inline-ternary/ar] isArabic ? "لا توجد طلبات في هذا القسم." : "No requests in this section."
 
-### src/modules/employees/pages/Branches.jsx (employee-portal — ar:0 en:24)
-
-- 82 [dialog/en] Branch name is required
-- 109 [dialog/en] Delete this branch?
-- 147 [attribute/en] Total Branches
-- 148 [attribute/en] With Managers
-- 149 [attribute/en] Warehouse Mapped
-- 155 [attribute/en] Search branch / code / manager / phone / address
-- 164 [jsx-text/en] Create New Branch
-- 171 [attribute/en] Branch Name
-- 172 [attribute/en] Code
-- 173 [attribute/en] Phone
-- 174 [attribute/en] Manager
-- 175 [attribute/en] Address
-- 177 [attribute/en] Default Warehouse ID
-- 182 [attribute/en] Latitude
-- 183 [attribute/en] Longitude
-- 185 [attribute/en] Attendance Radius (meters)
-- 207 [jsx-text/en] Branch
-- 208 [jsx-text/en] Code
-- 209 [jsx-text/en] Manager
-- 210 [jsx-text/en] Phone
-- 211 [jsx-text/en] Address
-- 212 [jsx-text/en] Default Warehouse
-- 213 [jsx-text/en] GPS Radius
-- 214 [jsx-text/en] Actions
-
 ### src/modules/loyalty/pages/LoyaltyDashboard.jsx (main-erp — ar:0 en:24)
 
 - 98 [jsx-text/en] Loyalty
@@ -2550,27 +2521,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 190 [jsx-text/en] Edit
 - 194 [attribute/en] Archive
 - 197 [jsx-text/en] Restore
-
-### src/modules/employees/pages/EmployeePortalProducts.jsx (employee-portal — ar:0 en:18)
-
-- 592 [jsx-text/en] Stock
-- 622 [jsx-text/en] No sizes
-- 660 [jsx-text/en] Variant selection
-- 663 [jsx-text/en] SKU / Article:
-- 664 [jsx-text/en] Brand:
-- 699 [jsx-text/en] Colors
-- 718 [jsx-text/en] No colors
-- 725 [jsx-text/en] Sizes
-- 726 [jsx-text/en] Only available sizes appear
-- 741 [jsx-text/en] Stock:
-- 809 [jsx-text/en] EMPLOYEE SCANNER
-- 843 [jsx-text/en] Scanner Debug
-- 848 [jsx-text/en] Last raw value
-- 852 [jsx-text/en] Detected format
-- 856 [jsx-text/en] Resolver called
-- 860 [jsx-text/en] Resolver result
-- 864 [jsx-text/en] Source
-- 1821 [jsx-text/en] Employee Portal Products
 
 ### src/modules/marketing/pages/SocialCommentsCenter.jsx (main-erp — ar:0 en:18)
 
@@ -3084,19 +3034,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 20 [object-key/en] High
 - 21 [object-key/en] Normal
 
-### src/modules/employees/pages/EmployeePortalInventory.jsx (employee-portal — ar:3 en:7)
-
-- 449 [jsx-text/en] Inventory
-- 881 [object-key/en] Gender
-- 882 [object-key/en] Product type
-- 883 [object-key/en] Grade
-- 884 [object-key/en] Size
-- 885 [object-key/en] Brand
-- 886 [object-key/en] Manufacturer
-- 1648 [jsx-text/ar] المنتجات:
-- 1649 [jsx-text/ar] الكمية:
-- 1650 [jsx-text/ar] الفروقات:
-
 ### src/modules/products/components/MultiVersionGenerator.jsx (shared — ar:0 en:10)
 
 - 6 [object-key/en] Polished
@@ -3241,6 +3178,17 @@ of scope. The scanner is conservative and can still contain false positives.
 - 226 [attribute/en] Time
 - 227 [attribute/en] Distance
 - 228 [attribute/en] Allowed radius
+
+### src/modules/employees/pages/EmployeePortalProducts.jsx (employee-portal — ar:0 en:8)
+
+- 664 [jsx-text/en] Brand:
+- 741 [jsx-text/en] Stock:
+- 843 [jsx-text/en] Scanner Debug
+- 848 [jsx-text/en] Last raw value
+- 852 [jsx-text/en] Detected format
+- 856 [jsx-text/en] Resolver called
+- 860 [jsx-text/en] Resolver result
+- 864 [jsx-text/en] Source
 
 ### src/modules/notifications/pages/NotificationsCenter.jsx (main-erp — ar:7 en:1)
 
@@ -3515,18 +3463,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 33 [object-key/en] Writes data
 - 34 [object-key/en] Human approval required
 
-### src/modules/employees/components/ChatImageAttachment.jsx (employee-portal — ar:0 en:3)
-
-- 52 [attribute/en] Image
-- 64 [jsx-text/en] Image unavailable
-- 73 [jsx-text/en] Open image
-
-### src/modules/employees/components/users/CreateUserModal.jsx (employee-portal — ar:0 en:3)
-
-- 116 [attribute/en] Name
-- 124 [attribute/en] Email
-- 132 [attribute/en] Password
-
 ### src/modules/inventory/pages/StockMovements.jsx (main-erp — ar:3 en:0)
 
 - 602 [jsx-text/ar] كود المنتج:
@@ -3619,16 +3555,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 91 [inline-ternary/ar] isRtl ? "موظف غير مرتبط" : "Unlinked employee"
 - 92 [inline-ternary/ar] isRtl ? "بدون شيفت" : "No shift assigned"
 
-### src/modules/employees/components/WhatsAppRecordingBar.jsx (employee-portal — ar:0 en:2)
-
-- 73 [attribute/en] Delete recording
-- 108 [attribute/en] Send recording
-
-### src/modules/employees/pages/EmployeePortal.jsx (employee-portal — ar:2 en:0)
-
-- 207 [jsx-text/ar] الموعد:
-- 209 [jsx-text/ar] ملاحظات:
-
 ### src/shared/components/Table.jsx (shared — ar:0 en:2)
 
 - 9 [jsx-text/en] Name
@@ -3683,18 +3609,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/attendance/pages/AttendanceDashboard.jsx (employee-portal — ar:1 en:0)
 
 - 162 [jsx-text/ar] آخر القراءات ليوم
-
-### src/modules/employees/components/roles/CreateRoleModal.jsx (employee-portal — ar:0 en:1)
-
-- 57 [attribute/en] Role Name
-
-### src/modules/employees/components/WhatsAppVoiceMessage.jsx (employee-portal — ar:0 en:1)
-
-- 17 [attribute/en] Voice message
-
-### src/modules/employees/pages/ActivityLogs.jsx (employee-portal — ar:0 en:1)
-
-- 227 [attribute/en] Search logs...
 
 ### src/modules/inventory/pages/StockTransfers.jsx (main-erp — ar:1 en:0)
 
@@ -3767,10 +3681,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/shared/components/Sidebar.jsx (shared — ar:0 en:1)
 
 - 28 [jsx-text/en] ERP PRO
-
-### src/shared/lib/locale.js (shared — ar:0 en:1)
-
-- 42 [inline-ternary/en] language) === "ar" ? "ar-EG" : "en-GB"
 
 ### src/shared/utils/whatsapp.js (shared — ar:1 en:0)
 

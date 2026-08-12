@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
 import { Pagination } from "../../../shared/ui";
@@ -25,6 +26,7 @@ const unwrapBranches = (payload) => {
 const safeBranchRows = (rows) => (Array.isArray(rows) ? rows.filter((branch) => branch && typeof branch === "object") : []);
 
 function Branches() {
+  const { t } = useTranslation();
   const [branches, setBranches] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState("");
@@ -79,7 +81,7 @@ function Branches() {
 
   const addBranch = async () => {
     if (!form.name.trim()) {
-      alert("Branch name is required");
+      alert(t("branches.nameRequired"));
       return;
     }
 
@@ -106,7 +108,7 @@ function Branches() {
   };
 
   const deleteBranch = async (id) => {
-    if (!window.confirm("Delete this branch?")) return;
+    if (!window.confirm(t("branches.deletePrompt"))) return;
 
     try {
       setSaving(true);
@@ -144,15 +146,15 @@ function Branches() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Kpi label="Total Branches" value={activeBranches.length} />
-        <Kpi label="With Managers" value={activeBranches.filter((branch) => branch?.manager).length} />
-        <Kpi label="Warehouse Mapped" value={activeBranches.filter((branch) => branch?.default_warehouse_id).length} />
+        <Kpi label={t("branches.stats.total")} value={activeBranches.length} />
+        <Kpi label={t("branches.withManagers")} value={activeBranches.filter((branch) => branch?.manager).length} />
+        <Kpi label={t("branches.stats.mapped")} value={activeBranches.filter((branch) => branch?.default_warehouse_id).length} />
       </div>
 
       <div className="rounded-2xl bg-white p-5 shadow-lg dark:bg-gray-800">
         <input
           type="text"
-          placeholder="Search branch / code / manager / phone / address"
+          placeholder={t("branches.searchPlaceholder")}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="w-full rounded-[var(--radius-control)] border border-gray-200 p-4 outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
@@ -161,28 +163,28 @@ function Branches() {
 
       <div className="rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-800">
         <div className="mb-8">
-          <h2 className="m1-section-title dark:text-white">Create New Branch</h2>
+          <h2 className="m1-section-title dark:text-white">{t("branches.createTitle")}</h2>
           <p className="mt-2 text-gray-500">
-            Saved branches are returned by GET /api/branches and used by employee forms.
+            {t("branches.apiHint")}
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          <BranchInput label="Branch Name" value={form.name} onChange={(value) => updateField("name", value)} />
-          <BranchInput label="Code" value={form.code} onChange={(value) => updateField("code", value)} />
-          <BranchInput label="Phone" value={form.phone} onChange={(value) => updateField("phone", value)} />
-          <BranchInput label="Manager" value={form.manager} onChange={(value) => updateField("manager", value)} />
-          <BranchInput label="Address" value={form.address} onChange={(value) => updateField("address", value)} />
+          <BranchInput label={t("branches.form.name")} value={form.name} onChange={(value) => updateField("name", value)} />
+          <BranchInput label={t("branches.form.code")} value={form.code} onChange={(value) => updateField("code", value)} />
+          <BranchInput label={t("branches.form.phone")} value={form.phone} onChange={(value) => updateField("phone", value)} />
+          <BranchInput label={t("branches.form.manager")} value={form.manager} onChange={(value) => updateField("manager", value)} />
+          <BranchInput label={t("branches.form.address")} value={form.address} onChange={(value) => updateField("address", value)} />
           <BranchInput
-            label="Default Warehouse ID"
+            label={t("branches.form.defaultWarehouseId")}
             type="number"
             value={form.default_warehouse_id}
             onChange={(value) => updateField("default_warehouse_id", value)}
           />
-          <BranchInput label="Latitude" type="number" value={form.latitude} onChange={(value) => updateField("latitude", value)} />
-          <BranchInput label="Longitude" type="number" value={form.longitude} onChange={(value) => updateField("longitude", value)} />
+          <BranchInput label={t("branches.form.latitude")} type="number" value={form.latitude} onChange={(value) => updateField("latitude", value)} />
+          <BranchInput label={t("branches.form.longitude")} type="number" value={form.longitude} onChange={(value) => updateField("longitude", value)} />
           <BranchInput
-            label="Attendance Radius (meters)"
+            label={t("branches.form.attendanceRadius")}
             type="number"
             value={form.attendance_radius_meters}
             onChange={(value) => updateField("attendance_radius_meters", value)}
@@ -204,14 +206,14 @@ function Branches() {
           <table className="m1-table m1-table--compact w-full">
             <thead className="bg-black text-white">
               <tr>
-                <th className="p-5 text-left">Branch</th>
-                <th className="p-5 text-left">Code</th>
-                <th className="p-5 text-left">Manager</th>
-                <th className="p-5 text-left">Phone</th>
-                <th className="p-5 text-left">Address</th>
-                <th className="p-5 text-left">Default Warehouse</th>
-                <th className="p-5 text-left">GPS Radius</th>
-                <th className="p-5 text-left">Actions</th>
+                <th className="p-5 text-left">{t("branches.tableHeaders.branch")}</th>
+                <th className="p-5 text-left">{t("branches.tableHeaders.code")}</th>
+                <th className="p-5 text-left">{t("branches.tableHeaders.manager")}</th>
+                <th className="p-5 text-left">{t("branches.form.phone")}</th>
+                <th className="p-5 text-left">{t("branches.tableHeaders.address")}</th>
+                <th className="p-5 text-left">{t("branches.tableHeaders.warehouse")}</th>
+                <th className="p-5 text-left">{t("branches.gpsRadius")}</th>
+                <th className="p-5 text-left">{t("branches.tableHeaders.actions")}</th>
               </tr>
             </thead>
             <tbody>

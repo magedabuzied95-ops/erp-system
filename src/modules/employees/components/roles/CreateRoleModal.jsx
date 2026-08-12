@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState } from "react";
 
 import { api }
@@ -9,6 +10,7 @@ export default function CreateRoleModal({
   refreshRoles
 
 }) {
+  const { t } = useTranslation();
 
   const [name, setName] =
     useState("");
@@ -54,7 +56,7 @@ export default function CreateRoleModal({
 
           <input
             type="text"
-            placeholder="Role Name"
+            placeholder={t("employeePortal.chrome.roleName")}
             value={name}
             onChange={(e) =>
               setName(e.target.value)

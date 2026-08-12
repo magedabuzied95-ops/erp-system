@@ -68,6 +68,10 @@ const EMPLOYEE_PORTAL_SALARY_ENABLED = false;
 
 const labels = {
   ar: {
+    salesOpportunitiesEyebrow: "فرص البيع",
+    salesOpportunitiesSubtitle: "بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.",
+    salesOpportunitiesTitle: "فرص البيع اليوم",
+    today: "اليوم",
     title: "محفظة الموظف",
     subtitle: "رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.",
     secure: "يتم التحقق من هذا الرابط بأمان.",
@@ -121,6 +125,10 @@ const labels = {
     },
   },
   en: {
+    salesOpportunitiesEyebrow: "Sales opportunities",
+    salesOpportunitiesSubtitle: "Quick cards revealing the last piece, last two pieces, or last size in your branch.",
+    salesOpportunitiesTitle: "Today's sales opportunities",
+    today: "Today",
     title: "Employee Portal",
     subtitle: "Your secure employee link opens payroll, attendance, and requests.",
     secure: "This private link is validated securely.",
@@ -3451,12 +3459,12 @@ export default function EmployeePayrollPortal() {
               <section className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,#0b1220,#111827)] p-4 text-white shadow-[0_16px_30px_rgba(2,6,23,0.18)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">Sales Opportunities</div>
-                    <h2 className="m1-section-title mt-1">فرص البيع اليوم</h2>
-                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.</p>
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">{text.salesOpportunitiesEyebrow}</div>
+                    <h2 className="m1-section-title mt-1">{text.salesOpportunitiesTitle}</h2>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">{text.salesOpportunitiesSubtitle}</p>
                   </div>
                   <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">Today</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{text.today}</div>
                     <div className="mt-0.5 text-lg font-black text-primary">{salesOpportunities.length}</div>
                   </div>
                 </div>
