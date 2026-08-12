@@ -1522,5 +1522,12 @@
       "color": "Colour",
       "size": "Size"
     }
+  },
+  "socialTones": {
+    "premium": "Premium",
+    "luxury": "Luxury",
+    "sport": "Sport",
+    "friendly": "Friendly",
+    "sales": "Sales"
   }
 }

@@ -1522,5 +1522,12 @@
       "color": "اللون",
       "size": "المقاس"
     }
+  },
+  "socialTones": {
+    "premium": "بريميوم",
+    "luxury": "فخم",
+    "sport": "رياضي",
+    "friendly": "ودّي",
+    "sales": "عروض"
   }
 }

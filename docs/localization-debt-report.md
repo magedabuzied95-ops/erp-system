@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 610
-- Files with debt: 168
-- Hardcoded Arabic UI strings: 1765
-- Hardcoded English UI strings: 2017
-- Total hardcoded UI strings: 3782
-- Mixed-language files (both scripts hardcoded): 46
+- Files with debt: 164
+- Hardcoded Arabic UI strings: 1749
+- Hardcoded English UI strings: 1872
+- Total hardcoded UI strings: 3621
+- Mixed-language files (both scripts hardcoded): 44
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 91 | 1203 | 1481 | 2684 | 31 |
-| shared | 61 | 196 | 453 | 649 | 10 |
+| main-erp | 89 | 1193 | 1406 | 2599 | 30 |
+| shared | 59 | 190 | 383 | 573 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
@@ -46,7 +46,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
 | src/modules/aiSupport/pages/AiSupportConsole.jsx | main-erp | 10 | 35 | 45 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 39 | 5 | 44 |
-| src/modules/marketing/pages/SocialMediaPublisher.jsx | main-erp | 10 | 30 | 40 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
@@ -56,7 +55,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 22 | 2 | 24 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
 | src/modules/aiSupport/pages/AiChannels.jsx | main-erp | 1 | 22 | 23 |
-| src/modules/marketing/components/PostEditorModal.jsx | shared | 6 | 15 | 21 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
 | src/modules/saas/pages/RegisterCompany.jsx | main-erp | 15 | 5 | 20 |
 | src/modules/marketing/components/storyTemplateEngine.js | shared | 5 | 12 | 17 |
@@ -870,50 +868,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 268 [attribute/en] Image URL
 - ... 15 more
 
-### src/modules/marketing/components/MarketingCampaignAnalyticsPanel.jsx (shared — ar:0 en:54)
-
-- 79 [jsx-text/en] No post image
-- 101 [object-key/en] Published ✓
-- 104 [object-key/en] Scheduled
-- 107 [object-key/en] Failed
-- 110 [object-key/en] Skipped
-- 254 [jsx-text/en] Campaign Analytics
-- 255 [jsx-text/en] Overview, timeline, history, and top posts.
-- 270 [jsx-text/en] Published
-- 272 [jsx-text/en] Number of published posts.
-- 275 [jsx-text/en] Scheduled
-- 280 [jsx-text/en] Drafts
-- 282 [jsx-text/en] Draft content in progress.
-- 285 [jsx-text/en] First Comments
-- 289 [jsx-text/en] Published
-- 293 [jsx-text/en] Failed
-- 297 [jsx-text/en] Skipped
-- 307 [jsx-text/en] Charts
-- 308 [jsx-text/en] Last 30 days
-- 341 [jsx-text/en] Timeline
-- 342 [jsx-text/en] Recent publishing activity
-- 380 [jsx-text/en] No activity yet.
-- 393 [jsx-text/en] Post History
-- 394 [jsx-text/en] Creative, caption, first comment, and publishing status in one place.
-- 400 [jsx-text/en] No history yet.
-- 425 [jsx-text/en] Caption Preview
-- 429 [jsx-text/en] Comment Preview
-- 436 [jsx-text/en] Published
-- 440 [jsx-text/en] Actions
-- 470 [jsx-text/en] Creative
-- 471 [jsx-text/en] Platform
-- 472 [jsx-text/en] Template
-- 473 [jsx-text/en] Status
-- 474 [jsx-text/en] Caption
-- 475 [jsx-text/en] First Comment
-- 476 [jsx-text/en] Published
-- 477 [jsx-text/en] Actions
-- 508 [jsx-text/en] Content template snapshot
-- 579 [jsx-text/en] Top Posts
-- 580 [jsx-text/en] Best performing posts from analytics
-- 587 [jsx-text/en] Post
-- ... 14 more
-
 ### src/modules/purchases/pages/PurchaseOrder.jsx (main-erp — ar:44 en:8)
 
 - 1221 [inline-ternary/ar] isArabic ? "متاح فقط" : "Available only"
@@ -1178,50 +1132,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 860 [attribute/en] No fallback questions logged.
 - ... 5 more
 
-### src/modules/marketing/pages/AiLeadCenter.jsx (main-erp — ar:0 en:45)
-
-- 11 [object-key/en] All
-- 15 [object-key/en] Web Chat
-- 19 [object-key/en] All stages
-- 20 [object-key/en] New Lead
-- 21 [object-key/en] Waiting Reply
-- 22 [object-key/en] AI Handling
-- 23 [object-key/en] Human Takeover
-- 24 [object-key/en] Order Created
-- 25 [object-key/en] Shipped
-- 26 [object-key/en] Review Pending
-- 27 [object-key/en] Upsell Opportunity
-- 198 [object-key/en] Comment
-- 199 [object-key/en] AI Reply
-- 201 [object-key/en] Order
-- 202 [object-key/en] Payment
-- 203 [object-key/en] Shipping
-- 204 [object-key/en] Delivered
-- 205 [object-key/en] Review
-- 390 [object-key/en] New Lead
-- 391 [object-key/en] Waiting Reply
-- 392 [object-key/en] AI Handling
-- 393 [object-key/en] Human Takeover
-- 394 [object-key/en] Order Created
-- 395 [object-key/en] Shipped
-- 396 [object-key/en] Review Pending
-- 397 [object-key/en] Upsell Opportunity
-- 412 [jsx-text/en] Social leads in one command view
-- 451 [jsx-text/en] Filters
-- 531 [jsx-text/en] Loading AI leads...
-- 537 [jsx-text/en] No leads match the current filters.
-- 538 [jsx-text/en] Try another platform, stage, or time range.
-- 561 [jsx-text/en] Customer
-- 565 [jsx-text/en] Platform
-- 569 [jsx-text/en] Source Post
-- 573 [jsx-text/en] Interested Product
-- 577 [jsx-text/en] Current Stage
-- 581 [jsx-text/en] Assigned AI
-- 588 [jsx-text/en] Confidence
-- 599 [jsx-text/en] Unread
-- 614 [jsx-text/en] Lead Detail
-- ... 5 more
-
 ### src/modules/employees/pages/EmployeePayrollPortal.jsx (employee-portal — ar:39 en:5)
 
 - 75 [object-key/ar] محفظة الموظف
@@ -1265,49 +1175,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 4425 [attribute/ar] ابحث في الرسائل
 - 4459 [jsx-text/ar] إعدادات الملف الشخصي
 - ... 4 more
-
-### src/modules/marketing/pages/SocialMediaPublisher.jsx (main-erp — ar:10 en:30)
-
-- 94 [object-key/en] Published ✓
-- 101 [object-key/en] Failed
-- 108 [object-key/en] Scheduled
-- 115 [object-key/en] Skipped
-- 1132 [notification/en] Select a product first
-- 1277 [notification/en] First comment saved to draft.
-- 1284 [notification/en] Copied successfully.
-- 1287 [notification/en] Copy failed.
-- 1467 [notification/en] Connect Facebook first
-- 1471 [notification/en] Connect Instagram first
-- 1505 [notification/en] Connect Facebook first
-- 1509 [notification/en] Connect Instagram first
-- 1586 [notification/en] Draft duplicated.
-- 1590 [dialog/en] Delete this post from the current history view?
-- 1596 [notification/en] Post removed from view.
-- 1622 [jsx-text/en] Media preview will show here
-- 1641 [jsx-text/en] 1.2K likes
-- 1642 [jsx-text/en] 84 comments
-- 1643 [jsx-text/en] 21 shares
-- 1648 [jsx-text/en] Page:
-- 1649 [jsx-text/en] Platforms:
-- 1661 [attribute/en] Campaign Studio
-- 1662 [attribute/ar] أنشئ حملاتك التسويقية، راجع المحتوى، ثم انشر أو جدوله من مكان واحد.
-- 1686 [jsx-text/en] Create Post From
-- 1687 [jsx-text/en] Choose how you want to start this post.
-- 1702 [jsx-text/en] Upload From Device
-- 1703 [jsx-text/en] Active now
-- 1711 [jsx-text/en] Product Catalog
-- 1712 [jsx-text/en] Select from ERP products
-- 1720 [jsx-text/en] AI Marketing
-- 1721 [jsx-text/en] Coming Soon
-- 1733 [jsx-text/ar] إضافة الموقع
-- 1742 [jsx-text/ar] إضافة الشحن
-- 1765 [jsx-text/ar] اسم المنتج
-- 1769 [jsx-text/ar] السعر الحالي
-- 1777 [jsx-text/ar] المخزون
-- 1785 [jsx-text/ar] عدد المقاسات
-- 1789 [jsx-text/ar] عدد الألوان
-- 1793 [jsx-text/ar] نسبة الخصم
-- 1799 [jsx-text/ar] صور الألوان المتاحة
 
 ### src/modules/reports/pages/Reports.jsx (main-erp — ar:9 en:31)
 
@@ -1467,37 +1334,37 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/pos/components/CartSidebar.jsx (pos — ar:28 en:3)
 
-- 1588 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
-- 1752 [jsx-text/ar] فاتورة بيع
-- 1754 [jsx-text/ar] التاريخ
-- 1755 [jsx-text/ar] البائع
-- 1756 [jsx-text/ar] العميل
-- 1757 [jsx-text/ar] الدفع
-- 1762 [jsx-text/ar] الإجمالي
-- 1762 [jsx-text/ar] السعر
-- 1762 [jsx-text/ar] الصنف
-- 1775 [jsx-text/ar] لا توجد منتجات
-- 1780 [jsx-text/ar] الإجمالي الفرعي
-- 1781 [jsx-text/ar] إجمالي الكمية
-- 1782 [jsx-text/ar] خصم المنتجات
-- 1783 [jsx-text/ar] خصم الفاتورة
-- 1784 [jsx-text/ar] خصم الكوبون
-- 1785 [jsx-text/ar] خصم الولاء
-- 1786 [jsx-text/ar] الضريبة
-- 1787 [jsx-text/ar] رسوم الخدمة
-- 1788 [jsx-text/ar] الإجمالي
-- 1790 [jsx-text/ar] تفاصيل الدفع
-- 1798 [jsx-text/ar] المدفوع
-- 1799 [jsx-text/ar] الباقي
-- 1800 [jsx-text/ar] المتبقي
-- 1804 [jsx-text/ar] العنوان
-- 1805 [jsx-text/ar] خدمة العملاء
-- 1806 [jsx-text/ar] الموقع الإلكتروني الرسمي
-- 1808 [jsx-text/ar] سياسة الاستبدال والاسترجاع
-- 1810 [jsx-text/ar] شكرًا لزيارتكم
-- 2577 [attribute/en] Vodafone Cash
-- 2584 [attribute/en] InstaPay
-- 2659 [attribute/en] INV-123
+- 1590 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
+- 1754 [jsx-text/ar] فاتورة بيع
+- 1756 [jsx-text/ar] التاريخ
+- 1757 [jsx-text/ar] البائع
+- 1758 [jsx-text/ar] العميل
+- 1759 [jsx-text/ar] الدفع
+- 1764 [jsx-text/ar] الإجمالي
+- 1764 [jsx-text/ar] السعر
+- 1764 [jsx-text/ar] الصنف
+- 1777 [jsx-text/ar] لا توجد منتجات
+- 1782 [jsx-text/ar] الإجمالي الفرعي
+- 1783 [jsx-text/ar] إجمالي الكمية
+- 1784 [jsx-text/ar] خصم المنتجات
+- 1785 [jsx-text/ar] خصم الفاتورة
+- 1786 [jsx-text/ar] خصم الكوبون
+- 1787 [jsx-text/ar] خصم الولاء
+- 1788 [jsx-text/ar] الضريبة
+- 1789 [jsx-text/ar] رسوم الخدمة
+- 1790 [jsx-text/ar] الإجمالي
+- 1792 [jsx-text/ar] تفاصيل الدفع
+- 1800 [jsx-text/ar] المدفوع
+- 1801 [jsx-text/ar] الباقي
+- 1802 [jsx-text/ar] المتبقي
+- 1806 [jsx-text/ar] العنوان
+- 1807 [jsx-text/ar] خدمة العملاء
+- 1808 [jsx-text/ar] الموقع الإلكتروني الرسمي
+- 1810 [jsx-text/ar] سياسة الاستبدال والاسترجاع
+- 1812 [jsx-text/ar] شكرًا لزيارتكم
+- 2579 [attribute/en] Vodafone Cash
+- 2586 [attribute/en] InstaPay
+- 2661 [attribute/en] INV-123
 
 ### src/modules/shipping/pages/ShippingCenter.jsx (main-erp — ar:0 en:31)
 
@@ -1935,30 +1802,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 191 [jsx-text/en] Employee
 - 191 [jsx-text/en] Orders
 - 191 [jsx-text/en] Sales
-
-### src/modules/marketing/components/PostEditorModal.jsx (shared — ar:6 en:15)
-
-- 261 [object-key/en] Arabic Reel Trend
-- 735 [attribute/ar] شرائح القصة
-- 906 [attribute/ar] شرائح القصة
-- 951 [jsx-text/en] Slide
-- 1213 [jsx-text/en] TikTok - Coming Soon
-- 1221 [jsx-text/en] Coming Soon
-- 1222 [jsx-text/ar] Connect TikTok لاحقًا
-- 1239 [jsx-text/en] Tone
-- 1267 [jsx-text/en] Regenerate Hook
-- 1275 [jsx-text/en] Regenerate CTA
-- 1283 [jsx-text/en] Regenerate Hashtags
-- 1333 [jsx-text/ar] التعليق الأول المقترح
-- 1334 [jsx-text/ar] نفس تعليق البابلشر
-- 1342 [attribute/ar] سيتم توليد التعليق من بيانات المنتج
-- 1348 [jsx-text/en] Product URL
-- 1357 [attribute/en] Price
-- 1358 [attribute/en] Color
-- 1359 [attribute/en] Size
-- 1491 [jsx-text/en] Mood:
-- 1492 [jsx-text/en] Platform:
-- 1493 [jsx-text/en] Search:
 
 ### src/modules/saas/pages/Workspace.jsx (main-erp — ar:0 en:21)
 
@@ -2897,14 +2740,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 7 [object-key/en] Clarify value and price
 - 8 [object-key/en] Advance discovery
 
-### src/modules/marketing/components/socialAiCopy.js (shared — ar:0 en:5)
-
-- 149 [object-key/en] Premium
-- 171 [object-key/en] Luxury
-- 193 [object-key/en] Sport
-- 215 [object-key/en] Friendly
-- 237 [object-key/en] Sales
-
 ### src/modules/marketing/pages/AiMarketingVideos.jsx (main-erp — ar:0 en:5)
 
 - 113 [object-key/en] Available now
@@ -2957,6 +2792,13 @@ of scope. The scanner is conservative and can still contain false positives.
 - 33 [object-key/en] Redeemed loyalty points
 - 53 [object-key/en] Earned points from order #INV-1001
 - 54 [object-key/en] Redeemed loyalty points
+
+### src/modules/marketing/components/PostEditorModal.jsx (shared — ar:0 en:4)
+
+- 266 [object-key/en] Arabic Reel Trend
+- 1502 [jsx-text/en] Mood:
+- 1503 [jsx-text/en] Platform:
+- 1504 [jsx-text/en] Search:
 
 ### src/modules/sales/pages/SalesEmployees.jsx (main-erp — ar:0 en:4)
 
