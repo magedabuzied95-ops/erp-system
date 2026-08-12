@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import i18n from "../../../i18n/i18n";
+
 import {
   AlertTriangle,
   ArrowRight,
@@ -35,13 +37,15 @@ import {
   updateReturnRecord,
 } from "../lib/ordersStore";
 
+const tt = (key, options) => i18n.t(key, options);
+
 const RETURN_STATUS_OPTIONS = ["Draft", "Submitted", "Approved", "Rejected", "Returned", "Refunded"];
 const REFUND_STATUS_OPTIONS = ["pending", "processing", "refunded", "partial_refund", "rejected"];
 const REFUND_METHOD_OPTIONS = ["cash", "vodafone_cash", "instapay"];
 const RETURN_DISPOSITION_OPTIONS = [
-  { value: "restock", label: "سليم — إعادة للمخزون" },
-  { value: "manufacturing_defect", label: "عيب صناعة — حجز لمرتجع المورد" },
-  { value: "damaged", label: "تالف — لا يعاد للمخزون" },
+  { value: "restock", get label() { return tt("orders.returns.page.disposition.restock"); } },
+  { value: "manufacturing_defect", get label() { return tt("orders.returns.page.disposition.manufacturingDefect"); } },
+  { value: "damaged", get label() { return tt("orders.returns.page.disposition.damaged"); } },
 ];
 
 const text = (value = "") => String(value ?? "").trim();
@@ -91,9 +95,9 @@ const isManufacturingDefectText = (value = "") => {
     || /(?:manufacturing|factory)\s*defect/.test(normalized);
 };
 const stockDispositionLabel = (record = {}) => {
-  if (record.disposition === "manufacturing_defect") return "محجوز للمورد";
-  if (record.disposition === "damaged") return "تالف — غير معاد";
-  return record.restock ? "تمت الإعادة" : "غير معاد";
+  if (record.disposition === "manufacturing_defect") return tt("orders.returns.page.stock.reservedForSupplier");
+  if (record.disposition === "damaged") return tt("orders.returns.page.stock.damagedNotReturned");
+  return tt(record.restock ? "orders.returns.page.stock.restocked" : "orders.returns.page.stock.notRestocked");
 };
 
 const defaultFormState = {
@@ -198,7 +202,10 @@ function OrderReturnsPage() {
       .filter((record) => !localReturns.some((localRecord) => String(localRecord.orderId) === String(record.orderId) && text(localRecord.createdAt) === text(record.createdAt)));
 
     return [...localReturns, ...orderReturns].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-  }, [orderMap, orders]);
+    // language is a dependency: the normalizers bake RESOLVED label strings
+    // (returnStatusLabel, refundMethodLabel, timeline) into every record.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderMap, orders, i18n.language]);
 
   const filteredReturns = useMemo(() => {
     const query = lower(search);
@@ -233,7 +240,7 @@ function OrderReturnsPage() {
   const supplierOptions = useMemo(() => {
     const unique = new Map();
     supplierReturnItems.forEach((item) => {
-      unique.set(String(item.supplier_id || "unassigned"), item.supplier_name || "مورد غير محدد");
+      unique.set(String(item.supplier_id || "unassigned"), item.supplier_name || tt("orders.returns.page.unknownSupplier"));
     });
     return [...unique.entries()].map(([value, label]) => ({ value, label }));
   }, [supplierReturnItems]);
@@ -271,7 +278,7 @@ function OrderReturnsPage() {
 
   const openEditDrawer = (record) => {
     if (!record?.allowEdit) {
-      toast.error("يمكن تعديل المرتجعات المحلية فقط حالياً.");
+      toast.error(t("orders.returns.page.toastLocalOnly"));
       return;
     }
 
@@ -317,7 +324,7 @@ function OrderReturnsPage() {
       }));
 
     if (!items.length) {
-      toast.error("اختر منتجاً مرتجعاً واحداً على الأقل.");
+      toast.error(t("orders.returns.page.toastPickItem"));
       return;
     }
 
@@ -344,7 +351,7 @@ function OrderReturnsPage() {
       if (selectedReturn?.id === editingReturnId && updatedRecord) {
         setSelectedReturn(normalizeReturnRecord(updatedRecord, orderMap));
       }
-      toast.success("تم تحديث المرتجع.");
+      toast.success(t("orders.returns.page.toastUpdated"));
       closeFormDrawer();
       return;
     }
@@ -367,13 +374,13 @@ function OrderReturnsPage() {
 
   const handleDelete = (record) => {
     if (!record?.allowDelete) {
-      toast.error("لا يمكن حذف هذا المرتجع من هذه الواجهة.");
+      toast.error(t("orders.returns.page.toastDeleteUnavailable"));
       return;
     }
-    if (!window.confirm(`حذف المرتجع ${record.returnNumber}؟`)) return;
+    if (!window.confirm(t("orders.returns.page.confirmDelete", { number: record.returnNumber }))) return;
     deleteReturnRecord(record.id);
     if (selectedReturn?.id === record.id) setSelectedReturn(null);
-    toast.success("تم حذف المرتجع.");
+    toast.success(t("orders.returns.page.toastDeleted"));
   };
 
   const markSupplierReturnCompleted = async (itemId) => {
@@ -381,10 +388,10 @@ function OrderReturnsPage() {
       await api.patch(`/orders/supplier-returns/${itemId}/status`, { status: "returned" });
       const supplierQueue = await api.get("/orders/supplier-returns?status=all");
       setSupplierReturnItems(Array.isArray(supplierQueue?.items) ? supplierQueue.items : []);
-      toast.success("تم تسجيل تسليم القطعة للمورد.");
+      toast.success(t("orders.returns.page.toastSupplierDelivered"));
     } catch (err) {
       console.log(err);
-      toast.error("تعذر تسجيل تسليم القطعة للمورد.");
+      toast.error(t("orders.returns.page.toastSupplierDeliveryFailed"));
     }
   };
 
@@ -409,21 +416,21 @@ function OrderReturnsPage() {
       {activePanel === "customers" ? (
         <>
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="إجمالي مرتجعات العملاء" value={kpis.total} icon={RefreshCcw} accent="cyan" />
-            <KpiCard label="مرتجعات اليوم" value={kpis.today} icon={CalendarDays} accent="amber" />
-            <KpiCard label="قيمة رد الأموال" value={formatCurrency(kpis.value)} icon={Wallet} accent="emerald" />
-            <KpiCard label="تمت إعادتها للمخزون" value={kpis.restocked} icon={PackageOpen} accent="violet" />
+            <KpiCard label={t("orders.returns.page.kpi.total")} value={kpis.total} icon={RefreshCcw} accent="cyan" />
+            <KpiCard label={t("orders.returns.page.kpi.today")} value={kpis.today} icon={CalendarDays} accent="amber" />
+            <KpiCard label={t("orders.returns.page.kpi.refundValue")} value={formatCurrency(kpis.value)} icon={Wallet} accent="emerald" />
+            <KpiCard label={t("orders.returns.page.kpi.restocked")} value={kpis.restocked} icon={PackageOpen} accent="violet" />
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
             <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{t("orders.returns.customerReturns")}</div>
-                <h2 className="m1-section-title mt-1 text-white">مرتجعات العملاء</h2>
+                <h2 className="m1-section-title mt-1 text-white">{t("orders.returns.customerReturns")}</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <MiniStat label="النتائج" value={filteredReturns.length} />
-                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-[var(--radius-control)] border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>اليوم</button>
+                <MiniStat label={t("orders.returns.page.results")} value={filteredReturns.length} />
+                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-[var(--radius-control)] border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>{t("orders.returns.page.today")}</button>
               </div>
             </div>
             <ReturnsFilters search={search} setSearch={setSearch} returnStatusFilter={returnStatusFilter} setReturnStatusFilter={setReturnStatusFilter} refundStatusFilter={refundStatusFilter} setRefundStatusFilter={setRefundStatusFilter} dateFilter={dateFilter} setDateFilter={setDateFilter} />
@@ -483,8 +490,8 @@ function PageHeader({ onCreate }) {
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">{t("orders.moduleEyebrow")}</div>
-          <h1 className="m1-page-title mt-2 text-[var(--text)]">مرتجعات الطلبات</h1>
-          <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">إدارة المرتجعات والاسترداد وإعادة المخزون من نفس تجربة تشغيل الطلبات بشكل أسرع وأكثر وضوحاً.</p>
+          <h1 className="m1-page-title mt-2 text-[var(--text)]">{t("orders.returns.page.pageTitle")}</h1>
+          <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{t("orders.returns.page.pageSubtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -492,7 +499,7 @@ function PageHeader({ onCreate }) {
             className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
           >
             <ArrowRight className="h-4 w-4" />
-            العودة إلى الطلبات
+            {t("orders.returns.page.backToOrders")}
           </Link>
           <button
             type="button"
@@ -500,7 +507,7 @@ function PageHeader({ onCreate }) {
             className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-2 text-sm font-black text-white transition hover:brightness-110"
           >
             <Plus className="h-4 w-4" />
-            إنشاء مرتجع
+            {t("orders.returns.page.createReturn")}
           </button>
         </div>
       </div>
@@ -532,9 +539,10 @@ function KpiCard({ label, value, icon: Icon, accent }) {
 }
 
 function ReturnsPanelTabs({ activePanel, onChange, customerCount, supplierCount }) {
+  const { t } = useTranslation();
   const tabs = [
-    { value: "customers", label: "مرتجعات العملاء", count: customerCount, tone: "cyan" },
-    { value: "suppliers", label: "مرتجعات الموردين", count: supplierCount, tone: "amber" },
+    { value: "customers", label: t("orders.returns.customerReturns"), count: customerCount, tone: "cyan" },
+    { value: "suppliers", label: t("orders.returns.supplierReturns"), count: supplierCount, tone: "amber" },
   ];
   return (
     <div className="grid gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 md:grid-cols-2">
@@ -576,7 +584,7 @@ function SupplierReturnsPanel({
     const map = new Map();
     items.forEach((item) => {
       const key = String(item.supplier_id || "unassigned");
-      const group = map.get(key) || { supplierId: item.supplier_id || null, supplierName: item.supplier_name || "مورد غير محدد", totalQuantity: 0, totalPurchaseCost: 0, items: [] };
+      const group = map.get(key) || { supplierId: item.supplier_id || null, supplierName: item.supplier_name || tt("orders.returns.page.unknownSupplier"), totalQuantity: 0, totalPurchaseCost: 0, items: [] };
       group.totalQuantity += Number(item.quantity || 0);
       group.totalPurchaseCost += Number(item.purchase_total_cost || 0);
       group.items.push(item);
@@ -603,40 +611,40 @@ function SupplierReturnsPanel({
   return (
     <>
       <section className={`grid gap-3 md:grid-cols-2 ${showPurchaseCost ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
-        <KpiCard label="إجمالي قطع الموردين" value={summary.quantity} icon={PackageOpen} accent="amber" />
-        {showPurchaseCost ? <KpiCard label="إجمالي سعر الشراء" value={formatCurrency(summary.purchaseCost)} icon={Wallet} accent="emerald" /> : null}
-        <KpiCard label="قطع بانتظار التسليم" value={summary.pending} icon={RefreshCcw} accent="cyan" />
-        <KpiCard label="عدد الموردين" value={summary.suppliers} icon={FileText} accent="violet" />
+        <KpiCard label={t("orders.returns.page.supplierKpi.items")} value={summary.quantity} icon={PackageOpen} accent="amber" />
+        {showPurchaseCost ? <KpiCard label={t("orders.returns.page.supplierKpi.purchaseCost")} value={formatCurrency(summary.purchaseCost)} icon={Wallet} accent="emerald" /> : null}
+        <KpiCard label={t("orders.returns.page.supplierKpi.pendingDelivery")} value={summary.pending} icon={RefreshCcw} accent="cyan" />
+        <KpiCard label={t("orders.returns.page.supplierKpi.suppliers")} value={summary.suppliers} icon={FileText} accent="violet" />
       </section>
 
       <section className="rounded-2xl border border-amber-400/20 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">{t("orders.returns.supplierReturns")}</div>
-            <h2 className="m1-section-title mt-1 text-white">مرتجعات الموردين</h2>
-            <p className="mt-1 text-xs text-zinc-400">النتائج الحالية {items.length} من إجمالي {allItems.length} بند</p>
+            <h2 className="m1-section-title mt-1 text-white">{t("orders.returns.supplierReturns")}</h2>
+            <p className="mt-1 text-xs text-zinc-400">{t("orders.returns.page.currentResults", { shown: items.length, total: allItems.length })}</p>
           </div>
-          <button type="button" onClick={resetFilters} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10">مسح الفلاتر</button>
+          <button type="button" onClick={resetFilters} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10">{t("orders.returns.page.clearFilters")}</button>
         </div>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(18rem,2fr)_repeat(4,minmax(10rem,1fr))]">
           <label className="block">
-            <div className="mb-1.5 text-[11px] font-bold text-zinc-300">البحث</div>
+            <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.search")}</div>
             <div className="relative">
               <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="المنتج، المورد، رقم المرتجع أو فاتورة الشراء" className="w-full rounded-[var(--radius-control)] border border-amber-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm text-white outline-none placeholder:text-zinc-500" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("orders.returns.page.supplierSearchPlaceholder")} className="w-full rounded-[var(--radius-control)] border border-amber-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm text-white outline-none placeholder:text-zinc-500" />
             </div>
           </label>
           <label className="block">
-            <div className="mb-1.5 text-[11px] font-bold text-zinc-300">المورد</div>
+            <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.supplier")}</div>
             <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
-              <option value="all" className="bg-zinc-950">كل الموردين</option>
+              <option value="all" className="bg-zinc-950">{t("orders.returns.page.allSuppliers")}</option>
               {supplierOptions.map((option) => <option key={option.value} value={option.value} className="bg-zinc-950">{option.label}</option>)}
             </select>
           </label>
-          <FilterSelect label="الحالة" value={statusFilter} onChange={setStatusFilter} options={["pending", "returned", "cancelled"]} allLabel="كل الحالات" />
-          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">من تاريخ</div><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
-          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">إلى تاريخ</div><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
+          <FilterSelect label={t("orders.returns.page.status")} value={statusFilter} onChange={setStatusFilter} options={["pending", "returned", "cancelled"]} allLabel={t("orders.returns.page.allStatuses")} />
+          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.dateFrom")}</div><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
+          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.dateTo")}</div><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
         </div>
 
         {items.length ? (
@@ -644,12 +652,12 @@ function SupplierReturnsPanel({
             <div className="mt-3 hidden overflow-auto xl:block">
               <div className="min-w-[1180px]">
                 <div className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-center text-[10px] font-bold text-zinc-400`}>
-                  <div>الإجراء</div><div>المورد</div><div>المنتج</div><div>الكمية</div>{showPurchaseCost ? <><div>سعر الشراء</div><div>الإجمالي</div></> : null}<div>المرجع</div><div>الحالة</div><div>التاريخ</div>
+                  <div>{t("orders.returns.page.col.action")}</div><div>{t("orders.returns.page.col.supplier")}</div><div>{t("orders.returns.page.col.product")}</div><div>{t("orders.returns.page.col.quantity")}</div>{showPurchaseCost ? <><div>{t("orders.returns.page.col.purchasePrice")}</div><div>{t("orders.returns.page.col.total")}</div></> : null}<div>{t("orders.returns.page.col.reference")}</div><div>{t("orders.returns.page.col.status")}</div><div>{t("orders.returns.page.col.date")}</div>
                 </div>
                 <div className="mt-1.5 space-y-1.5">
                   {items.map((item) => (
                     <div key={item.id} className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} items-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs text-zinc-300`}>
-                      <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم</button> : <span className="text-zinc-500">—</span>}</div>
+                      <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">{t("orders.returns.page.markDelivered")}</button> : <span className="text-zinc-500">—</span>}</div>
                       <div className="truncate font-bold text-white">{item.supplier_name}</div>
                       <div><div className="font-bold text-white">{item.product_name}</div><div className="text-[10px] text-zinc-500">{[item.color, item.size].filter(Boolean).join(" / ")}</div></div>
                       <div className="font-black">{item.quantity}</div>
@@ -665,7 +673,7 @@ function SupplierReturnsPanel({
             <div className="mt-3 xl:hidden"><SupplierReturnQueue groups={groups} onMarkReturned={onMarkReturned} showPurchaseCost={showPurchaseCost} /></div>
           </>
         ) : (
-          <div className="mt-3 rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-400">لا توجد مرتجعات موردين مطابقة للفلاتر الحالية.</div>
+          <div className="mt-3 rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-400">{t("orders.returns.page.noSupplierReturns")}</div>
         )}
       </section>
     </>
@@ -673,8 +681,9 @@ function SupplierReturnsPanel({
 }
 
 function SupplierReturnStatus({ status }) {
+  const { t } = useTranslation();
   const key = lower(status);
-  const label = key === "returned" ? "تم التسليم" : key === "cancelled" ? "ملغي" : "بانتظار التسليم";
+  const label = t(key === "returned" ? "orders.returns.page.supplierStatus.returned" : key === "cancelled" ? "orders.returns.page.supplierStatus.cancelled" : "orders.returns.page.supplierStatus.pending");
   const tone = key === "returned" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : key === "cancelled" ? "border-rose-400/25 bg-rose-400/10 text-rose-100" : "border-amber-400/25 bg-amber-400/10 text-amber-100";
   return <div><span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold ${tone}`}>{label}</span></div>;
 }
@@ -686,16 +695,16 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">{t("orders.returns.supplierReturns")}</div>
-          <h2 className="m1-section-title mt-1 text-white">قطع عيوب الصناعة المطلوب إرجاعها للموردين</h2>
+          <h2 className="m1-section-title mt-1 text-white">{t("orders.returns.page.defectQueueTitle")}</h2>
         </div>
-        <MiniStat label="إجمالي القطع" value={groups.reduce((sum, group) => sum + Number(group.totalQuantity || 0), 0)} />
+        <MiniStat label={t("orders.returns.page.totalItems")} value={groups.reduce((sum, group) => sum + Number(group.totalQuantity || 0), 0)} />
       </div>
       <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
         {groups.map((group) => (
           <div key={String(group.supplierId || "unassigned")} className="rounded-2xl border border-white/10 bg-black/20 p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="font-black text-white">{group.supplierName}</div>
-              <div className="text-end"><span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-100">{group.totalQuantity} قطعة</span>{showPurchaseCost ? <div className="mt-1 text-[10px] font-bold text-zinc-400">{formatCurrency(group.totalPurchaseCost)}</div> : null}</div>
+              <div className="text-end"><span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-100">{t("orders.returns.page.pieces", { count: group.totalQuantity })}</span>{showPurchaseCost ? <div className="mt-1 text-[10px] font-bold text-zinc-400">{formatCurrency(group.totalPurchaseCost)}</div> : null}</div>
             </div>
             <div className="mt-2 space-y-1.5">
               {group.items.slice(0, 4).map((item) => (
@@ -705,11 +714,11 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
                     <div className="mt-1 text-[10px] text-zinc-500">{item.return_number || item.invoice_number || ""} · × {item.quantity}</div>
                   </div>
                   {lower(item.status) === "pending" ? (
-                    <button type="button" onClick={() => onMarkReturned(item.id)} className="shrink-0 rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم للمورد</button>
+                    <button type="button" onClick={() => onMarkReturned(item.id)} className="shrink-0 rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">{t("orders.returns.page.markDeliveredToSupplier")}</button>
                   ) : <SupplierReturnStatus status={item.status} />}
                 </div>
               ))}
-              {group.items.length > 4 ? <div className="text-[11px] text-zinc-500">+ {group.items.length - 4} بنود أخرى</div> : null}
+              {group.items.length > 4 ? <div className="text-[11px] text-zinc-500">{t("orders.returns.page.moreItems", { count: group.items.length - 4 })}</div> : null}
             </div>
           </div>
         ))}
@@ -727,6 +736,7 @@ function MiniStat({ label, value }) {
 }
 
 function ReturnsFilters(props) {
+  const { t } = useTranslation();
   const {
     search,
     setSearch,
@@ -742,23 +752,23 @@ function ReturnsFilters(props) {
     <>
       <div className="grid gap-3 xl:grid-cols-[minmax(20rem,2.4fr)_repeat(3,minmax(10rem,1fr))]">
         <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">البحث</div>
+          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.search")}</div>
           <div className="relative">
             <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="ابحث برقم الفاتورة أو العميل أو الهاتف أو رقم التتبع"
+              placeholder={t("orders.returns.page.searchPlaceholder")}
               className="w-full rounded-[var(--radius-control)] border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
             />
           </div>
         </label>
 
-        <FilterSelect label="حالة المرتجع" value={returnStatusFilter} onChange={setReturnStatusFilter} options={RETURN_STATUS_OPTIONS} allLabel="كل الحالات" />
-        <FilterSelect label="حالة الاسترداد" value={refundStatusFilter} onChange={setRefundStatusFilter} options={REFUND_STATUS_OPTIONS} allLabel="كل الحالات" />
+        <FilterSelect label={t("orders.returns.page.returnStatusFilter")} value={returnStatusFilter} onChange={setReturnStatusFilter} options={RETURN_STATUS_OPTIONS} allLabel={t("orders.returns.page.allStatuses")} />
+        <FilterSelect label={t("orders.returns.page.refundStatusFilter")} value={refundStatusFilter} onChange={setRefundStatusFilter} options={REFUND_STATUS_OPTIONS} allLabel={t("orders.returns.page.allStatuses")} />
 
         <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">التاريخ</div>
+          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.date")}</div>
           <input
             type="date"
             value={dateFilter}
@@ -788,10 +798,11 @@ function FilterSelect({ label, value, onChange, options, allLabel }) {
 }
 
 function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
+  const { t } = useTranslation();
   if (loading) {
     return (
       <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
-        جاري تحميل بيانات المرتجعات...
+        {t("orders.returns.page.loading")}
       </div>
     );
   }
@@ -800,8 +811,8 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
     return (
       <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center">
         <RefreshCcw className="mx-auto h-8 w-8 text-zinc-500" />
-        <div className="mt-3 text-lg font-black text-white">لا توجد مرتجعات مطابقة</div>
-        <div className="mt-1 text-sm text-zinc-400">جرّب تعديل البحث أو الفلاتر الحالية.</div>
+        <div className="mt-3 text-lg font-black text-white">{t("orders.returns.page.emptyTitle")}</div>
+        <div className="mt-1 text-sm text-zinc-400">{t("orders.returns.page.emptyHint")}</div>
       </div>
     );
   }
@@ -811,25 +822,25 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
       <div className="mt-3 hidden overflow-auto pb-1 xl:block">
         <div className="min-w-[1560px]">
           <div className="sticky top-0 z-20 grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl" dir={dir}>
-            <CellHeader>الإجراء</CellHeader>
-            <CellHeader>رقم المرتجع / رقم الطلب</CellHeader>
-            <CellHeader>العميل</CellHeader>
-            <CellHeader>المنتجات المرتجعة</CellHeader>
-            <CellHeader>قيمة المرتجع</CellHeader>
-            <CellHeader>حالة المرتجع</CellHeader>
-            <CellHeader>حالة الاسترداد</CellHeader>
-            <CellHeader>إعادة للمخزون</CellHeader>
-            <CellHeader>التاريخ</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.action")}</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.returnAndOrder")}</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.customer")}</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.returnedProducts")}</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.returnValue")}</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.returnStatus")}</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.refundStatus")}</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.restock")}</CellHeader>
+            <CellHeader>{t("orders.returns.page.cols.date")}</CellHeader>
           </div>
 
           <div className="mt-1.5 space-y-1.5">
             {records.map((record) => (
               <div key={record.id} className="grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] items-center rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/75 px-3 py-2 shadow-xl transition hover:border-primary/30 hover:bg-white/[0.03]" dir={dir}>
                 <div className="flex flex-wrap items-center justify-center gap-1.5 px-1 text-center">
-                  <RowAction icon={Eye} label="عرض التفاصيل" onClick={() => onView(record)} />
-                  <RowAction icon={Pencil} label="تعديل المرتجع" onClick={() => onEdit(record)} disabled={!record.allowEdit} />
-                  <RowAction icon={FileText} label="طباعة / PDF" onClick={() => window.print()} />
-                  <RowAction icon={Trash2} label={record.returnStatus === "Draft" ? "إلغاء" : "حذف"} onClick={() => onDelete(record)} disabled={!record.allowDelete} tone="danger" />
+                  <RowAction icon={Eye} label={t("orders.returns.page.action.view")} onClick={() => onView(record)} />
+                  <RowAction icon={Pencil} label={t("orders.returns.page.action.editReturn")} onClick={() => onEdit(record)} disabled={!record.allowEdit} />
+                  <RowAction icon={FileText} label={t("orders.returns.page.action.print")} onClick={() => window.print()} />
+                  <RowAction icon={Trash2} label={t(record.returnStatus === "Draft" ? "orders.returns.page.action.cancel" : "orders.returns.page.action.delete")} onClick={() => onDelete(record)} disabled={!record.allowDelete} tone="danger" />
                 </div>
                 <ReturnCodeCell record={record} />
                 <CustomerCell record={record} />
@@ -860,24 +871,24 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black text-white">{record.returnNumber}</div>
-                <div className="mt-2 text-sm font-bold text-white">{record.customerName || "عميل غير محدد"}</div>
+                <div className="mt-2 text-sm font-bold text-white">{record.customerName || tt("orders.returns.page.unknownCustomer")}</div>
                 <div className="mt-1 text-xs text-zinc-400">{record.orderNumber}</div>
               </div>
               <StatusBadge value={record.returnStatus} />
             </div>
             <div className="mt-3 text-sm text-zinc-300">{record.itemsSummary}</div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-              <InfoPill label="الاسترداد" value={formatCurrency(record.refundAmount)} />
-              <InfoPill label="المخزون" value={stockDispositionLabel(record)} />
-              <InfoPill label="حالة الاسترداد" value={record.refundStatusLabel} />
-              <InfoPill label="طريقة الاسترداد" value={record.refundMethodLabel} />
-              <InfoPill label="التاريخ" value={formatShortDate(record.createdAt)} />
+              <InfoPill label={t("orders.returns.page.pill.refund")} value={formatCurrency(record.refundAmount)} />
+              <InfoPill label={t("orders.returns.page.pill.stock")} value={stockDispositionLabel(record)} />
+              <InfoPill label={t("orders.returns.page.pill.refundStatus")} value={record.refundStatusLabel} />
+              <InfoPill label={t("orders.returns.page.pill.refundMethod")} value={record.refundMethodLabel} />
+              <InfoPill label={t("orders.returns.page.pill.date")} value={formatShortDate(record.createdAt)} />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MobileAction icon={Eye} label="عرض التفاصيل" onClick={() => onView(record)} />
-              <MobileAction icon={Pencil} label="تعديل" onClick={() => onEdit(record)} disabled={!record.allowEdit} />
+              <MobileAction icon={Eye} label={t("orders.returns.page.action.view")} onClick={() => onView(record)} />
+              <MobileAction icon={Pencil} label={t("orders.returns.page.action.edit")} onClick={() => onEdit(record)} disabled={!record.allowEdit} />
               <MobileAction icon={FileText} label="PDF" onClick={() => window.print()} />
-              <MobileAction icon={Trash2} label="حذف" onClick={() => onDelete(record)} disabled={!record.allowDelete} danger />
+              <MobileAction icon={Trash2} label={t("orders.returns.page.action.delete")} onClick={() => onDelete(record)} disabled={!record.allowDelete} danger />
             </div>
           </div>
         ))}
@@ -923,13 +934,13 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
 
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" aria-label="إغلاق" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <button type="button" aria-label={t("orders.returns.page.close")} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <section className="absolute right-0 top-0 flex h-full w-full max-w-[46rem] flex-col overflow-hidden border-l border-white/10 bg-zinc-950 text-white shadow-2xl">
         <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{mode === "edit" ? "Edit return" : "Create return"}</div>
-            <h2 className="m1-section-title mt-1">{mode === "edit" ? "تعديل المرتجع" : "إنشاء مرتجع"}</h2>
-            <p className="mt-1 text-sm text-zinc-400">نفس تدفق الإنشاء الحالي داخل drawer بدل الواجهة المنفصلة.</p>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{t(mode === "edit" ? "orders.returns.page.drawer.eyebrowEdit" : "orders.returns.page.drawer.eyebrowCreate")}</div>
+            <h2 className="m1-section-title mt-1">{t(mode === "edit" ? "orders.returns.page.drawer.editTitle" : "orders.returns.page.drawer.createTitle")}</h2>
+            <p className="mt-1 text-sm text-zinc-400">{t("orders.returns.page.drawer.subtitle")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
             <X className="h-5 w-5" />
@@ -952,7 +963,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               </select>
             </Field>
 
-            <Field label="العميل">
+            <Field label={t("orders.returns.page.field.customer")}>
               <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">{customerLabel}</div>
             </Field>
 
@@ -986,7 +997,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               />
             </Field>
 
-            <Field label="طريقة الاسترداد">
+            <Field label={t("orders.returns.page.field.refundMethod")}>
               <select
                 value={form.refundMethod}
                 onChange={(event) => setForm((current) => ({ ...current, refundMethod: event.target.value }))}
@@ -998,7 +1009,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               </select>
             </Field>
 
-            <Field label="حالة الاسترداد">
+            <Field label={t("orders.returns.page.field.refundStatus")}>
               <select
                 value={form.refundStatus}
                 onChange={(event) => setForm((current) => ({ ...current, refundStatus: event.target.value }))}
@@ -1016,7 +1027,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               </div>
             </Field>
 
-            <Field label="مصير القطعة المرتجعة">
+            <Field label={t("orders.returns.page.field.disposition")}>
               <select
                 value={form.disposition}
                 onChange={(event) => {
@@ -1128,10 +1139,10 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
 
         <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
-            إغلاق
+            {t("orders.returns.page.close")}
           </button>
           <button type="button" onClick={onSubmit} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
-            {mode === "edit" ? "حفظ التعديلات" : t("orders.returns.saveReturn")}
+            {mode === "edit" ? t("orders.returns.page.saveEdits") : t("orders.returns.saveReturn")}
           </button>
         </footer>
       </section>
@@ -1140,18 +1151,19 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
 }
 
 function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" aria-label="إغلاق" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <button type="button" aria-label={t("orders.returns.page.close")} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <section className="absolute right-0 top-0 flex h-full w-full max-w-[42rem] flex-col overflow-hidden border-l border-white/10 bg-zinc-950 text-white shadow-2xl">
         <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div className="min-w-0">
             <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black">{record.returnNumber}</div>
-            <h2 className="m1-section-title mt-2 truncate">{record.customerName || "عميل غير محدد"}</h2>
+            <h2 className="m1-section-title mt-2 truncate">{record.customerName || tt("orders.returns.page.unknownCustomer")}</h2>
             <div className="mt-2 flex flex-wrap gap-2">
               <StatusBadge value={record.returnStatus} />
               <StatusBadge value={record.refundStatusLabel} />
-              {record.restock ? <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-100">تمت الإعادة للمخزون</span> : null}
+              {record.restock ? <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-100">{t("orders.returns.page.restockedBadge")}</span> : null}
             </div>
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
@@ -1160,38 +1172,38 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <DrawerSection title="ملخص المرتجع">
+          <DrawerSection title={t("orders.returns.page.section.summary")}>
             <InfoGrid
               items={[
-                ["رقم المرتجع", record.returnNumber],
-                ["قيمة المرتجع", formatCurrency(record.refundAmount)],
-                ["حالة المرتجع", record.returnStatusLabel],
-                ["حالة الاسترداد", record.refundStatusLabel],
+                [t("orders.returns.page.info.returnNumber"), record.returnNumber],
+                [t("orders.returns.page.info.returnValue"), formatCurrency(record.refundAmount)],
+                [t("orders.returns.page.info.returnStatus"), record.returnStatusLabel],
+                [t("orders.returns.page.info.refundStatus"), record.refundStatusLabel],
               ]}
             />
           </DrawerSection>
 
-          <DrawerSection title="بيانات الطلب الأصلي">
+          <DrawerSection title={t("orders.returns.page.section.originalOrder")}>
             <InfoGrid
               items={[
-                ["رقم الطلب", record.orderNumber],
-                ["رقم التتبع", record.trackingNumber || "غير متاح"],
-                ["شركة الشحن", record.shippingProvider || "غير متاح"],
-                ["تاريخ الإنشاء", formatDateTime(record.createdAt)],
+                [t("orders.returns.page.info.orderNumber"), record.orderNumber],
+                [t("orders.returns.page.info.tracking"), record.trackingNumber || t("orders.returns.page.notAvailable")],
+                [t("orders.returns.page.info.shippingProvider"), record.shippingProvider || t("orders.returns.page.notAvailable")],
+                [t("orders.returns.page.info.createdAt"), formatDateTime(record.createdAt)],
               ]}
             />
           </DrawerSection>
 
-          <DrawerSection title="بيانات العميل">
+          <DrawerSection title={t("orders.returns.page.section.customer")}>
             <InfoGrid
               items={[
-                ["العميل", record.customerName || "غير متاح"],
-                ["الهاتف", record.customerPhone || "غير متاح"],
+                [t("orders.returns.page.info.customer"), record.customerName || t("orders.returns.page.notAvailable")],
+                [t("orders.returns.page.info.phone"), record.customerPhone || t("orders.returns.page.notAvailable")],
               ]}
             />
           </DrawerSection>
 
-          <DrawerSection title="المنتجات المرتجعة">
+          <DrawerSection title={t("orders.returns.page.section.returnedProducts")}>
             <div className="space-y-2">
               {record.items.length ? record.items.map((item) => (
                 <div key={item.key} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
@@ -1205,45 +1217,45 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
                       <div className="mt-0.5 text-[11px] text-zinc-500">{formatCurrency(item.refundAmount)}</div>
                     </div>
                   </div>
-                  {item.reason ? <div className="mt-2 text-xs text-zinc-400">السبب: {item.reason}</div> : null}
+                  {item.reason ? <div className="mt-2 text-xs text-zinc-400">{t("orders.returns.page.reasonPrefix")} {item.reason}</div> : null}
                 </div>
-              )) : <EmptyDrawerText text="لا توجد بنود مرتجعة مسجلة." />}
+              )) : <EmptyDrawerText text={t("orders.returns.page.noReturnedItemsRecorded")} />}
             </div>
           </DrawerSection>
 
-          <DrawerSection title="حركة المخزون">
+          <DrawerSection title={t("orders.returns.page.section.stockMovement")}>
             <InfoGrid
               items={[
-                ["إعادة للمخزون", stockDispositionLabel(record)],
-                ["حالة الحركة", record.restock ? "تم تنفيذ الإرجاع للمخزون" : record.disposition === "manufacturing_defect" ? "تم حجز القطعة لمرتجع المورد" : "لم يتم تنفيذ الإرجاع"],
+                [t("orders.returns.page.info.restock"), stockDispositionLabel(record)],
+                [t("orders.returns.page.info.movementStatus"), t(record.restock ? "orders.returns.page.movement.done" : record.disposition === "manufacturing_defect" ? "orders.returns.page.movement.reserved" : "orders.returns.page.movement.notDone")],
               ]}
             />
           </DrawerSection>
 
-          <DrawerSection title="الاسترداد / الدفع">
+          <DrawerSection title={t("orders.returns.page.section.refundPayment")}>
             <InfoGrid
               items={[
-                ["طريقة الاسترداد", record.refundMethodLabel],
-                ["حالة الاسترداد", record.refundStatusLabel],
-                ["المبلغ", formatCurrency(record.refundAmount)],
+                [t("orders.returns.page.info.refundMethod"), record.refundMethodLabel],
+                [t("orders.returns.page.info.refundStatus"), record.refundStatusLabel],
+                [t("orders.returns.page.info.amount"), formatCurrency(record.refundAmount)],
               ]}
             />
           </DrawerSection>
 
-          <DrawerSection title="الملاحظات / السبب">
+          <DrawerSection title={t("orders.returns.page.section.notes")}>
             <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">
-              {record.reason || "لا توجد ملاحظات إضافية."}
+              {record.reason || t("orders.returns.page.noNotes")}
             </div>
           </DrawerSection>
 
-          <DrawerSection title="الخط الزمني">
+          <DrawerSection title={t("orders.returns.page.section.timeline")}>
             <div className="space-y-3">
               {record.timeline.map((item) => (
-                <div key={item.label} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
+                <div key={item.id} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
                   <div className="mt-1 h-3 w-3 rounded-full bg-primary" />
                   <div>
                     <div className="text-sm font-black text-white">{item.label}</div>
-                    <div className="mt-0.5 text-xs text-zinc-500">{item.at ? formatDateTime(item.at) : "بدون توقيت"}</div>
+                    <div className="mt-0.5 text-xs text-zinc-500">{item.at ? formatDateTime(item.at) : t("orders.returns.page.noTimestamp")}</div>
                   </div>
                 </div>
               ))}
@@ -1253,16 +1265,16 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
 
         <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
           <button type="button" onClick={() => navigate(`/orders/${record.orderId}`)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
-            فتح الطلب الأصلي
+            {t("orders.returns.page.openOriginalOrder")}
           </button>
           <button type="button" onClick={onEdit} disabled={!record.allowEdit} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45">
-            تعديل المرتجع
+            {t("orders.returns.page.action.editReturn")}
           </button>
           <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
-            طباعة / PDF
+            {t("orders.returns.page.action.print")}
           </button>
           <button type="button" onClick={onDelete} disabled={!record.allowDelete} className="rounded-[var(--radius-control)] bg-rose-500 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">
-            {record.returnStatus === "Draft" ? "إلغاء المرتجع" : "حذف المرتجع"}
+            {t(record.returnStatus === "Draft" ? "orders.returns.page.cancelReturn" : "orders.returns.page.deleteReturn")}
           </button>
         </footer>
       </section>
@@ -1323,8 +1335,8 @@ function ReturnCodeCell({ record }) {
 function CustomerCell({ record }) {
   return (
     <div className="table-cell-stack px-2">
-      <div className="truncate text-sm font-semibold text-white">{record.customerName || "عميل غير محدد"}</div>
-      <div className="mt-1 truncate text-[11px] text-zinc-500">{record.customerPhone || "بدون هاتف"}</div>
+      <div className="truncate text-sm font-semibold text-white">{record.customerName || tt("orders.returns.page.unknownCustomer")}</div>
+      <div className="mt-1 truncate text-[11px] text-zinc-500">{record.customerPhone || tt("orders.returns.page.noPhone")}</div>
     </div>
   );
 }
@@ -1332,7 +1344,7 @@ function CustomerCell({ record }) {
 function ItemsCell({ record }) {
   return (
     <div className="table-cell-stack px-2">
-      <div className="text-center text-sm font-semibold text-white">{record.itemsCount} منتج</div>
+      <div className="text-center text-sm font-semibold text-white">{tt("orders.returns.page.itemsCount", { count: record.itemsCount })}</div>
       <div className="mt-1 text-center text-[11px] leading-5 text-zinc-400">{record.itemsSummary}</div>
     </div>
   );
@@ -1399,7 +1411,7 @@ function normalizeReturnRecord(record, orderMap) {
     const refundAmount = Number(entry.refund_amount || quantity * resolveOrderItemUnitPrice(orderItem) || 0);
     return {
       key: `${entry.orderItemId || index}-${index}`,
-      name: orderItem.product_name || orderItem.name || `منتج ${index + 1}`,
+      name: orderItem.product_name || orderItem.name || tt("orders.returns.page.productFallback", { index: index + 1 }),
       quantity,
       reason: entry.reason || "",
       refundAmount,
@@ -1450,7 +1462,7 @@ function normalizeOrderReturn(order) {
       const quantity = Number(item.returned_quantity || item.refunded_quantity || 0);
       return {
         key: `${item.id || index}-${quantity}`,
-        name: item.product_name || item.name || `منتج ${index + 1}`,
+        name: item.product_name || item.name || tt("orders.returns.page.productFallback", { index: index + 1 }),
         quantity,
         reason: text(item.return_reason || order.cancel_reason || order.notes),
         refundAmount: Number(item.refund_amount || quantity * resolveOrderItemUnitPrice(item) || 0),
@@ -1461,7 +1473,7 @@ function normalizeOrderReturn(order) {
 
   const fallbackItems = items.length ? items : orderItems.slice(0, 3).map((item, index) => ({
     key: `${item.id || index}-${index}`,
-    name: item.product_name || item.name || `منتج ${index + 1}`,
+    name: item.product_name || item.name || tt("orders.returns.page.productFallback", { index: index + 1 }),
     quantity: Number(item.returned_quantity || item.refunded_quantity || item.quantity || 1),
     reason: "",
     refundAmount: Number(item.refund_amount || 0),
@@ -1504,10 +1516,10 @@ function normalizeOrderReturn(order) {
 }
 
 function summarizeItems(items) {
-  if (!items.length) return "لا توجد بنود مرتجعة";
+  if (!items.length) return tt("orders.returns.page.noReturnedItems");
   const names = items.slice(0, 3).map((item) => item.name).filter(Boolean);
   const more = items.length > 3 ? ` +${items.length - 3}` : "";
-  return `${names.join("، ")}${more}`;
+  return `${names.join(tt("orders.returns.page.itemsSeparator"))}${more}`;
 }
 
 function inferRefundStatus(returnStatus) {
@@ -1520,19 +1532,19 @@ function inferRefundStatus(returnStatus) {
 
 function buildReturnTimeline(record, returnStatus) {
   return [
-    { label: "تم إنشاء المرتجع", at: record.createdAt },
-    { label: `حالة المرتجع: ${humanizeKey(returnStatus)}`, at: record.updatedAt || record.createdAt },
-    { label: `حالة الاسترداد: ${humanizeKey(record.refundStatus || inferRefundStatus(returnStatus))}`, at: record.updatedAt || record.createdAt },
-    record.refundMethod ? { label: `طريقة الاسترداد: ${humanizeKey(record.refundMethod)}`, at: record.updatedAt || record.createdAt } : null,
+    { id: "created", label: tt("orders.returns.page.timeline.returnCreated"), at: record.createdAt },
+    { id: "returnStatus", label: tt("orders.returns.page.timeline.returnStatus", { value: humanizeKey(returnStatus) }), at: record.updatedAt || record.createdAt },
+    { id: "refundStatus", label: tt("orders.returns.page.timeline.refundStatus", { value: humanizeKey(record.refundStatus || inferRefundStatus(returnStatus)) }), at: record.updatedAt || record.createdAt },
+    record.refundMethod ? { id: "refundMethod", label: tt("orders.returns.page.timeline.refundMethod", { value: humanizeKey(record.refundMethod) }), at: record.updatedAt || record.createdAt } : null,
   ].filter(Boolean);
 }
 
 function buildOrderTimeline(order) {
   return [
-    { label: "تم إنشاء الطلب", at: order.created_at },
-    { label: "تم تسجيل المرتجع", at: order.returned_at || order.return_completed_at || order.refunded_at || order.created_at },
-    { label: `الحالة الحالية: ${humanizeKey(order.return_status || order.status || "returned")}`, at: order.refunded_at || order.return_completed_at || order.updated_at || order.created_at },
-    order.refund_method ? { label: `طريقة الاسترداد: ${humanizeKey(order.refund_method)}`, at: order.refunded_at || order.return_completed_at || order.updated_at || order.created_at } : null,
+    { id: "created", label: tt("orders.returns.page.timeline.orderCreated"), at: order.created_at },
+    { id: "returnLogged", label: tt("orders.returns.page.timeline.returnLogged"), at: order.returned_at || order.return_completed_at || order.refunded_at || order.created_at },
+    { id: "currentStatus", label: tt("orders.returns.page.timeline.currentStatus", { value: humanizeKey(order.return_status || order.status || "returned") }), at: order.refunded_at || order.return_completed_at || order.updated_at || order.created_at },
+    order.refund_method ? { id: "refundMethod", label: tt("orders.returns.page.timeline.refundMethod", { value: humanizeKey(order.refund_method) }), at: order.refunded_at || order.return_completed_at || order.updated_at || order.created_at } : null,
   ].filter(Boolean);
 }
 
@@ -1549,25 +1561,30 @@ function buildFormReturnItems(record) {
   return next;
 }
 
+const HUMANIZED_KEYS = {
+  cash: "orders.returns.page.humanize.cash",
+  card: "orders.returns.page.humanize.card",
+  same_payment_method: "orders.returns.page.humanize.same_payment_method",
+  pending: "orders.returns.page.humanize.pending",
+  processing: "orders.returns.page.humanize.processing",
+  refunded: "orders.returns.page.humanize.refunded",
+  partial_refund: "orders.returns.page.humanize.partial_refund",
+  rejected: "orders.returns.page.humanize.rejected",
+  draft: "orders.returns.page.humanize.draft",
+  submitted: "orders.returns.page.humanize.submitted",
+  approved: "orders.returns.page.humanize.approved",
+  returned: "orders.returns.page.humanize.returned",
+};
+
+/* Brand names, never translated. */
+const BRAND_LABELS = { vodafone_cash: "Vodafone Cash", instapay: "InstaPay" };
+
 function humanizeKey(value) {
   const normalized = text(value).replace(/_/g, " ");
-  const labels = {
-    cash: "نقدي",
-    vodafone_cash: "Vodafone Cash",
-    instapay: "InstaPay",
-    card: "بطاقة",
-    same_payment_method: "نفس وسيلة الدفع",
-    pending: "قيد الانتظار",
-    processing: "قيد المعالجة",
-    refunded: "تم الاسترداد",
-    partial_refund: "استرداد جزئي",
-    rejected: "مرفوض",
-    draft: "مسودة",
-    submitted: "مرسل",
-    approved: "مقبول",
-    returned: "مرتجع",
-  };
-  return labels[lower(value)] || normalized || "غير محدد";
+  const key = lower(value);
+  if (BRAND_LABELS[key]) return BRAND_LABELS[key];
+  if (HUMANIZED_KEYS[key]) return tt(HUMANIZED_KEYS[key]);
+  return normalized || tt("orders.returns.page.humanize.unknown");
 }
 
 function formatShortDate(value) {
