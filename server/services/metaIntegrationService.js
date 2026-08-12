@@ -9974,6 +9974,31 @@ const logIncomingToInbox = async ({ message, config }) => {
     sessionId,
     message: inserted.rows[0] || null,
   });
+  // Phase 12 — the sync/backfill ingestion path must have the SAME assisted-intake semantics as the realtime
+  // webhook (see the hook near the message loop). Fire ONLY for a genuinely fresh inbound insert (the duplicate
+  // path returned above; ON CONFLICT DO NOTHING ⇒ inserted.rows[0] is null on resync/backfill, so historical
+  // re-syncs never regenerate). Reuses handleInboundMessageIntake verbatim — every gate (global capability,
+  // tenant mode, per-channel assisted, human_takeover, ai_enabled, text eligibility, idempotency lock, stale
+  // protection) lives inside it, and it only ever persists a not_sent suggestion (never sends). Failure-isolated:
+  // the customer DM is already persisted; assisted intake must never fail that. Canonical message dedupe + the
+  // intake idempotency lock guarantee ONE intake / ONE draft even if the same provider message also hits realtime.
+  if (inserted.rows[0]) {
+    try {
+      const intakeSettings = await getChannelSettings({ tenantId: config.tenant_id, channel: message.channel }).catch(() => ({}));
+      const intakeAutoReplyMode = text(intakeSettings.auto_reply_mode || (intakeSettings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
+      const { handleInboundMessageIntake } = await import("./aiInboundIntakeService.js");
+      handleInboundMessageIntake({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: sessionId,
+        canonicalMessageId: inserted.rows[0]?.id || null,
+        providerMessageId: providerMessageId || externalMessageId || "",
+        text: message.message_text || "",
+        fromMe: false,
+        autoReplyMode: intakeAutoReplyMode,
+      }).catch(() => {});
+    } catch { /* never break inbound persistence on assisted-intake failure */ }
+  }
   return { duplicate: false, session_id: sessionId, message: inserted.rows[0] || null, dedupe_key: dedupeKey };
 };
 

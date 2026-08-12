@@ -79,6 +79,41 @@ test("UI: the AI Inbox labels Instagram delivery as TEXT + product link (not a r
   assert.match(inboxSrc, /channelName=\{channelLabel\(conversation\?\.channel \|\| conversation\?\.source\)\}/);
 });
 
+// Phase 12 fix — the sync/backfill ingestion path (logIncomingToInbox) must have the SAME assisted-intake
+// semantics as the realtime webhook, so an Instagram DM that arrives via sync still produces a suggestion.
+test("sync ingestion: fires assisted intake ONLY on a genuinely fresh inbound insert", () => {
+  // the hook is guarded by inserted.rows[0] — the duplicate path returns above, and ON CONFLICT DO NOTHING
+  // yields a null row on resync/backfill, so historical re-syncs never regenerate.
+  assert.match(metaSrc, /if \(inserted\.rows\[0\]\) \{[\s\S]*?const \{ handleInboundMessageIntake \} = await import\("\.\/aiInboundIntakeService\.js"\);[\s\S]*?handleInboundMessageIntake\(\{/);
+});
+
+test("sync ingestion: duplicate / backfill insert does NOT fire intake (ON CONFLICT DO NOTHING → null row)", () => {
+  // the insert uses ON CONFLICT ... DO NOTHING and the duplicate branch returns before the hook
+  assert.match(metaSrc, /ON CONFLICT \(tenant_id, session_id, dedupe_key\) WHERE dedupe_key <> '' DO NOTHING/);
+  assert.match(metaSrc, /if \(!inserted\.rows\[0\]\) \{[\s\S]*?return \{ duplicate: true/);
+});
+
+test("sync ingestion: reuses handleInboundMessageIntake verbatim (no Instagram-specific intake)", () => {
+  // exactly two references in the whole service: the realtime webhook hook + this sync hook — both import the
+  // same function; there is no bespoke intake implementation.
+  const count = (metaSrc.match(/handleInboundMessageIntake\(\{/g) || []).length;
+  assert.equal(count, 2, "expected exactly the realtime hook + the sync hook");
+});
+
+test("sync ingestion: failure-isolated and never sends (customer DM persistence must not depend on intake)", () => {
+  assert.match(metaSrc, /try \{[\s\S]*?handleInboundMessageIntake\(\{[\s\S]*?\}\)\.catch\(\(\) => \{\}\);[\s\S]*?\} catch \{ \/\* never break inbound persistence on assisted-intake failure \*\/ \}/);
+  // fromMe:false (sync rows are customer inbound) and the resolved channel auto_reply_mode is passed, so a
+  // fully_automatic channel is still skipped by the intake's autonomous gate — the hook itself never sends.
+  assert.match(metaSrc, /fromMe: false,\s*\n\s*autoReplyMode: intakeAutoReplyMode,/);
+});
+
+test("convergence: realtime + sync same provider message ⇒ ONE intake / ONE draft", () => {
+  // canonical dedupe (shared dedupe_key) means only one path does a fresh insert; the intake idempotency lock
+  // is the backstop even if both call it.
+  const cardslessLock = read("server/services/aiInboundIntakeService.js");
+  assert.match(cardslessLock, /claimAiInboxReplyLock\(\{ tenantId, channel: `p10:\$\{channel\}`, conversationId, providerMessageId: lockKey/);
+});
+
 test("A/B + stale reuse is channel-agnostic (Instagram inherits the Messenger-proven semantics)", () => {
   // assisted approval stays ai_active; manual → human_takeover; stale guard by source_message_id — all in the
   // shared route/UI, none keyed on channel, so Instagram behaves identically.
