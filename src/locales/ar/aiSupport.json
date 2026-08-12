@@ -380,5 +380,36 @@
         "placeholder": "مثال: ردود عربية ودودة، مختصرة، بدون وعود غير مؤكدة"
       }
     }
+  },
+  "followups": {
+    "priority": {
+      "high": "مرتفعة",
+      "medium": "متوسطة",
+      "low": "منخفضة"
+    },
+    "tabs": {
+      "all": "الكل",
+      "needsReply": "يحتاج ردًا",
+      "needsFollowUp": "يحتاج متابعة",
+      "needsManager": "يحتاج مديرًا",
+      "resolved": "تم الحل"
+    },
+    "filters": {
+      "whatsapp": "WhatsApp",
+      "messenger": "Messenger",
+      "instagram": "Instagram",
+      "website": "الموقع",
+      "assignedToMe": "المسندة إليّ",
+      "unassigned": "غير مسندة",
+      "today": "اليوم"
+    },
+    "empty": "لا توجد متابعات تحتاج إجراءً الآن.",
+    "activity": "النشاط {{at}}",
+    "assigned": "مُسندة إلى: {{name}}",
+    "aiConfidence": "ثقة الذكاء الاصطناعي",
+    "expectedRevenue": "الإيراد المتوقع",
+    "notAvailable": "غير متاح",
+    "conversation": "المحادثة",
+    "viewDetails": "عرض التفاصيل"
   }
 }

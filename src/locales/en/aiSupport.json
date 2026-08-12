@@ -380,5 +380,36 @@
         "placeholder": "Example: friendly Arabic replies, concise, no uncertain promises"
       }
     }
+  },
+  "followups": {
+    "priority": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "tabs": {
+      "all": "All",
+      "needsReply": "Needs Reply",
+      "needsFollowUp": "Needs Follow-up",
+      "needsManager": "Needs Manager",
+      "resolved": "Resolved"
+    },
+    "filters": {
+      "whatsapp": "WhatsApp",
+      "messenger": "Messenger",
+      "instagram": "Instagram",
+      "website": "Website",
+      "assignedToMe": "Assigned to me",
+      "unassigned": "Unassigned",
+      "today": "Today"
+    },
+    "empty": "No follow-ups need action right now.",
+    "activity": "Activity {{at}}",
+    "assigned": "Assigned: {{name}}",
+    "aiConfidence": "AI confidence",
+    "expectedRevenue": "Expected revenue",
+    "notAvailable": "Not available",
+    "conversation": "Conversation",
+    "viewDetails": "View details"
   }
 }

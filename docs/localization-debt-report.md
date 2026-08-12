@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 149
+- Files with debt: 148
 - Hardcoded Arabic UI strings: 1704
-- Hardcoded English UI strings: 1414
-- Total hardcoded UI strings: 3118
+- Hardcoded English UI strings: 1387
+- Total hardcoded UI strings: 3091
 - Mixed-language files (both scripts hardcoded): 40
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 79 | 1148 | 1017 | 2165 | 26 |
+| main-erp | 78 | 1148 | 990 | 2138 | 26 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -1183,36 +1183,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 899 [jsx-text/en] Add one or more ERP products from the search panel.
 - 939 [jsx-text/en] Price
 - 956 [jsx-text/en] Primary
-
-### src/modules/aiSupport/pages/AiFollowups.jsx (main-erp — ar:0 en:27)
-
-- 72 [object-key/en] High
-- 73 [object-key/en] Low
-- 74 [object-key/en] Medium
-- 90 [object-key/en] All
-- 91 [object-key/en] Needs Reply
-- 92 [object-key/en] Needs Follow-up
-- 93 [object-key/en] Needs Manager
-- 94 [object-key/en] Resolved
-- 100 [object-key/en] Website
-- 101 [object-key/en] Assigned to me
-- 102 [object-key/en] Unassigned
-- 103 [object-key/en] Today
-- 182 [jsx-text/en] Activity
-- 186 [jsx-text/en] Assigned:
-- 200 [jsx-text/en] AI confidence
-- 205 [jsx-text/en] AI confidence
-- 206 [jsx-text/en] Not available
-- 211 [jsx-text/en] Expected revenue
-- 216 [jsx-text/en] Expected revenue
-- 217 [jsx-text/en] Not available
-- 221 [jsx-text/en] Conversation
-- 263 [jsx-text/en] View details
-- 534 [attribute/en] All
-- 535 [attribute/en] Needs Reply
-- 536 [attribute/en] Needs Follow-up
-- 537 [attribute/en] Needs Manager
-- 538 [attribute/en] Resolved
 
 ### src/pages/AppShellPreview.jsx (main-erp — ar:25 en:2)
 
