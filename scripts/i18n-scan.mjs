@@ -195,7 +195,23 @@ const NOTIFY_RE =
   /\b(?:toast|notify)\s*(?:\.\s*(?:success|error|info|warning|loading|message|warn))?\s*\(\s*(?:"([^"\n]*)"|'([^'\n]*)'|`([^`\n$]*)`)/g;
 const DIALOG_RE =
   /\b(?:window\s*\.\s*)?(?:confirm|alert|prompt)\s*\(\s*(?:"([^"\n]*)"|'([^'\n]*)'|`([^`\n$]*)`)/g;
-const JSX_TEXT_RE = />([^<>{}\n]*[A-Za-z\u0600-\u06FF][^<>{}\n]*)</g;
+/**
+ * JSX text nodes.
+ *
+ * The text run may END at `{` as well as at `<`, so that the extremely common
+ * "label followed by an interpolation" shape is counted:
+ *
+ *   <div>\u0627\u0644\u0625\u064A\u0631\u0627\u062F: {formatCurrency(x)}</div>
+ *
+ * The previous form required the whole run to be brace-free, so every such node
+ * was skipped and the file reported zero debt while leaking real chrome.
+ *
+ * The opening `>` must genuinely close a JSX tag: it has to follow an
+ * identifier, quote, `}`, `]` or `/`, and must not be part of `=>` or `>=`.
+ * Without that anchor a plain comparison like `if (a > b) {` matches and the
+ * metric fills with false positives.
+ */
+const JSX_TEXT_RE = /(?<=[A-Za-z0-9_"'}\])\/])>(?!=)([^<>{}\n]*[A-Za-z\u0600-\u06FF][^<>{}\n]*)[<{]/g;
 const TERNARY_LOCALE_RE =
   /\b(?:isArabic|isAr|isRtl|isRTL|lang|language|locale|currentLanguage)\b[^\n;]{0,40}\?\s*(?:"[^"\n]*"|'[^'\n]*'|`[^`\n$]*`)\s*:\s*(?:"[^"\n]*"|'[^'\n]*'|`[^`\n$]*`)/g;
 

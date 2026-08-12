@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1902,
-    "english": 2546,
-    "total": 4448,
-    "mixedFiles": 51
+    "arabic": 2042,
+    "english": 2647,
+    "total": 4689,
+    "mixedFiles": 56
   },
   "files": {
     "src/App.jsx": {
@@ -19,13 +19,13 @@
     },
     "src/components/ai/AILiveLogs.jsx": {
       "arabic": 0,
-      "english": 2,
-      "total": 2
+      "english": 3,
+      "total": 3
     },
     "src/components/ai/AISuggestedReplies.jsx": {
       "arabic": 1,
-      "english": 0,
-      "total": 1
+      "english": 4,
+      "total": 5
     },
     "src/components/dashboard/CommandCenterDashboard.jsx": {
       "arabic": 0,
@@ -87,15 +87,25 @@
       "english": 0,
       "total": 13
     },
+    "src/modules/accounting/pages/CostFixCenter.jsx": {
+      "arabic": 0,
+      "english": 1,
+      "total": 1
+    },
     "src/modules/accounting/pages/Expenses.jsx": {
       "arabic": 23,
-      "english": 3,
-      "total": 26
+      "english": 4,
+      "total": 27
     },
     "src/modules/accounting/pages/FinancialReports.jsx": {
       "arabic": 140,
       "english": 3,
       "total": 143
+    },
+    "src/modules/accounting/pages/Treasury.jsx": {
+      "arabic": 1,
+      "english": 0,
+      "total": 1
     },
     "src/modules/aiStudio/components/AiStudioNav.jsx": {
       "arabic": 0,
@@ -104,8 +114,8 @@
     },
     "src/modules/aiStudio/components/editor/ExecutionDrawer.jsx": {
       "arabic": 0,
-      "english": 10,
-      "total": 10
+      "english": 11,
+      "total": 11
     },
     "src/modules/aiStudio/components/editor/NodeConfigPanel.jsx": {
       "arabic": 0,
@@ -119,8 +129,8 @@
     },
     "src/modules/aiStudio/components/editor/NodePalette.jsx": {
       "arabic": 0,
-      "english": 1,
-      "total": 1
+      "english": 2,
+      "total": 2
     },
     "src/modules/aiStudio/components/editor/WorkflowCanvas.jsx": {
       "arabic": 0,
@@ -139,23 +149,23 @@
     },
     "src/modules/aiStudio/pages/AiStudio.jsx": {
       "arabic": 0,
-      "english": 52,
-      "total": 52
+      "english": 53,
+      "total": 53
     },
     "src/modules/aiStudio/pages/AiStudioApprovals.jsx": {
       "arabic": 0,
-      "english": 8,
-      "total": 8
+      "english": 9,
+      "total": 9
     },
     "src/modules/aiStudio/pages/AiStudioExecutions.jsx": {
       "arabic": 0,
-      "english": 10,
-      "total": 10
+      "english": 11,
+      "total": 11
     },
     "src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx": {
       "arabic": 1,
-      "english": 58,
-      "total": 59
+      "english": 69,
+      "total": 70
     },
     "src/modules/aiStudio/pages/AiStudioTools.jsx": {
       "arabic": 0,
@@ -169,33 +179,33 @@
     },
     "src/modules/aiStudio/pages/AiStudioWorkflows.jsx": {
       "arabic": 0,
-      "english": 16,
-      "total": 16
+      "english": 18,
+      "total": 18
     },
     "src/modules/aiSupport/components/AIInboxAnalysisPanel.jsx": {
       "arabic": 0,
-      "english": 3,
-      "total": 3
+      "english": 5,
+      "total": 5
     },
     "src/modules/aiSupport/components/Customer360Drawer.jsx": {
       "arabic": 5,
-      "english": 42,
-      "total": 47
+      "english": 44,
+      "total": 49
     },
     "src/modules/aiSupport/components/ProductCardMessage.jsx": {
-      "arabic": 1,
+      "arabic": 5,
       "english": 0,
-      "total": 1
+      "total": 5
     },
     "src/modules/aiSupport/components/ProductCardPicker.jsx": {
-      "arabic": 23,
-      "english": 9,
-      "total": 32
+      "arabic": 28,
+      "english": 10,
+      "total": 38
     },
     "src/modules/aiSupport/components/PwaOrderComposer.jsx": {
-      "arabic": 18,
+      "arabic": 19,
       "english": 1,
-      "total": 19
+      "total": 20
     },
     "src/modules/aiSupport/components/socialAutomation/automationEngine.js": {
       "arabic": 0,
@@ -229,23 +239,23 @@
     },
     "src/modules/aiSupport/components/socialAutomation/PostProductLinksDrawer.jsx": {
       "arabic": 0,
-      "english": 25,
-      "total": 25
+      "english": 28,
+      "total": 28
     },
     "src/modules/aiSupport/components/socialAutomation/SocialAutomationDrawer.jsx": {
       "arabic": 0,
-      "english": 16,
-      "total": 16
+      "english": 17,
+      "total": 17
     },
     "src/modules/aiSupport/components/SocialCommentsPanel.jsx": {
       "arabic": 0,
-      "english": 11,
-      "total": 11
+      "english": 12,
+      "total": 12
     },
     "src/modules/aiSupport/components/SocialCommentsWorkspace.jsx": {
       "arabic": 6,
-      "english": 69,
-      "total": 75
+      "english": 75,
+      "total": 81
     },
     "src/modules/aiSupport/components/socialCommentTimeline.jsx": {
       "arabic": 0,
@@ -258,16 +268,6 @@
       "total": 25
     },
     "src/modules/aiSupport/copilot/SuggestionEngine.ts": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
-    "src/modules/aiSupport/core/plugins/Plugin.ts": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
-    "src/modules/aiSupport/core/plugins/PluginContext.ts": {
       "arabic": 0,
       "english": 1,
       "total": 1
@@ -304,23 +304,23 @@
     },
     "src/modules/aiSupport/pages/AiFollowups.jsx": {
       "arabic": 0,
-      "english": 25,
-      "total": 25
+      "english": 27,
+      "total": 27
     },
     "src/modules/aiSupport/pages/AiInbox.jsx": {
-      "arabic": 148,
-      "english": 253,
-      "total": 401
+      "arabic": 157,
+      "english": 260,
+      "total": 417
     },
     "src/modules/aiSupport/pages/AiInboxPwa.jsx": {
-      "arabic": 56,
-      "english": 70,
-      "total": 126
+      "arabic": 60,
+      "english": 69,
+      "total": 129
     },
     "src/modules/aiSupport/pages/AiSettings.jsx": {
-      "arabic": 5,
-      "english": 45,
-      "total": 50
+      "arabic": 7,
+      "english": 48,
+      "total": 55
     },
     "src/modules/aiSupport/pages/AiSupportConsole.jsx": {
       "arabic": 10,
@@ -328,14 +328,14 @@
       "total": 45
     },
     "src/modules/aiSupport/pages/AiSupportKnowledgeBase.jsx": {
-      "arabic": 26,
+      "arabic": 29,
       "english": 0,
-      "total": 26
+      "total": 29
     },
     "src/modules/aiSupport/pages/MetaReviewerInbox.jsx": {
       "arabic": 0,
-      "english": 8,
-      "total": 8
+      "english": 9,
+      "total": 9
     },
     "src/modules/aiSupport/utils/crm/crmIntelligence.ts": {
       "arabic": 0,
@@ -359,8 +359,8 @@
     },
     "src/modules/analytics/pages/AnalyticsDashboard.jsx": {
       "arabic": 0,
-      "english": 46,
-      "total": 46
+      "english": 47,
+      "total": 47
     },
     "src/modules/attendance/components/AttendanceCenter.jsx": {
       "arabic": 64,
@@ -372,10 +372,15 @@
       "english": 0,
       "total": 12
     },
+    "src/modules/attendance/pages/AttendanceDashboard.jsx": {
+      "arabic": 1,
+      "english": 0,
+      "total": 1
+    },
     "src/modules/attendance/pages/AttendanceReports.jsx": {
       "arabic": 0,
-      "english": 39,
-      "total": 39
+      "english": 41,
+      "total": 41
     },
     "src/modules/attendance/pages/PublicBranchAttendance.jsx": {
       "arabic": 0,
@@ -439,8 +444,8 @@
     },
     "src/modules/employees/lib/employeeAnalyticsExport.js": {
       "arabic": 0,
-      "english": 19,
-      "total": 19
+      "english": 22,
+      "total": 22
     },
     "src/modules/employees/pages/ActivityLogs.jsx": {
       "arabic": 0,
@@ -458,34 +463,54 @@
       "total": 7
     },
     "src/modules/employees/pages/EmployeePayrollPortal.jsx": {
-      "arabic": 34,
+      "arabic": 41,
       "english": 8,
-      "total": 42
+      "total": 49
+    },
+    "src/modules/employees/pages/EmployeePortal.jsx": {
+      "arabic": 2,
+      "english": 0,
+      "total": 2
     },
     "src/modules/employees/pages/EmployeePortalInventory.jsx": {
-      "arabic": 0,
+      "arabic": 3,
       "english": 7,
-      "total": 7
+      "total": 10
     },
     "src/modules/employees/pages/EmployeePortalProducts.jsx": {
       "arabic": 0,
-      "english": 15,
-      "total": 15
+      "english": 18,
+      "total": 18
     },
     "src/modules/employees/pages/StaffTasks.jsx": {
       "arabic": 7,
-      "english": 1,
-      "total": 8
+      "english": 2,
+      "total": 9
     },
     "src/modules/inventory/pages/InventoryCount.jsx": {
-      "arabic": 0,
-      "english": 7,
-      "total": 7
+      "arabic": 16,
+      "english": 3,
+      "total": 19
     },
     "src/modules/inventory/pages/InventoryDashboard.jsx": {
       "arabic": 20,
       "english": 0,
       "total": 20
+    },
+    "src/modules/inventory/pages/StockAdjustments.jsx": {
+      "arabic": 14,
+      "english": 0,
+      "total": 14
+    },
+    "src/modules/inventory/pages/StockMovements.jsx": {
+      "arabic": 3,
+      "english": 0,
+      "total": 3
+    },
+    "src/modules/inventory/pages/StockTransfers.jsx": {
+      "arabic": 1,
+      "english": 0,
+      "total": 1
     },
     "src/modules/inventory/pages/WarehousesDashboard.jsx": {
       "arabic": 15,
@@ -504,8 +529,8 @@
     },
     "src/modules/loyalty/pages/LoyaltyDashboard.jsx": {
       "arabic": 0,
-      "english": 20,
-      "total": 20
+      "english": 24,
+      "total": 24
     },
     "src/modules/loyalty/pages/LoyaltyRules.jsx": {
       "arabic": 0,
@@ -513,14 +538,14 @@
       "total": 9
     },
     "src/modules/managerPortal/pages/InventoryApprovals.jsx": {
-      "arabic": 0,
-      "english": 2,
+      "arabic": 2,
+      "english": 0,
       "total": 2
     },
     "src/modules/managerPortal/pages/ManagerPortal.jsx": {
-      "arabic": 0,
+      "arabic": 33,
       "english": 12,
-      "total": 12
+      "total": 45
     },
     "src/modules/marketing/components/MarketingCampaignAnalyticsPanel.jsx": {
       "arabic": 0,
@@ -534,8 +559,8 @@
     },
     "src/modules/marketing/components/PostEditorModal.jsx": {
       "arabic": 6,
-      "english": 11,
-      "total": 17
+      "english": 15,
+      "total": 21
     },
     "src/modules/marketing/components/socialAiCopy.js": {
       "arabic": 0,
@@ -547,20 +572,15 @@
       "english": 12,
       "total": 17
     },
-    "src/modules/marketing/lib/suggestedFirstComment.js": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
     "src/modules/marketing/pages/AiLeadCenter.jsx": {
       "arabic": 0,
-      "english": 44,
-      "total": 44
+      "english": 45,
+      "total": 45
     },
     "src/modules/marketing/pages/AiMarketingCenter.jsx": {
-      "arabic": 36,
-      "english": 57,
-      "total": 93
+      "arabic": 38,
+      "english": 65,
+      "total": 103
     },
     "src/modules/marketing/pages/AiMarketingVideos.jsx": {
       "arabic": 14,
@@ -568,9 +588,9 @@
       "total": 59
     },
     "src/modules/marketing/pages/MarketingSettings.jsx": {
-      "arabic": 59,
-      "english": 21,
-      "total": 80
+      "arabic": 63,
+      "english": 23,
+      "total": 86
     },
     "src/modules/marketing/pages/PostTemplates.jsx": {
       "arabic": 0,
@@ -584,8 +604,8 @@
     },
     "src/modules/marketing/pages/SocialMediaPublisher.jsx": {
       "arabic": 10,
-      "english": 28,
-      "total": 38
+      "english": 30,
+      "total": 40
     },
     "src/modules/marketing/pages/SocialPosts.jsx": {
       "arabic": 0,
@@ -608,9 +628,9 @@
       "total": 1
     },
     "src/modules/orders/pages/OrderReturnsPage.jsx": {
-      "arabic": 94,
+      "arabic": 96,
       "english": 4,
-      "total": 98
+      "total": 100
     },
     "src/modules/orders/pages/OrdersDashboard.jsx": {
       "arabic": 30,
@@ -653,9 +673,9 @@
       "total": 40
     },
     "src/modules/pos/components/RecentOperationsDrawer.jsx": {
-      "arabic": 60,
+      "arabic": 62,
       "english": 2,
-      "total": 62
+      "total": 64
     },
     "src/modules/pos/components/SmartPosFilters.jsx": {
       "arabic": 20,
@@ -669,8 +689,8 @@
     },
     "src/modules/pos/pages/POSPro.jsx": {
       "arabic": 73,
-      "english": 106,
-      "total": 179
+      "english": 112,
+      "total": 185
     },
     "src/modules/products/components/ArticleCodeMultiInput.jsx": {
       "arabic": 1,
@@ -693,9 +713,9 @@
       "total": 10
     },
     "src/modules/products/components/ProductForm.jsx": {
-      "arabic": 9,
+      "arabic": 10,
       "english": 0,
-      "total": 9
+      "total": 10
     },
     "src/modules/products/components/ProductsShell.jsx": {
       "arabic": 1,
@@ -722,15 +742,10 @@
       "english": 0,
       "total": 3
     },
-    "src/modules/products/lib/variantBulkSizes.js": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
     "src/modules/products/pages/BarcodeLabels.jsx": {
       "arabic": 4,
-      "english": 1,
-      "total": 5
+      "english": 7,
+      "total": 11
     },
     "src/modules/products/pages/CreateProduct.jsx": {
       "arabic": 7,
@@ -748,19 +763,19 @@
       "total": 16
     },
     "src/modules/products/pages/ProductPrintList.jsx": {
-      "arabic": 13,
-      "english": 1,
-      "total": 14
+      "arabic": 15,
+      "english": 2,
+      "total": 17
     },
     "src/modules/products/pages/ProductsList.jsx": {
-      "arabic": 16,
+      "arabic": 18,
       "english": 0,
-      "total": 16
+      "total": 18
     },
     "src/modules/purchases/pages/PurchaseOrder.jsx": {
       "arabic": 44,
-      "english": 4,
-      "total": 48
+      "english": 8,
+      "total": 52
     },
     "src/modules/purchases/pages/ReorderSuggestions.jsx": {
       "arabic": 0,
@@ -833,9 +848,9 @@
       "total": 9
     },
     "src/modules/sales/pages/Customers.jsx": {
-      "arabic": 0,
+      "arabic": 7,
       "english": 3,
-      "total": 3
+      "total": 10
     },
     "src/modules/sales/pages/InvoicesLegacy.jsx": {
       "arabic": 6,
@@ -849,8 +864,8 @@
     },
     "src/modules/settings/pages/SettingsCenter.jsx": {
       "arabic": 58,
-      "english": 100,
-      "total": 158
+      "english": 106,
+      "total": 164
     },
     "src/modules/shipping/pages/ShippingCenter.jsx": {
       "arabic": 0,
@@ -859,13 +874,13 @@
     },
     "src/modules/smartWarehouse/pages/SmartWarehouse.jsx": {
       "arabic": 0,
-      "english": 58,
-      "total": 58
+      "english": 59,
+      "total": 59
     },
     "src/modules/warehouse/pages/WarehouseLivePicks.jsx": {
-      "arabic": 8,
+      "arabic": 12,
       "english": 0,
-      "total": 8
+      "total": 12
     },
     "src/modules/website/pages/WebsiteSettings.jsx": {
       "arabic": 2,
@@ -884,8 +899,8 @@
     },
     "src/pages/Branches.jsx": {
       "arabic": 0,
-      "english": 8,
-      "total": 8
+      "english": 9,
+      "total": 9
     },
     "src/pages/ComponentsPreview.jsx": {
       "arabic": 58,
@@ -904,8 +919,8 @@
     },
     "src/pages/Dashboard.jsx": {
       "arabic": 140,
-      "english": 13,
-      "total": 153
+      "english": 12,
+      "total": 152
     },
     "src/pages/DashboardPrototype.jsx": {
       "arabic": 57,
@@ -919,8 +934,8 @@
     },
     "src/pages/PublicProduct.jsx": {
       "arabic": 0,
-      "english": 3,
-      "total": 3
+      "english": 6,
+      "total": 6
     },
     "src/pages/Sales.jsx": {
       "arabic": 0,
@@ -953,9 +968,9 @@
       "total": 14
     },
     "src/shared/chat/SharedPortalChat.jsx": {
-      "arabic": 13,
+      "arabic": 14,
       "english": 0,
-      "total": 13
+      "total": 14
     },
     "src/shared/components/mobile/ResponsiveMobile.jsx": {
       "arabic": 0,
@@ -1008,9 +1023,9 @@
       "total": 7
     },
     "src/shared/utils/invoicePdf.js": {
-      "arabic": 21,
+      "arabic": 23,
       "english": 0,
-      "total": 21
+      "total": 23
     },
     "src/shared/utils/printLocalization.js": {
       "arabic": 0,
