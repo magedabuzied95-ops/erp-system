@@ -1433,7 +1433,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
             <InfoTile icon={User} label={t("orders.drawer.customer")} value={getCustomerDisplayName(order, t("orders.fallback.walkInCustomer"))} />
             <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
             <InfoTile icon={User} label="البائع" value={getSellerDisplayName(order) || "غير متاح"} />
-            <InfoTile icon={CreditCard} label="الدفع" value={`${order.payment_method || "غير متاح"} · ${paymentBadgeValue(order)}`} />
+            <InfoTile icon={CreditCard} label="الدفع" value={getPaymentSummary(order, "ar").label} />
             {order.refund_method ? <InfoTile icon={RotateCcw} label="\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f" value={refundMethodLabel(order.refund_method)} /> : null}
             <InfoTile icon={Truck} label="الشحن" value={`${order.shipping_provider || "يدوي"} · ${order.shipping_status || "قيد الانتظار"}`} />
             <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
@@ -1529,7 +1529,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
           <InfoTile icon={User} label={t("orders.drawer.customer")} value={customerName} />
           <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
           <InfoTile icon={User} label="البائع" value={sellerName || "غير متاح"} />
-          <InfoTile icon={CreditCard} label="الدفع" value={`${order.payment_method || "غير متاح"} / ${paymentBadgeValue(order)}`} />
+          <InfoTile icon={CreditCard} label="الدفع" value={getPaymentSummary(order, "ar").label} />
           {order.refund_method ? <InfoTile icon={RotateCcw} label="\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f" value={refundMethodLabel(order.refund_method)} /> : null}
           <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
           {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="دفع تعديل الفاتورة" value={`المدفوع الأصلي: ${formatCurrency(editOriginalPaidOf(order))} / المدفوع الإضافي: ${formatCurrency(editAdditionalPaidOf(order))} / الإجمالي النهائي: ${formatCurrency(totalValue(order))}`} /> : null}

@@ -96,7 +96,7 @@ const resolveCollectedPaymentMethod = (order = {}) => {
   const methods = normalizeInvoicePaymentBreakdown(
     order.payment_breakdown ?? order.paymentBreakdown ?? order.payments
   ).map((payment) => payment.method);
-  if (methods.length > 1) return "split";
+  if (methods.length > 1) return "mixed";
   return methods[0] || firstText(order.collected_payment_method, order.actual_payment_method, order.totals?.collected_payment_method, order.payment_method, order.totals?.payment_method);
 };
 

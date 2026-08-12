@@ -14,6 +14,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 3b | Residual dark gradient hero on `/marketing/settings` | -> `2fa8eb3` | `0278020` | `0278020` verified Light + Dark | build green |
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 | 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
+| 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | `cfdbb72` | `cfdbb72` verified (see note) | build green |
 
 ## Method
 
@@ -458,6 +459,82 @@ solid red fill — the same protection applied to `#1877f2` in checkpoint 3.
 State: **FIXED_VERIFIED (light + dark, RTL)**. Change confined to one page file;
 no shared component or CSS touched, so frozen references are unaffected.
 
+## Session 5 — Phase 1: ID-bound detail routes
+
+IDs were harvested **read-only**: order IDs from rendered table text, and
+supplier/customer/purchase/product/workflow IDs from the same authenticated GET
+list endpoints the pages already call. No records created, no data modified, no
+forms submitted.
+
+Measured on Production at `fbacc5b` (Light / Arabic RTL). The auditor also
+checks horizontal overflow (`scrollWidth > clientWidth`) and body overflow.
+
+| Route | Record | Offenders | Overflow | Page title | State |
+|---|---|---|---|---|---|
+| `/orders/365` | order 365 | 0 | none | 22px | PARTIAL_PASS (light/rtl) |
+| `/suppliers/6` | supplier 6 | 0 | none | 22px | PARTIAL_PASS (light/rtl) |
+| `/purchases/92` | PO 92 | 0 | none | 22px | PARTIAL_PASS (light/rtl) |
+| `/suppliers/6/statement` | supplier 6 | 0 | none | 22px | PARTIAL_PASS (light/rtl) |
+| `/customers/3176/statement` | customer 3176 | 0 | none | — | PARTIAL_PASS (light/rtl) |
+| `/products/740` | product 740 | 0 | none | 30px | PARTIAL_PASS (light/rtl) |
+| `/loyalty/customers/3176` | customer 3176 | **3** | none | 22px | **FIXED (cp6)** |
+
+### BLOCKED — `/ai-studio/workflows/:id/edit`
+
+**BLOCKED_NO_RENDER.** Proof: on a clean full navigation (no `__m1_reload`
+param) the route mounts nothing — `#root.childElementCount === 0`,
+`document.body.innerText.length === 0`, no `.m1-shell-content`, and **no console
+errors**, after a 9s settle. Reproduced on **two different valid workflow IDs
+(11 and 10)** harvested from the list API, so it is not record-specific. The
+list route `/ai-studio/workflows` renders normally (281 nodes).
+
+There is nothing rendered to audit, and a non-mounting route is a functional
+failure rather than a presentation defect, so it is **not** fixed here (that
+would also mean touching AI Studio behaviour, which is outside the presentation
+freeze). Flagged for separate investigation.
+
+### Deep-link mount anomaly (auditor/environment note)
+
+`/inventory/count` also rendered an empty root under a **direct full page load**
+in this session, yet audited normally earlier via SPA `pushState` navigation
+(0 offenders, settled). So some deep routes appear not to mount on a cold
+direct load while working under in-app navigation. This is recorded as an
+observation, not a convergence defect; `/inventory/count/:id` and
+`/inventory/variant/:id/history` remain **PENDING** because no record ID could be
+harvested (`inventory-counts`, `inventory/counts`, `stock-counts` and
+`inventory-count` list endpoints all return 404).
+
+### 6. Loyalty module — fixed-dark surfaces in Light (checkpoint 6)
+
+**Measured in Light:** `/loyalty/customers/3176` 3 offenders,
+`/loyalty` **5** offenders (a 1937 x 132 header and a 1148 x 654 panel),
+`/loyalty/rules` 3 offenders — all `bg-[#0b1220]`, computed `rgb(11,18,32)`,
+luminance **0.006**.
+
+**Why this was missed earlier:** `/loyalty` and `/loyalty/rules` were recorded
+in session 3 as "0 offenders" — but that sweep ran in **Dark only**, where a
+`#0b1220` panel is unremarkable. The defect is Light-specific. This is a direct
+vindication of the rule that a single-theme sweep is PARTIAL_PASS and must never
+be promoted to PASS.
+
+**Owners repaired:** `CustomerLoyaltyProfile.jsx`, `LoyaltyDashboard.jsx`,
+`LoyaltyRules.jsx`. Residual off-system chrome across the module: **0**.
+Diff is 70 insertions / 70 deletions, class strings only (including the tier
+badge palettes, whose `text-slate-100` was a dark-theme-only value).
+
+**Checkpoint 6 production verification (Production `cfdbb72`):**
+
+| Route | Light before | Light after | Dark after |
+|---|---|---|---|
+| `/loyalty` | 5 offenders | **0** | not re-measured post-fix (was 0 pre-fix; defect was Light-only) |
+| `/loyalty/rules` | 3 offenders | **0** | **0** |
+| `/loyalty/customers/3176` | 3 offenders | **0** | **0** |
+
+Shell in Light `rgb(234,231,224)` = `--bg`; in Dark `rgb(19,18,17)` = `--bg`.
+Two of the three routes are **FIXED_VERIFIED (light + dark)**. `/loyalty` is
+**FIXED (light verified, dark pending re-measure)** — recorded honestly rather
+than assumed from the identical token substitution applied to all three files.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
@@ -512,21 +589,36 @@ an explicit ruling rather than an autonomous change. Observed spread:
 
 ## RESUME MARKER
 
-/products/variants was audited clean in Dark after checkpoint 4.
+**Phase 1 (ID-bound routes) is complete except two records that do not exist /
+one route that does not render:**
 
-**The static pending route queue is EXHAUSTED.**
+- `/inventory/count/:id` and `/inventory/variant/:id/history` — **PENDING**, no
+  record ID obtainable read-only (all four candidate list endpoints 404). Next
+  attempt: harvest via in-app SPA navigation into `/inventory/count` and read a
+  rendered session row, rather than a cold direct load.
+- `/ai-studio/workflows/:id/edit` — **BLOCKED_NO_RENDER** (proof recorded above).
 
-Next: the dedicated completion sweep, in this order — (1) approved 22px
-page-title convergence, (2) remaining PARTIAL_PASS routes, (3) missing
-Light/Dark verification, (4) RTL/LTR verification, (5) re-verification of any
-route touched by a shared-owner change. The only routes still un-audited are the
-ID-bound detail routes listed in the Session 4 section, which need live record
-IDs harvested from their list pages.
-The marketing fixes were verified in both themes, so those routes are
-`FIXED_VERIFIED` rather than partial.
+Also re-measure `/loyalty` in Dark on cfdbb72 (one call) to close checkpoint 6.
 
-Do not re-audit routes already marked PASS/FIXED unless a later shared change
-touches them.
+**Next: Phase 2 — typography convergence** against the approved 22px ruling.
+Trace and converge the page-title owner on exactly these three routes:
+
+1. `/marketing/analytics` — 44px
+2. `/marketing/social-calendar` — 37px
+3. `/marketing/social-media-publisher` — 37px
+
+`/marketing/automation` already measures 22px and must NOT be touched.
+Do NOT globally replace `.m1-display` — it has legitimate hero/display consumers.
+Verify after: title computes 22px, hierarchy intact, no spacing regression,
+Light + Dark, RTL + LTR.
+
+Then Phase 3 (PARTIAL_PASS completion — run only the missing states per route),
+Phase 4 (`/products/labels` bounded verification -> PASS_BOUNDED), Phase 5
+(final frozen-reference sweep).
+
+**Phase 3 priority warning:** the loyalty module proved that a single-theme
+sweep hides real defects — `/loyalty` measured 0 offenders in Dark and 5 in
+Light. Treat every Dark-only or Light-only row as genuinely unverified.
 
 ### Remaining queue (PENDING)
 

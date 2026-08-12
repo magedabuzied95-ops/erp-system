@@ -19,6 +19,7 @@ import { getCurrentUser, getUserRole, hasPermission } from "../../../shared/auth
 import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../../../shared/lib/invoiceItemImages";
 import { formatCurrency } from "../lib/posUtils";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
+import { formatOrderPaymentMethods } from "../../../../shared/paymentMethods";
 
 const DEFAULT_EDIT_LOCK_HOURS = Number(import.meta.env.VITE_POS_INVOICE_EDIT_LOCK_HOURS || 24);
 const POS_DEBUG = Boolean(
@@ -108,17 +109,7 @@ const getOrderSeller = (order = {}) => {
 };
 
 const getPaymentMethod = (order = {}) => {
-  const raw = String(order.payment_method || "").toLowerCase();
-  const labels = {
-    cash: "CASH",
-    card: "VISA",
-    visa: "VISA",
-    wallet: "INSTAPAY",
-    instapay: "INSTAPAY",
-    vodafone_cash: "V.CASH",
-    split: "SPLIT",
-  };
-  return labels[raw] || raw || "CASH";
+  return formatOrderPaymentMethods(order, "ar");
 };
 
 const getOrderStatus = (order = {}) => {

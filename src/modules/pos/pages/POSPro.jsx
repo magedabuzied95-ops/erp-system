@@ -384,6 +384,27 @@ const WALK_IN_CUSTOMER = {
   type: "walk_in",
 };
 
+const customerSnapshotFromOrder = (order = {}) => {
+  const id = order?.customer_id || order?.customer?.id || null;
+  const name = String(order?.customer_name || order?.customer?.name || "").trim();
+  const phone = String(order?.customer_phone || order?.customer?.phone || "").trim();
+  if (!id && !name && !phone) return null;
+  return { id, customer_id: id, name, customer_name: name, phone, customer_phone: phone };
+};
+
+const resolveEditOrderSalespersonId = (order = {}) =>
+  order.sales_employee_id ||
+  order.salesEmployeeId ||
+  order.salesperson_id ||
+  order.salespersonId ||
+  order.assigned_seller_id ||
+  order.assignedSellerId ||
+  order.seller_employee_id ||
+  order.sellerEmployeeId ||
+  order.seller_id ||
+  order.sellerId ||
+  "";
+
 const normalizeInvoiceDiscountType = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized === "percentage" || normalized === "percent" ? "percentage" : "fixed";
@@ -5005,7 +5026,7 @@ function POSPro() {
       });
       setCart(mappedCart);
       setInvoiceNumber(loadedOrder.invoice_number || invoiceNumber);
-      setPaymentMode(loadedOrder.payment_method || "");
+      setPaymentMode(resolveCollectedPaymentMode(loadedOrder, loadedOrder.payment_method || ""));
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
@@ -5038,13 +5059,7 @@ function POSPro() {
       setSelectedCustomerId(loadedCustomerId);
       setCustomerSearch(loadedOrder.customer_name || loadedOrder.customer?.name || loadedOrder.customer_phone || "");
 
-      const sellerId =
-        loadedOrder.sales_employee_id ||
-        loadedOrder.salesperson_id ||
-        loadedOrder.assigned_seller_id ||
-        loadedOrder.seller_id ||
-        loadedOrder.seller_employee_id ||
-        "";
+      const sellerId = resolveEditOrderSalespersonId(loadedOrder);
       setSelectedSalespersonId(sellerId ? String(sellerId) : "");
       setMarketingAttribution((current) => ({
         ...current,
@@ -5132,7 +5147,7 @@ function POSPro() {
       });
       setCart(mappedCart);
       setInvoiceNumber(loadedOrder.invoice_number || order.invoice_number || invoiceNumber);
-      setPaymentMode(loadedOrder.payment_method || order.payment_method || "");
+      setPaymentMode(resolveCollectedPaymentMode(originalContext, loadedOrder.payment_method || order.payment_method || ""));
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
@@ -5145,8 +5160,18 @@ function POSPro() {
       setInvoiceDiscount(Number(loadedOrder.invoice_discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
       setEditRefundMethod("cash");
-      setSelectedCustomerId(loadedOrder.customer_id || null);
-      setCustomerSearch(loadedOrder.customer_name || "");
+      const loadedCustomer = customerSnapshotFromOrder(loadedOrder);
+      if (loadedCustomer?.id) {
+        setCustomers((current) => {
+          const rows = Array.isArray(current) ? current : [];
+          if (rows.some((item) => String(item?.id || item?.customer_id) === String(loadedCustomer.id))) return rows;
+          return [loadedCustomer, ...rows];
+        });
+      }
+      setSelectedCustomerId(loadedCustomer?.id || null);
+      setCustomerSearch(loadedCustomer?.name || loadedCustomer?.phone || "");
+      const sellerId = resolveEditOrderSalespersonId(originalContext);
+      setSelectedSalespersonId(sellerId ? String(sellerId) : "");
       const openStartedAt = performance.now();
       setRecentOperationsOpen(false);
       markEditTiming("open_edit_mode_ms", openStartedAt);
@@ -5173,9 +5198,12 @@ function POSPro() {
 
   useEffect(() => {
     if (!editingOrder?.id || selectedSalespersonId || salesEmployees.length === 0) return;
+    const employeeId = resolveEditOrderSalespersonId(editingOrder);
     const sellerUserId = editingOrder.seller_user_id || editingOrder.sellerUserId || "";
-    if (!sellerUserId) return;
-    const seller = salesEmployees.find((employee) => String(employee.user_id || "") === String(sellerUserId));
+    const seller = salesEmployees.find((employee) =>
+      (employeeId && String(employee.id || employee.employee_id || "") === String(employeeId))
+      || (sellerUserId && String(employee.user_id || "") === String(sellerUserId))
+    );
     if (seller?.id) setSelectedSalespersonId(String(seller.id));
   }, [editingOrder, salesEmployees, selectedSalespersonId]);
 
@@ -5731,8 +5759,11 @@ function POSPro() {
         });
       }
 
-      const invoiceCustomer = customer || WALK_IN_CUSTOMER;
-      const customerId = customer ? customer.id || customer.customer_id : null;
+      // The customer list is lazy-loaded. During invoice editing the original
+      // customer may not be in that list yet, so retain the order snapshot
+      // instead of silently replacing it with Walk-in Customer.
+      const invoiceCustomer = customer || (editingOrder?.id ? customerSnapshotFromOrder(editingOrder) : null) || WALK_IN_CUSTOMER;
+      const customerId = invoiceCustomer.id || invoiceCustomer.customer_id || null;
 
       if (customer && !customerId) {
         console.error("[pos] selected customer is missing id/customer_id at checkout:", customer);
@@ -5741,9 +5772,12 @@ function POSPro() {
       }
 
       const selectedSeller = salesEmployees.find((employee) => String(employee.id) === String(selectedSalespersonId));
-      const resolvedSellerUserId = selectedSeller?.user_id || null;
-      const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || null;
-      const resolvedSellerName = selectedSeller?.pos_alias || selectedSeller?.name || selectedSeller?.full_name || "";
+      const editingSellerId = editingOrder?.id ? resolveEditOrderSalespersonId(editingOrder) : "";
+      const retainingOriginalSeller = Boolean(editingOrder?.id && editingSellerId && String(editingSellerId) === String(selectedSalespersonId));
+      const resolvedSellerUserId = selectedSeller?.user_id || (retainingOriginalSeller ? editingOrder.seller_user_id || editingOrder.sellerUserId : null) || null;
+      const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || (retainingOriginalSeller ? editingSellerId : null) || null;
+      const resolvedSellerName = selectedSeller?.pos_alias || selectedSeller?.name || selectedSeller?.full_name
+        || (retainingOriginalSeller ? editingOrder.salesperson_name || editingOrder.seller_name || "" : "");
       console.log("[pos][seller-debug] selected seller before checkout", {
         selectedSalespersonId,
         selectedSeller,
@@ -5881,7 +5915,7 @@ function POSPro() {
       const payload = {
         customer_name: invoiceCustomer.name,
         customer_id: customerId || null,
-        customer_phone: customer?.phone || "",
+        customer_phone: invoiceCustomer.phone || invoiceCustomer.customer_phone || "",
         payment_method: isPersonalTransaction ? "personal" : ((creditSaleCheckout || partialCreditCheckout) ? "credit_sale" : (paymobTerminalConfirmed ? "card" : paymentMode)),
         payment_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         paymob_terminal_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,

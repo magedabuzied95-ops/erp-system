@@ -35,6 +35,7 @@ import { attachPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildBulkOrderItemInsertQuery, buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { canOverridePosSeller, ensurePosUserShiftSchema, resolvePosBranch } from "./posController.js";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
+import { deriveStoredPaymentMethod, getCollectedPaymentAllocations } from "../../shared/paymentMethods.js";
 import { getShippingProvider, normalizeShippingProviderKey } from "../services/shippingProviders/index.js";
 
 const POS_CHECKOUT_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.POS_CHECKOUT_DEBUG || "").trim().toLowerCase());
@@ -3578,18 +3579,24 @@ export const createOrder = async (req, res) => {
       money_account_id: financial_account_id || cash_financial_account_id || card_financial_account_id || wallet_financial_account_id || null,
     });
     const remainingOrderAmount = normalizeInvoiceMoney(Math.max(0, computedTotal - receivedAmount));
+    const storedPaymentMethod = deriveStoredPaymentMethod({
+      requestedMethod: normalizedSalePaymentMethod || payment_method,
+      paymentBreakdown,
+    });
     const paymentBreakdownResult = await timedCheckout(checkoutTiming, "payment_breakdown_ms", () => client.query(
       `
       UPDATE orders
       SET payment_breakdown = $2::jsonb,
-          remaining_amount = $3
+          remaining_amount = $3,
+          payment_method = $4
       WHERE id = $1
-      RETURNING payment_breakdown, remaining_amount
+      RETURNING payment_breakdown, remaining_amount, payment_method
       `,
-      [order.id, JSON.stringify(paymentBreakdown), remainingOrderAmount]
+      [order.id, JSON.stringify(paymentBreakdown), remainingOrderAmount, storedPaymentMethod]
     ));
     order.payment_breakdown = paymentBreakdownResult.rows[0]?.payment_breakdown || paymentBreakdown;
     order.remaining_amount = paymentBreakdownResult.rows[0]?.remaining_amount ?? remainingOrderAmount;
+    order.payment_method = paymentBreakdownResult.rows[0]?.payment_method || storedPaymentMethod;
     order.public_token = order.public_token || publicToken;
     order = await timedCheckout(checkoutTiming, "invoice_generation_ms", () => assignSequentialInvoiceNumber(client, order));
     order = attachPublicOrderNumber(order, order.channel || order.source || channel || "pos");
@@ -3701,20 +3708,19 @@ export const createOrder = async (req, res) => {
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 
     if (!isPersonalTransaction && (!isCreditSaleTransaction || receivedAmount > 0.009)) {
-      const collectedMethods = paymentBreakdown
-        .filter((payment) => Number(payment.amount || 0) > 0)
-        .map((payment) => normalizeMoneyPaymentMethod(payment.method || payment.payment_method))
-        .filter((method) => !["exchange_credit", "return_credit", "customer_wallet"].includes(method));
-      const transactionPaymentMethod = collectedMethods.length === 1 ? collectedMethods[0] : payment_method || "cash";
-      markOrderStep("create payment transaction", { order_id: order.id, payment_method: payment_method || "cash", amount: receivedAmount });
+      const collectedPayments = getCollectedPaymentAllocations(paymentBreakdown)
+        .filter((payment) => !["customer_wallet", "personal"].includes(payment.method));
+      markOrderStep("create payment transaction", { order_id: order.id, payment_methods: collectedPayments.map((payment) => payment.method), amount: receivedAmount });
       await timedCheckout(checkoutTiming, "payment_treasury_update_ms", async () => {
-        await client.query(
-          `
-          INSERT INTO transactions (tenant_id, type, amount, payment_method, note, cashbox_id)
-          VALUES ($1,$2,$3,$4,$5,$6)
-          `,
-          [tenantId, "sale", receivedAmount, transactionPaymentMethod, `Order #${order.id}`, 1]
-        );
+        for (const payment of collectedPayments) {
+          await client.query(
+            `
+            INSERT INTO transactions (tenant_id, type, amount, payment_method, note, cashbox_id)
+            VALUES ($1,$2,$3,$4,$5,$6)
+            `,
+            [tenantId, "sale", payment.amount, payment.method, `Order #${order.id}`, 1]
+          );
+        }
 
         await client.query(
           `
@@ -5593,6 +5599,11 @@ const restoreOrderInventory = async (client, { tenantId, order, items, movementT
   return restoredItems;
 };
 
+const isDefaultWalkInCustomerName = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+  return !normalized || ["walk in customer", "walkin customer", "customer", "عميل نقدي"].includes(normalized);
+};
+
 export const editOrder = async (req, res) => {
   const client = await db.connect();
   try {
@@ -5879,13 +5890,74 @@ export const editOrder = async (req, res) => {
         edit_additional_payment: true,
       })),
     ];
-    const resolvedCustomerId = Object.prototype.hasOwnProperty.call(req.body, "customer_id")
-      ? req.body.customer_id || null
-      : loaded.order.customer_id || null;
-    const resolvedCustomerName = String(req.body.customer_name || loaded.order.customer_name || "").trim() || "Walk-in Customer";
-    const resolvedCustomerPhone = Object.prototype.hasOwnProperty.call(req.body, "customer_phone")
-      ? req.body.customer_phone || ""
-      : loaded.order.customer_phone || "";
+    const storedEditPaymentMethod = deriveStoredPaymentMethod({
+      requestedMethod: req.body.payment_method || loaded.order.payment_method,
+      paymentBreakdown: editPaymentBreakdown,
+    });
+    const requestedCustomerName = String(req.body.customer_name || "").trim();
+    const loadedCustomerName = String(loaded.order.customer_name || "").trim();
+    const preserveLoadedCustomer = req.body.customer_changed !== true
+      && isDefaultWalkInCustomerName(requestedCustomerName)
+      && !isDefaultWalkInCustomerName(loadedCustomerName);
+    const resolvedCustomerId = preserveLoadedCustomer
+      ? loaded.order.customer_id || null
+      : Object.prototype.hasOwnProperty.call(req.body, "customer_id")
+        ? req.body.customer_id || null
+        : loaded.order.customer_id || null;
+    const resolvedCustomerName = preserveLoadedCustomer
+      ? loadedCustomerName
+      : String(requestedCustomerName || loadedCustomerName).trim() || "Walk-in Customer";
+    const resolvedCustomerPhone = preserveLoadedCustomer
+      ? loaded.order.customer_phone || ""
+      : Object.prototype.hasOwnProperty.call(req.body, "customer_phone")
+        ? req.body.customer_phone || ""
+        : loaded.order.customer_phone || "";
+
+    const loadedSalesEmployeeId = loaded.order.sales_employee_id || loaded.order.salesperson_id || null;
+    const requestedSalesEmployeeId = firstValue(
+      req.body.sales_employee_id,
+      req.body.salesEmployeeId,
+      req.body.salesperson_id,
+      req.body.salespersonId,
+      req.body.assigned_seller_id,
+      req.body.assignedSellerId,
+      req.body.seller_employee_id,
+      req.body.sellerEmployeeId,
+      req.body.seller_id,
+      req.body.sellerId
+    );
+    const resolvedEditSalesEmployeeId = requestedSalesEmployeeId || loadedSalesEmployeeId;
+    const sellerChanged = Boolean(
+      requestedSalesEmployeeId
+      && String(requestedSalesEmployeeId) !== String(loadedSalesEmployeeId || "")
+    );
+    const editSalespersonSnapshot = resolvedEditSalesEmployeeId
+      ? await getSalespersonSnapshot(client, {
+          tenantId,
+          salespersonId: resolvedEditSalesEmployeeId,
+          branchId: req.body.branch_id || loaded.order.branch_id || null,
+        })
+      : null;
+    if (sellerChanged && !editSalespersonSnapshot) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Selected salesperson is not active in this branch" });
+    }
+    const resolvedEditSellerUserId = firstValue(req.body.seller_user_id, req.body.sellerUserId)
+      || loaded.order.seller_user_id
+      || null;
+    const resolvedEditSellerName = String(
+      editSalespersonSnapshot?.salesperson_name
+      || req.body.salesperson_name
+      || req.body.seller_name
+      || loaded.order.salesperson_name
+      || loaded.order.seller_name
+      || ""
+    ).trim();
+    const resolvedEditCommissionType = editSalespersonSnapshot?.commission_type || loaded.order.salesperson_commission_type || null;
+    const resolvedEditCommissionValue = editSalespersonSnapshot?.commission_value ?? loaded.order.salesperson_commission_value ?? 0;
+    const resolvedEditFixedMode = editSalespersonSnapshot?.fixed_mode || loaded.order.salesperson_fixed_mode || null;
+    const resolvedEditExcludedProductIds = editSalespersonSnapshot?.excluded_product_ids || loaded.order.salesperson_excluded_product_ids || [];
+    const resolvedEditExcludedCategoryIds = editSalespersonSnapshot?.excluded_category_ids || loaded.order.salesperson_excluded_category_ids || [];
 
     await client.query(`DELETE FROM order_items WHERE order_id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)`, [loaded.order.id, tenantId]);
     const orderItemAvailableColumns = await getTableColumnSet(client, "order_items");
@@ -5903,6 +5975,7 @@ export const editOrder = async (req, res) => {
         line_total: item.line_total || item.total_amount,
         subtotal: item.subtotal || item.total_amount,
         price_source: item.price > 0 ? "payload" : "missing",
+        sales_employee_id: resolvedEditSalesEmployeeId,
       }, {
         availableColumns: orderItemAvailableColumns,
         filePath: "server/controllers/ordersController.js",
@@ -5954,6 +6027,16 @@ export const editOrder = async (req, res) => {
           invoice_discount_value = $24,
           invoice_discount_amount = $25,
           invoice_discount_reason = $26,
+          seller_user_id = $27,
+          sales_employee_id = $28,
+          salesperson_id = $28,
+          seller_name = $29,
+          salesperson_name = $29,
+          salesperson_commission_type = $30,
+          salesperson_commission_value = $31,
+          salesperson_fixed_mode = $32,
+          salesperson_excluded_product_ids = $33::jsonb,
+          salesperson_excluded_category_ids = $34::jsonb,
           updated_at = NOW()
       WHERE id = $14
       RETURNING *
@@ -5965,7 +6048,7 @@ export const editOrder = async (req, res) => {
         serviceValue,
         totalValue,
         paidValue,
-        req.body.payment_method || null,
+        storedEditPaymentMethod || null,
         req.body.payment_status || null,
         req.body.status || null,
         resolvedCustomerId,
@@ -5993,6 +6076,14 @@ export const editOrder = async (req, res) => {
         invoiceDiscountAmount > 0 ? invoiceDiscountValue : 0,
         invoiceDiscountAmount,
         invoiceDiscountAmount > 0 ? String(req.body.invoice_discount_reason || "").trim() : "",
+        resolvedEditSellerUserId,
+        resolvedEditSalesEmployeeId,
+        resolvedEditSellerName,
+        resolvedEditCommissionType,
+        resolvedEditCommissionValue,
+        resolvedEditFixedMode,
+        JSON.stringify(resolvedEditExcludedProductIds),
+        JSON.stringify(resolvedEditExcludedCategoryIds),
       ]
     );
     await markCustomerTrustedForCompletedOrder(client, orderResult.rows[0]);
