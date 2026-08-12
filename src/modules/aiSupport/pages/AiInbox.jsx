@@ -2827,6 +2827,7 @@ function AiSuggestionCard({
   productAmbiguous = false,
   productRemoved = false,
   deliveryFormat = "",
+  channelName = "",
   onRemoveProduct,
   onChangeProduct,
   onChooseProduct,
@@ -2858,7 +2859,11 @@ function AiSuggestionCard({
     <div className={`mb-2 rounded-2xl border p-3 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{editing ? "تعديل اقتراح الذكاء الاصطناعي" : "اقتراح الذكاء الاصطناعي"}</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{editing ? "تعديل اقتراح الذكاء الاصطناعي" : "اقتراح الذكاء الاصطناعي"}</div>
+            {clean(channelName) ? <span className="rounded-lg border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-black text-slate-200">{clean(channelName)}</span> : null}
+            {clean(deliveryFormat) ? <span className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-0.5 text-[9px] font-black text-cyan-100">التسليم: {clean(deliveryFormat)}</span> : null}
+          </div>
           {editing ? (
             <textarea
               value={editText}
@@ -3045,6 +3050,7 @@ function ManualReplyComposer({
           productAmbiguous={aiSuggestionProductAmbiguous}
           productRemoved={aiSuggestionProductRemoved}
           deliveryFormat={aiSuggestionDeliveryFormat}
+          channelName={channelLabel(conversation?.channel || conversation?.source)}
           onRemoveProduct={onRemoveSuggestionProduct}
           onChangeProduct={onChangeSuggestionProduct}
           onChooseProduct={onChooseSuggestionProduct}
@@ -6146,7 +6152,7 @@ export default function AiInbox() {
     const ch = String(selectedConversation?.channel || selectedConversation?.source || "").toLowerCase();
     if (ch.includes("messenger") || ch === "facebook") return { label: "كارت منتج (Messenger)", kind: "rich_card" };
     if (ch.includes("whatsapp")) return { label: "صورة + لينك", kind: "image_link" };
-    if (ch.includes("instagram")) return { label: "لينك المنتج", kind: "text_link" };
+    if (ch.includes("instagram")) return { label: "نص + لينك المنتج", kind: "text_link" };
     return { label: "لينك المنتج", kind: "text_link" };
   }, [selectedConversation?.channel, selectedConversation?.source]);
   // Reset employee product + text edits whenever a fresh suggestion appears (never mid-edit of the same one).
