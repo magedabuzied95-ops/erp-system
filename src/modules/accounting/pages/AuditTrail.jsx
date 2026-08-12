@@ -96,7 +96,7 @@ function AuditTrail() {
       title={t("accounting.auditTrail.title")}
       subtitle={t("accounting.auditTrail.subtitle")}
       actions={
-        <button type="button" onClick={() => loadRows(appliedFilters)} disabled={loading} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
+        <button type="button" onClick={() => loadRows(appliedFilters)} disabled={loading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
           {t("accounting.common.actions.refresh")}
         </button>
@@ -126,7 +126,7 @@ function AuditTrail() {
           <input type="number" min="1" value={filters.user_id} onChange={(event) => updateFilter("user_id", event.target.value)} placeholder={t("accounting.auditTrail.placeholders.anyUser")} className={inputClass} />
         </FilterField>
         <div className="flex items-end">
-          <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-primary">
+          <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-primary">
             <Search className="h-4 w-4" />
             {t("accounting.common.actions.search")}
           </button>
@@ -225,7 +225,7 @@ function JsonCell({ title, value, onOpen, viewLabel }) {
     <td className="px-4 py-4 align-top">
       <div className="max-w-[220px] truncate font-mono text-xs text-zinc-400">{compactJson(value)}</div>
       {!empty ? (
-        <button type="button" onClick={() => onOpen({ title, value })} className="mt-2 inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2 py-1 text-xs font-black text-white transition hover:bg-white/10">
+        <button type="button" onClick={() => onOpen({ title, value })} className="mt-2 inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-2 py-1 text-xs font-black text-white transition hover:bg-white/10">
           <Eye className="h-3.5 w-3.5" />
           {viewLabel}
         </button>
@@ -240,7 +240,7 @@ function JsonModal({ payload, onClose }) {
       <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black">
         <div className="flex items-center justify-between border-b border-white/10 p-4">
           <h3 className="m1-section-title text-white">{payload.title}</h3>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </div>

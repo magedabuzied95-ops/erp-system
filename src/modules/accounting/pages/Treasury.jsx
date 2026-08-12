@@ -150,7 +150,7 @@ export default function Treasury() {
       title="الخزينة"
       subtitle="الأرصدة الفعلية للنقدية والبنوك والبطاقات والمحافظ وتسويات البطاقات، معززة بحركات مالية مرتبطة."
       actions={
-        <button type="button" onClick={() => loadTreasury(filters)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+        <button type="button" onClick={() => loadTreasury(filters)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           تحديث
         </button>
@@ -206,9 +206,9 @@ export default function Treasury() {
                   <div className={`text-right text-lg font-black ${tone.valueClass}`}>{formatCurrency(account.current_balance || 0)}</div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-1.5">
-                  <button type="button" onClick={() => quickRecharge(account)} className="rounded-xl border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">تعزيز</button>
-                  <button type="button" onClick={() => quickOpeningBalance(account)} className="rounded-xl border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">افتتاحي</button>
-                  <button type="button" onClick={() => quickTransferInto(account)} className="rounded-xl border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">تحويل</button>
+                  <button type="button" onClick={() => quickRecharge(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">تعزيز</button>
+                  <button type="button" onClick={() => quickOpeningBalance(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">افتتاحي</button>
+                  <button type="button" onClick={() => quickTransferInto(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">تحويل</button>
                 </div>
               </article>
             );
@@ -224,7 +224,7 @@ export default function Treasury() {
               <Select value={transfer.to_account_id} onChange={(value) => setTransfer((current) => ({ ...current, to_account_id: value }))} accounts={accounts} placeholder="إلى حساب" />
               <input className={inputClass} type="number" min="0" step="0.01" value={transfer.amount} onChange={(event) => setTransfer((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" />
               <input className={inputClass} value={transfer.notes} onChange={(event) => setTransfer((current) => ({ ...current, notes: event.target.value }))} placeholder="ملاحظات" />
-              <button type="submit" disabled={saving} className="rounded-2xl bg-emerald-300 px-4 py-2 text-sm font-black text-emerald-950 transition hover:bg-emerald-200 active:scale-[0.99] disabled:opacity-60">تسجيل التحويل</button>
+              <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-300 px-4 py-2 text-sm font-black text-emerald-950 transition hover:bg-emerald-200 active:scale-[0.99] disabled:opacity-60">تسجيل التحويل</button>
             </div>
           </form>
 
@@ -238,7 +238,7 @@ export default function Treasury() {
               </select>
               <input className={inputClass} type="number" min="0" step="0.01" value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" />
               <input className={inputClass} value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder="ملاحظة تدقيقية" />
-              <button type="submit" disabled={saving} className="rounded-2xl border border-violet-200/30 bg-violet-300/10 px-4 py-2 text-sm font-black text-violet-100 transition hover:bg-violet-300/20 active:scale-[0.99] disabled:opacity-60">تسجيل التسوية</button>
+              <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] border border-violet-200/30 bg-violet-300/10 px-4 py-2 text-sm font-black text-violet-100 transition hover:bg-violet-300/20 active:scale-[0.99] disabled:opacity-60">تسجيل التسوية</button>
             </div>
           </form>
         </aside>
@@ -256,7 +256,7 @@ export default function Treasury() {
             <input className={inputClass} value={filters.reference_type} onChange={(event) => updateFilter("reference_type", event.target.value)} placeholder="المرجع" />
             <input className={inputClass} value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder="الفرع" />
             <input className={inputClass} type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} />
-            <button type="button" onClick={() => loadTreasury(filters)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10">تصفية</button>
+            <button type="button" onClick={() => loadTreasury(filters)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10">تصفية</button>
           </div>
           <datalist id="money-transaction-types">
             {transactionTypes.map((type) => <option key={type} value={type} />)}

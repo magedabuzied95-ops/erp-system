@@ -41,8 +41,8 @@ export default function PortalChatContactInfo({ open, onClose, contact = {}, mes
 
           <div className="grid grid-cols-3 gap-2">
             <a href={phone ? `tel:${phone}` : undefined} aria-disabled={!phone} className={`flex min-h-16 flex-col items-center justify-center rounded-2xl bg-[#1b1d1d] text-emerald-400 ${!phone ? "pointer-events-none opacity-40" : ""}`}><Phone className="h-5 w-5" /><span className="mt-1 text-xs font-bold">صوت</span></a>
-            <button type="button" disabled className="flex min-h-16 flex-col items-center justify-center rounded-2xl bg-[#1b1d1d] text-emerald-400 disabled:opacity-40"><Video className="h-5 w-5" /><span className="mt-1 text-xs font-bold">فيديو</span></button>
-            <button type="button" onClick={() => { onClose?.(); onSearch?.(); }} className="flex min-h-16 flex-col items-center justify-center rounded-2xl bg-[#1b1d1d] text-emerald-400"><Search className="h-5 w-5" /><span className="mt-1 text-xs font-bold">بحث</span></button>
+            <button type="button" disabled className="flex min-h-16 flex-col items-center justify-center rounded-[var(--radius-control)] bg-[#1b1d1d] text-emerald-400 disabled:opacity-40"><Video className="h-5 w-5" /><span className="mt-1 text-xs font-bold">فيديو</span></button>
+            <button type="button" onClick={() => { onClose?.(); onSearch?.(); }} className="flex min-h-16 flex-col items-center justify-center rounded-[var(--radius-control)] bg-[#1b1d1d] text-emerald-400"><Search className="h-5 w-5" /><span className="mt-1 text-xs font-bold">بحث</span></button>
           </div>
 
           <div className="mt-3 overflow-hidden rounded-2xl bg-[#171919]">

@@ -531,7 +531,7 @@ function Field({ label, value, onChange, type = "text", placeholder = "", disabl
         disabled={disabled}
         placeholder={placeholder}
         onChange={(event) => onChange?.(event.target.value)}
-        className="h-[var(--control-height-lg)] w-full min-w-0 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-[#7c3aed]/60 disabled:cursor-not-allowed disabled:bg-black/30 disabled:text-zinc-500"
+        className="h-[var(--control-height-lg)] w-full min-w-0 rounded-[var(--radius-control)] border border-white/8 bg-zinc-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-[#7c3aed]/60 disabled:cursor-not-allowed disabled:bg-black/30 disabled:text-zinc-500"
       />
     </label>
   );
@@ -542,7 +542,7 @@ function Toggle({ checked, onChange, label }) {
     <button
       type="button"
       onClick={() => onChange?.(!checked)}
-      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-start transition ${ checked ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-white/8 bg-zinc-950/70 text-zinc-300" }`}
+      className={`flex items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-start transition ${ checked ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-white/8 bg-zinc-950/70 text-zinc-300" }`}
     >
       <span className="text-sm font-black">{label}</span>
       <span className={`h-5 w-10 rounded-full p-1 ${checked ? "bg-emerald-400/40" : "bg-white/10"}`}>

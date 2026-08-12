@@ -127,7 +127,7 @@ export default function MarketingAnalytics() {
                 type="button"
                 onClick={refresh}
                 disabled={syncing || !canSync}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border border-amber-300/35 bg-amber-300/10 px-5 py-3 text-base font-bold text-amber-100 transition hover:bg-amber-300/20 disabled:opacity-60"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/35 bg-amber-300/10 px-5 py-3 text-base font-bold text-amber-100 transition hover:bg-amber-300/20 disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
                 {t("marketing.analytics.sync")}
@@ -136,7 +136,7 @@ export default function MarketingAnalytics() {
                 type="button"
                 onClick={load}
                 disabled={loading}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-5 py-3 text-base font-bold text-white transition hover:bg-white/10 disabled:opacity-60"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-white/15 bg-white/[0.07] px-5 py-3 text-base font-bold text-white transition hover:bg-white/10 disabled:opacity-60"
               >
                 <Sparkles className="h-4 w-4 text-amber-300" />
                 {t("marketing.common.refreshView")}
@@ -178,7 +178,7 @@ export default function MarketingAnalytics() {
               <select
                 value={filters.platform}
                 onChange={(event) => setFilters((current) => ({ ...current, platform: event.target.value }))}
-                className="min-h-13 w-full rounded-2xl border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
+                className="min-h-13 w-full rounded-[var(--radius-control)] border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
               >
                 <option value="all">{t("marketing.social.allPlatforms")}</option>
                 <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
@@ -191,7 +191,7 @@ export default function MarketingAnalytics() {
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
-                className="min-h-13 w-full rounded-2xl border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
+                className="min-h-13 w-full rounded-[var(--radius-control)] border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
               />
             </label>
             <label className="space-y-2">
@@ -200,7 +200,7 @@ export default function MarketingAnalytics() {
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
-                className="min-h-13 w-full rounded-2xl border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
+                className="min-h-13 w-full rounded-[var(--radius-control)] border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
               />
             </label>
           </div>

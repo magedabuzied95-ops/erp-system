@@ -958,7 +958,7 @@ function PriceLine({
           aria-label={revealed ? hideLabel : revealLabel}
           aria-pressed={revealed}
           title={revealed ? hideLabel : revealLabel}
-          className={`group/cost inline-flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-0.5 text-right font-black tabular-nums transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 ${toneClass}`}
+          className={`group/cost inline-flex min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5 py-0.5 text-right font-black tabular-nums transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 ${toneClass}`}
         >
           <span className="min-w-0 truncate">
             {revealed && varies ? <span className="me-1 text-[10px] font-bold text-zinc-500">{variesLabel}</span> : null}
@@ -1201,8 +1201,8 @@ function PriceEditorModal({ product, onClose, onSave }) {
           ) : null}
         </div>
         <div className="flex justify-end gap-2 border-t border-white/10 p-4">
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-          <button type="button" onClick={submit} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
+          <button type="button" onClick={submit} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">
             {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}
           </button>
         </div>
@@ -1231,7 +1231,7 @@ function PriceField({ label, value, onChange, current, placeholder = "", compact
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/40 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-lg)]"}`}
+        className={`w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/40 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-lg)]"}`}
       />
     </label>
   );
@@ -1261,7 +1261,7 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
         aria-label={label}
-        className={`w-full rounded-xl border px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 ${ changed ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/10 bg-zinc-950" } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-md)]"}`}
+        className={`w-full rounded-[var(--radius-control)] border px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 ${ changed ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/10 bg-zinc-950" } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-md)]"}`}
       />
     </label>
   );
@@ -1582,13 +1582,13 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
               {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء الجماعي" value={bulkPurchasePrice} onBlur={normalizeFormInputs} onChange={setBulkPurchasePrice} placeholder={t("products.priceEditor.empty", "Empty")} /> : null}
               <AdvancedPriceField label={t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price")} value={bulkSellingPrice} onBlur={normalizeFormInputs} onChange={setBulkSellingPrice} placeholder={t("products.priceEditor.empty", "Empty")} />
               <AdvancedPriceField label={t("products.priceEditor.bulkSalePrice", "Bulk Sale Price")} value={bulkSalePrice} onBlur={normalizeFormInputs} onChange={setBulkSalePrice} placeholder={t("products.priceEditor.empty", "Empty")} />
-              <button type="button" onClick={applyBulkPricesToVariants} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 outline-none hover:bg-emerald-400/15 focus:border-emerald-300/60 disabled:opacity-50">
+              <button type="button" onClick={applyBulkPricesToVariants} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 outline-none hover:bg-emerald-400/15 focus:border-emerald-300/60 disabled:opacity-50">
                 {isSimpleProduct ? t("products.priceEditor.applyToProduct", "Apply to product") : t("products.priceEditor.applyToAllVariants", "Apply to all variants")}
               </button>
-              <button type="button" onClick={copyFirstVariantPriceToAll} disabled={!form.variants.length} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+              <button type="button" onClick={copyFirstVariantPriceToAll} disabled={!form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
                 {t("products.priceEditor.copyFirstVariant", "Copy first variant price to all")}
               </button>
-              <button type="button" onClick={clearAllDiscounts} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+              <button type="button" onClick={clearAllDiscounts} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
                 {t("products.priceEditor.clearDiscounts", "Clear all discount prices")}
               </button>
             </div>
@@ -1625,7 +1625,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                   return (
                     <section key={group.key} className={`overflow-hidden rounded-2xl border ${group.changed ? "border-emerald-300/35 bg-emerald-400/[0.05]" : "border-white/10 bg-black/15"}`}>
                       <div className={`grid items-center gap-2 p-2 ${canEditPurchasePrice ? "md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(130px,180px))_auto]" : "md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]"}`}>
-                        <button type="button" onClick={() => toggleColorGroup(group.key)} className="flex min-w-0 items-center gap-3 rounded-xl p-1 text-start outline-none hover:bg-white/5">
+                        <button type="button" onClick={() => toggleColorGroup(group.key)} className="flex min-w-0 items-center gap-3 rounded-[var(--radius-control)] p-1 text-start outline-none hover:bg-white/5">
                           {group.image ? <img src={group.image} alt={group.label} className="h-14 w-14 shrink-0 rounded-xl border border-white/10 bg-white object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-500"><Package2 size={20} /></span>}
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-black text-white">{group.label}</span>
@@ -1635,7 +1635,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                         {canEditPurchasePrice ? <AdvancedPriceField compact label="سعر الشراء" value={group.purchasePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { purchase_price: value })} placeholder={group.hasMixedPurchasePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} /> : null}
                         <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={group.salePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { sale_price: value })} placeholder={group.hasMixedSalePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
                         <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={group.discountPrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { discount_price: value })} placeholder={group.hasMixedDiscountPrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
-                        <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10">
+                        <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10">
                           <ChevronDown size={18} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
                         </button>
                       </div>
@@ -1703,9 +1703,9 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
             {changedCount ? `${changedCount} ${t("products.priceEditor.changedRows", "changed price rows")}` : t("products.priceEditor.noChanges", "No price changes")}
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={clearManualOverrides} disabled={saving} className="rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-bold text-amber-100 outline-none hover:bg-amber-400/15 disabled:opacity-50">{t("products.priceEditor.clearManualOverride", "إلغاء التعديل اليدوي")}</button>
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">{t("common.cancel")}</button>
-            <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-black outline-none hover:bg-emerald-400 focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
+            <button type="button" onClick={clearManualOverrides} disabled={saving} className="rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-bold text-amber-100 outline-none hover:bg-amber-400/15 disabled:opacity-50">{t("products.priceEditor.clearManualOverride", "إلغاء التعديل اليدوي")}</button>
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">{t("common.cancel")}</button>
+            <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black outline-none hover:bg-emerald-400 focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
               {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}
             </button>
           </div>
@@ -2828,7 +2828,7 @@ function ProductsList() {
               setCatalogTab("products");
               setPage(1);
             }}
-            className={`flex-1 rounded-xl px-4 py-2 text-sm font-black transition ${ catalogTab === "products" ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-white" }`}
+            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "products" ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-white" }`}
           >
             {t("products.tabs.products", "المنتجات")}
           </button>
@@ -2838,7 +2838,7 @@ function ProductsList() {
               setCatalogTab("offers");
               setPage(1);
             }}
-            className={`flex-1 rounded-xl px-4 py-2 text-sm font-black transition ${ catalogTab === "offers" ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-white" }`}
+            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "offers" ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-white" }`}
           >
             {t("products.tabs.offers", "العروض")}
           </button>
@@ -2853,7 +2853,7 @@ function ProductsList() {
                 setPage(1);
               }}
               placeholder={t("products.searchPlaceholder")}
-              className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 pl-11 pr-4 text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 py-3 pl-11 pr-4 text-white outline-none placeholder:text-zinc-500"
             />
           </div>
 
@@ -2863,7 +2863,7 @@ function ProductsList() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+            className="rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
           >
             <option value="all">{t("products.filters.allStatus")}</option>
             <option value="active">{t("products.filters.active")}</option>
@@ -2877,7 +2877,7 @@ function ProductsList() {
               setBrandFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+            className="rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
           >
             {brandOptions.map((brand) => (
               <option key={brand} value={brand}>
@@ -2892,7 +2892,7 @@ function ProductsList() {
               setStorefrontVisibilityFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+            className="rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
           >
             <option value="all">{t("products.filters.storefrontVisibilityAll", "حالة الظهور على الموقع: الكل")}</option>
             <option value="visible">{t("products.filters.storefrontVisibilityVisible", "ظاهر بالموقع")}</option>
@@ -2905,7 +2905,7 @@ function ProductsList() {
               setColorImageFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+            className="rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
           >
             <option value="all">الكل</option>
             <option value="complete">الصور مكتملة</option>
@@ -2920,7 +2920,7 @@ function ProductsList() {
                 type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
                 disabled={!classificationFilterGroups.length}
-                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${ activeClassificationCount ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]" : "border-white/8 bg-white/5 text-white hover:border-white/15 hover:bg-white/8" }`}
+                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${ activeClassificationCount ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]" : "border-white/8 bg-white/5 text-white hover:border-white/15 hover:bg-white/8" }`}
                 aria-expanded={filtersOpen}
               >
                 <Filter size={16} />
@@ -2931,7 +2931,7 @@ function ProductsList() {
                 <button
                   type="button"
                   onClick={clearAllProductFilters}
-                  className="inline-flex h-auto w-10 shrink-0 items-center justify-center rounded-2xl border border-red-300/20 bg-red-500/10 text-red-200 transition hover:border-red-300/40 hover:bg-red-500/15"
+                  className="inline-flex h-auto w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-red-300/20 bg-red-500/10 text-red-200 transition hover:border-red-300/40 hover:bg-red-500/15"
                   title={t("products.filters.clearClassifications", "Clear")}
                   aria-label={t("products.filters.clearClassifications", "Clear")}
                 >
@@ -2955,7 +2955,7 @@ function ProductsList() {
                       <button
                         type="button"
                         onClick={clearClassificationFilters}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-black text-zinc-300 transition hover:border-red-300/25 hover:bg-red-500/10 hover:text-red-100"
+                        className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-black text-zinc-300 transition hover:border-red-300/25 hover:bg-red-500/10 hover:text-red-100"
                       >
                         <X size={13} />
                         {t("products.filters.clearClassifications", "Clear")}
@@ -2964,7 +2964,7 @@ function ProductsList() {
                     <button
                       type="button"
                       onClick={() => setFiltersOpen(false)}
-                      className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:text-white"
+                      className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:text-white"
                       aria-label={t("common.close", "Close")}
                     >
                       <X size={14} />
@@ -2982,7 +2982,7 @@ function ProductsList() {
                         <button
                           type="button"
                           onClick={() => setClassificationGroupFilter(group.key, "all")}
-                          className={`rounded-xl border px-3 py-1.5 text-xs font-black transition ${ classificationFilters[group.key] === "all" ? "border-white/15 bg-white/10 text-white" : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-200" }`}
+                          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ classificationFilters[group.key] === "all" ? "border-white/15 bg-white/10 text-white" : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-200" }`}
                         >
                           {t("products.filters.allClassifications", "All")}
                         </button>
@@ -2993,7 +2993,7 @@ function ProductsList() {
                               key={`${group.key}-${option.value}`}
                               type="button"
                               onClick={() => setClassificationGroupFilter(group.key, option.value)}
-                              className={`rounded-xl border px-3 py-1.5 text-xs font-black transition ${ isActive ? "border-emerald-300/70 bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-white" }`}
+                              className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ isActive ? "border-emerald-300/70 bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-white" }`}
                             >
                               {option.label}
                             </button>
@@ -3329,7 +3329,7 @@ function ProductsList() {
                                   return next;
                                 });
                               }}
-                              className="group/action relative ml-1 inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100"
+                              className="group/action relative ml-1 inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100"
                               title={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                               aria-label={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                             >
@@ -3440,14 +3440,14 @@ function ProductsList() {
               <button
                 type="button"
                 onClick={() => setStatusActionProduct(null)}
-                className="rounded-2xl border border-white/10 px-4 py-2.5 text-sm font-bold text-zinc-200 hover:bg-white/5"
+                className="rounded-[var(--radius-control)] border border-white/10 px-4 py-2.5 text-sm font-bold text-zinc-200 hover:bg-white/5"
               >
                 {t("common.cancel", "Cancel")}
               </button>
               <button
                 type="button"
                 onClick={handleConfirmProductStatusToggle}
-                className={`rounded-2xl px-4 py-2.5 text-sm font-black text-white ${ isInactiveProduct(statusActionProduct) ? "bg-emerald-600 hover:bg-emerald-500" : "bg-amber-600 hover:bg-amber-500" }`}
+                className={`rounded-[var(--radius-control)] px-4 py-2.5 text-sm font-black text-white ${ isInactiveProduct(statusActionProduct) ? "bg-emerald-600 hover:bg-emerald-500" : "bg-amber-600 hover:bg-amber-500" }`}
               >
                 {isInactiveProduct(statusActionProduct)
                   ? t("products.actionsMenu.activateProduct", "تفعيل المنتج")
@@ -3616,7 +3616,7 @@ function BarcodeQueueBulkModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
             aria-label={t("common.close", "Close")}
           >
             <X size={18} />
@@ -3754,7 +3754,7 @@ function BarcodeQueueBulkModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
               disabled={submitting}
             >
               {t("common.cancel", "Cancel")}
@@ -3763,7 +3763,7 @@ function BarcodeQueueBulkModal({
               type="button"
               onClick={onSubmit}
               disabled={submitting || !selectedRows.length || (mode === "selected" && totalSelectedColors === 0)}
-              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Barcode size={16} />
               {submitting
@@ -3894,7 +3894,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
           <button
             type="button"
             onClick={() => setMoreOpen((current) => !current)}
-            className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ moreOpen ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8" }`}
+            className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ moreOpen ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8" }`}
             aria-expanded={moreOpen}
             aria-label={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
           >

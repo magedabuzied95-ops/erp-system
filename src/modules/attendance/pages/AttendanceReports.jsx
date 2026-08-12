@@ -163,7 +163,7 @@ export default function AttendanceReports() {
               <button
                 type="button"
                 onClick={() => exportCsv(rows, `attendance-${filters.from}-to-${filters.to}.csv`)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 <Download className="h-4 w-4" />
                 Export CSV
@@ -171,7 +171,7 @@ export default function AttendanceReports() {
               <button
                 type="button"
                 onClick={() => setRefreshIndex((value) => value + 1)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh
@@ -192,7 +192,7 @@ export default function AttendanceReports() {
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((prev) => ({ ...prev, from: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-primary"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-primary"
               />
             </label>
             <label className="space-y-2">
@@ -201,7 +201,7 @@ export default function AttendanceReports() {
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((prev) => ({ ...prev, to: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-primary"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-primary"
               />
             </label>
             <label className="space-y-2">
@@ -211,7 +211,7 @@ export default function AttendanceReports() {
                 value={filters.employeeId}
                 onChange={(event) => setFilters((prev) => ({ ...prev, employeeId: event.target.value }))}
                 placeholder="All employees"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-primary"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-primary"
               />
             </label>
           </div>

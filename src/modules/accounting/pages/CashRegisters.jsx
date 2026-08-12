@@ -211,15 +211,15 @@ function CashRegisters() {
       subtitle={t("accounting.cashDrawer.subtitle")}
       actions={
         <>
-          <button type="button" onClick={() => loadCashDrawer(filters)} disabled={loading} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
+          <button type="button" onClick={() => loadCashDrawer(filters)} disabled={loading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {t("accounting.common.actions.refresh")}
           </button>
-          <button type="button" onClick={() => setOpenModal(true)} disabled={Boolean(currentShift)} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={() => setOpenModal(true)} disabled={Boolean(currentShift)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60">
             <DoorOpen className="h-4 w-4" />
             {t("accounting.cashDrawer.actions.openShift")}
           </button>
-          <button type="button" onClick={() => setCloseModal(true)} disabled={!currentShift} className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={() => setCloseModal(true)} disabled={!currentShift} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-60">
             <Wallet className="h-4 w-4" />
             {t("accounting.cashDrawer.actions.closeShift")}
           </button>
@@ -272,7 +272,7 @@ function CashRegisters() {
                 <input type="number" min="0" step="0.01" value={movementForm.amount} onChange={(event) => setMovementForm((current) => ({ ...current, amount: event.target.value }))} className={inputClass} />
               </Field>
             </div>
-            <button type="submit" disabled={!currentShift || saving === "movement"} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
+            <button type="submit" disabled={!currentShift || saving === "movement"} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
               {saving === "movement" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {t("accounting.cashDrawer.actions.addMovement")}
             </button>
@@ -326,9 +326,9 @@ function CashRegisters() {
             <Field label={t("accounting.common.labels.to")}>
               <input type="date" value={filters.to_date} onChange={(event) => setFilters((current) => ({ ...current, to_date: event.target.value }))} className={inputClass} />
             </Field>
-            <button type="submit" className="rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black md:col-span-4">{t("accounting.cashDrawer.actions.applyFilters")}</button>
+            <button type="submit" className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black md:col-span-4">{t("accounting.cashDrawer.actions.applyFilters")}</button>
           </form>
-          <button type="button" onClick={exportHistory} disabled={!history.length} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
+          <button type="button" onClick={exportHistory} disabled={!history.length} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
             <Download className="h-4 w-4" />
             {t("accounting.common.actions.exportCsv")}
           </button>
@@ -382,7 +382,7 @@ function CashRegisters() {
             <Field label={t("accounting.common.labels.notes")}>
               <textarea value={openForm.notes} onChange={(event) => setOpenForm((current) => ({ ...current, notes: event.target.value }))} className={`${inputClass} min-h-24`} />
             </Field>
-            <button type="submit" disabled={saving === "open"} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
+            <button type="submit" disabled={saving === "open"} className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "open" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DoorOpen className="h-4 w-4" />}
               {t("accounting.cashDrawer.actions.openShift")}
             </button>
@@ -406,7 +406,7 @@ function CashRegisters() {
             {Math.abs(closeDifference) >= 100 ? (
               <div className="rounded-2xl border border-rose-300/20 bg-rose-300/10 p-3 text-sm text-rose-100">{t("accounting.cashDrawer.warnings.addClosingNote")}</div>
             ) : null}
-            <button type="submit" disabled={saving === "close"} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60">
+            <button type="submit" disabled={saving === "close"} className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "close" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
               {t("accounting.cashDrawer.actions.closeShift")}
             </button>
@@ -455,7 +455,7 @@ function Modal({ title, children, onClose }) {
       <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h3 className="m1-section-title text-white">{title}</h3>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </div>

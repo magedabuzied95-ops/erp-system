@@ -44,7 +44,7 @@ export default function AccountingAnalytics() {
             type="button"
             onClick={loadEmbed}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--card)] disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--card)] disabled:opacity-60"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {isArabic ? "تحديث" : "Refresh"}

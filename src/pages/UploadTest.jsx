@@ -237,7 +237,7 @@ function UploadTest() {
 
           disabled={loading}
 
-          className="mt-8 w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-5 rounded-3xl font-black text-xl shadow-2xl transition-all duration-300 disabled:opacity-70"
+          className="mt-8 w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-5 rounded-[var(--radius-control)] font-black text-xl shadow-2xl transition-all duration-300 disabled:opacity-70"
         >
 
           {

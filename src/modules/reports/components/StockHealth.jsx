@@ -85,7 +85,7 @@ export default function StockHealth({ health, showValue, onSelectClass, selected
                 type="button"
                 onClick={() => onSelectClass?.(active ? null : item.key)}
                 aria-pressed={active}
-                className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${ active ? "bg-[var(--surface-soft)]" : "hover:bg-[var(--surface-soft)]" }`}
+                className={`flex w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${ active ? "bg-[var(--surface-soft)]" : "hover:bg-[var(--surface-soft)]" }`}
               >
                 <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.bar}`} aria-hidden="true" />
                 <span className="min-w-0 flex-1">

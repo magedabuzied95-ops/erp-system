@@ -728,7 +728,7 @@ function ProductPickerSheet({
                         type="button"
                         onClick={() => onSelectSize(size)}
                         disabled={Number(stock || 0) <= 0}
-                        className={`min-h-16 rounded-2xl border px-3 py-2 text-right transition ${ active ? "border-emerald-400/30 bg-emerald-500 text-zinc-950" : Number(stock || 0) <= 0 ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]" }`}
+                        className={`min-h-16 rounded-[var(--radius-control)] border px-3 py-2 text-right transition ${ active ? "border-emerald-400/30 bg-emerald-500 text-zinc-950" : Number(stock || 0) <= 0 ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]" }`}
                       >
                         <div className="text-2xl font-black leading-none">{size}</div>
                         <div className={`mt-1 text-[11px] font-semibold leading-none ${active ? "text-zinc-950/70" : "text-zinc-400"}`}>Stock: {Number(stock || 0)}</div>
@@ -745,7 +745,7 @@ function ProductPickerSheet({
               type="button"
               onClick={onSubmit}
               disabled={!canSubmit || loadingSubmit}
-              className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loadingSubmit ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
               اطلب من المخزن
@@ -806,7 +806,7 @@ function EmployeePortalCameraScannerModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex min-h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-zinc-100 transition hover:bg-white/[0.08]"
+            className="inline-flex min-h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-zinc-100 transition hover:bg-white/[0.08]"
             aria-label="إغلاق ماسح الكاميرا"
           >
             <ArrowRight className="h-4 w-4" />
@@ -873,12 +873,12 @@ function EmployeePortalCameraScannerModal({
                   }
                 }}
                 placeholder="أدخل الباركود يدويًا"
-                className="min-h-[var(--control-height-lg)] flex-1 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+                className="min-h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
               <button
                 type="button"
                 onClick={onManualBarcodeSubmit}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-300"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-300"
               >
                 بحث
               </button>
@@ -1832,7 +1832,7 @@ export default function EmployeePortalProducts() {
                 setCameraScannerOpen(true);
               }}
               disabled={resolvingScan}
-              className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="فتح ماسح الكاميرا"
               title="فتح ماسح الكاميرا"
             >
@@ -1852,7 +1852,7 @@ export default function EmployeePortalProducts() {
               type="button"
               onClick={() => setFiltersOpen(true)}
               aria-expanded={filtersOpen}
-              className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-2xl border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+              className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
               aria-label="الفلاتر"
               title="الفلاتر"
             >
@@ -1888,7 +1888,7 @@ export default function EmployeePortalProducts() {
               type="button"
               onClick={loadMoreProducts}
               disabled={loadingMoreProducts}
-              className="mt-3 flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
+              className="mt-3 flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/30 bg-emerald-500/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
             >
               {loadingMoreProducts ? "جاري التحميل..." : "تحميل المزيد"}
             </button>

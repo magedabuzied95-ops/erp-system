@@ -119,7 +119,7 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
           <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-300">{meta?.label || type}</div>
           <div className="truncate text-[10px] text-slate-500">Configure this node</div>
         </div>
-        <button type="button" onClick={onDelete} title="Delete node" className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-rose-400/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20">
+        <button type="button" onClick={onDelete} title="Delete node" className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -230,7 +230,7 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
             {currentMode === "llm_grounded" && (!modeInfo || modeInfo.available) ? (
               <div className="mt-2">
                 <div className={labelCls}>Prompt (optional)</div>
-                <textarea value={cfg.prompt || ""} onChange={(e) => set({ prompt: e.target.value })} rows={3} dir="ltr" className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-2 text-[12px] text-white focus:border-primary/40 focus:outline-none" placeholder="Falls back to the trigger query if empty." />
+                <textarea value={cfg.prompt || ""} onChange={(e) => set({ prompt: e.target.value })} rows={3} dir="ltr" className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-2.5 py-2 text-[12px] text-white focus:border-primary/40 focus:outline-none" placeholder="Falls back to the trigger query if empty." />
               </div>
             ) : null}
           </Section>
@@ -279,9 +279,9 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
                       ? "Granted — automatic runs may create internal follow-ups. No customer messaging or order changes."
                       : "Not granted — automatic runs cannot execute this write until an admin grants it."}</div>
                     {granted ? (
-                      <button type="button" onClick={() => onRevokeTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black text-rose-100 hover:bg-rose-500/20"><KeyRound className="h-3 w-3" />Revoke automatic permission</button>
+                      <button type="button" onClick={() => onRevokeTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black text-rose-100 hover:bg-rose-500/20"><KeyRound className="h-3 w-3" />Revoke automatic permission</button>
                     ) : (
-                      <button type="button" onClick={() => onGrantTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-[10px] font-black text-primary hover:bg-primary/20"><KeyRound className="h-3 w-3" />Grant automatic permission</button>
+                      <button type="button" onClick={() => onGrantTool?.(tool.id)} className="mt-1.5 inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-primary/40 bg-primary/10 px-2.5 py-1 text-[10px] font-black text-primary hover:bg-primary/20"><KeyRound className="h-3 w-3" />Grant automatic permission</button>
                     )}
                   </div>
                 );
@@ -306,11 +306,11 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
                   <button type="button" onClick={openJson} className="inline-flex items-center gap-1 text-[11px] font-black text-primary hover:text-primary"><Code2 className="h-3.5 w-3.5" /> Edit raw config JSON</button>
                 ) : (
                   <div className="space-y-2">
-                    <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={8} dir="ltr" spellCheck={false} className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-primary/40 focus:outline-none" />
+                    <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={8} dir="ltr" spellCheck={false} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-primary/40 focus:outline-none" />
                     {jsonErr ? <div className="text-[10px] font-bold text-rose-300">{jsonErr}</div> : null}
                     <div className="flex justify-end gap-2">
-                      <button type="button" onClick={() => setJsonOpen(false)} className="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-300">Cancel</button>
-                      <button type="button" onClick={applyJson} className="rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">Apply</button>
+                      <button type="button" onClick={() => setJsonOpen(false)} className="rounded-[var(--radius-control)] border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-300">Cancel</button>
+                      <button type="button" onClick={applyJson} className="rounded-[var(--radius-control)] border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">Apply</button>
                     </div>
                   </div>
                 )}

@@ -157,12 +157,12 @@ export default function PostTemplates() {
             </div>
             <div className="flex gap-3">
               {canCreate ? (
-                <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400">
+                <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400">
                   <Plus className="h-4 w-4" />
                   {t("marketing.templates.new")}
                 </button>
               ) : null}
-              <button onClick={load} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
+              <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
                 <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 {t("marketing.common.refresh")}
               </button>
@@ -244,9 +244,9 @@ export default function PostTemplates() {
                     <div className="text-xs text-primary">{template.hashtags || "-"}</div>
                   </div>
                   <div className="mt-4 flex gap-2">
-                    {canUpdate ? <button onClick={() => openEdit(template)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">{t("marketing.common.edit")}</button> : null}
+                    {canUpdate ? <button onClick={() => openEdit(template)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">{t("marketing.common.edit")}</button> : null}
                     {canDelete ? (
-                      <button onClick={() => removeTemplate(template.id)} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
+                      <button onClick={() => removeTemplate(template.id)} className="rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
                         <Trash2 className="mr-1 inline-block h-3.5 w-3.5" />
                         {t("marketing.common.delete")}
                       </button>

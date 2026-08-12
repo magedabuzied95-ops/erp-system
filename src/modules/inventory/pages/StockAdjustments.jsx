@@ -665,7 +665,7 @@ function StockAdjustments() {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="ابحث بالاسم أو SKU أو الباركود"
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
                 />
               </label>
 
@@ -673,7 +673,7 @@ function StockAdjustments() {
                 <button
                   type="button"
                   onClick={openScanner}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <Camera className="h-4 w-4" />
                   مسح الباركود
@@ -684,7 +684,7 @@ function StockAdjustments() {
                     setSearch("");
                     setSelectedVariantId("");
                   }}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <X className="h-4 w-4" />
                   مسح
@@ -707,7 +707,7 @@ function StockAdjustments() {
                   step="1"
                   value={approvalThreshold}
                   onChange={(event) => setApprovalThreshold(Math.max(1, asNumber(event.target.value, DEFAULT_APPROVAL_THRESHOLD)))}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                 />
               </label>
             </div>
@@ -743,7 +743,7 @@ function StockAdjustments() {
                       key={String(variant.variant_id)}
                       type="button"
                       onClick={() => selectVariant(variant)}
-                      className={`flex w-full items-center gap-4 rounded-3xl border p-4 text-left transition ${ selected ? "border-primary/30 bg-primary/10 shadow-lg shadow-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10" }`}
+                      className={`flex w-full items-center gap-4 rounded-[var(--radius-control)] border p-4 text-left transition ${ selected ? "border-primary/30 bg-primary/10 shadow-lg shadow-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10" }`}
                     >
                       <ProductThumb imageUrl={variant.image_url} productName={variant.product_name} />
                       <div className="min-w-0 flex-1">
@@ -808,7 +808,7 @@ function StockAdjustments() {
                   <button
                     type="button"
                     onClick={openHistory}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                   >
                     <History className="h-4 w-4" />
                     عرض سجل المنتج
@@ -816,7 +816,7 @@ function StockAdjustments() {
                   <button
                     type="button"
                     onClick={() => setSearch([selectedVariant.product_name, selectedVariant.sku, selectedVariant.barcode].filter(Boolean).join(" "))}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                   >
                     <Search className="h-4 w-4" />
                     بحث من جديد
@@ -844,7 +844,7 @@ function StockAdjustments() {
                           key={type.value}
                           type="button"
                           onClick={() => setAdjustmentType(type.value)}
-                          className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${ active ? type.tone === "emerald" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200" : "border-rose-400/30 bg-rose-500/10 text-rose-200" : "border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
+                          className={`rounded-[var(--radius-control)] border px-4 py-3 text-sm font-semibold transition ${ active ? type.tone === "emerald" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200" : "border-rose-400/30 bg-rose-500/10 text-rose-200" : "border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
                         >
                           {type.label}
                         </button>
@@ -859,7 +859,7 @@ function StockAdjustments() {
                     <button
                       type="button"
                       onClick={() => setQuantity((value) => Math.max(1, asNumber(value, 1) - 1))}
-                      className="inline-flex w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                      className="inline-flex w-12 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
                     >
                       <Minus className="h-4 w-4" />
                     </button>
@@ -869,12 +869,12 @@ function StockAdjustments() {
                       step="1"
                       value={quantity}
                       onChange={(event) => setQuantity(Math.max(1, asNumber(event.target.value, 1)))}
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => setQuantity((value) => asNumber(value, 1) + 1)}
-                      className="inline-flex w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                      className="inline-flex w-12 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
                     >
                       <Plus className="h-4 w-4" />
                     </button>
@@ -887,7 +887,7 @@ function StockAdjustments() {
                 <select
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                 >
                   {REASON_OPTIONS.map((option) => (
                     <option key={option} value={option} className="bg-zinc-950 text-white">
@@ -904,7 +904,7 @@ function StockAdjustments() {
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   placeholder="أضف ملاحظة قصيرة لسجل حركة المخزون"
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
                 />
               </label>
 
@@ -926,7 +926,7 @@ function StockAdjustments() {
                   type="button"
                   onClick={openConfirmation}
                   disabled={!selectedVariant || !canAdjust || catalogLoading}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   تطبيق التسوية
@@ -1116,7 +1116,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
               <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">ماسح الباركود</div>
               <h3 className="m1-section-title mt-1 text-white">امسح باركود المنتج</h3>
             </div>
-            <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
               إغلاق
             </button>
           </div>
@@ -1135,7 +1135,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black">
+              <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
                 <CheckCircle2 className="h-4 w-4" />
                 تم
               </button>
@@ -1183,7 +1183,7 @@ function ConfirmationModal({
               <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">تأكيد التسوية</div>
               <h3 className="m1-section-title mt-1 text-white">{productName}</h3>
             </div>
-            <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
               إغلاق
             </button>
           </div>
@@ -1236,7 +1236,7 @@ function ConfirmationModal({
                         value={approvalName}
                         onChange={(event) => setApprovalName(event.target.value)}
                         placeholder="اسم المدير"
-                        className="w-full rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                       />
                     </label>
                     <label className="block">
@@ -1246,7 +1246,7 @@ function ConfirmationModal({
                         value={approvalNotes}
                         onChange={(event) => setApprovalNotes(event.target.value)}
                         placeholder="ملاحظة اعتماد اختيارية"
-                        className="w-full rounded-2xl border border-white/10 bg-zinc-950/80 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
                       />
                     </label>
                     <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-zinc-950/50 px-4 py-3 text-sm text-white">
@@ -1268,14 +1268,14 @@ function ConfirmationModal({
               )}
 
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
+                <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
                   إلغاء
                 </button>
                 <button
                   type="button"
                   onClick={onConfirm}
                   disabled={submitting || (requiresManagerApproval && (!approvalConfirmed || !normalizeText(approvalName)))}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {requiresManagerApproval ? "اعتماد وتطبيق" : "تطبيق التسوية"}
@@ -1300,7 +1300,7 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
             <h3 className="m1-section-title mt-1 text-white">{productName}</h3>
             <p className="mt-1 text-sm text-zinc-400">{[variantLabel, warehouseName].filter(Boolean).join(" / ")}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
             إغلاق
           </button>
         </div>

@@ -2704,7 +2704,7 @@ function CreateProduct() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={t("products.editor.productNamePlaceholder")}
-                    className="mt-2 w-full rounded-2xl border border-border bg-surface-soft px-4 py-3 text-text outline-none placeholder:text-text-muted"
+                    className="mt-2 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none placeholder:text-text-muted"
                   />
                 </div>
 
@@ -2717,7 +2717,7 @@ function CreateProduct() {
                       setSeoTouched((current) => ({ ...current, slug: true }));
                     }}
                     placeholder={t("products.editor.slugPlaceholder")}
-                    className="mt-2 w-full rounded-2xl border border-border bg-surface-soft px-4 py-3 font-mono text-sm text-text outline-none placeholder:text-text-muted"
+                    className="mt-2 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 font-mono text-sm text-text outline-none placeholder:text-text-muted"
                   />
                 </div>
               </div>
@@ -2781,7 +2781,7 @@ function CreateProduct() {
                     value={fixedSizeLabel}
                     onChange={(event) => setFixedSizeLabel(event.target.value)}
                     placeholder={t("products.editor.oneSize")}
-                    className="mt-2 w-full rounded-2xl border border-primary/15 bg-surface-soft px-4 py-3 text-text outline-none placeholder:text-text-muted"
+                    className="mt-2 w-full rounded-[var(--radius-control)] border border-primary/15 bg-surface-soft px-4 py-3 text-text outline-none placeholder:text-text-muted"
                   />
                   <p className="mt-2 text-xs text-primary/70">{t("products.editor.fixedSizeHelp")}</p>
                 </div>
@@ -3310,7 +3310,7 @@ function CreateProduct() {
                   <button
                     type="button"
                     onClick={() => setAdvancedOpen((current) => !current)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-surface-soft px-4 py-3 text-right transition hover:border-border"
+                    className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-right transition hover:border-border"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-black text-text">{t("products.editor.advancedSettings")}</p>
@@ -3580,7 +3580,7 @@ function CreateProduct() {
                                 moveColorGroup(group.id, -1);
                               }}
                               disabled={groupIndex === 0}
-                              className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-25"
+                              className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-25"
                               aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأعلى`}
                               title="تحريك لأعلى"
                             >
@@ -3593,7 +3593,7 @@ function CreateProduct() {
                                 moveColorGroup(group.id, 1);
                               }}
                               disabled={groupIndex === colorGroups.length - 1}
-                              className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-25"
+                              className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-25"
                               aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأسفل`}
                               title="تحريك لأسفل"
                             >
@@ -3606,7 +3606,7 @@ function CreateProduct() {
                               event.stopPropagation();
                               removeColorGroup(group.id);
                             }}
-                            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-border bg-surface-soft text-red-300"
+                            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-red-300"
                             aria-label={`Remove color group ${group.color || groupIndex + 1}`}
                           >
                             <Trash2 size={16} />
@@ -4174,7 +4174,7 @@ function ColorPickModal({ target, onClose, onPick }) {
             <p className="text-sm font-black text-text">{t("products.editor.pickColor", "اختيار اللون")}</p>
             <p className="mt-1 text-xs text-text-muted">{t("products.editor.pickColorHelp", "انقر على لون مادة الحذاء الحقيقي، وليس النعل أو الخلفية.")}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-border px-3 py-2 text-sm font-semibold text-text">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border px-3 py-2 text-sm font-semibold text-text">
             {t("common.close", "إغلاق")}
           </button>
         </div>

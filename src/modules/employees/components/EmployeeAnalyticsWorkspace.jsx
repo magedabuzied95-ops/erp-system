@@ -346,7 +346,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     ...(event.target.value === "custom" ? {} : getPresetRange(event.target.value)),
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40"
               >
                 {PRESET_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -369,7 +369,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     startDate: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
@@ -386,7 +386,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     endDate: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
           </div>
@@ -513,12 +513,12 @@ export default function EmployeeAnalyticsWorkspace() {
                 value={ruleDraft.name}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, name: event.target.value }))}
                 placeholder={t("common.employeeHub.analytics.commissions.ruleName")}
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
               <select
                 value={ruleDraft.scope_type}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, scope_type: event.target.value }))}
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
               >
                 <option value="global">{t("common.employeeHub.analytics.commissions.scope.global")}</option>
                 <option value="product">{t("common.employeeHub.analytics.commissions.scope.product")}</option>
@@ -528,7 +528,7 @@ export default function EmployeeAnalyticsWorkspace() {
               <select
                 value={ruleDraft.rule_type}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, rule_type: event.target.value }))}
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
               >
                 <option value="percentage">{t("common.employeeHub.analytics.commissions.ruleType.percentage")}</option>
                 <option value="fixed">{t("common.employeeHub.analytics.commissions.ruleType.fixed")}</option>
@@ -540,13 +540,13 @@ export default function EmployeeAnalyticsWorkspace() {
                 value={ruleDraft.value}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, value: event.target.value }))}
                 placeholder={t("common.employeeHub.analytics.commissions.value")}
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
               <input
                 value={ruleDraft.scope_id}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, scope_id: event.target.value }))}
                 placeholder={t("common.employeeHub.analytics.commissions.scopeId")}
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
               <input
                 type="number"
@@ -555,12 +555,12 @@ export default function EmployeeAnalyticsWorkspace() {
                 value={ruleDraft.priority}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, priority: event.target.value }))}
                 placeholder={t("common.employeeHub.analytics.commissions.priority")}
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
               <select
                 value={ruleDraft.apply_to}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, apply_to: event.target.value }))}
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
               >
                 <option value="sale">{t("common.employeeHub.analytics.commissions.apply.sale")}</option>
                 <option value="item">{t("common.employeeHub.analytics.commissions.apply.item")}</option>
@@ -568,7 +568,7 @@ export default function EmployeeAnalyticsWorkspace() {
               <button
                 type="button"
                 onClick={handleCreateRule}
-                className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
+                className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
               >
                 {t("common.employeeHub.analytics.commissions.addRule")}
               </button>

@@ -125,7 +125,7 @@ export default function HRRequestsWorkspace() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={[
-                  "inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-xl border px-4 py-2 text-sm font-black transition",
+                  "inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border px-4 py-2 text-sm font-black transition",
                   active
                     ? "border-[var(--border)] bg-[var(--primary-soft)] text-[var(--text)]"
                     : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)]",
@@ -190,7 +190,7 @@ export default function HRRequestsWorkspace() {
                         onChange={(event) => setPortalRequestNotes((prev) => ({ ...prev, [request.id]: event.target.value }))}
                         placeholder={isArabic ? "ملاحظة الرد" : "Response note"}
                         disabled={!canReview}
-                        className="min-h-20 rounded-2xl border border-[var(--border)] bg-black/10 px-3 py-2 text-sm font-bold outline-none disabled:opacity-60"
+                        className="min-h-20 rounded-[var(--radius-control)] border border-[var(--border)] bg-black/10 px-3 py-2 text-sm font-bold outline-none disabled:opacity-60"
                         dir="auto"
                       />
                       <div className="grid gap-2 md:grid-cols-2">

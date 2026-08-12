@@ -453,7 +453,7 @@ function UsersPage() {
                   type="button"
                   onClick={createUser}
                   disabled={!Number.isInteger(Number(selectedRoleId)) || Number(selectedRoleId) <= 0 || roleOptions.length === 0}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black"
                 >
                   <BadgePlus className="h-4 w-4" />
                   Create user
@@ -468,7 +468,7 @@ function UsersPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search users..."
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
             </div>
 
@@ -510,7 +510,7 @@ function UsersPage() {
                         value={String(user.role_id || "")}
                         onChange={(e) => updateUserRole(user.id, e.target.value)}
                         disabled={savingId === user.id}
-                        className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none disabled:opacity-50"
+                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none disabled:opacity-50"
                       >
                         {roleOptions.map((role) => (
                           <option key={role.id} value={role.id} className="bg-zinc-950 text-white">
@@ -533,7 +533,7 @@ function UsersPage() {
                       <button
                         type="button"
                         onClick={() => openEditUser(user)}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
                       >
                         <PencilLine className="h-4 w-4" />
                         Edit
@@ -541,7 +541,7 @@ function UsersPage() {
                       <button
                         type="button"
                         onClick={() => openPasswordModal(user)}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
                       >
                         <ShieldAlert className="h-4 w-4" />
                         Change Password
@@ -550,7 +550,7 @@ function UsersPage() {
                         type="button"
                         onClick={() => deleteUser(user)}
                         disabled={actionBusyId === user.id}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50"
+                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50"
                       >
                         <Trash2 className="h-4 w-4" />
                         Delete
@@ -572,14 +572,14 @@ function UsersPage() {
             <Select label="Role" value={editRoleId} onChange={setEditRoleId} options={roleOptions} />
           </div>
           <div className="mt-5 flex items-center justify-end gap-2">
-            <button type="button" onClick={closeEditUser} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={closeEditUser} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               Cancel
             </button>
             <button
               type="button"
               onClick={saveEditUser}
               disabled={actionBusyId === editingUser.id}
-              className="rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+              className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
             >
               Save
             </button>
@@ -594,14 +594,14 @@ function UsersPage() {
             <Field label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm password" type="password" />
           </div>
           <div className="mt-5 flex items-center justify-end gap-2">
-            <button type="button" onClick={closePasswordModal} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={closePasswordModal} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               Cancel
             </button>
             <button
               type="button"
               onClick={savePassword}
               disabled={actionBusyId === passwordUser.id}
-              className="rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+              className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
             >
               Save
             </button>
@@ -623,7 +623,7 @@ function Modal({ title, onClose, children }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white"
+            className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white"
             aria-label="Close modal"
           >
             <CircleX className="h-5 w-5" />
@@ -644,7 +644,7 @@ function Field({ label, value, onChange, placeholder, type = "text" }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
       />
     </label>
   );
@@ -654,7 +654,7 @@ function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none">
         {options.map((option) => (
           <option key={option.id} value={String(option.id)} className="bg-zinc-950 text-white">
             {option.name}

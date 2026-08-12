@@ -114,12 +114,12 @@ export default function Campaigns() {
             </div>
             <div className="flex gap-3">
               {canCreate ? (
-                <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400">
+                <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400">
                   <Plus className="h-4 w-4" />
                   {t("marketing.campaigns.new")}
                 </button>
               ) : null}
-              <button onClick={load} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
+              <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
                 <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 {t("common.refresh")}
               </button>
@@ -161,13 +161,13 @@ export default function Campaigns() {
                       <td className="border-b border-white/5 px-3 py-4">
                         <div className="flex justify-end gap-2">
                           {canUpdate ? (
-                            <button onClick={() => openEdit(campaign)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">
+                            <button onClick={() => openEdit(campaign)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">
                               <Pencil className="me-1 inline-block h-3.5 w-3.5" />
                               {t("common.edit")}
                             </button>
                           ) : null}
                           {canDelete ? (
-                            <button onClick={() => removeCampaign(campaign.id)} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
+                            <button onClick={() => removeCampaign(campaign.id)} className="rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
                               <Trash2 className="me-1 inline-block h-3.5 w-3.5" />
                               {t("common.delete")}
                             </button>

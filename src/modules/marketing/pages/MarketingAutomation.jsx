@@ -357,7 +357,7 @@ export default function MarketingAutomation() {
                 <h2 className="m1-section-title">{t("marketing.automation.rules")}</h2>
                 <p className="text-xs text-slate-400">{t("marketing.automation.playbooks")}</p>
               </div>
-              <button type="button" onClick={() => applyRule(blankRule)} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+              <button type="button" onClick={() => applyRule(blankRule)} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 text-primary">
                 <Plus className="h-4 w-4" />
               </button>
             </div>
@@ -367,7 +367,7 @@ export default function MarketingAutomation() {
                   key={rule.id}
                   type="button"
                   onClick={() => applyRule(rule)}
-                  className={`w-full rounded-xl border p-3 text-left transition ${selectedRuleId === rule.id ? "border-primary/50 bg-primary/10 shadow-[0_0_28px_rgba(34,211,238,0.12)]" : "border-white/10 bg-slate-950/50 hover:bg-white/[0.07]"}`}
+                  className={`w-full rounded-[var(--radius-control)] border p-3 text-left transition ${selectedRuleId === rule.id ? "border-primary/50 bg-primary/10 shadow-[0_0_28px_rgba(34,211,238,0.12)]" : "border-white/10 bg-slate-950/50 hover:bg-white/[0.07]"}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -398,15 +398,15 @@ export default function MarketingAutomation() {
                 <p className="text-sm text-slate-400">{t("marketing.automation.ruleEditorDescription")}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => setForm((current) => ({ ...current, enabled: !current.enabled }))} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-semibold">
+                <button type="button" onClick={() => setForm((current) => ({ ...current, enabled: !current.enabled }))} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-semibold">
                   {form.enabled ? <ToggleRight className="h-5 w-5 text-emerald-300" /> : <ToggleLeft className="h-5 w-5 text-slate-400" />}
                   {form.enabled ? t("marketing.automation.enabled") : t("marketing.campaigns.status.paused")}
                 </button>
-                <button type="button" onClick={() => { void loadPrimary(); void loadActivity(); }} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold">
+                <button type="button" onClick={() => { void loadPrimary(); void loadActivity(); }} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold">
                   <RefreshCw className="h-4 w-4" />
                   {t("marketing.common.refresh")}
                 </button>
-                <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
                   <Save className="h-4 w-4" />
                   {t("marketing.common.save")}
                 </button>
@@ -416,18 +416,18 @@ export default function MarketingAutomation() {
             <div className="grid gap-3 lg:grid-cols-2">
               <label className="space-y-1.5 lg:col-span-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.fields.ruleName")}</span>
-                <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none transition focus:border-primary/40" />
+                <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none transition focus:border-primary/40" />
               </label>
               <label className="space-y-1.5">
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.social.platform")}</span>
-                <select value={form.platform} onChange={(event) => setForm((current) => ({ ...current, platform: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none">
+                <select value={form.platform} onChange={(event) => setForm((current) => ({ ...current, platform: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none">
                   <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
                   <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
                 </select>
               </label>
               <label className="space-y-1.5">
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.fields.matchMode")}</span>
-                <select value={form.match_mode} onChange={(event) => setForm((current) => ({ ...current, match_mode: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none">
+                <select value={form.match_mode} onChange={(event) => setForm((current) => ({ ...current, match_mode: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none">
                   <option value="any">{t("marketing.automation.matchModes.anySmart")}</option>
                   <option value="all">{t("marketing.automation.matchModes.all")}</option>
                   <option value="exact">{t("marketing.automation.matchModes.exact")}</option>
@@ -487,7 +487,7 @@ export default function MarketingAutomation() {
                   ))}
                 </div>
               </div>
-              <textarea rows={8} value={form.private_reply_template} onChange={(event) => setForm((current) => ({ ...current, private_reply_template: event.target.value }))} className="w-full resize-y rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm leading-6 outline-none" />
+              <textarea rows={8} value={form.private_reply_template} onChange={(event) => setForm((current) => ({ ...current, private_reply_template: event.target.value }))} className="w-full resize-y rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm leading-6 outline-none" />
             </section>
           </main>
 
@@ -532,7 +532,7 @@ export default function MarketingAutomation() {
                       void navigator.clipboard?.writeText(webhookStatus?.webhook_url || "/api/marketing/webhooks/meta");
                       toast.success(t("marketing.automation.webhook.urlCopied"));
                     }}
-                    className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-semibold"
+                    className="shrink-0 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-semibold"
                   >
                     {t("marketing.common.copy")}
                   </button>
@@ -562,7 +562,7 @@ export default function MarketingAutomation() {
                 </div>
                 <Sparkles className="h-5 w-5 text-primary" />
               </div>
-              <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none">
+              <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none">
                 {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
               </select>
 
@@ -602,7 +602,7 @@ export default function MarketingAutomation() {
                 </div>
                 <Zap className="h-4 w-4 text-amber-300" />
               </div>
-              <input value={sampleComment} onChange={(event) => setSampleComment(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm outline-none" />
+              <input value={sampleComment} onChange={(event) => setSampleComment(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm outline-none" />
               <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
                 {[
                   [t("marketing.automation.intent.price"), intents.price],
@@ -612,7 +612,7 @@ export default function MarketingAutomation() {
                   <div key={label} className={`rounded-xl border px-2 py-2 ${active ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{label}</div>
                 ))}
               </div>
-              <button type="button" onClick={simulateComment} disabled={simulating} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary disabled:opacity-60">
+              <button type="button" onClick={simulateComment} disabled={simulating} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary disabled:opacity-60">
                 <Send className="h-4 w-4" />
                 {simulating ? t("marketing.automation.simulating") : t("marketing.automation.simulateComment")}
               </button>
@@ -660,7 +660,7 @@ export default function MarketingAutomation() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="m1-section-title">{t("marketing.automation.recentComments")}</h2>
-              <button type="button" onClick={loadActivity} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">{t("marketing.automation.reload")}</button>
+              <button type="button" onClick={loadActivity} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">{t("marketing.automation.reload")}</button>
             </div>
             <div className="space-y-2">
               {events.slice(0, 8).map((event) => {

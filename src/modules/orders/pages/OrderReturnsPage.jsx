@@ -423,7 +423,7 @@ function OrderReturnsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <MiniStat label="النتائج" value={filteredReturns.length} />
-                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>اليوم</button>
+                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-[var(--radius-control)] border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>اليوم</button>
               </div>
             </div>
             <ReturnsFilters search={search} setSearch={setSearch} returnStatusFilter={returnStatusFilter} setReturnStatusFilter={setReturnStatusFilter} refundStatusFilter={refundStatusFilter} setRefundStatusFilter={setRefundStatusFilter} dateFilter={dateFilter} setDateFilter={setDateFilter} />
@@ -496,7 +496,7 @@ function PageHeader({ onCreate }) {
           <button
             type="button"
             onClick={onCreate}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-black text-white transition hover:brightness-110"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-2 text-sm font-black text-white transition hover:brightness-110"
           >
             <Plus className="h-4 w-4" />
             إنشاء مرتجع
@@ -543,7 +543,7 @@ function ReturnsPanelTabs({ activePanel, onChange, customerCount, supplierCount 
           ? "border-amber-400/35 bg-amber-400/12 text-amber-100"
           : "border-primary/35 bg-primary/12 text-primary";
         return (
-          <button key={tab.value} type="button" onClick={() => onChange(tab.value)} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-black transition ${active ? activeClass : "border-transparent bg-white/[0.03] text-zinc-400 hover:bg-white/[0.07] hover:text-white"}`}>
+          <button key={tab.value} type="button" onClick={() => onChange(tab.value)} className={`flex items-center justify-between rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black transition ${active ? activeClass : "border-transparent bg-white/[0.03] text-zinc-400 hover:bg-white/[0.07] hover:text-white"}`}>
             <span>{tab.label}</span>
             <span className="rounded-full border border-current/20 bg-black/20 px-2 py-0.5 text-xs">{tab.count}</span>
           </button>
@@ -614,7 +614,7 @@ function SupplierReturnsPanel({
             <h2 className="m1-section-title mt-1 text-white">مرتجعات الموردين</h2>
             <p className="mt-1 text-xs text-zinc-400">النتائج الحالية {items.length} من إجمالي {allItems.length} بند</p>
           </div>
-          <button type="button" onClick={resetFilters} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10">مسح الفلاتر</button>
+          <button type="button" onClick={resetFilters} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10">مسح الفلاتر</button>
         </div>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(18rem,2fr)_repeat(4,minmax(10rem,1fr))]">
@@ -622,19 +622,19 @@ function SupplierReturnsPanel({
             <div className="mb-1.5 text-[11px] font-bold text-zinc-300">البحث</div>
             <div className="relative">
               <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="المنتج، المورد، رقم المرتجع أو فاتورة الشراء" className="w-full rounded-xl border border-amber-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm text-white outline-none placeholder:text-zinc-500" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="المنتج، المورد، رقم المرتجع أو فاتورة الشراء" className="w-full rounded-[var(--radius-control)] border border-amber-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm text-white outline-none placeholder:text-zinc-500" />
             </div>
           </label>
           <label className="block">
             <div className="mb-1.5 text-[11px] font-bold text-zinc-300">المورد</div>
-            <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
+            <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
               <option value="all" className="bg-zinc-950">كل الموردين</option>
               {supplierOptions.map((option) => <option key={option.value} value={option.value} className="bg-zinc-950">{option.label}</option>)}
             </select>
           </label>
           <FilterSelect label="الحالة" value={statusFilter} onChange={setStatusFilter} options={["pending", "returned", "cancelled"]} allLabel="كل الحالات" />
-          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">من تاريخ</div><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
-          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">إلى تاريخ</div><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
+          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">من تاريخ</div><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
+          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">إلى تاريخ</div><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
         </div>
 
         {items.length ? (
@@ -647,7 +647,7 @@ function SupplierReturnsPanel({
                 <div className="mt-1.5 space-y-1.5">
                   {items.map((item) => (
                     <div key={item.id} className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} items-center rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs text-zinc-300`}>
-                      <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم</button> : <span className="text-zinc-500">—</span>}</div>
+                      <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم</button> : <span className="text-zinc-500">—</span>}</div>
                       <div className="truncate font-bold text-white">{item.supplier_name}</div>
                       <div><div className="font-bold text-white">{item.product_name}</div><div className="text-[10px] text-zinc-500">{[item.color, item.size].filter(Boolean).join(" / ")}</div></div>
                       <div className="font-black">{item.quantity}</div>
@@ -702,7 +702,7 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
                     <div className="mt-1 text-[10px] text-zinc-500">{item.return_number || item.invoice_number || ""} · × {item.quantity}</div>
                   </div>
                   {lower(item.status) === "pending" ? (
-                    <button type="button" onClick={() => onMarkReturned(item.id)} className="shrink-0 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم للمورد</button>
+                    <button type="button" onClick={() => onMarkReturned(item.id)} className="shrink-0 rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم للمورد</button>
                   ) : <SupplierReturnStatus status={item.status} />}
                 </div>
               ))}
@@ -746,7 +746,7 @@ function ReturnsFilters(props) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="ابحث برقم الفاتورة أو العميل أو الهاتف أو رقم التتبع"
-              className="w-full rounded-xl border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
+              className="w-full rounded-[var(--radius-control)] border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
             />
           </div>
         </label>
@@ -760,7 +760,7 @@ function ReturnsFilters(props) {
             type="date"
             value={dateFilter}
             onChange={(event) => setDateFilter(event.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none"
+            className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none"
           />
         </label>
       </div>
@@ -772,7 +772,7 @@ function FilterSelect({ label, value, onChange, options, allLabel }) {
   return (
     <label className="block">
       <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{label}</div>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
         <option value="all" className="bg-zinc-950 text-white">{allLabel}</option>
         {options.map((option) => (
           <option key={option} value={option} className="bg-zinc-950 text-white">
@@ -928,7 +928,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
             <h2 className="m1-section-title mt-1">{mode === "edit" ? "تعديل المرتجع" : "إنشاء مرتجع"}</h2>
             <p className="mt-1 text-sm text-zinc-400">نفس تدفق الإنشاء الحالي داخل drawer بدل الواجهة المنفصلة.</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -939,7 +939,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <select
                 value={form.selectedOrderId}
                 onChange={(event) => setForm((current) => ({ ...current, selectedOrderId: event.target.value, returnItems: {} }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
               >
                 {orders.map((order) => (
                   <option key={String(order.id)} value={String(order.id)} className="bg-zinc-950 text-white">
@@ -957,7 +957,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <select
                 value={form.status}
                 onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
               >
                 {RETURN_STATUS_OPTIONS.map((option) => (
                   <option key={option} value={option} className="bg-zinc-950 text-white">{humanizeKey(option)}</option>
@@ -969,7 +969,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <input
                 value={form.trackingNumber}
                 onChange={(event) => setForm((current) => ({ ...current, trackingNumber: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                 placeholder={t("orders.returns.trackingPlaceholder")}
               />
             </Field>
@@ -978,7 +978,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <input
                 value={form.shippingProvider}
                 onChange={(event) => setForm((current) => ({ ...current, shippingProvider: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                 placeholder={t("orders.returns.providerPlaceholder")}
               />
             </Field>
@@ -987,7 +987,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <select
                 value={form.refundMethod}
                 onChange={(event) => setForm((current) => ({ ...current, refundMethod: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
               >
                 {REFUND_METHOD_OPTIONS.map((option) => (
                   <option key={option} value={option} className="bg-zinc-950 text-white">{humanizeKey(option)}</option>
@@ -999,7 +999,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <select
                 value={form.refundStatus}
                 onChange={(event) => setForm((current) => ({ ...current, refundStatus: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
               >
                 {REFUND_STATUS_OPTIONS.map((option) => (
                   <option key={option} value={option} className="bg-zinc-950 text-white">{humanizeKey(option)}</option>
@@ -1020,7 +1020,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                   const disposition = event.target.value;
                   setForm((current) => ({ ...current, disposition, restock: disposition === "restock" }));
                 }}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
               >
                 {RETURN_DISPOSITION_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value} className="bg-zinc-950 text-white">{option.label}</option>
@@ -1053,7 +1053,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                         <button
                           type="button"
                           onClick={() => toggleItem(item)}
-                          className={`rounded-2xl px-3 py-2 text-sm font-semibold ${checked ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-white"}`}
+                          className={`rounded-[var(--radius-control)] px-3 py-2 text-sm font-semibold ${checked ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-white"}`}
                         >
                           {checked ? t("orders.returns.included") : t("orders.returns.select")}
                         </button>
@@ -1075,7 +1075,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                               max={item.quantity}
                               value={selectedItem?.quantity ?? 1}
                               onChange={(event) => updateItem(item.id, { quantity: Number(event.target.value || 0) })}
-                              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                             />
                           </Field>
                           <div className="md:col-span-2">
@@ -1089,7 +1089,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                                     setForm((current) => ({ ...current, disposition: "manufacturing_defect", restock: false }));
                                   }
                                 }}
-                                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                                 placeholder={t("orders.returns.reasonPlaceholder")}
                               />
                             </Field>
@@ -1116,7 +1116,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                   }));
                 }}
                 rows={5}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none"
                 placeholder={t("orders.returns.overallReasonPlaceholder")}
               />
             </Field>
@@ -1124,10 +1124,10 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
         </div>
 
         <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
             إغلاق
           </button>
-          <button type="button" onClick={onSubmit} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black">
+          <button type="button" onClick={onSubmit} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black">
             {mode === "edit" ? "حفظ التعديلات" : t("orders.returns.saveReturn")}
           </button>
         </footer>
@@ -1151,7 +1151,7 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
               {record.restock ? <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-100">تمت الإعادة للمخزون</span> : null}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -1249,16 +1249,16 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
         </div>
 
         <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
-          <button type="button" onClick={() => navigate(`/orders/${record.orderId}`)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
+          <button type="button" onClick={() => navigate(`/orders/${record.orderId}`)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
             فتح الطلب الأصلي
           </button>
-          <button type="button" onClick={onEdit} disabled={!record.allowEdit} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" onClick={onEdit} disabled={!record.allowEdit} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45">
             تعديل المرتجع
           </button>
-          <button type="button" onClick={() => window.print()} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
+          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
             طباعة / PDF
           </button>
-          <button type="button" onClick={onDelete} disabled={!record.allowDelete} className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" onClick={onDelete} disabled={!record.allowDelete} className="rounded-[var(--radius-control)] bg-rose-500 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">
             {record.returnStatus === "Draft" ? "إلغاء المرتجع" : "حذف المرتجع"}
           </button>
         </footer>
@@ -1356,7 +1356,7 @@ function RowAction({ icon: Icon, label, onClick, disabled = false, tone = "defau
       onClick={onClick}
       disabled={disabled}
       title={label}
-      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
+      className={`inline-flex items-center gap-1 rounded-[var(--radius-control)] border px-2 py-1 text-[10px] font-bold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
     >
       <Icon className="h-3.5 w-3.5" />
       <span className="hidden 2xl:inline">{label}</span>
@@ -1370,7 +1370,7 @@ function MobileAction({ icon: Icon, label, onClick, disabled = false, danger = f
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-45 ${danger ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-white/10 bg-white/5 text-white"}`}
+      className={`inline-flex items-center gap-1 rounded-[var(--radius-control)] border px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-45 ${danger ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-white/10 bg-white/5 text-white"}`}
     >
       <Icon className="h-3.5 w-3.5" />
       {label}

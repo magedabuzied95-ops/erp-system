@@ -135,13 +135,13 @@ function StockTransfers() {
               onChange={(e) => setNotes(e.target.value)}
               rows={5}
               placeholder="ملاحظات التعبئة، تفاصيل السائق، سبب التحويل..."
-              className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
           <button
             type="button"
             onClick={submitTransfer}
-            className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black"
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black"
           >
             <Save className="h-4 w-4" />
             إرسال التحويل
@@ -196,7 +196,7 @@ function Field({ label, value, onChange, type = "text", placeholder }) {
         value={value}
         onChange={(e) => onChange(type === "number" ? Number(e.target.value || 0) : e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
       />
     </label>
   );
@@ -206,7 +206,7 @@ function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none">
         {options.map((option) => (
           <option key={String(option.id)} value={String(option.id)} className="bg-zinc-950 text-white">
             {option.name}

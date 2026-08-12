@@ -441,7 +441,7 @@ function ScannerModal({ onClose, onScan }) {
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Inventory</div>
             <h3 className="m1-section-title mt-1">امسح الباركود</h3>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300">
+          <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-300">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -502,13 +502,13 @@ function ScannerModal({ onClose, onScan }) {
                   }
                 }}
                 placeholder="أدخل الباركود يدويًا"
-                className="h-[var(--control-height-lg)] flex-1 rounded-2xl border border-white/10 bg-black/40 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+                className="h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-white/10 bg-black/40 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
               <button
                 type="button"
                 onClick={() => submitScan(manualValue)}
                 disabled={!clean(manualValue) || submitting}
-                className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50"
+                className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50"
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "بحث"}
               </button>
@@ -1448,7 +1448,7 @@ export default function EmployeePortalInventory() {
               <button
                 type="button"
                 onClick={() => setBranchDrawerOpen(true)}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:hidden"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:hidden"
                 aria-label="جردات الفرع"
               >
                 <Menu className="h-4 w-4" />
@@ -1457,7 +1457,7 @@ export default function EmployeePortalInventory() {
               <button
                 type="button"
                 onClick={loadSessions}
-                className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:inline-flex"
+                className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:inline-flex"
               >
                 <RefreshCw className="h-4 w-4" />
                 تحديث
@@ -1466,7 +1466,7 @@ export default function EmployeePortalInventory() {
                 type="button"
                 onClick={handleCreateSession}
                 disabled={sessionSaving}
-                className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60 lg:inline-flex"
+                className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60 lg:inline-flex"
               >
                 {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 جرد جديد
@@ -1524,7 +1524,7 @@ export default function EmployeePortalInventory() {
                       key={row.id}
                       type="button"
                       onClick={() => selectSession(row.id)}
-                      className={`w-full rounded-2xl border p-3 text-right transition ${ active ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50" }`}
+                      className={`w-full rounded-[var(--radius-control)] border p-3 text-right transition ${ active ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50" }`}
                     >
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1582,7 +1582,7 @@ export default function EmployeePortalInventory() {
                         type="button"
                         onClick={handleOpenSession}
                         disabled={sessionOpening}
-                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-60"
+                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-60"
                       >
                         {sessionOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
                         بدء الجرد
@@ -1593,7 +1593,7 @@ export default function EmployeePortalInventory() {
                         type="button"
                         onClick={handleSaveSessionMeta}
                         disabled={sessionSaving || !isEditable}
-                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 disabled:opacity-60"
+                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 disabled:opacity-60"
                       >
                         <Save className="h-4 w-4" />
                         حفظ
@@ -1602,7 +1602,7 @@ export default function EmployeePortalInventory() {
                         type="button"
                         onClick={handleSubmitSession}
                         disabled={sessionSubmitting || !isEditable}
-                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-60"
+                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-60"
                       >
                         {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         إرسال للمراجعة
@@ -1625,7 +1625,7 @@ export default function EmployeePortalInventory() {
                       type="button"
                       onClick={handleReopenSession}
                       disabled={sessionReopening}
-                      className="mt-3 inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-rose-600 px-4 text-sm font-black text-white disabled:opacity-60"
+                      className="mt-3 inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-rose-600 px-4 text-sm font-black text-white disabled:opacity-60"
                     >
                       {sessionReopening ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                       إعادة فتح للتعديل
@@ -1678,7 +1678,7 @@ export default function EmployeePortalInventory() {
                       type="button"
                       onClick={() => setFiltersOpen(true)}
                       aria-expanded={filtersOpen}
-                      className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-2xl border transition ${ filtersOpen || activeFilterCount > 0 ? "border-violet-400/40 bg-violet-500/10 text-violet-700 shadow-[0_0_18px_rgba(124,58,237,0.12)]" : "border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700" }`}
+                      className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-violet-400/40 bg-violet-500/10 text-violet-700 shadow-[0_0_18px_rgba(124,58,237,0.12)]" : "border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700" }`}
                       aria-label="الفلاتر"
                       title="الفلاتر"
                     >
@@ -1706,7 +1706,7 @@ export default function EmployeePortalInventory() {
                       type="button"
                       onClick={() => setScannerOpen(true)}
                       disabled={!isEditable}
-                      className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-60"
+                      className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-60"
                       aria-label="مسح الباركود"
                       title="مسح الباركود"
                     >
@@ -1751,7 +1751,7 @@ export default function EmployeePortalInventory() {
                                 type="button"
                                 onClick={() => addColorGroup(group)}
                                 disabled={!isEditable}
-                                className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white disabled:opacity-60"
+                                className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-xs font-black text-white disabled:opacity-60"
                               >
                                 <Plus className="h-4 w-4" />
                                 إضافة اللون
@@ -1840,7 +1840,7 @@ export default function EmployeePortalInventory() {
                                     type="button"
                                     onClick={() => adjustVariantCount(variant, -1)}
                                     disabled={!isEditable || saving}
-                                    className="inline-flex h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-700 transition-colors disabled:opacity-50"
+                                    className="inline-flex h-14 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-2xl font-black text-slate-700 transition-colors disabled:opacity-50"
                                     aria-label="إنقاص الكمية"
                                   >
                                     -
@@ -1850,13 +1850,13 @@ export default function EmployeePortalInventory() {
                                     readOnly
                                     inputMode="numeric"
                                     value={variant.counted_quantity}
-                                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-center text-base font-black text-slate-950 outline-none"
+                                    className="h-14 w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-center text-base font-black text-slate-950 outline-none"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => adjustVariantCount(variant, 1)}
                                     disabled={!isEditable || saving}
-                                    className="inline-flex h-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-black text-white transition-colors disabled:opacity-50"
+                                    className="inline-flex h-14 items-center justify-center rounded-[var(--radius-control)] bg-emerald-600 text-2xl font-black text-white transition-colors disabled:opacity-50"
                                     aria-label="زيادة الكمية"
                                   >
                                     +
@@ -1971,7 +1971,7 @@ function BranchInventoryDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm"
+            className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-700 shadow-sm"
             aria-label="إغلاق"
           >
             <X className="h-5 w-5" />
@@ -1996,7 +1996,7 @@ function BranchInventoryDrawer({
             type="button"
             onClick={onCreateSession}
             disabled={sessionSaving}
-            className="mt-4 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
+            className="mt-4 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
           >
             {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             جرد جديد
@@ -2034,7 +2034,7 @@ function BranchInventoryDrawer({
                     key={row.id}
                     type="button"
                     onClick={() => onSelectSession(row.id)}
-                    className={`w-full rounded-2xl border p-3 text-right transition ${ active ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50" }`}
+                    className={`w-full rounded-[var(--radius-control)] border p-3 text-right transition ${ active ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50" }`}
                   >
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0">

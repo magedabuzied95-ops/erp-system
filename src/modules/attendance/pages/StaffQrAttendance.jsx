@@ -167,7 +167,7 @@ export default function StaffQrAttendance() {
             <button
               type="button"
               onClick={restartScanner}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <RefreshCcw className={`h-4 w-4 ${processing ? "animate-spin" : ""}`} />
               Scan again
@@ -194,7 +194,7 @@ export default function StaffQrAttendance() {
                   <button
                     type="button"
                     onClick={restartScanner}
-                    className="mt-6 inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20"
+                    className="mt-6 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20"
                   >
                     <ScanLine className="h-4 w-4" />
                     Scan next badge

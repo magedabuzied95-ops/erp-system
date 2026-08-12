@@ -592,7 +592,7 @@ export default function AiSupportConsole() {
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
-                  className="min-h-40 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-base leading-7 text-white outline-none transition placeholder:text-slate-600 focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+                  className="min-h-40 w-full resize-none rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 p-4 text-base leading-7 text-white outline-none transition placeholder:text-slate-600 focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
                   placeholder="Type a customer question..."
                 />
                 {authHydrated && !isValidTenantId(tenantId) ? (
@@ -604,7 +604,7 @@ export default function AiSupportConsole() {
                   type="button"
                   onClick={() => runTest()}
                   disabled={!authHydrated || loading || !message.trim() || !isValidTenantId(tenantId)}
-                  className="mt-4 inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-black text-slate-950 shadow-lg shadow-primary/30 transition hover:-translate-y-0.5 hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-slate-950 shadow-lg shadow-primary/30 transition hover:-translate-y-0.5 hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                   Run support test
@@ -623,7 +623,7 @@ export default function AiSupportConsole() {
                       type="button"
                       onClick={() => runTest(test)}
                       disabled={!authHydrated || loading || !isValidTenantId(tenantId)}
-                      className="min-h-[var(--control-height-lg)] rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-right text-sm font-bold text-slate-100 transition hover:-translate-y-0.5 hover:border-primary/35 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.055] px-4 py-3 text-right text-sm font-bold text-slate-100 transition hover:-translate-y-0.5 hover:border-primary/35 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {test}
                     </button>
@@ -752,7 +752,7 @@ export default function AiSupportConsole() {
                 type="button"
                 onClick={loadOrderDrafts}
                 disabled={orderDraftsLoading}
-                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white transition hover:bg-white/[0.09] disabled:opacity-50"
               >
                 <RefreshCw className={`h-4 w-4 ${orderDraftsLoading ? "animate-spin" : ""}`} />
                 Refresh drafts
@@ -794,17 +794,17 @@ export default function AiSupportConsole() {
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
-                        <button type="button" onClick={() => updateOrderDraft(draft, "confirm")} disabled={orderDraftsLoading || draft.ai_agent_status !== "ai_draft"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl bg-emerald-400 px-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" onClick={() => updateOrderDraft(draft, "confirm")} disabled={orderDraftsLoading || draft.ai_agent_status !== "ai_draft"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
                           <UserCheck className="h-4 w-4" />
                           Confirm Order
                         </button>
-                        <button type="button" onClick={() => { window.location.href = `/orders/${draft.id}`; }} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white">
+                        <button type="button" onClick={() => { window.location.href = `/orders/${draft.id}`; }} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white">
                           Edit Details
                         </button>
-                        <button type="button" onClick={() => updateOrderDraft(draft, "human_handoff")} disabled={orderDraftsLoading || draft.ai_agent_status === "confirmed"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 text-sm font-black text-amber-100 disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" onClick={() => updateOrderDraft(draft, "human_handoff")} disabled={orderDraftsLoading || draft.ai_agent_status === "confirmed"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-400/10 px-3 text-sm font-black text-amber-100 disabled:cursor-not-allowed disabled:opacity-50">
                           Assign to human
                         </button>
-                        <button type="button" onClick={() => updateOrderDraft(draft, "cancelled")} disabled={orderDraftsLoading || draft.ai_agent_status === "confirmed"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-3 text-sm font-black text-rose-100 disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" onClick={() => updateOrderDraft(draft, "cancelled")} disabled={orderDraftsLoading || draft.ai_agent_status === "confirmed"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-400/10 px-3 text-sm font-black text-rose-100 disabled:cursor-not-allowed disabled:opacity-50">
                           <XCircle className="h-4 w-4" />
                           Reject / Cancel
                         </button>
@@ -831,7 +831,7 @@ export default function AiSupportConsole() {
                 type="button"
                 onClick={loadInsights}
                 disabled={insightsLoading}
-                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white transition hover:bg-white/[0.09] disabled:opacity-50"
               >
                 <RefreshCw className={`h-4 w-4 ${insightsLoading ? "animate-spin" : ""}`} />
                 Refresh insights
@@ -874,7 +874,7 @@ export default function AiSupportConsole() {
                 <select
                   value={historyFilters.needs_human_support}
                   onChange={(event) => setHistoryFilters((current) => ({ ...current, needs_human_support: event.target.value }))}
-                  className="h-[var(--control-height-md)] rounded-2xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none"
+                  className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none"
                 >
                   <option value="all">كل النتائج</option>
                   <option value="true">يحتاج تدخلًا بشريًا</option>
@@ -893,7 +893,7 @@ export default function AiSupportConsole() {
                   type="button"
                   onClick={loadHistory}
                   disabled={historyLoading}
-                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white transition hover:bg-white/[0.09] disabled:opacity-50"
                 >
                   <RefreshCw className={`h-4 w-4 ${historyLoading ? "animate-spin" : ""}`} />
                   Refresh
@@ -902,7 +902,7 @@ export default function AiSupportConsole() {
                   type="button"
                   onClick={clearHistory}
                   disabled={historyLoading}
-                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-3 text-sm font-black text-rose-100 transition hover:bg-rose-400/15 disabled:opacity-50"
+                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-400/10 px-3 text-sm font-black text-rose-100 transition hover:bg-rose-400/15 disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4" />
                   Clear test history

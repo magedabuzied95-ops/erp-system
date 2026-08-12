@@ -118,11 +118,11 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
             type="button"
             disabled={!canInstall}
             onClick={onInstall}
-            className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-text disabled:opacity-50"
+            className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-text disabled:opacity-50"
           >
             تثبيت التطبيق
           </button>
-          <button type="button" onClick={onDismiss} className="rounded-2xl border border-white/15 px-4 py-3 text-sm font-black text-white">
+          <button type="button" onClick={onDismiss} className="rounded-[var(--radius-control)] border border-white/15 px-4 py-3 text-sm font-black text-white">
             لاحقًا
           </button>
         </div>
@@ -158,7 +158,7 @@ function NotificationCard({ state, hint, onEnable }) {
       <div className="text-sm font-black text-text">تفعيل تنبيهات التاسكات</div>
       <p className="mt-1 text-sm font-semibold leading-6 text-text-muted">{message}</p>
       {state !== "granted" && state !== "unsupported" ? (
-        <button type="button" onClick={onEnable} className="mt-3 w-full rounded-2xl bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-3 text-sm font-black">
+        <button type="button" onClick={onEnable} className="mt-3 w-full rounded-[var(--radius-control)] bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-3 text-sm font-black">
           تفعيل تنبيهات التاسكات
         </button>
       ) : null}
@@ -210,7 +210,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
             type="button"
             disabled={readOnly || saving || (!isPending && !isOverdue)}
             onClick={() => onStatus(task.id, "in_progress")}
-            className={`${isPending || isOverdue ? "inline-flex" : "hidden"} min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm font-black text-text disabled:opacity-45`}
+            className={`${isPending || isOverdue ? "inline-flex" : "hidden"} min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border px-3 py-2.5 text-sm font-black text-text disabled:opacity-45`}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             بدء
@@ -219,7 +219,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
             type="button"
             disabled={readOnly || saving || !isInProgress}
             onClick={() => onStatus(task.id, "completed")}
-            className={`${isInProgress ? "inline-flex" : "hidden"} min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-black text-white disabled:opacity-45`}
+            className={`${isInProgress ? "inline-flex" : "hidden"} min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 py-2.5 text-sm font-black text-white disabled:opacity-45`}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
             تم التنفيذ
@@ -476,7 +476,7 @@ export default function EmployeePortal() {
           <AlertTriangle className="h-8 w-8 text-amber-600" />
           <h1 className="m1-page-title mt-4">بوابة الموظف غير متاحة</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-text-muted">{error}</p>
-          <button type="button" onClick={() => loadPortal()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-4 text-sm font-black">
+          <button type="button" onClick={() => loadPortal()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-4 text-sm font-black">
             <RefreshCw className="h-4 w-4" />
             إعادة المحاولة
           </button>

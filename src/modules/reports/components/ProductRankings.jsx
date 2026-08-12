@@ -38,7 +38,7 @@ export default function ProductRankings({ rankings, active, onChange, showProfit
             type="button"
             onClick={() => onChange(key)}
             aria-pressed={current === key}
-            className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ current === key ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
+            className={`rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ current === key ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
           >
             {t(`salesAnalytics.rankings.${key}`)}
           </button>
@@ -62,7 +62,7 @@ export default function ProductRankings({ rankings, active, onChange, showProfit
                 <button
                   type="button"
                   onClick={() => onSelectProduct?.(row)}
-                  className="group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-start transition hover:bg-[var(--surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                  className="group flex w-full items-center gap-3 rounded-[var(--radius-control)] px-2 py-2 text-start transition hover:bg-[var(--surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                 >
                   {/* The leader gets a filled badge; the rest keep a plain numeral, so
                       rank reads at a glance without turning the list into a podium. */}

@@ -204,7 +204,7 @@ function WarehousesDashboard() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("warehouses.searchPlaceholder")}
-            className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+            className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
           />
         </div>
 
@@ -238,11 +238,11 @@ function WarehousesDashboard() {
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-zinc-500">{t("warehouses.row.id")} {warehouse.id}</span>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => openEdit(warehouse)} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300/50 hover:bg-emerald-500/20">
+                    <button type="button" onClick={() => openEdit(warehouse)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300/50 hover:bg-emerald-500/20">
                       <Pencil className="h-4 w-4" />
                       {labels.edit}
                     </button>
-                    <button type="button" onClick={() => openDelete(warehouse)} className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-100 transition hover:border-rose-300/50 hover:bg-rose-500/20">
+                    <button type="button" onClick={() => openDelete(warehouse)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-100 transition hover:border-rose-300/50 hover:bg-rose-500/20">
                       <Trash2 className="h-4 w-4" />
                       حذف
                     </button>
@@ -324,7 +324,7 @@ function EditWarehouseModal({ warehouse, form, labels, error, saving, onChange, 
               <p className="mt-2 text-sm leading-6 text-amber-100">هذا مخزن افتراضي أو محمي، ولا يمكن تحويل حالته إلى غير نشط.</p>
             ) : null}
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -338,7 +338,7 @@ function EditWarehouseModal({ warehouse, form, labels, error, saving, onChange, 
             <select
               value={form.status}
               onChange={(event) => setField("status", event.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
               <option value="active" className="bg-zinc-950 text-white">{labels.active}</option>
               <option value="inactive" className="bg-zinc-950 text-white">{labels.inactive}</option>
@@ -349,10 +349,10 @@ function EditWarehouseModal({ warehouse, form, labels, error, saving, onChange, 
         {error ? <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50">
             {labels.cancel}
           </button>
-          <button type="button" onClick={onSave} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50">
+          <button type="button" onClick={onSave} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50">
             {saving ? labels.saving : labels.save}
           </button>
         </div>
@@ -369,7 +369,7 @@ function EditField({ label, value, onChange, required = false }) {
         value={value}
         required={required}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
       />
     </label>
   );
@@ -409,7 +409,7 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
               راجع استخدام المخزن قبل الحذف. يمكن حذف المخازن المكررة الفارغة بأمان.
             </p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -449,10 +449,10 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
         ) : null}
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} disabled={deleting} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={deleting} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50">
             إلغاء
           </button>
-          <button type="button" onClick={onConfirm} disabled={!canDelete || deleting} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" onClick={onConfirm} disabled={!canDelete || deleting} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40">
             <Trash2 className="h-4 w-4" />
             {deleting ? "جارٍ الحذف..." : "حذف المخزن"}
           </button>

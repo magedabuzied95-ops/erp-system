@@ -187,14 +187,14 @@ export default function AiStudioWorkflows() {
                         <div className="inline-flex gap-1.5">
                           {!archived ? (
                             <>
-                              <button type="button" onClick={() => navigate(`/ai-studio/workflows/${w.id}/edit`)} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white hover:border-white/20"><Pencil className="h-3.5 w-3.5" />Edit</button>
-                              <button type="button" onClick={() => doRun(w.id)} disabled={busy === `run-${w.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-[11px] font-black text-primary hover:bg-primary/20 disabled:opacity-50">
+                              <button type="button" onClick={() => navigate(`/ai-studio/workflows/${w.id}/edit`)} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white hover:border-white/20"><Pencil className="h-3.5 w-3.5" />Edit</button>
+                              <button type="button" onClick={() => doRun(w.id)} disabled={busy === `run-${w.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-3 text-[11px] font-black text-primary hover:bg-primary/20 disabled:opacity-50">
                                 {busy === `run-${w.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}Run
                               </button>
-                              <button type="button" onClick={() => doArchive(w.id, false)} disabled={busy === `a-${w.id}`} title="Archive" className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-300 hover:text-white disabled:opacity-50"><Archive className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => doArchive(w.id, false)} disabled={busy === `a-${w.id}`} title="Archive" className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] text-slate-300 hover:text-white disabled:opacity-50"><Archive className="h-3.5 w-3.5" /></button>
                             </>
                           ) : (
-                            <button type="button" onClick={() => doArchive(w.id, true)} disabled={busy === `a-${w.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-slate-200 hover:border-white/20 disabled:opacity-50"><ArchiveRestore className="h-3.5 w-3.5" />Restore</button>
+                            <button type="button" onClick={() => doArchive(w.id, true)} disabled={busy === `a-${w.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-slate-200 hover:border-white/20 disabled:opacity-50"><ArchiveRestore className="h-3.5 w-3.5" />Restore</button>
                           )}
                         </div>
                       </td>

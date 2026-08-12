@@ -72,9 +72,9 @@ function CompanySettings() {
           </div>
           <label className="mt-4 block">
             <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Invoice footer</div>
-            <textarea value={invoiceFooter} onChange={(e) => setInvoiceFooter(e.target.value)} rows={4} className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" />
+            <textarea value={invoiceFooter} onChange={(e) => setInvoiceFooter(e.target.value)} rows={4} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" />
           </label>
-          <button type="button" onClick={save} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black">
+          <button type="button" onClick={save} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
             <Save className="h-4 w-4" />
             Save company settings
           </button>
@@ -102,7 +102,7 @@ function Field({ label, value, onChange, icon }) {
         {icon}
         {label}
       </div>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none" />
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none" />
     </label>
   );
 }
@@ -114,7 +114,7 @@ function Section({ title, icon, value, onChange, placeholder }) {
         {icon}
         {title}
       </h3>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={4} className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" />
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={4} className="mt-4 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" />
     </div>
   );
 }

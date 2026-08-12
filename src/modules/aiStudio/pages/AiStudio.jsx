@@ -61,7 +61,7 @@ function InboundAssistedRepliesCard() {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Mode</span>
         {MODES.map(([val, label]) => (
-          <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-[var(--control-height-sm)] items-center rounded-lg border px-3 text-[11px] font-black ${mode === val ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
+          <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-[var(--control-height-sm)] items-center rounded-[var(--radius-control)] border px-3 text-[11px] font-black ${mode === val ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
         ))}
         {mode !== "off" ? <button type="button" disabled={busy} onClick={() => change("off")} className="inline-flex h-8 items-center rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 text-[11px] font-black text-rose-100">⏸ Pause all (kill switch)</button> : null}
       </div>

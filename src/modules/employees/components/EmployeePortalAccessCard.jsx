@@ -123,23 +123,23 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        <button type="button" onClick={copyPortalLink} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={copyPortalLink} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <Copy className="h-4 w-4" />
           {isArabic ? "نسخ رابط البوابة" : "Copy Portal Link"}
         </button>
-        <button type="button" onClick={openPortal} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={openPortal} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <ExternalLink className="h-4 w-4" />
           {isArabic ? "فتح البوابة" : "Open Portal"}
         </button>
-        <button type="button" onClick={shareWhatsapp} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={shareWhatsapp} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isArabic ? "رابط واتساب" : "WhatsApp Link"}
         </button>
-        <button type="button" onClick={downloadQr} disabled={portalTokenBusy || !effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" onClick={downloadQr} disabled={portalTokenBusy || !effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
           <Download className="h-4 w-4" />
           {isArabic ? "تنزيل QR" : "Download QR"}
         </button>
-        <button type="button" onClick={regeneratePortalLink} disabled={portalTokenBusy} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60">
+        <button type="button" onClick={regeneratePortalLink} disabled={portalTokenBusy} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60">
           <RefreshCw className={`h-4 w-4 ${portalTokenBusy ? "animate-spin" : ""}`} />
           {isArabic ? "إعادة إنشاء الرابط" : "Regenerate Link"}
         </button>

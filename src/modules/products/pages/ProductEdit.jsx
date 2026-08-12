@@ -4378,7 +4378,7 @@ function ProductEdit() {
                             moveColorGroup(group.id, -1);
                           }}
                           disabled={groupIndex === 0}
-                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
                           aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأعلى`}
                           title="تحريك لأعلى"
                         >
@@ -4391,7 +4391,7 @@ function ProductEdit() {
                             moveColorGroup(group.id, 1);
                           }}
                           disabled={groupIndex === colorGroups.length - 1}
-                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
                           aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأسفل`}
                           title="تحريك لأسفل"
                         >
@@ -4956,7 +4956,7 @@ function ColorPickModal({ target, onClose, onPick }) {
             <p className="text-sm font-black text-white">{t("products.editor.pickColor", "Pick color")}</p>
             <p className="mt-1 text-xs text-zinc-400">{t("products.editor.pickColorHelp", "Click the real shoe material color, not the sole or background.")}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 px-3 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 px-3 py-2 text-sm font-semibold text-white">
             {t("common.close", "Close")}
           </button>
         </div>
@@ -4987,7 +4987,7 @@ function Field({ label, value, onChange, type = "text" }) {
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+        className="mt-2 w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
       />
     </div>
   );
@@ -5134,7 +5134,7 @@ function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = f
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-5 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           {saving ? t("common.saving", "Saving...") : label}

@@ -1035,7 +1035,7 @@ function WorkspaceTabs({ t, value, onChange, counts }) {
           key={key}
           type="button"
           onClick={() => onChange(key)}
-          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${value === key ? "border-primary/30 bg-white/10 text-white shadow-[0_0_20px_rgba(34,211,238,0.15)]" : "border-transparent text-zinc-300 hover:bg-white/5 hover:text-white"}`}
+          className={`flex items-center justify-between gap-3 rounded-[var(--radius-control)] border px-3 py-2.5 text-left transition ${value === key ? "border-primary/30 bg-white/10 text-white shadow-[0_0_20px_rgba(34,211,238,0.15)]" : "border-transparent text-zinc-300 hover:bg-white/5 hover:text-white"}`}
         >
           <span className="flex min-w-0 items-center gap-2">
             <Icon className="h-4 w-4 shrink-0" />
@@ -1070,7 +1070,7 @@ function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) 
       disabled={disabled}
       title={disabled ? title || "" : title}
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-bold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
+      className={`inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 py-1.5 text-xs font-bold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
     >
       {icon}
       {label}
@@ -1094,7 +1094,7 @@ function Filters(props) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("orders.searchPlaceholder")}
-              className="w-full rounded-xl border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
+              className="w-full rounded-[var(--radius-control)] border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
             />
           </div>
         </label>
@@ -1103,7 +1103,7 @@ function Filters(props) {
         <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label="المصدر" allLabel="الكل" labels={SOURCE_LABELS} t={t} />
         <label className="block">
           <div className="mb-1.5 text-[11px] font-bold text-zinc-300">التاريخ</div>
-          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" />
+          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" />
         </label>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
@@ -1286,7 +1286,7 @@ function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, pe
           if (ORDERS_DEBUG) console.log("[orders-dashboard] action trigger clicked", { rowId: order.id, nextOpen: !isOpen });
           setOpenMenuId(isOpen ? null : order.id);
         }}
-        className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/90 shadow-lg shadow-black/10 ring-1 ring-white/[0.03] transition-all duration-200 ease-out hover:border-primary/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/35"
+        className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-white/90 shadow-lg shadow-black/10 ring-1 ring-white/[0.03] transition-all duration-200 ease-out hover:border-primary/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/35"
       >
         <MoreVertical className="h-4 w-4 opacity-95" />
       </button>
@@ -1318,9 +1318,9 @@ function VerificationQueue({ t, orders, updateShippingPayment, openOrder }) {
                 <StatusBadge value={paymentBadgeValue(order)} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.confirm")}</button>
-                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-xl bg-rose-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.reject")}</button>
-                <button type="button" onClick={() => openOrder(order)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white">{t("orders.actionsMenu.view")}</button>
+                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-emerald-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.confirm")}</button>
+                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.reject")}</button>
+                <button type="button" onClick={() => openOrder(order)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white">{t("orders.actionsMenu.view")}</button>
               </div>
             </div>
           </div>
@@ -1373,7 +1373,7 @@ function ReturnsView({ t, orders, openOrder }) {
   return (
     <div className="mt-3 grid gap-2 xl:grid-cols-2">
       {orders.map((order) => (
-        <button key={order.id} type="button" onClick={() => openOrder(order)} className="rounded-2xl border border-rose-400/25 bg-rose-400/10 p-3 text-left transition hover:bg-rose-400/15">
+        <button key={order.id} type="button" onClick={() => openOrder(order)} className="rounded-[var(--radius-control)] border border-rose-400/25 bg-rose-400/10 p-3 text-left transition hover:bg-rose-400/15">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <OrderCode order={order} />
@@ -1417,7 +1417,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
               {order.shipping_status ? <StatusBadge value={order.shipping_status} /> : null}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -1465,8 +1465,8 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
           </Section>
         </div>
         <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-3">
-          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.actionsMenu.openDetailsPage")}</button>
-          <button type="button" onClick={() => editOrder?.(order)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.actionsMenu.editOrder")}</button>
+          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.actionsMenu.openDetailsPage")}</button>
+          <button type="button" onClick={() => editOrder?.(order)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.actionsMenu.editOrder")}</button>
           <button type="button" onClick={() => {
             if (!order.customer_phone) {
               toast.error(t("orders.bulk.selectPhoneFirst"));
@@ -1474,10 +1474,10 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
             }
             const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "قيد المراجعة" }));
             window.open(`https://wa.me/${String(order.customer_phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
-          }} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">WhatsApp</button>
-          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
-          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-xl bg-rose-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
-          <button type="button" onClick={() => window.print()} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
+          }} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">WhatsApp</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
+          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
         </footer>
       </section>
     </div>
@@ -1513,7 +1513,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
             {isExchangeOrder(order) ? <ExchangeBadge order={order} compact /> : null}
           </div>
         </div>
-        <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+        <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
           <X className="h-4 w-4" />
         </button>
       </header>
@@ -1557,14 +1557,14 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
       </div>
       <footer className="grid gap-2 border-t border-white/10 p-3">
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.actionsMenu.openDetailsPage")}</button>
-          <button type="button" onClick={() => editOrder?.(order)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.actionsMenu.editOrder")}</button>
-          <button type="button" onClick={openWhatsapp} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">WhatsApp</button>
-          <button type="button" onClick={() => window.print()} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
+          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.actionsMenu.openDetailsPage")}</button>
+          <button type="button" onClick={() => editOrder?.(order)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.actionsMenu.editOrder")}</button>
+          <button type="button" onClick={openWhatsapp} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">WhatsApp</button>
+          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
-          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
         </div>
       </footer>
     </section>
@@ -1773,7 +1773,7 @@ function ExchangeBadge({ order, compact = false }) {
 
 function CompactOrderCard({ t, order, onClick }) {
   return (
-    <button type="button" onClick={onClick} className={`w-full rounded-xl border p-3 text-left transition hover:bg-white/10 ${priorityFor(order).className}`}>
+    <button type="button" onClick={onClick} className={`w-full rounded-[var(--radius-control)] border p-3 text-left transition hover:bg-white/10 ${priorityFor(order).className}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <OrderCode order={order} />
@@ -1848,7 +1848,7 @@ function Select({ value, onChange, options, label, allLabel = "All", labels = {}
   return (
     <label className="block">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none">
         {options.map((option) => {
           const display = labels[option] && t ? t(labels[option]) : labels[option] || option;
           return <option key={String(option)} value={option} className="bg-zinc-950 text-white">{option === "all" ? allLabel : display}</option>;
@@ -1861,7 +1861,7 @@ function Select({ value, onChange, options, label, allLabel = "All", labels = {}
 function MenuButton({ icon, label, onClick, tone = "zinc", disabled = false, title = "" }) {
   const toneClass = tone === "rose" ? "text-rose-200 hover:bg-rose-500/10" : "text-zinc-200 hover:bg-white/5";
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={title} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}>
+    <button type="button" onClick={onClick} disabled={disabled} title={title} className={`flex w-full items-center gap-2 rounded-[var(--radius-control)] px-3 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}>
       {icon}
       {label}
     </button>
@@ -1944,7 +1944,7 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.edit.title")}</div>
             <h2 className="m1-section-title mt-1">{orderCode(order)}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 hover:bg-white/10"><X className="h-5 w-5" /></button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="grid gap-3 md:grid-cols-3">
@@ -2007,8 +2007,8 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
           </Section>
         </div>
         <footer className="flex flex-col-reverse gap-2 border-t border-white/10 p-4 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10">{t("common.cancel")}</button>
-          <button type="submit" disabled={saving} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-60">{saving ? t("orders.edit.saving") : t("orders.edit.saveOrder")}</button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10">{t("common.cancel")}</button>
+          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-60">{saving ? t("orders.edit.saving") : t("orders.edit.saveOrder")}</button>
         </footer>
       </form>
     </div>
@@ -2051,12 +2051,12 @@ function CancelOrderModal({ t, order, cancelling, onClose, onConfirm }) {
           <ConfirmMetric label={t("orders.cancel.itemsUnits")} value={t("orders.cancel.itemsUnitsValue", { items: itemCount, units: totalUnits })} />
         </div>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={cancelLoading} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
+          <button type="button" onClick={onClose} disabled={cancelLoading} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={!canSubmitCancelRestore}
-            className={`rounded-xl px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canSubmitCancelRestore ? "bg-rose-500 shadow-lg shadow-rose-950/25 hover:bg-rose-400 hover:shadow-rose-500/20" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
+            className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canSubmitCancelRestore ? "bg-rose-500 shadow-lg shadow-rose-950/25 hover:bg-rose-400 hover:shadow-rose-500/20" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
           >
             {cancelLoading ? t("orders.cancel.cancelling") : t("orders.cancel.confirm")}
           </button>
@@ -2080,8 +2080,8 @@ function ArchiveOrderModal({ t, order, archiving, onClose, onConfirm }) {
           </div>
         </div>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={archiving} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
-          <button type="button" onClick={onConfirm} disabled={archiving} className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60">{archiving ? t("orders.archive.archiving") : t("orders.archive.title")}</button>
+          <button type="button" onClick={onClose} disabled={archiving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
+          <button type="button" onClick={onConfirm} disabled={archiving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60">{archiving ? t("orders.archive.archiving") : t("orders.archive.title")}</button>
         </div>
       </section>
     </div>
@@ -2117,17 +2117,17 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
             value={value}
             onChange={(event) => onChange(event.target.value)}
             autoFocus
-            className="w-full rounded-xl border border-rose-400/30 bg-black/35 px-3 py-2.5 text-sm font-black text-white outline-none placeholder:text-zinc-600 focus:border-rose-300"
+            className="w-full rounded-[var(--radius-control)] border border-rose-400/30 bg-black/35 px-3 py-2.5 text-sm font-black text-white outline-none placeholder:text-zinc-600 focus:border-rose-300"
             placeholder="DELETE"
           />
         </label>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={deleting} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
+          <button type="button" onClick={onClose} disabled={deleting} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={!canConfirm || deleting}
-            className={`rounded-xl px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canConfirm && !deleting ? "bg-rose-600 shadow-lg shadow-rose-950/25 hover:bg-rose-500" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
+            className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canConfirm && !deleting ? "bg-rose-600 shadow-lg shadow-rose-950/25 hover:bg-rose-500" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
           >
             {deleting ? tt(t, "orders.permanentDelete.deleting", "جاري الحذف...") : tt(t, "orders.permanentDelete.confirm", "حذف نهائي")}
           </button>
@@ -2150,7 +2150,7 @@ function EditField({ label, value, onChange, type = "text", ...props }) {
   return (
     <label className="block">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <input {...props} type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" />
+      <input {...props} type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" />
     </label>
   );
 }
@@ -2159,7 +2159,7 @@ function EditSelect({ label, value, onChange, options, labels = {}, t }) {
   return (
     <label className="block">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <select value={value || ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
+      <select value={value || ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
         {options.map((option) => <option key={option} value={option} className="bg-zinc-950 text-white">{labels[option] && t ? t(labels[option]) : labels[option] || option}</option>)}
       </select>
     </label>

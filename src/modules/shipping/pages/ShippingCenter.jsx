@@ -64,7 +64,7 @@ function StatusBadge({ status }) {
 
 function KpiCard({ label, value, active, onClick }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-2xl border p-4 text-start transition ${active ? "border-emerald-300/50 bg-emerald-400/12" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.07]"}`}>
+    <button type="button" onClick={onClick} className={`rounded-[var(--radius-control)] border p-4 text-start transition ${active ? "border-emerald-300/50 bg-emerald-400/12" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.07]"}`}>
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{label}</span>
         <Truck className="h-4 w-4 text-emerald-300" />
@@ -75,7 +75,7 @@ function KpiCard({ label, value, active, onClick }) {
 }
 
 function Select({ value, onChange, children }) {
-  return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50">{children}</select>;
+  return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50">{children}</select>;
 }
 
 function ShipmentDrawer({ order, onClose }) {
@@ -94,7 +94,7 @@ function ShipmentDrawer({ order, onClose }) {
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">Shipment Drawer</div>
             <h2 className="m1-section-title mt-1">{order.order_number}</h2>
           </div>
-          <button onClick={onClose} className="rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/10"><X className="h-5 w-5" /></button>
+          <button onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 p-2 text-slate-300 hover:bg-white/10"><X className="h-5 w-5" /></button>
         </header>
         <div className="flex-1 overflow-auto p-5">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -122,7 +122,7 @@ function ShipmentDrawer({ order, onClose }) {
             <div className="mb-2 flex items-center gap-2 text-sm font-black"><MapPin className="h-4 w-4 text-emerald-300" /> Address</div>
             <p className="text-sm font-semibold leading-6 text-slate-300">{address || "-"}</p>
             {order.shipping_label_url ? (
-              <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20">Print Label</button>
+              <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20">Print Label</button>
             ) : null}
           </section>
           <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -258,9 +258,9 @@ export default function ShippingCenter() {
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Centralized shipment operations for Bosta and future providers with status monitoring, bulk actions, webhook timelines, and analytics.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setView("table")} className={`rounded-xl px-4 py-2 text-sm font-black ${view === "table" ? "bg-emerald-400 text-slate-950" : "border border-white/10 bg-white/5 text-slate-200"}`}>Table View</button>
-            <button onClick={() => setView("board")} className={`rounded-xl px-4 py-2 text-sm font-black ${view === "board" ? "bg-emerald-400 text-slate-950" : "border border-white/10 bg-white/5 text-slate-200"}`}>Board View</button>
-            <button onClick={load} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-slate-200"><RefreshCw className="h-4 w-4" /> Refresh</button>
+            <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-emerald-400 text-slate-950" : "border border-white/10 bg-white/5 text-slate-200"}`}>Table View</button>
+            <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-emerald-400 text-slate-950" : "border border-white/10 bg-white/5 text-slate-200"}`}>Board View</button>
+            <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-slate-200"><RefreshCw className="h-4 w-4" /> Refresh</button>
           </div>
         </header>
 
@@ -281,22 +281,22 @@ export default function ShippingCenter() {
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input value={filters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder="Search order, customer, phone, tracking..." className="h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-slate-950/80 pl-9 pr-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50" />
+                <input value={filters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder="Search order, customer, phone, tracking..." className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 pl-9 pr-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50" />
               </div>
               <Select value={filters.provider} onChange={(value) => setFilter("provider", value)}><option value="">All providers</option>{(data.meta?.providers || ["bosta"]).map((provider) => <option key={provider} value={provider}>{PROVIDER_LABELS[provider] || provider}</option>)}</Select>
               <Select value={filters.branchId} onChange={(value) => setFilter("branchId", value)}><option value="">All branches</option>{(data.meta?.branches || []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
               <Select value={filters.shippingStatus} onChange={(value) => setFilter("shippingStatus", value)}><option value="">All shipping statuses</option>{STATUSES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select>
               <Select value={filters.paymentStatus} onChange={(value) => setFilter("paymentStatus", value)}><option value="">All payment statuses</option>{["paid", "unpaid", "partially_paid", "refunded"].map((status) => <option key={status} value={status}>{status}</option>)}</Select>
               <Select value={filters.paymentType} onChange={(value) => setFilter("paymentType", value)}><option value="">COD / Prepaid</option><option value="cod">COD</option><option value="prepaid">Prepaid</option></Select>
-              <input type="date" value={filters.dateFrom} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
-              <input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
+              <input type="date" value={filters.dateFrom} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
+              <input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950"><Send className="h-4 w-4" /> Create Shipments</button>
-              <button onClick={() => runBulk("refresh_status")} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" /> Refresh Status</button>
-              <button onClick={() => runBulk("print_labels")} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Printer className="h-4 w-4" /> Print Labels</button>
-              <button onClick={() => runBulk("mark_ready_to_ship")} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><PackageCheck className="h-4 w-4" /> Mark Ready</button>
-              <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Download className="h-4 w-4" /> Export CSV</button>
+              <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950"><Send className="h-4 w-4" /> Create Shipments</button>
+              <button onClick={() => runBulk("refresh_status")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" /> Refresh Status</button>
+              <button onClick={() => runBulk("print_labels")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Printer className="h-4 w-4" /> Print Labels</button>
+              <button onClick={() => runBulk("mark_ready_to_ship")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><PackageCheck className="h-4 w-4" /> Mark Ready</button>
+              <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Download className="h-4 w-4" /> Export CSV</button>
             </div>
           </div>
 
@@ -345,7 +345,7 @@ export default function ShippingCenter() {
                   <div className="sticky top-0 rounded-t-2xl border-b border-white/10 bg-white/[0.04] p-3"><div className="flex items-center justify-between gap-2"><span className="text-sm font-black">{label}</span><span className="rounded-full bg-white/10 px-2 py-1 text-xs font-black">{boardGroups[status]?.length || 0}</span></div></div>
                   <div className="max-h-[620px] space-y-2 overflow-auto p-2">
                     {(boardGroups[status] || []).map((order) => (
-                      <button key={order.id} onClick={() => setDrawerOrder(order)} className="w-full rounded-xl border border-white/10 bg-white/[0.04] p-3 text-start hover:bg-white/[0.08]">
+                      <button key={order.id} onClick={() => setDrawerOrder(order)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-3 text-start hover:bg-white/[0.08]">
                         <div className="flex items-start justify-between gap-2"><span className="font-black text-white">{order.order_number}</span><ExternalLink className="h-4 w-4 text-slate-500" /></div>
                         <div className="mt-1 text-sm font-bold text-slate-300">{order.customer_name || "-"}</div>
                         <div className="mt-2 flex items-center justify-between text-xs font-bold text-slate-500"><span>{PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id}</span><span>{fmtMoney(order.cod_amount)}</span></div>

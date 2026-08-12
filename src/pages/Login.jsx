@@ -166,7 +166,7 @@ function Login() {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mb-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+          className="mb-4 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
         />
 
         <input
@@ -174,7 +174,7 @@ function Login() {
           placeholder="كلمة المرور"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+          className="mb-4 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
         />
 
         <input
@@ -182,13 +182,13 @@ function Login() {
           placeholder="Workspace / company slug"
           value={workspace}
           onChange={(e) => setWorkspace(e.target.value)}
-          className="mb-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+          className="mb-4 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
         />
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-2xl bg-[var(--primary)] px-4 py-3 font-semibold text-white"
+          className="w-full rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-3 font-semibold text-white"
         >
           {loading ? "جارٍ تسجيل الدخول..." : "تسجيل الدخول"}
         </button>

@@ -555,7 +555,7 @@ function Dashboard() {
                 <QuickAction key={action.to} {...action} />
               ))}
             </div>
-            <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none transition hover:border-slate-500">
+            <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none transition hover:border-slate-500">
               <option value="today">{copy.today}</option>
               <option value="yesterday">{copy.yesterday}</option>
               <option value="7d">{copy.last7Days}</option>
@@ -564,19 +564,19 @@ function Dashboard() {
             </select>
             {filters.range === "custom" ? (
               <>
-                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs text-white outline-none" />
-                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs text-white outline-none" />
+                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/70 px-3 text-xs text-white outline-none" />
+                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/70 px-3 text-xs text-white outline-none" />
               </>
             ) : null}
             {branches.length > 1 ? (
-              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-[var(--control-height-md)] rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none">
+              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none">
                 <option value="all">{copy.allBranches}</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
             ) : null}
             <StatusPill label={copy.socket} value={socketStatus.value} tone={socketStatus.tone} pulse={socketStatus.pulse} />
             <StatusPill label={copy.pos} value={posStatus.value} tone={posStatus.tone} pulse={posStatus.pulse} />
-            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/75">
+            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-700 bg-slate-900/70 px-3 text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/75">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {copy.refresh}
             </button>
@@ -872,7 +872,7 @@ function ExecutiveSection({ sections, activeId, onSelect, children }) {
             key={id}
             type="button"
             onClick={() => onSelect(id)}
-            className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${ activeId === id ? "border-amber-600/35 bg-amber-50 text-amber-900" : "border-slate-700 bg-slate-950/45 text-slate-400 hover:border-slate-500 hover:text-slate-100" }`}
+            className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border px-4 text-sm font-black transition ${ activeId === id ? "border-amber-600/35 bg-amber-50 text-amber-900" : "border-slate-700 bg-slate-950/45 text-slate-400 hover:border-slate-500 hover:text-slate-100" }`}
           >
             <Icon className="h-4 w-4" />
             {label}
@@ -1049,7 +1049,7 @@ function WidgetManager({ widgets, hidden, onToggle }) {
           key={widget.id}
           type="button"
           onClick={() => onToggle(widget.id)}
-          className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl px-3 text-xs font-black transition hover:-translate-y-0.5 ${hidden.includes(widget.id) ? "bg-white/[0.035] text-zinc-500" : "bg-emerald-400/[0.08] text-emerald-100 shadow-lg shadow-emerald-950/10"}`}
+          className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] px-3 text-xs font-black transition hover:-translate-y-0.5 ${hidden.includes(widget.id) ? "bg-white/[0.035] text-zinc-500" : "bg-emerald-400/[0.08] text-emerald-100 shadow-lg shadow-emerald-950/10"}`}
         >
           {hidden.includes(widget.id) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
           {widget.title}
@@ -1075,7 +1075,7 @@ function WidgetShell({ widget, children, onToggleSize, onDropWidget }) {
           <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-zinc-600" />
           <h2 className="m1-section-title truncate text-white">{widget.title}</h2>
         </div>
-        <button type="button" onClick={() => onToggleSize(widget.id)} className="rounded-lg border border-white/[0.07] bg-white/[0.045] px-2 py-1 text-[11px] font-bold text-zinc-300 transition hover:bg-white/[0.08]">
+        <button type="button" onClick={() => onToggleSize(widget.id)} className="rounded-[var(--radius-control)] border border-white/[0.07] bg-white/[0.045] px-2 py-1 text-[11px] font-bold text-zinc-300 transition hover:bg-white/[0.08]">
           {widget.size === "wide" ? copy.compact : copy.wide}
         </button>
       </div>

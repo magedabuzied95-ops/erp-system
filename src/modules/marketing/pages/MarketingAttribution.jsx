@@ -132,7 +132,7 @@ export default function MarketingAttribution() {
                 type="button"
                 onClick={refresh}
                 disabled={syncing || !canSync}
-                className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/20 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/20 disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
                 {t("marketing.analytics.attribution.sync")}
@@ -141,7 +141,7 @@ export default function MarketingAttribution() {
                 type="button"
                 onClick={load}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
               >
                 <BarChart3 className="h-4 w-4 text-primary" />
                 {t("marketing.common.refreshView")}
@@ -167,7 +167,7 @@ export default function MarketingAttribution() {
               <select
                 value={filters.platform}
                 onChange={(event) => setFilters((current) => ({ ...current, platform: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
               >
                 <option value="all">{t("marketing.social.allPlatforms")}</option>
                 <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
@@ -183,7 +183,7 @@ export default function MarketingAttribution() {
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
               />
             </label>
             <label className="space-y-2">
@@ -192,7 +192,7 @@ export default function MarketingAttribution() {
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
               />
             </label>
           </div>

@@ -942,7 +942,7 @@ function OrderDetails() {
           <AlertTriangle className="mr-2 inline h-4 w-4" />
           {error || t("orders.details.notFound")}
           <div className="mt-4">
-            <button type="button" onClick={() => navigate("/orders")} className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-black">
+            <button type="button" onClick={() => navigate("/orders")} className="rounded-[var(--radius-control)] bg-white px-4 py-2 text-sm font-semibold text-black">
               {t("orders.details.backToOrders")}
             </button>
           </div>
@@ -1072,11 +1072,11 @@ function OrderDetails() {
                 <button type="button" onClick={() => {
                   setShipping((prev) => ({ ...prev, provider: resolveShippingProviderKey(prev.provider) }));
                   setShippingSetupOpen(true);
-                }} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
+                }} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   <Truck className="h-4 w-4" />
                   إضافة شحن للفاتورة
                 </button>
-                <button type="button" onClick={() => setStatusTimelineOpen(true)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10">
+                <button type="button" onClick={() => setStatusTimelineOpen(true)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10">
                   سجل العملية
                 </button>
               </div>
@@ -1116,7 +1116,7 @@ function OrderDetails() {
                 <select
                   value={order.status || ""}
                   onChange={(event) => handleStatusChange(event.target.value)}
-                  className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none"
+                  className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none"
                 >
                   {ORDER_STATUSES.map((status) => (
                     <option key={status} value={status} className="bg-zinc-950 text-white">
@@ -1127,7 +1127,7 @@ function OrderDetails() {
                 <button
                   type="button"
                   onClick={() => setStatusTimelineOpen(true)}
-                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   {t("orders.drawer.timeline")}
@@ -1203,13 +1203,13 @@ function OrderDetails() {
               onChange={(e) => setNotes(e.target.value)}
               rows={5}
               placeholder={t("orders.details.notesPlaceholder")}
-              className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="mt-4 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
             <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={handleSaveNotes}
-                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-black"
+                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-semibold text-black"
               >
                 <Save className="h-4 w-4" />
                 {t("orders.details.saveNotes")}
@@ -1236,7 +1236,7 @@ function OrderDetails() {
                   key={item.key}
                   type="button"
                   onClick={() => handleTogglePackingItem(item.key)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${ packingChecklist[item.key] ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-100" : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10" }`}
+                  className={`flex w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left text-sm font-semibold transition ${ packingChecklist[item.key] ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-100" : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10" }`}
                 >
                   <span>{t(item.labelKey)}</span>
                   <span className={`grid h-6 w-6 place-items-center rounded-full border ${ packingChecklist[item.key] ? "border-emerald-300/50 bg-emerald-400/20" : "border-white/15 bg-black/20" }`}>
@@ -1285,7 +1285,7 @@ function OrderDetails() {
                     <button
                       type="button"
                       onClick={() => setPaymentProofModalOpen(true)}
-                      className="group block w-full overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                      className="group block w-full overflow-hidden rounded-[var(--radius-control)] border border-white/10 bg-black/30"
                     >
                       <img
                         src={paymentProofUrl}
@@ -1298,7 +1298,7 @@ function OrderDetails() {
                       <button
                         type="button"
                         onClick={() => setPaymentProofModalOpen(true)}
-                        className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-amber-300 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200"
+                        className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-amber-300 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200"
                       >
                         <Eye className="h-4 w-4" />
                         {t("orders.details.zoom")}
@@ -1306,7 +1306,7 @@ function OrderDetails() {
                       <button
                         type="button"
                         onClick={() => window.open(paymentProofUrl, "_blank", "noopener,noreferrer")}
-                        className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                        className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
                       >
                         <ExternalLink className="h-4 w-4" />
                         {t("orders.details.openFullImage")}
@@ -1342,7 +1342,7 @@ function OrderDetails() {
                     type="button"
                     onClick={() => handleShippingPaymentReview("confirm")}
                     disabled={reviewingPayment || !canReviewShippingProof}
-                    className="h-[var(--control-height-md)] rounded-xl bg-emerald-500 px-4 text-sm font-black text-white shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-emerald-500 px-4 text-sm font-black text-white shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {t("orders.payment.confirm")}
                   </button>
@@ -1350,7 +1350,7 @@ function OrderDetails() {
                     type="button"
                     onClick={() => handleShippingPaymentReview("reject")}
                     disabled={reviewingPayment || !canReviewShippingProof}
-                    className="h-[var(--control-height-md)] rounded-xl bg-rose-500 px-4 text-sm font-black text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-rose-500 px-4 text-sm font-black text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {t("orders.payment.reject")}
                   </button>
@@ -1376,14 +1376,14 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={() => setPdfFormat("a4")}
-                className={`rounded-xl px-3 py-2 transition ${ pdfFormat === "a4" ? "bg-primary text-black" : "hover:bg-white/10" }`}
+                className={`rounded-[var(--radius-control)] px-3 py-2 transition ${ pdfFormat === "a4" ? "bg-primary text-black" : "hover:bg-white/10" }`}
               >
                 {t("orders.details.a4Pdf")}
               </button>
               <button
                 type="button"
                 onClick={() => setPdfFormat("thermal")}
-                className={`rounded-xl px-3 py-2 transition ${ pdfFormat === "thermal" ? "bg-primary text-black" : "hover:bg-white/10" }`}
+                className={`rounded-[var(--radius-control)] px-3 py-2 transition ${ pdfFormat === "thermal" ? "bg-primary text-black" : "hover:bg-white/10" }`}
               >
                 {t("orders.details.thermalPdf")}
               </button>
@@ -1424,7 +1424,7 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={() => setInvoicePreviewOpen(true)}
-                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 <Eye className="h-4 w-4" />
                 {t("orders.details.preview")}
@@ -1453,13 +1453,13 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={handleSaveShipping}
-                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-black transition hover:bg-primary"
+                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-black transition hover:bg-primary"
               >
                 <Truck className="h-4 w-4" />
                 {t("orders.details.saveShipping")}
               </button>
               {shippingSetupOpen ? (
-                <button type="button" onClick={() => setShippingSetupOpen(false)} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/10">
+                <button type="button" onClick={() => setShippingSetupOpen(false)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/10">
                   إلغاء
                 </button>
               ) : null}
@@ -1476,7 +1476,7 @@ function OrderDetails() {
                   key={key}
                   type="button"
                   onClick={() => setShippingTab(key)}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${ shippingTab === key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-zinc-300 hover:bg-white/10" }`}
+                  className={`rounded-[var(--radius-control)] px-3 py-2 text-xs font-semibold transition ${ shippingTab === key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-zinc-300 hover:bg-white/10" }`}
                 >
                   {label}
                 </button>
@@ -1492,7 +1492,7 @@ function OrderDetails() {
                       <div className="order-details-address-description mt-1 text-xs font-semibold">{isBostaShippingProvider(shipping.provider) ? "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة." : "احفظ بيانات التوصيل قبل إنشاء الشحنة."}</div>
                     </div>
                     <FieldLabel label="رقم هاتف العميل">
-                      <input value={shipping.customer_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                      <input value={shipping.customer_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                     </FieldLabel>
                     {isBostaShippingProvider(shipping.provider) ? (
                       <>
@@ -1501,7 +1501,7 @@ function OrderDetails() {
                             const selected = bostaLocations.cities.find((item) => shippingLocationId(item) === e.target.value);
                             const label = shippingLocationLabel(selected);
                             setShipping((prev) => ({ ...prev, shipping_city_id: e.target.value, shipping_zone_id: "", shipping_district_id: "", governorate: label, city_area: "", shipping_city_name_ar: selected?.name_ar || "", shipping_city_name_en: selected?.name_en || "", shipping_zone_name_ar: "", shipping_zone_name_en: "", shipping_district_name_ar: "", shipping_district_name_en: "" }));
-                          }} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
+                          }} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
                             <option value="" className="bg-zinc-950">{bostaLocations.loadingCities ? "تحميل مدن Bosta..." : "اختر المدينة *"}</option>
                             {bostaLocations.cities.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
                           </select>
@@ -1510,7 +1510,7 @@ function OrderDetails() {
                           <select value={shipping.shipping_zone_id} disabled={!shipping.shipping_city_id || bostaLocations.loadingZones} onChange={(e) => {
                             const selected = bostaLocations.zones.find((item) => shippingLocationId(item) === e.target.value);
                             setShipping((prev) => ({ ...prev, shipping_zone_id: e.target.value, shipping_district_id: "", city_area: shippingLocationLabel(selected), shipping_zone_name_ar: selected?.name_ar || "", shipping_zone_name_en: selected?.name_en || "", shipping_district_name_ar: "", shipping_district_name_en: "" }));
-                          }} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
+                          }} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
                             <option value="" className="bg-zinc-950">{bostaLocations.loadingZones ? "تحميل المناطق..." : "اختر المنطقة *"}</option>
                             {bostaLocations.zones.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
                           </select>
@@ -1519,35 +1519,35 @@ function OrderDetails() {
                           <select value={shipping.shipping_district_id} disabled={!shipping.shipping_zone_id || bostaLocations.loadingDistricts} onChange={(e) => {
                             const selected = bostaLocations.districts.find((item) => shippingLocationId(item) === e.target.value);
                             setShipping((prev) => ({ ...prev, shipping_district_id: e.target.value, city_area: shippingLocationLabel(selected) || prev.city_area, shipping_district_name_ar: selected?.name_ar || "", shipping_district_name_en: selected?.name_en || "" }));
-                          }} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
+                          }} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
                             <option value="" className="bg-zinc-950">{bostaLocations.loadingDistricts ? "تحميل الأحياء..." : "اختر الحي *"}</option>
                             {bostaLocations.districts.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
                           </select>
                         </FieldLabel>
                         <div className="sm:col-span-2">
                           <FieldLabel label="اسم الشارع والعنوان بالتفصيل">
-                            <input value={shipping.street_address} onChange={(e) => setShipping((prev) => ({ ...prev, street_address: e.target.value, shipping_address_line: e.target.value }))} placeholder="مثال: شارع التسعين الشمالي *" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                            <input value={shipping.street_address} onChange={(e) => setShipping((prev) => ({ ...prev, street_address: e.target.value, shipping_address_line: e.target.value }))} placeholder="مثال: شارع التسعين الشمالي *" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                           </FieldLabel>
                         </div>
                         <FieldLabel label="رقم المبنى">
-                          <input value={shipping.building_number} onChange={(e) => setShipping((prev) => ({ ...prev, building_number: e.target.value }))} placeholder="رقم المبنى *" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                          <input value={shipping.building_number} onChange={(e) => setShipping((prev) => ({ ...prev, building_number: e.target.value }))} placeholder="رقم المبنى *" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                         </FieldLabel>
                         <FieldLabel label="الدور">
-                          <input value={shipping.floor_number} onChange={(e) => setShipping((prev) => ({ ...prev, floor_number: e.target.value }))} placeholder="الدور" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                          <input value={shipping.floor_number} onChange={(e) => setShipping((prev) => ({ ...prev, floor_number: e.target.value }))} placeholder="الدور" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                         </FieldLabel>
                         <FieldLabel label="رقم الشقة">
-                          <input value={shipping.apartment_number} onChange={(e) => setShipping((prev) => ({ ...prev, apartment_number: e.target.value }))} placeholder="الشقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                          <input value={shipping.apartment_number} onChange={(e) => setShipping((prev) => ({ ...prev, apartment_number: e.target.value }))} placeholder="الشقة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                         </FieldLabel>
                         <FieldLabel label="علامة مميزة">
-                          <input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                          <input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                         </FieldLabel>
                       </>
                     ) : (
                       <>
-                        <FieldLabel label="المحافظة"><input value={shipping.governorate} onChange={(e) => setShipping((prev) => ({ ...prev, governorate: e.target.value }))} placeholder="المحافظة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
-                        <FieldLabel label="المدينة أو المنطقة"><input value={shipping.city_area} onChange={(e) => setShipping((prev) => ({ ...prev, city_area: e.target.value }))} placeholder="المدينة / المنطقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
-                        <FieldLabel label="علامة مميزة"><input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
-                        <div className="sm:col-span-2"><FieldLabel label="العنوان التفصيلي"><textarea value={shipping.shipping_address_line} onChange={(e) => setShipping((prev) => ({ ...prev, shipping_address_line: e.target.value }))} rows={3} placeholder="الشارع، رقم المبنى، الدور والشقة" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel></div>
+                        <FieldLabel label="المحافظة"><input value={shipping.governorate} onChange={(e) => setShipping((prev) => ({ ...prev, governorate: e.target.value }))} placeholder="المحافظة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <FieldLabel label="المدينة أو المنطقة"><input value={shipping.city_area} onChange={(e) => setShipping((prev) => ({ ...prev, city_area: e.target.value }))} placeholder="المدينة / المنطقة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <FieldLabel label="علامة مميزة"><input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <div className="sm:col-span-2"><FieldLabel label="العنوان التفصيلي"><textarea value={shipping.shipping_address_line} onChange={(e) => setShipping((prev) => ({ ...prev, shipping_address_line: e.target.value }))} rows={3} placeholder="الشارع، رقم المبنى، الدور والشقة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel></div>
                       </>
                     )}
                   </div>
@@ -1563,9 +1563,9 @@ function OrderDetails() {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => handleBostaAction("create")} className="h-[var(--control-height-md)] rounded-xl bg-primary px-3 text-xs font-black text-zinc-950">إنشاء شحنة Bosta</button>
-                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">تحديث الحالة</button>
-                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-[var(--control-height-md)] rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">إلغاء</button>
+                  <button type="button" onClick={() => handleBostaAction("create")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-zinc-950">إنشاء شحنة Bosta</button>
+                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">تحديث الحالة</button>
+                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">إلغاء</button>
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
@@ -1587,7 +1587,7 @@ function OrderDetails() {
                         <Info label="رابط الملصق" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
                       </div>
                       {shipping.shipping_label_url ? (
-                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-[var(--control-height-md)] rounded-xl border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">طباعة الملصق</button>
+                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">طباعة الملصق</button>
                       ) : null}
                       {bostaActionError ? (
                         <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${ bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "border-amber-300/35 bg-amber-400/10 text-amber-100" : "border-rose-300/30 bg-rose-400/10 text-rose-100" }`}>
@@ -1611,7 +1611,7 @@ function OrderDetails() {
                     <select
                       value={shipping.provider}
                       onChange={(e) => setShipping((prev) => ({ ...prev, provider: e.target.value }))}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                     >
                       {supportedShippingProviders.map((provider) => (
                         <option key={provider} value={provider} className="bg-zinc-950 text-white">
@@ -1624,7 +1624,7 @@ function OrderDetails() {
                     <select
                       value={shipping.shipment_status || shipping.shipping_status}
                       onChange={(e) => setShipping((prev) => ({ ...prev, shipping_status: e.target.value, shipment_status: e.target.value }))}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                     >
                       {SHIPPING_STATUSES.map((status) => (
                         <option key={status} value={status} className="bg-zinc-950 text-white">
@@ -1639,7 +1639,7 @@ function OrderDetails() {
                       onChange={(e) => setShipping((prev) => ({ ...prev, shipment_id: e.target.value }))}
                       readOnly={isBostaShippingProvider(shipping.provider)}
                       placeholder={isBostaShippingProvider(shipping.provider) ? "يظهر تلقائيًا بعد إنشاء الشحنة" : t("orders.shipping.shipmentId")}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 read-only:cursor-not-allowed read-only:opacity-70"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 read-only:cursor-not-allowed read-only:opacity-70"
                     />
                   </FieldLabel>
                 </div>
@@ -1652,7 +1652,7 @@ function OrderDetails() {
                     onChange={(e) => setShipping((prev) => ({ ...prev, courier_notes: e.target.value }))}
                     rows={5}
                     placeholder={t("orders.shipping.courierNotes")}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                   />
                 </FieldLabel>
               ) : null}
@@ -1664,7 +1664,7 @@ function OrderDetails() {
                       value={shipping.tracking_number}
                       onChange={(e) => setShipping((prev) => ({ ...prev, tracking_number: e.target.value }))}
                       placeholder={t("orders.shipping.trackingNumber")}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                     />
                   </FieldLabel>
                   <FieldLabel label={t("orders.shipping.trackingUrl")}>
@@ -1672,7 +1672,7 @@ function OrderDetails() {
                       value={shipping.tracking_url}
                       onChange={(e) => setShipping((prev) => ({ ...prev, tracking_url: e.target.value }))}
                       placeholder={t("orders.shipping.trackingUrl")}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                     />
                   </FieldLabel>
                 </div>
@@ -1688,7 +1688,7 @@ function OrderDetails() {
                       value={shipping.delivery_fee}
                       onChange={(e) => setShipping((prev) => ({ ...prev, delivery_fee: Number(e.target.value || 0) }))}
                       placeholder={t("orders.shipping.deliveryFee")}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                     />
                   </FieldLabel>
                   <FieldLabel label={t("orders.details.codAmount")}>
@@ -1699,7 +1699,7 @@ function OrderDetails() {
                       value={shipping.cod_amount}
                       onChange={(e) => setShipping((prev) => ({ ...prev, cod_amount: Number(e.target.value || 0) }))}
                       placeholder={t("orders.details.codAmount")}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                     />
                   </FieldLabel>
                 </div>
@@ -1708,22 +1708,22 @@ function OrderDetails() {
 
             <div className="mt-4 flex flex-col gap-2">
               {!hasCreatedShipment ? (
-                <button type="button" onClick={handleCreateShipment} className="h-[var(--control-height-lg)] rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
+                <button type="button" onClick={handleCreateShipment} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   {t("orders.shipping.createShipment")}
                 </button>
               ) : !shipmentDelivered && !shipmentInTransit ? (
-                <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-[var(--control-height-lg)] rounded-xl bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
+                <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   {t("orders.shipping.markShipped", "تم الشحن")}
                 </button>
               ) : !shipmentDelivered ? (
-                <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-[var(--control-height-lg)] rounded-xl bg-emerald-500 px-4 text-sm font-black text-white transition hover:bg-emerald-400">
+                <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-emerald-500 px-4 text-sm font-black text-white transition hover:bg-emerald-400">
                   {t("orders.shipping.markDelivered", "تم التسليم")}
                 </button>
               ) : (
                 <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">تم تسليم الشحنة</div>
               )}
               {shipping.tracking_url ? (
-                <button type="button" onClick={() => window.open(shipping.tracking_url, "_blank", "noopener,noreferrer")} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
+                <button type="button" onClick={() => window.open(shipping.tracking_url, "_blank", "noopener,noreferrer")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
                   {t("orders.shipping.trackShipment")}
                 </button>
               ) : null}
@@ -1731,8 +1731,8 @@ function OrderDetails() {
                 <details className="rounded-xl border border-white/10 bg-white/[0.03]">
                   <summary className="cursor-pointer list-none px-4 py-3 text-center text-xs font-semibold text-zinc-400">إجراءات إضافية</summary>
                   <div className="grid gap-2 border-t border-white/10 p-3 sm:grid-cols-2">
-                    <button type="button" onClick={() => handleShipmentAction("retry")} className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">{t("orders.shipping.retryShipment", "إعادة المحاولة")}</button>
-                    <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-[var(--control-height-md)] rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">{t("orders.shipping.cancelShipment", "إلغاء الشحنة")}</button>
+                    <button type="button" onClick={() => handleShipmentAction("retry")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">{t("orders.shipping.retryShipment", "إعادة المحاولة")}</button>
+                    <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">{t("orders.shipping.cancelShipment", "إلغاء الشحنة")}</button>
                   </div>
                 </details>
               ) : null}
@@ -1769,7 +1769,7 @@ function OrderDetails() {
             <button
               type="button"
               onClick={() => window.open(paymentProofUrl, "_blank", "noopener,noreferrer")}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <ExternalLink className="h-4 w-4" />
               {t("orders.details.openFullImage")}
@@ -1782,7 +1782,7 @@ function OrderDetails() {
         <ModalShell title={t("orders.drawer.timeline")} onClose={() => setStatusTimelineOpen(false)} closeLabel={t("common.close")}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <StatusBadge value={order.status} />
-            <button type="button" onClick={loadOrder} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
+            <button type="button" onClick={loadOrder} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
               <RefreshCcw className="h-3.5 w-3.5" />
               {t("orders.details.refresh")}
             </button>
@@ -1812,7 +1812,7 @@ function OrderDetails() {
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <Printer className="h-4 w-4" />
               {t("orders.details.printInvoice")}
@@ -1820,7 +1820,7 @@ function OrderDetails() {
             <button
               type="button"
               onClick={handlePdf}
-              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-black transition hover:bg-primary"
+              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-semibold text-black transition hover:bg-primary"
             >
               <Download className="h-4 w-4" />
               {t("orders.details.downloadPdf")}
@@ -1908,7 +1908,7 @@ function ActionButton({ onClick, icon, label, danger = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${ danger ? "border-rose-500/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15" : "border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
+      className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm font-semibold transition ${ danger ? "border-rose-500/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15" : "border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
     >
       {icon}
       {label}

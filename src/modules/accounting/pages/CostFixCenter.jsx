@@ -200,11 +200,11 @@ function CostFixCenter() {
       subtitle={t("accounting.costFix.subtitle")}
       actions={
         <>
-          <button type="button" onClick={loadRows} disabled={loading || syncing || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={loadRows} disabled={loading || syncing || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {t("accounting.common.actions.refresh")}
           </button>
-          <button type="button" onClick={saveAndSync} disabled={!rows.length || syncing || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl bg-amber-300 px-4 py-2 text-sm font-black text-black transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={saveAndSync} disabled={!rows.length || syncing || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-amber-300 px-4 py-2 text-sm font-black text-black transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
             {syncing || savingKey === "save-sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {t("accounting.costFix.actions.saveAndSync")}
           </button>
@@ -218,7 +218,7 @@ function CostFixCenter() {
             <CheckCircle2 className="h-5 w-5" />
             {t("accounting.costFix.savedNotice")}
           </div>
-          <button type="button" onClick={syncAccounting} disabled={syncing} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-2 font-black text-emerald-950 transition hover:bg-emerald-200 disabled:opacity-60">
+          <button type="button" onClick={syncAccounting} disabled={syncing} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-300 px-4 py-2 font-black text-emerald-950 transition hover:bg-emerald-200 disabled:opacity-60">
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {t("accounting.reports.actions.syncEntries")}
           </button>
@@ -238,11 +238,11 @@ function CostFixCenter() {
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.costFix.catalogSubtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={applySuggestedCosts} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-black text-primary transition hover:bg-primary/20 disabled:opacity-60">
+            <button type="button" onClick={applySuggestedCosts} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-black text-primary transition hover:bg-primary/20 disabled:opacity-60">
               <Wand2 className="h-4 w-4" />
               {t("accounting.costFix.actions.applySuggested")}
             </button>
-            <button type="button" onClick={() => saveUpdates(catalogRows)} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-primary disabled:opacity-60">
+            <button type="button" onClick={() => saveUpdates(catalogRows)} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-primary disabled:opacity-60">
               {savingKey === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {t("accounting.costFix.actions.saveAll")}
             </button>
@@ -294,10 +294,10 @@ function CostFixCenter() {
                         <div className="mt-1 text-xs text-zinc-500">{t("accounting.costFix.labels.lastAvg", { last: formatCurrency(row.last_purchase_cost || 0), avg: formatCurrency(row.average_purchase_cost || 0) })}</div>
                       </td>
                       <td className="px-4 py-4">
-                        <input type="number" min="0" step="0.01" value={costDrafts[key] || ""} onChange={(event) => setDraft(key, event.target.value)} disabled={!canSaveRow} className="w-32 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/70 disabled:cursor-not-allowed disabled:opacity-50" placeholder={canSaveRow ? "0.00" : t("accounting.costFix.labels.noTarget")} />
+                        <input type="number" min="0" step="0.01" value={costDrafts[key] || ""} onChange={(event) => setDraft(key, event.target.value)} disabled={!canSaveRow} className="w-32 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/70 disabled:cursor-not-allowed disabled:opacity-50" placeholder={canSaveRow ? "0.00" : t("accounting.costFix.labels.noTarget")} />
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <button type="button" onClick={() => saveUpdates([row], key)} disabled={!canSaveRow || savingKey === key || Boolean(savingKey && savingKey !== key)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
+                        <button type="button" onClick={() => saveUpdates([row], key)} disabled={!canSaveRow || savingKey === key || Boolean(savingKey && savingKey !== key)} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
                           {savingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                           {canSaveRow ? t("accounting.common.actions.save") : t("accounting.costFix.labels.noTarget")}
                         </button>
@@ -318,7 +318,7 @@ function CostFixCenter() {
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.costFix.historicalSubtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => saveHistoricalUpdates(historicalRows)} disabled={!historicalRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-2xl bg-amber-300 px-4 py-2 text-sm font-black text-black transition hover:bg-amber-200 disabled:opacity-60">
+            <button type="button" onClick={() => saveHistoricalUpdates(historicalRows)} disabled={!historicalRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-amber-300 px-4 py-2 text-sm font-black text-black transition hover:bg-amber-200 disabled:opacity-60">
               {savingKey === "historical-all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {t("accounting.costFix.actions.saveAllOverrides")}
             </button>
@@ -363,13 +363,13 @@ function CostFixCenter() {
                       <td className="px-4 py-4 text-right font-black text-white">{Number(row.sold_quantity || 0).toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-amber-200">{formatCurrency(row.current_override_cost || 0)}</td>
                       <td className="px-4 py-4">
-                        <input type="number" min="0" step="0.01" value={costDrafts[key] || ""} onChange={(event) => setDraft(key, event.target.value)} className="w-32 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/70" placeholder="0.00" />
+                        <input type="number" min="0" step="0.01" value={costDrafts[key] || ""} onChange={(event) => setDraft(key, event.target.value)} className="w-32 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/70" placeholder="0.00" />
                       </td>
                       <td className="px-4 py-4">
-                        <input type="text" value={reasonDrafts[key] || ""} onChange={(event) => setReasonDraft(key, event.target.value)} className="min-w-64 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/70" placeholder={t("accounting.costFix.placeholders.historicalReason")} />
+                        <input type="text" value={reasonDrafts[key] || ""} onChange={(event) => setReasonDraft(key, event.target.value)} className="min-w-64 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/70" placeholder={t("accounting.costFix.placeholders.historicalReason")} />
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <button type="button" onClick={() => saveHistoricalUpdates([row], key)} disabled={savingKey === key || Boolean(savingKey && savingKey !== key)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
+                        <button type="button" onClick={() => saveHistoricalUpdates([row], key)} disabled={savingKey === key || Boolean(savingKey && savingKey !== key)} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
                           {savingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                           {t("accounting.costFix.actions.saveOverride")}
                         </button>

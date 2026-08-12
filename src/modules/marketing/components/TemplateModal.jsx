@@ -33,11 +33,11 @@ export default function TemplateModal({ open, template, onClose, onSave, saving 
         <div className="grid gap-4 p-5">
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.templates.fields.name")}</span>
-            <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+            <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
           </label>
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.templates.fields.channel")}</span>
-            <select value={form.channel} onChange={(event) => setForm((current) => ({ ...current, channel: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
+            <select value={form.channel} onChange={(event) => setForm((current) => ({ ...current, channel: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
               <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
               <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
               <option value="whatsapp">{t("marketing.social.platforms.whatsapp")}</option>
@@ -46,23 +46,23 @@ export default function TemplateModal({ open, template, onClose, onSave, saving 
           </label>
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.templates.fields.titleTemplate")}</span>
-            <input value={form.title_template} onChange={(event) => setForm((current) => ({ ...current, title_template: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+            <input value={form.title_template} onChange={(event) => setForm((current) => ({ ...current, title_template: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
           </label>
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.templates.fields.captionTemplate")}</span>
-            <textarea value={form.caption_template} onChange={(event) => setForm((current) => ({ ...current, caption_template: event.target.value }))} rows={5} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+            <textarea value={form.caption_template} onChange={(event) => setForm((current) => ({ ...current, caption_template: event.target.value }))} rows={5} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
           </label>
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.hashtags")}</span>
-            <input value={form.hashtags} onChange={(event) => setForm((current) => ({ ...current, hashtags: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+            <input value={form.hashtags} onChange={(event) => setForm((current) => ({ ...current, hashtags: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
           </label>
           <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
             <input type="checkbox" checked={Boolean(form.is_default)} onChange={(event) => setForm((current) => ({ ...current, is_default: event.target.checked }))} />
             {t("marketing.templates.default")}
           </label>
           <div className="flex gap-3">
-            <button type="button" onClick={() => onSave?.(form)} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{t("marketing.common.save")}</button>
-            <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("marketing.common.cancel")}</button>
+            <button type="button" onClick={() => onSave?.(form)} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{t("marketing.common.save")}</button>
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("marketing.common.cancel")}</button>
           </div>
         </div>
       </div>

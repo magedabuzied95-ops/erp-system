@@ -419,7 +419,7 @@ export default function AiLeadCenter() {
                 type="button"
                 onClick={() => void refresh()}
                 disabled={loading || refreshing}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.08] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh
@@ -427,7 +427,7 @@ export default function AiLeadCenter() {
               <button
                 type="button"
                 onClick={() => navigate("/admin/ai-inbox")}
-                className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-primary"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-primary"
               >
                 <Users2 className="h-4 w-4" />
                 Open AI Inbox

@@ -150,7 +150,7 @@ function RolesPage() {
               <Field label="Role name" value={name} onChange={setName} placeholder="Custom role name" />
               <Field label="Description" value={description} onChange={setDescription} placeholder="Role description" />
               <Can permission="roles.create">
-                <button type="button" onClick={createRole} disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-50">
+                <button type="button" onClick={createRole} disabled={saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-50">
                   <BadgePlus className="h-4 w-4" />
                   {saving ? "Saving..." : "Create role"}
                 </button>
@@ -164,7 +164,7 @@ function RolesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search roles..."
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
             </div>
 
@@ -183,7 +183,7 @@ function RolesPage() {
                       type="button"
                       onClick={() => setSelectedRoleId(role.id)}
                       className={[
-                        "w-full rounded-2xl border p-4 text-left transition",
+                        "w-full rounded-[var(--radius-control)] border p-4 text-left transition",
                         active ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10",
                       ].join(" ")}
                     >
@@ -283,7 +283,7 @@ function Field({ label, value, onChange, placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
       />
     </label>
   );

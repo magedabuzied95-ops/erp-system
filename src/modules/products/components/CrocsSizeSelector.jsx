@@ -83,7 +83,7 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
                     disabled={existing}
                     aria-pressed={existing || selected}
                     onClick={() => toggleSize(size)}
-                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1 rounded-xl border px-3 text-xs font-black transition ${ existing ? "cursor-not-allowed border-emerald-400/25 bg-emerald-400/10 text-emerald-200 opacity-70" : selected ? "border-amber-300 bg-amber-300 text-zinc-950" : "border-white/10 bg-white/5 text-zinc-100 hover:border-amber-300/40 hover:bg-amber-400/10" }`}
+                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ existing ? "cursor-not-allowed border-emerald-400/25 bg-emerald-400/10 text-emerald-200 opacity-70" : selected ? "border-amber-300 bg-amber-300 text-zinc-950" : "border-white/10 bg-white/5 text-zinc-100 hover:border-amber-300/40 hover:bg-amber-400/10" }`}
                   >
                     {(existing || selected) ? <Check size={13} /> : null}
                     {size}
@@ -109,7 +109,7 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
 
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
           {!showCustom ? (
-            <button type="button" onClick={() => setShowCustom(true)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black text-white hover:bg-white/10">
+            <button type="button" onClick={() => setShowCustom(true)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 px-3 text-xs font-black text-white hover:bg-white/10">
               <Plus size={14} /> مقاس آخر
             </button>
           ) : (
@@ -121,23 +121,23 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
                   onChange={(event) => { setCustomSize(event.target.value); setCustomError(""); }}
                   onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomSize(); } }}
                   placeholder="مثال: C11"
-                  className="h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm font-bold text-white outline-none focus:border-amber-300/50"
+                  className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-900 px-3 text-sm font-bold text-white outline-none focus:border-amber-300/50"
                 />
                 {customError ? <p className="mt-1 text-[11px] font-bold text-rose-300">{customError}</p> : null}
               </div>
-              <button type="button" onClick={addCustomSize} className="h-[var(--control-height-md)] rounded-xl bg-amber-300 px-4 text-xs font-black text-zinc-950">إضافة</button>
+              <button type="button" onClick={addCustomSize} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-amber-300 px-4 text-xs font-black text-zinc-950">إضافة</button>
             </div>
           )}
         </section>
       </div>
 
       <div className="mt-4 flex items-center justify-end gap-2 border-t border-white/10 pt-3">
-        <button type="button" onClick={onClose} className="h-[var(--control-height-md)] rounded-xl border border-white/10 px-4 text-xs font-black text-zinc-300 hover:bg-white/10">إلغاء</button>
+        <button type="button" onClick={onClose} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 px-4 text-xs font-black text-zinc-300 hover:bg-white/10">إلغاء</button>
         <button
           type="button"
           disabled={!selectedSizes.length}
           onClick={() => onApply?.(selectedSizes)}
-          className="h-[var(--control-height-md)] rounded-xl bg-amber-300 px-4 text-xs font-black text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-amber-300 px-4 text-xs font-black text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
         >
           إضافة المقاسات المحددة ({selectedSizes.length})
         </button>

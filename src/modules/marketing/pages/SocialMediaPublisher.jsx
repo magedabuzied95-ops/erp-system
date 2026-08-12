@@ -1809,7 +1809,7 @@ export default function SocialMediaPublisher() {
                                       setMediaType("image");
                                     }}
                                     className={[
-                                      "group overflow-hidden rounded-2xl border p-1 text-left transition",
+                                      "group overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition",
                                       isActive ? "border-emerald-300/60 bg-emerald-300/15" : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.04]",
                                     ].join(" ")}
                                     title={item.color || item.url}
@@ -1833,7 +1833,7 @@ export default function SocialMediaPublisher() {
                       <button type="button" onClick={clearCatalogProduct} className={ghostButtonClass}>
                         Clear product
                       </button>
-                      <button type="button" onClick={() => setAiTemplateOpen(true)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 text-xs font-black text-amber-100 transition hover:border-amber-300/35 hover:bg-amber-400/15">
+                      <button type="button" onClick={() => setAiTemplateOpen(true)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-400/10 px-4 text-xs font-black text-amber-100 transition hover:border-amber-300/35 hover:bg-amber-400/15">
                         ✨ Generate AI Caption
                       </button>
                     </div>
@@ -2008,7 +2008,7 @@ export default function SocialMediaPublisher() {
                             type="button"
                             onClick={useSuggestedFirstComment}
                             disabled={!firstComment.trim()}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Use Comment
                           </button>
@@ -2016,7 +2016,7 @@ export default function SocialMediaPublisher() {
                             type="button"
                             onClick={() => void refreshSuggestedFirstComment()}
                             disabled={firstCommentLoading || !selectedCatalogProduct?.id}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {firstCommentLoading ? <Loader2 className="mr-1 inline-block h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="mr-1 inline-block h-3.5 w-3.5" />}
                             Regenerate
@@ -2044,7 +2044,7 @@ export default function SocialMediaPublisher() {
                             disabled={Boolean(platform.disabled)}
                             onClick={() => togglePlatform(platform.key)}
                             className={[
-                              "flex w-full items-start justify-between gap-3 rounded-2xl border px-3 py-3 text-start transition",
+                              "flex w-full items-start justify-between gap-3 rounded-[var(--radius-control)] border px-3 py-3 text-start transition",
                               platform.disabled
                                 ? "cursor-not-allowed border-white/5 bg-white/[0.03] text-slate-500"
                                 : checked
@@ -2101,7 +2101,7 @@ export default function SocialMediaPublisher() {
                       <select
                         value={selectedFacebookPageId}
                         onChange={(event) => handleFacebookPageChange(event.target.value)}
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-primary/40"
+                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-primary/40"
                       >
                         {facebookPages.map((page) => (
                           <option key={page.facebook_page_id} value={page.facebook_page_id}>
@@ -2130,7 +2130,7 @@ export default function SocialMediaPublisher() {
                       <select
                         value={selectedInstagramAccountId}
                         onChange={(event) => handleInstagramAccountChange(event.target.value)}
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-primary/40"
+                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-primary/40"
                       >
                         {instagramAccounts.map((account) => (
                           <option key={account.instagram_account_id} value={account.instagram_account_id}>
@@ -2165,14 +2165,14 @@ export default function SocialMediaPublisher() {
                   <button
                     type="button"
                     onClick={openAdvancedMetaSettings}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
                   >
                     Manage Meta Connection
                   </button>
                   <button
                     type="button"
                     onClick={() => loadMetaAccounts()}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15"
                   >
                     <RefreshCcw className="h-4 w-4" />
                     Refresh Accounts
@@ -2189,7 +2189,7 @@ export default function SocialMediaPublisher() {
                       type="datetime-local"
                       value={scheduledAt}
                       onChange={(event) => setScheduledAt(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-amber-400/40"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-amber-400/40"
                     />
                   </div>
                 </label>
@@ -2206,7 +2206,7 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={() => setPreviewOpen(true)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/15"
                 >
                   <ImageIcon className="h-4 w-4" />
                   {t("marketing.socialPublisher.preview")}
@@ -2215,7 +2215,7 @@ export default function SocialMediaPublisher() {
                   type="button"
                   onClick={handleSchedule}
                   disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
                   {t("marketing.socialPublisher.schedule")}
@@ -2224,7 +2224,7 @@ export default function SocialMediaPublisher() {
                   type="button"
                   onClick={handlePublishNow}
                   disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {t("marketing.socialPublisher.publishNow")}
@@ -2236,7 +2236,7 @@ export default function SocialMediaPublisher() {
                   type="button"
                   onClick={handleSchedule}
                   disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
                   {t("marketing.socialPublisher.schedule")}
@@ -2245,7 +2245,7 @@ export default function SocialMediaPublisher() {
                   type="button"
                   onClick={handlePublishNow}
                   disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {t("marketing.socialPublisher.publishNow")}
@@ -2280,7 +2280,7 @@ export default function SocialMediaPublisher() {
                   <button
                     type="button"
                     onClick={() => setPreviewOpen(false)}
-                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                    className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
                   >
                     Close
                   </button>
@@ -2343,7 +2343,7 @@ export default function SocialMediaPublisher() {
                       type="button"
                       onClick={handleSchedule}
                       disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
                       {t("marketing.socialPublisher.schedule")}
@@ -2352,7 +2352,7 @@ export default function SocialMediaPublisher() {
                       type="button"
                       onClick={handlePublishNow}
                       disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       {t("marketing.socialPublisher.publishNow")}
@@ -2360,7 +2360,7 @@ export default function SocialMediaPublisher() {
                     <button
                       type="button"
                       onClick={() => setPreviewOpen(false)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
                     >
                       Close
                     </button>
@@ -2394,7 +2394,7 @@ export default function SocialMediaPublisher() {
                   <button
                     type="button"
                     onClick={closeAiTemplateModal}
-                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                    className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
                   >
                     Close
                   </button>
@@ -2454,7 +2454,7 @@ export default function SocialMediaPublisher() {
                         type="button"
                         onClick={useAiTemplateCaption}
                         disabled={!aiTemplateCaption.trim()}
-                        className="rounded-2xl bg-emerald-400 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                        className="rounded-[var(--radius-control)] bg-emerald-400 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
                       >
                         Use Caption
                       </button>
@@ -2462,14 +2462,14 @@ export default function SocialMediaPublisher() {
                         type="button"
                         onClick={() => void generateNewCollectionCaption({ force: true })}
                         disabled={!selectedCatalogProduct || aiTemplateLoading}
-                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:text-slate-500"
+                        className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:text-slate-500"
                       >
                         Regenerate
                       </button>
                       <button
                         type="button"
                         onClick={closeAiTemplateModal}
-                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                        className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
                       >
                         Close
                       </button>
@@ -2504,7 +2504,7 @@ export default function SocialMediaPublisher() {
                   <button
                     type="button"
                     onClick={closeProductCatalog}
-                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                    className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
                   >
                     Close
                   </button>
@@ -2579,7 +2579,7 @@ export default function SocialMediaPublisher() {
                               <button
                                 type="button"
                                 onClick={() => applyCatalogProduct(product)}
-                                className="rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300"
+                                className="rounded-[var(--radius-control)] bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300"
                               >
                                 Select
                               </button>

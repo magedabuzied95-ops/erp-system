@@ -718,7 +718,7 @@ function MainLayout() {
           <button
             type="button"
             onClick={() => setMobileDrawerOpen(false)}
-            className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text)]"
+            className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text)]"
             aria-label={t("common.close", "إغلاق")}
           >
             <X className="h-5 w-5" />
@@ -738,7 +738,7 @@ function MainLayout() {
               <button
                 type="button"
                 onClick={() => setSidebarCollapsed((value) => !value)}
-                className="hidden h-[var(--control-height-sm)] w-8 shrink-0 place-items-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
+                className="hidden h-[var(--control-height-sm)] w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
                 title={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
                 aria-label={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
               >
@@ -754,7 +754,7 @@ function MainLayout() {
                 onClick={openSidebarSearch}
                 title={t("sidebar.searchModules")}
                 aria-label={t("sidebar.searchModules")}
-                className="mb-3 grid h-[var(--control-height-lg)] w-full place-items-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
+                className="mb-3 grid h-[var(--control-height-lg)] w-full place-items-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
               >
                 <Search className="h-5 w-5" />
               </button>
@@ -765,7 +765,7 @@ function MainLayout() {
                 value={sidebarSearch}
                 onChange={(event) => setSidebarSearch(event.target.value)}
                 placeholder={t("sidebar.searchModules")}
-                className="h-[var(--control-height-md)] w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
+                className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
               />
             </label>}
           </div>
@@ -796,7 +796,7 @@ function MainLayout() {
                     type="button"
                     onClick={() => setOpenGroups((current) => ({ ...current, [group.title]: !current?.[group.title] }))}
                     className={[
-                      "flex w-full items-center rounded-xl text-xs font-black uppercase tracking-[0.16em] transition",
+                      "flex w-full items-center rounded-[var(--radius-control)] text-xs font-black uppercase tracking-[0.16em] transition",
                       sidebarCompact ? "justify-center px-2 py-2" : "gap-2 px-2 py-2",
                       activeInGroup ? "text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--card)] hover:text-[var(--text)]",
                     ].join(" ")}
@@ -823,7 +823,7 @@ function MainLayout() {
                                 type="button"
                                 onClick={() => setOpenGroups((current) => ({ ...current, [nestedKey]: !nestedOpen }))}
                                 className={[
-                                  "flex w-full items-center rounded-lg text-[11px] font-black uppercase tracking-[0.14em] transition",
+                                  "flex w-full items-center rounded-[var(--radius-control)] text-[11px] font-black uppercase tracking-[0.14em] transition",
                                   sidebarCompact ? "justify-center px-2 py-2" : "gap-2 px-2 py-1.5",
                                   nestedActive ? "text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]",
                                 ].join(" ")}
@@ -876,7 +876,7 @@ function MainLayout() {
             type="button"
             onClick={handleLogout}
             title={sidebarCompact ? t("common.logout") : undefined}
-            className={["flex w-full items-center justify-center rounded-xl bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-[var(--control-height-md)] px-2" : "gap-2 px-3 py-2"].join(" ")}
+            className={["flex w-full items-center justify-center rounded-[var(--radius-control)] bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-[var(--control-height-md)] px-2" : "gap-2 px-3 py-2"].join(" ")}
           >
             <LogOut className="h-4 w-4" />
             {sidebarCompact ? null : t("common.logout")}
@@ -895,7 +895,7 @@ function MainLayout() {
                 <button
                   type="button"
                   onClick={() => setMobileDrawerOpen(true)}
-                  className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
+                  className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
                   aria-label={t("common.openMenu", "فتح القائمة")}
                 >
                   <Menu className="h-5 w-5" />

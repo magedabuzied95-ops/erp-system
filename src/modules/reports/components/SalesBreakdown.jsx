@@ -41,7 +41,7 @@ export default function SalesBreakdown({ data, quality, showProfit, dimension, o
               disabled={unusable && !active}
               onClick={() => onDimensionChange(key)}
               title={unusable ? t("salesAnalytics.breakdown.unusableHint") : undefined}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition ${ active ? "bg-[var(--primary)] text-white" : unusable ? "cursor-not-allowed text-[var(--text-tertiary)] opacity-50" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
+              className={`inline-flex items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[12px] font-semibold transition ${ active ? "bg-[var(--primary)] text-white" : unusable ? "cursor-not-allowed text-[var(--text-tertiary)] opacity-50" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
             >
               {t(`salesAnalytics.breakdown.${key}`)}
               {unusable ? <span className="text-[10px]">· {t("salesAnalytics.breakdown.unusable")}</span> : null}
@@ -72,7 +72,7 @@ export default function SalesBreakdown({ data, quality, showProfit, dimension, o
                   type="button"
                   onClick={() => onDrill?.(dimension, row.key)}
                   title={t("salesAnalytics.breakdown.filterHint")}
-                  className="group w-full rounded-xl px-2 py-2 text-start transition hover:bg-[var(--surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                  className="group w-full rounded-[var(--radius-control)] px-2 py-2 text-start transition hover:bg-[var(--surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                 >
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="truncate text-[14px] font-semibold text-[var(--text)] group-hover:text-[var(--primary)] 2xl:text-[15px]">

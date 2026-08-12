@@ -416,7 +416,7 @@ export default function AiStudioWorkflowEditor() {
           onChange={(e) => setName(e.target.value)}
           disabled={!canEdit}
           placeholder="Workflow name"
-          className="h-[var(--control-height-md)] min-w-[180px] flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-[14px] font-black text-white focus:border-primary/40 focus:outline-none disabled:opacity-60"
+          className="h-[var(--control-height-md)] min-w-[180px] flex-1 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-[14px] font-black text-white focus:border-primary/40 focus:outline-none disabled:opacity-60"
         />
         <span className="hidden rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-slate-300 sm:inline">v{version}</span>
 
@@ -435,13 +435,13 @@ export default function AiStudioWorkflowEditor() {
             <div className="absolute left-0 top-full z-30 mt-1 w-80 max-h-80 overflow-y-auto rounded-xl border border-white/15 bg-slate-900/95 p-2 shadow-2xl backdrop-blur">
               {totalErrors ? <div className="px-1 pb-1 text-[9px] font-black uppercase tracking-wide text-rose-300">Errors (block save)</div> : null}
               {errorIssues.map((it, i) => (
-                <button key={`e${i}`} type="button" onClick={() => focusIssue(it.nodeId)} className="flex w-full items-start gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] text-rose-100 hover:bg-white/5">
+                <button key={`e${i}`} type="button" onClick={() => focusIssue(it.nodeId)} className="flex w-full items-start gap-1.5 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-[11px] text-rose-100 hover:bg-white/5">
                   <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /><span>{it.message}</span>
                 </button>
               ))}
               {totalWarnings ? <div className="px-1 pb-1 pt-1.5 text-[9px] font-black uppercase tracking-wide text-amber-300">Warnings (advisory)</div> : null}
               {warningIssues.map((it, i) => (
-                <button key={`w${i}`} type="button" onClick={() => focusIssue(it.nodeId)} className="flex w-full items-start gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] text-amber-100 hover:bg-white/5">
+                <button key={`w${i}`} type="button" onClick={() => focusIssue(it.nodeId)} className="flex w-full items-start gap-1.5 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-[11px] text-amber-100 hover:bg-white/5">
                   <Unlink className="mt-0.5 h-3 w-3 shrink-0" /><span>{it.message}</span>
                 </button>
               ))}
@@ -487,7 +487,7 @@ export default function AiStudioWorkflowEditor() {
         {showPalette ? (
           <aside className="relative hidden w-64 shrink-0 border-r border-white/10 bg-slate-950/50 lg:block">
             <NodePalette palette={palette} onAdd={(item) => addNode(item, null)} disabled={!canEdit} />
-            <button type="button" onClick={() => setShowPalette(false)} title="Hide palette" className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelLeft className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => setShowPalette(false)} title="Hide palette" className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelLeft className="h-3.5 w-3.5" /></button>
           </aside>
         ) : (
           <button type="button" onClick={() => setShowPalette(true)} title="Show palette" className="hidden w-8 shrink-0 items-center justify-center border-r border-white/10 bg-slate-950/50 text-slate-400 hover:text-white lg:flex"><PanelLeft className="h-4 w-4" /></button>
@@ -522,7 +522,7 @@ export default function AiStudioWorkflowEditor() {
               onChange={updateSelectedConfig}
               onDelete={deleteSelected}
             />
-            <button type="button" onClick={() => setShowConfig(false)} title="Hide config" className="absolute left-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelRight className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => setShowConfig(false)} title="Hide config" className="absolute left-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelRight className="h-3.5 w-3.5" /></button>
           </aside>
         ) : (
           <button type="button" onClick={() => setShowConfig(true)} title="Show config" className="hidden w-8 shrink-0 items-center justify-center border-l border-white/10 bg-slate-950/50 text-slate-400 hover:text-white xl:flex"><PanelRight className="h-4 w-4" /></button>

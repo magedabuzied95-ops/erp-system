@@ -79,7 +79,7 @@ export default function MarketingDashboard() {
                   key={label}
                   type="button"
                   onClick={() => navigate(to)}
-                  className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex min-w-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <Icon className="h-4 w-4" />
                   <span className="truncate">{label}</span>

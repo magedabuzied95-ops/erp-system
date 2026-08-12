@@ -326,7 +326,7 @@ function EmployeeReports({ onSelectTab, t, isRtl }) {
             key={report.label}
             type="button"
             onClick={() => onSelectTab(report.tab)}
-            className={`rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition hover:border-[var(--primary)] ${isRtl ? "text-right" : "text-left"}`}
+            className={`rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] p-4 transition hover:border-[var(--primary)] ${isRtl ? "text-right" : "text-left"}`}
           >
             <div className="text-base font-black text-[var(--text)]">{report.label}</div>
             <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{report.description}</div>

@@ -135,7 +135,7 @@ function Categories() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("products.categories.searchPlaceholder")}
-                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
+                className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
               />
             </div>
 
@@ -143,13 +143,13 @@ function Categories() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("products.categories.namePlaceholder")}
-              className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
             />
 
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
-              className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
             >
               <option value="">{t("products.categories.mainCategory")}</option>
               {items.map((item) => (
@@ -163,7 +163,7 @@ function Categories() {
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
               >
                 <option value="active">{t("products.statusLabels.active")}</option>
                 <option value="inactive">{t("products.statusLabels.inactive")}</option>

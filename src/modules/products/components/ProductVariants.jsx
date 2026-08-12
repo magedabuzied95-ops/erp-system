@@ -278,7 +278,7 @@ export default function ProductVariants({
                           )
                         }
 
-                        className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-3 text-white w-full focus:outline-none"
+                        className="bg-[#0f172a] border border-white/10 rounded-[var(--radius-control)] px-4 py-3 text-white w-full focus:outline-none"
                       />
 
                     </td>
@@ -301,7 +301,7 @@ export default function ProductVariants({
                           )
                         }
 
-                        className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-3 text-white w-[100px] focus:outline-none"
+                        className="bg-[#0f172a] border border-white/10 rounded-[var(--radius-control)] px-4 py-3 text-white w-[100px] focus:outline-none"
                       />
                       <p className="mt-2 text-xs text-gray-400">
                         {t("products.editor.preparationOnlyStock", "Preparation only. Real stock is added from purchase invoices.")}
@@ -327,7 +327,7 @@ export default function ProductVariants({
                           )
                         }
 
-                        className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-3 text-white w-[130px] focus:outline-none"
+                        className="bg-[#0f172a] border border-white/10 rounded-[var(--radius-control)] px-4 py-3 text-white w-[130px] focus:outline-none"
                       />
 
                     </td>
@@ -370,7 +370,7 @@ export default function ProductVariants({
                           removeVariant(index)
                         }
 
-                        className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white px-4 py-3 rounded-xl transition-all font-bold"
+                        className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white px-4 py-3 rounded-[var(--radius-control)] transition-all font-bold"
 
                       >
 

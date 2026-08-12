@@ -163,7 +163,7 @@ function InventoryHistory() {
               value={filters.search}
               onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
               placeholder="ابحث عن منتج أو اختيار أو ملاحظات أو مستخدم..."
-              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
 
@@ -177,7 +177,7 @@ function InventoryHistory() {
             <select
               value={filters.movementType}
               onChange={(e) => setFilters((prev) => ({ ...prev, movementType: e.target.value }))}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
               <option value="">الكل</option>
               {MOVEMENT_TYPES.filter(Boolean).map((type) => (
@@ -191,7 +191,7 @@ function InventoryHistory() {
           <button
             type="button"
             onClick={() => setFilters((prev) => ({ ...prev, search: "", productId: "", variantId: routeVariantId || "", movementType: "", dateFrom: "", dateTo: "" }))}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <X className="h-4 w-4" />
             إعادة ضبط
@@ -303,7 +303,7 @@ function Field({ label, value, onChange, type = "text", placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
       />
     </label>
   );
@@ -358,7 +358,7 @@ function TimelineDrawer({ movement, onClose }) {
             <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">الخط الزمني للمخزون</p>
             <h3 className="m1-section-title mt-1 text-white">{movement.product_name || "تفاصيل الحركة"}</h3>
           </div>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
             إغلاق
           </button>
         </div>

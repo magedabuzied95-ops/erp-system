@@ -158,7 +158,7 @@ function FinancialReports() {
               type="button"
               onClick={loadReports}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--card)] disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--card)] disabled:opacity-60"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {isArabic ? "تحديث" : "Refresh"}
@@ -167,7 +167,7 @@ function FinancialReports() {
               type="button"
               onClick={() => exportCurrentReportCsv({ title: activeTitle, data: reportData[activeTab], isArabic })}
               disabled={loading || !reportData[activeTab]}
-              className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--card)] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--card)] disabled:opacity-50"
             >
               <Download className="h-4 w-4" />
               {isArabic ? "تصدير CSV" : "Export CSV"}
@@ -176,7 +176,7 @@ function FinancialReports() {
               type="button"
               onClick={() => printCurrentReport({ title: activeTitle, data: reportData[activeTab], filters, isArabic })}
               disabled={loading || !reportData[activeTab]}
-              className="inline-flex items-center gap-2 rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-black text-white transition hover:brightness-110 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-2 text-sm font-black text-white transition hover:brightness-110 disabled:opacity-50"
             >
               <Printer className="h-4 w-4" />
               {isArabic ? "طباعة احترافية" : "Professional print"}
@@ -226,7 +226,7 @@ function FinancialReports() {
             <button
               type="button"
               onClick={() => setFilters({ ...defaultFilters })}
-              className="h-[var(--control-height-lg)] rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
+              className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
             >
               {isArabic ? "إعادة ضبط" : "Reset"}
             </button>
@@ -244,7 +244,7 @@ function FinancialReports() {
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
                 className={[
-                  "flex items-center gap-3 rounded-2xl px-4 py-3 text-start transition",
+                  "flex items-center gap-3 rounded-[var(--radius-control)] px-4 py-3 text-start transition",
                   isActive
                     ? "bg-[var(--primary)] text-white shadow-lg"
                     : "text-[var(--muted)] hover:bg-[var(--card)] hover:text-[var(--text)]",
@@ -591,7 +591,7 @@ function FilterField({ label, value, onChange, type = "text" }) {
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-[var(--control-height-lg)] w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
+        className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
       />
     </label>
   );
@@ -604,7 +604,7 @@ function FilterSelect({ label, value, onChange, options = [] }) {
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-[var(--control-height-lg)] w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
+        className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
       >
         {options.map((option) => (
           <option key={`${option.value}-${option.label}`} value={option.value}>
@@ -634,7 +634,7 @@ function StateBox({ icon: Icon, title, message, actionLabel, onAction, tone = "n
             <button
               type="button"
               onClick={onAction}
-              className="mt-4 rounded-2xl border border-current px-4 py-2 text-sm font-semibold"
+              className="mt-4 rounded-[var(--radius-control)] border border-current px-4 py-2 text-sm font-semibold"
             >
               {actionLabel}
             </button>

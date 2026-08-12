@@ -59,7 +59,7 @@ export function OverviewError({ error, onRetry }) {
       <button
         type="button"
         onClick={onRetry}
-        className="mt-4 inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-[13px] font-bold text-white transition hover:brightness-110"
+        className="mt-4 inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-4 text-[13px] font-bold text-white transition hover:brightness-110"
       >
         <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
         {t("overview.states.retry")}

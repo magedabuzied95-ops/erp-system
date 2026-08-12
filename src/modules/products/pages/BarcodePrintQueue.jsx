@@ -266,7 +266,7 @@ export default function BarcodePrintQueue() {
                         type="button"
                         onClick={() => openLabels(item)}
                         disabled={!canPrint || busyId === item.id}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Printer size={16} />
                         {t("products.barcodePrintQueue.printLabels", "Print labels")}
@@ -275,7 +275,7 @@ export default function BarcodePrintQueue() {
                         type="button"
                         onClick={() => runAction(item, "printed")}
                         disabled={busyId === item.id || status === "printed"}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <FileCheck2 size={16} />
                         {t("products.barcodePrintQueue.markPrinted", "Mark printed")}
@@ -284,7 +284,7 @@ export default function BarcodePrintQueue() {
                         type="button"
                         onClick={() => runAction(item, "regenerate")}
                         disabled={busyId === item.id || status === "processing"}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <RefreshCw size={16} />
                         {t("products.barcodePrintQueue.regenerateThermal", "Regenerate thermal")}
@@ -293,7 +293,7 @@ export default function BarcodePrintQueue() {
                         type="button"
                         onClick={() => runAction(item, "delete")}
                         disabled={busyId === item.id}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Trash2 size={16} />
                         {t("products.barcodePrintQueue.remove", "Remove")}

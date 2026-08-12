@@ -1369,7 +1369,7 @@ function AttendanceWorkspace({
           <button
             type="button"
             onClick={() => loadBaseData()}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             {t("common.refresh")}
@@ -1378,7 +1378,7 @@ function AttendanceWorkspace({
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
             >
               <Download className="h-4 w-4" />
               {tr("actions.printExport")}
@@ -1395,7 +1395,7 @@ function AttendanceWorkspace({
             key={tab.key}
             type="button"
             onClick={() => setSelectedTab(tab.key)}
-            className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${ selectedTab === tab.key ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
+            className={`rounded-[var(--radius-control)] px-4 py-3 text-sm font-semibold transition ${ selectedTab === tab.key ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
           >
             {tab.label}
           </button>
@@ -1426,7 +1426,7 @@ function AttendanceWorkspace({
             <button
               type="button"
               onClick={() => setSelectedTab("devices")}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <Smartphone className="h-4 w-4" />
               {tr("admin.viewDeviceApprovals")}
@@ -1445,7 +1445,7 @@ function AttendanceWorkspace({
               type="button"
               onClick={openEmployeeDeviceBindingReset}
               disabled={resettingDeviceBindings || !deviceBindingResetEmployeeId}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-black text-rose-100 transition hover:border-rose-300/60 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 lg:self-end"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-black text-rose-100 transition hover:border-rose-300/60 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 lg:self-end"
             >
               <Trash2 className="h-4 w-4" />
               {tr("actions.resetEmployeeDeviceLock")}
@@ -1454,7 +1454,7 @@ function AttendanceWorkspace({
               type="button"
               onClick={openTodayDeviceBindingReset}
               disabled={resettingDeviceBindings}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-600 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60 lg:self-end"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-600 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60 lg:self-end"
             >
               <AlertTriangle className="h-4 w-4" />
               {tr("actions.resetTodayDeviceLocks")}
@@ -1463,7 +1463,7 @@ function AttendanceWorkspace({
               type="button"
               onClick={openAllDeviceBindingReset}
               disabled={resettingDeviceBindings}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-400/40 bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60 lg:self-end"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-red-400/40 bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60 lg:self-end"
             >
               <Trash2 className="h-4 w-4" />
               {tr("actions.resetAllDeviceLocks")}
@@ -1615,7 +1615,7 @@ function AttendanceWorkspace({
               <button
                 type="button"
                 onClick={handleStartNewEmployee}
-                className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
+                className="inline-flex items-center justify-center rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
               >
                 {isArabic ? "+ إضافة موظف" : "+ Add Employee"}
               </button>
@@ -1653,7 +1653,7 @@ function AttendanceWorkspace({
                         <button
                           type="button"
                           onClick={() => handleEditEmployee(employee)}
-                          className="inline-flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                          className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
                           {tr("actions.edit")}
@@ -1664,7 +1664,7 @@ function AttendanceWorkspace({
                             setSelectedEmployeeId(String(employee.id));
                             setSelectedTab("kiosk");
                           }}
-                          className="inline-flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                          className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
                         >
                           <ScanBarcode className="h-3.5 w-3.5" />
                           {tr("tabs.kiosk")}
@@ -1676,7 +1676,7 @@ function AttendanceWorkspace({
                             aria-label={tr("actions.resetToday")}
                             onClick={() => openTodayAttendanceReset(employee)}
                             disabled={String(resettingAttendanceId) === String(employee.id)}
-                            className="inline-flex items-center gap-1 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {String(resettingAttendanceId) === String(employee.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                             {tr("actions.resetToday")}
@@ -1689,7 +1689,7 @@ function AttendanceWorkspace({
                             aria-label={tr("actions.deleteEmployee")}
                             onClick={() => setDeleteTarget(employee)}
                             disabled={String(deletingEmployeeId) === String(employee.id)}
-                            className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-2xl border border-rose-400/30 bg-rose-500/10 text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-500/10 text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {String(deletingEmployeeId) === String(employee.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
@@ -1721,7 +1721,7 @@ function AttendanceWorkspace({
                   <button
                     type="button"
                     onClick={() => setEmployeeEditorOpen(false)}
-                    className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="inline-flex items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                   >
                     {isArabic ? "رجوع لدليل الموظفين" : "Back to employees"}
                   </button>
@@ -1730,7 +1730,7 @@ function AttendanceWorkspace({
                       type="button"
                       onClick={handleSaveEmployee}
                       disabled={saving}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-5 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
                     >
                       {saving ? t("common.saving") : employeeForm.id ? tr("actions.updateEmployee") : tr("actions.createEmployee")}
                     </button>
@@ -1786,7 +1786,7 @@ function AttendanceWorkspace({
                           employeePhotoInputRef.current?.click();
                         }}
                         disabled={uploadingEmployeePhoto}
-                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {uploadingEmployeePhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
                         {uploadingEmployeePhoto ? (isArabic ? "جارٍ الرفع..." : "Uploading...") : (isArabic ? "رفع صورة" : "Upload photo")}
@@ -1795,7 +1795,7 @@ function AttendanceWorkspace({
                         <button
                           type="button"
                           onClick={() => setEmployeeForm((prev) => ({ ...prev, photo_url: "" }))}
-                          className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
+                          className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-transparent px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
                         >
                           {isArabic ? "إزالة الصورة" : "Remove photo"}
                         </button>
@@ -2051,7 +2051,7 @@ function AttendanceWorkspace({
                     type="button"
                     onClick={handleSaveEmployee}
                     disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
                   >
                     {saving ? t("common.saving") : employeeForm.id ? tr("actions.updateEmployee") : tr("actions.createEmployee")}
                   </button>
@@ -2119,7 +2119,7 @@ function AttendanceWorkspace({
                     type="button"
                     onClick={handleSaveShift}
                     disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" />
                     {saving ? t("common.saving") : shiftForm.id ? tr("actions.updateShift") : tr("actions.assignShift")}
@@ -2155,7 +2155,7 @@ function AttendanceWorkspace({
                 <button
                   type="button"
                   onClick={reloadAttendanceDevices}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <RefreshCw className="h-4 w-4" />
                   {tr("actions.refreshDevices")}
@@ -2201,7 +2201,7 @@ function AttendanceWorkspace({
                             type="button"
                             onClick={() => handleResetDeviceBindingRow(device)}
                             disabled={!isEditable || resettingDeviceBindings}
-                            className="inline-flex items-center gap-1 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 disabled:opacity-50"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             {tr("actions.resetLock")}
@@ -2213,7 +2213,7 @@ function AttendanceWorkspace({
                               type="button"
                               onClick={() => handleApproveDevice(device.id)}
                               disabled={!isEditable || saving}
-                              className="inline-flex items-center gap-1 rounded-2xl bg-emerald-500 px-3 py-2 text-xs font-black text-black disabled:opacity-50"
+                              className="inline-flex items-center gap-1 rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2 text-xs font-black text-black disabled:opacity-50"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               {tr("actions.approve")}
@@ -2222,7 +2222,7 @@ function AttendanceWorkspace({
                               type="button"
                               onClick={() => handleRejectDevice(device.id)}
                               disabled={!isEditable || saving}
-                              className="inline-flex items-center gap-1 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 disabled:opacity-50"
+                              className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 disabled:opacity-50"
                             >
                               <XCircle className="h-3.5 w-3.5" />
                               {tr("actions.reject")}
@@ -2234,7 +2234,7 @@ function AttendanceWorkspace({
                             type="button"
                             onClick={() => handleResetEmployeeDevice(device.employee_id)}
                             disabled={!isEditable || saving}
-                            className="inline-flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
                           >
                             <Smartphone className="h-3.5 w-3.5" />
                             {tr("actions.reset")}
@@ -2403,7 +2403,7 @@ function AttendanceWorkspace({
                   type="button"
                   onClick={handleOpenShift}
                   disabled={!canCreateAttendance || saving}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
                 >
                   <UserCheck className="h-4 w-4" />
                   {tr("actions.openShift")}
@@ -2412,7 +2412,7 @@ function AttendanceWorkspace({
                   type="button"
                   onClick={handleCloseShift}
                   disabled={!canCreateAttendance || saving}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   {tr("actions.closeShift")}
@@ -2439,7 +2439,7 @@ function AttendanceWorkspace({
                   type="button"
                   onClick={() => openTodayAttendanceReset(selectedEmployee)}
                   disabled={String(resettingAttendanceId) === String(selectedEmployee.id)}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {String(resettingAttendanceId) === String(selectedEmployee.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                   {tr("actions.resetTodayAttendance")}
@@ -2516,7 +2516,7 @@ function AttendanceWorkspace({
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={Boolean(deletingEmployeeId)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {t("common.cancel")}
               </button>
@@ -2524,7 +2524,7 @@ function AttendanceWorkspace({
                 type="button"
                 onClick={handleDeleteEmployee}
                 disabled={Boolean(deletingEmployeeId)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-600 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-600 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {deletingEmployeeId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 {tr("actions.deleteEmployee")}
@@ -2577,7 +2577,7 @@ function AttendanceWorkspace({
                 type="button"
                 onClick={() => setAttendanceResetTarget(null)}
                 disabled={Boolean(resettingAttendanceId)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {t("common.cancel")}
               </button>
@@ -2585,7 +2585,7 @@ function AttendanceWorkspace({
                 type="button"
                 onClick={handleConfirmTodayAttendanceReset}
                 disabled={Boolean(resettingAttendanceId)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-500 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-400/30 bg-amber-500 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {resettingAttendanceId ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                 {tr("actions.resetTodayAttendance")}
@@ -2623,7 +2623,7 @@ function AttendanceWorkspace({
                 type="button"
                 onClick={() => setDeviceBindingResetTarget(null)}
                 disabled={resettingDeviceBindings}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {t("common.cancel")}
               </button>
@@ -2631,7 +2631,7 @@ function AttendanceWorkspace({
                 type="button"
                 onClick={handleConfirmDeviceBindingReset}
                 disabled={resettingDeviceBindings}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-600 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-600 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {resettingDeviceBindings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 {tr("actions.resetDeviceLocks")}
@@ -2664,7 +2664,7 @@ function InputField({ label, value, onChange, type = "text", helper }) {
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
       />
       {helper ? <div className="mt-1 text-xs text-zinc-500">{helper}</div> : null}
     </label>
@@ -2679,7 +2679,7 @@ function SelectField({ label, value, onChange, options = [], disabled = false })
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
       >
         {options.map((option) => (
           <option key={String(option.id)} value={option.id} disabled={Boolean(option.disabled)}>

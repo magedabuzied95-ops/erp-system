@@ -451,7 +451,7 @@ function StockMovements() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="ابحث عن منتج أو SKU أو باركود أو لون أو مقاس أو سبب أو مستخدم..."
-              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
 
@@ -463,7 +463,7 @@ function StockMovements() {
             <select
               value={movementType}
               onChange={(e) => setMovementType(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
               <option value="">كل الأنواع</option>
               {movementTypes.map((type) => (
@@ -479,7 +479,7 @@ function StockMovements() {
             <select
               value={grade}
               onChange={(e) => setGrade(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
               <option value="">كل الدرجات</option>
               {grades.map((value) => (
@@ -495,7 +495,7 @@ function StockMovements() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
               <option value="">كل الفئات</option>
               {categories.map((value) => (
@@ -511,7 +511,7 @@ function StockMovements() {
             <select
               value={String(rowCount)}
               onChange={(e) => setRowCount(Number(e.target.value))}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
               {ROW_COUNT_OPTIONS.map((value) => (
                 <option key={value} value={String(value)} className="bg-zinc-950 text-white">
@@ -530,7 +530,7 @@ function StockMovements() {
               setCategory("");
               setRowCount(200);
             }}
-            className="self-end rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="self-end rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             إعادة ضبط
           </button>
@@ -641,7 +641,7 @@ function StockMovements() {
                               key={String(movement.id)}
                               type="button"
                               onClick={() => openVariantHistory(movement, group)}
-                              className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-left transition hover:border-emerald-400/30 hover:bg-white/[0.06] md:grid-cols-[56px_minmax(0,1.35fr)_auto]"
+                              className="grid gap-3 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 py-4 text-left transition hover:border-emerald-400/30 hover:bg-white/[0.06] md:grid-cols-[56px_minmax(0,1.35fr)_auto]"
                             >
                               <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
                                 {variantImage ? (
@@ -892,7 +892,7 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
               {movement.barcode ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">الباركود: {movement.barcode}</span> : null}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
             إغلاق
           </button>
         </div>

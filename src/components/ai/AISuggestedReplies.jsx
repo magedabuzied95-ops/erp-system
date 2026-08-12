@@ -79,7 +79,7 @@ export default function AISuggestedReplies({
           type="button"
           onClick={generate}
           disabled={loading}
-          className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50"
+          className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           {suggestions.length ? "Regenerate" : "Generate AI suggestions"}
@@ -123,7 +123,7 @@ export default function AISuggestedReplies({
                   type="button"
                   onClick={() => onUseSuggestion?.(text)}
                   disabled={!text}
-                  className="mt-3 h-[var(--control-height-md)] w-full rounded-lg border border-emerald-300/20 bg-emerald-400/10 text-xs font-black text-emerald-100 disabled:opacity-50"
+                  className="mt-3 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 text-xs font-black text-emerald-100 disabled:opacity-50"
                 >
                   Use
                 </button>

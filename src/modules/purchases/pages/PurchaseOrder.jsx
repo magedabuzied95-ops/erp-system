@@ -2256,17 +2256,17 @@ function PurchaseOrder() {
             aria-label={isArabic ? "ملء الشاشة" : "Fullscreen"}
             aria-pressed={isFullscreen}
             title={isArabic ? "ملء الشاشة" : "Fullscreen"}
-            className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
           {isEditMode && editPurchase ? (
-            <button type="button" onClick={() => navigate(`/purchases/${editPurchase.id || editPurchaseId}`)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15">
+            <button type="button" onClick={() => navigate(`/purchases/${editPurchase.id || editPurchaseId}`)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15">
               <X className="h-4 w-4" />
               Cancel edit
             </button>
           ) : null}
-          <button type="button" onClick={() => setProductModalOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={() => setProductModalOpen(true)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10">
             <PackagePlus className="h-4 w-4" />
             {t("purchases.create.newProduct")}
           </button>
@@ -2296,7 +2296,7 @@ function PurchaseOrder() {
               </div>
             ) : null}
           </div>
-          <button type="button" onClick={() => navigate(`/purchases/${editPurchase.id || editPurchaseId}`)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white transition hover:bg-white/10">
+          <button type="button" onClick={() => navigate(`/purchases/${editPurchase.id || editPurchaseId}`)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white transition hover:bg-white/10">
             <X className="h-4 w-4" />
             Cancel edit
           </button>
@@ -2347,7 +2347,7 @@ function PurchaseOrder() {
             <button
               type="button"
               onClick={() => setSupplierModalOpen(true)}
-              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
               title={isArabic ? "إضافة مورد" : "Add supplier"}
             >
               <Plus className="h-4 w-4" />
@@ -2378,14 +2378,14 @@ function PurchaseOrder() {
                   onKeyDown={handleBarcodeSubmit}
                   onFocus={() => setProductPickerOpen(true)}
                   placeholder={t("purchases.create.searchProductPlaceholder")}
-                  className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                  className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
                 aria-expanded={filtersOpen}
-                className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ filtersOpen ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+                className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ filtersOpen ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
               >
                 <SlidersHorizontal className="h-4 w-4" />
                 {isArabic ? "الفلاتر" : "Filters"}
@@ -2459,7 +2459,7 @@ function PurchaseOrder() {
                 setProductPanelExpanded(false);
                 setProductPickerOpen(false);
               }}
-              className="fixed right-6 top-6 z-[60] inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/40 transition hover:bg-white/10 sm:right-8 sm:top-8"
+              className="fixed right-6 top-6 z-[60] inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/40 transition hover:bg-white/10 sm:right-8 sm:top-8"
               aria-label="طي لوحة المنتج"
               title="طي لوحة المنتج"
             >
@@ -2481,7 +2481,7 @@ function PurchaseOrder() {
                     setProductPanelExpanded((next) => !next);
                     setProductPickerOpen(false);
                   }}
-                  className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white"
+                  className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white"
                   aria-label={productPanelExpanded ? "طي لوحة المنتج" : "توسيع لوحة المنتج"}
                   title={productPanelExpanded ? "طي لوحة المنتج" : "توسيع لوحة المنتج"}
                 >
@@ -2494,7 +2494,7 @@ function PurchaseOrder() {
                       setProductPanelExpanded(false);
                       setProductPickerOpen(false);
                     }}
-                    className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-rose-300/30 hover:bg-rose-400/10 hover:text-white"
+                    className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-rose-300/30 hover:bg-rose-400/10 hover:text-white"
                     aria-label="إغلاق لوحة المنتج"
                     title="إغلاق لوحة المنتج"
                   >
@@ -2521,7 +2521,7 @@ function PurchaseOrder() {
                     : (isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product that already has a purchase invoice.")}
                 </p>
                 {!search.trim() ? (
-                  <button type="button" onClick={() => setProductModalOpen(true)} className="mt-4 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black">
+                  <button type="button" onClick={() => setProductModalOpen(true)} className="mt-4 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black">
                     {t("purchases.create.addProduct")}
                   </button>
                 ) : null}
@@ -2535,10 +2535,10 @@ function PurchaseOrder() {
                       <span>{purchaseQtyLabels.selectedCount}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <button type="button" onClick={() => setPurchaseQtySelection([])} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-300 hover:bg-white/10">
+                      <button type="button" onClick={() => setPurchaseQtySelection([])} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-300 hover:bg-white/10">
                         {purchaseQtyLabels.clear}
                       </button>
-                      <button type="button" onClick={openPurchaseQtyPreview} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-4 py-2 text-xs font-black text-black hover:bg-amber-300">
+                      <button type="button" onClick={openPurchaseQtyPreview} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-2 text-xs font-black text-black hover:bg-amber-300">
                         <ClipboardCheck className="h-4 w-4" />
                         {purchaseQtyLabels.review}
                       </button>
@@ -2590,8 +2590,8 @@ function PurchaseOrder() {
               {t("purchases.details.receivedSaveWarning")}
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirmReceivedEditSave(false)} disabled={posting} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-              <button type="button" onClick={() => postPurchase("received", { confirmReceivedEdit: true })} disabled={posting} className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">{posting ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
+              <button type="button" onClick={() => setConfirmReceivedEditSave(false)} disabled={posting} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
+              <button type="button" onClick={() => postPurchase("received", { confirmReceivedEdit: true })} disabled={posting} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">{posting ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
             </div>
           </div>
         </div>
@@ -2745,7 +2745,7 @@ function ColorImageDropdown({ label = "Color", value, onChange, options = [], pr
         aria-expanded={open}
         onClick={() => setOpen((next) => !next)}
         onKeyDown={handleButtonKey}
-        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-2 text-left outline-none transition hover:border-emerald-400/40 focus:border-emerald-400/60"
+        className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-left outline-none transition hover:border-emerald-400/40 focus:border-emerald-400/60"
       >
         {selectedOption ? (
           <div className="min-w-0 flex-1">
@@ -2766,7 +2766,7 @@ function ColorImageDropdown({ label = "Color", value, onChange, options = [], pr
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleListKey}
               placeholder={t("purchases.create.searchColor")}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50"
             />
           </div>
           <div role="listbox" tabIndex={-1} onKeyDown={handleListKey} className="max-h-72 overflow-y-auto p-2">
@@ -2782,7 +2782,7 @@ function ColorImageDropdown({ label = "Color", value, onChange, options = [], pr
                     aria-selected={selected}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => chooseOption(option)}
-                    className={`mb-2 w-full rounded-2xl text-left transition last:mb-0 ${selected ? "ring-1 ring-emerald-400/70" : ""} ${active ? "bg-white/10" : "hover:bg-white/5"}`}
+                    className={`mb-2 w-full rounded-[var(--radius-control)] text-left transition last:mb-0 ${selected ? "ring-1 ring-emerald-400/70" : ""} ${active ? "bg-white/10" : "hover:bg-white/5"}`}
                   >
                     <ColorIdentity color={option.color} variant={option.variant} productName={productName} sizes={option.count} compact />
                   </button>
@@ -2886,7 +2886,7 @@ function PurchaseCart({
           {activeSupplier ? <div className="mt-1 text-xs text-zinc-500">{activeSupplier.name}</div> : null}
         </div>
         <div className="flex items-center gap-2">
-          {onClose ? <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white"><X className="h-4 w-4" /></button> : null}
+          {onClose ? <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white"><X className="h-4 w-4" /></button> : null}
         </div>
       </div>
 
@@ -2896,7 +2896,7 @@ function PurchaseCart({
             type="button"
             onClick={() => onBulkPrice?.("purchase")}
             disabled={!hasItems}
-            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-2 py-1.5 text-[11px] font-black text-emerald-100 shadow-lg shadow-emerald-950/10 transition hover:border-emerald-300/60 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1.5 text-[11px] font-black text-emerald-100 shadow-lg shadow-emerald-950/10 transition hover:border-emerald-300/60 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ReceiptText className="h-4 w-4 text-emerald-300" />
             سعر شراء جماعي
@@ -2905,7 +2905,7 @@ function PurchaseCart({
             type="button"
             onClick={() => onBulkPrice?.("selling")}
             disabled={!hasItems}
-            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 py-1.5 text-[11px] font-black text-primary shadow-lg shadow-primary/10 transition hover:border-primary/60 hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-2 py-1.5 text-[11px] font-black text-primary shadow-lg shadow-primary/10 transition hover:border-primary/60 hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ShoppingCart className="h-4 w-4 text-primary" />
             سعر بيع جماعي
@@ -2914,7 +2914,7 @@ function PurchaseCart({
             type="button"
             onClick={() => onBulkPrice?.("sale")}
             disabled={!hasItems}
-            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-[11px] font-black text-amber-100 shadow-lg shadow-amber-950/10 transition hover:border-amber-300/60 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="group inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-[11px] font-black text-amber-100 shadow-lg shadow-amber-950/10 transition hover:border-amber-300/60 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Percent className="h-4 w-4 text-amber-300" />
             سعر خصم جماعي
@@ -3013,7 +3013,7 @@ function PurchaseCart({
           ) : null}
         </div>
         </div>
-        <button type="button" onClick={onSaveInvoice} disabled={posting || !hasItems} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black shadow-lg shadow-amber-950/20 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" onClick={onSaveInvoice} disabled={posting || !hasItems} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black shadow-lg shadow-amber-950/20 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
           {posting ? labels.saving : saveLabel || labels.saveInvoice}
         </button>
       </div>
@@ -3052,7 +3052,7 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
 
   return (
     <div className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-lg shadow-black/10 transition hover:border-white/20 hover:bg-white/[0.065]">
-      <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-zinc-300 transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
+      <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/25 text-zinc-300 transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
         <Trash2 className="h-3.5 w-3.5" />
       </button>
 
@@ -3087,9 +3087,9 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
         <label className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5">
           <div className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.quantity}</div>
           <div className="flex h-5 items-center">
-            <button type="button" onClick={() => onQty(item.line_id, -1)} className="flex h-5 w-7 items-center justify-center rounded-md text-zinc-300 hover:bg-white/5 hover:text-white"><Minus className="h-3 w-3" /></button>
+            <button type="button" onClick={() => onQty(item.line_id, -1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 hover:bg-white/5 hover:text-white"><Minus className="h-3 w-3" /></button>
             <input type="number" min="1" value={item.quantity} onChange={(event) => onUpdate(item.line_id, { quantity: Math.max(1, money(event.target.value)) })} className="h-5 min-w-0 flex-1 bg-transparent text-center text-sm font-black text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" dir="ltr" />
-            <button type="button" onClick={() => onQty(item.line_id, 1)} className="flex h-5 w-7 items-center justify-center rounded-md text-zinc-300 hover:bg-white/5 hover:text-white"><Plus className="h-3 w-3" /></button>
+            <button type="button" onClick={() => onQty(item.line_id, 1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 hover:bg-white/5 hover:text-white"><Plus className="h-3 w-3" /></button>
           </div>
         </label>
 
@@ -3157,7 +3157,7 @@ function ProductSearchPanel({ search, products, results, loading, onAdd }) {
           {rows.map((product) => {
             const first = toArray(product.variants)[0] || {};
             return (
-            <button key={String(product.product_id)} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onAdd(product)} className="grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/10 focus:bg-white/10 focus:outline-none">
+            <button key={String(product.product_id)} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onAdd(product)} className="grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-control)] px-3 py-3 text-left transition hover:bg-white/10 focus:bg-white/10 focus:outline-none">
               <ProductImage src={product.image_url || first.image_url} name={product.product_name} />
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-white">{product.product_name}</div>
@@ -3186,7 +3186,7 @@ function VariantSelector({ group, onAdd, onClose }) {
     <Modal title={group.product_name} eyebrow={t("purchases.create.selectVariant")} onClose={onClose}>
       <div className="grid gap-2 sm:grid-cols-2">
         {toArray(group.variants).map((variant) => (
-          <button key={variant.line_id} type="button" onClick={() => { onAdd(variant); onClose(); }} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-left hover:bg-white/10">
+          <button key={variant.line_id} type="button" onClick={() => { onAdd(variant); onClose(); }} className="flex items-center gap-3 rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-3 text-left hover:bg-white/10">
             <ProductImage src={variant.image_url} name={variant.product_name} />
             <div className="min-w-0">
               <div className="font-black text-white">{variant.color || t("purchases.create.defaultVariant")} / {variant.size || t("purchases.create.oneSize")}</div>
@@ -3322,10 +3322,10 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
         {!canApply ? <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">{labels.noChanges}</div> : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
             {labels.cancel}
           </button>
-          <button type="button" onClick={() => onApply(rows)} disabled={!canApply} className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" onClick={() => onApply(rows)} disabled={!canApply} className="rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
             {labels.apply}
           </button>
         </div>
@@ -3394,7 +3394,7 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
       step="0.01"
       value={product[field]}
       onChange={(event) => updateProductPrice(product.key, field, event.target.value)}
-      className="h-[var(--control-height-lg)] w-28 rounded-xl border border-white/10 bg-zinc-950 px-3 text-center font-black text-white outline-none transition focus:border-emerald-400/60"
+      className="h-[var(--control-height-lg)] w-28 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 text-center font-black text-white outline-none transition focus:border-emerald-400/60"
       aria-label={`${label} - ${product.group?.product_name || "Product"}`}
     />
   );
@@ -3459,10 +3459,10 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
         {!canApply ? <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">{labels.noChanges}</div> : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
             {labels.cancel}
           </button>
-          <button type="button" onClick={() => onApply(products)} disabled={!canApply} className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" onClick={() => onApply(products)} disabled={!canApply} className="rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
             {labels.apply}
           </button>
         </div>
@@ -3661,13 +3661,13 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
             <span>تمت: <b className="text-emerald-200">{completedCount}</b> / {productCount}</span>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <button type="button" onClick={apply} className="rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">
+            <button type="button" onClick={apply} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">
               تطبيق الأسعار
             </button>
-            <button type="button" onClick={saveAndClose} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">
+            <button type="button" onClick={saveAndClose} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">
               حفظ وإغلاق
             </button>
-            <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
               إغلاق دون حفظ
             </button>
           </div>
@@ -3841,7 +3841,7 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
               setError("");
             }}
             placeholder="0.00"
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-lg font-black text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50"
+            className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-lg font-black text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50"
           />
           {error ? <div className="mt-2 text-sm font-semibold text-rose-200">{error}</div> : null}
         </label>
@@ -3883,10 +3883,10 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
             {t("common.cancel")}
           </button>
-          <button type="submit" className={`rounded-2xl px-4 py-3 text-sm font-black text-black transition ${isPurchase ? "bg-emerald-500 hover:bg-emerald-400" : isSale ? "bg-amber-400 hover:bg-amber-300" : "bg-primary hover:bg-primary"}`}>
+          <button type="submit" className={`rounded-[var(--radius-control)] px-4 py-3 text-sm font-black text-black transition ${isPurchase ? "bg-emerald-500 hover:bg-emerald-400" : isSale ? "bg-amber-400 hover:bg-amber-300" : "bg-primary hover:bg-primary"}`}>
             {t("purchases.create.apply")}
           </button>
         </div>
@@ -3974,9 +3974,9 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
         />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => setAll(1)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.fillAllOne")}</button>
-        <button type="button" onClick={() => setAll(2)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.fillAllTwo")}</button>
-        <button type="button" onClick={() => setAll(0)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.clearAll")}</button>
+        <button type="button" onClick={() => setAll(1)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.fillAllOne")}</button>
+        <button type="button" onClick={() => setAll(2)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.fillAllTwo")}</button>
+        <button type="button" onClick={() => setAll(0)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.clearAll")}</button>
         {mode === "carton" ? (
           <label className="ml-auto flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-200">
             {t("purchases.create.cartonQty")}
@@ -4036,7 +4036,7 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
           );
         })}
       </div>
-      <button type="button" onClick={addRun} className="mt-4 w-full rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black">
+      <button type="button" onClick={addRun} className="mt-4 w-full rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black">
         {t("purchases.create.addRun")}
       </button>
     </Modal>
@@ -4054,7 +4054,7 @@ function Modal({ eyebrow, title, children, onClose }) {
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{eyebrow}</div>
             <h3 className="m1-section-title mt-1 text-white">{title}</h3>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -4070,7 +4070,7 @@ function Select({ label, value, onChange, options, emptyLabel, placeholder = "" 
   return (
     <label className="block">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm capitalize text-white outline-none">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm capitalize text-white outline-none">
         {placeholder ? <option value="" className="bg-zinc-950 text-white">{placeholder}</option> : null}
         {options.length === 0 ? <option value="" className="bg-zinc-950 text-white">{fallbackEmptyLabel}</option> : null}
         {options.map((option) => (
@@ -4087,7 +4087,7 @@ function Field({ label, value, onChange, type = "text", placeholder }) {
   return (
     <label className="block">
       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <input type={type} value={value} onChange={(event) => onChange(type === "number" ? money(event.target.value) : event.target.value)} placeholder={placeholder} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+      <input type={type} value={value} onChange={(event) => onChange(type === "number" ? money(event.target.value) : event.target.value)} placeholder={placeholder} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
     </label>
   );
 }
@@ -4125,8 +4125,8 @@ function QuickSupplierModal({ form, setForm, saving, error, onClose, onSubmit })
           <Field label={t("purchases.supplierDetails.openingBalance")} type="number" value={form.opening_balance} onChange={(value) => setField("opening_balance", money(value))} />
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("common.cancel")}</button>
-          <button type="submit" disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.details.saving") : t("purchases.create.createAndSelect")}</button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("common.cancel")}</button>
+          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.details.saving") : t("purchases.create.createAndSelect")}</button>
         </div>
       </form>
     </Modal>
@@ -4153,8 +4153,8 @@ function QuickProductModal({ form, setForm, saving, error, onClose, onSubmit }) 
           <Field label={t("purchases.create.imageUrl")} value={form.image_url} onChange={(value) => setField("image_url", value)} />
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("common.cancel")}</button>
-          <button type="submit" disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.create.creating") : t("purchases.create.createAndAdd")}</button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("common.cancel")}</button>
+          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.create.creating") : t("purchases.create.createAndAdd")}</button>
         </div>
       </form>
     </Modal>

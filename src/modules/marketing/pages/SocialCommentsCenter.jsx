@@ -786,7 +786,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
             type="button"
             onClick={handleRefresh}
             disabled={loading}
-            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-white shadow-sm disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-white shadow-sm disabled:opacity-50"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Refresh

@@ -194,7 +194,7 @@ function CopyButton({ value, label = "Copy" }) {
         navigator.clipboard?.writeText(String(value || ""));
         toast.success(`${label} copied`);
       }}
-      className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-100 transition hover:bg-white/10"
+      className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-100 transition hover:bg-white/10"
     >
       <Copy className="h-3.5 w-3.5" />
       {label}
@@ -242,7 +242,7 @@ function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks
         </div>
       ) : null}
       {onTest ? (
-        <button onClick={onTest} className="mt-4 inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
+        <button onClick={onTest} className="mt-4 inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
           <PlayCircle className="h-4 w-4" />
           Test live
         </button>
@@ -1021,7 +1021,7 @@ export default function MarketingSettings() {
                 {label}
               </a>
             ))}
-            <button onClick={loadMetaDiagnostics} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
+            <button onClick={loadMetaDiagnostics} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
               <RefreshCw className={`h-4 w-4 ${diagnosticsLoading ? "animate-spin" : ""}`} />
               تحديث الحالة
             </button>
@@ -1170,7 +1170,7 @@ export default function MarketingSettings() {
                 <button
                   key={label}
                   onClick={() => setWizardStep(index)}
-                  className={`min-h-16 rounded-2xl border px-4 py-3 text-right text-sm transition ${wizardStep === index ? "border-amber-400/35 bg-amber-400/10 text-amber-100" : "border-white/10 bg-[#101310] text-slate-300 hover:bg-white/5"}`}
+                  className={`min-h-16 rounded-[var(--radius-control)] border px-4 py-3 text-right text-sm transition ${wizardStep === index ? "border-amber-400/35 bg-amber-400/10 text-amber-100" : "border-white/10 bg-[#101310] text-slate-300 hover:bg-white/5"}`}
                 >
                   <div className="text-sm font-black text-slate-400">الخطوة {index + 1}</div>
                   <div className="mt-1 font-black">{label}</div>
@@ -1185,19 +1185,19 @@ export default function MarketingSettings() {
                     <p className="mt-1 text-sm text-slate-400">ابدأ تدفق OAuth الرسمي من ميتا، ثم امنح الصلاحيات وبعدها اختر صفحة فيسبوك وحساب إنستجرام للأعمال المرتبط.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={connectMetaOAuth} disabled={oauthLoading} className="inline-flex items-center gap-2 rounded-xl bg-[#1877f2] px-4 py-3 text-sm font-black text-white disabled:opacity-60">
+                    <button onClick={connectMetaOAuth} disabled={oauthLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[#1877f2] px-4 py-3 text-sm font-black text-white disabled:opacity-60">
                       <KeyRound className="h-4 w-4" />
                       {oauthLoading ? "Connecting..." : "Connect Meta"}
                     </button>
-                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-100 disabled:opacity-60">
+                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/25 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-100 disabled:opacity-60">
                       <PlayCircle className="h-4 w-4" />
                       {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
                     </button>
-                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100 disabled:opacity-60">
+                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100 disabled:opacity-60">
                       <CheckCircle2 className="h-4 w-4" />
                       {completeSetupLoading ? "Completing..." : "Complete setup"}
                     </button>
-                    <button onClick={() => setAdvancedMode((value) => !value)} className="min-h-[var(--control-height-lg)] rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white">
+                    <button onClick={() => setAdvancedMode((value) => !value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white">
                       {advancedMode ? "Hide advanced mode" : "Advanced mode"}
                     </button>
                   </div>
@@ -1209,7 +1209,7 @@ export default function MarketingSettings() {
                   {oauthPages.length ? (
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {oauthPages.map((page) => (
-                        <button key={page.page_id} onClick={() => chooseOAuthPage(page)} disabled={oauthLoading} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.07] disabled:opacity-60">
+                        <button key={page.page_id} onClick={() => chooseOAuthPage(page)} disabled={oauthLoading} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.07] disabled:opacity-60">
                           <div className="font-black text-white">{page.page_name || page.page_id}</div>
                           <div className="mt-1 text-xs text-slate-400">Page ID: {page.page_id}</div>
                           <div className="mt-2 text-xs text-primary">إنستجرام: {page.instagram_username || page.instagram_business_account_id || "لا يوجد حساب أعمال مرتبط"}</div>
@@ -1226,11 +1226,11 @@ export default function MarketingSettings() {
                     <p className="mt-1 text-sm text-slate-400">Runs live permission checks, token diagnostics, and webhook delivery health.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-white disabled:opacity-60">
+                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2 text-xs font-black text-white disabled:opacity-60">
                       <PlayCircle className="h-3.5 w-3.5" />
                       {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
                     </button>
-                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white disabled:opacity-60">
+                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white disabled:opacity-60">
                       <RefreshCw className={`h-3.5 w-3.5 ${completeSetupLoading ? "animate-spin" : ""}`} />
                       {completeSetupLoading ? "Completing..." : "Complete setup"}
                     </button>
@@ -1278,26 +1278,26 @@ export default function MarketingSettings() {
               <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Connection</div>
               <h2 className="m1-section-title mt-1 text-white">صفحة فيسبوك وحساب إنستجرام</h2>
             </div>
-            <button onClick={() => setAdvancedMode((value) => !value)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">
+            <button onClick={() => setAdvancedMode((value) => !value)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">
               {advancedMode ? "Guided mode" : "Advanced mode"}
             </button>
           </div>
           {advancedMode ? <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.settings.fields.provider")}</span>
-              <input value={form.provider} onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+              <input value={form.provider} onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
             </label>
             <label id="marketing-settings-instagram" className="scroll-mt-6 space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.settings.fields.facebookPageId")}</span>
-              <input value={form.page_id} onChange={(event) => setForm((current) => ({ ...current, page_id: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+              <input value={form.page_id} onChange={(event) => setForm((current) => ({ ...current, page_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
             </label>
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.settings.fields.instagramAccountId")}</span>
-              <input value={form.instagram_account_id} onChange={(event) => setForm((current) => ({ ...current, instagram_account_id: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+              <input value={form.instagram_account_id} onChange={(event) => setForm((current) => ({ ...current, instagram_account_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
             </label>
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.settings.fields.shortLivedToken")}</span>
-              <input type="password" value={form.access_token_encrypted} onChange={(event) => setForm((current) => ({ ...current, access_token_encrypted: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+              <input type="password" value={form.access_token_encrypted} onChange={(event) => setForm((current) => ({ ...current, access_token_encrypted: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
             </label>
           </div> : (
             <div className="grid gap-4 md:grid-cols-2">
@@ -1337,13 +1337,13 @@ export default function MarketingSettings() {
                 value={instagramAccessToken}
                 onChange={(event) => setInstagramAccessToken(event.target.value)}
                 placeholder="ألصق رمز Instagram هنا ثم احفظه"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-400/40"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-400/40"
               />
               <button
                 type="button"
                 onClick={saveInstagramToken}
                 disabled={savingInstagramToken || !instagramAccessToken.trim()}
-                className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-[#17130a] disabled:opacity-50"
+                className="rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-[#17130a] disabled:opacity-50"
               >
                 {savingInstagramToken ? "جارٍ التحقق..." : "تحقق واحفظ"}
               </button>
@@ -1352,7 +1352,7 @@ export default function MarketingSettings() {
                   type="button"
                   onClick={removeInstagramToken}
                   disabled={savingInstagramToken}
-                  className="rounded-2xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100 disabled:opacity-50"
+                  className="rounded-[var(--radius-control)] border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100 disabled:opacity-50"
                 >
                   تعطيل الرمز
                 </button>
@@ -1388,13 +1388,13 @@ export default function MarketingSettings() {
                 value={instagramAppSecret}
                 onChange={(event) => setInstagramAppSecret(event.target.value)}
                 placeholder="ألصق Instagram App Secret هنا ثم احفظه"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40"
+                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40"
               />
               <button
                 type="button"
                 onClick={saveInstagramSecret}
                 disabled={savingInstagramSecret || !instagramAppSecret.trim()}
-                className="rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-[#07150f] disabled:opacity-50"
+                className="rounded-[var(--radius-control)] bg-emerald-400 px-4 py-3 text-sm font-black text-[#07150f] disabled:opacity-50"
               >
                 {savingInstagramSecret ? "جارٍ الحفظ..." : "حفظ السر"}
               </button>
@@ -1403,7 +1403,7 @@ export default function MarketingSettings() {
                   type="button"
                   onClick={removeInstagramSecret}
                   disabled={savingInstagramSecret}
-                  className="rounded-2xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100 disabled:opacity-50"
+                  className="rounded-[var(--radius-control)] border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100 disabled:opacity-50"
                 >
                   تعطيل السر
                 </button>
@@ -1457,14 +1457,14 @@ export default function MarketingSettings() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
-            <button onClick={save} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+            <button onClick={save} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
               {t("marketing.settings.save")}
             </button>
-            <button onClick={reconnect} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary disabled:opacity-60">
+            <button onClick={reconnect} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary disabled:opacity-60">
               <RefreshCw className={`h-4 w-4 ${reconnecting ? "animate-spin" : ""}`} />
               {t("marketing.settings.reconnect")}
             </button>
-            <button onClick={testAutoRefresh} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+            <button onClick={testAutoRefresh} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
               <Sparkles className="h-4 w-4 text-primary" />
               {t("marketing.settings.testAutoRefresh")}
             </button>
@@ -1603,7 +1603,7 @@ export default function MarketingSettings() {
             <StatusBadge status={liveWebhook.webhook_verified ? "connected" : "webhook_issue"} />
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary disabled:opacity-60">
+            <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary disabled:opacity-60">
               <PlayCircle className="h-3.5 w-3.5" />
               {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
             </button>
@@ -1666,7 +1666,7 @@ export default function MarketingSettings() {
               <h2 className="m1-section-title mt-3">{t("marketing.automation.commentDm.title")}</h2>
               <p className="mt-2 text-base leading-7 text-slate-400">{t("marketing.settings.capabilities.automationHelp", "قواعد التعليق إلى الرسالة والردود التلقائية وسجلات الأتمتة.")} {t("marketing.settings.capabilities.activeRules", "القواعد النشطة")}: {activeRulesCount}</p>
             </div>
-            <button onClick={() => { setEditingRuleId(null); setRuleForm(blankRule); }} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
+            <button onClick={() => { setEditingRuleId(null); setRuleForm(blankRule); }} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
               <Plus className="h-4 w-4" />
               {t("marketing.automation.newRule")}
             </button>
@@ -1714,18 +1714,18 @@ export default function MarketingSettings() {
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-2 md:col-span-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.ruleName")}</span>
-                  <input value={ruleForm.name} onChange={(event) => setRuleForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <input value={ruleForm.name} onChange={(event) => setRuleForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.platform")}</span>
-                  <select value={ruleForm.platform} onChange={(event) => setRuleForm((current) => ({ ...current, platform: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
+                  <select value={ruleForm.platform} onChange={(event) => setRuleForm((current) => ({ ...current, platform: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
                     <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
                     <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
                   </select>
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.matchMode")}</span>
-                  <select value={ruleForm.match_mode} onChange={(event) => setRuleForm((current) => ({ ...current, match_mode: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
+                  <select value={ruleForm.match_mode} onChange={(event) => setRuleForm((current) => ({ ...current, match_mode: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
                     <option value="any">{t("marketing.automation.matchModes.any")}</option>
                     <option value="all">{t("marketing.automation.matchModes.all")}</option>
                     <option value="exact">{t("marketing.automation.matchModes.exact")}</option>
@@ -1733,27 +1733,27 @@ export default function MarketingSettings() {
                 </label>
                 <label className="space-y-2 md:col-span-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.triggerKeywords")}</span>
-                  <input value={ruleForm.trigger_keywords} onChange={(event) => setRuleForm((current) => ({ ...current, trigger_keywords: event.target.value }))} placeholder={t("marketing.automation.placeholders.triggerKeywords")} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <input value={ruleForm.trigger_keywords} onChange={(event) => setRuleForm((current) => ({ ...current, trigger_keywords: event.target.value }))} placeholder={t("marketing.automation.placeholders.triggerKeywords")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="space-y-2 md:col-span-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.excludedKeywords")}</span>
-                  <input value={ruleForm.excluded_keywords} onChange={(event) => setRuleForm((current) => ({ ...current, excluded_keywords: event.target.value }))} placeholder={t("marketing.automation.placeholders.excludedKeywords")} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <input value={ruleForm.excluded_keywords} onChange={(event) => setRuleForm((current) => ({ ...current, excluded_keywords: event.target.value }))} placeholder={t("marketing.automation.placeholders.excludedKeywords")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.erpPostId")}</span>
-                  <input value={ruleForm.post_id} onChange={(event) => setRuleForm((current) => ({ ...current, post_id: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <input value={ruleForm.post_id} onChange={(event) => setRuleForm((current) => ({ ...current, post_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.platformPostId")}</span>
-                  <input value={ruleForm.platform_post_id} onChange={(event) => setRuleForm((current) => ({ ...current, platform_post_id: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <input value={ruleForm.platform_post_id} onChange={(event) => setRuleForm((current) => ({ ...current, platform_post_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="space-y-2 md:col-span-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.dmMessage")}</span>
-                  <textarea value={ruleForm.response_message} onChange={(event) => setRuleForm((current) => ({ ...current, response_message: event.target.value }))} rows={4} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <textarea value={ruleForm.response_message} onChange={(event) => setRuleForm((current) => ({ ...current, response_message: event.target.value }))} rows={4} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">القالب</span>
-                  <input value={ruleForm.template_name || ""} onChange={(event) => setRuleForm((current) => ({ ...current, template_name: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <input value={ruleForm.template_name || ""} onChange={(event) => setRuleForm((current) => ({ ...current, template_name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-200">
                   <input type="checkbox" checked={Boolean(ruleForm.ai_generated_replies)} onChange={(event) => setRuleForm((current) => ({ ...current, ai_generated_replies: event.target.checked }))} />
@@ -1761,7 +1761,7 @@ export default function MarketingSettings() {
                 </label>
                 <label className="space-y-2 md:col-span-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">رد بديل</span>
-                  <textarea value={ruleForm.fallback_reply || ""} onChange={(event) => setRuleForm((current) => ({ ...current, fallback_reply: event.target.value }))} rows={2} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <textarea value={ruleForm.fallback_reply || ""} onChange={(event) => setRuleForm((current) => ({ ...current, fallback_reply: event.target.value }))} rows={2} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1769,7 +1769,7 @@ export default function MarketingSettings() {
                   <input type="checkbox" checked={Boolean(ruleForm.is_active)} onChange={(event) => setRuleForm((current) => ({ ...current, is_active: event.target.checked }))} />
                   {t("marketing.campaigns.status.active")}
                 </label>
-                <button onClick={saveRule} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                <button onClick={saveRule} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
                   {editingRuleId ? t("marketing.automation.updateRule") : t("marketing.automation.createRule")}
                 </button>
               </div>
@@ -1779,8 +1779,8 @@ export default function MarketingSettings() {
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
                 <div className="text-sm font-black text-white">محاكي المعاينة</div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <input value={simulator.commenter_name} onChange={(event) => setSimulator((current) => ({ ...current, commenter_name: event.target.value }))} className="rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
-                  <input value={simulator.comment_text} onChange={(event) => setSimulator((current) => ({ ...current, comment_text: event.target.value }))} className="rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
+                  <input value={simulator.commenter_name} onChange={(event) => setSimulator((current) => ({ ...current, commenter_name: event.target.value }))} className="rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
+                  <input value={simulator.comment_text} onChange={(event) => setSimulator((current) => ({ ...current, comment_text: event.target.value }))} className="rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
                 </div>
                 <div className="mt-3 rounded-xl bg-slate-950/70 p-3 text-sm leading-6 text-slate-200">
                   {(ruleForm.response_message || ruleForm.fallback_reply || "").replace(/\{\{\s*commenter_name\s*\}\}/g, simulator.commenter_name || "Customer")}
@@ -1795,9 +1795,9 @@ export default function MarketingSettings() {
                       <div className="mt-2 text-sm text-slate-300">{listToInput(rule.trigger_keywords) || t("marketing.automation.allComments")}</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={() => applyRuleToForm(rule)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">{t("marketing.common.edit")}</button>
-                      <button onClick={() => runRuleTest(rule)} className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">{t("marketing.automation.test")}</button>
-                      <button onClick={() => removeRule(rule.id)} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
+                      <button onClick={() => applyRuleToForm(rule)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">{t("marketing.common.edit")}</button>
+                      <button onClick={() => runRuleTest(rule)} className="rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">{t("marketing.automation.test")}</button>
+                      <button onClick={() => removeRule(rule.id)} className="rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>

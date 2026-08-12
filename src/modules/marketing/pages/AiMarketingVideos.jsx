@@ -770,7 +770,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                   key={scene.id || sceneIndex}
                   type="button"
                   onClick={() => seekToScene(sceneIndex)}
-                  className={`rounded-xl border p-3 text-left transition ${sceneIndex === activeSceneIndex ? "border-primary/50 bg-primary/10" : "border-white/10 bg-white/[0.04] hover:border-white/25"}`}
+                  className={`rounded-[var(--radius-control)] border p-3 text-left transition ${sceneIndex === activeSceneIndex ? "border-primary/50 bg-primary/10" : "border-white/10 bg-white/[0.04] hover:border-white/25"}`}
                 >
                   <div className="grid grid-cols-[46px_minmax(0,1fr)] gap-3">
                     <div className="aspect-[9/16] overflow-hidden rounded-lg border border-white/10 bg-slate-950">

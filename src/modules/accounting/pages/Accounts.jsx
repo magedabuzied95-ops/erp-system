@@ -161,15 +161,15 @@ function Accounts() {
             <Landmark className="h-4 w-4" />
             {t("accounting.reports.title")}
           </Link>
-          <button type="button" onClick={() => exportReport("pdf", exportAccountingPdf)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
+          <button type="button" onClick={() => exportReport("pdf", exportAccountingPdf)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
             <FileText className="h-4 w-4" />
             PDF
           </button>
-          <button type="button" onClick={() => exportReport("excel", exportAccountingExcel)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
+          <button type="button" onClick={() => exportReport("excel", exportAccountingExcel)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
             <FileSpreadsheet className="h-4 w-4" />
             Excel
           </button>
-          <button type="button" onClick={() => exportReport("csv", exportAccountingCsv)} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">
+          <button type="button" onClick={() => exportReport("csv", exportAccountingCsv)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black">
             <Download className="h-4 w-4" />
             CSV
           </button>
@@ -189,14 +189,14 @@ function Accounts() {
         <button
           type="button"
           onClick={() => setView("chart")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${view === "chart" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${view === "chart" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           دليل الحسابات
         </button>
         <button
           type="button"
           onClick={() => setView("ledgers")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${view === "ledgers" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${view === "ledgers" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           عرض دفتر الأستاذ
         </button>
@@ -210,7 +210,7 @@ function Accounts() {
               title="تعذر تحميل الحسابات"
               text={accountsError}
               action={
-                <button type="button" onClick={loadAccounts} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
+                <button type="button" onClick={loadAccounts} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
                   <RefreshCcw className="h-4 w-4" />
                   إعادة المحاولة
                 </button>
@@ -241,7 +241,7 @@ function Accounts() {
                     className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-500"
                   />
                 </label>
-                <button type="button" onClick={loadAccounts} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
+                <button type="button" onClick={loadAccounts} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
                   <RefreshCcw className={`h-4 w-4 ${accountsLoading ? "animate-spin" : ""}`} />
                   تحديث
                 </button>
@@ -290,16 +290,16 @@ function Accounts() {
         <>
           <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-5">
             <FilterField label={t("accounting.common.labels.from")}>
-              <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60" />
+              <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60" />
             </FilterField>
             <FilterField label={t("accounting.common.labels.to")}>
-              <input type="date" value={filters.to_date} onChange={(event) => updateFilter("to_date", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60" />
+              <input type="date" value={filters.to_date} onChange={(event) => updateFilter("to_date", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60" />
             </FilterField>
             <FilterField label={t("accounting.common.labels.branch")}>
-              <input type="number" min="1" placeholder={t("accounting.common.placeholders.branchId")} value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/60" />
+              <input type="number" min="1" placeholder={t("accounting.common.placeholders.branchId")} value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-primary/60" />
             </FilterField>
             <FilterField label={t("accounting.common.labels.account")}>
-              <select value={filters.account_type} onChange={(event) => updateFilter("account_type", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60">
+              <select value={filters.account_type} onChange={(event) => updateFilter("account_type", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none transition focus:border-primary/60">
                 {accountTypeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -308,7 +308,7 @@ function Accounts() {
               </select>
             </FilterField>
             <div className="flex items-end gap-2">
-              <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
+              <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
                 <Search className="h-4 w-4" />
                 تطبيق
               </button>
@@ -323,7 +323,7 @@ function Accounts() {
               title="تعذر تحميل دفتر الأستاذ"
               text={error}
               action={
-                <button type="button" onClick={() => loadReport()} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
+                <button type="button" onClick={() => loadReport()} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
                   <RefreshCcw className="h-4 w-4" />
                   إعادة المحاولة
                 </button>

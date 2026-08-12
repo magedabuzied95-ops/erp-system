@@ -180,7 +180,7 @@ function PageButton({ disabled, onClick, label, children }) {
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="inline-flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--surface-soft)] disabled:opacity-40"
+      className="inline-flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--surface-soft)] disabled:opacity-40"
     >
       {children}
     </button>

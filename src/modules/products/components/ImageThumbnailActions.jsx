@@ -112,7 +112,7 @@ function ImageThumbnailActions({
           </button>
           <div className="text-[11px] font-black text-white">{t("products.images.confirmDelete", "Delete image?")}</div>
           <div className="grid w-full grid-cols-2 gap-1">
-            <button type="button" onClick={() => setConfirming(false)} className="rounded-lg bg-white/10 px-2 py-1.5 text-[10px] font-bold text-white">
+            <button type="button" onClick={() => setConfirming(false)} className="rounded-[var(--radius-control)] bg-white/10 px-2 py-1.5 text-[10px] font-bold text-white">
               {t("common.cancel", "Cancel")}
             </button>
             <button
@@ -121,7 +121,7 @@ function ImageThumbnailActions({
                 setConfirming(false);
                 onDelete?.(image);
               }}
-              className="rounded-lg bg-red-500 px-2 py-1.5 text-[10px] font-black text-white"
+              className="rounded-[var(--radius-control)] bg-red-500 px-2 py-1.5 text-[10px] font-black text-white"
             >
               {t("products.actionsMenu.delete", "Delete")}
             </button>

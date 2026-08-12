@@ -188,15 +188,15 @@ function FinancialAccounts() {
       subtitle={t("accounting.financialAccounts.subtitle")}
       actions={
         <>
-          <button type="button" onClick={() => load(filters)} disabled={loading} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
+          <button type="button" onClick={() => load(filters)} disabled={loading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {t("accounting.common.actions.refresh")}
           </button>
-          <button type="button" onClick={() => setShowTransferModal(true)} className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300/20">
+          <button type="button" onClick={() => setShowTransferModal(true)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300/20">
             <ArrowRightLeft className="h-4 w-4" />
             {t("accounting.financialAccounts.actions.transfer")}
           </button>
-          <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
+          <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <Plus className="h-4 w-4" />
             {t("accounting.financialAccounts.actions.newAccount")}
           </button>
@@ -223,7 +223,7 @@ function FinancialAccounts() {
           <input type="number" min="1" value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className={inputClass} placeholder={t("accounting.financialAccounts.filters.anyBranch")} />
         </Field>
         <div className="flex items-end">
-          <button type="submit" className="w-full rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">{t("accounting.common.actions.apply")}</button>
+          <button type="submit" className="w-full rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black">{t("accounting.common.actions.apply")}</button>
         </div>
       </form>
 
@@ -236,7 +236,7 @@ function FinancialAccounts() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {accounts.length ? accounts.map((account) => (
-            <button key={account.id} type="button" onClick={() => selectAccount(account)} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 text-left shadow-2xl shadow-black/10 transition hover:border-primary/40 hover:bg-white/[0.03]">
+            <button key={account.id} type="button" onClick={() => selectAccount(account)} className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/90 p-5 text-left shadow-2xl shadow-black/10 transition hover:border-primary/40 hover:bg-white/[0.03]">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-black text-white">{account.name}</div>
@@ -257,7 +257,7 @@ function FinancialAccounts() {
                   {t("accounting.financialAccounts.labels.negativeBalance")}
                 </div>
               ) : null}
-              <button type="button" onClick={(event) => { event.stopPropagation(); openEditModal(account); }} className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white transition hover:bg-white/10">
+              <button type="button" onClick={(event) => { event.stopPropagation(); openEditModal(account); }} className="mt-4 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white transition hover:bg-white/10">
                 {t("accounting.common.actions.edit")}
               </button>
             </button>
@@ -350,7 +350,7 @@ function FinancialAccounts() {
               <input type="checkbox" checked={accountForm.allow_negative_balance} onChange={(event) => setAccountForm((current) => ({ ...current, allow_negative_balance: event.target.checked }))} />
               السماح برصيد سالب
             </label>
-            <button type="submit" disabled={saving === "account"} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
+            <button type="submit" disabled={saving === "account"} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "account" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {t("accounting.financialAccounts.actions.saveAccount")}
             </button>
@@ -365,7 +365,7 @@ function FinancialAccounts() {
             <Field label={t("accounting.common.labels.to")}><AccountSelect accounts={accounts} value={transferForm.to_account_id} onChange={(value) => setTransferForm((current) => ({ ...current, to_account_id: value }))} placeholder={t("accounting.financialAccounts.placeholders.chooseAccount")} /></Field>
             <Field label={t("accounting.common.labels.amount")}><input type="number" min="0" step="0.01" value={transferForm.amount} onChange={(event) => setTransferForm((current) => ({ ...current, amount: event.target.value }))} className={inputClass} /></Field>
             <Field label={t("accounting.common.labels.notes")}><textarea value={transferForm.notes} onChange={(event) => setTransferForm((current) => ({ ...current, notes: event.target.value }))} className={`${inputClass} min-h-24`} /></Field>
-            <button type="submit" disabled={saving === "transfer"} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60">
+            <button type="submit" disabled={saving === "transfer"} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-300 px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "transfer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
               {t("accounting.financialAccounts.actions.postTransfer")}
             </button>
@@ -433,7 +433,7 @@ function Modal({ title, children, onClose }) {
       <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h3 className="m1-section-title text-white">{title}</h3>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </div>

@@ -44,7 +44,7 @@ const ChipEditor = ({ label, placeholder, value, onChange, addLabel }) => {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={placeholder}
-          className="min-w-0 flex-1 rounded-2xl border border-white/8 bg-zinc-950 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+          className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-white/8 bg-zinc-950 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
         />
         <button
           type="button"
@@ -56,7 +56,7 @@ const ChipEditor = ({ label, placeholder, value, onChange, addLabel }) => {
             onChange(Array.from(new Set([...value, ...next])));
             setText("");
           }}
-          className="rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white"
+          className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 font-semibold text-white"
         >
           {addLabel}
         </button>
@@ -211,7 +211,7 @@ function Variants() {
             <select
               value={selectedProduct}
               onChange={(e) => setSelectedProduct(e.target.value)}
-              className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
             >
               <option value="">{t("products.variantPage.selectProduct")}</option>
               {products.map((product) => (
@@ -243,7 +243,7 @@ function Variants() {
                   type="number"
                   value={baseStock}
                   onChange={(e) => setBaseStock(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+                  className="mt-2 w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
                 />
               </div>
               <div>
@@ -252,7 +252,7 @@ function Variants() {
                   type="number"
                   value={basePrice}
                   onChange={(e) => setBasePrice(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+                  className="mt-2 w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
                 />
               </div>
             </div>
@@ -296,7 +296,7 @@ function Variants() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("products.variantPage.searchExisting")}
-                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
+                className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
               />
             </div>
           </div>
@@ -324,14 +324,14 @@ function Variants() {
                         <input
                           value={item.sku}
                           onChange={(e) => updateMatrixItem(item.key, "sku", e.target.value)}
-                          className="w-full rounded-2xl border border-white/8 bg-zinc-950 px-4 py-2 text-white outline-none"
+                          className="w-full rounded-[var(--radius-control)] border border-white/8 bg-zinc-950 px-4 py-2 text-white outline-none"
                         />
                       </td>
                       <td className="px-4 py-4">
                         <input
                           value={item.barcode}
                           onChange={(e) => updateMatrixItem(item.key, "barcode", e.target.value)}
-                          className="w-full rounded-2xl border border-white/8 bg-zinc-950 px-4 py-2 text-white outline-none"
+                          className="w-full rounded-[var(--radius-control)] border border-white/8 bg-zinc-950 px-4 py-2 text-white outline-none"
                         />
                       </td>
                       <td className="px-4 py-4">
@@ -339,7 +339,7 @@ function Variants() {
                           type="number"
                           value={item.stock}
                           onChange={(e) => updateMatrixItem(item.key, "stock", e.target.value)}
-                          className="w-24 rounded-2xl border border-white/8 bg-zinc-950 px-4 py-2 text-white outline-none"
+                          className="w-24 rounded-[var(--radius-control)] border border-white/8 bg-zinc-950 px-4 py-2 text-white outline-none"
                         />
                       </td>
                       <td className="px-4 py-4">
@@ -347,7 +347,7 @@ function Variants() {
                           type="number"
                           value={item.price}
                           onChange={(e) => updateMatrixItem(item.key, "price", e.target.value)}
-                          className="w-28 rounded-2xl border border-white/8 bg-zinc-950 px-4 py-2 text-white outline-none"
+                          className="w-28 rounded-[var(--radius-control)] border border-white/8 bg-zinc-950 px-4 py-2 text-white outline-none"
                         />
                       </td>
                       <td className="px-4 py-4">

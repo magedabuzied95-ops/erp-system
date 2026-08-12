@@ -179,7 +179,7 @@ function ReorderSuggestions() {
                 value={filters.search}
                 onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
                 placeholder={t("purchases.reorder.searchPlaceholder")}
-                className="h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-white/5 pe-10 ps-4 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
+                className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 pe-10 ps-4 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
               />
             </label>
             <FilterSelect label={t("purchases.filters.status")} value={filters.status} onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))} options={["all", "BUY_NOW", "WATCH", "DO_NOT_BUY"]} labels={{ all: t("purchases.reorder.allStatuses"), BUY_NOW: t("purchases.reorder.status.buyNow"), WATCH: t("purchases.reorder.status.watch"), DO_NOT_BUY: t("purchases.reorder.status.doNotBuy") }} />
@@ -273,7 +273,7 @@ function FilterSelect({ label, value, onChange, options, labels = {} }) {
   return (
     <label className="block">
       <span className="mb-1 block text-[10px] font-black text-zinc-500">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm font-bold text-white outline-none focus:border-emerald-400/50">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-900 px-3 text-sm font-bold text-white outline-none focus:border-emerald-400/50">
         {options.map((option) => <option key={option} value={option}>{labels[option] || option}</option>)}
       </select>
     </label>
@@ -336,7 +336,7 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
           type="button"
           onClick={onCreateDraft}
           disabled={creating || suggestedQty <= 0 || item.status === "DO_NOT_BUY"}
-          className="mt-1 inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-45"
+          className="mt-1 inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 text-xs font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-45"
           title={suggestedQty <= 0 || item.status === "DO_NOT_BUY" ? t("purchases.reorder.noSuggestedQty") : t("purchases.reorder.createDraft")}
         >
           <ShoppingBag className="h-4 w-4" />

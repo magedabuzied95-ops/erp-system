@@ -112,7 +112,7 @@ function RegisterCompany() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               placeholder="كلمة مرور المالك"
             />
           </label>
@@ -123,7 +123,7 @@ function RegisterCompany() {
                 type="button"
                 onClick={() => setPlan(item.id)}
                 className={[
-                  "rounded-2xl border px-4 py-2 text-sm font-semibold transition",
+                  "rounded-[var(--radius-control)] border px-4 py-2 text-sm font-semibold transition",
                   plan === item.id ? "border-primary/40 bg-primary text-black" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10",
                 ].join(" ")}
               >
@@ -135,7 +135,7 @@ function RegisterCompany() {
             type="button"
             disabled={loading}
             onClick={submit}
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-40"
+            className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-40"
           >
             <Sparkles className="h-4 w-4" />
             {loading ? "Creating..." : "Create workspace"}
@@ -165,7 +165,7 @@ function Field({ label, value, onChange, placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
       />
     </label>
   );

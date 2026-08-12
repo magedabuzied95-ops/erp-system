@@ -129,7 +129,7 @@ function LoyaltyRules() {
                   setSelectedId(rule.id);
                   setForm(rule);
                 }}
-                className={`w-full rounded-2xl border px-4 py-3 text-left transition ${ selectedId === rule.id ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/[0.03] hover:border-primary/20" }`}
+                className={`w-full rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${ selectedId === rule.id ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/[0.03] hover:border-primary/20" }`}
               >
                 <p className="font-semibold text-white">{rule.name}</p>
                 <p className="mt-1 text-xs text-zinc-500">
@@ -164,7 +164,7 @@ function LoyaltyRules() {
                   type={type}
                   value={form[field] ?? ""}
                   onChange={(e) => handleChange(field, type === "number" ? e.target.value : e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-primary/40"
+                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-primary/40"
                 />
               </label>
             ))}
@@ -188,7 +188,7 @@ function LoyaltyRules() {
             type="button"
             onClick={saveRule}
             disabled={saving}
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
+            className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
           >
             <Save className="h-4 w-4" />
             {saving ? "Saving..." : selectedRule?.id ? "Update rule" : "Create rule"}

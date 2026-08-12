@@ -31,7 +31,7 @@ export default function EmployeeAnalyticsShell({
             <button
               type="button"
               onClick={onRefresh}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-primary/30 hover:bg-primary/10 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-primary/30 hover:bg-primary/10 hover:text-white"
             >
               <RefreshCcw className="h-4 w-4" />
               {actionLabels.refresh}
@@ -39,7 +39,7 @@ export default function EmployeeAnalyticsShell({
             <button
               type="button"
               onClick={onExportPdf}
-              className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/20 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/20 hover:text-white"
             >
               <Download className="h-4 w-4" />
               {actionLabels.exportPdf}
@@ -47,7 +47,7 @@ export default function EmployeeAnalyticsShell({
             <button
               type="button"
               onClick={onExportCsv}
-              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400/40 hover:bg-emerald-500/20 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400/40 hover:bg-emerald-500/20 hover:text-white"
             >
               <Table2 className="h-4 w-4" />
               {actionLabels.exportCsv}
@@ -55,7 +55,7 @@ export default function EmployeeAnalyticsShell({
             <button
               type="button"
               onClick={onPrint}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
             >
               <Printer className="h-4 w-4" />
               {actionLabels.print}
@@ -70,7 +70,7 @@ export default function EmployeeAnalyticsShell({
                 key={tab.key}
                 type="button"
                 onClick={() => onTabChange(tab.key)}
-                className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${ activeTab === tab.key ? "m1-analytics-tab-active text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10" }`}
+                className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-semibold transition ${ activeTab === tab.key ? "m1-analytics-tab-active text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10" }`}
               >
                 {tab.label}
               </button>

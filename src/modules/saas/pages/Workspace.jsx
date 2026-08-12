@@ -54,7 +54,7 @@ function Workspace() {
               <h3 className="m1-section-title text-white">Current workspace</h3>
               <p className="mt-1 text-sm text-zinc-400">Tenant-aware session persisted in local storage.</p>
             </div>
-            <button type="button" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+            <button type="button" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               <ArrowRightLeft className="h-4 w-4" />
               Switch
             </button>
@@ -89,7 +89,7 @@ function Workspace() {
                   key={tenant.id}
                   type="button"
                   onClick={() => tenantApi?.setCurrentTenant?.(tenant)}
-                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-left hover:bg-white/10"
+                  className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-left hover:bg-white/10"
                 >
                   <div>
                     <div className="font-semibold text-white">{tenant.companyName}</div>

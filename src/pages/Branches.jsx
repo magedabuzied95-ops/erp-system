@@ -548,7 +548,7 @@ function Branches() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--primary)] px-5 py-3 text-sm font-black text-white shadow-xl shadow-[var(--shadow)] ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:brightness-110"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-5 py-3 text-sm font-black text-white shadow-xl shadow-[var(--shadow)] ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:brightness-110"
             >
               <Plus className="h-4 w-4" />
               {t("branches.create")}
@@ -577,7 +577,7 @@ function Branches() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("branches.searchPlaceholder")}
-                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] py-3 pl-11 pr-4 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] py-3 pl-11 pr-4 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               />
             </div>
             <div className="flex rounded-2xl border border-[var(--border)] bg-[var(--card)] p-1">
@@ -590,7 +590,7 @@ function Branches() {
                   key={status}
                   type="button"
                   onClick={() => setStatusFilter(status)}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${ statusFilter === status ? "bg-[var(--primary)] text-white" : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]" }`}
+                  className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-semibold transition ${ statusFilter === status ? "bg-[var(--primary)] text-white" : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]" }`}
                 >
                   {label}
                 </button>
@@ -620,7 +620,7 @@ function Branches() {
                   <button
                     type="button"
                     onClick={openCreateModal}
-                    className="mt-5 inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--primary)] px-5 py-3 text-sm font-black text-white shadow-xl shadow-[var(--shadow)] transition hover:-translate-y-0.5 hover:brightness-110"
+                    className="mt-5 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-5 py-3 text-sm font-black text-white shadow-xl shadow-[var(--shadow)] transition hover:-translate-y-0.5 hover:brightness-110"
                   >
                     <Plus className="h-4 w-4" />
                     {t("branches.create")}
@@ -663,7 +663,7 @@ function Branches() {
                 type="button"
                 onClick={closeBranchModal}
                 disabled={saving}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 text-[var(--text)] transition hover:bg-[var(--bg)]"
+                className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] p-3 text-[var(--text)] transition hover:bg-[var(--bg)]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -711,7 +711,7 @@ function Branches() {
                 <select
                   value={form.is_active ? "active" : "inactive"}
                   onChange={(event) => setForm((prev) => ({ ...prev, is_active: event.target.value === "active" }))}
-                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-semibold text-[var(--text)] outline-none"
+                  className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-semibold text-[var(--text)] outline-none"
                 >
                   <option value="active">{t("branches.status.active")}</option>
                   <option value="inactive">{t("branches.status.inactive")}</option>
@@ -724,7 +724,7 @@ function Branches() {
                 type="button"
                 onClick={closeBranchModal}
                 disabled={saving}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--bg)]"
+                className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--bg)]"
               >
                 {t("branches.buttons.cancel")}
               </button>
@@ -732,7 +732,7 @@ function Branches() {
                 type="button"
                 onClick={saveBranch}
                 disabled={saving || !form.name.trim()}
-                className="rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-3 text-sm font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? t("branches.buttons.saving") : editingBranch ? t("branches.buttons.update") : t("branches.buttons.save")}
               </button>
@@ -757,7 +757,7 @@ function Branches() {
                   setQrInfo(null);
                   setQrError("");
                 }}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 text-[var(--text)] transition hover:bg-[var(--bg)]"
+                className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] p-3 text-[var(--text)] transition hover:bg-[var(--bg)]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -834,7 +834,7 @@ function Branches() {
                         <button
                           type="button"
                           onClick={() => loadBranchQr(viewBranch?.id)}
-                          className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white"
+                          className="mt-4 rounded-[var(--radius-control)] bg-slate-900 px-4 py-2 text-xs font-black text-white"
                         >
                           Retry
                         </button>
@@ -904,7 +904,7 @@ function Branches() {
                       type="button"
                       onClick={copyShortLink}
                       disabled={qrLoading || qrError || !(qrInfo?.shortUrl || qrInfo?.publicUrl)}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-500/30 bg-slate-500/10 px-4 py-3 text-sm font-black text-[var(--text)] transition hover:bg-slate-500/20 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-slate-500/30 bg-slate-500/10 px-4 py-3 text-sm font-black text-[var(--text)] transition hover:bg-slate-500/20 disabled:opacity-50"
                     >
                       <Copy className="h-4 w-4" />
                       {t("branches.buttons.copyShortLink")}
@@ -913,7 +913,7 @@ function Branches() {
                       type="button"
                       onClick={downloadBranchQr}
                       disabled={qrLoading || qrError || !qrImageSrc}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-500/20 disabled:opacity-50"
                     >
                       <Download className="h-4 w-4" />
                       {t("branches.buttons.downloadQr")}
@@ -922,7 +922,7 @@ function Branches() {
                       type="button"
                       onClick={printBranchQr}
                       disabled={qrLoading || qrError || !qrImageSrc}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-black text-primary transition hover:bg-primary/20 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-black text-primary transition hover:bg-primary/20 disabled:opacity-50"
                     >
                       <Printer className="h-4 w-4" />
                       {t("branches.buttons.printQr")}
@@ -932,7 +932,7 @@ function Branches() {
                         type="button"
                         onClick={regenerateBranchQr}
                         disabled={qrRegenerating || qrLoading}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-500/20 disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-500/20 disabled:opacity-50"
                       >
                         <RefreshCcw className={`h-4 w-4 ${qrRegenerating ? "animate-spin" : ""}`} />
                       {t("branches.buttons.regenerateShortCode")}
@@ -950,7 +950,7 @@ function Branches() {
                   setViewBranch(null);
                   openEditModal(viewBranch);
                 }}
-                className="inline-flex items-center gap-2 rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-black text-white transition hover:brightness-110"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-3 text-sm font-black text-white transition hover:brightness-110"
               >
                 <Edit3 className="h-4 w-4" />
                 {t("branches.buttons.edit")}
@@ -981,7 +981,7 @@ function Branches() {
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleting}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--bg)] disabled:opacity-50"
+                className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--bg)] disabled:opacity-50"
               >
                 {t("branches.buttons.cancel")}
               </button>
@@ -989,7 +989,7 @@ function Branches() {
                 type="button"
                 onClick={deleteBranch}
                 disabled={deleting}
-                className="rounded-2xl bg-red-500 px-4 py-3 text-sm font-black text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-[var(--radius-control)] bg-red-500 px-4 py-3 text-sm font-black text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deleting ? t("branches.buttons.archiving") : t("branches.buttons.archive")}
               </button>
@@ -1039,7 +1039,7 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
           type="button"
           onClick={() => onView(safe)}
           disabled={busy || !safe?.id}
-          className="inline-flex w-fit items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
+          className="inline-flex w-fit items-center gap-2 rounded-[var(--radius-control)] border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
         >
           <Eye className="h-3.5 w-3.5" />
           {t("branches.buttons.view")}
@@ -1048,7 +1048,7 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
           type="button"
           onClick={() => onEdit(safe)}
           disabled={busy || !safe?.id}
-          className="inline-flex w-fit items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20 disabled:opacity-50"
+          className="inline-flex w-fit items-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20 disabled:opacity-50"
         >
           <Edit3 className="h-3.5 w-3.5" />
           {t("branches.buttons.edit")}
@@ -1057,7 +1057,7 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
           type="button"
           onClick={() => onDelete(safe)}
           disabled={busy || !safe?.id || safe?.is_active !== true}
-          className="inline-flex w-fit items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-black text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+          className="inline-flex w-fit items-center gap-2 rounded-[var(--radius-control)] border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-black text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
         >
           <Trash2 className="h-3.5 w-3.5" />
           {t("branches.buttons.archiveShort")}

@@ -52,7 +52,7 @@ export default function PortalChatComposer({
         <>
           {replyTo ? (
             <div className="mb-1.5 flex items-stretch gap-2 rounded-[1rem] bg-[#111b21] p-1.5 text-[12px] font-bold leading-5 text-white shadow-lg">
-              <button type="button" onClick={() => onScrollToReply?.(replyTo.id)} className="min-w-0 flex-1 rounded-xl border-l-[4px] border-[#ff5d74] bg-[#202c33] px-3 py-2 text-start" dir="rtl">
+              <button type="button" onClick={() => onScrollToReply?.(replyTo.id)} className="min-w-0 flex-1 rounded-[var(--radius-control)] border-l-[4px] border-[#ff5d74] bg-[#202c33] px-3 py-2 text-start" dir="rtl">
                 <div className="truncate text-[13px] font-black text-[#ff7186]">{replyTo.sender_type === labels.outgoingSenderType ? labels.you || "أنت" : labels.management || "M1 Store"}</div>
                 <div className="truncate text-[12px] font-semibold text-slate-200/85">{portalChatMessagePreview(replyTo, labels)}</div>
               </button>

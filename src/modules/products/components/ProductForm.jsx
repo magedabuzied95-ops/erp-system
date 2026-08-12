@@ -92,7 +92,7 @@ function ProductForm({
             <button
               type="button"
               onClick={() => setBrandOpen((current) => !current)}
-              className="mt-2 flex h-[var(--control-height-lg)] w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-left text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
+              className="mt-2 flex h-[var(--control-height-lg)] w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border border-white/8 bg-zinc-950/70 px-4 text-left text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
             >
               <span className={brand ? "truncate" : "text-zinc-500"}>{brand || t("products.form.searchBrand")}</span>
               <ChevronDown size={16} className="shrink-0 text-zinc-400" />
@@ -122,7 +122,7 @@ function ProductForm({
                           setBrandQuery(item.name);
                           setBrandOpen(false);
                         }}
-                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-white/8 ${ String(brand || "").trim() === String(item.name || "").trim() ? "bg-white/8 text-white" : "text-zinc-300" }`}
+                        className={`flex w-full items-center justify-between rounded-[var(--radius-control)] px-3 py-2 text-left text-sm transition hover:bg-white/8 ${ String(brand || "").trim() === String(item.name || "").trim() ? "bg-white/8 text-white" : "text-zinc-300" }`}
                       >
                         <span>{item.name}</span>
                         {String(brand || "").trim() === String(item.name || "").trim() ? (
@@ -264,7 +264,7 @@ function ProductForm({
         {useCustomComparePrice ? (
           <div className="mt-4">
             <label className="text-sm font-semibold text-zinc-300">{t("products.fields.originalPrice", "السعر قبل الخصم")}</label>
-            <input type="number" min="0" step="0.01" value={customComparePrice} onChange={(event) => onCustomComparePriceChange?.(event.target.value)} placeholder={t("products.form.originalPricePlaceholder", "اختياري: السعر قبل الخصم")} className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-4 font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-violet-300/50" />
+            <input type="number" min="0" step="0.01" value={customComparePrice} onChange={(event) => onCustomComparePriceChange?.(event.target.value)} placeholder={t("products.form.originalPricePlaceholder", "اختياري: السعر قبل الخصم")} className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-4 font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-violet-300/50" />
           </div>
         ) : null}
       </section>
@@ -329,7 +329,7 @@ function ProductForm({
                 value={cartonSize}
                 onChange={(event) => onCartonSizeChange?.(event.target.value)}
                 placeholder={t("products.form.cartonSizePlaceholder", "اختياري")}
-                className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
+                className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
               />
               <p className="mt-2 text-xs leading-5 text-zinc-500">
                 {t("products.form.cartonSizeHelp", "حجم الكرتونة يستخدم لاحقاً في تنبيهات الكرتونة.")}
@@ -346,7 +346,7 @@ function ProductForm({
                 step="1"
                 value={suggestedPurchaseCartons}
                 onChange={(event) => onSuggestedPurchaseCartonsChange?.(event.target.value)}
-                className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
+                className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
               />
               <p className="mt-2 text-xs leading-5 text-zinc-500">
                 {t("products.form.suggestedPurchaseCartonsHelp", "عدد الكراتين المقترح يستخدم كإجراء افتراضي عند إنشاء طلب شراء.")}
@@ -403,7 +403,7 @@ function SmartClassificationSelect({ label, value, onChange, options = [], place
       <select
         value={hasSelectedOption ? normalizedValue : ""}
         onChange={(event) => onChange?.(event.target.value)}
-        className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
+        className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
       >
         <option value="">{placeholder}</option>
         {options.map((item) => (
@@ -418,7 +418,7 @@ function SmartClassificationSelect({ label, value, onChange, options = [], place
           <button
             type="button"
             onClick={() => onChange?.("")}
-            className="shrink-0 rounded-xl border border-amber-200/20 bg-zinc-950/40 px-2.5 py-1 font-bold text-amber-50 transition hover:bg-amber-300/15"
+            className="shrink-0 rounded-[var(--radius-control)] border border-amber-200/20 bg-zinc-950/40 px-2.5 py-1 font-bold text-amber-50 transition hover:bg-amber-300/15"
           >
             مسح
           </button>
@@ -433,7 +433,7 @@ function ModeCard({ active, title, subtitle, detail, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-3xl border p-4 text-left transition ${ active ? "border-primary/40 bg-primary/15 text-white shadow-lg shadow-primary/10" : "border-white/8 bg-zinc-950/70 text-zinc-300 hover:border-white/16 hover:bg-zinc-950" }`}
+      className={`rounded-[var(--radius-control)] border p-4 text-left transition ${ active ? "border-primary/40 bg-primary/15 text-white shadow-lg shadow-primary/10" : "border-white/8 bg-zinc-950/70 text-zinc-300 hover:border-white/16 hover:bg-zinc-950" }`}
     >
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -461,7 +461,7 @@ function FormSelect({ label, value, onChange, options = [], placeholder, tabInde
         value={hasSelectedOption ? normalizedValue : ""}
         onChange={(event) => onChange?.(event.target.value)}
         tabIndex={tabIndex}
-        className="mt-2 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
+        className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/8 bg-zinc-950/70 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
       >
         <option value="">{placeholder}</option>
         {options.map((item) => (

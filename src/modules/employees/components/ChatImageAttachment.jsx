@@ -89,7 +89,7 @@ export default function ChatImageAttachment({ src, alt = "Image", compact = fals
   };
 
   return (
-    <button type="button" onClick={() => onClick?.(safeSrc)} className="mb-1 inline-block max-w-full overflow-hidden rounded-xl border border-black/5 bg-black/5 text-start align-top">
+    <button type="button" onClick={() => onClick?.(safeSrc)} className="mb-1 inline-block max-w-full overflow-hidden rounded-[var(--radius-control)] border border-black/5 bg-black/5 text-start align-top">
       <img
         src={safeSrc}
         alt={alt}

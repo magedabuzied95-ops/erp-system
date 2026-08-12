@@ -148,15 +148,15 @@ function PaymentMethodMappings() {
       subtitle={t("accounting.paymentMappings.subtitle")}
       actions={
         <>
-          <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
+          <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {t("accounting.common.actions.refresh")}
           </button>
-          <button type="button" onClick={quickSetup} disabled={saving === "quick"} className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300/20 disabled:opacity-60">
+          <button type="button" onClick={quickSetup} disabled={saving === "quick"} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300/20 disabled:opacity-60">
             {saving === "quick" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {t("accounting.paymentMappings.actions.quickSetup")}
           </button>
-          <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
+          <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <Plus className="h-4 w-4" />
             {t("accounting.paymentMappings.actions.newMapping")}
           </button>
@@ -209,10 +209,10 @@ function PaymentMethodMappings() {
                   <Td><Pill active={mapping.is_active} label={mapping.is_active ? t("accounting.common.labels.active") : t("accounting.common.labels.inactive")} /></Td>
                   <Td align="right">
                     <div className="inline-flex items-center gap-2">
-                      <button type="button" onClick={() => openEdit(mapping)} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10" title={t("accounting.common.actions.edit")}>
+                      <button type="button" onClick={() => openEdit(mapping)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10" title={t("accounting.common.actions.edit")}>
                         <Settings2 className="h-4 w-4" />
                       </button>
-                      <button type="button" onClick={() => deleteMapping(mapping)} disabled={saving === `delete-${mapping.id}`} className="rounded-2xl border border-rose-300/20 bg-rose-300/10 p-2 text-rose-100 transition hover:bg-rose-300/20 disabled:opacity-60" title={t("accounting.common.actions.delete")}>
+                      <button type="button" onClick={() => deleteMapping(mapping)} disabled={saving === `delete-${mapping.id}`} className="rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-300/10 p-2 text-rose-100 transition hover:bg-rose-300/20 disabled:opacity-60" title={t("accounting.common.actions.delete")}>
                         {saving === `delete-${mapping.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                       </button>
                     </div>
@@ -255,7 +255,7 @@ function PaymentMethodMappings() {
                 {t("accounting.common.labels.active")}
               </label>
             </div>
-            <button type="submit" disabled={saving === "mapping"} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
+            <button type="submit" disabled={saving === "mapping"} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "mapping" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
               {t("accounting.paymentMappings.actions.saveMapping")}
             </button>
@@ -292,7 +292,7 @@ function Modal({ title, children, onClose }) {
       <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h3 className="m1-section-title text-white">{title}</h3>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </div>

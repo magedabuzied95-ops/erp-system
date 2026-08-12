@@ -105,7 +105,7 @@ function LoyaltyDashboard() {
           <Link to="/loyalty/rules" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
             Manage Rules
           </Link>
-          <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-slate-950">
+          <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-bold text-slate-950">
             <RefreshCw className="h-4 w-4" />
             Refresh
           </button>

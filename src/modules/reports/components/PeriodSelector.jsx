@@ -50,7 +50,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
           aria-haspopup="dialog"
-          className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-[13px] font-semibold text-[var(--text)] transition hover:border-[var(--border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+          className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-[13px] font-semibold text-[var(--text)] transition hover:border-[var(--border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         >
           <CalendarDays className="h-4 w-4 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" />
           <span className="truncate">{activeLabel}</span>
@@ -76,7 +76,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
                       onPresetChange(preset);
                       setOpen(false);
                     }}
-                    className={`rounded-lg px-2.5 py-2 text-start text-[12px] font-semibold transition ${ active ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
+                    className={`rounded-[var(--radius-control)] px-2.5 py-2 text-start text-[12px] font-semibold transition ${ active ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
                     title={`${range.from} → ${range.to}`}
                   >
                     {t(`overview.period.${preset}`)}
@@ -99,7 +99,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
                     value={customFrom}
                     max={customTo}
                     onChange={(event) => setCustomFrom(event.target.value)}
-                    className="h-[var(--control-height-md)] w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 text-[12px] text-[var(--text)] outline-none focus:border-[var(--primary)]"
+                    className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-2 text-[12px] text-[var(--text)] outline-none focus:border-[var(--primary)]"
                   />
                 </label>
                 <label className="block">
@@ -111,7 +111,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
                     value={customTo}
                     min={customFrom}
                     onChange={(event) => setCustomTo(event.target.value)}
-                    className="h-[var(--control-height-md)] w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 text-[12px] text-[var(--text)] outline-none focus:border-[var(--primary)]"
+                    className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-2 text-[12px] text-[var(--text)] outline-none focus:border-[var(--primary)]"
                   />
                 </label>
               </div>
@@ -122,7 +122,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
                   onPresetChange("custom", { from: customFrom, to: customTo });
                   setOpen(false);
                 }}
-                className="mt-2.5 h-[var(--control-height-md)] w-full rounded-lg bg-[var(--primary)] text-[12px] font-bold text-white transition hover:brightness-110 disabled:opacity-45"
+                className="mt-2.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] bg-[var(--primary)] text-[12px] font-bold text-white transition hover:brightness-110 disabled:opacity-45"
               >
                 {t("overview.period.apply")}
               </button>
@@ -152,7 +152,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
         onClick={onRefresh}
         disabled={busy}
         aria-label={t("overview.actions.refresh")}
-        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text)] disabled:opacity-50"
+        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text)] disabled:opacity-50"
       >
         <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
       </button>

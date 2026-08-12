@@ -83,7 +83,7 @@ export default function MetaReviewerInbox() {
           </header>
           <div className="mb-4 grid grid-cols-2 gap-2" role="tablist" aria-label="Review channel">
             {Object.entries(channelLabels).map(([channel, label]) => (
-              <button key={channel} type="button" role="tab" aria-selected={activeChannel === channel} onClick={() => { setActiveChannel(channel); setSearch(""); }} className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${activeChannel === channel ? "border-amber-400 bg-amber-400 text-black" : "border-[var(--border)]"}`}>
+              <button key={channel} type="button" role="tab" aria-selected={activeChannel === channel} onClick={() => { setActiveChannel(channel); setSearch(""); }} className={`flex items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm font-semibold ${activeChannel === channel ? "border-amber-400 bg-amber-400 text-black" : "border-[var(--border)]"}`}>
                 {channel === "instagram" ? <Camera size={16} /> : <MessageCircle size={16} />}{label}
               </button>
             ))}
@@ -95,7 +95,7 @@ export default function MetaReviewerInbox() {
           <p className="mb-3 text-xs text-[var(--muted)]">Conversations: {counts.total} · Unread: {counts.unread}</p>
           <div className="space-y-2">
             {conversations.map((item) => (
-              <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className={`w-full rounded-2xl border p-3 text-left ${selectedId === item.id ? "border-amber-400 bg-amber-400/10" : "border-[var(--border)]"}`}>
+              <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className={`w-full rounded-[var(--radius-control)] border p-3 text-left ${selectedId === item.id ? "border-amber-400 bg-amber-400/10" : "border-[var(--border)]"}`}>
                 <div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-[var(--surface-2)]">{item.customer_avatar_url ? <img src={item.customer_avatar_url} alt="" className="h-full w-full object-cover" /> : <MessageCircle size={20} />}</div><div className="min-w-0"><strong>{item.customer_name}</strong><p className="truncate text-xs text-[var(--muted)]">{item.latest_message_preview}</p></div></div>
               </button>
             ))}
@@ -112,8 +112,8 @@ export default function MetaReviewerInbox() {
           </div>
           {error && <p className="px-4 pb-2 text-sm text-red-500">{error}</p>}
           <form onSubmit={send} className="flex gap-2 border-t border-[var(--border)] p-4">
-            <input disabled={!selectedId || !channelEnabled} value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={2000} className="min-w-0 flex-1 rounded-2xl border border-[var(--border)] bg-transparent px-4 py-3 outline-none" placeholder="Write a manual reply" />
-            <button disabled={!selectedId || !channelEnabled || !draft.trim() || busy} className="rounded-2xl bg-amber-400 px-5 text-black disabled:opacity-40" aria-label="Send"><Send size={20} /></button>
+            <input disabled={!selectedId || !channelEnabled} value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={2000} className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-transparent px-4 py-3 outline-none" placeholder="Write a manual reply" />
+            <button disabled={!selectedId || !channelEnabled || !draft.trim() || busy} className="rounded-[var(--radius-control)] bg-amber-400 px-5 text-black disabled:opacity-40" aria-label="Send"><Send size={20} /></button>
           </form>
         </section>
       </section>

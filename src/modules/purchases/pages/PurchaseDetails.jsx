@@ -447,7 +447,7 @@ function ActionButton({ icon: Icon, label, onClick, disabled = false, danger = f
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${danger ? "border-rose-400/30 bg-rose-400/10 text-rose-100" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}
+      className={`inline-flex items-center gap-2 rounded-[var(--radius-control)] border px-4 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${danger ? "border-rose-400/30 bg-rose-400/10 text-rose-100" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}
     >
       <Icon className="h-4 w-4" />
       {label}
@@ -802,17 +802,17 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
         </div>
         <label className="mt-3 block">
           <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.details.attachments")}</div>
-          <textarea value={form.attachmentsText} onChange={(event) => setForm((prev) => ({ ...prev, attachmentsText: event.target.value }))} rows={3} placeholder={t("purchases.details.attachmentsPlaceholder")} className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none" />
+          <textarea value={form.attachmentsText} onChange={(event) => setForm((prev) => ({ ...prev, attachmentsText: event.target.value }))} rows={3} placeholder={t("purchases.details.attachmentsPlaceholder")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-3 text-sm text-white outline-none" />
         </label>
         <label className="mt-3 block">
           <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.details.notes")}</div>
-          <textarea value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} rows={4} className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none" />
+          <textarea value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} rows={4} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-3 text-sm text-white outline-none" />
         </label>
 
         <div className="mt-5 space-y-2">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <Field label={t("purchases.details.productSearch")} value={productSearch} onChange={setProductSearch} />
-            <button type="button" onClick={addLine} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-white">
+            <button type="button" onClick={addLine} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-white">
               <Plus className="h-4 w-4" />
               {t("purchases.details.addProductLine")}
             </button>
@@ -822,7 +822,7 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
             const selectedProduct = productById(item.product_id);
             return (
             <div key={item.id || item.line_id || index} className="relative rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
-              <button type="button" onClick={() => removeLine(index)} title={t("purchases.details.remove")} className="absolute right-2 top-2 inline-flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-lg border border-rose-400/25 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15">
+              <button type="button" onClick={() => removeLine(index)} title={t("purchases.details.remove")} className="absolute right-2 top-2 inline-flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-rose-400/25 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
               <div className="flex items-center gap-2.5 pr-9">
@@ -838,14 +838,14 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
               <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-[minmax(18rem,2fr)_minmax(12rem,1.1fr)_4rem_7rem_7rem_7rem_8rem]">
                 <label className="block sm:col-span-2 lg:col-span-1">
                   <CellLabel>{t("purchases.details.product")}</CellLabel>
-                  <select value={item.product_id || ""} onChange={(event) => selectProductForLine(index, event.target.value)} className="h-[var(--control-height-sm)] w-full rounded-lg border border-white/10 bg-zinc-950 px-2 text-xs font-semibold text-white outline-none">
+                  <select value={item.product_id || ""} onChange={(event) => selectProductForLine(index, event.target.value)} className="h-[var(--control-height-sm)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-2 text-xs font-semibold text-white outline-none">
                     <option value="">{item.product_id ? `${t("purchases.details.product")} ${item.product_id}` : t("purchases.details.selectProduct")}</option>
                     {filteredProducts.map((product) => <option key={product.id} value={product.id}>{[productDisplayName(product), productSku(product)].filter(Boolean).join(" / ")}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <CellLabel>{t("purchases.details.variant")}</CellLabel>
-                  <select value={item.variant_id || ""} onChange={(event) => selectVariantForLine(index, event.target.value)} className="h-[var(--control-height-sm)] w-full rounded-lg border border-white/10 bg-zinc-950 px-2 text-xs font-semibold text-white outline-none">
+                  <select value={item.variant_id || ""} onChange={(event) => selectVariantForLine(index, event.target.value)} className="h-[var(--control-height-sm)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-2 text-xs font-semibold text-white outline-none">
                     <option value="">{item.variant_id ? `${t("purchases.details.variant")} ${item.variant_id}` : t("purchases.details.selectVariant")}</option>
                     {variants.map((variant) => <option key={variant.id} value={variant.id}>{variantDisplayName(variant)}</option>)}
                   </select>
@@ -883,8 +883,8 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
             <SummaryMetric label={t("purchases.details.totalItems", "Total Items")} value={totalItemQuantity} />
           </div>
           <div className="flex shrink-0 gap-2">
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-            <button type="button" onClick={submit} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-black text-black disabled:opacity-60">
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
+            <button type="button" onClick={submit} disabled={saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-xs font-black text-black disabled:opacity-60">
               <Save className="h-4 w-4" />
               {saving ? t("purchases.details.savingAdjustments") : t("purchases.details.saveChanges")}
             </button>
@@ -899,8 +899,8 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
                 {t("purchases.details.receivedSaveWarning")}
               </p>
               <div className="mt-5 flex justify-end gap-2">
-                <button type="button" onClick={() => setConfirmReceivedSave(false)} disabled={saving} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-                <button type="button" onClick={handleSave} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">{saving ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
+                <button type="button" onClick={() => setConfirmReceivedSave(false)} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
+                <button type="button" onClick={handleSave} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">{saving ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
               </div>
             </div>
           </div>
@@ -1011,14 +1011,14 @@ function AdjustmentModal({ purchase, onClose, onSave }) {
               <div key={index} className="grid gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 md:grid-cols-[1.2fr_1fr_7rem_8rem_8rem_auto]">
                 <label>
                   <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.details.product")}</div>
-                  <select value={line.product_id} onChange={(event) => updateLine(index, { product_id: event.target.value, variant_id: "" })} className="w-full rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white outline-none">
+                  <select value={line.product_id} onChange={(event) => updateLine(index, { product_id: event.target.value, variant_id: "" })} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white outline-none">
                     <option value="">{t("purchases.details.selectProduct")}</option>
                     {filteredProducts.map((product) => <option key={product.id} value={product.id}>{product.name || `${t("purchases.details.product")} ${product.id}`}</option>)}
                   </select>
                 </label>
                 <label>
                   <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.details.variant")}</div>
-                  <select value={line.variant_id} onChange={(event) => updateLine(index, { variant_id: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white outline-none">
+                  <select value={line.variant_id} onChange={(event) => updateLine(index, { variant_id: event.target.value })} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white outline-none">
                     <option value="">{t("purchases.details.noVariant")}</option>
                     {variants.map((variant) => <option key={variant.id} value={variant.id}>{[variant.color, variant.size, variant.sku].filter(Boolean).join(" / ") || `${t("purchases.details.variant")} ${variant.id}`}</option>)}
                   </select>
@@ -1029,7 +1029,7 @@ function AdjustmentModal({ purchase, onClose, onSave }) {
                   <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.details.subtotal")}</div>
                   <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 font-black text-white">{formatCurrency(number(line.quantity) * number(line.unit_cost))}</div>
                 </div>
-                <button type="button" onClick={() => removeLine(index)} disabled={lines.length === 1} className="self-end rounded-2xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-sm font-bold text-rose-100 disabled:opacity-40">{t("purchases.details.remove")}</button>
+                <button type="button" onClick={() => removeLine(index)} disabled={lines.length === 1} className="self-end rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-sm font-bold text-rose-100 disabled:opacity-40">{t("purchases.details.remove")}</button>
               </div>
             );
           })}
@@ -1037,17 +1037,17 @@ function AdjustmentModal({ purchase, onClose, onSave }) {
 
         <label className="mt-3 block">
           <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.details.adjustmentNotes")}</div>
-          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none" />
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-3 text-sm text-white outline-none" />
         </label>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-          <button type="button" onClick={addLine} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white">
+          <button type="button" onClick={addLine} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white">
             <Plus className="h-4 w-4" />
             {t("purchases.details.addLine")}
           </button>
           <div className="flex items-center gap-3">
             <div className="text-xl font-black text-white">{t("purchases.details.totalWithValue", { value: formatCurrency(total) })}</div>
-            <button type="button" onClick={submit} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">
+            <button type="button" onClick={submit} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">
               {saving ? t("purchases.details.saving") : t("purchases.details.receiveAdjustment")}
             </button>
           </div>
@@ -1066,7 +1066,7 @@ function Field({ label, value, onChange, type = "text", disabled = false }) {
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none disabled:opacity-50"
+        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none disabled:opacity-50"
       />
     </label>
   );
@@ -1085,7 +1085,7 @@ function CompactField({ label, value, onChange, type = "text", disabled = false 
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-[var(--control-height-sm)] w-full rounded-lg border border-white/10 bg-white/5 px-2 text-xs font-semibold text-white outline-none disabled:opacity-50"
+        className="h-[var(--control-height-sm)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-2 text-xs font-semibold text-white outline-none disabled:opacity-50"
       />
     </label>
   );

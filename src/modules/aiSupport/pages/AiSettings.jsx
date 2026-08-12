@@ -50,7 +50,7 @@ function Section({ icon: Icon, title, subtitle, children }) {
 
 function OptionCard({ active, title, description, onClick }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-2xl border p-4 text-left transition ${active ? "border-primary/40 bg-primary/15 shadow-lg shadow-primary/10" : "border-white/10 bg-slate-950/55 hover:border-white/20"}`}>
+    <button type="button" onClick={onClick} className={`rounded-[var(--radius-control)] border p-4 text-left transition ${active ? "border-primary/40 bg-primary/15 shadow-lg shadow-primary/10" : "border-white/10 bg-slate-950/55 hover:border-white/20"}`}>
       <span className="block text-sm font-black text-white">{title}</span>
       <span className="mt-2 block text-xs leading-5 text-slate-400">{description}</span>
     </button>
@@ -59,7 +59,7 @@ function OptionCard({ active, title, description, onClick }) {
 
 function Toggle({ label, checked, onChange }) {
   return (
-    <button type="button" onClick={() => onChange(!checked)} className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${checked ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}>
+    <button type="button" onClick={() => onChange(!checked)} className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${checked ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}>
       <span className="text-sm font-black text-white">{label}</span>
       <span className={`h-6 w-11 rounded-full p-1 transition ${checked ? "bg-emerald-300" : "bg-white/10"}`}>
         <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${checked ? "translate-x-5" : ""}`} />
@@ -175,7 +175,7 @@ export default function AiSettings() {
                 Global settings are the master control. A channel can only auto-reply when global mode and channel mode both allow fully automatic replies.
               </p>
             </div>
-            <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
+            <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save
             </button>
@@ -218,7 +218,7 @@ export default function AiSettings() {
             <div className="grid gap-3">
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">القناة</span>
-                <select value={playground.channelId} onChange={(event) => updatePlaygroundChannel(event.target.value)} className="mt-2 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40">
+                <select value={playground.channelId} onChange={(event) => updatePlaygroundChannel(event.target.value)} className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40">
                   <option value="facebook_messenger">Facebook Messenger</option>
                   <option value="instagram">Instagram DM</option>
                   <option value="whatsapp">WhatsApp</option>
@@ -227,19 +227,19 @@ export default function AiSettings() {
               </label>
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Platform</span>
-                <input value={playground.platform} onChange={(event) => setPlayground((current) => ({ ...current, platform: event.target.value }))} className="mt-2 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />
+                <input value={playground.platform} onChange={(event) => setPlayground((current) => ({ ...current, platform: event.target.value }))} className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />
               </label>
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Optional Product ID</span>
-                <input value={playground.productId} onChange={(event) => setPlayground((current) => ({ ...current, productId: event.target.value }))} placeholder="Example: 123" className="mt-2 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-primary/40" />
+                <input value={playground.productId} onChange={(event) => setPlayground((current) => ({ ...current, productId: event.target.value }))} placeholder="Example: 123" className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-primary/40" />
               </label>
             </div>
             <div className="grid gap-3">
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">رسالة العميل</span>
-                <textarea value={playground.message} onChange={(event) => setPlayground((current) => ({ ...current, message: event.target.value }))} className="mt-2 min-h-36 w-full resize-y rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none focus:border-primary/40" />
+                <textarea value={playground.message} onChange={(event) => setPlayground((current) => ({ ...current, message: event.target.value }))} className="mt-2 min-h-36 w-full resize-y rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none focus:border-primary/40" />
               </label>
-              <button type="button" onClick={runPlayground} disabled={testing || !playground.message.trim()} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
+              <button type="button" onClick={runPlayground} disabled={testing || !playground.message.trim()} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
                 Test reply
               </button>

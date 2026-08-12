@@ -209,7 +209,7 @@ function SmartWarehouse() {
         <button
           type="button"
           onClick={loadData}
-          className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold text-[var(--text)]"
+          className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold text-[var(--text)]"
         >
           <RefreshCw className="h-4 w-4" />
           Refresh
@@ -232,7 +232,7 @@ function SmartWarehouse() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black transition ${ active ? "border-[var(--primary)] bg-[var(--primary)] text-white" : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--surface)]" }`}
+              className={`flex items-center justify-center gap-2 rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black transition ${ active ? "border-[var(--primary)] bg-[var(--primary)] text-white" : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--surface)]" }`}
             >
               <Icon className="h-4 w-4" />
               {tab.label}
@@ -336,7 +336,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
                 type="button"
                 onClick={saveCount}
                 disabled={saving}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
               >
                 <Check className="h-4 w-4" />
                 {saving ? "Saving..." : "Save Count"}
@@ -391,7 +391,7 @@ function SectionsPanel({ form, setForm, branches, warehouses, sections, draft, s
         <TextInput label="Name" value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} placeholder="Men Shoes Size 41" />
         <TextInput label="Color" value={draft.color} onChange={(value) => setDraft((current) => ({ ...current, color: value }))} placeholder="#2563eb" />
         <TextInput label="Notes" value={draft.notes} onChange={(value) => setDraft((current) => ({ ...current, notes: value }))} placeholder="Aisle, shelf, or season notes" />
-        <button type="button" onClick={saveSection} className="mt-4 w-full rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-black text-white">
+        <button type="button" onClick={saveSection} className="mt-4 w-full rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-3 text-sm font-black text-white">
           Save Section
         </button>
       </div>
@@ -427,7 +427,7 @@ function MasterQrPanel({ productId, setProductId, generatedQr, generateQr }) {
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
       <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
         <TextInput label="Product ID" value={productId} onChange={setProductId} placeholder="Product database id" />
-        <button type="button" onClick={generateQr} className="mt-4 w-full rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-black text-white">
+        <button type="button" onClick={generateQr} className="mt-4 w-full rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-3 text-sm font-black text-white">
           Generate Master QR
         </button>
       </div>
@@ -530,7 +530,7 @@ function Select({ label, value, onChange, rows, labelKey = "name" }) {
   return (
     <label className="block">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none">
         <option value="">Select {label.toLowerCase()}</option>
         {rows.map((row) => <option key={row.id} value={row.id}>{row[labelKey] || row.name || row.code || row.id}</option>)}
       </select>
@@ -542,7 +542,7 @@ function TextInput({ label, value, onChange, placeholder }) {
   return (
     <label className="mt-3 block">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]" />
+      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-2 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]" />
     </label>
   );
 }
@@ -559,9 +559,9 @@ function ScanInput({ label, value, onChange, onSubmit, placeholder }) {
             if (event.key === "Enter") onSubmit();
           }}
           placeholder={placeholder}
-          className="min-h-[var(--control-height-lg)] flex-1 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-base font-semibold text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+          className="min-h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-base font-semibold text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
         />
-        <button type="button" onClick={onSubmit} className="inline-flex h-[var(--control-height-lg)] w-12 items-center justify-center rounded-2xl bg-[var(--primary)] text-white" aria-label={label}>
+        <button type="button" onClick={onSubmit} className="inline-flex h-[var(--control-height-lg)] w-12 items-center justify-center rounded-[var(--radius-control)] bg-[var(--primary)] text-white" aria-label={label}>
           <ScanLine className="h-5 w-5" />
         </button>
       </div>
@@ -571,7 +571,7 @@ function ScanInput({ label, value, onChange, onSubmit, placeholder }) {
 
 function IconButton({ label, onClick, icon: Icon }) {
   return (
-    <button type="button" onClick={onClick} aria-label={label} title={label} className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)]">
+    <button type="button" onClick={onClick} aria-label={label} title={label} className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] text-[var(--text)]">
       <Icon className="h-4 w-4" />
     </button>
   );

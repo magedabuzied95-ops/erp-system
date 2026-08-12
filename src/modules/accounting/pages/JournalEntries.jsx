@@ -251,7 +251,7 @@ function JournalEntries() {
           <button
             type="button"
             onClick={refresh}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             {t("accounting.common.actions.refresh")}
@@ -285,21 +285,21 @@ function JournalEntries() {
         <button
           type="button"
           onClick={() => setActiveTab("list")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "list" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${activeTab === "list" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           القيود اليومية
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("manual")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "manual" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${activeTab === "manual" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           إدخال يدوي
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("preview")}
-          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "preview" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+          className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${activeTab === "preview" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
           معاينة الترحيل
         </button>
@@ -337,7 +337,7 @@ function JournalEntries() {
                   setDateFrom("");
                   setDateTo("");
                 }}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/10"
               >
                 <X className="h-4 w-4" />
                 {t("accounting.common.actions.clear")}
@@ -439,18 +439,18 @@ function JournalEntries() {
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             <Field label="الوصف">
-              <input value={formState.description} onChange={(event) => setFormState((current) => ({ ...current, description: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+              <input value={formState.description} onChange={(event) => setFormState((current) => ({ ...current, description: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
             <Field label="التاريخ">
-              <input type="date" value={formState.entry_date} onChange={(event) => setFormState((current) => ({ ...current, entry_date: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+              <input type="date" value={formState.entry_date} onChange={(event) => setFormState((current) => ({ ...current, entry_date: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
             <Field label="الفرع">
-              <input type="number" min="1" value={formState.branch_id} onChange={(event) => setFormState((current) => ({ ...current, branch_id: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+              <input type="number" min="1" value={formState.branch_id} onChange={(event) => setFormState((current) => ({ ...current, branch_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
           </div>
 
           <Field className="mt-3" label="ملاحظات">
-            <textarea value={formState.notes} onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))} rows={2} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+            <textarea value={formState.notes} onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))} rows={2} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
           </Field>
 
           <div className="m1-table-container mt-5 overflow-x-auto">
@@ -468,7 +468,7 @@ function JournalEntries() {
                 {formState.lines.map((line, index) => (
                   <tr key={index}>
                     <Td className="text-right">
-                      <select value={line.account_code} onChange={(event) => updateLine(index, "account_code", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
+                      <select value={line.account_code} onChange={(event) => updateLine(index, "account_code", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
                         <option value="">اختر الحساب</option>
                         {accounts.map((account) => (
                           <option key={account.id} value={account.account_code}>
@@ -478,16 +478,16 @@ function JournalEntries() {
                       </select>
                     </Td>
                     <Td className="text-right">
-                      <input type="number" min="0" step="0.01" value={line.debit} onChange={(event) => updateLine(index, "debit", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+                      <input type="number" min="0" step="0.01" value={line.debit} onChange={(event) => updateLine(index, "debit", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
                     </Td>
                     <Td className="text-right">
-                      <input type="number" min="0" step="0.01" value={line.credit} onChange={(event) => updateLine(index, "credit", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+                      <input type="number" min="0" step="0.01" value={line.credit} onChange={(event) => updateLine(index, "credit", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
                     </Td>
                     <Td className="text-right">
-                      <input value={line.notes} onChange={(event) => updateLine(index, "notes", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+                      <input value={line.notes} onChange={(event) => updateLine(index, "notes", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
                     </Td>
                     <Td className="text-right">
-                      <button type="button" onClick={() => removeLine(index)} disabled={formState.lines.length <= 2} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-300 transition hover:bg-white/10 disabled:opacity-40">
+                      <button type="button" onClick={() => removeLine(index)} disabled={formState.lines.length <= 2} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-zinc-300 transition hover:bg-white/10 disabled:opacity-40">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </Td>
@@ -498,11 +498,11 @@ function JournalEntries() {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={addLine} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
+            <button type="button" onClick={addLine} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
               <Plus className="h-4 w-4" />
               إضافة سطر
             </button>
-            <button type="submit" disabled={formSubmitting} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
+            <button type="submit" disabled={formSubmitting} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
               <BookOpenText className="h-4 w-4" />
               {formSubmitting ? "جارٍ الحفظ..." : "إنشاء القيد"}
             </button>
@@ -519,7 +519,7 @@ function JournalEntries() {
 
           <form onSubmit={loadBackfillPreview} className="mt-5 grid gap-3 md:grid-cols-4">
             <Field label="المصدر">
-              <select value={previewState.source_type} onChange={(event) => setPreviewState((current) => ({ ...current, source_type: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
+              <select value={previewState.source_type} onChange={(event) => setPreviewState((current) => ({ ...current, source_type: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
                 <option value="">الكل</option>
                 <option value="order">الطلبات</option>
                 <option value="purchase">المشتريات</option>
@@ -527,16 +527,16 @@ function JournalEntries() {
               </select>
             </Field>
             <Field label="من تاريخ">
-              <input type="date" value={previewState.from_date} onChange={(event) => setPreviewState((current) => ({ ...current, from_date: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+              <input type="date" value={previewState.from_date} onChange={(event) => setPreviewState((current) => ({ ...current, from_date: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
             <Field label="إلى تاريخ">
-              <input type="date" value={previewState.to_date} onChange={(event) => setPreviewState((current) => ({ ...current, to_date: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+              <input type="date" value={previewState.to_date} onChange={(event) => setPreviewState((current) => ({ ...current, to_date: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
             <Field label="الحد الأقصى">
-              <input type="number" min="1" max="100" value={previewState.limit} onChange={(event) => setPreviewState((current) => ({ ...current, limit: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+              <input type="number" min="1" max="100" value={previewState.limit} onChange={(event) => setPreviewState((current) => ({ ...current, limit: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
             <div className="md:col-span-4">
-              <button type="submit" disabled={previewLoading} className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
+              <button type="submit" disabled={previewLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
                 <WandSparkles className="h-4 w-4" />
                 {previewLoading ? "جارٍ تجهيز المعاينة..." : "تحميل المعاينة"}
               </button>
@@ -615,7 +615,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
             <h3 className="m1-section-title mt-2 text-white">{entry.entry_number}</h3>
             <p className="mt-1 text-sm text-zinc-400">{entry.description || t("accounting.journal.fallbacks.journalEntry")}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-200 transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-zinc-200 transition hover:bg-white/10">
             <X className="h-4 w-4" />
           </button>
         </div>

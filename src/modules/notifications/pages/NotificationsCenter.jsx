@@ -117,7 +117,7 @@ function NotificationsCenter() {
                 type="button"
                 onClick={markAllRead}
                 disabled={!unreadCount}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border border-slate-600/80 bg-slate-900/80 px-4 py-2 text-sm font-black text-slate-100 transition hover:border-emerald-300/50 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-600/80 bg-slate-900/80 px-4 py-2 text-sm font-black text-slate-100 transition hover:border-emerald-300/50 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <CheckCheck className="h-4 w-4" />
                 تعليم الكل كمقروء
@@ -125,7 +125,7 @@ function NotificationsCenter() {
               <button
                 type="button"
                 onClick={() => refresh()}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 تحديث
@@ -146,8 +146,8 @@ function NotificationsCenter() {
             <Select value={category} onChange={setCategory} rows={categories} />
             <Select value={priority} onChange={setPriority} rows={priorities} />
             <Select value={readState} onChange={setReadState} rows={readStates} />
-            <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-xl border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm text-slate-100 outline-none" />
-            <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-xl border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm text-slate-100 outline-none" />
+            <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm text-slate-100 outline-none" />
+            <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm text-slate-100 outline-none" />
           </div>
         </div>
       </section>
@@ -207,7 +207,7 @@ function NotificationsCenter() {
 
 function Select({ value, onChange, rows }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-xl border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm font-bold text-slate-100 outline-none">
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm font-bold text-slate-100 outline-none">
       {rows.map((item) => (
         <option key={item} value={item}>{labels[item] || item}</option>
       ))}

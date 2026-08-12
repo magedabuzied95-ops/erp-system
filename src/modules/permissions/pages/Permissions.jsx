@@ -156,7 +156,7 @@ function PermissionsPage() {
                     type="button"
                     onClick={() => setSelectedRoleId(roleRouteId(role))}
                     className={[
-                      "w-full rounded-2xl border p-4 text-left transition",
+                      "w-full rounded-[var(--radius-control)] border p-4 text-left transition",
                       active ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10",
                     ].join(" ")}
                   >
@@ -186,7 +186,7 @@ function PermissionsPage() {
                   <h3 className="m1-section-title text-white">Export permissions snapshot</h3>
                   <p className="mt-1 text-sm text-zinc-400">Placeholder for CSV/PDF export once the backend exporter is available.</p>
                 </div>
-                <button type="button" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+                <button type="button" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
                   <Save className="h-4 w-4" />
                   Export
                 </button>

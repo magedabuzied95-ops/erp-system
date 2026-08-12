@@ -65,7 +65,7 @@ export const CommandCenterDashboard = memo(function CommandCenterDashboard({
             <button
               type="button"
               onClick={command.toggleFullscreen}
-              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.055] px-3 text-xs font-black text-zinc-100 transition hover:bg-white/[0.09]"
+              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/[0.08] bg-white/[0.055] px-3 text-xs font-black text-zinc-100 transition hover:bg-white/[0.09]"
             >
               <Maximize2 className="h-3.5 w-3.5" />
               {command.fullscreen ? "Exit TV Mode" : "TV Mode"}

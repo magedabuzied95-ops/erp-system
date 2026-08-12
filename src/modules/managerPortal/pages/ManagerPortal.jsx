@@ -625,7 +625,7 @@ const Toggle = ({ label, checked, onChange }) => (
   <button
     type="button"
     onClick={() => onChange(!checked)}
-    className={`manager-portal-toggle flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right transition ${ checked ? "border-emerald-200 bg-surface text-emerald-900 shadow-[var(--shadow-card)] dark:border-emerald-400/20 dark:text-emerald-100" : "border-border bg-surface text-text" }`}
+    className={`manager-portal-toggle flex w-full items-center justify-between rounded-[var(--radius-control)] border px-3 py-3 text-right transition ${ checked ? "border-emerald-200 bg-surface text-emerald-900 shadow-[var(--shadow-card)] dark:border-emerald-400/20 dark:text-emerald-100" : "border-border bg-surface text-text" }`}
   >
     <span className="text-sm font-black leading-6">{label}</span>
     {/* The ON pill keeps its solid emerald status fill; only the OFF pill was a
@@ -801,11 +801,11 @@ const DailyProfitCard = ({ token, salesData, canView, className = "" }) => {
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" onClick={() => { if (!submitting) { setModalOpen(false); setError(""); } }}>
           <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-[#0b1220] p-5 text-right shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm font-black text-white">أدخل كلمة مرور الربح</div>
-            <input type="password" value={password} autoComplete="off" onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleUnlock(); }} className="mt-3 w-full rounded-xl border border-slate-700 bg-[#0f172a] px-3 py-2 text-sm font-bold text-white outline-none transition focus:border-amber-500" placeholder="••••••" />
+            <input type="password" value={password} autoComplete="off" onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleUnlock(); }} className="mt-3 w-full rounded-[var(--radius-control)] border border-slate-700 bg-[#0f172a] px-3 py-2 text-sm font-bold text-white outline-none transition focus:border-amber-500" placeholder="••••••" />
             {error ? <div className="mt-2 text-xs font-bold text-rose-400">{error}</div> : null}
             <div className="mt-4 flex items-center justify-between gap-2">
-              <button type="button" onClick={() => { setModalOpen(false); setPassword(""); setError(""); }} className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-bold text-slate-300">إلغاء</button>
-              <button type="button" disabled={submitting || !password} onClick={handleUnlock} className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-slate-950 transition disabled:opacity-50">{submitting ? "جارٍ التحقق…" : "عرض الربح"}</button>
+              <button type="button" onClick={() => { setModalOpen(false); setPassword(""); setError(""); }} className="rounded-[var(--radius-control)] border border-slate-700 px-3 py-2 text-xs font-bold text-slate-300">إلغاء</button>
+              <button type="button" disabled={submitting || !password} onClick={handleUnlock} className="rounded-[var(--radius-control)] bg-amber-500 px-4 py-2 text-xs font-black text-slate-950 transition disabled:opacity-50">{submitting ? "جارٍ التحقق…" : "عرض الربح"}</button>
             </div>
           </div>
         </div>
@@ -1813,7 +1813,7 @@ export default function ManagerPortal() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={toggleExpanded} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800">
+            <button type="button" onClick={toggleExpanded} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-800">
               {expanded ? "إخفاء التفاصيل" : "عرض التفاصيل"}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
             </button>
@@ -1821,7 +1821,7 @@ export default function ManagerPortal() {
               type="button"
               data-testid={`task-reopen-${task.id}`}
               onClick={() => void sendTaskAction(task.id, "reopen", { note })}
-              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-800"
             >
               <ArrowLeftRight className="h-3.5 w-3.5" />
               إعادة فتح
@@ -1832,7 +1832,7 @@ export default function ManagerPortal() {
                   type="button"
                   data-testid={`task-approve-${task.id}`}
                   onClick={() => void sendTaskAction(task.id, "approve", { note })}
-                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-xs font-black text-white"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   اعتماد
@@ -1841,7 +1841,7 @@ export default function ManagerPortal() {
                   type="button"
                   data-testid={`task-reject-${task.id}`}
                   onClick={() => void sendTaskAction(task.id, "reject", { note })}
-                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-800 shadow-sm"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-300 bg-white px-3 text-xs font-black text-amber-800 shadow-sm"
                 >
                   <X className="h-3.5 w-3.5" />
                   رفض
@@ -1889,7 +1889,7 @@ export default function ManagerPortal() {
                 onChange={(event) => setTaskNotes((current) => ({ ...current, [task.id]: event.target.value }))}
                 placeholder="ملاحظة المدير"
                 rows={2}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
               />
             </div>
           ) : null}
@@ -1928,26 +1928,26 @@ export default function ManagerPortal() {
           </div>
         ) : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <button type="button" data-testid={`task-approve-${task.id}`} onClick={() => void sendTaskAction(task.id, "approve", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white">
+          <button type="button" data-testid={`task-approve-${task.id}`} onClick={() => void sendTaskAction(task.id, "approve", { note })} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 py-3 text-sm font-black text-white">
             <CheckCircle2 className="h-4 w-4" />
             اعتماد
           </button>
-          <button type="button" data-testid={`task-reject-${task.id}`} onClick={() => void sendTaskAction(task.id, "reject", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-white px-4 py-3 text-sm font-black text-amber-800 shadow-sm">
+          <button type="button" data-testid={`task-reject-${task.id}`} onClick={() => void sendTaskAction(task.id, "reject", { note })} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-300 bg-white px-4 py-3 text-sm font-black text-amber-800 shadow-sm">
             <X className="h-4 w-4" />
             رفض / إعادة
           </button>
         </div>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <button type="button" data-testid={`task-reopen-${task.id}`} onClick={() => void sendTaskAction(task.id, "reopen", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+          <button type="button" data-testid={`task-reopen-${task.id}`} onClick={() => void sendTaskAction(task.id, "reopen", { note })} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
             <ArrowLeftRight className="h-4 w-4" />
             إعادة فتح
           </button>
-          <button type="button" data-testid={`task-note-${task.id}`} onClick={() => void sendTaskAction(task.id, "note", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+          <button type="button" data-testid={`task-note-${task.id}`} onClick={() => void sendTaskAction(task.id, "note", { note })} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
             <SquarePen className="h-4 w-4" />
             إضافة ملاحظة
           </button>
         </div>
-        <textarea value={note} onChange={(event) => setTaskNotes((current) => ({ ...current, [task.id]: event.target.value }))} placeholder="ملاحظة المدير" rows={2} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
+        <textarea value={note} onChange={(event) => setTaskNotes((current) => ({ ...current, [task.id]: event.target.value }))} placeholder="ملاحظة المدير" rows={2} className="mt-2 w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
       </Card>
     );
   };
@@ -1983,7 +1983,7 @@ export default function ManagerPortal() {
               <div className="mt-2 text-3xl font-black text-white">{formatCurrency(dashboard?.today_sales_total || 0)}</div>
               <div className="mt-2 text-sm font-semibold text-slate-300">{formatNumber(dashboard?.invoice_count || 0)} فاتورة اليوم</div>
             </div>
-            <button type="button" data-testid="refresh-button-mobile" onClick={() => void loadAll({ silent: true })} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800">
+            <button type="button" data-testid="refresh-button-mobile" onClick={() => void loadAll({ silent: true })} className="flex w-full items-center justify-between rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800">
               <span>تحديث مباشر</span>
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </button>
@@ -1995,7 +1995,7 @@ export default function ManagerPortal() {
                 type="button"
                 data-testid={`sidebar-tab-${tab}`}
                 onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)}
-                className={`flex w-full items-center justify-between rounded-2xl px-3 py-3 text-sm font-black transition ${ activeTab === tab ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "bg-white text-slate-700" }`}
+                className={`flex w-full items-center justify-between rounded-[var(--radius-control)] px-3 py-3 text-sm font-black transition ${ activeTab === tab ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "bg-white text-slate-700" }`}
               >
                 <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : tab === "inventory" ? "الجرد" : tab === "notifications" ? "إعدادات التنبيه" : "المزيد"}</span>
                 <ChevronRight className="h-4 w-4" />
@@ -2012,7 +2012,7 @@ export default function ManagerPortal() {
                 <div className="min-w-0 flex-1">
                   <h2 className="m1-section-title text-slate-950 dark:text-white">تعذر تحميل بعض البيانات</h2>
                   <p className="mt-1 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">{error}</p>
-                  <button type="button" onClick={() => void loadAll()} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+                  <button type="button" onClick={() => void loadAll()} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
                     <RefreshCw className="h-4 w-4" />
                     إعادة المحاولة
                   </button>
@@ -2050,14 +2050,14 @@ export default function ManagerPortal() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
+                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-slate-100" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
                     {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                   </button>
                   <button
                     type="button"
                     data-testid="refresh-button"
                     onClick={() => void loadAll({ silent: true })}
-                    className="manager-refresh-button inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-sm transition hover:bg-slate-800"
+                    className="manager-refresh-button inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-slate-100 shadow-sm transition hover:bg-slate-800"
                     aria-label="تحديث"
                   >
                     <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -2079,13 +2079,13 @@ export default function ManagerPortal() {
                 <div className="flex flex-col items-end gap-2">
                   <Badge className="border-slate-700 bg-slate-800 text-slate-100">مباشر</Badge>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"} title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
+                    <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-white" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"} title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
                       {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </button>
                     <button
                       type="button"
                       onClick={openInventoryApprovals}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-400 px-3 py-2 text-sm font-black text-black shadow-sm transition hover:bg-amber-300"
+                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-400 px-3 py-2 text-sm font-black text-black shadow-sm transition hover:bg-amber-300"
                     >
                       <ClipboardList className="h-4 w-4" />
                       <span>جردات بانتظار الاعتماد</span>
@@ -2100,7 +2100,7 @@ export default function ManagerPortal() {
                       aria-label="Open notifications"
                       aria-expanded={notificationsOpen}
                       onClick={() => setNotificationsOpen((current) => !current)}
-                      className="relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-2xl border border-slate-700 bg-[linear-gradient(180deg,#0f172a,#111827)] text-white transition hover:border-slate-500 hover:bg-[linear-gradient(180deg,#111827,#1e293b)]"
+                      className="relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-[linear-gradient(180deg,#0f172a,#111827)] text-white transition hover:border-slate-500 hover:bg-[linear-gradient(180deg,#111827,#1e293b)]"
                     >
                       <Bell className="h-4 w-4" />
                       {(unreadCount || notificationsUnread) ? (
@@ -2109,7 +2109,7 @@ export default function ManagerPortal() {
                         </span>
                       ) : null}
                     </button>
-                    <button type="button" data-testid="refresh-button" onClick={() => void loadAll({ silent: true })} className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-black text-slate-950 shadow-sm">
+                    <button type="button" data-testid="refresh-button" onClick={() => void loadAll({ silent: true })} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-white px-3 py-2 text-sm font-black text-slate-950 shadow-sm">
                       <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                       تحديث
                     </button>
@@ -2133,7 +2133,7 @@ export default function ManagerPortal() {
                       : "أضف بوابة المدير إلى الشاشة الرئيسية لتفتح كتطبيق مستقل."}
                   </p>
                   {installPrompt ? (
-                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white">
+                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white">
                       <Download className="h-4 w-4" />
                       إضافة إلى الشاشة الرئيسية
                     </button>
@@ -2175,7 +2175,7 @@ export default function ManagerPortal() {
                     <button
                       type="button"
                       onClick={() => setNotificationsOpen(false)}
-                      className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white transition hover:border-slate-500 hover:bg-slate-800"
+                      className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-white transition hover:border-slate-500 hover:bg-slate-800"
                       aria-label="إغلاق الإشعارات"
                     >
                       <X className="h-5 w-5" />
@@ -2195,7 +2195,7 @@ export default function ManagerPortal() {
                       type="button"
                       onClick={() => void markAllNotificationsRead()}
                       disabled={!notifications.some((item) => !item.is_read)}
-                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left text-slate-700 transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2.5 text-left text-slate-700 transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <CheckCheck className="h-4 w-4" />
                       <span className="mt-1 text-xs font-black">تحديد الكل كمقروء</span>
@@ -2203,7 +2203,7 @@ export default function ManagerPortal() {
                     <button
                       type="button"
                       onClick={() => void loadAll({ silent: true })}
-                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-2xl bg-slate-950 px-3 py-2.5 text-left text-white transition hover:bg-slate-800"
+                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-[var(--radius-control)] bg-slate-950 px-3 py-2.5 text-left text-white transition hover:bg-slate-800"
                     >
                       <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                       <span className="mt-1 text-xs font-black">تحديث</span>
@@ -2280,7 +2280,7 @@ export default function ManagerPortal() {
                                 <button
                                   type="button"
                                   onClick={() => void openNotification(item)}
-                                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                                 >
                                   <ArrowUpRight className="h-3.5 w-3.5" />
                                   فتح
@@ -2290,7 +2290,7 @@ export default function ManagerPortal() {
                                 <button
                                   type="button"
                                   onClick={() => void markNotificationRead(item.id)}
-                                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-primary hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35 dark:hover:text-primary"
+                                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-primary hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35 dark:hover:text-primary"
                                 >
                                   <CheckCheck className="h-3.5 w-3.5" />
                                   تحديد كمقروء
@@ -2448,8 +2448,8 @@ export default function ManagerPortal() {
                           </div>
                           {request.message ? <div className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-600 dark:bg-black/20 dark:text-slate-300">{portalText(request.message)}</div> : null}
                           <div className="mt-3 grid grid-cols-2 gap-2">
-                            <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "rejected")} className="rounded-xl border border-rose-300 px-3 py-2.5 text-xs font-black text-rose-700 disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-300">رفض</button>
-                            <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "approved")} className="rounded-xl bg-emerald-500 px-3 py-2.5 text-xs font-black text-white disabled:opacity-50">{reviewing ? "جارٍ التنفيذ..." : "اعتماد السلفة"}</button>
+                            <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "rejected")} className="rounded-[var(--radius-control)] border border-rose-300 px-3 py-2.5 text-xs font-black text-rose-700 disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-300">رفض</button>
+                            <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "approved")} className="rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2.5 text-xs font-black text-white disabled:opacity-50">{reviewing ? "جارٍ التنفيذ..." : "اعتماد السلفة"}</button>
                           </div>
                         </div>
                       );
@@ -2535,23 +2535,23 @@ export default function ManagerPortal() {
             <div className="manager-portal-tab manager-portal-tab--tasks space-y-4">
               <Card title="إنشاء مهمة" subtitle="Create task" icon={Plus} tone="gold">
                 <div className="grid gap-2 md:grid-cols-2">
-                  <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="عنوان المهمة" className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
-                  <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
+                  <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="عنوان المهمة" className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
+                  <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
                     <option value="">إسناد اختياري</option>
                     {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{portalText(employee.employee_name)}</option>)}
                   </select>
-                  <select value={taskDraft.priority} onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
+                  <select value={taskDraft.priority} onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
                     <option value="low">منخفضة</option>
                     <option value="medium">متوسطة</option>
                     <option value="high">عالية</option>
                     <option value="critical">حرجة</option>
                   </select>
-                  <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+                  <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
                     <Plus className="h-4 w-4" />
                     إنشاء
                   </button>
                 </div>
-                <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder="الوصف" rows={3} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
+                <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder="الوصف" rows={3} className="mt-2 w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
               </Card>
 
               <Card title="المرشحات" subtitle="المرشحات" icon={Search} tone="slate">
@@ -2560,12 +2560,12 @@ export default function ManagerPortal() {
                     value={taskFilters.query}
                     onChange={(event) => setTaskFilters((current) => ({ ...current, query: event.target.value }))}
                     placeholder="ابحث في العنوان أو الموظف"
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
+                    className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   />
                   <select
                     value={taskFilters.status}
                     onChange={(event) => setTaskFilters((current) => ({ ...current, status: event.target.value }))}
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
+                    className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   >
                     <option value="all">كل الحالات</option>
                     <option value="open">المهام المفتوحة</option>
@@ -2580,14 +2580,14 @@ export default function ManagerPortal() {
                   <select
                     value={taskFilters.employee}
                     onChange={(event) => setTaskFilters((current) => ({ ...current, employee: event.target.value }))}
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
+                    className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   >
                     <option value="">كل الموظفين</option>
                     {employeeFilterOptions.map((employee) => (
                       <option key={employee.value || employee.label} value={employee.value || employee.label}>{employee.label}</option>
                     ))}
                   </select>
-                  <button type="button" onClick={() => setTaskFilters({ status: "all", employee: "", query: "" })} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  <button type="button" onClick={() => setTaskFilters({ status: "all", employee: "", query: "" })} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     مسح المرشحات
                   </button>
                 </div>
@@ -3045,16 +3045,16 @@ export default function ManagerPortal() {
             <div className="manager-portal-tab manager-portal-tab--more space-y-4">
               <Card title="الإعدادات" subtitle="المزيد" icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="gold">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <button type="button" onClick={() => setActiveTab("notifications")} className="relative flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  <button type="button" onClick={() => setActiveTab("notifications")} className="relative flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-500"><Bell className="h-6 w-6" /></span>
                     <span className="text-sm font-black">التنبيهات</span>
                     {unreadCount > 0 ? <span className="absolute left-3 top-3 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">{formatNumber(unreadCount)}</span> : null}
                   </button>
-                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-500/15 text-slate-500">{theme.mode === "dark" ? <SunMedium className="h-6 w-6" /> : <Moon className="h-6 w-6" />}</span>
                     <span className="text-sm font-black">المظهر</span>
                   </button>
-                  <button type="button" onClick={() => void loadAll({ silent: true })} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  <button type="button" onClick={() => void loadAll({ silent: true })} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-500"><RefreshCw className={`h-6 w-6 ${refreshing ? "animate-spin" : ""}`} /></span>
                     <span className="text-sm font-black">تحديث البيانات</span>
                   </button>
@@ -3083,7 +3083,7 @@ export default function ManagerPortal() {
 
           {activeTab === "notifications" ? (
             <div className="space-y-4">
-              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                 <Settings className="h-4 w-4" />
                 الرجوع إلى الإعدادات
               </button>
@@ -3105,11 +3105,11 @@ export default function ManagerPortal() {
 
               <Card title="الصوت والإشعارات" subtitle="التحكم من المتصفح" icon={Volume2}>
                 <div className="grid gap-2 md:grid-cols-2">
-                  <button type="button" data-testid="sound-unlock-button" data-state={soundUnlocked ? "enabled" : "disabled"} onClick={enableSound} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+                  <button type="button" data-testid="sound-unlock-button" data-state={soundUnlocked ? "enabled" : "disabled"} onClick={enableSound} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
                     {soundUnlocked ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                     {soundUnlocked ? "الصوت مفعل" : "تفعيل الصوت"}
                   </button>
-                  <button type="button" data-testid="browser-notification-button" data-state={browserNotificationPermission} onClick={enableBrowserNotifications} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  <button type="button" data-testid="browser-notification-button" data-state={browserNotificationPermission} onClick={enableBrowserNotifications} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <Bell className="h-4 w-4" />
                     {browserNotificationPermission === "granted" ? "إشعارات المتصفح مفعلة" : "تفعيل إشعارات المتصفح"}
                   </button>
@@ -3142,16 +3142,16 @@ export default function ManagerPortal() {
                   ) : null}
                   {pushState.message ? <div className="text-xs font-bold text-slate-500 dark:text-slate-300">{pushState.message}</div> : null}
                   <div className="grid gap-2 sm:grid-cols-2">
-                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">
+                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">
                       {pushState.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
                       {pushState.subscribed ? "تحديث إشعارات الويب الفورية" : "تفعيل إشعارات الويب الفورية"}
                     </button>
-                    <button type="button" disabled={pushState.saving || !pushState.subscribed} onClick={disablePushNotifications} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <button type="button" disabled={pushState.saving || !pushState.subscribed} onClick={disablePushNotifications} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                       <X className="h-4 w-4" />
                       إيقاف الإشعارات
                     </button>
                   </div>
-                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={sendTestPushNotification} className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={sendTestPushNotification} className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <Send className="h-4 w-4" />
                     إرسال إشعار تجريبي
                   </button>
@@ -3201,7 +3201,7 @@ export default function ManagerPortal() {
                 })}
               </div>
               {hasMoreAiInsights ? (
-                <button type="button" onClick={() => setShowMoreAiInsights((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                <button type="button" onClick={() => setShowMoreAiInsights((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                   {showMoreAiInsights ? "عرض أقل" : "عرض المزيد"}
                 </button>
               ) : null}
@@ -3242,7 +3242,7 @@ export default function ManagerPortal() {
                 })}
               </div>
               {hasMoreLeads ? (
-                <button type="button" onClick={() => setShowMoreLeads((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                <button type="button" onClick={() => setShowMoreLeads((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                   {showMoreLeads ? "عرض أقل" : "عرض المزيد"}
                 </button>
               ) : null}
@@ -3260,7 +3260,7 @@ export default function ManagerPortal() {
                 ))}
               </div>
               {hasMoreLowStock ? (
-                <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
+                <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
                   {showMoreLowStock ? "عرض أقل" : "عرض المزيد"}
                 </button>
               ) : null}
@@ -3277,7 +3277,7 @@ export default function ManagerPortal() {
             const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : tab === "inventory" ? ClipboardCheck : Settings;
             const Icon = icon;
             return (
-              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)} className={`relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-1.5 text-[9px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
+              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)} className={`relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-control)] px-1 py-1.5 text-[9px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap">
                   {label}
@@ -3299,7 +3299,7 @@ export default function ManagerPortal() {
                 <div className="text-xs font-black text-slate-300">تفاصيل الفاتورة</div>
                 <h2 className="m1-section-title mt-1 text-white">{invoiceSheet.invoice?.invoice_number || "فاتورة"}</h2>
               </div>
-              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white">
+              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -3407,23 +3407,23 @@ export default function ManagerPortal() {
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-5">
-                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => window.open(invoiceSheet.invoice.public_invoice_url, "_blank", "noopener,noreferrer")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(180deg,#0f172a,#111827)] px-3 text-sm font-black text-white shadow-sm disabled:opacity-45 dark:bg-white dark:text-slate-950">
+                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => window.open(invoiceSheet.invoice.public_invoice_url, "_blank", "noopener,noreferrer")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[linear-gradient(180deg,#0f172a,#111827)] px-3 text-sm font-black text-white shadow-sm disabled:opacity-45 dark:bg-white dark:text-slate-950">
                       <ExternalLink className="h-4 w-4" />
                       عرض الفاتورة العامة
                     </button>
-                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => copyText(invoiceSheet.invoice.public_invoice_url, "تم نسخ رابط الفاتورة")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => copyText(invoiceSheet.invoice.public_invoice_url, "تم نسخ رابط الفاتورة")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                       <Copy className="h-4 w-4" />
                       نسخ الرابط
                     </button>
-                    <button type="button" onClick={() => window.print()} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <button type="button" onClick={() => window.print()} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                       <Printer className="h-4 w-4" />
                       طباعة
                     </button>
-                    <button type="button" disabled={!invoiceSheet.invoice.customer_phone} onClick={() => openWhatsappShare(invoiceSheet.invoice)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-800 shadow-sm disabled:opacity-45 dark:bg-emerald-400/10 dark:text-emerald-100">
+                    <button type="button" disabled={!invoiceSheet.invoice.customer_phone} onClick={() => openWhatsappShare(invoiceSheet.invoice)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-800 shadow-sm disabled:opacity-45 dark:bg-emerald-400/10 dark:text-emerald-100">
                       <MessageSquare className="h-4 w-4" />
                       مشاركة واتساب
                     </button>
-                    <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm">
+                    <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 text-sm font-black text-slate-800 shadow-sm">
                       <X className="h-4 w-4" />
                       إغلاق
                     </button>

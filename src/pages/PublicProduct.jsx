@@ -223,7 +223,7 @@ export default function PublicProduct() {
                   type="button"
                   onClick={() => handleEvent("add_to_cart")}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-5 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-60"
                 >
                   <ShoppingCart className="h-4 w-4" />
                   Add to cart
@@ -232,7 +232,7 @@ export default function PublicProduct() {
                   type="button"
                   onClick={() => handleEvent("checkout")}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
                 >
                   Checkout
                   <ArrowRight className="h-4 w-4" />

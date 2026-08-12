@@ -336,7 +336,7 @@ export default function ProductColors({
                     gap-3
                     px-5
                     py-4
-                    rounded-2xl
+                    rounded-[var(--radius-control)]
                     border
                     transition-all
                     font-black
@@ -473,7 +473,7 @@ export default function ProductColors({
                   )
                 }
 
-                className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white w-14 h-14 rounded-2xl flex items-center justify-center transition-all"
+                className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white w-14 h-14 rounded-[var(--radius-control)] flex items-center justify-center transition-all"
 
               >
 

@@ -515,7 +515,7 @@ export function StoryTimeline({ stories = [], currentIndex, onSelect }) {
           key={`${story.position}-${story.type}`}
           type="button"
           onClick={() => onSelect(index)}
-          className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-right transition ${ index === currentIndex ? "border-primary/35 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]" }`}
+          className={`flex w-full items-center gap-3 rounded-[var(--radius-control)] border px-3 py-2 text-right transition ${ index === currentIndex ? "border-primary/35 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]" }`}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black">{story.position || index + 1}</span>
           <span className="min-w-0">
@@ -691,7 +691,7 @@ export function StoryPlayer({
           <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-slate-950/50 p-4 lg:flex-row lg:items-center lg:justify-between">
             <label className="space-y-2">
               <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{t("marketing.story.preview.template")}</span>
-              <select value={template.id} onChange={(event) => onTemplateChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
+              <select value={template.id} onChange={(event) => onTemplateChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
                 {STORY_TEMPLATES.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
             </label>
@@ -699,11 +699,11 @@ export function StoryPlayer({
           </div>
           {player}
           <div className="flex flex-wrap justify-center gap-2">
-            <button type="button" onClick={() => onRegenerateStory(currentStory)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white transition hover:bg-white/10">
+            <button type="button" onClick={() => onRegenerateStory(currentStory)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white transition hover:bg-white/10">
               <RefreshCcw className="h-4 w-4" />
               {t("marketing.story.preview.regenerate")}
             </button>
-            <button type="button" onClick={() => onEditStory(currentStory)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white transition hover:bg-white/10">
+            <button type="button" onClick={() => onEditStory(currentStory)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white transition hover:bg-white/10">
               {t("marketing.story.preview.edit")}
             </button>
           </div>

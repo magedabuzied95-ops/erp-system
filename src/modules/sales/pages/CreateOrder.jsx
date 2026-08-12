@@ -337,7 +337,7 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-2xl dark:bg-gray-900 dark:text-white"
+          className="w-full border p-5 rounded-[var(--radius-control)] dark:bg-gray-900 dark:text-white"
         />
 
         <select
@@ -349,7 +349,7 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-2xl dark:bg-gray-900 dark:text-white"
+          className="w-full border p-5 rounded-[var(--radius-control)] dark:bg-gray-900 dark:text-white"
         >
 
           <option value="">
@@ -390,13 +390,13 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-2xl dark:bg-gray-900 dark:text-white"
+          className="w-full border p-5 rounded-[var(--radius-control)] dark:bg-gray-900 dark:text-white"
         />
 
         <button
           onClick={addToCart}
 
-          className="bg-black text-white px-8 py-5 rounded-2xl font-black w-full"
+          className="bg-black text-white px-8 py-5 rounded-[var(--radius-control)] font-black w-full"
         >
 
           Add To Cart
@@ -465,7 +465,7 @@ function CreateOrder() {
                         )
                       }
 
-                      className="bg-red-500 text-white px-4 py-2 rounded-xl"
+                      className="bg-red-500 text-white px-4 py-2 rounded-[var(--radius-control)]"
                     >
 
                       Remove
@@ -511,7 +511,7 @@ function CreateOrder() {
         <button
           onClick={createOrder}
           disabled={loading}
-          className="mt-10 w-full bg-green-500 text-white py-5 rounded-2xl font-black text-xl"
+          className="mt-10 w-full bg-green-500 text-white py-5 rounded-[var(--radius-control)] font-black text-xl"
         >
 
           {loading

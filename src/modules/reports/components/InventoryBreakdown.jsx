@@ -31,7 +31,7 @@ export default function InventoryBreakdown({ data, dimension, showValue, quality
               onClick={() => onDimensionChange(key)}
               aria-pressed={dimension === key}
               disabled={disabled}
-              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ dimension === key ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
+              className={`rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ dimension === key ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
             >
               {t(`inventory.breakdown.${key}`)}
             </button>
@@ -69,7 +69,7 @@ export default function InventoryBreakdown({ data, dimension, showValue, quality
                   type="button"
                   onClick={() => onDrill?.(dimension, row.key)}
                   title={t("inventory.breakdown.filterHint")}
-                  className="group w-full rounded-xl px-2 py-2 text-start transition hover:bg-[var(--surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                  className="group w-full rounded-[var(--radius-control)] px-2 py-2 text-start transition hover:bg-[var(--surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                 >
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="truncate text-[14px] font-semibold text-[var(--text)] group-hover:text-[var(--primary)] 2xl:text-[15px]">

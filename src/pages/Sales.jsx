@@ -290,7 +290,7 @@ function Sales() {
             )
           }
 
-          className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-5 rounded-2xl outline-none"
+          className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-5 rounded-[var(--radius-control)] outline-none"
         />
 
       </div>
@@ -324,7 +324,7 @@ function Sales() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-2xl"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-[var(--radius-control)]"
           />
 
           <input
@@ -340,7 +340,7 @@ function Sales() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-2xl"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-[var(--radius-control)]"
           />
 
           <input
@@ -356,7 +356,7 @@ function Sales() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-2xl"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-[var(--radius-control)]"
           />
 
           <input
@@ -372,7 +372,7 @@ function Sales() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-2xl"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-[var(--radius-control)]"
           />
 
         </div>
@@ -380,7 +380,7 @@ function Sales() {
         <button
           onClick={addSale}
 
-          className="mt-6 bg-black hover:bg-gray-800 text-white px-8 py-4 rounded-2xl font-black transition"
+          className="mt-6 bg-black hover:bg-gray-800 text-white px-8 py-4 rounded-[var(--radius-control)] font-black transition"
         >
           Add Invoice
         </button>
@@ -536,7 +536,7 @@ function Sales() {
                               )
                             }
 
-                            className="bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-2xl font-black transition"
+                            className="bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-[var(--radius-control)] font-black transition"
                           >
                             Delete
                           </button>

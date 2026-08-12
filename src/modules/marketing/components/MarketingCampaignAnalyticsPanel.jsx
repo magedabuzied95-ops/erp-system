@@ -147,7 +147,7 @@ function HistoryActionButton({ children, tone = "neutral", ...props }) {
     <button
       type="button"
       {...props}
-      className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-2xl px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+      className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
     >
       {children}
     </button>
@@ -258,7 +258,7 @@ export default function MarketingCampaignAnalyticsPanel({
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-2 text-base font-semibold text-white transition hover:bg-white/[0.11]"
+          className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-white/15 bg-white/[0.07] px-4 py-2 text-base font-semibold text-white transition hover:bg-white/[0.11]"
         >
           <RefreshCcw className="h-4 w-4" />
           Refresh
@@ -644,7 +644,7 @@ export default function MarketingCampaignAnalyticsPanel({
                 <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-100">View</div>
                 <div className="text-xs text-slate-400">{deriveTemplateLabel(selectedPost)}</div>
               </div>
-              <button type="button" onClick={() => setSelectedPost(null)} className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]">
+              <button type="button" onClick={() => setSelectedPost(null)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]">
                 Close
               </button>
             </div>

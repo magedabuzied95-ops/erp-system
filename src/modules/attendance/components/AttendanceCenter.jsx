@@ -353,7 +353,7 @@ function Field({ label, children }) {
 }
 
 function NativeInput(props) {
-  return <input {...props} className={`h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)] ${props.className || ""}`} />;
+  return <input {...props} className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)] ${props.className || ""}`} />;
 }
 
 function ManualTimeInput({ hour, minute, period, onChange, isArabic, periodDefault }) {
@@ -374,7 +374,7 @@ function ManualTimeInput({ hour, minute, period, onChange, isArabic, periodDefau
             key={value}
             type="button"
             onClick={() => onChange({ period: value })}
-            className={`min-w-11 rounded-md px-2 text-xs font-black transition ${period === value ? "bg-emerald-500 text-slate-950" : "text-[var(--muted)]"}`}
+            className={`min-w-11 rounded-[var(--radius-control)] px-2 text-xs font-black transition ${period === value ? "bg-emerald-500 text-slate-950" : "text-[var(--muted)]"}`}
             aria-pressed={period === value}
             title={value === periodDefault ? (isArabic ? "الافتراضي" : "Default") : undefined}
           >
@@ -417,7 +417,7 @@ function DayFirstDateInput({ value, onChange, min, max, required = false }) {
           commitDraft(nextDraft);
         }}
         onBlur={() => setDraft(formatDayFirstDate(value))}
-        className="h-[var(--control-height-md)] w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 pe-11 text-center text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)]"
+        className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 pe-11 text-center text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)]"
       />
       <button
         type="button"
@@ -431,7 +431,7 @@ function DayFirstDateInput({ value, onChange, min, max, required = false }) {
             picker.click();
           }
         }}
-        className="absolute end-1 top-1 grid h-[var(--control-height-sm)] w-8 place-items-center rounded-md text-[var(--muted)] hover:bg-[var(--card)]"
+        className="absolute end-1 top-1 grid h-[var(--control-height-sm)] w-8 place-items-center rounded-[var(--radius-control)] text-[var(--muted)] hover:bg-[var(--card)]"
         aria-label="Open calendar"
       >
         <CalendarDays className="h-4 w-4" />
@@ -452,7 +452,7 @@ function DayFirstDateInput({ value, onChange, min, max, required = false }) {
 }
 
 function NativeSelect(props) {
-  return <select {...props} className={`h-[var(--control-height-md)] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)] ${props.className || ""}`} />;
+  return <select {...props} className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)] ${props.className || ""}`} />;
 }
 
 function HrSettingsPanel({ settings, isArabic, saving, onChange, onSave }) {
@@ -489,7 +489,7 @@ function HrSettingsPanel({ settings, isArabic, saving, onChange, onSave }) {
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] bg-[var(--primary)] px-4 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? (isArabic ? "جاري الحفظ..." : "Saving...") : (isArabic ? "حفظ الإعدادات" : "Save settings")}
         </button>
@@ -783,17 +783,17 @@ export default function AttendanceCenter() {
             <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">{pageSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={openManualAttendance} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-3 text-sm font-black text-emerald-300">
+            <button type="button" onClick={openManualAttendance} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-500/30 bg-emerald-500/15 px-3 text-sm font-black text-emerald-300">
               <Plus className="h-4 w-4" />
               {isArabic ? "إضافة حضور / انصراف" : "Add attendance"}
             </button>
-            <button type="button" onClick={() => setRefreshIndex((value) => value + 1)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]">
+            <button type="button" onClick={() => setRefreshIndex((value) => value + 1)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {text.refresh}
             </button>
-            <button type="button" onClick={() => exportRows("attendance-center", filteredRows)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><Download className="h-4 w-4" />{text.excel}</button>
-            <button type="button" onClick={printPage} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><FileText className="h-4 w-4" />{text.pdf}</button>
-            <button type="button" onClick={printPage} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><Printer className="h-4 w-4" />{text.print}</button>
+            <button type="button" onClick={() => exportRows("attendance-center", filteredRows)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><Download className="h-4 w-4" />{text.excel}</button>
+            <button type="button" onClick={printPage} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><FileText className="h-4 w-4" />{text.pdf}</button>
+            <button type="button" onClick={printPage} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><Printer className="h-4 w-4" />{text.print}</button>
           </div>
         </div>
       </section>
@@ -819,7 +819,7 @@ export default function AttendanceCenter() {
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {tabKeys.map((key, index) => (
-          <button key={key} type="button" onClick={() => setActiveTab(key)} className={`h-[var(--control-height-md)] shrink-0 rounded-lg border px-3 text-sm font-black ${activeTab === key ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--text)]" : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)]"}`}>
+          <button key={key} type="button" onClick={() => setActiveTab(key)} className={`h-[var(--control-height-md)] shrink-0 rounded-[var(--radius-control)] border px-3 text-sm font-black ${activeTab === key ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--text)]" : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)]"}`}>
             {text.tabs[index]}
           </button>
         ))}
@@ -875,7 +875,7 @@ export default function AttendanceCenter() {
                   key={value}
                   type="button"
                   onClick={() => setManualForm((prev) => ({ ...prev, editMode: value }))}
-                  className={`min-h-[var(--control-height-md)] rounded-lg px-2 text-xs font-black transition ${manualForm.editMode === value ? "bg-emerald-500 text-slate-950" : "text-[var(--muted)] hover:bg-[var(--card)]"}`}
+                  className={`min-h-[var(--control-height-md)] rounded-[var(--radius-control)] px-2 text-xs font-black transition ${manualForm.editMode === value ? "bg-emerald-500 text-slate-950" : "text-[var(--muted)] hover:bg-[var(--card)]"}`}
                 >
                   {label}
                 </button>
@@ -924,12 +924,12 @@ export default function AttendanceCenter() {
                   </Field>
                 </>
               ) : null}
-              <div className="md:col-span-2"><Field label={isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"}><textarea value={manualForm.reason} onChange={(event) => setManualForm((prev) => ({ ...prev, reason: event.target.value }))} required rows={3} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-500" placeholder={isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"} /></Field></div>
+              <div className="md:col-span-2"><Field label={isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"}><textarea value={manualForm.reason} onChange={(event) => setManualForm((prev) => ({ ...prev, reason: event.target.value }))} required rows={3} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-500" placeholder={isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"} /></Field></div>
             </div>
             {manualError ? <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm font-bold text-rose-300">{manualError}</div> : null}
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="h-[var(--control-height-lg)] rounded-lg border border-[var(--border)] px-5 text-sm font-black text-[var(--muted)]">{isArabic ? "إلغاء" : "Cancel"}</button>
-              <button type="submit" disabled={manualSaving} className="h-[var(--control-height-lg)] rounded-lg bg-emerald-500 px-6 text-sm font-black text-slate-950 disabled:opacity-60">{manualSaving ? (isArabic ? "جارٍ الحفظ..." : "Saving...") : (isArabic ? "حفظ التصحيح" : "Save correction")}</button>
+              <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] px-5 text-sm font-black text-[var(--muted)]">{isArabic ? "إلغاء" : "Cancel"}</button>
+              <button type="submit" disabled={manualSaving} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-emerald-500 px-6 text-sm font-black text-slate-950 disabled:opacity-60">{manualSaving ? (isArabic ? "جارٍ الحفظ..." : "Saving...") : (isArabic ? "حفظ التصحيح" : "Save correction")}</button>
             </div>
           </form>
         </div>
@@ -1160,10 +1160,10 @@ function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
               </div>
               {String(row.status || "pending").toLowerCase() === "pending" ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onUpdate(row, "approved")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg bg-emerald-500 px-3 text-xs font-black text-black">
+                  <button type="button" onClick={() => onUpdate(row, "approved")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-3 text-xs font-black text-black">
                     <CheckCircle2 className="h-4 w-4" />{isArabic ? "اعتماد" : "Approve"}
                   </button>
-                  <button type="button" onClick={() => onUpdate(row, "rejected")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg bg-rose-500 px-3 text-xs font-black text-white">
+                  <button type="button" onClick={() => onUpdate(row, "rejected")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-rose-500 px-3 text-xs font-black text-white">
                     <XCircle className="h-4 w-4" />{isArabic ? "رفض" : "Reject"}
                   </button>
                 </div>
@@ -1230,7 +1230,7 @@ function ReportsView({ payload, rows, text, onExport }) {
       <div className="theme-card p-5 xl:col-span-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="m1-section-title text-[var(--text)]">{text.tabs[9]}</h3><p className="mt-1 text-sm text-[var(--muted)]" dir="ltr">{payload?.generated_at || ""}</p></div>
-          <button type="button" onClick={() => onExport("attendance-report", rows)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><Download className="h-4 w-4" />{text.excel}</button>
+          <button type="button" onClick={() => onExport("attendance-report", rows)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><Download className="h-4 w-4" />{text.excel}</button>
         </div>
       </div>
     </section>
@@ -1258,7 +1258,7 @@ function DetailsDrawer({ row, text, onClose }) {
       <aside className="ms-auto h-full w-full max-w-xl overflow-auto bg-[var(--card)] p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4">
           <div><h3 className="m1-section-title text-[var(--text)]">{text.details}</h3><p className="mt-1 text-sm text-[var(--muted)]">{row.employee_name}</p></div>
-          <button type="button" onClick={onClose} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-black text-[var(--text)]">{text.close}</button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-sm font-black text-[var(--text)]">{text.close}</button>
         </div>
         <div className="mt-5 grid gap-3">
           {Object.entries(row).map(([key, value]) => (

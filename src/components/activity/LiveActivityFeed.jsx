@@ -44,7 +44,7 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({ initialEvents =
           <button
             type="button"
             onClick={() => setPaused(!paused)}
-            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.055] px-3 text-xs font-black text-zinc-100 transition hover:bg-white/[0.09]"
+            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/[0.08] bg-white/[0.055] px-3 text-xs font-black text-zinc-100 transition hover:bg-white/[0.09]"
           >
             {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
             {paused ? "Resume" : "Pause"}
@@ -52,7 +52,7 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({ initialEvents =
           <button
             type="button"
             onClick={clear}
-            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-rose-300/15 bg-rose-400/10 px-3 text-xs font-black text-rose-100 transition hover:bg-rose-400/15"
+            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-rose-300/15 bg-rose-400/10 px-3 text-xs font-black text-rose-100 transition hover:bg-rose-400/15"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Clear

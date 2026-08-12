@@ -748,7 +748,7 @@ export default function SharedPortalChat({
                     onClick={() => chooseEmployee(rowEmployeeId, employeeThread?.id || "")}
                     data-testid={`chat-thread-${employeeThread?.id || rowEmployeeId || "employee"}`}
                     className={[
-                      "mb-2 w-full rounded-xl border p-3 text-right transition",
+                      "mb-2 w-full rounded-[var(--radius-control)] border p-3 text-right transition",
                       active ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--primary)]",
                     ].join(" ")}
                   >
@@ -802,7 +802,7 @@ export default function SharedPortalChat({
                       <ArrowRight className="h-6 w-6" />
                     </button>
                   ) : null}
-                  <button type="button" onClick={() => setContactInfoOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-start hover:bg-white/5" aria-label="فتح معلومات الموظف">
+                  <button type="button" onClick={() => setContactInfoOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-control)] text-start hover:bg-white/5" aria-label="فتح معلومات الموظف">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
                       {selectedEmployeeRecord.photo_url ? (
                         <>
@@ -943,7 +943,7 @@ export default function SharedPortalChat({
             </label>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {forwardTargets.length ? forwardTargets.map(({ employee, thread: targetThread }) => (
-                <button key={targetThread.id} type="button" disabled={forwarding} onClick={() => forwardToThread(targetThread.id)} className="mb-2 flex w-full items-center gap-3 rounded-2xl bg-white/5 p-3 text-start transition hover:bg-white/10 disabled:opacity-50">
+                <button key={targetThread.id} type="button" disabled={forwarding} onClick={() => forwardToThread(targetThread.id)} className="mb-2 flex w-full items-center gap-3 rounded-[var(--radius-control)] bg-white/5 p-3 text-start transition hover:bg-white/10 disabled:opacity-50">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-300"><UserRound className="h-5 w-5" /></span>
                   <span className="min-w-0 flex-1"><span className="block truncate font-black" dir="auto">{employee?.full_name || employee?.employee_name || targetThread.employee_name || "موظف"}</span><span className="mt-1 block truncate text-xs text-slate-400">{employee?.branch_name || targetThread.branch_name || "بدون فرع"}</span></span>
                   {forwarding ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

@@ -98,7 +98,7 @@ export default function ProductMatrix({ matrix, showProfit, onSelectProduct }) {
                       <button
                         type="button"
                         onClick={() => onSelectProduct?.(point)}
-                        className="w-full rounded-lg border border-transparent bg-[var(--card)] px-3 py-2.5 text-start transition hover:border-[var(--border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                        className="w-full rounded-[var(--radius-control)] border border-transparent bg-[var(--card)] px-3 py-2.5 text-start transition hover:border-[var(--border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                       >
                         <span className="block truncate text-[14px] font-semibold text-[var(--text)] 2xl:text-[15px]" title={point.productName}>
                           {point.productName}

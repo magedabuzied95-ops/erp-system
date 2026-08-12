@@ -76,10 +76,10 @@ export default function AiStudioApprovals() {
                 </div>
                 {a.status === "pending" ? (
                   <div className="flex shrink-0 gap-2">
-                    <button type="button" onClick={() => decide(a.id, "approve", "Approve")} disabled={busy === `approve-${a.id}`} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-3 text-[12px] font-black text-emerald-100 hover:bg-emerald-400/20 disabled:opacity-50">
+                    <button type="button" onClick={() => decide(a.id, "approve", "Approve")} disabled={busy === `approve-${a.id}`} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-emerald-300/30 bg-emerald-400/10 px-3 text-[12px] font-black text-emerald-100 hover:bg-emerald-400/20 disabled:opacity-50">
                       {busy === `approve-${a.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}Approve
                     </button>
-                    <button type="button" onClick={() => decide(a.id, "reject", "Reject")} disabled={busy === `reject-${a.id}`} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-lg border border-rose-300/30 bg-rose-400/10 px-3 text-[12px] font-black text-rose-100 hover:bg-rose-400/20 disabled:opacity-50">
+                    <button type="button" onClick={() => decide(a.id, "reject", "Reject")} disabled={busy === `reject-${a.id}`} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-rose-300/30 bg-rose-400/10 px-3 text-[12px] font-black text-rose-100 hover:bg-rose-400/20 disabled:opacity-50">
                       {busy === `reject-${a.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}Reject
                     </button>
                   </div>

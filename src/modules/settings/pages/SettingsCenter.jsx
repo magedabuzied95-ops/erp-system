@@ -429,7 +429,7 @@ class SettingsCenterErrorBoundary extends Component {
         <div className="mx-auto max-w-xl rounded-3xl border border-rose-400/20 bg-rose-500/10 p-6">
           <h1 className="m1-page-title">Settings Center error</h1>
           <p className="mt-2 text-sm text-rose-100">{this.state.error?.message || "Unable to render settings."}</p>
-          <button type="button" onClick={() => this.setState({ error: null })} className="mt-5 rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950">Retry</button>
+          <button type="button" onClick={() => this.setState({ error: null })} className="mt-5 rounded-[var(--radius-control)] bg-white px-4 py-2 text-sm font-black text-slate-950">Retry</button>
         </div>
       </div>
     );
@@ -1051,13 +1051,13 @@ function SettingsCenterContent({ debugMode = false }) {
                   value={search}
                   onChange={(event) => updateSettingsSearch(event.target.value)}
                   placeholder={ui.search}
-                  className="h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-white pe-3 ps-10 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
+                  className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-white pe-3 ps-10 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
                 />
               </label>
               {shouldShowPreviewPanel ? (
-                <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
+                <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
               ) : null}
-              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-white">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
+              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-white">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
             </div>
           </div>
         </header>
@@ -1069,7 +1069,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 const Icon = iconMap[category.key] || Settings2;
                 const active = category.key === activeCategory;
                 return (
-                  <button key={category.key} type="button" onClick={() => switchCategory(category.key)} className={`group flex items-center gap-3 rounded-2xl border p-3 text-start transition ${active ? "border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10 dark:border-blue-400/35 dark:bg-gradient-to-br dark:from-blue-500/22 dark:to-violet-500/20 dark:text-white dark:shadow-[0_18px_44px_rgba(59,130,246,0.16)]" : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:border-white/10 dark:hover:bg-white/5"}`}>
+                  <button key={category.key} type="button" onClick={() => switchCategory(category.key)} className={`group flex items-center gap-3 rounded-[var(--radius-control)] border p-3 text-start transition ${active ? "border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10 dark:border-blue-400/35 dark:bg-gradient-to-br dark:from-blue-500/22 dark:to-violet-500/20 dark:text-white dark:shadow-[0_18px_44px_rgba(59,130,246,0.16)]" : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:border-white/10 dark:hover:bg-white/5"}`}>
                     <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl transition ${active ? "bg-white text-slate-950 dark:bg-white/12 dark:text-white" : "bg-slate-100 text-slate-500 group-hover:bg-white dark:bg-slate-900 dark:text-slate-400 dark:group-hover:bg-white/10 dark:group-hover:text-slate-200"}`}><Icon className="h-5 w-5" /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-black">{localized(category.label, language)}</span>
@@ -1095,7 +1095,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 {quickActions.length ? (
                   <div className="flex flex-wrap gap-2">
                     {quickActions.map(([label, Icon, action]) => (
-                      <button key={label} type="button" onClick={action} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
+                      <button key={label} type="button" onClick={action} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
                         <Icon className="h-4 w-4" />
                         {label}
                       </button>
@@ -1174,7 +1174,7 @@ function SettingsCenterContent({ debugMode = false }) {
                         <button
                           type="button"
                           onClick={resetBarcodePrintDefaults}
-                          className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                          className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                         >
                           <RefreshCw className="h-4 w-4" />
                           {language === "ar" ? "إعادة الافتراضي" : "Reset defaults"}
@@ -1195,7 +1195,7 @@ function SettingsCenterContent({ debugMode = false }) {
                         type="button"
                         onClick={saveSocialAutomationSettings}
                         disabled={socialAutomationLoading || socialAutomationSaving || !socialAutomationDirty}
-                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
+                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
                       >
                         {socialAutomationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                         {ui.socialAutomationSave}
@@ -1214,7 +1214,7 @@ function SettingsCenterContent({ debugMode = false }) {
                       <button
                         type="button"
                         onClick={() => updateSocialAutomationValue("auto_like_enabled", !socialAutomationSettings.auto_like_enabled)}
-                        className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${socialAutomationSettings.auto_like_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
+                        className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_like_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
                       >
                         <span className="text-sm font-black text-white">تفعيل لايك تلقائي</span>
                         <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_like_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
@@ -1224,7 +1224,7 @@ function SettingsCenterContent({ debugMode = false }) {
                       <button
                         type="button"
                         onClick={() => updateSocialAutomationValue("auto_public_reply_enabled", !socialAutomationSettings.auto_public_reply_enabled)}
-                        className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${socialAutomationSettings.auto_public_reply_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
+                        className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_public_reply_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
                       >
                         <span className="text-sm font-black text-white">تفعيل رد عام تلقائي</span>
                         <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_public_reply_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
@@ -1234,7 +1234,7 @@ function SettingsCenterContent({ debugMode = false }) {
                       <button
                         type="button"
                         onClick={() => updateSocialAutomationValue("auto_private_message_enabled", !socialAutomationSettings.auto_private_message_enabled)}
-                        className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${socialAutomationSettings.auto_private_message_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
+                        className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_private_message_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
                       >
                         <span className="text-sm font-black text-white">تفعيل رسالة خاصة تلقائية</span>
                         <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_private_message_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
@@ -1256,7 +1256,7 @@ function SettingsCenterContent({ debugMode = false }) {
                       <button
                         type="button"
                         onClick={() => updateSocialAutomationValue("public_reply_rotation_enabled", !socialAutomationSettings.public_reply_rotation_enabled)}
-                        className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${socialAutomationSettings.public_reply_rotation_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
+                        className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.public_reply_rotation_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
                       >
                         <span>
                           <span className="block text-sm font-black text-white">تدوير بدايات الرد تلقائيًا</span>
@@ -1328,8 +1328,8 @@ function SettingsCenterContent({ debugMode = false }) {
           <div className="mx-auto flex max-w-[96rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyCount} {ui.unsaved}</div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
-              <button type="button" onClick={discard} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Undo2 className="h-4 w-4" />{ui.discard}</button>
-              <button type="button" onClick={save} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
+              <button type="button" onClick={discard} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Undo2 className="h-4 w-4" />{ui.discard}</button>
+              <button type="button" onClick={save} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
             </div>
           </div>
         </div>
@@ -1383,7 +1383,7 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
           <button
             type="button"
             onClick={() => onChange("")}
-            className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-rose-400/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
+            className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-rose-400/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
           >
             <X className="h-3.5 w-3.5" />
             {clearLabel}
@@ -1408,7 +1408,7 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
             value={safeValue}
             onChange={(event) => onChange(event.target.value)}
             placeholder="https://..."
-            className="h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
+            className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
           />
           <div className="flex flex-wrap items-center gap-2">
             <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
@@ -1437,7 +1437,7 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
           type="button"
           onClick={onSave}
           disabled={!dirty || saving || loading}
-          className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
+          className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {saving ? ui.saving : ui.save}
@@ -1461,7 +1461,7 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
                 value={companyName}
                 onChange={(event) => onChange("company_name", event.target.value)}
                 placeholder="MONE"
-                className="h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
+                className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
               />
             </label>
             <div className="grid gap-4 md:grid-cols-2">
@@ -1608,7 +1608,7 @@ function StorefrontSettings(props) {
               <PremiumInput label="رقم المحفظة" value={value("storefront.payment_methods.vodafone_cash_number")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_number", next)} />
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
                 <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
-                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
+                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
               </label>
               <VisualUpload title="رابط الشعار" value={value("storefront.payment_methods.vodafone_cash_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
             </div>
@@ -1647,7 +1647,7 @@ function StorefrontSettings(props) {
                   value={String(value("storefront.payment_methods.instapay.payment_url") || "").trim()}
                   onChange={(event) => updateValue("storefront.payment_methods.instapay.payment_url", event.target.value)}
                   placeholder="https://ipn.eg/S/yourname/instapay/xxxxx"
-                  className="h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
+                  className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
                 />
                 <div className={`mt-2 text-xs font-medium ${isHttpOrHttpsUrl(String(value("storefront.payment_methods.instapay.payment_url") || "").trim()) || !String(value("storefront.payment_methods.instapay.payment_url") || "").trim() ? bodyText : "text-rose-600 dark:text-rose-300"}`}>
                   {isHttpOrHttpsUrl(String(value("storefront.payment_methods.instapay.payment_url") || "").trim()) || !String(value("storefront.payment_methods.instapay.payment_url") || "").trim()
@@ -1669,7 +1669,7 @@ function StorefrontSettings(props) {
               <PremiumInput label="اسم طريقة الدفع" value={value("storefront.payment_methods.instapay_display_name")} onChange={(next) => updateValue("storefront.payment_methods.instapay_display_name", next)} />
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
                 <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
-                <textarea rows={3} value={value("storefront.payment_methods.instapay_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.instapay_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
+                <textarea rows={3} value={value("storefront.payment_methods.instapay_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.instapay_helper_text", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
               </label>
               <VisualUpload title="رابط الشعار" value={value("storefront.payment_methods.instapay_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.instapay_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
             </div>
@@ -1686,11 +1686,11 @@ function StorefrontSettings(props) {
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
                 <span className={`mb-2 block text-sm font-black ${headingText}`}>نص الرسوم</span>
-                <input value={value("storefront.payment_methods.shipping_confirmation_label")} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_label", event.target.value)} className="h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
+                <input value={value("storefront.payment_methods.shipping_confirmation_label")} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_label", event.target.value)} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
                 <span className={`mb-2 block text-sm font-black ${headingText}`}>قيمة الرسوم</span>
-                <input type="number" min="0" value={Number(value("storefront.payment_methods.shipping_confirmation_amount") || 0)} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_amount", Number(event.target.value))} className="h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
+                <input type="number" min="0" value={Number(value("storefront.payment_methods.shipping_confirmation_amount") || 0)} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_amount", Number(event.target.value))} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
             </div>
           </article>
@@ -1750,7 +1750,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
             key={id}
             type="button"
             onClick={() => setActiveTab(id)}
-            className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-black transition ${activeTab === id ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
+            className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] px-4 text-sm font-black transition ${activeTab === id ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
           >
             <Icon className="h-4 w-4" />
             {label}
@@ -1792,7 +1792,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
                   inputMode="numeric"
                   value={handlingMinDays}
                   onChange={(event) => updateValue(SHIPPING_HANDLING_MIN_KEY, event.target.value)}
-                  className={`${inputClass} h-[var(--control-height-lg)] rounded-2xl text-center text-base font-black`}
+                  className={`${inputClass} h-[var(--control-height-lg)] rounded-[var(--radius-control)] text-center text-base font-black`}
                 />
               </label>
               <label className={`grid gap-2 rounded-2xl p-4 ${fieldSurface}`}>
@@ -1807,7 +1807,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
                   inputMode="numeric"
                   value={handlingMaxDays}
                   onChange={(event) => updateValue(SHIPPING_HANDLING_MAX_KEY, event.target.value)}
-                  className={`${inputClass} h-[var(--control-height-lg)] rounded-2xl text-center text-base font-black`}
+                  className={`${inputClass} h-[var(--control-height-lg)] rounded-[var(--radius-control)] text-center text-base font-black`}
                 />
               </label>
             </div>
@@ -2027,7 +2027,7 @@ function BostaIntegrationPanel({ copy }) {
                 <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>API key</span>
                 <input type="password" value={settings.api_key} onChange={(event) => setSettings((current) => ({ ...current, api_key: event.target.value }))} className={inputClass} placeholder="Bosta API key" />
               </label>
-              <button type="button" disabled={loading} onClick={save} className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-60 dark:bg-white dark:text-slate-950">
+              <button type="button" disabled={loading} onClick={save} className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-60 dark:bg-white dark:text-slate-950">
                 <Save className="h-4 w-4" />
                 {copy.saveBosta || "Save settings"}
               </button>
@@ -2044,7 +2044,7 @@ function BostaIntegrationPanel({ copy }) {
             </div>
             {settings.last_locations_sync_at ? <p className={`mt-3 text-xs font-bold ${mutedText}`}>Last sync: {new Date(settings.last_locations_sync_at).toLocaleString()}</p> : null}
             {syncState.error ? <p className="mt-3 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-200">{syncState.error}</p> : null}
-            <button type="button" disabled={syncState.loading} onClick={sync} className="mt-4 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white">
+            <button type="button" disabled={syncState.loading} onClick={sync} className="mt-4 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white">
               {syncState.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {copy.syncNow || "Sync now"}
             </button>
@@ -2174,7 +2174,7 @@ function ShippingQuickSetup({ zones, defaultPrice, copy, onChange }) {
             <input type="number" min="0" value={prices[key]} onChange={(event) => updatePrice(key, event.target.value)} className={inputClass} />
           </label>
         ))}
-        <button type="button" onClick={applyTemplate} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+        <button type="button" onClick={applyTemplate} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white dark:bg-white dark:text-slate-950">
           <Check className="h-4 w-4" />
           {copy.applyTemplate}
         </button>
@@ -2194,7 +2194,7 @@ function ShippingTemplates({ zones, defaultPrice, copy, onChange }) {
     <VisualSection icon={Package} title={copy.templatesTitle} description={copy.templatesDescription}>
       <div className="grid gap-3 lg:grid-cols-4">
         {templates.map(([id, title, description, build]) => (
-          <button key={id} type="button" onClick={() => { onChange(build()); toast.success(copy.templateApplied); }} className={`min-h-36 rounded-2xl p-4 text-start transition hover:-translate-y-0.5 hover:border-slate-300 ${fieldSurface}`}>
+          <button key={id} type="button" onClick={() => { onChange(build()); toast.success(copy.templateApplied); }} className={`min-h-36 rounded-[var(--radius-control)] p-4 text-start transition hover:-translate-y-0.5 hover:border-slate-300 ${fieldSurface}`}>
             <span className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><Truck className="h-5 w-5" /></span>
             <h3 className={`m1-section-title mt-3 ${headingText}`}>{title}</h3>
             <p className={`mt-2 text-xs leading-5 ${bodyText}`}>{description}</p>
@@ -2286,7 +2286,7 @@ function ZonePolicyList({ zones, allZones, mode, empty, onChange }) {
             <div className={`truncate text-sm font-black ${headingText}`}>{zoneLabel(zone)}</div>
             <div className={`mt-1 text-xs ${bodyText}`}>{mode === "cod" ? `COD ${zone.cod_allowed ? "enabled" : "disabled"} / min ${Number(zone.minimum_order_for_cod || 0).toLocaleString()} EGP` : `Free over ${Number(zone.free_shipping_threshold || 0).toLocaleString()} EGP`}</div>
           </div>
-          <input type="number" min="0" value={mode === "cod" ? zone.minimum_order_for_cod : zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { [mode === "cod" ? "minimum_order_for_cod" : "free_shipping_threshold"]: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} />
+          <input type="number" min="0" value={mode === "cod" ? zone.minimum_order_for_cod : zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { [mode === "cod" ? "minimum_order_for_cod" : "free_shipping_threshold"]: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} />
         </div>
       ))}
     </div>
@@ -2917,8 +2917,8 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
             {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
           <div className="flex flex-wrap gap-2 xl:justify-end">
-            <button type="button" onClick={importEgypt} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950"><MapPin className="h-4 w-4" />Import Egypt locations</button>
-            <button type="button" onClick={exportLocations} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"><Download className="h-4 w-4" />Export</button>
+            <button type="button" onClick={importEgypt} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950"><MapPin className="h-4 w-4" />Import Egypt locations</button>
+            <button type="button" onClick={exportLocations} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"><Download className="h-4 w-4" />Export</button>
             <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">
               <Upload className="h-4 w-4" />Import Bosta locations CSV
               <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importLocations(event.target.files?.[0])} />
@@ -2936,7 +2936,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
             {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
         </div>
-        <button type="button" onClick={addLocation} className="mt-3 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-black text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />Add location</button>
+        <button type="button" onClick={addLocation} className="mt-3 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />Add location</button>
       </div>
 
       <div className="overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
@@ -2947,18 +2947,18 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
           <tbody>
             {visible.map((location) => (
               <tr key={location.id} className="border-b border-slate-100 dark:border-white/10">
-                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.governorate_name_en} onChange={(event) => patchLocation(location.id, { governorate_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`} /><input value={location.governorate_name_ar} onChange={(event) => patchLocation(location.id, { governorate_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-xl text-xs`} /></td>
-                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.city_name_en} onChange={(event) => patchLocation(location.id, { city_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`} /><input value={location.city_name_ar} onChange={(event) => patchLocation(location.id, { city_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-xl text-xs`} /></td>
-                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.district_name_en} onChange={(event) => patchLocation(location.id, { district_name_en: event.target.value, area_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`} /><input value={location.district_name_ar} onChange={(event) => patchLocation(location.id, { district_name_ar: event.target.value, area_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-xl text-xs`} /></td>
-                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.zone_name_en} onChange={(event) => patchLocation(location.id, { zone_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`} /><input value={location.zone_name_ar} onChange={(event) => patchLocation(location.id, { zone_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-xl text-xs`} /></td>
-                <td className="border-b border-slate-100 p-2 dark:border-white/10"><select value={location.provider} onChange={(event) => patchLocation(location.id, { provider: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`}>{shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.governorate_name_en} onChange={(event) => patchLocation(location.id, { governorate_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /><input value={location.governorate_name_ar} onChange={(event) => patchLocation(location.id, { governorate_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.city_name_en} onChange={(event) => patchLocation(location.id, { city_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /><input value={location.city_name_ar} onChange={(event) => patchLocation(location.id, { city_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.district_name_en} onChange={(event) => patchLocation(location.id, { district_name_en: event.target.value, area_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /><input value={location.district_name_ar} onChange={(event) => patchLocation(location.id, { district_name_ar: event.target.value, area_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.zone_name_en} onChange={(event) => patchLocation(location.id, { zone_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /><input value={location.zone_name_ar} onChange={(event) => patchLocation(location.id, { zone_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><select value={location.provider} onChange={(event) => patchLocation(location.id, { provider: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`}>{shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></td>
                 <td className="border-b border-slate-100 p-2 dark:border-white/10">
-                  <input value={location.provider_city_id} onChange={(event) => patchLocation(location.id, { provider_city_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`} placeholder="provider city id" />
-                  <input value={location.provider_district_id} onChange={(event) => patchLocation(location.id, { provider_district_id: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-xl text-xs`} placeholder="provider district id" />
-                  <input value={location.provider_zone_id} onChange={(event) => patchLocation(location.id, { provider_zone_id: event.target.value, provider_location_code: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-xl text-xs`} placeholder="provider zone id" />
+                  <input value={location.provider_city_id} onChange={(event) => patchLocation(location.id, { provider_city_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider city id" />
+                  <input value={location.provider_district_id} onChange={(event) => patchLocation(location.id, { provider_district_id: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider district id" />
+                  <input value={location.provider_zone_id} onChange={(event) => patchLocation(location.id, { provider_zone_id: event.target.value, provider_location_code: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider zone id" />
                 </td>
                 <td className="border-b border-slate-100 p-2 dark:border-white/10"><TogglePill compact label="Active" checked={location.active} onChange={(active) => patchLocation(location.id, { active })} /></td>
-                <td className="border-b border-slate-100 p-2 text-end dark:border-white/10"><button type="button" onClick={() => deleteLocation(location.id)} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200"><Trash2 className="h-4 w-4" /></button></td>
+                <td className="border-b border-slate-100 p-2 text-end dark:border-white/10"><button type="button" onClick={() => deleteLocation(location.id)} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-[var(--radius-control)] border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200"><Trash2 className="h-4 w-4" /></button></td>
               </tr>
             ))}
           </tbody>
@@ -3281,14 +3281,14 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
             {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
           <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
-            <button type="button" onClick={addAllGovernorates} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"><Plus className="h-4 w-4" />{copy.allGovernorates}</button>
-            <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]"><Download className="h-3.5 w-3.5" />{copy.export}</button>
+            <button type="button" onClick={addAllGovernorates} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"><Plus className="h-4 w-4" />{copy.allGovernorates}</button>
+            <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]"><Download className="h-3.5 w-3.5" />{copy.export}</button>
             <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]">
               <Upload className="h-3.5 w-3.5" />
               {copy.import}
               <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
             </label>
-            <button type="button" onClick={toggleFullScreen} className="hidden h-[var(--control-height-md)] w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08] md:grid" aria-label={copy.fullScreen} title={`${copy.fullScreen} (${copy.shortcutHint})`}><Maximize2 className="h-4 w-4" /></button>
+            <button type="button" onClick={toggleFullScreen} className="hidden h-[var(--control-height-md)] w-9 place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08] md:grid" aria-label={copy.fullScreen} title={`${copy.fullScreen} (${copy.shortcutHint})`}><Maximize2 className="h-4 w-4" /></button>
           </div>
         </div>
       </div>
@@ -3317,9 +3317,9 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
           </select>
           <input type="number" min="0" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} placeholder="Price" className={inputClass} />
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => addRow("governorate")} className="h-[var(--control-height-lg)] rounded-xl bg-slate-950 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">{copy.addZone}</button>
-            <button type="button" onClick={() => addRow("city")} className="h-[var(--control-height-lg)] rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createCity}</button>
-            <button type="button" onClick={() => addRow("area")} className="h-[var(--control-height-lg)] rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createArea}</button>
+            <button type="button" onClick={() => addRow("governorate")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">{copy.addZone}</button>
+            <button type="button" onClick={() => addRow("city")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createCity}</button>
+            <button type="button" onClick={() => addRow("area")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createArea}</button>
           </div>
         </div>
       </div>
@@ -3330,22 +3330,22 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
             <SlidersHorizontal className="h-4 w-4" />
             {copy.bulk}: {selectedCount} {copy.selected}
           </div>
-          <button type="button" onClick={deleteSelected} disabled={!selectedCount} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-600 transition hover:bg-rose-50 disabled:opacity-40 dark:border-rose-400/25 dark:bg-white/[0.04] dark:text-rose-200 dark:hover:bg-rose-500/10"><Trash2 className="h-4 w-4" />{copy.deleteSelected}</button>
+          <button type="button" onClick={deleteSelected} disabled={!selectedCount} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-rose-200 bg-white px-3 text-xs font-black text-rose-600 transition hover:bg-rose-50 disabled:opacity-40 dark:border-rose-400/25 dark:bg-white/[0.04] dark:text-rose-200 dark:hover:bg-rose-500/10"><Trash2 className="h-4 w-4" />{copy.deleteSelected}</button>
         </div>
         <div className="grid gap-3 xl:grid-cols-[minmax(14rem,0.8fr)_minmax(18rem,1.1fr)_auto]">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder={copy.bulkPrice} className={inputClass} />
-            <button type="button" onClick={applyBulkPrice} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkPrice}</button>
+            <button type="button" onClick={applyBulkPrice} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkPrice}</button>
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <input value={bulkEstimate} onChange={(event) => setBulkEstimate(event.target.value)} placeholder={copy.bulkEstimate} className={inputClass} />
-            <button type="button" onClick={applyBulkEstimate} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkEstimate}</button>
+            <button type="button" onClick={applyBulkEstimate} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkEstimate}</button>
           </div>
           <div className="flex flex-wrap gap-2 xl:justify-end">
-            <button type="button" onClick={() => applyToSelected({ cod_allowed: true })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.enableCod}</button>
-            <button type="button" onClick={() => applyToSelected({ cod_allowed: false })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.disableCod}</button>
-            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: true })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.requireProof}</button>
-            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: false })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.skipProof}</button>
+            <button type="button" onClick={() => applyToSelected({ cod_allowed: true })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.enableCod}</button>
+            <button type="button" onClick={() => applyToSelected({ cod_allowed: false })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.disableCod}</button>
+            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: true })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.requireProof}</button>
+            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: false })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.skipProof}</button>
           </div>
         </div>
       </div>
@@ -3361,7 +3361,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
               <input type="checkbox" className="h-4 w-4" checked={visibleZones.length > 0 && visibleZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => toggleVisibleSelection(event.target.checked)} />
               Select visible
             </label>
-            <button type="button" onClick={toggleFullScreen} className="hidden h-[var(--control-height-md)] w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.08] md:grid" aria-label={copy.fullScreen} title={`${copy.fullScreen} (${copy.shortcutHint})`}><Maximize2 className="h-4 w-4" /></button>
+            <button type="button" onClick={toggleFullScreen} className="hidden h-[var(--control-height-md)] w-9 place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.08] md:grid" aria-label={copy.fullScreen} title={`${copy.fullScreen} (${copy.shortcutHint})`}><Maximize2 className="h-4 w-4" /></button>
           </div>
         </div>
         {renderZonesTable()}
@@ -3381,21 +3381,21 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
               <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-slate-900 p-1 ring-1 ring-white/10">
                 <span className="px-2 text-[11px] font-black uppercase text-slate-400">{copy.density}</span>
                 {densityOptions.map(([id, label]) => (
-                  <button key={id} type="button" onClick={() => setDensity(id)} className={`h-[var(--control-height-sm)] rounded-lg px-2.5 text-[11px] font-black transition ${density === id ? "bg-white text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>{label}</button>
+                  <button key={id} type="button" onClick={() => setDensity(id)} className={`h-[var(--control-height-sm)] rounded-[var(--radius-control)] px-2.5 text-[11px] font-black transition ${density === id ? "bg-white text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>{label}</button>
                 ))}
               </div>
               <label className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200">
                 <input type="checkbox" className="h-4 w-4" checked={freezeColumns} onChange={(event) => setFreezeColumns(event.target.checked)} />
                 {copy.freezeColumns}
               </label>
-              <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10"><Download className="h-3.5 w-3.5" />{copy.export}</button>
+              <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10"><Download className="h-3.5 w-3.5" />{copy.export}</button>
               <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10">
                 <Upload className="h-3.5 w-3.5" />
                 {copy.import}
                 <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
               </label>
-              <button type="button" onClick={() => addRow("governorate")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 transition hover:bg-emerald-300"><Plus className="h-3.5 w-3.5" />Add Rule</button>
-              <button type="button" onClick={toggleFullScreen} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border border-white/10 bg-white px-3 text-xs font-black text-slate-950 transition hover:bg-slate-200"><Minimize2 className="h-3.5 w-3.5" />{copy.exitFullScreen}</button>
+              <button type="button" onClick={() => addRow("governorate")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 text-xs font-black text-slate-950 transition hover:bg-emerald-300"><Plus className="h-3.5 w-3.5" />Add Rule</button>
+              <button type="button" onClick={toggleFullScreen} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white px-3 text-xs font-black text-slate-950 transition hover:bg-slate-200"><Minimize2 className="h-3.5 w-3.5" />{copy.exitFullScreen}</button>
             </div>
           </div>
           <div className="min-h-0 flex-1">
@@ -3428,7 +3428,7 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
     )
   );
   const providerSelect = (
-    <select value={provider} onChange={(event) => onPatch({ provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}>
+    <select value={provider} onChange={(event) => onPatch({ provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} ${inputHeight} rounded-[var(--radius-control)] ${inputText}`}>
       {shippingProviderOptions.map((providerOption) => (
         <option key={providerOption.id} value={providerOption.id}>{providerOption.label}</option>
       ))}
@@ -3528,10 +3528,10 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} placeholder="Free over" />
-        <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} placeholder="Min COD" />
-        <input type="number" min="0" value={zone.delivery_min_days} onChange={(event) => onPatch({ delivery_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} placeholder="Delivery min days" />
-        <input type="number" min="0" value={zone.delivery_max_days} onChange={(event) => onPatch({ delivery_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} placeholder="Delivery max days" />
+        <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Free over" />
+        <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Min COD" />
+        <input type="number" min="0" value={zone.delivery_min_days} onChange={(event) => onPatch({ delivery_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Delivery min days" />
+        <input type="number" min="0" value={zone.delivery_max_days} onChange={(event) => onPatch({ delivery_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Delivery max days" />
         <label className={`sm:col-span-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black dark:border-white/10 ${bodyText}`}>
           <span>{language === "ar" ? "استخدام مدة تجهيز خاصة لهذه المنطقة" : "Use a custom handling time for this zone"}</span>
           <input
@@ -3543,21 +3543,21 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         </label>
         {zone.handling_time_override_enabled ? (
           <>
-            <input type="number" min="0" step="1" value={zone.handling_min_days} onChange={(event) => onPatch({ handling_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} placeholder={language === "ar" ? "أقل مدة تجهيز" : "Handling min days"} />
-            <input type="number" min="0" step="1" value={zone.handling_max_days} onChange={(event) => onPatch({ handling_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} placeholder={language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"} />
+            <input type="number" min="0" step="1" value={zone.handling_min_days} onChange={(event) => onPatch({ handling_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={language === "ar" ? "أقل مدة تجهيز" : "Handling min days"} />
+            <input type="number" min="0" step="1" value={zone.handling_max_days} onChange={(event) => onPatch({ handling_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"} />
           </>
         ) : null}
-        <input type="number" min="0" value={zone.transit_min_days} onChange={(event) => onPatch({ transit_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} placeholder="Transit min days" />
-        <input type="number" min="0" value={zone.transit_max_days} onChange={(event) => onPatch({ transit_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-center`} placeholder="Transit max days" />
+        <input type="number" min="0" value={zone.transit_min_days} onChange={(event) => onPatch({ transit_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Transit min days" />
+        <input type="number" min="0" value={zone.transit_max_days} onChange={(event) => onPatch({ transit_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Transit max days" />
         <input type="hidden" value={zone.provider_city_id || ""} readOnly />
         <input type="hidden" value={zone.provider_district_id || ""} readOnly />
         <input type="hidden" value={zone.provider_zone_id || ""} readOnly />
         <details className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
           <summary className={`cursor-pointer text-xs font-black uppercase ${mutedText}`}>Provider mapping IDs</summary>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <input value={zone.provider_city_id || ""} onChange={(event) => onPatch({ provider_city_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`} placeholder="provider_city_id" />
-            <input value={zone.provider_district_id || ""} onChange={(event) => onPatch({ provider_district_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`} placeholder="provider_district_id" />
-            <input value={zone.provider_zone_id || ""} onChange={(event) => onPatch({ provider_zone_id: event.target.value, provider_location_code: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-xl text-xs`} placeholder="provider_zone_id" />
+            <input value={zone.provider_city_id || ""} onChange={(event) => onPatch({ provider_city_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider_city_id" />
+            <input value={zone.provider_district_id || ""} onChange={(event) => onPatch({ provider_district_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider_district_id" />
+            <input value={zone.provider_zone_id || ""} onChange={(event) => onPatch({ provider_zone_id: event.target.value, provider_location_code: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider_zone_id" />
           </div>
         </details>
       </div>
@@ -3570,31 +3570,31 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         <td className={`${cellPadding} ${stickyCell} left-0 border-b border-slate-100 bg-inherit dark:border-white/10`}>
           <input type="checkbox" className="h-4 w-4" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
         </td>
-        <td className={`${cellPadding} ${stickyCell} left-10 w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><select value={zone.governorate_id || ""} onChange={(event) => applyLocationPatch("governorate", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}><option value="">{zone.governorate || "Governorate"}</option>{governorateLocations.map((location) => <option key={location.governorate_id} value={location.governorate_id}>{locationName(location, language, "governorate")}</option>)}</select></td>
-        <td className={`${cellPadding} ${stickyCell} left-[11.5rem] w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><select value={zone.city_id || ""} onChange={(event) => applyLocationPatch("city", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}><option value="">{zone.city || "City / Markaz"}</option>{cityLocations.map((location) => <option key={location.city_id} value={location.city_id}>{locationName(location, language, "city")}</option>)}</select></td>
+        <td className={`${cellPadding} ${stickyCell} left-10 w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><select value={zone.governorate_id || ""} onChange={(event) => applyLocationPatch("governorate", event.target.value)} className={`${inputClass} ${inputHeight} rounded-[var(--radius-control)] ${inputText}`}><option value="">{zone.governorate || "Governorate"}</option>{governorateLocations.map((location) => <option key={location.governorate_id} value={location.governorate_id}>{locationName(location, language, "governorate")}</option>)}</select></td>
+        <td className={`${cellPadding} ${stickyCell} left-[11.5rem] w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><select value={zone.city_id || ""} onChange={(event) => applyLocationPatch("city", event.target.value)} className={`${inputClass} ${inputHeight} rounded-[var(--radius-control)] ${inputText}`}><option value="">{zone.city || "City / Markaz"}</option>{cityLocations.map((location) => <option key={location.city_id} value={location.city_id}>{locationName(location, language, "city")}</option>)}</select></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>
           <div className="grid gap-1">
-            <select value={zone.district_id || ""} onChange={(event) => applyLocationPatch("district", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}>
+            <select value={zone.district_id || ""} onChange={(event) => applyLocationPatch("district", event.target.value)} className={`${inputClass} ${inputHeight} rounded-[var(--radius-control)] ${inputText}`}>
               <option value="">{zone.district || zone.area || "District"}</option>
               {districtLocations.map((location) => <option key={location.district_id} value={location.district_id}>{locationName(location, language, "district")}</option>)}
             </select>
-            <select value={zone.zone_id || ""} onChange={(event) => applyLocationPatch("area", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}>
+            <select value={zone.zone_id || ""} onChange={(event) => applyLocationPatch("area", event.target.value)} className={`${inputClass} ${inputHeight} rounded-[var(--radius-control)] ${inputText}`}>
               <option value="">{zone.zone || zone.area || "Zone"}</option>
               {zoneLocations.map((location) => <option key={location.zone_id} value={location.zone_id}>{locationName(location, language, "zone")}</option>)}
             </select>
           </div>
         </td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>{providerSelect}</td>
-        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} ${inputHeight} w-20 rounded-xl text-center ${inputText}`} /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} ${inputHeight} w-20 rounded-[var(--radius-control)] text-center ${inputText}`} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="COD" checked={Boolean(zone.cod_allowed)} onChange={(checked) => onPatch({ cod_allowed: checked })} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="Proof" checked={Boolean(zone.requires_shipping_proof)} onChange={(checked) => onPatch({ requires_shipping_proof: checked })} /></td>
-        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} ${inputHeight} min-w-36 rounded-xl ${inputText}`} placeholder="ETA" /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} ${inputHeight} min-w-36 rounded-[var(--radius-control)] ${inputText}`} placeholder="ETA" /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="Active" checked={Boolean(zone.active)} onChange={(checked) => onPatch({ active: checked })} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>
           <div className="flex justify-end gap-1">
-            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label="Edit rule"><Settings2 className="h-4 w-4" /></button>
-            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label="Expand rule">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>
-            <button type="button" onClick={onDelete} className={`grid ${inputHeight} aspect-square place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10`} aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label="Edit rule"><Settings2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label="Expand rule">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>
+            <button type="button" onClick={onDelete} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10`} aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
           </div>
         </td>
       </tr>
@@ -3657,7 +3657,7 @@ function VisualUpload({ title, value, onChange, helper, placeholder, clearLabel,
           <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{helper}</p>
         </div>
         {hasValue ? (
-          <button type="button" onClick={() => onChange("")} className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-rose-400/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200">
+          <button type="button" onClick={() => onChange("")} className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-rose-400/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200">
             <X className="h-3.5 w-3.5" />
             {clearLabel}
           </button>
@@ -3677,7 +3677,7 @@ function VisualUpload({ title, value, onChange, helper, placeholder, clearLabel,
           )}
         </div>
         <div className="min-w-0">
-          <input value={value || ""} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
+          <input value={value || ""} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
           <div className={`mt-2 truncate text-xs font-medium ${mutedText}`}>{hasValue ? value : placeholder}</div>
         </div>
       </div>
@@ -3701,7 +3701,7 @@ function CollectionSelector({ collections, draft, setDraft, onChange, hint }) {
           </button>
         ))}
       </div>
-      <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(); } }} placeholder={hint} className="mt-3 h-[var(--control-height-lg)] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
+      <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(); } }} placeholder={hint} className="mt-3 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
     </div>
   );
 }
@@ -3761,7 +3761,7 @@ function PreviewDrawer({ ui, onClose, children }) {
             <div className={`text-xs font-black uppercase tracking-[0.16em] ${mutedText}`}>{ui.preview}</div>
             <h2 className={`m1-section-title mt-1 ${headingText}`}>{ui.previewTitle}</h2>
           </div>
-          <button type="button" onClick={onClose} className="grid h-[var(--control-height-lg)] w-11 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
+          <button type="button" onClick={onClose} className="grid h-[var(--control-height-lg)] w-11 place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -3820,7 +3820,7 @@ function RetryCard({ ui, error, onRetry }) {
             <p className="mt-3 rounded-2xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-200">{error}</p>
           </div>
         </div>
-        <button type="button" onClick={onRetry} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-rose-600 px-4 text-sm font-black text-white">
+        <button type="button" onClick={onRetry} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-rose-600 px-4 text-sm font-black text-white">
           <RefreshCw className="h-4 w-4" />
           {ui.retry}
         </button>
@@ -3839,7 +3839,7 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
               <h1 className={`m1-page-title ${headingText}`}>{ui.advanced}</h1>
               <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{ui.advancedHint}</p>
             </div>
-            <button type="button" onClick={onRetry} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+            <button type="button" onClick={onRetry} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {ui.retry}
             </button>

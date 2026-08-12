@@ -81,7 +81,7 @@ function Billing() {
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">
             Billing gateway placeholder. Connect your processor here when the backend is available.
           </div>
-          <button type="button" className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-black">
+          <button type="button" className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
             <CreditCard className="h-4 w-4" />
             Upgrade plan
           </button>

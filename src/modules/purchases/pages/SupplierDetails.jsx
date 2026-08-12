@@ -75,7 +75,7 @@ function SupplierDetails() {
           <AlertTriangle className="me-2 inline h-4 w-4" />
           {t("purchases.supplierDetails.notFound")}
           <div className="mt-4">
-            <button type="button" onClick={() => navigate("/suppliers")} className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-black">
+            <button type="button" onClick={() => navigate("/suppliers")} className="rounded-[var(--radius-control)] bg-white px-4 py-2 text-sm font-semibold text-black">
               {t("purchases.supplierDetails.backToSuppliers")}
             </button>
           </div>

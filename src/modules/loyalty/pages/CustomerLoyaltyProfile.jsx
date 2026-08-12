@@ -170,7 +170,7 @@ function CustomerLoyaltyProfile() {
               type="number"
               value={points}
               onChange={(e) => setPoints(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-primary/40"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-primary/40"
             />
           </label>
 
@@ -178,7 +178,7 @@ function CustomerLoyaltyProfile() {
             type="button"
             onClick={handleRedeem}
             disabled={redeeming}
-            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
+            className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
           >
             <Gift className="h-4 w-4" />
             {redeeming ? "جارٍ الاستبدال..." : "استبدال النقاط"}

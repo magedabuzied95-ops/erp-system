@@ -115,7 +115,7 @@ export default function CreateUserModal({
             name="name"
             placeholder="Name"
             onChange={handleChange}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-[var(--radius-control)] px-4 py-3 text-white"
           />
 
           <input
@@ -123,7 +123,7 @@ export default function CreateUserModal({
             name="email"
             placeholder="Email"
             onChange={handleChange}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-[var(--radius-control)] px-4 py-3 text-white"
           />
 
           <input
@@ -131,13 +131,13 @@ export default function CreateUserModal({
             name="password"
             placeholder="Password"
             onChange={handleChange}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-[var(--radius-control)] px-4 py-3 text-white"
           />
 
           <select
             name="role_id"
             onChange={handleChange}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-[var(--radius-control)] px-4 py-3 text-white"
           >
 
             <option value="">
@@ -166,7 +166,7 @@ export default function CreateUserModal({
 
             <button
               type="submit"
-              className="bg-primary hover:bg-primary px-5 py-3 rounded-xl text-[var(--primary-contrast)] w-full"
+              className="bg-primary hover:bg-primary px-5 py-3 rounded-[var(--radius-control)] text-[var(--primary-contrast)] w-full"
             >
 
               Create
@@ -176,7 +176,7 @@ export default function CreateUserModal({
             <button
               type="button"
               onClick={onClose}
-              className="bg-zinc-700 hover:bg-zinc-600 px-5 py-3 rounded-xl text-white w-full"
+              className="bg-zinc-700 hover:bg-zinc-600 px-5 py-3 rounded-[var(--radius-control)] text-white w-full"
             >
 
               Cancel

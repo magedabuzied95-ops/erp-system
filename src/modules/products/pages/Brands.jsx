@@ -218,7 +218,7 @@ function Brands() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("products.brands.searchPlaceholder")}
-                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
+                className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
               />
             </div>
 
@@ -226,14 +226,14 @@ function Brands() {
               value={form.name}
               onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
               placeholder={t("products.brands.namePlaceholder")}
-              className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
             />
 
             <div className="flex items-center gap-3">
               <select
                 value={form.status}
                 onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
-                className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
               >
                 <option value="active">{t("products.statusLabels.active")}</option>
                 <option value="inactive">{t("products.statusLabels.inactive")}</option>
@@ -243,7 +243,7 @@ function Brands() {
                 type="button"
                 onClick={openLogoPicker}
                 disabled={uploading}
-                className="inline-flex cursor-pointer items-center justify-center rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white transition hover:bg-white/10 disabled:opacity-60"
+                className="inline-flex cursor-pointer items-center justify-center rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white transition hover:bg-white/10 disabled:opacity-60"
                 title={t("products.brands.uploadLogo")}
               >
                 <Upload size={18} />

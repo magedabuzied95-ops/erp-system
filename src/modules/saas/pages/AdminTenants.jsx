@@ -83,7 +83,7 @@ function AdminTenants() {
                     type="button"
                     onClick={() => toggleStatus(tenant)}
                     className={[
-                      "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition",
+                      "inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] px-4 py-3 text-sm font-black transition",
                       tenant.status === "Active" ? "bg-amber-500 text-black" : "bg-emerald-500 text-black",
                     ].join(" ")}
                   >

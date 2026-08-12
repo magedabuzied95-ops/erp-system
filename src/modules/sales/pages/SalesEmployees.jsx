@@ -1263,7 +1263,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`min-w-fit flex-1 rounded-xl px-4 py-2.5 text-sm font-black transition ${activeTab === tab.id ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--muted)] hover:bg-white/[0.03] hover:text-[var(--text)]"}`}
+              className={`min-w-fit flex-1 rounded-[var(--radius-control)] px-4 py-2.5 text-sm font-black transition ${activeTab === tab.id ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--muted)] hover:bg-white/[0.03] hover:text-[var(--text)]"}`}
             >
               <span className="inline-flex items-center justify-center gap-2">
                 <span>{tab.label}</span>
@@ -1377,7 +1377,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               </div>
               <button
                 onClick={refreshReport}
-                className={`col-span-2 h-[var(--control-height-lg)] justify-center rounded-xl px-3 text-[13px] font-black transition xl:col-span-1 ${ reportFiltersChanged ? "theme-button-primary shadow-[0_0_18px_rgba(16,185,129,0.22)]" : "theme-button-soft" }`}
+                className={`col-span-2 h-[var(--control-height-lg)] justify-center rounded-[var(--radius-control)] px-3 text-[13px] font-black transition xl:col-span-1 ${ reportFiltersChanged ? "theme-button-primary shadow-[0_0_18px_rgba(16,185,129,0.22)]" : "theme-button-soft" }`}
               >
                 {t("sales.reports.apply", "Apply")}
               </button>
@@ -1948,7 +1948,7 @@ function PayrollFinancialSummary({
                   type="button"
                   onClick={actionHandler}
                   disabled={actionDisabled}
-                  className={`inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-[0_14px_34px_rgba(212,175,55,.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${isReadyForApproval ? "bg-emerald-400 text-slate-950" : "bg-[var(--primary)] text-slate-950"}`}
+                  className={`inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] px-5 text-sm font-black shadow-[0_14px_34px_rgba(212,175,55,.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${isReadyForApproval ? "bg-emerald-400 text-slate-950" : "bg-[var(--primary)] text-slate-950"}`}
                 >
                   {actionLoading && !isPaid ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {actionLabel}
@@ -1957,7 +1957,7 @@ function PayrollFinancialSummary({
                 <button
                   type="button"
                   disabled
-                  className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-5 text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-100"
+                  className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/10 px-5 text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-100"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   {actionLabel}
@@ -2174,7 +2174,7 @@ function PayrollSalaryHero({ amount, periodLabel, isRtl, t, onFinalize, finalizi
           </div>
         </div>
 
-        <button type="button" onClick={onFinalize} disabled={finalizing} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-emerald-200/20 bg-emerald-300 px-4 text-sm font-black text-slate-950 shadow-[0_14px_34px_rgba(16,185,129,.28)] transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" onClick={onFinalize} disabled={finalizing} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-200/20 bg-emerald-300 px-4 text-sm font-black text-slate-950 shadow-[0_14px_34px_rgba(16,185,129,.28)] transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60">
           <BriefcaseBusiness className={`h-4 w-4 ${finalizing ? "animate-pulse" : ""}`} />
           {finalizing ? t("sales.payroll.finalizing", "Finalizing...") : t("sales.payroll.approvePayroll", "Approve Payroll")}
         </button>

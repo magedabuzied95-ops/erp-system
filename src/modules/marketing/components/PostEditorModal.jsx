@@ -945,7 +945,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
                 tabIndex={0}
                 onClick={() => selectStorySlide(index)}
                 onKeyDown={(event) => handleSlideKeyDown(event, index)}
-                className={`group overflow-hidden rounded-2xl border p-1 text-left transition ${ index === selectedIndex ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-white/10 bg-white/[0.04] hover:border-white/25" }`}
+                className={`group overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition ${ index === selectedIndex ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-white/10 bg-white/[0.04] hover:border-white/25" }`}
               >
                 <StoryCreativeFrame slide={slide} total={safeSlides.length} index={index} compact />
                 <div className="mt-2 truncate px-1 pb-1 text-[11px] font-black text-slate-200">Slide {index + 1}</div>
@@ -1206,7 +1206,7 @@ export default function PostEditorModal({
                 <select
                   value={form.channel}
                   onChange={(event) => updateChannel(event.target.value)}
-                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
+                  className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
                 >
                   <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
                   <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
@@ -1227,7 +1227,7 @@ export default function PostEditorModal({
                 <input
                   value={form.title || ""}
                   onChange={(event) => updateField("title", event.target.value)}
-                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
+                  className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                   placeholder={t("marketing.social.placeholders.title")}
                 />
               </label>
@@ -1240,7 +1240,7 @@ export default function PostEditorModal({
                   <select
                     value={captionTone}
                     onChange={(event) => setCaptionTone(event.target.value)}
-                    className="w-full min-w-[220px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] outline-none"
+                    className="w-full min-w-[220px] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] outline-none"
                   >
                     {aiToneOptions.map((tone) => (
                       <option key={tone.id} value={tone.id} className="bg-[var(--surface)]">
@@ -1262,7 +1262,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={regenerateHook}
-                  className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
+                  className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
                   <div className="text-sm font-black text-white">Regenerate Hook</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.hook}</div>
@@ -1270,7 +1270,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={regenerateCta}
-                  className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
+                  className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
                   <div className="text-sm font-black text-white">Regenerate CTA</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.cta}</div>
@@ -1278,7 +1278,7 @@ export default function PostEditorModal({
                 <button
                   type="button"
                   onClick={regenerateHashtags}
-                  className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
+                  className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
                   <div className="text-sm font-black text-white">Regenerate Hashtags</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.hashtags.join(" ")}</div>
@@ -1297,7 +1297,7 @@ export default function PostEditorModal({
                   value={form.image_url || ""}
                   onChange={(event) => updateField("image_url", event.target.value)}
                   placeholder="https://..."
-                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] py-3 pl-10 pr-4 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
+                  className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] py-3 pl-10 pr-4 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                 />
               </div>
               {mediaUrls.length ? (
@@ -1307,7 +1307,7 @@ export default function PostEditorModal({
                       key={url}
                       type="button"
                       onClick={() => selectMainImage(url)}
-                      className={`group relative aspect-square overflow-hidden rounded-2xl border transition ${ form.image_url === url ? "border-[var(--primary)] shadow-lg" : "border-[var(--border)] hover:border-[var(--primary)]" }`}
+                      className={`group relative aspect-square overflow-hidden rounded-[var(--radius-control)] border transition ${ form.image_url === url ? "border-[var(--primary)] shadow-lg" : "border-[var(--border)] hover:border-[var(--primary)]" }`}
                     >
                       <img src={url} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
                     </button>
@@ -1323,7 +1323,7 @@ export default function PostEditorModal({
                 onChange={(event) => updateField("caption", event.target.value)}
                 rows={9}
                 dir="auto"
-                className="w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
+                className="w-full resize-none rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                 placeholder={t("marketing.social.placeholders.caption")}
               />
             </label>
@@ -1338,7 +1338,7 @@ export default function PostEditorModal({
                 onChange={(event) => updateField("first_comment", event.target.value)}
                 rows={9}
                 dir="auto"
-                className="w-full resize-y rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-emerald-400"
+                className="w-full resize-y rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-emerald-400"
                 placeholder="سيتم توليد التعليق من بيانات المنتج"
               />
             </label>
@@ -1349,7 +1349,7 @@ export default function PostEditorModal({
                 <input
                   value={form.product_url || ""}
                   onChange={(event) => updateField("product_url", event.target.value)}
-                  className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
+                  className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                   placeholder="https://..."
                 />
               </label>
@@ -1403,7 +1403,7 @@ export default function PostEditorModal({
                   key={tab.id}
                   type="button"
                   onClick={() => setActivePreview(tab.id)}
-                  className={`shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition ${ activePreview === tab.id ? "bg-[var(--primary)] text-[var(--primary-contrast)] shadow-lg" : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]" }`}
+                  className={`shrink-0 rounded-[var(--radius-control)] px-4 py-2 text-sm font-bold transition ${ activePreview === tab.id ? "bg-[var(--primary)] text-[var(--primary-contrast)] shadow-lg" : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]" }`}
                 >
                   {t(tab.labelKey)}
                 </button>
@@ -1462,7 +1462,7 @@ export default function PostEditorModal({
                     key={id}
                     type="button"
                     onClick={() => setScheduledAt(makeSchedulePreset(id))}
-                    className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-left text-sm font-semibold text-[var(--text)] transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
+                    className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-left text-sm font-semibold text-[var(--text)] transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                   >
                     {t(label)}
                   </button>
@@ -1472,7 +1472,7 @@ export default function PostEditorModal({
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(event) => setScheduledAt(event.target.value)}
-                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none focus:border-[var(--primary)]"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none focus:border-[var(--primary)]"
               />
               <div className="text-xs text-slate-400">
                 {t("marketing.calendar.timezone", { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || t("marketing.calendar.localTime") })}
@@ -1497,7 +1497,7 @@ export default function PostEditorModal({
                   <button
                     type="button"
                     onClick={copyAudioSearchQuery}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white transition hover:bg-white/10"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white transition hover:bg-white/10"
                   >
                     <Copy className="h-4 w-4" />
                     Copy Search Query
@@ -1533,7 +1533,7 @@ export default function PostEditorModal({
                   type="button"
                   disabled={saving || isTikTokChannel}
                   onClick={() => handleSubmit("save")}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-400 disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-400 disabled:opacity-60"
                 >
                   <Save className="h-4 w-4" />
                   {t("marketing.approval.saveDraft")}
@@ -1544,7 +1544,7 @@ export default function PostEditorModal({
                   type="button"
                   disabled={saving || isTikTokChannel}
                   onClick={() => handleSubmit("publish")}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white/10 disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white/10 disabled:opacity-60"
                 >
                   <Send className="h-4 w-4" />
                   {t("marketing.social.publishNow")}
@@ -1555,7 +1555,7 @@ export default function PostEditorModal({
                   type="button"
                   disabled={saving || isTikTokChannel || (!scheduledAt && !form.scheduled_at)}
                   onClick={() => handleSubmit("schedule")}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--primary)] bg-[var(--primary-soft)] px-4 py-3 text-sm font-black text-[var(--primary)] shadow-lg transition hover:-translate-y-0.5 hover:brightness-110 disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--primary)] bg-[var(--primary-soft)] px-4 py-3 text-sm font-black text-[var(--primary)] shadow-lg transition hover:-translate-y-0.5 hover:brightness-110 disabled:opacity-60"
                 >
                   <CalendarClock className="h-4 w-4" />
                   {t("marketing.calendar.schedule")}
@@ -1577,7 +1577,7 @@ export default function PostEditorModal({
                 type="button"
                 disabled={saving || isTikTokChannel}
                 onClick={() => handleSubmit("publish")}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60"
               >
                 <Send className="h-4 w-4" />
                 {t("marketing.social.publishNow")}
@@ -1588,7 +1588,7 @@ export default function PostEditorModal({
                 type="button"
                 disabled={saving || isTikTokChannel || (!scheduledAt && !form.scheduled_at)}
                 onClick={() => handleSubmit("schedule")}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--primary)] bg-[var(--primary-soft)] px-4 py-3 text-sm font-black text-[var(--primary)] shadow-lg transition hover:brightness-110 disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--primary)] bg-[var(--primary-soft)] px-4 py-3 text-sm font-black text-[var(--primary)] shadow-lg transition hover:brightness-110 disabled:opacity-60"
               >
                 <CalendarClock className="h-4 w-4" />
                 {t("marketing.calendar.schedule")}
@@ -1599,7 +1599,7 @@ export default function PostEditorModal({
                 type="button"
                 disabled={saving || isTikTokChannel}
                 onClick={() => handleSubmit("save")}
-                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-60"
+                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-60"
               >
                 <Save className="h-4 w-4" />
                 {t("marketing.approval.saveDraft")}

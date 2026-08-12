@@ -553,7 +553,7 @@ export default function AiChannels() {
                 type="button"
                 onClick={loadPage}
                 disabled={loading}
-                className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-50"
+                className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-50"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 {tr("refresh", "Refresh")}
@@ -591,7 +591,7 @@ export default function AiChannels() {
               type="button"
               onClick={loadPage}
               disabled={loading}
-              className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-4 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Refresh status
@@ -607,7 +607,7 @@ export default function AiChannels() {
                   <input
                     value="Evolution API"
                     readOnly
-                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none"
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none"
                   />
                 </label>
                 <label className="block">
@@ -615,7 +615,7 @@ export default function AiChannels() {
                   <input
                     value={whatsappGateway?.connected ? `Connected / ${whatsappGateway?.state || "open"}` : whatsappGateway?.configured === false ? "Not configured" : whatsappGateway?.state || "Unknown"}
                     readOnly
-                    className={whatsappGateway?.connected ? "mt-1 h-[var(--control-height-lg)] w-full rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 outline-none" : "mt-1 h-[var(--control-height-lg)] w-full rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-sm font-black text-amber-100 outline-none"}
+                    className={whatsappGateway?.connected ? "mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 outline-none" : "mt-1 h-[var(--control-height-lg)] w-full  border border-amber-300/20 bg-amber-400/10 px-3 text-sm font-black text-amber-100 outline-none"}
                   />
                 </label>
                 <label className="block sm:col-span-2">
@@ -624,7 +624,7 @@ export default function AiChannels() {
                     value={whatsappGateway?.apiUrl || ""}
                     readOnly
                     placeholder="EVOLUTION_API_URL is not configured"
-                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
                   />
                 </label>
                 <label className="block">
@@ -633,7 +633,7 @@ export default function AiChannels() {
                     value={whatsappGateway?.apiKeyConfigured ? "مهيأ" : ""}
                     readOnly
                     placeholder="EVOLUTION_API_KEY is missing"
-                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
                   />
                 </label>
                 <label className="block">
@@ -642,7 +642,7 @@ export default function AiChannels() {
                     value={whatsappGateway?.instanceName || ""}
                     readOnly
                     placeholder="EVOLUTION_INSTANCE_NAME is not configured"
-                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
                   />
                 </label>
               </div>
@@ -658,7 +658,7 @@ export default function AiChannels() {
                     onChange={(event) => setWhatsappTest((current) => ({ ...current, phone: event.target.value }))}
                     inputMode="tel"
                     placeholder="01000000000"
-                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-emerald-300/40"
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-emerald-300/40"
                   />
                 </label>
                 <label className="block">
@@ -667,7 +667,7 @@ export default function AiChannels() {
                     value={whatsappTest.message}
                     onChange={(event) => setWhatsappTest((current) => ({ ...current, message: event.target.value }))}
                     rows={3}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-600 focus:border-emerald-300/40"
+                    className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-600 focus:border-emerald-300/40"
                     dir="auto"
                   />
                 </label>
@@ -675,7 +675,7 @@ export default function AiChannels() {
                   type="button"
                   onClick={sendWhatsappGatewayTest}
                   disabled={busyAction === "whatsapp-gateway:test" || !text(whatsappTest.phone) || !text(whatsappTest.message)}
-                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:opacity-50"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-300 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:opacity-50"
                 >
                   {busyAction === "whatsapp-gateway:test" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       إرسال اختبار
@@ -706,7 +706,7 @@ export default function AiChannels() {
                         value={channel.aiChannelSettings?.aiMode || "suggest_only"}
                         onChange={(event) => saveChannelAISetting(channel, { aiMode: event.target.value })}
                         disabled={Boolean(settingsSaving)}
-                        className="mt-1 h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-primary/40 disabled:opacity-60"
+                        className="mt-1 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-primary/40 disabled:opacity-60"
                       >
                         <option value="off">Off</option>
                         <option value="suggest_only">Suggest only</option>
@@ -719,7 +719,7 @@ export default function AiChannels() {
                         value={channel.aiChannelSettings?.tone || ""}
                         onChange={(event) => saveChannelAISetting(channel, { tone: event.target.value || null })}
                         disabled={Boolean(settingsSaving)}
-                        className="mt-1 h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-primary/40 disabled:opacity-60"
+                        className="mt-1 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-primary/40 disabled:opacity-60"
                       >
                         <option value="">Inherit global</option>
                         <option value="casual">Casual Egyptian</option>
@@ -829,7 +829,7 @@ export default function AiChannels() {
                     <button
                       type="button"
                       onClick={openWhatsappGatewaySettings}
-                      className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-primary"
+                      className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-primary"
                     >
                       <Settings className="h-4 w-4" />
                       {tr("actions.configure", "إعداد")}
@@ -849,12 +849,12 @@ export default function AiChannels() {
                       {tr("actions.viewInbox", "عرض الصندوق")}
                     </Link>
                     {META_CHANNEL_KEYS.has(channel.key) ? (
-                    <button type="button" onClick={() => sendTestMessage(channel.key)} disabled={busyAction === `test:${channel.key}`} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-50">
+                    <button type="button" onClick={() => sendTestMessage(channel.key)} disabled={busyAction === `test:${channel.key}`} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-50">
                       {busyAction === `test:${channel.key}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                       {tr("actions.sendTest", "إرسال اختبار")}
                     </button>
                     ) : channel.key === "whatsapp" ? (
-                    <button type="button" onClick={openWhatsappGatewaySettings} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                    <button type="button" onClick={openWhatsappGatewaySettings} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                       <TestTube2 className="h-3.5 w-3.5" />
                       {tr("actions.test", "Test channel")}
                     </button>
@@ -867,11 +867,11 @@ export default function AiChannels() {
                   </div>
                   {META_CHANNEL_KEYS.has(channel.key) ? (
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => loadPage()} disabled={loading} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15 disabled:opacity-50">
+                      <button type="button" onClick={() => loadPage()} disabled={loading} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15 disabled:opacity-50">
                         <RefreshCw className="h-3.5 w-3.5" />
                         {tr("actions.resync", "إعادة المزامنة")}
                       </button>
-                      <button type="button" onClick={() => pauseAutomation(channel.apiKey)} disabled={busyAction === `pause:${channel.apiKey}` || !channel.aiAutomationActive} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
+                      <button type="button" onClick={() => pauseAutomation(channel.apiKey)} disabled={busyAction === `pause:${channel.apiKey}` || !channel.aiAutomationActive} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
                         {busyAction === `pause:${channel.apiKey}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PauseCircle className="h-3.5 w-3.5" />}
                         {tr("actions.pauseAutomation", "إيقاف الذكاء الاصطناعي مؤقتًا")}
                       </button>

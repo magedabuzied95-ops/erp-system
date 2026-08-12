@@ -70,7 +70,7 @@ export default function SectionNav({ sections = [] }) {
               type="button"
               onClick={() => go(section.id)}
               aria-current={active === section.id ? "true" : undefined}
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ active === section.id ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
+              className={`whitespace-nowrap rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ active === section.id ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
             >
               {t(`salesAnalytics.nav.${section.key}`)}
             </button>

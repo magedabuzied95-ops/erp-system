@@ -82,7 +82,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
             type="button"
             onClick={() => onSave?.(selected)}
             disabled={saving || fullAccessRole}
-            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             {fullAccessRole ? "Full access locked" : saving ? "Saving..." : "Save permissions"}
@@ -132,7 +132,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
                     onClick={() => toggle(permission)}
                     disabled={fullAccessRole}
                     className={[
-                      "flex items-center justify-center rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                      "flex items-center justify-center rounded-[var(--radius-control)] border px-4 py-3 text-sm font-semibold transition",
                       fullAccessRole ? "cursor-not-allowed opacity-80" : "",
                       active
                         ? "border-primary/40 bg-primary text-black"

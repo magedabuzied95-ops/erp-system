@@ -515,7 +515,7 @@ function Products() {
             )
           }
 
-          className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-5 outline-none"
+          className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-[var(--radius-control)] p-5 outline-none"
         />
 
       </div>
@@ -549,7 +549,7 @@ function Products() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-[var(--radius-control)] p-4"
           />
 
           <input
@@ -565,7 +565,7 @@ function Products() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-[var(--radius-control)] p-4"
           />
 
         </div>
@@ -573,7 +573,7 @@ function Products() {
         <button
           onClick={handleAddProduct}
 
-          className="mt-6 bg-black hover:bg-gray-800 text-white px-8 py-4 rounded-2xl font-black transition"
+          className="mt-6 bg-black hover:bg-gray-800 text-white px-8 py-4 rounded-[var(--radius-control)] font-black transition"
         >
           {t("products.legacy.addProduct")}
         </button>
@@ -617,7 +617,7 @@ function Products() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-[var(--radius-control)] p-4"
           >
 
             <option value="">
@@ -651,7 +651,7 @@ function Products() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-[var(--radius-control)] p-4"
           />
 
           <input
@@ -667,7 +667,7 @@ function Products() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-[var(--radius-control)] p-4"
           />
 
           <input
@@ -683,7 +683,7 @@ function Products() {
               )
             }
 
-            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-[var(--radius-control)] p-4"
           />
 
         </div>
@@ -691,7 +691,7 @@ function Products() {
         <button
           onClick={handleAddVariant}
 
-          className="mt-6 bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-2xl font-black transition"
+          className="mt-6 bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-[var(--radius-control)] font-black transition"
         >
           {t("products.legacy.createVariants")}
         </button>

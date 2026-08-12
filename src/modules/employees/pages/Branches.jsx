@@ -155,7 +155,7 @@ function Branches() {
           placeholder="Search branch / code / manager / phone / address"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="w-full rounded-xl border border-gray-200 p-4 outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+          className="w-full rounded-[var(--radius-control)] border border-gray-200 p-4 outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
         />
       </div>
 
@@ -193,7 +193,7 @@ function Branches() {
           type="button"
           onClick={addBranch}
           disabled={saving}
-          className="mt-6 rounded-2xl bg-black px-8 py-4 font-black text-white shadow-xl transition hover:bg-gray-900 disabled:opacity-50"
+          className="mt-6 rounded-[var(--radius-control)] bg-black px-8 py-4 font-black text-white shadow-xl transition hover:bg-gray-900 disabled:opacity-50"
         >
           {saving ? "Saving..." : "Create Branch"}
         </button>
@@ -240,7 +240,7 @@ function Branches() {
                         type="button"
                         onClick={() => deleteBranch(branch?.id)}
                         disabled={saving || !branch?.id}
-                        className="rounded-xl bg-red-500 px-5 py-3 font-bold text-white transition hover:bg-red-600 disabled:opacity-50"
+                        className="rounded-[var(--radius-control)] bg-red-500 px-5 py-3 font-bold text-white transition hover:bg-red-600 disabled:opacity-50"
                       >
                         Delete
                       </button>
@@ -290,7 +290,7 @@ function BranchInput({ label, value, onChange, type = "text" }) {
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-xl border border-gray-200 p-4 outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+        className="w-full rounded-[var(--radius-control)] border border-gray-200 p-4 outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
       />
     </label>
   );

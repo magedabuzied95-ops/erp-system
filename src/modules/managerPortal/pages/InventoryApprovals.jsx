@@ -258,7 +258,7 @@ export default function InventoryApprovalsPage() {
           <button
             type="button"
             onClick={() => navigate(lastPortalUrl || "/")}
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300"
+            className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300"
           >
             <ArrowLeft className="h-4 w-4" />
             العودة للبوابة
@@ -284,7 +284,7 @@ export default function InventoryApprovalsPage() {
               <button
                 type="button"
                 onClick={() => loadApprovals(selectedSessionId)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 تحديث
@@ -292,7 +292,7 @@ export default function InventoryApprovalsPage() {
               <button
                 type="button"
                 onClick={() => navigate(`/manager-portal/${encodeURIComponent(token)}`)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
               >
                 <ArrowLeft className="h-4 w-4" />
                 العودة للبوابة
@@ -317,9 +317,9 @@ export default function InventoryApprovalsPage() {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="ابحث باسم الجرد أو الفرع أو المخزن"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
+                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
                 />
-                <button type="submit" className="inline-flex items-center justify-center rounded-2xl bg-amber-400 px-4 text-sm font-black text-black">
+                <button type="submit" className="inline-flex items-center justify-center rounded-[var(--radius-control)] bg-amber-400 px-4 text-sm font-black text-black">
                   <Search className="h-4 w-4" />
                 </button>
               </div>
@@ -342,7 +342,7 @@ export default function InventoryApprovalsPage() {
                     key={session.id}
                     type="button"
                     onClick={() => selectSession(session.id)}
-                    className={`w-full rounded-3xl border p-4 text-right transition ${ String(selectedSessionId) === String(session.id) ? "border-amber-300/40 bg-amber-400/10" : "border-white/10 bg-white/5 hover:bg-white/10" }`}
+                    className={`w-full rounded-[var(--radius-control)] border p-4 text-right transition ${ String(selectedSessionId) === String(session.id) ? "border-amber-300/40 bg-amber-400/10" : "border-white/10 bg-white/5 hover:bg-white/10" }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -509,7 +509,7 @@ export default function InventoryApprovalsPage() {
                       type="button"
                       onClick={openRejectDialog}
                       disabled={selectedSession.status !== "pending_review"}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-500 px-3 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40 sm:rounded-2xl sm:px-4"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500 px-3 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40 sm: sm:px-4"
                     >
                       <X className="h-4 w-4" />
                       رفض
@@ -518,7 +518,7 @@ export default function InventoryApprovalsPage() {
                       type="button"
                       onClick={() => void handleApprove()}
                       disabled={approving || selectedSession.status !== "pending_review"}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 py-3 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl sm:px-4"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 py-3 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 sm: sm:px-4"
                     >
                       {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       موافقة واعتماد
@@ -548,7 +548,7 @@ export default function InventoryApprovalsPage() {
                 <h3 className="m1-section-title mt-1">أدخل سبب الرفض</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-300">السبب إلزامي وسيصل إلى أمين المخزن مع إشعار الرفض.</p>
               </div>
-              <button type="button" onClick={() => setRejectOpen(false)} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+              <button type="button" onClick={() => setRejectOpen(false)} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -557,17 +557,17 @@ export default function InventoryApprovalsPage() {
               onChange={(event) => setRejectReason(event.target.value)}
               placeholder="مثال: توجد فروقات غير مبررة أو تحتاج مراجعة ميدانية"
               rows={5}
-              className="mt-4 w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
+              className="mt-4 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
             />
             <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button type="button" onClick={() => setRejectOpen(false)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white">
+              <button type="button" onClick={() => setRejectOpen(false)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white">
                 إلغاء
               </button>
               <button
                 type="button"
                 onClick={() => void handleReject()}
                 disabled={rejecting}
-                className="inline-flex items-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {rejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
                 تأكيد الرفض

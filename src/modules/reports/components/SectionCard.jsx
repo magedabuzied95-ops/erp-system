@@ -73,7 +73,7 @@ export default function SectionCard({
               type="button"
               onClick={toggle}
               aria-expanded={open}
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-[var(--text-tertiary)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
               aria-label={open ? t("salesAnalytics.sections.collapse") : t("salesAnalytics.sections.expand")}
             >
               <ChevronDown className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90 rtl:rotate-90"}`} aria-hidden="true" />
@@ -108,7 +108,7 @@ export default function SectionCard({
                 <button
                   type="button"
                   onClick={onRetry}
-                  className="mt-3 inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 text-[12px] font-bold text-white transition hover:brightness-110"
+                  className="mt-3 inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--primary)] px-3 text-[12px] font-bold text-white transition hover:brightness-110"
                 >
                   <RotateCcw className="h-3 w-3" aria-hidden="true" />
                   {t("salesAnalytics.states.sectionRetry")}

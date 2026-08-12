@@ -42,22 +42,22 @@ export default function CampaignModal({ open, campaign, onClose, onSave, saving 
             <label key={key} className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t(labelKey)}</span>
               {type === "textarea" ? (
-                <textarea value={form[key] || ""} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} rows={4} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                <textarea value={form[key] || ""} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} rows={4} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
               ) : type === "select" ? (
-                <select value={form[key] || "draft"} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
+                <select value={form[key] || "draft"} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
                   <option value="draft">{t("marketing.campaigns.status.draft")}</option>
                   <option value="active">{t("marketing.campaigns.status.active")}</option>
                   <option value="paused">{t("marketing.campaigns.status.paused")}</option>
                   <option value="completed">{t("marketing.campaigns.status.completed")}</option>
                 </select>
               ) : (
-                <input type={type} value={form[key] || ""} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                <input type={type} value={form[key] || ""} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
               )}
             </label>
           ))}
           <div className="flex gap-3">
-            <button type="button" onClick={() => onSave?.(form)} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{t("marketing.common.save")}</button>
-            <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("marketing.common.cancel")}</button>
+            <button type="button" onClick={() => onSave?.(form)} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{t("marketing.common.save")}</button>
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("marketing.common.cancel")}</button>
           </div>
         </div>
       </div>

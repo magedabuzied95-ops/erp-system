@@ -529,7 +529,7 @@ function AnalyticsDashboard() {
           <button
             type="button"
             onClick={handleFilterReset}
-            className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-primary/30 hover:bg-primary/10 hover:text-white"
+            className="inline-flex items-center gap-2 self-start rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-primary/30 hover:bg-primary/10 hover:text-white"
           >
             <RotateCcw className="h-4 w-4" />
             {t("analytics.filters.reset")}
@@ -540,7 +540,7 @@ function AnalyticsDashboard() {
             <button
               type="button"
               onClick={handleExportPdf}
-              className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/20 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/20 hover:text-white"
             >
               <Download className="h-4 w-4" />
               {t("analytics.exportPdf")}
@@ -548,7 +548,7 @@ function AnalyticsDashboard() {
             <button
               type="button"
               onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400/40 hover:bg-emerald-500/20 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400/40 hover:bg-emerald-500/20 hover:text-white"
             >
               <Download className="h-4 w-4" />
               {t("analytics.exportCsv")}
@@ -556,7 +556,7 @@ function AnalyticsDashboard() {
             <button
               type="button"
               onClick={handlePrintReport}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
             >
               <Printer className="h-4 w-4" />
               {t("analytics.printReport")}
@@ -571,7 +571,7 @@ function AnalyticsDashboard() {
                 <select
                   value={filters.datePreset}
                   onChange={(event) => handlePresetChange(event.target.value)}
-                  className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950"
+                  className="w-full appearance-none rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950"
                 >
                   {presetOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -596,7 +596,7 @@ function AnalyticsDashboard() {
                     startDate: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
@@ -613,7 +613,7 @@ function AnalyticsDashboard() {
                     endDate: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
@@ -631,7 +631,7 @@ function AnalyticsDashboard() {
                           branchId: event.target.value,
                         }))
                       }
-                      className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950 disabled:opacity-60"
+                      className="w-full appearance-none rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950 disabled:opacity-60"
                     >
                       <option value="">{t("analytics.labels.allBranches")}</option>
                       {branchOptions.map((branch) => (
@@ -657,7 +657,7 @@ function AnalyticsDashboard() {
                         warehouseId: event.target.value,
                       }))
                     }
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950 disabled:opacity-60"
+                    className="w-full appearance-none rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950 disabled:opacity-60"
                     disabled={warehouseOptions.length === 0}
                   >
                     <option value="">{t("analytics.labels.allWarehouses")}</option>

@@ -234,7 +234,7 @@ function ActivityLogs() {
               )
             }
 
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl pl-14 pr-4 py-4 text-white outline-none"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-[var(--radius-control)] pl-14 pr-4 py-4 text-white outline-none"
           />
 
         </div>

@@ -367,11 +367,11 @@ function SuppliersDashboard() {
             <Plus className="h-4 w-4" />
             {t("suppliers.newPurchaseOrder")}
           </Link>
-          <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-400/20">
+          <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-400/20">
             <Plus className="h-4 w-4" />
             {t("purchases.suppliersDashboard.addSupplier")}
           </button>
-          <button type="button" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+          <button type="button" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
             <Download className="h-4 w-4" />
             {t("purchases.suppliersDashboard.importSuppliers")}
           </button>
@@ -407,7 +407,7 @@ function SuppliersDashboard() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("purchases.suppliersDashboard.searchPlaceholder")}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pe-4 ps-11 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
+              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pe-4 ps-11 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
             />
           </div>
           <Select value={statusFilter} onChange={setStatusFilter} options={[["all", t("purchases.suppliersDashboard.allStatus")], ["active", t("purchases.statusLabels.active")], ["inactive", t("purchases.statusLabels.inactive")]]} />
@@ -462,7 +462,7 @@ function SuppliersDashboard() {
                         }}
                         aria-expanded={openMenuId === supplier.id}
                         aria-haspopup="menu"
-                        className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10"
+                        className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10"
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
@@ -541,7 +541,7 @@ function Kpi({ label, value, tone = "zinc" }) {
 
 function Select({ value, onChange, options }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50">
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50">
       {options.map(([optionValue, label]) => (
         <option key={optionValue} value={optionValue} className="bg-zinc-950 text-white">
           {label}
@@ -592,7 +592,7 @@ function SupplierActionsMenu({ supplier, position, menuRef, zIndex, onClose, onV
             event.stopPropagation();
             runAndClose(onClick);
           }}
-          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-zinc-200 hover:bg-white/5"
+          className="flex w-full items-center gap-2 rounded-[var(--radius-control)] px-3 py-2 text-start text-sm text-zinc-200 hover:bg-white/5"
         >
           <Icon className="h-4 w-4" />
           {label}
@@ -610,7 +610,7 @@ function EmptyState({ onCreate }) {
       <ShieldCheck className="mx-auto h-12 w-12 text-zinc-500" />
       <h3 className="m1-section-title mt-4 text-white">{t("purchases.suppliersDashboard.emptyTitle")}</h3>
       <p className="mt-2 text-sm text-zinc-400">{t("purchases.suppliersDashboard.emptyDescription")}</p>
-      <button type="button" onClick={onCreate} className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black">
+      <button type="button" onClick={onCreate} className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black">
         <Plus className="h-4 w-4" />
         {t("purchases.suppliersDashboard.addSupplier")}
       </button>
@@ -631,7 +631,7 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{t("purchases.tabs.suppliers")}</div>
               <h2 className="m1-section-title mt-1 text-white">{supplier ? t("purchases.suppliersDashboard.editSupplier") : t("purchases.suppliersDashboard.addSupplier")}</h2>
             </div>
-            <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -657,15 +657,15 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
           <Field label={t("purchases.supplierDetails.address")} value={form.address} onChange={(value) => setField("address", value)} />
           <label className="block">
             <div className="mb-2 text-xs font-semibold text-zinc-400">{t("purchases.supplierDetails.notes")}</div>
-            <textarea value={form.notes} onChange={(event) => setField("notes", event.target.value)} rows={4} className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50" />
+            <textarea value={form.notes} onChange={(event) => setField("notes", event.target.value)} rows={4} className="w-full resize-none rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50" />
           </label>
         </div>
 
         <div className="grid gap-3 border-t border-white/10 bg-white/[0.03] p-5 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
             {t("common.cancel")}
           </button>
-          <button type="submit" disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-50">
+          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-50">
             {saving ? t("purchases.details.saving") : t("purchases.suppliersDashboard.saveSupplier")}
           </button>
         </div>
@@ -678,7 +678,7 @@ function Field({ label, value, onChange, type = "text" }) {
   return (
     <label className="block">
       <div className="mb-2 text-xs font-semibold text-zinc-400">{label}</div>
-      <input type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50" />
+      <input type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50" />
     </label>
   );
 }
@@ -697,16 +697,16 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
               <h2 className="m1-section-title mt-1 text-white">{supplier.name}</h2>
               <p className="mt-1 text-sm text-zinc-400">{supplier.address || t("purchases.supplierDetails.noAddress")}</p>
             </div>
-            <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white">
               <X className="h-5 w-5" />
             </button>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               <Edit3 className="h-4 w-4" />
               {t("purchases.suppliersDashboard.edit")}
             </button>
-            <button type="button" onClick={onPurchase} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black">
+            <button type="button" onClick={onPurchase} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black">
               <FilePlus2 className="h-4 w-4" />
               {t("purchases.suppliersDashboard.purchaseOrder")}
             </button>

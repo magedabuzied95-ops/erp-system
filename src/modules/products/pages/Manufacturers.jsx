@@ -211,7 +211,7 @@ function Manufacturers() {
                 onChange={(e) => handleChange("notes", e.target.value)}
                 rows={4}
                 placeholder={t("products.manufacturers.notesPlaceholder")}
-                className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+                className="mt-2 w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
               />
             </div>
 
@@ -258,7 +258,7 @@ function Manufacturers() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t("products.manufacturers.searchPlaceholder")}
-                  className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                  className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-sm text-white outline-none placeholder:text-zinc-500"
                 />
               </div>
             </div>
@@ -364,7 +364,7 @@ function Field({ label, value, onChange, placeholder = "" }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+        className="mt-2 w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
       />
     </div>
   );
