@@ -543,11 +543,11 @@ function Dashboard() {
       <div className="dashboard-commandbar sticky top-0 z-20 -mx-3 border-b border-slate-700/45 bg-[#07111f]/88 px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5">
         <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.8fr)] xl:items-center">
           <div>
-            <div className="text-[11px] font-semibold text-slate-400">{copy.executiveControlCenter}</div>
-            <h1 className="m1-page-title mt-1 text-white">
+            <div className="m1-page-eyebrow">{copy.executiveControlCenter}</div>
+            <h1 className="m1-page-title mt-1">
               {getGreeting(copy)}, {user?.name || copy.admin}
             </h1>
-            <div className="mt-1 text-sm font-semibold text-slate-400">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
+            <div className="m1-page-meta">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
           </div>
           <div className="dashboard-toolbar flex flex-wrap items-center gap-2 text-xs font-bold text-slate-300 xl:justify-end">
             <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-slate-700/50 bg-slate-900/55 p-1">

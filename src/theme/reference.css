@@ -1,0 +1,416 @@
+/* ============================================================================
+   M1 REFERENCE VISUAL LANGUAGE
+   ----------------------------------------------------------------------------
+   The approved reference for the ERP: shared App Shell, Dashboard, Orders.
+   Once signed off, the same recipe propagates to the rest of the product.
+
+   Written entirely against the canonical tokens. No literal colours, no new
+   scale, no !important — the legacy paint-over layers that used to require it
+   are gone, so ordinary specificity is enough now.
+
+   Direction: premium business ERP. Warm neutral canvas, charcoal structure,
+   restrained gold, quiet borders, minimal shadow, deliberate density. Not a
+   consumer dashboard and not a Shopify clone.
+   ========================================================================== */
+
+@layer components {
+  /* ==========================================================================
+     1. APP SHELL — SIDEBAR
+     The sidebar used to compete with the content: every item carried its own
+     outline, groups ran together, and the active item was barely louder than
+     the rest. It is now quiet by default and unmistakable when active.
+     ====================================================================== */
+  .m1-shell-sidebar {
+    background: var(--sidebar);
+    border-inline-end: 1px solid var(--border);
+  }
+
+  .m1-shell-sidebar nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-inline: var(--space-3);
+  }
+
+  /* Group headings become quiet structure rather than more content. */
+  .m1-shell-sidebar nav > div > button {
+    margin-block-start: var(--space-4);
+    padding-inline: var(--space-2);
+    color: var(--text-tertiary);
+    font-size: var(--font-caption);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: transparent;
+    border: 0;
+  }
+
+  .m1-shell-sidebar nav a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--control-height-lg);
+    padding-inline: var(--space-3);
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--font-body);
+    font-weight: 600;
+    line-height: var(--font-body-lh);
+    transition: background .14s ease, color .14s ease;
+  }
+
+  .m1-shell-sidebar nav a svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    color: var(--text-tertiary);
+    transition: color .14s ease;
+  }
+
+  .m1-shell-sidebar nav a:hover {
+    background: var(--surface-soft);
+    color: var(--text);
+  }
+
+  .m1-shell-sidebar nav a:hover svg { color: var(--text-secondary); }
+
+  /* Active: a soft brand field plus a gold rail on the inline-start edge. The
+     rail is logical, so it sits on the correct side in Arabic. */
+  .m1-shell-sidebar nav a[aria-current="page"] {
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-weight: 800;
+  }
+
+  .m1-shell-sidebar nav a[aria-current="page"] svg { color: var(--primary); }
+
+  .m1-shell-sidebar nav a[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 18%;
+    inset-inline-start: 0;
+    width: 3px;
+    border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+    background: var(--primary);
+  }
+
+  [dir="rtl"] .m1-shell-sidebar nav a[aria-current="page"]::before {
+    border-radius: var(--radius-xs) 0 0 var(--radius-xs);
+  }
+
+  .m1-shell-sidebar input {
+    min-height: var(--control-height-md);
+    border-radius: var(--radius-control);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: var(--font-body);
+  }
+
+  /* ==========================================================================
+     2. APP SHELL — TOPBAR
+     Was a row of independent bordered chips at three different heights. Now one
+     utility bar: same height, same radius, same neutral surface, gold reserved
+     for the one genuinely primary action.
+     ====================================================================== */
+  .m1-shell-topbar :where(button, a[class*="inline-flex"]) {
+    min-height: var(--control-height-md);
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-control);
+    font-size: var(--font-body);
+    font-weight: 600;
+  }
+
+  .m1-shell-topbar .m1-topbar-tools > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--topbar-text);
+  }
+
+  .m1-shell-topbar .m1-topbar-tools > button:hover {
+    background: color-mix(in srgb, var(--topbar-text) 12%, transparent);
+  }
+
+  .m1-shell-topbar .m1-topbar-tools > button svg { width: 18px; height: 18px; }
+
+  .m1-shell-topbar .m1-topbar-create {
+    border: 0;
+    background: var(--primary);
+    color: var(--primary-contrast);
+    font-weight: 700;
+  }
+
+  .m1-shell-topbar .m1-topbar-create:hover { background: var(--primary-hover); }
+
+  /* ==========================================================================
+     3. ONE CARD LANGUAGE
+     Every generic surface on the reference screens: same border, radius, fill
+     and padding. Borders carry the structure so shadows can stay almost silent.
+     ====================================================================== */
+  .dashboard-premium :where(article, section),
+  .m1-orders-page :where(.m1-orders-panel, .m1-orders-filters) {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--card);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* ==========================================================================
+     4. DASHBOARD — HEADER
+     eyebrow -> title -> supporting meta, each clearly a different level.
+     ====================================================================== */
+  .dashboard-premium .m1-page-eyebrow {
+    color: var(--text-tertiary);
+    font-size: var(--font-caption);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  .dashboard-premium h1 {
+    margin-block: var(--space-1) 0;
+    color: var(--text);
+    font-size: var(--font-page-title);
+    font-weight: 800;
+    line-height: var(--font-page-title-lh);
+    letter-spacing: 0;
+  }
+
+  .dashboard-premium h1 + p,
+  .dashboard-premium .m1-page-meta {
+    margin-block-start: var(--space-1);
+    color: var(--muted);
+    font-size: var(--font-body);
+    font-weight: 400;
+    line-height: var(--font-body-lh);
+  }
+
+  /* The command bar was a fixed navy strip that belonged to a different app. */
+  .dashboard-premium .dashboard-commandbar {
+    border: 0;
+    border-block-end: 1px solid var(--border);
+    background: transparent;
+    backdrop-filter: none;
+  }
+
+  /* ==========================================================================
+     5. DASHBOARD — KPI CARDS
+     The value is the hero. Label above it, supporting context below, icon in a
+     restrained container that never competes with the number.
+     ====================================================================== */
+  .dashboard-kpi-grid article {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-5);
+  }
+
+  .dashboard-kpi-grid article > div:first-child {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  /* label */
+  .dashboard-kpi-grid article :where(p, span, div):first-child {
+    color: var(--text-tertiary);
+    font-size: var(--font-label);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  /* value — the hero */
+  .dashboard-kpi-grid article strong,
+  .dashboard-kpi-grid article .m1-kpi-value {
+    color: var(--text);
+    font-size: var(--font-display);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* icon container — quiet, square, never coloured unless it means something */
+  .dashboard-kpi-grid article :where(span, div) > svg {
+    width: 18px;
+    height: 18px;
+    color: var(--text-tertiary);
+  }
+
+  .dashboard-kpi-grid article [class*="rounded"]:has(> svg) {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-control);
+    background: var(--surface-soft);
+    box-shadow: none;
+  }
+
+  /* ==========================================================================
+     6. DASHBOARD — GRID RHYTHM
+     More air than the fused slab it replaced, still dense enough to work in.
+     ====================================================================== */
+  .dashboard-premium .dashboard-operations-grid,
+  .dashboard-premium .dashboard-workspace {
+    gap: var(--space-4);
+  }
+
+  .dashboard-premium section {
+    padding: var(--space-5);
+  }
+
+  .dashboard-premium section > h2,
+  .dashboard-premium section > div > h2 {
+    margin-block-end: var(--space-4);
+    color: var(--text);
+    font-size: var(--font-section-title);
+    font-weight: 800;
+    line-height: var(--font-section-title-lh);
+  }
+
+  /* ==========================================================================
+     7. QUICK ACTIONS + generic buttons on the reference screens
+     One contract: height, radius, padding, weight, icon gap, focus.
+     ====================================================================== */
+  .dashboard-premium :where(button, a[class*="inline-flex"]),
+  .m1-orders-page :where(button, a[class*="inline-flex"]) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: var(--control-height-md);
+    padding-inline: var(--space-4);
+    border-radius: var(--radius-control);
+    font-size: var(--font-body);
+    font-weight: 600;
+    line-height: 1;
+    box-shadow: none;
+    transition: background .14s ease, border-color .14s ease, color .14s ease;
+  }
+
+  .dashboard-premium :where(button, a) svg,
+  .m1-orders-page :where(button, a) svg { width: 17px; height: 17px; flex: none; }
+
+  .dashboard-premium :where(button, a):focus-visible,
+  .m1-orders-page :where(button, a):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  /* ==========================================================================
+     8. ORDERS — HEADER, VIEW SWITCHER, FILTERS
+     ====================================================================== */
+  .m1-orders-page h1 {
+    color: var(--text);
+    font-size: var(--font-page-title);
+    font-weight: 800;
+    line-height: var(--font-page-title-lh);
+  }
+
+  .m1-orders-page .m1-orders-subtitle {
+    color: var(--muted);
+    font-size: var(--font-body);
+    font-weight: 400;
+  }
+
+  /* one segmented control instead of four loose chips */
+  .m1-orders-page .m1-orders-views {
+    display: inline-flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--surface-soft);
+  }
+
+  .m1-orders-page .m1-orders-views > button {
+    min-height: var(--control-height-sm);
+    padding-inline: var(--space-4);
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .m1-orders-page .m1-orders-views > button:hover { background: var(--surface); color: var(--text); }
+
+  .m1-orders-page .m1-orders-views > button[aria-selected="true"],
+  .m1-orders-page .m1-orders-views > button[data-active="true"] {
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-weight: 800;
+  }
+
+  /* the filter row becomes a designed surface with labelled groups */
+  .m1-orders-page .m1-orders-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .m1-orders-page .m1-orders-filters label {
+    display: block;
+    margin-block-end: var(--space-1);
+    color: var(--text-tertiary);
+    font-size: var(--font-caption);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .m1-orders-page .m1-orders-filters :where(input, select) {
+    min-height: var(--control-height-md);
+    padding-inline: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--text);
+    font-size: var(--font-body);
+  }
+
+  .m1-orders-page .m1-orders-filters :where(input, select):focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+    outline: none;
+  }
+
+  /* ==========================================================================
+     9. ORDERS — TABLE SURROUND
+     The canonical table is untouched; only the surface around it is designed.
+     ====================================================================== */
+  .m1-orders-page .m1-table-container {
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .m1-orders-page .m1-table > tbody > tr > td { font-size: var(--font-body); }
+
+  /* Financial columns read as figures. */
+  .m1-orders-page .m1-table td:has(> .m1-amount),
+  .m1-orders-page .m1-table .m1-amount {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+
+  /* ==========================================================================
+     10. RESPONSIVE — the shell must not break on a phone
+     ====================================================================== */
+  @media (max-width: 767px) {
+    .m1-shell-sidebar nav { padding-inline: var(--space-2); }
+    .m1-shell-sidebar nav a { min-height: var(--control-height-md); }
+    .dashboard-kpi-grid article { padding: var(--space-4); }
+    .dashboard-premium section { padding: var(--space-4); }
+    .m1-orders-page .m1-orders-filters { gap: var(--space-3); padding: var(--space-3); }
+    .m1-orders-page .m1-orders-views { width: 100%; overflow-x: auto; }
+  }
+}

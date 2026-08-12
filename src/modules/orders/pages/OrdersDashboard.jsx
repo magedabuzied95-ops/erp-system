@@ -905,6 +905,7 @@ function OrdersDashboard() {
 
   return (
     <OrdersShell header={null}>
+      <div className="m1-orders-page">
       {error ? (
         <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
@@ -1023,15 +1024,16 @@ function OrdersDashboard() {
         }}
         onConfirm={confirmPermanentDeleteOrder}
       />
+      </div>
     </OrdersShell>
   );
 }
 
 function WorkspaceTabs({ t, value, onChange, counts }) {
   return (
-    <div className="grid gap-2 rounded-2xl border border-white/10 bg-zinc-950/80 p-1.5 shadow-xl shadow-black/10 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="m1-orders-views grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
       {WORKSPACES.map(({ key, labelKey, icon: Icon }) => (
-        <button
+        <button data-active={value === key}
           key={key}
           type="button"
           onClick={() => onChange(key)}

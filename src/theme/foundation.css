@@ -5,7 +5,7 @@
     --app-font: var(--font-en);
     --font-ui: var(--app-font);
     --control-height: var(--control-height-md);
-    --radius-control: var(--radius-sm);
+    --radius-control: var(--radius-md);
     --radius-card: var(--radius-lg);
     --surface-hover: var(--surface-soft);
     --shadow-popover: var(--shadow-overlay);
