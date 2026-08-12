@@ -5165,7 +5165,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
           aiWrongAnswer: aiReplyDraft.text,
           employeeCorrectAnswer: messageText,
           correctionType,
-          productId: aiReplyDraft.metadata?.product_id || null,
+          productId: (Number(req.body?.product_id) || null) || aiReplyDraft.metadata?.product_id || null,
           channel,
           createdBy: req.user?.id || null,
           metadata: {
@@ -5175,6 +5175,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
             sent_message_id: message.id || sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
             suggested_message_type: aiReplyDraft.message_type || "text",
             sent_message_type: "text",
+            product_disposition: envText(req.body?.product_disposition) || null,  // Phase 11.2: kept/removed/changed
             conversation_id: conversationId,
             channel,
           },
@@ -5548,6 +5549,12 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       resolvedReplyJid: externalCustomerId || "",
       resolvedPhone: externalCustomerId || "",
     });
+    // Phase 11.2 — an ASSISTED package's card leg must NOT flip the conversation to human_takeover (the manual
+    // append's ON CONFLICT does). Re-assert ai_active so the A/B distinction survives the 2nd provider message.
+    // A standalone/manual product-card send (no flag) keeps the existing take-over behavior.
+    if (req.body?.assisted_approval === true) {
+      await updateAiSupportConversationState({ tenantId, sessionId: conversationId, channel: safeChannel, status: "ai_active", actorUserId: req.user?.id || null }).catch(() => {});
+    }
     await logChannelEvent({
       tenantId,
       channel: safeChannel,
