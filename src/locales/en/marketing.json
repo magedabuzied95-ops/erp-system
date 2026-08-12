@@ -1245,5 +1245,103 @@
       "generatedScript": "Generated script / caption",
       "technicalDiagnostics": "Technical diagnostics"
     }
+  },
+  "campaignAnalytics": {
+    "title": "Campaign Analytics",
+    "subtitle": "Overview, timeline, history, and top posts.",
+    "refresh": "Refresh",
+    "media": {
+      "noImage": "No post image",
+      "postNumber": "Post #{{id}}"
+    },
+    "status": {
+      "published": "Published ✓",
+      "scheduled": "Scheduled",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "draft": "Draft",
+      "unknownReason": "Unknown reason"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "kpi": {
+      "published": "Published",
+      "publishedHint": "Number of published posts.",
+      "scheduled": "Scheduled",
+      "scheduledHint": "Posts queued for later.",
+      "drafts": "Drafts",
+      "draftsHint": "Draft content in progress.",
+      "firstComments": "First Comments",
+      "firstCommentPublished": "Published",
+      "firstCommentFailed": "Failed",
+      "firstCommentSkipped": "Skipped"
+    },
+    "charts": {
+      "title": "Charts",
+      "last30Days": "Last 30 days",
+      "total": "Total"
+    },
+    "timeline": {
+      "title": "Timeline",
+      "subtitle": "Recent publishing activity",
+      "firstCommentPublished": "First Comment Published",
+      "firstCommentFailed": "First Comment Failed",
+      "firstCommentSkipped": "First Comment Skipped",
+      "firstCommentWith": "First Comment {{status}}",
+      "empty": "No activity yet."
+    },
+    "history": {
+      "badge": "Published content",
+      "title": "Post History",
+      "subtitle": "Creative, caption, first comment, and publishing status in one place.",
+      "postCount": "{{count}} posts",
+      "empty": "No history yet.",
+      "captionPreview": "Caption Preview",
+      "commentPreview": "Comment Preview",
+      "noCaption": "No caption yet",
+      "firstCommentDone": "✓ First Comment",
+      "publishedAt": "Published",
+      "actions": "Actions",
+      "templateSnapshot": "Content template snapshot",
+      "duplicatedToast": "Duplicated {{name}} in view only.",
+      "republishToast": "Open {{name}} in Publisher to republish."
+    },
+    "columns": {
+      "creative": "Creative",
+      "platform": "Platform",
+      "template": "Template",
+      "status": "Status",
+      "caption": "Caption",
+      "firstComment": "First Comment",
+      "published": "Published",
+      "actions": "Actions"
+    },
+    "actions": {
+      "view": "View",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "republish": "Republish",
+      "close": "Close"
+    },
+    "top": {
+      "title": "Top Posts",
+      "subtitle": "Best performing posts from analytics",
+      "post": "Post",
+      "platform": "Platform",
+      "likes": "Likes",
+      "comments": "Comments",
+      "shares": "Shares",
+      "reach": "Reach",
+      "impressions": "Impressions",
+      "engagement": "Engagement",
+      "synced": "Synced",
+      "empty": "No top posts available."
+    },
+    "modal": {
+      "aria": "Campaign post details",
+      "title": "View"
+    }
   }
 }

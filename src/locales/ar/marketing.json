@@ -1245,5 +1245,103 @@
       "generatedScript": "النص / التعليق المُولّد",
       "technicalDiagnostics": "تشخيص تقني"
     }
+  },
+  "campaignAnalytics": {
+    "title": "تحليلات الحملات",
+    "subtitle": "نظرة عامة والخط الزمني والسجل وأفضل المنشورات.",
+    "refresh": "تحديث",
+    "media": {
+      "noImage": "لا توجد صورة للمنشور",
+      "postNumber": "منشور رقم {{id}}"
+    },
+    "status": {
+      "published": "تم النشر ✓",
+      "scheduled": "مجدول",
+      "failed": "فشل",
+      "skipped": "تم التخطي",
+      "draft": "مسودة",
+      "unknownReason": "سبب غير معروف"
+    },
+    "day": {
+      "today": "اليوم",
+      "yesterday": "أمس"
+    },
+    "kpi": {
+      "published": "منشور",
+      "publishedHint": "عدد المنشورات التي تم نشرها.",
+      "scheduled": "مجدول",
+      "scheduledHint": "منشورات في الانتظار للنشر لاحقًا.",
+      "drafts": "مسودات",
+      "draftsHint": "محتوى مسودة قيد الإعداد.",
+      "firstComments": "التعليقات الأولى",
+      "firstCommentPublished": "منشور",
+      "firstCommentFailed": "فشل",
+      "firstCommentSkipped": "تم التخطي"
+    },
+    "charts": {
+      "title": "الرسوم البيانية",
+      "last30Days": "آخر 30 يومًا",
+      "total": "الإجمالي"
+    },
+    "timeline": {
+      "title": "الخط الزمني",
+      "subtitle": "نشاط النشر الأخير",
+      "firstCommentPublished": "تم نشر التعليق الأول",
+      "firstCommentFailed": "فشل التعليق الأول",
+      "firstCommentSkipped": "تم تخطي التعليق الأول",
+      "firstCommentWith": "التعليق الأول {{status}}",
+      "empty": "لا يوجد نشاط بعد."
+    },
+    "history": {
+      "badge": "المحتوى المنشور",
+      "title": "سجل المنشورات",
+      "subtitle": "التصميم والنص والتعليق الأول وحالة النشر في مكان واحد.",
+      "postCount": "{{count}} منشور",
+      "empty": "لا يوجد سجل بعد.",
+      "captionPreview": "معاينة النص",
+      "commentPreview": "معاينة التعليق",
+      "noCaption": "لا يوجد نص بعد",
+      "firstCommentDone": "✓ التعليق الأول",
+      "publishedAt": "تاريخ النشر",
+      "actions": "الإجراءات",
+      "templateSnapshot": "لقطة من قالب المحتوى",
+      "duplicatedToast": "تم تكرار {{name}} في العرض فقط.",
+      "republishToast": "افتح {{name}} في أداة النشر لإعادة النشر."
+    },
+    "columns": {
+      "creative": "التصميم",
+      "platform": "المنصة",
+      "template": "القالب",
+      "status": "الحالة",
+      "caption": "النص",
+      "firstComment": "التعليق الأول",
+      "published": "تاريخ النشر",
+      "actions": "الإجراءات"
+    },
+    "actions": {
+      "view": "عرض",
+      "duplicate": "تكرار",
+      "delete": "حذف",
+      "republish": "إعادة النشر",
+      "close": "إغلاق"
+    },
+    "top": {
+      "title": "أفضل المنشورات",
+      "subtitle": "أفضل المنشورات أداءً حسب التحليلات",
+      "post": "المنشور",
+      "platform": "المنصة",
+      "likes": "الإعجابات",
+      "comments": "التعليقات",
+      "shares": "المشاركات",
+      "reach": "الوصول",
+      "impressions": "مرات الظهور",
+      "engagement": "التفاعل",
+      "synced": "آخر مزامنة",
+      "empty": "لا توجد منشورات مميزة متاحة."
+    },
+    "modal": {
+      "aria": "تفاصيل منشور الحملة",
+      "title": "عرض"
+    }
   }
 }
