@@ -198,6 +198,42 @@ const callMeta = async ({ endpoint, params, mode, imageUrl }) => {
 };
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const INSTAGRAM_SLIDE_DELAY_MS = 1200;
+
+const instagramCompatibleImageUrl = (value = "") => {
+  const source = trimString(value);
+  if (!source) return "";
+  if (/\.jpe?g(?:$|[?#])/i.test(source)) return source;
+  try {
+    const parsed = new URL(source);
+    if (!/\.cloudinary\.com$/i.test(parsed.hostname) || !parsed.pathname.includes("/image/upload/")) return source;
+    parsed.pathname = parsed.pathname
+      .replace("/image/upload/", "/image/upload/f_jpg,q_92,fl_strip_profile/")
+      .replace(/\.png$/i, ".jpg");
+    return parsed.toString();
+  } catch {
+    return source;
+  }
+};
+
+const assertInstagramImageIsFetchable = async (imageUrl = "") => {
+  const response = await fetch(imageUrl, {
+    method: "HEAD",
+    headers: { "Cache-Control": "no-cache", Accept: "image/jpeg" },
+  });
+  const contentType = trimString(response.headers.get("content-type")).toLowerCase();
+  if (!response.ok || !contentType.startsWith("image/jpeg")) {
+    const error = new Error(`Instagram Story media preflight failed: expected public JPEG, received ${contentType || `HTTP ${response.status}`}.`);
+    error.status = response.status || 422;
+    throw error;
+  }
+};
+
+const isRetryableInstagramContainerError = (error) => {
+  const message = `${error?.message || ""} ${JSON.stringify(error?.metaResponse || {})}`.toLowerCase();
+  return Number(error?.status || 0) === 429 || Number(error?.status || 0) >= 500 ||
+    ["fetch failed", "only photo or video", "temporarily unavailable", "please try again"].some((token) => message.includes(token));
+};
 
 const storyLinkMetadata = (story = {}) => ({
   product_url: trimString(story.product_url || story.design_json?.product_url),
@@ -227,23 +263,38 @@ const facebookStoryCtaParams = (story = {}) => {
 export const publishInstagramStory = async ({ story, settings, accessToken }) => {
   const instagramAccountId = getInstagramAccountId(settings);
   const candidate = getStoryImageCandidate(story);
-  const imageUrl = candidate.publicUrl;
+  const imageUrl = instagramCompatibleImageUrl(candidate.publicUrl);
   console.log("[story-instagram] ig account id", { instagram_account_id: instagramAccountId || null });
   if (!instagramAccountId) return result({ status: "failed", error: "Instagram account ID is not configured.", story });
   if (!imageUrl) return result({ status: "failed", error: "Instagram Story requires a valid public HTTPS image URL.", story });
 
   try {
     await assertGeneratedStoryAsset({ story, platform: "instagram", candidate });
-    const container = await callMeta({
-      endpoint: `/${encodeURIComponent(instagramAccountId)}/media`,
-      mode: "instagram.story.container",
-      imageUrl,
-      params: {
-        media_type: "STORIES",
-        image_url: imageUrl,
-        access_token: accessToken,
-      },
-    });
+    await assertInstagramImageIsFetchable(imageUrl);
+    let container = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        container = await callMeta({
+          endpoint: `/${encodeURIComponent(instagramAccountId)}/media`,
+          mode: "instagram.story.container",
+          imageUrl,
+          params: {
+            media_type: "STORIES",
+            image_url: imageUrl,
+            access_token: accessToken,
+          },
+        });
+        break;
+      } catch (error) {
+        if (!isRetryableInstagramContainerError(error) || attempt === 3) throw error;
+        console.warn("[story-instagram] retrying container creation", {
+          attempt,
+          image_url: imageUrl,
+          error: error?.message || "Instagram container creation failed",
+        });
+        await delay(attempt * 2000);
+      }
+    }
     const containerId = trimString(container?.id);
     console.log("[story-instagram] container id", { container_id: containerId || null });
     if (!containerId) return result({ status: "failed", error: "Instagram Story container response did not include id.", story });
@@ -382,7 +433,7 @@ const aggregatePlatformSlideResults = (platform, results = []) => {
   };
 };
 
-export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
+export const publishStoryEverywhere = async ({ story = {}, settings = {}, previousResults = {} }) => {
   console.log("[story-all] starting", {
     storyId: story?.id || null,
     post_id: story?.id || null,
@@ -449,13 +500,38 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
     }
   }
 
-  const [instagramSlides, facebookSlides, whatsapp] = await Promise.all([
-    Promise.all(publishCandidates.map((candidate) => publishInstagramStory({ story: storyForCandidate(story, candidate), settings, accessToken }))),
-    Promise.all(publishCandidates.map((candidate) => publishFacebookStory({ story: storyForCandidate(story, candidate), settings, accessToken }))),
-    publishWhatsAppStory(),
-  ]);
-  const instagram = aggregatePlatformSlideResults("Instagram", instagramSlides);
-  const facebook = aggregatePlatformSlideResults("Facebook", facebookSlides);
+  const previousInstagram = previousResults?.instagram || {};
+  const previousFacebook = previousResults?.facebook || {};
+  let instagram;
+  if (previousInstagram.status === "published") {
+    instagram = { ...previousInstagram, reused: true };
+  } else {
+    const previousSlides = Array.isArray(previousInstagram.slide_results) ? previousInstagram.slide_results : [];
+    const instagramSlides = [];
+    for (const [index, candidate] of publishCandidates.entries()) {
+      const previousSlide = previousSlides[index];
+      if (previousSlide?.status === "published") {
+        instagramSlides.push({ ...previousSlide, reused: true });
+        continue;
+      }
+      instagramSlides.push(await publishInstagramStory({
+        story: storyForCandidate(story, candidate),
+        settings,
+        accessToken,
+      }));
+      if (index < publishCandidates.length - 1) await delay(INSTAGRAM_SLIDE_DELAY_MS);
+    }
+    instagram = aggregatePlatformSlideResults("Instagram", instagramSlides);
+  }
+
+  const facebook = previousFacebook.status === "published"
+    ? { ...previousFacebook, reused: true }
+    : aggregatePlatformSlideResults("Facebook", await Promise.all(
+        publishCandidates.map((candidate) => publishFacebookStory({ story: storyForCandidate(story, candidate), settings, accessToken }))
+      ));
+  const whatsapp = previousResults?.whatsapp?.status === "skipped"
+    ? { ...previousResults.whatsapp, reused: true }
+    : await publishWhatsAppStory();
 
   const supported = [instagram, facebook];
   const successCount = supported.filter((item) => item.status === "published").length;
@@ -477,3 +553,8 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
 };
 
 export default publishStoryEverywhere;
+
+export const __storyPublisherTestHooks = {
+  instagramCompatibleImageUrl,
+  isRetryableInstagramContainerError,
+};

@@ -109,12 +109,14 @@ const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
   let buffer = null;
   let blob = null;
   let formData = null;
-  logStoryMemory("before-cloudinary-file-read", { filename: filename || "story-image.png" });
+  const uploadFilename = filename || "story-image.jpg";
+  const contentType = /\.png$/i.test(uploadFilename) ? "image/png" : "image/jpeg";
+  logStoryMemory("before-cloudinary-file-read", { filename: uploadFilename });
   buffer = await fs.readFile(filePath);
-  logStoryMemory("after-cloudinary-file-read", { filename: filename || "story-image.png", bytes: buffer.length });
-  blob = new Blob([buffer], { type: "image/png" });
+  logStoryMemory("after-cloudinary-file-read", { filename: uploadFilename, bytes: buffer.length });
+  blob = new Blob([buffer], { type: contentType });
   formData = new FormData();
-  formData.append("file", blob, filename || "story-image.png");
+  formData.append("file", blob, uploadFilename);
   formData.append("api_key", config.apiKey);
   formData.append("timestamp", String(timestamp));
   formData.append("folder", config.folder);
@@ -122,11 +124,12 @@ const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
   buffer = null;
 
   console.log("[story-cloudinary-upload-start]", {
-    filename: filename || "story-image.png",
+    filename: uploadFilename,
+    content_type: contentType,
     folder: config.folder,
   });
   try {
-    logStoryMemory("before-cloudinary-upload", { filename: filename || "story-image.png" });
+    logStoryMemory("before-cloudinary-upload", { filename: uploadFilename });
     const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudName)}/image/upload`, {
       method: "POST",
       body: formData,
@@ -134,7 +137,7 @@ const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
     buffer = null;
     blob = null;
     formData = null;
-    logStoryMemory("after-cloudinary-upload-response", { filename: filename || "story-image.png" });
+    logStoryMemory("after-cloudinary-upload-response", { filename: uploadFilename });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(body?.error?.message || body?.message || "Cloudinary story upload failed");
@@ -146,7 +149,7 @@ const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
       secure_url: body.secure_url,
       public_id: body.public_id || "",
     });
-    logStoryMemory("after-cloudinary-upload-success", { filename: filename || "story-image.png" });
+    logStoryMemory("after-cloudinary-upload-success", { filename: uploadFilename });
     return body.secure_url;
   } catch (error) {
     buffer = null;
@@ -155,7 +158,7 @@ const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
     console.error("[story-cloudinary-upload-failed]", {
       error: error?.message || "Cloudinary story upload failed",
     });
-    logStoryMemory("after-cloudinary-upload-failed", { filename: filename || "story-image.png" });
+    logStoryMemory("after-cloudinary-upload-failed", { filename: uploadFilename });
     throw error;
   }
 };
@@ -752,7 +755,7 @@ const storyFilename = ({ tenantId = null, postId = null, suffix = "story" } = {}
     tenantId ? `tenant-${tenantId}` : "tenant",
     postId ? `post-${postId}` : suffix,
     crypto.randomBytes(5).toString("hex"),
-  ].join("-") + ".png";
+  ].join("-") + ".jpg";
 
 const writeStoryFile = async ({ filename, composites, background }) => {
   const outputDir = storyUploadDir();
@@ -764,7 +767,7 @@ const writeStoryFile = async ({ filename, composites, background }) => {
     logStoryMemory("before-story-render", { filename, compositeCount: composites.length });
     await sharp(backgroundBuffer)
       .composite(composites)
-      .png()
+      .jpeg({ quality: 92, chromaSubsampling: "4:4:4", mozjpeg: true })
       .toFile(outputPath);
     backgroundBuffer = null;
     disposeCompositeBuffers(composites);

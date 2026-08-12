@@ -5595,7 +5595,11 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       return persistQueuePublishResult({ tenantId, id, item: publishItem, result, platformResults, statusOverride: "failed", errorOverride: result.error_message });
     }
     const publishResult = isStory
-      ? await publishStoryEverywhereService({ story: { ...queueItemStoryPayload(publishItem), publish_job_id: publishJobId }, settings })
+      ? await publishStoryEverywhereService({
+          story: { ...queueItemStoryPayload(publishItem), publish_job_id: publishJobId },
+          settings,
+          previousResults: previousPlatformResults,
+        })
       : await publishPostService(queueItemPostPayload(publishItem), settings);
     const platformResults = normalizePlatformResults(publishResult, isStory ? "story" : "post");
     return persistQueuePublishResult({ tenantId, id, item: publishItem, result: publishResult, platformResults });
