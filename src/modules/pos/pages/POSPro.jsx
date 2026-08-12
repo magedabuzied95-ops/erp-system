@@ -392,6 +392,19 @@ const customerSnapshotFromOrder = (order = {}) => {
   return { id, customer_id: id, name, customer_name: name, phone, customer_phone: phone };
 };
 
+const resolveEditOrderSalespersonId = (order = {}) =>
+  order.sales_employee_id ||
+  order.salesEmployeeId ||
+  order.salesperson_id ||
+  order.salespersonId ||
+  order.assigned_seller_id ||
+  order.assignedSellerId ||
+  order.seller_employee_id ||
+  order.sellerEmployeeId ||
+  order.seller_id ||
+  order.sellerId ||
+  "";
+
 const normalizeInvoiceDiscountType = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized === "percentage" || normalized === "percent" ? "percentage" : "fixed";
@@ -5055,13 +5068,7 @@ function POSPro() {
       setSelectedCustomerId(loadedCustomerId);
       setCustomerSearch(loadedOrder.customer_name || loadedOrder.customer?.name || loadedOrder.customer_phone || "");
 
-      const sellerId =
-        loadedOrder.sales_employee_id ||
-        loadedOrder.salesperson_id ||
-        loadedOrder.assigned_seller_id ||
-        loadedOrder.seller_id ||
-        loadedOrder.seller_employee_id ||
-        "";
+      const sellerId = resolveEditOrderSalespersonId(loadedOrder);
       setSelectedSalespersonId(sellerId ? String(sellerId) : "");
       setMarketingAttribution((current) => ({
         ...current,
@@ -5172,6 +5179,8 @@ function POSPro() {
       }
       setSelectedCustomerId(loadedCustomer?.id || null);
       setCustomerSearch(loadedCustomer?.name || loadedCustomer?.phone || "");
+      const sellerId = resolveEditOrderSalespersonId(originalContext);
+      setSelectedSalespersonId(sellerId ? String(sellerId) : "");
       const openStartedAt = performance.now();
       setRecentOperationsOpen(false);
       markEditTiming("open_edit_mode_ms", openStartedAt);
@@ -5198,9 +5207,12 @@ function POSPro() {
 
   useEffect(() => {
     if (!editingOrder?.id || selectedSalespersonId || salesEmployees.length === 0) return;
+    const employeeId = resolveEditOrderSalespersonId(editingOrder);
     const sellerUserId = editingOrder.seller_user_id || editingOrder.sellerUserId || "";
-    if (!sellerUserId) return;
-    const seller = salesEmployees.find((employee) => String(employee.user_id || "") === String(sellerUserId));
+    const seller = salesEmployees.find((employee) =>
+      (employeeId && String(employee.id || employee.employee_id || "") === String(employeeId))
+      || (sellerUserId && String(employee.user_id || "") === String(sellerUserId))
+    );
     if (seller?.id) setSelectedSalespersonId(String(seller.id));
   }, [editingOrder, salesEmployees, selectedSalespersonId]);
 
@@ -5769,9 +5781,12 @@ function POSPro() {
       }
 
       const selectedSeller = salesEmployees.find((employee) => String(employee.id) === String(selectedSalespersonId));
-      const resolvedSellerUserId = selectedSeller?.user_id || null;
-      const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || null;
-      const resolvedSellerName = selectedSeller?.pos_alias || selectedSeller?.name || selectedSeller?.full_name || "";
+      const editingSellerId = editingOrder?.id ? resolveEditOrderSalespersonId(editingOrder) : "";
+      const retainingOriginalSeller = Boolean(editingOrder?.id && editingSellerId && String(editingSellerId) === String(selectedSalespersonId));
+      const resolvedSellerUserId = selectedSeller?.user_id || (retainingOriginalSeller ? editingOrder.seller_user_id || editingOrder.sellerUserId : null) || null;
+      const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || (retainingOriginalSeller ? editingSellerId : null) || null;
+      const resolvedSellerName = selectedSeller?.pos_alias || selectedSeller?.name || selectedSeller?.full_name
+        || (retainingOriginalSeller ? editingOrder.salesperson_name || editingOrder.seller_name || "" : "");
       console.log("[pos][seller-debug] selected seller before checkout", {
         selectedSalespersonId,
         selectedSeller,

@@ -5903,6 +5903,52 @@ export const editOrder = async (req, res) => {
         ? req.body.customer_phone || ""
         : loaded.order.customer_phone || "";
 
+    const loadedSalesEmployeeId = loaded.order.sales_employee_id || loaded.order.salesperson_id || null;
+    const requestedSalesEmployeeId = firstValue(
+      req.body.sales_employee_id,
+      req.body.salesEmployeeId,
+      req.body.salesperson_id,
+      req.body.salespersonId,
+      req.body.assigned_seller_id,
+      req.body.assignedSellerId,
+      req.body.seller_employee_id,
+      req.body.sellerEmployeeId,
+      req.body.seller_id,
+      req.body.sellerId
+    );
+    const resolvedEditSalesEmployeeId = requestedSalesEmployeeId || loadedSalesEmployeeId;
+    const sellerChanged = Boolean(
+      requestedSalesEmployeeId
+      && String(requestedSalesEmployeeId) !== String(loadedSalesEmployeeId || "")
+    );
+    const editSalespersonSnapshot = resolvedEditSalesEmployeeId
+      ? await getSalespersonSnapshot(client, {
+          tenantId,
+          salespersonId: resolvedEditSalesEmployeeId,
+          branchId: req.body.branch_id || loaded.order.branch_id || null,
+        })
+      : null;
+    if (sellerChanged && !editSalespersonSnapshot) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Selected salesperson is not active in this branch" });
+    }
+    const resolvedEditSellerUserId = firstValue(req.body.seller_user_id, req.body.sellerUserId)
+      || loaded.order.seller_user_id
+      || null;
+    const resolvedEditSellerName = String(
+      editSalespersonSnapshot?.salesperson_name
+      || req.body.salesperson_name
+      || req.body.seller_name
+      || loaded.order.salesperson_name
+      || loaded.order.seller_name
+      || ""
+    ).trim();
+    const resolvedEditCommissionType = editSalespersonSnapshot?.commission_type || loaded.order.salesperson_commission_type || null;
+    const resolvedEditCommissionValue = editSalespersonSnapshot?.commission_value ?? loaded.order.salesperson_commission_value ?? 0;
+    const resolvedEditFixedMode = editSalespersonSnapshot?.fixed_mode || loaded.order.salesperson_fixed_mode || null;
+    const resolvedEditExcludedProductIds = editSalespersonSnapshot?.excluded_product_ids || loaded.order.salesperson_excluded_product_ids || [];
+    const resolvedEditExcludedCategoryIds = editSalespersonSnapshot?.excluded_category_ids || loaded.order.salesperson_excluded_category_ids || [];
+
     await client.query(`DELETE FROM order_items WHERE order_id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)`, [loaded.order.id, tenantId]);
     const orderItemAvailableColumns = await getTableColumnSet(client, "order_items");
     for (const item of newItems) {
@@ -5919,6 +5965,7 @@ export const editOrder = async (req, res) => {
         line_total: item.line_total || item.total_amount,
         subtotal: item.subtotal || item.total_amount,
         price_source: item.price > 0 ? "payload" : "missing",
+        sales_employee_id: resolvedEditSalesEmployeeId,
       }, {
         availableColumns: orderItemAvailableColumns,
         filePath: "server/controllers/ordersController.js",
@@ -5970,6 +6017,16 @@ export const editOrder = async (req, res) => {
           invoice_discount_value = $24,
           invoice_discount_amount = $25,
           invoice_discount_reason = $26,
+          seller_user_id = $27,
+          sales_employee_id = $28,
+          salesperson_id = $28,
+          seller_name = $29,
+          salesperson_name = $29,
+          salesperson_commission_type = $30,
+          salesperson_commission_value = $31,
+          salesperson_fixed_mode = $32,
+          salesperson_excluded_product_ids = $33::jsonb,
+          salesperson_excluded_category_ids = $34::jsonb,
           updated_at = NOW()
       WHERE id = $14
       RETURNING *
@@ -6009,6 +6066,14 @@ export const editOrder = async (req, res) => {
         invoiceDiscountAmount > 0 ? invoiceDiscountValue : 0,
         invoiceDiscountAmount,
         invoiceDiscountAmount > 0 ? String(req.body.invoice_discount_reason || "").trim() : "",
+        resolvedEditSellerUserId,
+        resolvedEditSalesEmployeeId,
+        resolvedEditSellerName,
+        resolvedEditCommissionType,
+        resolvedEditCommissionValue,
+        resolvedEditFixedMode,
+        JSON.stringify(resolvedEditExcludedProductIds),
+        JSON.stringify(resolvedEditExcludedCategoryIds),
       ]
     );
     await markCustomerTrustedForCompletedOrder(client, orderResult.rows[0]);
