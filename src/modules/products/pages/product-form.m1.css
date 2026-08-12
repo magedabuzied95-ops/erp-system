@@ -1,0 +1,38 @@
+/* Product form (Add + Edit) — what is left after the paint-over was retired.
+
+   CreateProduct.m1.css used to be a translation layer. It matched the fixed-dark
+   Tailwind classes the page was authored with and repainted them with tokens and
+   forced priority:
+
+     [class*="border-white"]        [class*="bg-white/"]
+     [class*="bg-zinc-950"]         [class*="bg-zinc-900"]
+     [class*="bg-[#10"]             [class*="bg-[#0f"]
+     .text-white .text-zinc-100/200/300/400/500/600
+     [class*="rounded-[28px]"] … [class*="rounded-[14px]"]  [class*="rounded-2xl"]
+     button[class*="from-emerald"]  .fixed.bottom-0
+
+   Both pages now consume the semantic scale and the frozen radius contract
+   directly, so every one of those selectors matches zero elements in the live
+   JSX — verified before removal: bg-white/ 0, bg-zinc-900 0, bg-zinc-950 0,
+   text-zinc-100/200/300/400/500/600 0, rounded-2xl 0, rounded-[14px…28px] 0,
+   from-emerald 0.
+
+   Two of them were worse than dead. `[class*="border-white"]` and `.text-white`
+   still matched the image-overlay arrows, which sit on a bg-black/65 scrim over
+   the photo and must stay white in BOTH themes — the shim was repainting them to
+   --border/--text and washing them out against the scrim. That is the same
+   substring trap Customers hit, where `[class*="…"]` also matches the
+   `hover:`-prefixed variant of a class and makes a hover state permanent.
+
+   What remains is density, which is genuine shared ownership rather than a
+   repaint, and it is expressed without forced priority: `.m1-product-section` is a
+   real class, so `html[data-density="compact"] .m1-product-section` already
+   outranks a single Tailwind padding utility on specificity alone. */
+
+.m1-product-section {
+  scroll-margin-top: 96px;
+}
+
+html[data-density="compact"] .m1-product-section {
+  padding: 16px;
+}

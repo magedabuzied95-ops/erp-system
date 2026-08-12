@@ -140,10 +140,37 @@ test("the shims are still imported by the pages they govern", () => {
   for (const [page, shim] of [
     ["src/modules/managerPortal/pages/ManagerPortal.jsx", "./ManagerPortal.m1.css"],
     ["src/modules/settings/pages/SettingsCenter.jsx", "./SettingsCenter.m1.css"],
-    ["src/modules/products/pages/CreateProduct.jsx", "./CreateProduct.m1.css"],
+    // CreateProduct.m1.css was retired under the criterion above and replaced by
+    // product-form.m1.css, which BOTH product-form routes import.
+    ["src/modules/products/pages/CreateProduct.jsx", "./product-form.m1.css"],
+    ["src/modules/products/pages/ProductEdit.jsx", "./product-form.m1.css"],
   ]) {
     assert.ok(read(page).includes(shim), `${page} stopped importing ${shim}`);
   }
+});
+
+test("the retired CreateProduct paint-over left no renderable hook behind", () => {
+  // CreateProduct.m1.css was a translation layer keyed on the fixed-dark classes
+  // the page was authored with. Both product-form routes now consume the
+  // semantic tokens and the frozen radius contract directly, so the hooks are
+  // gone rather than merely unstyled. Repo-wide absence is the criterion, per
+  // the test above.
+  assert.ok(
+    !fs.existsSync(path.join(root, "src/modules/products/pages/CreateProduct.m1.css")),
+    "the shim is back — re-verify its hooks before reintroducing it",
+  );
+  const forms = [
+    read("src/modules/products/pages/CreateProduct.jsx"),
+    read("src/modules/products/pages/ProductEdit.jsx"),
+  ].join("\n");
+  for (const hook of [
+    "bg-white/", "bg-zinc-900", "bg-zinc-950", "text-zinc-", "from-emerald",
+    "rounded-2xl", "rounded-[14px]", "rounded-[18px]", "rounded-[28px]",
+  ]) {
+    assert.ok(!forms.includes(hook), `${hook} came back — the retired shim used to repaint it`);
+  }
+  // Nothing else in the repo can render the old scoped hooks either.
+  assert.deepEqual(allFiles.filter((f) => /\.(jsx?|css)$/.test(f) && read(f).includes("m1-create-")), []);
 });
 
 // ---- the ratchet ----------------------------------------------------------
