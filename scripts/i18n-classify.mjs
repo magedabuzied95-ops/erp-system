@@ -24,6 +24,7 @@ import {
   devGatedRanges,
   printDocumentRanges,
   seedDataRanges,
+  contentCatalogueRanges,
 } from "./i18n-english-scan.mjs";
 
 /**
@@ -109,8 +110,22 @@ export function classify() {
       ...seedDataRanges(text),
     ];
     const inRange = (line) => ranges.some(([from, to]) => line >= from && line <= to);
+
+    /*
+     * A content catalogue mixes produced COPY with real chrome: STORY_TEMPLATES
+     * carries `badge`/`cta` painted into the generated story image right next to a
+     * `name` that labels the template, and toneBank carries `hooks` next to a
+     * `label` that socialToneOptions renders in a tone picker. The catalogue range
+     * alone cannot decide - the hit must ALSO sit on a content field, or genuine
+     * chrome gets hidden.
+     */
+    const CONTENT_FIELD = /\b(cta|badge|hook|hooks|mood|caption)\s*:/;
+    const catalogueRanges = contentCatalogueRanges(text);
+    const isCatalogueContent = (hit) =>
+      catalogueRanges.some(([from, to]) => hit.line >= from && hit.line <= to) &&
+      CONTENT_FIELD.test(lines[hit.line - 1] || "");
     const isBilingual = (hit) => {
-      if (inRange(hit.line)) return true;
+      if (inRange(hit.line) || isCatalogueContent(hit)) return true;
       const line = lines[hit.line - 1] || "";
       BILINGUAL_MARKERS.lastIndex = 0;
       return BILINGUAL_MARKERS.test(line);

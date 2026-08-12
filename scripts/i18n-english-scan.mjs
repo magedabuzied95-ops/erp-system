@@ -400,6 +400,37 @@ export const printDocumentRanges = (text) => {
  * Scoped to the function, not the file: real chrome elsewhere in the same
  * module is still reported.
  */
+/**
+ * Line ranges of CONTENT CATALOGUES - `STORY_TEMPLATES`, `toneBank` and similar.
+ *
+ * Their `cta`/`badge`/`hook`/`mood` strings are the marketing copy that gets
+ * baked into a generated story image or fed to the copy generator. That is
+ * produced CONTENT, not interface vocabulary: translating it would rewrite what
+ * the customer sees in the artwork rather than relabel a control.
+ *
+ * Keyed on the declaration name, exactly like the seed rule, and scoped to the
+ * declaration - chrome elsewhere in the same module is still reported.
+ */
+export const contentCatalogueRanges = (text) => {
+  const lines = text.split("\n");
+  const ranges = [];
+  const OPEN = /^\s*(?:export\s+)?const\s+(?:[A-Z][A-Z0-9_]*_TEMPLATES|[a-z]\w*(?:Bank|Templates|Copy))\s*=\s*[[{]/;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!OPEN.test(lines[i])) continue;
+    let depth = 0;
+    let end = i;
+    for (let j = i; j < lines.length; j += 1) {
+      for (const ch of lines[j]) {
+        if (ch === "[" || ch === "{") depth += 1;
+        else if (ch === "]" || ch === "}") depth -= 1;
+      }
+      if (depth <= 0) { end = j; break; }
+    }
+    ranges.push([i + 1, end + 1]);
+  }
+  return ranges;
+};
+
 export const seedDataRanges = (text) => {
   const lines = text.split("\n");
   const ranges = [];
@@ -460,20 +491,32 @@ export function scanEnglish() {
     const bilingualRanges = [...bilingualHalfRanges(text), ...bilingualTernaryRanges(text)];
     const devRanges = devGatedRanges(text);
     const printRanges = printDocumentRanges(text);
+    /*
+     * A content catalogue holds BOTH produced copy and real chrome: STORY_TEMPLATES
+     * has `cta`/`badge` (baked into the generated image) next to `name`, and
+     * toneBank has `hooks` next to a `label` that socialToneOptions renders in a
+     * tone picker. So the catalogue range alone is not enough - the hit must also
+     * sit on a CONTENT field. `label`/`name`/`title` inside a catalogue stay chrome.
+     */
+    const CONTENT_FIELD = /\b(cta|badge|hook|hooks|mood|caption|body|message)\s*:/;
+    const catalogueRanges = contentCatalogueRanges(text);
     const seedRanges = seedDataRanges(text);
-    if (bilingualRanges.length || devRanges.length || printRanges.length || seedRanges.length) {
+    /** A catalogue hit is content only when the hit's OWN line is a content field. */
+    const isCatalogueContent = (hit) =>
+      inRanges(hit.line, catalogueRanges) && CONTENT_FIELD.test(sourceLines[hit.line - 1] || "");
+    if (bilingualRanges.length || devRanges.length || printRanges.length || seedRanges.length || catalogueRanges.length) {
       const take = (ranges, exclude) =>
         hits.filter((hit) => inRanges(hit.line, ranges) && !exclude.some((r) => inRanges(hit.line, r)));
       const bilingualHits = take(bilingualRanges, []);
       const devHits = take(devRanges, [bilingualRanges]);
       const printHits = take(printRanges, [bilingualRanges, devRanges]);
-      const seedHits = take(seedRanges, [bilingualRanges, devRanges, printRanges]);
+      const seedHits = hits.filter((h) => (inRanges(h.line, seedRanges) || isCatalogueContent(h)) && ![bilingualRanges, devRanges, printRanges].some((r) => inRanges(h.line, r)));
       if (bilingualHits.length) buckets.bilingual.push({ file: relative, total: bilingualHits.length, hits: bilingualHits });
       if (devHits.length) buckets.debug.push({ file: relative, total: devHits.length, hits: devHits });
       if (printHits.length) buckets.print.push({ file: relative, total: printHits.length, hits: printHits });
       if (seedHits.length) buckets.seedData.push({ file: relative, total: seedHits.length, hits: seedHits });
       hits = hits.filter(
-        (hit) => ![bilingualRanges, devRanges, printRanges, seedRanges].some((r) => inRanges(hit.line, r))
+        (hit) => ![bilingualRanges, devRanges, printRanges, seedRanges].some((r) => inRanges(hit.line, r)) && !isCatalogueContent(hit)
       );
       if (!hits.length) continue;
     }
