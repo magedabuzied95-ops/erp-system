@@ -42,7 +42,10 @@ test("a one-method deposit entered in the split sheet remains a split payment", 
 test("POS persists the remaining balance and the actual collected method", () => {
   assert.match(ordersControllerSource, /remaining_amount = \$3/);
   assert.match(ordersControllerSource, /remainingOrderAmount/);
-  assert.match(ordersControllerSource, /transactionPaymentMethod/);
+  assert.match(ordersControllerSource, /deriveStoredPaymentMethod/);
+  assert.match(ordersControllerSource, /getCollectedPaymentAllocations/);
+  assert.match(ordersControllerSource, /payment\.amount, payment\.method/);
+  assert.doesNotMatch(ordersControllerSource, /transactionPaymentMethod/);
 });
 
 test("POS invoice edit treats an outstanding balance as an extra payment even when total is unchanged", () => {

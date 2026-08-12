@@ -120,11 +120,13 @@ test("edit_additional_payment allocations are skipped (no double count)", () => 
   assert.equal(out.cash.total, 500);
 });
 
-test("split order missing allocations falls back but is a rare data edge (still no crash)", () => {
+test("legacy split order missing allocations never surfaces split as a payment method", () => {
   const rows = [{ payment_method: "split", total_amount: 900, payment_breakdown: [] }];
   const out = byMethod(aggregatePaymentDistribution(rows));
-  // No allocations to distribute -> preserved under normalized 'split' fallback.
-  assert.equal(out.split.total, 900);
+  // The real tender cannot be reconstructed, so keep it in the safe unknown
+  // bucket instead of inventing `split` as an accounting payment method.
+  assert.equal(out.unknown.total, 900);
+  assert.equal(out.split, undefined);
 });
 
 test("normalizeManagerPaymentMethod aliases", () => {

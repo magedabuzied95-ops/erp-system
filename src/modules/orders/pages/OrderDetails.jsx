@@ -42,6 +42,7 @@ import StatusBadge from "../components/StatusBadge";
 import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
+import { formatOrderPaymentMethods } from "../../../../shared/paymentMethods";
 import {
   buildTimeline,
   formatCurrency,
@@ -385,7 +386,7 @@ const buildSmartInsights = (order = {}, items = [], shipping = {}) => {
 };
 
 function OrderDetails() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const invoiceRef = useRef(null);
@@ -841,7 +842,7 @@ function OrderDetails() {
         paidAmount: Number(order.paid_amount || 0),
         dueAmount: Number(order.due_amount || 0),
         changeAmount: Number(order.change_amount || 0),
-        method: order.payment_method || "غير متاح",
+        method: formatOrderPaymentMethods(order, i18n.language),
       },
       items: previewItems.map((item) => {
         const unitPrice = getOrderItemUnitPrice(item);
@@ -1328,7 +1329,7 @@ function OrderDetails() {
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <Info label={t("orders.details.paymentMethod")} value={formatShippingPaymentMethodLabel(order.shipping_payment_method || order.payment_method)} />
+                <Info label={t("orders.details.paymentMethod")} value={order.shipping_payment_method ? formatShippingPaymentMethodLabel(order.shipping_payment_method) : formatOrderPaymentMethods(order, i18n.language)} />
                 <Info label={t("orders.details.productsTotal")} value={formatCurrency(financials.productTotal)} />
                 <Info label={t("orders.details.shippingValue")} value={formatCurrency(financials.shipping)} badge={financials.shippingPaidSeparately ? t("orders.statusLabels.paid") : ""} />
                 {hasCodRemaining ? <Info label={t("orders.details.remainingOnDelivery")} value={formatCurrency(financials.remainingOnDelivery)} badge={t("orders.details.codRemaining")} /> : null}

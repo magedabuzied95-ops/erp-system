@@ -159,6 +159,7 @@ const getPaymentMethodLabel = (value = "", copy = EN_INVOICE_COPY) => {
     wallet: copy.wallet,
     customer_wallet: copy === AR_INVOICE_COPY ? "محفظة العميل" : "Customer wallet",
     split: copy.split,
+    mixed: copy === AR_INVOICE_COPY ? "طرق دفع متعددة" : "Multiple payment methods",
     transfer: copy.transfer,
     bank_transfer: copy.bankTransfer,
     instapay: "InstaPay",
@@ -245,7 +246,9 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
     ? "overflow-hidden rounded-[2rem] border border-amber-200/70 bg-[#fffdf8] text-slate-950 shadow-[0_34px_100px_rgba(0,0,0,0.36),0_2px_0_rgba(255,255,255,0.9)_inset] print:rounded-none print:border-slate-200 print:bg-white print:text-slate-950 print:shadow-none"
     : "overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white text-stone-950 shadow-[0_18px_50px_rgba(39,20,75,0.07)]";
   const outstandingAmount = Math.max(0, Number(totals?.remainingAmount || 0));
-  const resolvedPaymentMethodBase = getPaymentMethodLabel(paymentMethod || data?.paymentMethod, copy);
+  const resolvedPaymentMethodBase = paymentBreakdown.length
+    ? paymentBreakdown.map((payment) => getPaymentMethodLabel(payment.method, copy)).join(" + ")
+    : getPaymentMethodLabel(paymentMethod || data?.paymentMethod, copy);
   const resolvedPaymentMethod = outstandingAmount > 0 && paymentMethod !== "credit_sale"
     ? `${resolvedPaymentMethodBase} — ${copy.deferredRemainder}`
     : resolvedPaymentMethodBase;

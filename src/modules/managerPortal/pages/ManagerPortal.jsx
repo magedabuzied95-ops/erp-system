@@ -298,6 +298,8 @@ const paymentMethodLabel = (value = "") => {
     credit_sale: tt("managerPortal.payment.credit"),
     cod: tt("managerPortal.payment.cashOnDelivery"),
     cash_on_delivery: tt("managerPortal.payment.cashOnDelivery"),
+    mixed: portalText("طرق دفع متعددة"),
+    split: portalText("طرق دفع متعددة"),
     unknown: tt("managerPortal.common.unspecified"),
   };
   return labels[key] || portalText(value || tt("managerPortal.common.unspecified"));

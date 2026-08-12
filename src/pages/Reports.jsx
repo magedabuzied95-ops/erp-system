@@ -6,11 +6,12 @@ import toast from "react-hot-toast";
 
 import { api } from "../shared/api/api";
 import { formatCurrency } from "../shared/lib/currency";
+import { formatOrderPaymentMethods } from "../../shared/paymentMethods";
 
 const COLORS = ["#22c55e", "#eab308"];
 
 function Reports() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -190,7 +191,7 @@ function Reports() {
                 <tr key={order.id} className="border-t border-zinc-800 hover:bg-zinc-800/40">
                   <td className="p-5 text-white font-black">#{order.id}</td>
                   <td className="p-5 text-gray-300">{order.customer_name || t("reports.walkIn")}</td>
-                  <td className="p-5 text-gray-300">{order.payment_method || t("reports.payment.cash")}</td>
+                  <td className="p-5 text-gray-300">{formatOrderPaymentMethods(order, i18n.language)}</td>
                   <td className="p-5">
                     <span className="bg-green-500/20 text-green-400 px-4 py-2 rounded-full text-sm font-black">{order.status}</span>
                   </td>

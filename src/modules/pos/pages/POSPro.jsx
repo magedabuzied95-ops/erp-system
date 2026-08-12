@@ -5035,7 +5035,7 @@ function POSPro() {
       });
       setCart(mappedCart);
       setInvoiceNumber(loadedOrder.invoice_number || invoiceNumber);
-      setPaymentMode(loadedOrder.payment_method || "");
+      setPaymentMode(resolveCollectedPaymentMode(loadedOrder, loadedOrder.payment_method || ""));
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
@@ -5156,7 +5156,7 @@ function POSPro() {
       });
       setCart(mappedCart);
       setInvoiceNumber(loadedOrder.invoice_number || order.invoice_number || invoiceNumber);
-      setPaymentMode(loadedOrder.payment_method || order.payment_method || "");
+      setPaymentMode(resolveCollectedPaymentMode(originalContext, loadedOrder.payment_method || order.payment_method || ""));
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
