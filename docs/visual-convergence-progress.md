@@ -12,7 +12,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 2 | Marketing core fixed-dark retirement (5 files / 4 routes) | `pre-visual-convergence-cp2-20260812` -> `98110df` | `aec6497` | `aec6497` verified Light + Dark | build green |
 | 3 | Marketing remainder: analytics, templates, settings (4 files / 3 routes) | `pre-visual-convergence-cp3-20260812` -> `aec6497` | `2fa8eb3` | `2fa8eb3` verified Light + Dark | build green |
 | 3b | Residual dark gradient hero on `/marketing/settings` | -> `2fa8eb3` | `0278020` | `0278020` verified Light + Dark | build green |
-| 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | see below | see below | build green |
+| 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 
 ## Method
 
@@ -372,6 +372,17 @@ Also repaired in the same file: a confirm-delete modal on `bg-zinc-950`
 `#db2777`, `#f97316`) are bright decorative per-group accent gradients, not
 chrome, and are left untouched.
 
+**Checkpoint 4 production verification (Production `63f44fd`):**
+
+| Theme | Shell | Offenders | Primary CTA |
+|---|---|---|---|
+| Dark | `rgb(19,18,17)` = `--bg` | 0 (was 1 white island) | `rgb(220,176,58)` = `--primary`, text `rgb(13,10,2)` = `--primary-contrast` |
+| Light | `rgb(234,231,224)` = `--bg` | 0 | `rgb(164,122,18)` = `--primary`, text `rgb(13,10,2)` |
+
+State: **FIXED_VERIFIED (light + dark, RTL)**. The change is confined to a single
+page file with no shared component or CSS touched, so the frozen references
+cannot be affected by it and were not re-swept.
+
 ### Outstanding theme/direction states
 
 Light/RTL only: the 11 session-1 routes and the 13 accounting routes.
@@ -399,7 +410,9 @@ an explicit ruling rather than an autonomous change. Observed spread:
 
 ## RESUME MARKER
 
-**Next route to audit: `/products/variants`**, then `/products/barcode-labels`,
+/products/variants was audited clean in Dark after checkpoint 4.
+
+**Next route to audit: `/products/barcode-labels`**, then
 `/products/barcode-print-queue`, `/products/print-list`, `/products/barcodes`,
 `/products/labels`, then `/ai-studio/*` (workflows, executions, approvals, tools,
 restock-recovery), `/admin/*` (8 routes, AI Inbox excluded — observe only),
