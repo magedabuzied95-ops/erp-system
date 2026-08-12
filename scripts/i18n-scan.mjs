@@ -220,7 +220,7 @@ const TERNARY_LOCALE_RE =
  * IDENTIFIERS handed to formatting APIs, never user-visible text, so a ternary
  * that only picks between them is configuration rather than a translation leak.
  */
-const BCP47_TAG_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+const BCP47_TAG_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/;
 
 /**
  * Locale-consuming APIs. The exclusion additionally requires one of these next
@@ -311,10 +311,18 @@ export function scanFile(file) {
     // A ternary that only chooses between BCP-47 tags next to a locale-consuming
     // API is configuration, not chrome: `Intl.DateTimeFormat(isAr ? "ar-EG" : "en-US")`
     // must stay literal, and reporting it as debt makes the metric untruthful.
+    // A tag carrying a region/extension subtag ("en-US", "ar-EG-u-nu-latn") is
+    // unambiguously a locale id, so it stands on its own. A bare "ar"/"en" is
+    // also an ordinary word, so it additionally needs a locale API in view.
+    const allTags = branches.length && branches.every((branch) => BCP47_TAG_RE.test(branch));
+    // `some`, not `every`: the matched span often also picks up a default param
+    // or the comparison operand (`(language = "en") => language === "ar" ? ...`),
+    // which are bare tags. One qualified tag among all-valid tags is decisive.
+    const allQualified = allTags && branches.some((branch) => branch.includes("-"));
     if (
-      branches.length &&
-      branches.every((branch) => BCP47_TAG_RE.test(branch)) &&
-      LOCALE_API_RE.test(text.slice(Math.max(0, index - 200), index + match[0].length + 60))
+      allTags &&
+      (allQualified ||
+        LOCALE_API_RE.test(text.slice(Math.max(0, index - 200), index + match[0].length + 60)))
     ) {
       continue;
     }
