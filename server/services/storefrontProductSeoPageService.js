@@ -2,6 +2,33 @@ import { buildProductSeo, STOREFRONT_ORIGIN } from "../../src/shared/lib/product
 
 const API_ORIGIN = String(process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.m1store-egy.com").replace(/\/+$/, "");
 
+const absoluteSeoImageUrl = (value = "") => {
+  const source = String(value || "").trim();
+  if (!source || source.startsWith("data:") || source.startsWith("blob:")) return "";
+  if (/^https?:\/\//i.test(source)) return source.replace(/^http:\/\//i, "https://");
+  const base = source.startsWith("/uploads/") ? API_ORIGIN : STOREFRONT_ORIGIN;
+  try {
+    return new URL(source.startsWith("/") ? source : `/${source}`, `${base}/`).toString();
+  } catch {
+    return "";
+  }
+};
+
+export const makeProductSeoImagesAbsolute = (seo = {}) => {
+  const image = absoluteSeoImageUrl(seo.image);
+  const productImages = Array.isArray(seo.productJsonLd?.image)
+    ? seo.productJsonLd.image.map(absoluteSeoImageUrl).filter(Boolean)
+    : [];
+  return {
+    ...seo,
+    image,
+    productJsonLd: {
+      ...(seo.productJsonLd || {}),
+      image: productImages,
+    },
+  };
+};
+
 const escapeHtml = (value = "") => String(value ?? "")
   .replace(/&/g, "&amp;")
   .replace(/</g, "&lt;")
@@ -68,7 +95,10 @@ export const createStorefrontProductSeoPageHandler = ({
     const identifier = String(req.params.identifier || "").trim();
     const { status, product } = await loadProduct(identifier);
     if (!product) return res.status(status === 404 ? 404 : 503).send("Product not found");
-    const html = injectProductSeoIntoHtml(await loadShell(), buildProductSeo(product));
+    const html = injectProductSeoIntoHtml(
+      await loadShell(),
+      makeProductSeoImagesAbsolute(buildProductSeo(product))
+    );
     res.set("Content-Type", "text/html; charset=utf-8");
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.set("Pragma", "no-cache");
