@@ -92,3 +92,12 @@ test("frontend lifecycle: text failure keeps the suggestion pending (no dismiss)
 test("backend lifecycle: the draft is cleared on send (not returned as an active suggestion afterwards)", () => {
   assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId \}\)/);
 });
+
+test("frontend reconciliation: suggestion visibility is derived from authoritative source_message_id identity", () => {
+  // stale = there is a newer inbound than the draft's source → never actionable
+  assert.match(inboxSrc, /const suggestionStale = latestCustomerMessageId > 0 && suggestionSourceId > 0 && latestCustomerMessageId > suggestionSourceId;/);
+  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
+  // identity keyed by source_message_id so a new draft replaces the old + resets edit/product state
+  assert.match(inboxSrc, /return `\$\{selectedConversation\.session_id\}:\$\{suggestionSourceId \|\| 0\}:\$\{stamp \|\| activeAiSuggestionText\.length\}`;/);
+  assert.match(inboxSrc, /const suggestionSourceId = Number\(activeAiReplyDraft\?\.metadata\?\.source_message_id\) \|\| 0;/);
+});
