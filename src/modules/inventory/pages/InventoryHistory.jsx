@@ -134,14 +134,14 @@ function InventoryHistory() {
         <>
           <Link
             to="/inventory"
-            className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover"
           >
             <Clock3 className="h-4 w-4" />
             {tt("inventory.title")}
           </Link>
           <Link
             to="/inventory/adjustments"
-            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-card)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary"
           >
             <History className="h-4 w-4" />
             {tt("inventory.adjustments")}
@@ -164,15 +164,15 @@ function InventoryHistory() {
         <Metric label={tt("inventory.metrics.totalRows")} value={pagination.total || movements.length} tone="blue" />
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+      <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_160px_160px_180px_180px_180px_auto]">
           <label className="relative block xl:col-span-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
               value={filters.search}
               onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
               placeholder={tt("inventory.history.searchPlaceholder")}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted"
             />
           </label>
 
@@ -182,15 +182,15 @@ function InventoryHistory() {
           <Field label={tt("inventory.labels.to")} value={filters.dateTo} onChange={(value) => setFilters((prev) => ({ ...prev, dateTo: value }))} type="date" />
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.movements.type")}</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{tt("inventory.movements.type")}</div>
             <select
               value={filters.movementType}
               onChange={(e) => setFilters((prev) => ({ ...prev, movementType: e.target.value }))}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
             >
               <option value="">{tt("inventory.purchaseAlerts.filters.all")}</option>
               {MOVEMENT_TYPES.filter(Boolean).map((type) => (
-                <option key={type} value={type} className="bg-zinc-950 text-white">
+                <option key={type} value={type} className="bg-surface text-text">
                   {movementTypeLabelAr(type)}
                 </option>
               ))}
@@ -200,7 +200,7 @@ function InventoryHistory() {
           <button
             type="button"
             onClick={() => setFilters((prev) => ({ ...prev, search: "", productId: "", variantId: routeVariantId || "", movementType: "", dateFrom: "", dateTo: "" }))}
-            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
           >
             <X className="h-4 w-4" />
             {tt("inventory.actions.reset")}
@@ -208,33 +208,33 @@ function InventoryHistory() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+      <div className="rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/10">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h3 className="m1-section-title text-white">{tt("inventory.movements.log")}</h3>
-            <p className="mt-1 text-sm text-zinc-400">{tt("inventory.history.rowHint")}</p>
+            <h3 className="m1-section-title text-text">{tt("inventory.movements.log")}</h3>
+            <p className="mt-1 text-sm text-text-muted">{tt("inventory.history.rowHint")}</p>
           </div>
-          <div className="text-sm text-zinc-400">{movements.length} صفًا ظاهرًا</div>
+          <div className="text-sm text-text-muted">{movements.length} صفًا ظاهرًا</div>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-zinc-400">
+          <div className="flex items-center justify-center py-16 text-text-muted">
             <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
             {tt("inventory.history.loading")}
           </div>
         ) : error ? (
           <div className="p-5 text-sm text-red-100">
-            <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5">{error}</div>
+            <div className="rounded-[var(--radius-card)] border border-red-500/20 bg-red-500/10 p-5">{error}</div>
           </div>
         ) : movements.length === 0 ? (
-          <div className="p-8 text-center text-zinc-400">
-            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">{tt("inventory.history.empty")}</div>
+          <div className="p-8 text-center text-text-muted">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10">{tt("inventory.history.empty")}</div>
           </div>
         ) : (
           <div className="m1-table-container overflow-x-auto">
             <table className="m1-table m1-table--compact m1-table--separate min-w-full border-separate px-3 pb-3">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
+                <tr className="text-left text-xs uppercase tracking-[0.18em] text-text-muted">
                   <th className="px-3 py-2">{tt("inventory.movements.time")}</th>
                   <th className="px-3 py-2">{tt("inventory.table.product")}</th>
                   <th className="px-3 py-2">{tt("inventory.tableHeaders.variant")}</th>
@@ -253,30 +253,30 @@ function InventoryHistory() {
                     <tr
                       key={String(movement.id)}
                       onClick={() => setActiveMovement(movement)}
-                      className="cursor-pointer rounded-[var(--radius-card)] border border-white/10 bg-white/5 transition hover:bg-white/10"
+                      className="cursor-pointer rounded-[var(--radius-card)] border border-border bg-surface-soft transition hover:bg-surface-hover"
                     >
-                      <td className="px-3 py-4 text-sm text-zinc-300">{formatDateTime(movement.created_at)}</td>
+                      <td className="px-3 py-4 text-sm text-text-muted">{formatDateTime(movement.created_at)}</td>
                       <td className="px-3 py-4">
-                        <div className="font-semibold text-white">{movement.product_name || tt("inventory.labels.unknownProduct")}</div>
-                        <div className="text-xs text-zinc-500">{movement.product_brand || tt("inventory.labels.notAvailable")}</div>
+                        <div className="font-semibold text-text">{movement.product_name || tt("inventory.labels.unknownProduct")}</div>
+                        <div className="text-xs text-text-muted">{movement.product_brand || tt("inventory.labels.notAvailable")}</div>
                       </td>
-                      <td className="px-3 py-4 text-sm text-zinc-300">
+                      <td className="px-3 py-4 text-sm text-text-muted">
                         <div>{movement.variant_color || movement.variant_name || tt("inventory.labels.default")}</div>
-                        <div className="text-xs text-zinc-500">{movement.variant_size || movement.variant_sku || tt("inventory.labels.notAvailable")}</div>
+                        <div className="text-xs text-text-muted">{movement.variant_size || movement.variant_sku || tt("inventory.labels.notAvailable")}</div>
                       </td>
                       <td className="px-3 py-4">
                         <MovementBadge type={movement.movement_type} />
                       </td>
-                      <td className="px-3 py-4 text-sm text-zinc-300">{Number(movement.quantity_before || 0)}</td>
+                      <td className="px-3 py-4 text-sm text-text-muted">{Number(movement.quantity_before || 0)}</td>
                       <td className={`px-3 py-4 text-sm font-semibold ${change >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                         {change >= 0 ? "+" : ""}
                         {change}
                       </td>
-                      <td className="px-3 py-4 text-sm text-zinc-300">{Number(movement.quantity_after || 0)}</td>
-                      <td className="px-3 py-4 text-sm text-zinc-300">{movement.created_by_name || tt("inventory.labels.notAvailable")}</td>
-                      <td className="px-3 py-4 text-sm text-zinc-300">
+                      <td className="px-3 py-4 text-sm text-text-muted">{Number(movement.quantity_after || 0)}</td>
+                      <td className="px-3 py-4 text-sm text-text-muted">{movement.created_by_name || tt("inventory.labels.notAvailable")}</td>
+                      <td className="px-3 py-4 text-sm text-text-muted">
                         <div>{movement.reference_type || tt("inventory.labels.notAvailable")}</div>
-                        <div className="text-xs text-zinc-500">#{movement.reference_id || tt("inventory.labels.notAvailable")}</div>
+                        <div className="text-xs text-text-muted">#{movement.reference_id || tt("inventory.labels.notAvailable")}</div>
                       </td>
                     </tr>
                   );
@@ -286,7 +286,7 @@ function InventoryHistory() {
           </div>
         )}
         <Pagination
-          className="border-t border-white/10 px-4 pb-4"
+          className="border-t border-border px-4 pb-4"
           page={page}
           pages={Math.max(1, Math.ceil(Number(pagination.total || 0) / pageSize))}
           total={Number(pagination.total || 0)}
@@ -306,13 +306,13 @@ function InventoryHistory() {
 function Field({ label, value, onChange, type = "text", placeholder }) {
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted"
       />
     </label>
   );
@@ -323,13 +323,13 @@ function Metric({ label, value, tone = "zinc" }) {
     blue: "border-blue-500/20 bg-blue-500/10 text-blue-300",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-300",
-    zinc: "border-white/10 bg-white/5 text-white",
+    zinc: "border-border bg-surface-soft text-text",
   };
 
   return (
-    <div className={`rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    <div className={`rounded-[var(--radius-card)] border p-4 shadow-xl ${classes[tone]}`}>
+      <div className="text-[11px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <div className="mt-2 text-2xl font-black text-text">{value}</div>
     </div>
   );
 }
@@ -343,13 +343,13 @@ function MovementBadge({ type }) {
     transfer_in: "border-sky-500/20 bg-sky-500/10 text-sky-300",
     transfer_out: "border-sky-500/20 bg-sky-500/10 text-sky-300",
     damaged: "border-red-500/20 bg-red-500/10 text-red-300",
-    manual_adjustment: "border-white/10 bg-white/5 text-white",
+    manual_adjustment: "border-border bg-surface-soft text-text",
     opening_stock: "border-violet-500/20 bg-violet-500/10 text-violet-300",
     edit_variant_stock: "border-indigo-500/20 bg-indigo-500/10 text-indigo-300",
   };
 
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${palette[type] || "border-white/10 bg-white/5 text-white"}`}>
+    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${palette[type] || "border-border bg-surface-soft text-text"}`}>
       {movementTypeLabelAr(type)}
     </span>
   );
@@ -361,13 +361,13 @@ function TimelineDrawer({ movement, onClose }) {
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" className="absolute inset-0 bg-black/70" onClick={onClose} aria-label={tt("inventory.history.closeDetails")} />
-      <div className="absolute right-0 top-0 h-full w-full max-w-[520px] border-l border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+      <div className="absolute right-0 top-0 h-full w-full max-w-[520px] border-l border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{tt("inventory.empty.timelineTitle")}</p>
-            <h3 className="m1-section-title mt-1 text-white">{movement.product_name || tt("inventory.history.details")}</h3>
+            <p className="text-xs uppercase tracking-[0.24em] text-text-muted">{tt("inventory.empty.timelineTitle")}</p>
+            <h3 className="m1-section-title mt-1 text-text">{movement.product_name || tt("inventory.history.details")}</h3>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
             {tt("common.close")}
           </button>
         </div>
@@ -391,9 +391,9 @@ function TimelineDrawer({ movement, onClose }) {
 
 function Detail({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-text">{value}</div>
     </div>
   );
 }

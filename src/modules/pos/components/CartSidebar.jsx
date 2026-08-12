@@ -45,6 +45,7 @@ import { matchesPhoneSearch, normalizePhone } from "../lib/phoneSearch";
 import { resolveBrandImageUrl, resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { getCurrentTenant } from "../../../shared/auth/authStorage";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
+import { normalizeInvoicePaymentBreakdown } from "../../../shared/utils/invoicePaymentBreakdown";
 
 const QRCodeSVG = lazy(() => import("qrcode.react").then((module) => ({ default: module.QRCodeSVG })));
 import { getBarcodeSvg } from "../../products/lib/barcodeLabels";
@@ -1719,6 +1720,9 @@ function ThermalReceiptFinal({
   const customerName = customer?.name || customer?.customer_name || "عميل نقدي";
   const salesperson = sellerName || "";
   const payment = getLocalizedPaymentLabel(paymentMode, paymentSummary);
+  const paymentBreakdown = normalizeInvoicePaymentBreakdown(
+    paymentSummary.paymentBreakdown ?? paymentSummary.payment_breakdown ?? paymentSummary.payments
+  );
   const itemDiscount = Number(totals.itemDiscountTotal || 0);
   const invoiceDiscount = Number(totals.invoiceDiscount ?? totals.discount ?? 0);
   const couponDiscount = Number(totals.couponDiscount || 0);
@@ -1782,6 +1786,15 @@ function ThermalReceiptFinal({
         {tax > 0 ? <div className="thermal-row"><span>الضريبة</span><strong>{money(tax)}</strong></div> : null}
         {serviceFee > 0 ? <div className="thermal-row"><span>رسوم الخدمة</span><strong>{money(serviceFee)}</strong></div> : null}
         <div className="thermal-row thermal-grand"><span>الإجمالي</span><strong>{money(total)}</strong></div>
+        {paymentBreakdown.length > 1 ? <>
+          <div className="thermal-row"><span>تفاصيل الدفع</span><strong></strong></div>
+          {paymentBreakdown.map((paymentRow) => (
+            <div className="thermal-row" key={paymentRow.method}>
+              <span>{getLocalizedPaymentLabel(paymentRow.method, {})}</span>
+              <strong>{money(paymentRow.amount)}</strong>
+            </div>
+          ))}
+        </> : null}
         <div className="thermal-row"><span>المدفوع</span><strong>{money(paidAmount)}</strong></div>
         {changeAmount > 0 ? <div className="thermal-row"><span>الباقي</span><strong>{money(changeAmount)}</strong></div> : null}
         {dueAmount > 0 ? <div className="thermal-row"><span>المتبقي</span><strong>{money(dueAmount)}</strong></div> : null}

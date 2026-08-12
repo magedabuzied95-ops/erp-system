@@ -9,11 +9,11 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Summary
 
-- Source files scanned: 608
+- Source files scanned: 609
 - Files with debt: 188
-- Hardcoded Arabic UI strings: 1992
+- Hardcoded Arabic UI strings: 1994
 - Hardcoded English UI strings: 2419
-- Total hardcoded UI strings: 4411
+- Total hardcoded UI strings: 4413
 - Mixed-language files (both scripts hardcoded): 52
 
 ### By surface
@@ -21,8 +21,8 @@ of scope. The scanner is conservative and can still contain false positives.
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 106 | 1428 | 1873 | 3301 | 36 |
-| shared | 66 | 199 | 463 | 662 | 11 |
-| pos | 5 | 182 | 42 | 224 | 3 |
+| shared | 66 | 200 | 463 | 663 | 11 |
+| pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
 ## Mixed-language files (ranked by density)
@@ -55,7 +55,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
 | src/modules/orders/pages/OrdersDashboard.jsx | main-erp | 30 | 7 | 37 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
-| src/modules/pos/components/CartSidebar.jsx | pos | 27 | 3 | 30 |
+| src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 23 | 4 | 27 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
 | src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 13 | 12 | 25 |
@@ -340,12 +340,12 @@ of scope. The scanner is conservative and can still contain false positives.
 - 5664 [notification/ar] رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.
 - 5688 [notification/ar] أدخل عربونًا أقل من إجمالي الفاتورة، وسيُسجل الباقي آجلًا.
 - 5692 [notification/ar] العملية الشخصية لا تدعم الدفع عبر التيرمنال.
-- 6672 [notification/ar] تعذر إنشاء رابط الفاتورة
-- 7310 [jsx-text/en] Shift report
-- 7326 [jsx-text/en] Print
-- 7328 [jsx-text/en] End of Shift Report #$
-- 7329 [jsx-text/en] Cashier: $
-- 7330 [jsx-text/en] Variance: $
+- 6681 [notification/ar] تعذر إنشاء رابط الفاتورة
+- 7319 [jsx-text/en] Shift report
+- 7335 [jsx-text/en] Print
+- 7337 [jsx-text/en] End of Shift Report #$
+- 7338 [jsx-text/en] Cashier: $
+- 7339 [jsx-text/en] Variance: $
 - ... 69 more
 
 ### src/modules/marketing/pages/AiMarketingCenter.jsx (main-erp — ar:38 en:65)
@@ -1775,6 +1775,40 @@ of scope. The scanner is conservative and can still contain false positives.
 - 48 [jsx-text/en] Compact, legible, RTL/LTR-safe rows.
 - 48 [jsx-text/en] Dense data table
 
+### src/modules/pos/components/CartSidebar.jsx (pos — ar:28 en:3)
+
+- 1588 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
+- 1752 [jsx-text/ar] فاتورة بيع
+- 1754 [jsx-text/ar] التاريخ
+- 1755 [jsx-text/ar] البائع
+- 1756 [jsx-text/ar] العميل
+- 1757 [jsx-text/ar] الدفع
+- 1762 [jsx-text/ar] الإجمالي
+- 1762 [jsx-text/ar] السعر
+- 1762 [jsx-text/ar] الصنف
+- 1775 [jsx-text/ar] لا توجد منتجات
+- 1780 [jsx-text/ar] الإجمالي الفرعي
+- 1781 [jsx-text/ar] إجمالي الكمية
+- 1782 [jsx-text/ar] خصم المنتجات
+- 1783 [jsx-text/ar] خصم الفاتورة
+- 1784 [jsx-text/ar] خصم الكوبون
+- 1785 [jsx-text/ar] خصم الولاء
+- 1786 [jsx-text/ar] الضريبة
+- 1787 [jsx-text/ar] رسوم الخدمة
+- 1788 [jsx-text/ar] الإجمالي
+- 1790 [jsx-text/ar] تفاصيل الدفع
+- 1798 [jsx-text/ar] المدفوع
+- 1799 [jsx-text/ar] الباقي
+- 1800 [jsx-text/ar] المتبقي
+- 1804 [jsx-text/ar] العنوان
+- 1805 [jsx-text/ar] خدمة العملاء
+- 1806 [jsx-text/ar] الموقع الإلكتروني الرسمي
+- 1808 [jsx-text/ar] سياسة الاستبدال والاسترجاع
+- 1810 [jsx-text/ar] شكرًا لزيارتكم
+- 2577 [attribute/en] Vodafone Cash
+- 2584 [attribute/en] InstaPay
+- 2659 [attribute/en] INV-123
+
 ### src/modules/shipping/pages/ShippingCenter.jsx (main-erp — ar:0 en:31)
 
 - 94 [jsx-text/en] Shipment Drawer
@@ -1808,39 +1842,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 298 [jsx-text/en] Mark Ready
 - 299 [jsx-text/en] Export CSV
 - 334 [jsx-text/en] No shipments match the current filters.
-
-### src/modules/pos/components/CartSidebar.jsx (pos — ar:27 en:3)
-
-- 1587 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
-- 1748 [jsx-text/ar] فاتورة بيع
-- 1750 [jsx-text/ar] التاريخ
-- 1751 [jsx-text/ar] البائع
-- 1752 [jsx-text/ar] العميل
-- 1753 [jsx-text/ar] الدفع
-- 1758 [jsx-text/ar] الإجمالي
-- 1758 [jsx-text/ar] السعر
-- 1758 [jsx-text/ar] الصنف
-- 1771 [jsx-text/ar] لا توجد منتجات
-- 1776 [jsx-text/ar] الإجمالي الفرعي
-- 1777 [jsx-text/ar] إجمالي الكمية
-- 1778 [jsx-text/ar] خصم المنتجات
-- 1779 [jsx-text/ar] خصم الفاتورة
-- 1780 [jsx-text/ar] خصم الكوبون
-- 1781 [jsx-text/ar] خصم الولاء
-- 1782 [jsx-text/ar] الضريبة
-- 1783 [jsx-text/ar] رسوم الخدمة
-- 1784 [jsx-text/ar] الإجمالي
-- 1785 [jsx-text/ar] المدفوع
-- 1786 [jsx-text/ar] الباقي
-- 1787 [jsx-text/ar] المتبقي
-- 1791 [jsx-text/ar] العنوان
-- 1792 [jsx-text/ar] خدمة العملاء
-- 1793 [jsx-text/ar] الموقع الإلكتروني الرسمي
-- 1795 [jsx-text/ar] سياسة الاستبدال والاسترجاع
-- 1797 [jsx-text/ar] شكرًا لزيارتكم
-- 2564 [attribute/en] Vodafone Cash
-- 2571 [attribute/en] InstaPay
-- 2646 [attribute/en] INV-123
 
 ### src/modules/aiSupport/pages/AiSupportKnowledgeBase.jsx (main-erp — ar:29 en:0)
 
@@ -2139,6 +2140,33 @@ of scope. The scanner is conservative and can still contain false positives.
 - 225 [jsx-text/en] Silver:
 - 226 [jsx-text/en] Platinum:
 
+### src/shared/utils/invoicePdf.js (shared — ar:24 en:0)
+
+- 27 [jsx-text/ar] يمكنك الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط التالية:
+- 32 [jsx-text/ar] للاستفسارات، تواصل مع خدمة العملاء.
+- 128 [object-key/ar] قيّمنا على Google
+- 129 [object-key/ar] قيّمنا على Facebook
+- 130 [object-key/ar] تابعنا على Instagram
+- 196 [jsx-text/ar] فاتورة طلب
+- 197 [jsx-text/ar] رقم الطلب:
+- 198 [jsx-text/ar] تاريخ الطلب: $
+- 199 [jsx-text/ar] الوقت: $
+- 206 [jsx-text/ar] بيانات العميل
+- 215 [jsx-text/ar] المنتج
+- 216 [jsx-text/ar] اللون / المقاس
+- 217 [jsx-text/ar] الكمية
+- 218 [jsx-text/ar] السعر
+- 219 [jsx-text/ar] الإجمالي
+- 225 [jsx-text/ar] الإجمالي الفرعي:
+- 226 [jsx-text/ar] الخصم:
+- 227 [jsx-text/ar] الشحن:
+- 228 [jsx-text/ar] عدد المنتجات:
+- 229 [jsx-text/ar] إجمالي الكمية:
+- 230 [jsx-text/ar] الإجمالي الكلي:
+- 231 [jsx-text/ar] تفاصيل الدفع
+- 232 [jsx-text/ar] المدفوع:
+- 233 [jsx-text/ar] المتبقي:
+
 ### src/modules/aiSupport/pages/AiChannels.jsx (main-erp — ar:1 en:22)
 
 - 275 [object-key/ar] اختبار من بوابة واتساب ERP.
@@ -2164,32 +2192,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 725 [jsx-text/en] Casual Egyptian
 - 726 [jsx-text/en] Professional
 - 727 [jsx-text/en] Luxury seller
-
-### src/shared/utils/invoicePdf.js (shared — ar:23 en:0)
-
-- 26 [jsx-text/ar] يمكنك الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط التالية:
-- 31 [jsx-text/ar] للاستفسارات، تواصل مع خدمة العملاء.
-- 126 [object-key/ar] قيّمنا على Google
-- 127 [object-key/ar] قيّمنا على Facebook
-- 128 [object-key/ar] تابعنا على Instagram
-- 188 [jsx-text/ar] فاتورة طلب
-- 189 [jsx-text/ar] رقم الطلب:
-- 190 [jsx-text/ar] تاريخ الطلب: $
-- 191 [jsx-text/ar] الوقت: $
-- 198 [jsx-text/ar] بيانات العميل
-- 207 [jsx-text/ar] المنتج
-- 208 [jsx-text/ar] اللون / المقاس
-- 209 [jsx-text/ar] الكمية
-- 210 [jsx-text/ar] السعر
-- 211 [jsx-text/ar] الإجمالي
-- 217 [jsx-text/ar] الإجمالي الفرعي:
-- 218 [jsx-text/ar] الخصم:
-- 219 [jsx-text/ar] الشحن:
-- 220 [jsx-text/ar] عدد المنتجات:
-- 221 [jsx-text/ar] إجمالي الكمية:
-- 222 [jsx-text/ar] الإجمالي الكلي:
-- 223 [jsx-text/ar] المدفوع:
-- 224 [jsx-text/ar] المتبقي:
 
 ### src/modules/employees/lib/employeeAnalyticsExport.js (employee-portal — ar:0 en:22)
 
@@ -2323,16 +2325,16 @@ of scope. The scanner is conservative and can still contain false positives.
 - 448 [object-key/ar] التسويات
 - 450 [object-key/ar] التحويلات
 - 451 [object-key/ar] المخازن
-- 826 [jsx-text/ar] إجمالي المخزون
-- 830 [jsx-text/ar] إجمالي القيمة
-- 834 [jsx-text/ar] الحالة
-- 852 [jsx-text/ar] المقاس
-- 854 [jsx-text/ar] المخزون
-- 855 [jsx-text/ar] القيمة
-- 856 [jsx-text/ar] الحالة
-- 942 [jsx-text/ar] إجمالي المخزون
-- 952 [jsx-text/ar] المقاسات النشطة
-- 956 [jsx-text/ar] الحد الأدنى للمقاسات النشطة
+- 830 [jsx-text/ar] إجمالي المخزون
+- 834 [jsx-text/ar] إجمالي القيمة
+- 838 [jsx-text/ar] الحالة
+- 856 [jsx-text/ar] المقاس
+- 858 [jsx-text/ar] المخزون
+- 859 [jsx-text/ar] القيمة
+- 860 [jsx-text/ar] الحالة
+- 946 [jsx-text/ar] إجمالي المخزون
+- 956 [jsx-text/ar] المقاسات النشطة
+- 960 [jsx-text/ar] الحد الأدنى للمقاسات النشطة
 
 ### src/modules/pos/components/SmartPosFilters.jsx (pos — ar:20 en:0)
 

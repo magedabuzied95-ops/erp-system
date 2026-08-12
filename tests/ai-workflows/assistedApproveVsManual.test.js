@@ -20,6 +20,15 @@ test("server: assisted approval is validated against a REAL current draft (not a
   assert.match(routeSrc, /const isAssistedApprove = req\.body\?\.assisted_approval === true && hasCurrentDraft/);
 });
 
+test("server: /send loads the AUTHORITATIVE draft from the DB (non-summary conversation lacks it)", () => {
+  // must read last_ai_reply_draft straight from ai_support_sessions BEFORE computing aiReplyDraft,
+  // otherwise hasCurrentDraft / stale guard / assisted approval / correction all see an empty draft
+  assert.match(routeSrc, /SELECT last_ai_reply_draft, last_ai_reply_draft_updated_at FROM ai_support_sessions WHERE tenant_id = \$1 AND session_id = \$2/);
+  const dbLoadIdx = routeSrc.indexOf("SELECT last_ai_reply_draft, last_ai_reply_draft_updated_at FROM ai_support_sessions");
+  const aiReplyDraftIdx = routeSrc.indexOf("const aiReplyDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft");
+  assert.ok(dbLoadIdx > 0 && aiReplyDraftIdx > dbLoadIdx, "draft must be loaded before aiReplyDraft is computed");
+});
+
 test("server: stale protection covers assisted approval (unedited OR edited)", () => {
   assert.match(routeSrc, /if \(isUneditedSuggestionSend \|\| isAssistedApprove\) \{/);
   // and still returns 409 STALE_SUGGESTION
@@ -91,4 +100,13 @@ test("frontend lifecycle: text failure keeps the suggestion pending (no dismiss)
 
 test("backend lifecycle: the draft is cleared on send (not returned as an active suggestion afterwards)", () => {
   assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId \}\)/);
+});
+
+test("frontend reconciliation: suggestion visibility is derived from authoritative source_message_id identity", () => {
+  // stale = there is a newer inbound than the draft's source → never actionable
+  assert.match(inboxSrc, /const suggestionStale = latestCustomerMessageId > 0 && suggestionSourceId > 0 && latestCustomerMessageId > suggestionSourceId;/);
+  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
+  // identity keyed by source_message_id so a new draft replaces the old + resets edit/product state
+  assert.match(inboxSrc, /return `\$\{selectedConversation\.session_id\}:\$\{suggestionSourceId \|\| 0\}:\$\{stamp \|\| activeAiSuggestionText\.length\}`;/);
+  assert.match(inboxSrc, /const suggestionSourceId = Number\(activeAiReplyDraft\?\.metadata\?\.source_message_id\) \|\| 0;/);
 });

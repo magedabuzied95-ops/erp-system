@@ -6103,12 +6103,29 @@ export default function AiInbox() {
     const aiReplyText = aiReply.sessionId === selectedConversation?.session_id ? clean(aiReply.text || "") : "";
     return draftText || aiReplyText;
   }, [activeAiReplyDraft?.text, aiReply.sessionId, aiReply.text, selectedConversation?.session_id]);
+  // Phase 11.2 — authoritative suggestion identity + staleness. The actionable suggestion is derived from the
+  // draft's source_message_id, NOT from whatever draft object lingered in local state. A suggestion whose
+  // source is OLDER than the latest inbound customer message is stale and must never remain actionable
+  // (fixes: an approved/sent suggestion, or a superseded one, surviving after a newer customer message).
+  const latestCustomerMessageId = useMemo(() => {
+    let maxId = 0;
+    for (const m of asArray(selectedConversation?.messages)) {
+      const isCustomer = String(m?.sender_type || "").toLowerCase() === "customer" || (clean(m?.customer_message) && !clean(m?.staff_message) && !clean(m?.ai_answer));
+      const id = Number(m?.id) || 0;
+      if (isCustomer && id > maxId) maxId = id;
+    }
+    return maxId;
+  }, [selectedConversation?.messages]);
+  const suggestionSourceId = Number(activeAiReplyDraft?.metadata?.source_message_id) || 0;
+  const suggestionStale = latestCustomerMessageId > 0 && suggestionSourceId > 0 && latestCustomerMessageId > suggestionSourceId;
   const activeAiSuggestionKey = useMemo(() => {
     if (!selectedConversation?.session_id || !activeAiSuggestionText) return "";
     const stamp = selectedConversation?.last_ai_reply_draft_updated_at || activeAiReplyDraft?.updated_at || activeAiReplyDraft?.metadata?.updated_at || "";
-    return `${selectedConversation.session_id}:${stamp || activeAiSuggestionText.length}`;
-  }, [activeAiReplyDraft?.metadata?.updated_at, activeAiReplyDraft?.updated_at, activeAiSuggestionText, selectedConversation?.last_ai_reply_draft_updated_at, selectedConversation?.session_id]);
-  const aiSuggestionVisible = Boolean(activeAiSuggestionText) && dismissedAiSuggestionKey !== activeAiSuggestionKey;
+    // Identity keyed by source_message_id → a new draft (new inbound) is a NEW suggestion: not-dismissed and
+    // it resets inline edit / product-selection state via the reset effect below.
+    return `${selectedConversation.session_id}:${suggestionSourceId || 0}:${stamp || activeAiSuggestionText.length}`;
+  }, [activeAiReplyDraft?.metadata?.updated_at, activeAiReplyDraft?.updated_at, activeAiSuggestionText, selectedConversation?.last_ai_reply_draft_updated_at, selectedConversation?.session_id, suggestionSourceId]);
+  const aiSuggestionVisible = Boolean(activeAiSuggestionText) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;
   // Grounding facts for the suggestion card (product/size/color/stock/action) so the operator reviews WHY the
   // AI answered as it did before approving. Derived from the persisted draft; null when absent.
   const activeAiSuggestionFacts = useMemo(() => {
@@ -6997,7 +7014,7 @@ export default function AiInbox() {
     setReplySending(true);
     setError("");
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval }, { headers, perfComponent: "AiInbox.sendManualReply" });
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval, product_id: correctionMetadata?.product_id || null, product_disposition: correctionMetadata?.product_disposition || null }, { headers, perfComponent: "AiInbox.sendManualReply" });
       if (payload.message) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
@@ -7117,7 +7134,7 @@ export default function AiInbox() {
     let cardOk = true;
     if (card) {
       try {
-        await sendProductCards([card]);
+        await sendProductCards([card], { assistedApproval: true });
       } catch {
         cardOk = false;
         setToast({ tone: "amber", text: "الرد اتبعت، لكن كارت المنتج فشل — ابعته من زرار المنتج" });
@@ -7278,7 +7295,7 @@ export default function AiInbox() {
     }
   };
 
-  const sendProductCards = useCallback(async (productCards = []) => {
+  const sendProductCards = useCallback(async (productCards = [], options = {}) => {
     const cards = asArray(productCards)
       .map((card) => ({
         id: card.product_id ?? card.id ?? null,
@@ -7338,6 +7355,7 @@ export default function AiInbox() {
           product_cards: cards,
           client_request_id: clientRequestId,
           message_identity_key: messageIdentityKey,
+          assisted_approval: options.assistedApproval === true,
         },
         { headers, perfComponent: "AiInbox.sendProductCards" }
       );

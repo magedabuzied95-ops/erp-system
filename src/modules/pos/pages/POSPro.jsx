@@ -6194,12 +6194,18 @@ function POSPro() {
         new_order_total: cartTotals.total,
         amount_due_now: amountDueNow,
         exchange_difference: exchangeDifference,
+        payment_breakdown: parsePaymentBreakdownRows(
+          normalizedResponse.order?.payment_breakdown ?? normalizedResponse.data?.payment_breakdown ?? paymentBreakdown
+        ),
         payment: {
           method: payload.payment_method,
           paymentStatus: checkoutPaymentSummary.paymentStatus,
           paidAmount: checkoutPaymentSummary.paidAmount,
           dueAmount: checkoutPaymentSummary.dueAmount,
           changeAmount: checkoutPaymentSummary.changeAmount,
+          paymentBreakdown: parsePaymentBreakdownRows(
+            normalizedResponse.order?.payment_breakdown ?? normalizedResponse.data?.payment_breakdown ?? paymentBreakdown
+          ),
           walletAmount: Number(walletResult?.redeemedAmount || payloadCustomerWalletAmount || 0),
           remainingCashOrCard: Math.max(0, Number(cartTotals.total || 0) - Number(walletResult?.redeemedAmount || payloadCustomerWalletAmount || 0)),
           companyWalletAmount: payloadWalletAmount,
@@ -6461,6 +6467,9 @@ function POSPro() {
     };
     const renderedPaymentSummary = {
       ...paymentSummary,
+      paymentBreakdown: parsePaymentBreakdownRows(
+        order.payment_breakdown ?? order.paymentBreakdown ?? order.payments ?? orderPayment.paymentBreakdown ?? orderPayment.payment_breakdown
+      ),
       paymentStatus: order.paymentStatus || orderPayment.paymentStatus || paymentSummary.paymentStatus,
       paidAmount: Number(orderPayment.paidAmount ?? order.paid_amount ?? paymentSummary.paidAmount ?? renderedTotals.total ?? 0),
       dueAmount: Number(orderPayment.dueAmount ?? order.due_amount ?? order.remaining_amount ?? order.remainingAmount ?? paymentSummary.dueAmount ?? 0),

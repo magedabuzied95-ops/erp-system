@@ -1698,9 +1698,32 @@ const buildPublicInvoicePdfBuffer = async (invoice) => {
     },
   });
 
+  const pdfPaymentBreakdown = Array.from(
+    parsePaymentBreakdownRows(invoice.payment_breakdown).reduce((totalsByMethod, payment) => {
+      const method = normalizeMoneyPaymentMethod(payment?.method || payment?.payment_method);
+      const amount = normalizeInvoiceMoney(payment?.amount ?? payment?.paid_amount ?? payment?.value);
+      if (method && amount > 0 && !["credit_sale", "exchange_credit", "return_credit"].includes(method)) {
+        totalsByMethod.set(method, normalizeInvoiceMoney((totalsByMethod.get(method) || 0) + amount));
+      }
+      return totalsByMethod;
+    }, new Map())
+  ).map(([method, amount]) => ({ method, amount }));
+  const pdfPaymentLabels = {
+    cash: "Cash",
+    card: "Card",
+    visa: "Card",
+    wallet: "Wallet",
+    customer_wallet: "Customer wallet",
+    instapay: "InstaPay",
+    vodafone_cash: "Vodafone Cash",
+    bank_transfer: "Bank transfer",
+    transfer: "Transfer",
+  };
+  const visiblePaymentBreakdown = pdfPaymentBreakdown.length > 1 ? pdfPaymentBreakdown : [];
   const footerY = (doc.lastAutoTable?.finalY || 96) + 8;
+  const totalsBoxHeight = 37 + visiblePaymentBreakdown.length * 5;
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, footerY, pageWidth - margin * 2, 37, 2, 2, "S");
+  doc.roundedRect(margin, footerY, pageWidth - margin * 2, totalsBoxHeight, 2, 2, "S");
   doc.setFont("helvetica", "bold");
   doc.text("Totals", margin + 3, footerY + 6);
   doc.setFont("helvetica", "normal");
@@ -1715,7 +1738,14 @@ const buildPublicInvoicePdfBuffer = async (invoice) => {
   doc.setFont("helvetica", "bold");
   doc.text(`Total: ${normalizeInvoiceMoney(invoice.totals?.total).toFixed(2)}`, margin + 70, footerY + 27);
   doc.setFont("helvetica", "normal");
-  doc.text(`Public link: ${invoice.public_invoice_url || "n/a"}`, margin, footerY + 45, { maxWidth: pageWidth - margin * 2 });
+  visiblePaymentBreakdown.forEach((payment, index) => {
+    doc.text(
+      `${pdfPaymentLabels[payment.method] || payment.method}: ${normalizeInvoiceMoney(payment.amount).toFixed(2)}`,
+      margin + 3,
+      footerY + 32 + index * 5
+    );
+  });
+  doc.text(`Public link: ${invoice.public_invoice_url || "n/a"}`, margin, footerY + totalsBoxHeight + 8, { maxWidth: pageWidth - margin * 2 });
 
   return Buffer.from(doc.output("arraybuffer"));
 };

@@ -432,11 +432,11 @@ function InventoryDashboard() {
       subtitle={t("inventory.subtitle")}
       actions={
         <>
-          <Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+          <Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover">
             <Clock3 className="h-4 w-4" />
             {t("inventory.history")}
           </Link>
-          <Link to="/inventory/adjustments" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
+          <Link to="/inventory/adjustments" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary">
             <Layers3 className="h-4 w-4" />
             {t("inventory.adjustments")}
           </Link>
@@ -452,7 +452,7 @@ function InventoryDashboard() {
       ]}
     >
       {error ? (
-        <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+        <div className="rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
           {error}
         </div>
@@ -465,14 +465,18 @@ function InventoryDashboard() {
         <Kpi label={t("inventory.kpis.outboundMoves")} value={<InlineLtrValue>{kpis.outbound}</InlineLtrValue>} tone="rose" />
       </div>
 
-      <section className="rounded-3xl border border-amber-400/15 bg-gradient-to-br from-amber-400/10 via-white/[0.03] to-orange-400/10 p-4 shadow-2xl shadow-black/10">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
+      {/* Large generic section: neutral surface. It used to carry a full-width
+          amber -> orange gradient wash, which made gold the background of the
+          section instead of an accent. The amber stays where it carries meaning
+          — the icon, the count badge and the low-stock severity cards. */}
+      <section className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-amber-200" />
-              <h3 className="m1-section-title text-white">{t("inventory.purchaseAlerts.title")}</h3>
+              <h3 className="m1-section-title text-text">{t("inventory.purchaseAlerts.title")}</h3>
             </div>
-            <p className="mt-1 text-sm text-zinc-400">{t("inventory.purchaseAlerts.subtitle")}</p>
+            <p className="mt-1 text-sm text-text-muted">{t("inventory.purchaseAlerts.subtitle")}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <div className="rounded-full border border-amber-300/25 bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-100">
@@ -481,7 +485,7 @@ function InventoryDashboard() {
             <button
               type="button"
               onClick={selectAllVisibleAlerts}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-black text-text transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
               disabled={!filteredPurchaseAlerts.length || allVisibleSelected}
             >
               {t("inventory.purchaseAlerts.actions.selectVisible")}
@@ -489,7 +493,7 @@ function InventoryDashboard() {
             <button
               type="button"
               onClick={clearSelectedAlerts}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-black text-text transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
               disabled={!selectedAlertKeys.length}
             >
               {t("inventory.purchaseAlerts.actions.clearSelection")}
@@ -498,7 +502,7 @@ function InventoryDashboard() {
               type="button"
               onClick={handleCreatePurchaseDraft}
               disabled={!selectedAlerts.length || creatingPurchaseDraft}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-black text-black transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:bg-emerald-400/35 disabled:text-black/50"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:bg-emerald-400/35 disabled:text-[var(--primary-contrast)]"
             >
               {creatingPurchaseDraft ? t("inventory.purchaseAlerts.actions.creating") : t("inventory.purchaseAlerts.actions.createDraft")}
             </button>
@@ -507,13 +511,13 @@ function InventoryDashboard() {
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">
               {t("inventory.purchaseAlerts.filters.brand")}
             </span>
             <select
               value={purchaseAlertFilters.brand}
               onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, brand: event.target.value }))}
-              className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+              className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none"
             >
               {purchaseAlertOptions.brands.map((value) => (
                 <option key={value} value={value}>
@@ -523,13 +527,13 @@ function InventoryDashboard() {
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">
               {t("inventory.purchaseAlerts.filters.category")}
             </span>
             <select
               value={purchaseAlertFilters.category}
               onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, category: event.target.value }))}
-              className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+              className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none"
             >
               {purchaseAlertOptions.categories.map((value) => (
                 <option key={value} value={value}>
@@ -539,13 +543,13 @@ function InventoryDashboard() {
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">
               {t("inventory.purchaseAlerts.filters.manufacturer")}
             </span>
             <select
               value={purchaseAlertFilters.manufacturer}
               onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, manufacturer: event.target.value }))}
-              className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+              className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none"
             >
               {purchaseAlertOptions.manufacturers.map((value) => (
                 <option key={value} value={value}>
@@ -555,13 +559,13 @@ function InventoryDashboard() {
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">
               {t("inventory.purchaseAlerts.filters.alertType")}
             </span>
             <select
               value={purchaseAlertFilters.alertType}
               onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, alertType: event.target.value }))}
-              className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+              className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none"
             >
               <option value="all">{t("inventory.purchaseAlerts.filters.all")}</option>
               <option value="missing_sizes">{t("inventory.purchaseAlerts.groups.missing_sizes")}</option>
@@ -575,10 +579,10 @@ function InventoryDashboard() {
             { key: "missing_sizes", title: t("inventory.purchaseAlerts.groups.missing_sizes"), items: purchaseAlertGroups.missingSizes },
             { key: "carton_threshold", title: t("inventory.purchaseAlerts.groups.carton_threshold"), items: purchaseAlertGroups.cartonThreshold },
           ].map((group) => (
-            <div key={group.key} className="rounded-3xl border border-white/10 bg-zinc-950/70 p-4">
+            <div key={group.key} className="rounded-[var(--radius-card)] border border-border bg-surface p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h4 className="text-lg font-black text-white">{group.title}</h4>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-zinc-200">
+                <h4 className="text-lg font-black text-text">{group.title}</h4>
+                <span className="rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-black text-text">
                   <InlineLtrValue>{group.items.length}</InlineLtrValue>
                 </span>
               </div>
@@ -592,12 +596,12 @@ function InventoryDashboard() {
                     return (
                       <div
                         key={String(alert.scope_key)}
-                        className={`relative rounded-[var(--radius-card)] border p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition ${ selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]" }`}
+                        className={`relative rounded-[var(--radius-card)] border p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition ${ selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-border bg-surface-soft" }`}
                       >
                         <button
                           type="button"
                           onClick={() => toggleAlertSelection(alert)}
-                          className="absolute right-3 top-3 inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-full border border-white/10 bg-zinc-950/80 text-white transition hover:border-emerald-400/40 hover:bg-emerald-500/15"
+                          className="absolute right-3 top-3 inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-full border border-border bg-surface text-text transition hover:border-emerald-400/40 hover:bg-emerald-500/15"
                           aria-pressed={selected}
                           aria-label={selected ? t("inventory.purchaseAlerts.actions.deselectAlert") : t("inventory.purchaseAlerts.actions.selectAlert")}
                         >
@@ -610,24 +614,24 @@ function InventoryDashboard() {
                           />
                         </button>
                         <div className="flex gap-3">
-                          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-zinc-950">
+                          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
                             {imageUrl ? (
                               <img src={imageUrl} alt={alert.product_name} className="h-full w-full object-contain p-2" />
                             ) : (
-                              <Package className="h-8 w-8 text-zinc-500" />
+                              <Package className="h-8 w-8 text-text-muted" />
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-base font-black text-white">{alert.product_name}</div>
+                                <div className="truncate text-base font-black text-text">{alert.product_name}</div>
                                 {cardColor ? <div className="mt-1 text-sm font-semibold text-amber-100">{cardColor}</div> : null}
                               </div>
                               <span className="rounded-full border border-amber-300/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-100">
                                 {alert.alert_title}
                               </span>
                             </div>
-                            <p className="mt-2 text-sm leading-6 text-zinc-300">{alert.alert_reason}</p>
+                            <p className="mt-2 text-sm leading-6 text-text-muted">{alert.alert_reason}</p>
                           </div>
                         </div>
 
@@ -640,7 +644,7 @@ function InventoryDashboard() {
 
                         {Array.isArray(alert.missing_sizes) && alert.missing_sizes.length > 0 ? (
                           <div className="mt-4">
-                            <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+                            <div className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">
                               {t("inventory.purchaseAlerts.cards.missingSizes")}
                             </div>
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -656,7 +660,7 @@ function InventoryDashboard() {
                         <div className="mt-4 flex justify-end">
                           <Link
                             to={`/purchases/reorder-suggestions?product_id=${encodeURIComponent(String(alert.product_id || ""))}`}
-                            className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/15"
+                            className="inline-flex items-center justify-center rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/15"
                           >
                             {t("inventory.purchaseAlerts.cards.viewSuggestions")}
                           </Link>
@@ -666,7 +670,7 @@ function InventoryDashboard() {
                   })}
                 </div>
               ) : (
-                <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
+                <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-6 text-center text-sm text-text-muted">
                   {t("inventory.purchaseAlerts.empty")}
                 </div>
               )}
@@ -676,20 +680,20 @@ function InventoryDashboard() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
           <div className="relative">
-            <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("inventory.searchPlaceholder")}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pr-11 pl-4 text-right text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-3 pr-11 pl-4 text-right text-sm text-text outline-none placeholder:text-text-muted"
             />
           </div>
 
           <div className="mt-4 overflow-x-auto">
             <div className="min-w-[980px]">
-              <div className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-right text-xs uppercase tracking-[0.18em] text-zinc-500">
+              <div className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3 text-right text-xs uppercase tracking-[0.18em] text-text-muted">
                 <div>{t("inventory.tableHeaders.product")}</div>
                 <div>{t("inventory.tableHeaders.variant")}</div>
                 <div>{t("inventory.tableHeaders.sku")}</div>
@@ -702,31 +706,31 @@ function InventoryDashboard() {
                 {loading ? (
                   <div className="space-y-2">
                     {Array.from({ length: 6 }).map((_, index) => (
-                      <div key={index} className="h-16 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />
+                      <div key={index} className="h-16 animate-pulse rounded-[var(--radius-card)] border border-border bg-surface-soft" />
                     ))}
                   </div>
                 ) : filtered.length === 0 ? (
-                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center">
-                    <ShoppingBag className="mx-auto h-12 w-12 text-zinc-500" />
-                    <h3 className="m1-section-title mt-4 text-white">{t("inventory.empty.rowsTitle")}</h3>
-                    <p className="mt-2 text-sm text-zinc-400">{t("inventory.empty.rowsSubtitle")}</p>
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10 text-center">
+                    <ShoppingBag className="mx-auto h-12 w-12 text-text-muted" />
+                    <h3 className="m1-section-title mt-4 text-text">{t("inventory.empty.rowsTitle")}</h3>
+                    <p className="mt-2 text-sm text-text-muted">{t("inventory.empty.rowsSubtitle")}</p>
                   </div>
                 ) : (
                   filtered.map((variant) => {
                     const low = Number(variant.stock || 0) <= 10;
                     return (
-                      <div key={String(variant.id)} className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] items-center rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3 text-right">
+                      <div key={String(variant.id)} className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] items-center rounded-[var(--radius-card)] border border-border bg-surface px-4 py-3 text-right">
                         <div className="min-w-0">
-                          <div className="truncate font-semibold text-white">{variant.product_name || variant.name}</div>
-                          <div className="mt-1 truncate text-xs text-zinc-500">{variant.color || t("inventory.labels.default")} / {variant.size || t("inventory.labels.oneSize")}</div>
+                          <div className="truncate font-semibold text-text">{variant.product_name || variant.name}</div>
+                          <div className="mt-1 truncate text-xs text-text-muted">{variant.color || t("inventory.labels.default")} / {variant.size || t("inventory.labels.oneSize")}</div>
                         </div>
-                        <div className="truncate text-sm text-zinc-300">{variant.color || t("inventory.labels.notAvailable")}</div>
-                        <div className="truncate text-sm text-zinc-300"><InlineLtrValue>{variant.sku || "—"}</InlineLtrValue></div>
-                        <div className="font-bold text-white"><InlineLtrValue>{variant.stock}</InlineLtrValue></div>
-                        <div className="truncate text-sm text-zinc-300"><InlineLtrValue>{formatCurrency(Number(variant.stock || 0) * Number(variant.price || 0))}</InlineLtrValue></div>
+                        <div className="truncate text-sm text-text-muted">{variant.color || t("inventory.labels.notAvailable")}</div>
+                        <div className="truncate text-sm text-text-muted"><InlineLtrValue>{variant.sku || "—"}</InlineLtrValue></div>
+                        <div className="font-bold text-text"><InlineLtrValue>{variant.stock}</InlineLtrValue></div>
+                        <div className="truncate text-sm text-text-muted"><InlineLtrValue>{formatCurrency(Number(variant.stock || 0) * Number(variant.price || 0))}</InlineLtrValue></div>
                         <StatusBadge value={low ? formatInventoryStatusLabel(t("inventory.status.low")) : formatInventoryStatusLabel(t("inventory.status.active"))} />
                         <div className="flex justify-end">
-                          <Link to={`/inventory/variant/${variant.id}/history`} className="inline-flex items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2 text-white">
+                          <Link to={`/inventory/variant/${variant.id}/history`} className="inline-flex items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft p-2 text-text">
                             <Clock3 className="h-4 w-4" />
                           </Link>
                         </div>
@@ -740,15 +744,15 @@ function InventoryDashboard() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">{t("inventory.empty.warehouseTitle")}</h3>
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+            <h3 className="m1-section-title text-text">{t("inventory.empty.warehouseTitle")}</h3>
             <div className="mt-4 space-y-3">
               {warehouses.map((warehouse) => (
-                <div key={String(warehouse.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+                <div key={String(warehouse.id)} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-white">{warehouse.name}</div>
-                      <div className="mt-1 text-xs text-zinc-500">{warehouse.location || t("inventory.labels.notAvailable")}</div>
+                      <div className="font-semibold text-text">{warehouse.name}</div>
+                      <div className="mt-1 text-xs text-text-muted">{warehouse.location || t("inventory.labels.notAvailable")}</div>
                     </div>
                     <StatusBadge value={formatInventoryStatusLabel(warehouse.status || t("inventory.status.active"))} />
                   </div>
@@ -757,15 +761,15 @@ function InventoryDashboard() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">{t("inventory.empty.timelineTitle")}</h3>
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+            <h3 className="m1-section-title text-text">{t("inventory.empty.timelineTitle")}</h3>
             <div className="mt-4 space-y-3">
               {[...movements].slice(0, 5).map((movement, index) => (
-                <div key={`${movement.id || index}`} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+                <div key={`${movement.id || index}`} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-white">{movement.product_name || movement.variant_name || t("inventory.tabs.movements")}</div>
-                      <div className="mt-1 text-xs text-zinc-500">{formatDateTime(movement.created_at || movement.date)}</div>
+                      <div className="font-semibold text-text">{movement.product_name || movement.variant_name || t("inventory.tabs.movements")}</div>
+                      <div className="mt-1 text-xs text-text-muted">{formatDateTime(movement.created_at || movement.date)}</div>
                     </div>
                     <StatusBadge value={formatInventoryStatusLabel(movement.direction || t("inventory.status.inbound"))} />
                   </div>
@@ -774,11 +778,11 @@ function InventoryDashboard() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="m1-section-title text-white">{t("inventory.alerts.title")}</h3>
-                <p className="mt-1 text-sm text-zinc-400">{t("inventory.alerts.subtitle")}</p>
+                <h3 className="m1-section-title text-text">{t("inventory.alerts.title")}</h3>
+                <p className="mt-1 text-sm text-text-muted">{t("inventory.alerts.subtitle")}</p>
               </div>
               {lowStockAlertCards.length > 0 ? (
                 <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-200">
@@ -794,10 +798,10 @@ function InventoryDashboard() {
                 return (
                   <div
                     key={card.key}
-                    className={`rounded-3xl border p-4 shadow-[0_18px_38px_rgba(15,23,42,0.18)] ${cardClassName}`}
+                    className={`rounded-[var(--radius-card)] border p-4 shadow-[0_18px_38px_rgba(15,23,42,0.18)] ${cardClassName}`}
                   >
                     <div className="flex gap-4">
-                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white shadow-inner">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-inner">
                         {card.image_url ? (
                           <img
                             src={card.image_url}
@@ -805,14 +809,14 @@ function InventoryDashboard() {
                             className="h-full w-full object-contain p-2"
                           />
                         ) : (
-                          <Package className="h-7 w-7 text-zinc-500" />
+                          <Package className="h-7 w-7 text-text-muted" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-base font-black text-white">{card.product_name}</div>
-                            <div className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-100/85">
+                            <div className="truncate text-base font-black text-text">{card.product_name}</div>
+                            <div className="mt-1 line-clamp-2 text-sm leading-6 text-text">
                               {card.color ? `اللون: ${card.color}` : "اللون: -"}
                             </div>
                           </div>
@@ -821,52 +825,52 @@ function InventoryDashboard() {
                           </span>
                         </div>
 
-                        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-zinc-100 sm:grid-cols-3">
-                          <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
-                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">إجمالي المخزون</span>
-                            <span className="mt-1 block text-base font-black text-white"><InlineLtrValue>{card.total_stock}</InlineLtrValue></span>
+                        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-text sm:grid-cols-3">
+                          <div className="rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">إجمالي المخزون</span>
+                            <span className="mt-1 block text-base font-black text-text"><InlineLtrValue>{card.total_stock}</InlineLtrValue></span>
                           </div>
-                          <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
-                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">إجمالي القيمة</span>
-                            <span className="mt-1 block text-base font-black text-white"><InlineLtrValue>{formatCurrency(card.total_value)}</InlineLtrValue></span>
+                          <div className="rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">إجمالي القيمة</span>
+                            <span className="mt-1 block text-base font-black text-text"><InlineLtrValue>{formatCurrency(card.total_value)}</InlineLtrValue></span>
                           </div>
-                          <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
-                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">الحالة</span>
-                            <span className="mt-1 block text-base font-black text-white">{card.card_status?.label || "تنبيه"}</span>
+                          <div className="rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">الحالة</span>
+                            <span className="mt-1 block text-base font-black text-text">{card.card_status?.label || "تنبيه"}</span>
                           </div>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-zinc-100/80">
-                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-text">
+                          <span className="rounded-full border border-border bg-surface-soft px-3 py-1">
                             <InlineLtrValue>{card.rows.length}</InlineLtrValue> قطعة
                           </span>
                           {card.colors.length > 1 ? (
-                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                            <span className="rounded-full border border-border bg-surface-soft px-3 py-1">
                               <InlineLtrValue>{card.colors.length}</InlineLtrValue> ألوان
                             </span>
                           ) : null}
                         </div>
 
-                        <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30">
-                          <div className="grid grid-cols-[1.05fr_1.15fr_0.75fr_0.95fr_0.8fr] gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                        <div className="mt-4 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+                          <div className="grid grid-cols-[1.05fr_1.15fr_0.75fr_0.95fr_0.8fr] gap-2 border-b border-border bg-surface-soft px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-text-muted">
                             <div>المقاس</div>
                             <div>SKU</div>
                             <div>المخزون</div>
                             <div>القيمة</div>
                             <div>الحالة</div>
                           </div>
-                          <div className="divide-y divide-white/10">
+                          <div className="divide-y divide-border">
                             {card.rows.map((row) => {
                               const rowStatus = getLowStockRowStatus(row.stock, row.low_stock_alert || card.threshold);
                               return (
                                 <div
                                   key={`${card.key}-${row.variant_id || row.id || row.sku || row.size}`}
-                                  className="grid grid-cols-[1.05fr_1.15fr_0.75fr_0.95fr_0.8fr] gap-2 px-3 py-2 text-sm text-white"
+                                  className="grid grid-cols-[1.05fr_1.15fr_0.75fr_0.95fr_0.8fr] gap-2 px-3 py-2 text-sm text-text"
                                 >
-                                  <div className="min-w-0 truncate font-semibold text-white">{row.size || t("inventory.labels.oneSize")}</div>
-                                  <div className="truncate text-zinc-300"><InlineLtrValue>{row.sku || "—"}</InlineLtrValue></div>
-                                  <div className="font-black text-white"><InlineLtrValue>{row.stock}</InlineLtrValue></div>
-                                  <div className="font-bold text-zinc-200"><InlineLtrValue>{formatCurrency(Number(row.stock || 0) * Number(row.price || 0))}</InlineLtrValue></div>
+                                  <div className="min-w-0 truncate font-semibold text-text">{row.size || t("inventory.labels.oneSize")}</div>
+                                  <div className="truncate text-text-muted"><InlineLtrValue>{row.sku || "—"}</InlineLtrValue></div>
+                                  <div className="font-black text-text"><InlineLtrValue>{row.stock}</InlineLtrValue></div>
+                                  <div className="font-bold text-text"><InlineLtrValue>{formatCurrency(Number(row.stock || 0) * Number(row.price || 0))}</InlineLtrValue></div>
                                   <div>
                                     <span
                                       className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${ lowStockStatusPillClasses[rowStatus.tone] || lowStockStatusPillClasses.warning }`}
@@ -883,7 +887,7 @@ function InventoryDashboard() {
                         <div className="mt-4 flex justify-end">
                           <Link
                             to={`/inventory/adjustments?productId=${encodeURIComponent(card.product_id || "")}`}
-                            className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/15"
+                            className="inline-flex items-center justify-center rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/15"
                           >
                             افتح المخزون
                           </Link>
@@ -907,10 +911,10 @@ function InventoryDashboard() {
                 return (
                   <div
                     key={`${alert.alert_scope || "variant"}-${String(alert.product_id || "")}-${String(alert.variant_id || "")}`}
-                    className="rounded-2xl border border-rose-400/25 bg-rose-500/10 p-3 shadow-[0_18px_38px_rgba(127,29,29,0.18)]"
+                    className="rounded-[var(--radius-card)] border border-rose-400/25 bg-rose-500/10 p-3 shadow-[0_18px_38px_rgba(127,29,29,0.18)]"
                   >
                     <div className="flex gap-3">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white shadow-inner">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-inner">
                         {imageUrl ? (
                           <img
                             src={imageUrl}
@@ -918,16 +922,16 @@ function InventoryDashboard() {
                             className="h-full w-full object-contain p-1.5"
                           />
                         ) : (
-                          <Package className="h-6 w-6 text-zinc-500" />
+                          <Package className="h-6 w-6 text-text-muted" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-base font-black text-white">
+                            <div className="truncate text-base font-black text-text">
                               {isProductTotalAlert ? productName : "اختيار منخفض المخزون"}
                             </div>
-                            <div className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-300">
+                            <div className="mt-1 line-clamp-2 text-sm leading-6 text-text-muted">
                               {isProductTotalAlert
                                 ? `${alertReason || "تنبيه إجمالي المنتج"}: إجمالي المخزون ${totalStock}، وعدد المقاسات النشطة ${activeSizesCount}.`
                                 : `${productName}${alert.size ? ` / المقاس ${alert.size}` : ""}${alert.color ? ` / ${alert.color}` : ""}`}
@@ -937,24 +941,24 @@ function InventoryDashboard() {
                             {isProductTotalAlert ? alertReason || "تنبيه" : alert.badge_text || "تنبيه"}
                           </span>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-300">
-                          <div className="rounded-xl border border-white/10 bg-zinc-950/35 px-3 py-2">
-                            <span className="block text-zinc-500">إجمالي المخزون</span>
-                            <span className="font-black text-white">{totalStock}</span>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-text-muted">
+                          <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
+                            <span className="block text-text-muted">إجمالي المخزون</span>
+                            <span className="font-black text-text">{totalStock}</span>
                           </div>
-                          <div className="rounded-xl border border-white/10 bg-zinc-950/35 px-3 py-2">
-                            <span className="block text-zinc-500">{isProductTotalAlert ? "حد المنتج" : "الحد"}</span>
-                            <span className="font-black text-white">{productThreshold}</span>
+                          <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
+                            <span className="block text-text-muted">{isProductTotalAlert ? "حد المنتج" : "الحد"}</span>
+                            <span className="font-black text-text">{productThreshold}</span>
                           </div>
                           {isProductTotalAlert ? (
                             <>
-                              <div className="rounded-xl border border-white/10 bg-zinc-950/35 px-3 py-2">
-                                <span className="block text-zinc-500">المقاسات النشطة</span>
-                                <span className="font-black text-white">{activeSizesCount}</span>
+                              <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
+                                <span className="block text-text-muted">المقاسات النشطة</span>
+                                <span className="font-black text-text">{activeSizesCount}</span>
                               </div>
-                              <div className="rounded-xl border border-white/10 bg-zinc-950/35 px-3 py-2">
-                                <span className="block text-zinc-500">الحد الأدنى للمقاسات النشطة</span>
-                                <span className="font-black text-white">{minimumSizesRequired}</span>
+                              <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
+                                <span className="block text-text-muted">الحد الأدنى للمقاسات النشطة</span>
+                                <span className="font-black text-text">{minimumSizesRequired}</span>
                               </div>
                             </>
                           ) : null}
@@ -962,7 +966,7 @@ function InventoryDashboard() {
                         <div className="mt-3 flex justify-end">
                           <Link
                             to={`/inventory/adjustments?productId=${encodeURIComponent(alert.product_id || "")}`}
-                            className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-200 transition hover:bg-emerald-500/15"
+                            className="inline-flex items-center justify-center rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-200 transition hover:bg-emerald-500/15"
                           >
                             افتح المخزون
                           </Link>
@@ -973,7 +977,7 @@ function InventoryDashboard() {
                 );
               })}
               {lowStockAlerts.length === 0 ? (
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">{t("inventory.alerts.empty")}</div>
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 text-sm text-text-muted">{t("inventory.alerts.empty")}</div>
               ) : null}
             </div>
           </div>
@@ -989,12 +993,12 @@ function Kpi({ label, value, tone = "zinc" }) {
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-300",
-    zinc: "border-white/10 bg-white/5 text-white",
+    zinc: "border-border bg-surface-soft text-text",
   };
   return (
-    <div className={`rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    <div className={`rounded-[var(--radius-card)] border p-4 shadow-xl ${classes[tone]}`}>
+      <div className="text-[11px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <div className="mt-2 text-2xl font-black text-text">{value}</div>
     </div>
   );
 }
@@ -1003,9 +1007,9 @@ function MetaPill({ label, value }) {
   const normalizedValue = String(value ?? "");
   const isNumericValue = /^-?[\d.,]+$/.test(normalizedValue.trim());
   return (
-    <div className="rounded-xl border border-white/10 bg-zinc-950/50 px-3 py-2">
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm font-black text-white">{isNumericValue ? <InlineLtrValue>{normalizedValue}</InlineLtrValue> : value}</div>
+    <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{label}</div>
+      <div className="mt-1 text-sm font-black text-text">{isNumericValue ? <InlineLtrValue>{normalizedValue}</InlineLtrValue> : value}</div>
     </div>
   );
 }

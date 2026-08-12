@@ -24,6 +24,13 @@
 .m1-customers-page tbody td:first-child [class*="bg-emerald"]{background:var(--primary-soft)!important;border-color:color-mix(in srgb,var(--primary) 35%,var(--border))!important;color:var(--primary)!important;box-shadow:none!important}
 .m1-customers-page :where([class*="shadow-emerald"],[class*="shadow-cyan"],[class*="shadow-black"]){box-shadow:none!important}
 .m1-customers-page :where(button,a){font-family:var(--app-font);box-shadow:none!important}
-html[data-theme="light"] .m1-customers-page :where([class*="bg-slate-8"],[class*="bg-slate-9"]){background:var(--surface)!important;color:var(--text)!important}
-html[data-theme="dark"] .m1-customers-page :where([class*="bg-slate-8"],[class*="bg-slate-9"]){background:var(--surface-soft)!important;color:var(--text)!important}
+/* Retired: two rules repainted [class*="bg-slate-8"] / [class*="bg-slate-9"]
+   per theme. Customers.jsx no longer contains either class — the page consumes
+   --surface / --surface-soft directly now — so both matched zero elements.
+
+   The emerald/cyan -> gold rules above are deliberately KEPT. Their replacement
+   is not proven: the page still carries 34 text-emerald-*, 21 bg-emerald and 17
+   border-emerald-* call sites, and those rules are what re-point the old emerald
+   brand at --primary. Retiring them would revert Customers to emerald branding.
+   They belong to a brand-hue cleanup at the call sites, not to this batch. */
 @media(max-width:767px){.m1-customers-page{padding:12px!important}.m1-customers-page :where(section,form){padding:14px!important}}

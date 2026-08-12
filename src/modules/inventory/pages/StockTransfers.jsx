@@ -104,11 +104,11 @@ function StockTransfers() {
       subtitle={tt("inventory.transfers.pageSubtitle")}
       actions={
         <div className="flex flex-wrap gap-2">
-          <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text">
             <Clock3 className="mr-2 inline h-4 w-4" />
             {tt("inventory.movements.variantHistoryList")}
           </Link>
-          <Link to="/warehouses" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/warehouses" className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text">
             {tt("warehouses.title")}
           </Link>
         </div>
@@ -123,14 +123,14 @@ function StockTransfers() {
       ]}
     >
       {error ? (
-        <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+        <div className="rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
           {error}
         </div>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Field label={tt("inventory.movements.variantId")} value={variantId} onChange={setVariantId} placeholder={tt("inventory.transfers.enterVariantId")} />
             <Select label={tt("inventory.transfers.fromWarehouse")} value={fromWarehouse} onChange={setFromWarehouse} options={warehouses} />
@@ -138,19 +138,19 @@ function StockTransfers() {
             <Field label={tt("inventory.labels.quantity")} value={quantity} onChange={setQuantity} type="number" />
           </div>
           <label className="mt-4 block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.transfers.notes")}</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{tt("inventory.transfers.notes")}</div>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={5}
               placeholder={tt("inventory.transfers.notesPlaceholder")}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft p-4 text-sm text-text outline-none placeholder:text-text-muted"
             />
           </label>
           <button
             type="button"
             onClick={submitTransfer}
-            className="mt-4 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black"
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)]"
           >
             <Save className="h-4 w-4" />
             {tt("inventory.transfers.send")}
@@ -158,24 +158,24 @@ function StockTransfers() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">{tt("inventory.transfers.log")}</h3>
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+            <h3 className="m1-section-title text-text">{tt("inventory.transfers.log")}</h3>
             <div className="mt-4 space-y-3">
               {loading ? (
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{tt("inventory.adjustments.loadingWarehouses")}</div>
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-6 text-sm text-text-muted">{tt("inventory.adjustments.loadingWarehouses")}</div>
               ) : transfers.length === 0 ? (
-                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{tt("inventory.transfers.emptyLog")}</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-6 text-sm text-text-muted">{tt("inventory.transfers.emptyLog")}</div>
               ) : (
                 transfers.map((transfer) => (
-                  <div key={String(transfer.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+                  <div key={String(transfer.id)} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold text-white">الاختيار {transfer.variant_id}</div>
-                        <div className="mt-1 text-xs text-zinc-500">{formatDateTime(transfer.created_at)}</div>
+                        <div className="font-semibold text-text">الاختيار {transfer.variant_id}</div>
+                        <div className="mt-1 text-xs text-text-muted">{formatDateTime(transfer.created_at)}</div>
                       </div>
                       <StatusBadge value={transfer.status || tt("inventory.count.status.draft")} />
                     </div>
-                    <div className="mt-2 text-sm text-zinc-300">
+                    <div className="mt-2 text-sm text-text-muted">
                       {transfer.from_warehouse} ← {transfer.to_warehouse} • الكمية {transfer.quantity}
                     </div>
                   </div>
@@ -184,9 +184,9 @@ function StockTransfers() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">{tt("inventory.transfers.title")}</h3>
-            <p className="mt-3 text-sm text-zinc-400">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+            <h3 className="m1-section-title text-text">{tt("inventory.transfers.title")}</h3>
+            <p className="mt-3 text-sm text-text-muted">
               {tt("inventory.transfers.resilienceHint")}
             </p>
           </div>
@@ -199,13 +199,13 @@ function StockTransfers() {
 function Field({ label, value, onChange, type = "text", placeholder }) {
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(type === "number" ? Number(e.target.value || 0) : e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+        className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
       />
     </label>
   );
@@ -214,10 +214,10 @@ function Field({ label, value, onChange, type = "text", placeholder }) {
 function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none">
+      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none">
         {options.map((option) => (
-          <option key={String(option.id)} value={String(option.id)} className="bg-zinc-950 text-white">
+          <option key={String(option.id)} value={String(option.id)} className="bg-surface text-text">
             {option.name}
           </option>
         ))}
