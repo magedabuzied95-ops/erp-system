@@ -48,7 +48,7 @@ let ordersRuntimeSchemaWarningLogged = false;
 // CREATE/ALTER/CREATE INDEX statements on EVERY checkout. They run outside the order
 // transaction (autocommit), so ensuring them once per process on the sale path is safe:
 // the tables/columns persist. Reset naturally on process restart (i.e. every deploy).
-let posCheckoutAuxSchemaEnsured = false;
+let posCheckoutSchemaReadyPromise = null;
 const tableExistsCache = new Map();
 const tableColumnSetCache = new Map();
 
@@ -84,13 +84,15 @@ const timedCheckout = async (timing, label, fn) => {
 };
 
 const logCheckoutTiming = (summary) => {
-  if (!POS_CHECKOUT_DEBUG) return;
+  const totalMs = Number(summary.total_ms || 0);
+  // Slow checkouts must remain observable in production even when verbose POS
+  // diagnostics are disabled. Normal checkout timings stay behind the flag.
+  if (!POS_CHECKOUT_DEBUG && totalMs <= 1000) return;
   const phaseEntries = Object.entries(summary)
     .filter(([key, value]) => key.endsWith("_ms") && key !== "total_ms" && Number.isFinite(Number(value)))
     .sort((left, right) => Number(right[1]) - Number(left[1]));
   const [slowestPhase = "", slowestMs = 0] = phaseEntries[0] || [];
   const payload = { ...summary, slowest_phase: slowestPhase, slowest_phase_ms: slowestMs };
-  const totalMs = Number(summary.total_ms || 0);
   if (totalMs > 1000) console.warn("[pos-checkout-slow]", payload);
   else console.log("[pos-checkout-timing]", payload);
 };
@@ -891,6 +893,26 @@ export const ensureOrdersSchema = async (clientOrPool = db, tenantId = null) => 
 };
 
 const ensurePosShiftOrderColumns = ensureOrdersSchema;
+
+export const ensurePosCheckoutSchema = async (tenantId = null) => {
+  if (!posCheckoutSchemaReadyPromise) {
+    posCheckoutSchemaReadyPromise = (async () => {
+      await ensureAccountingSchema();
+      await ensureAttendanceSchema();
+      await ensureOrdersSchema(db, tenantId);
+      await ensurePosUserShiftSchema(db);
+      await ensureLoyaltySchema(db);
+      await ensureSalesCommissionSchema(db);
+      await ensureWalletSchema(db);
+      await ensureWhatsappShippingSchema(db);
+    })().catch((error) => {
+      posCheckoutSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return posCheckoutSchemaReadyPromise;
+};
+
 const generatePublicToken = () => crypto.randomBytes(24).toString("hex");
 
 const toFiniteNumber = (value, fallback = 0) => {
@@ -2666,7 +2688,6 @@ export const createOrder = async (req, res) => {
   try {
     client = await db.connect();
     markOrderStep("db connected");
-    await ensureAccountingSchema();
     tenantId = getTenantId(req, req.body?.tenant_id || req.body?.tenantId || req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId);
     const normalizedPayload = normalizeCreateOrderPayload(req.body || {});
     const idempotencyKey = normalizeIdempotencyKey(req, normalizedPayload);
@@ -2859,19 +2880,7 @@ export const createOrder = async (req, res) => {
 
     markOrderStep("ensure schemas", { tenantId });
     await timedCheckout(checkoutTiming, "schema_ms", async () => {
-      await ensureAttendanceSchema();
-      await ensurePosShiftOrderColumns(client, tenantId);
-      await ensurePosUserShiftSchema(client);
-      await ensureLoyaltySchema(db);
-      // These four are idempotent but unguarded/guard-bypassed for a txn client; run the
-      // full ensure once per process instead of on every sale (they execute pre-BEGIN in
-      // autocommit, so the created schema persists regardless of the order transaction).
-      if (!posCheckoutAuxSchemaEnsured) {
-        await ensureSalesCommissionSchema(client);
-        await ensureWalletSchema(client);
-        await ensureWhatsappShippingSchema(client);
-        posCheckoutAuxSchemaEnsured = true;
-      }
+      await ensurePosCheckoutSchema(tenantId);
     });
 
     await client.query("BEGIN");

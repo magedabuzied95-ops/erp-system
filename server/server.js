@@ -581,7 +581,7 @@ const { default: settingsRoutes } = await import("./routes/settings.js");
 const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGateway.js");
 const { default: whatsappDebugRoutes } = await import("./routes/whatsappDebug.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
-const { ensureOrdersSchema } = await import("./controllers/ordersController.js");
+const { ensureOrdersSchema, ensurePosCheckoutSchema } = await import("./controllers/ordersController.js");
 const { ensureAccountingSchema } = await import("./services/accountingService.js");
 const { ensureProductClassificationSchema } = await import("./services/productClassificationsService.js");
 const { ensureProductVariantImagesSchema } = await import("./services/productVariantImagesService.js");
@@ -2340,6 +2340,8 @@ const bootstrapStartup = async () => {
     await ensureLoyaltySchema(db);
     await ensureAttendanceSchema(db);
     console.log("[server] attendance schema ensured");
+    await ensurePosCheckoutSchema();
+    console.log("[server] POS checkout schema warmed");
     await ensureSalesCommissionSchema(db);
     console.log("[server] sales commission schema ensured");
     await ensureEmployeePenaltiesSchema(db);
