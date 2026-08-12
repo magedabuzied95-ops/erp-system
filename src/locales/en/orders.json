@@ -80,7 +80,11 @@
     "source": "Source",
     "branch": "Branch",
     "all": "All",
-    "today": "Today"
+    "today": "Today",
+    "search": "Search",
+    "orderStatus": "Order status",
+    "paymentStatus": "Payment status",
+    "date": "Date"
   },
   "bulk": {
     "markConfirmed": "Mark confirmed",
@@ -158,7 +162,13 @@
     "highValue": "High value",
     "delayedPending": "Delayed pending",
     "cod": "COD",
-    "pending": "Pending"
+    "pending": "Pending",
+    "critical": "Critical",
+    "editRequested": "Edit requested",
+    "returnedCancelled": "Returned / cancelled",
+    "review": "Review",
+    "late": "Late",
+    "normal": "Normal"
   },
   "payment": {
     "confirmed": "Payment confirmed",
@@ -250,7 +260,11 @@
     "qty": "Qty",
     "noItemData": "No item data",
     "noItemDataText": "This order did not include item rows in the loaded response.",
-    "notes": "Notes"
+    "notes": "Notes",
+    "seller": "Salesperson",
+    "invoiceEditPayment": "Invoice edit payment",
+    "manualShipping": "Manual",
+    "shippingPending": "Pending"
   },
   "edit": {
     "title": "Edit order",
@@ -504,5 +518,19 @@
     "created": "Order created",
     "notesUpdated": "Notes updated",
     "shippingSet": "Shipping set up"
-  }
+  },
+  "timeline": {
+    "customerConfirmed": "Confirmed by the customer",
+    "customerRequestedEdit": "The customer requested an edit",
+    "customerCancelled": "Cancelled by the customer",
+    "created": "Order created",
+    "paymentUploaded": "Payment proof uploaded",
+    "paymentRejected": "Payment rejected",
+    "paymentVerified": "Payment confirmed",
+    "readyToShip": "Ready to ship",
+    "shipmentCreated": "Shipment created",
+    "delivered": "Delivered",
+    "orderConfirmed": "Order confirmed"
+  },
+  "aiInboxLink": "AI Inbox"
 }

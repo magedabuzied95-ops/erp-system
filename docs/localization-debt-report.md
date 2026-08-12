@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 138
-- Hardcoded Arabic UI strings: 1677
-- Hardcoded English UI strings: 1148
-- Total hardcoded UI strings: 2825
+- Files with debt: 136
+- Hardcoded Arabic UI strings: 1647
+- Hardcoded English UI strings: 1147
+- Total hardcoded UI strings: 2794
 - Mixed-language files (both scripts hardcoded): 38
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 69 | 1121 | 752 | 1873 | 24 |
-| shared | 53 | 190 | 313 | 503 | 9 |
+| main-erp | 68 | 1091 | 752 | 1843 | 24 |
+| shared | 52 | 190 | 312 | 502 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
@@ -964,39 +964,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2579 [attribute/en] Vodafone Cash
 - 2586 [attribute/en] InstaPay
 - 2661 [attribute/en] INV-123
-
-### src/modules/orders/pages/OrdersDashboard.jsx (main-erp — ar:30 en:0)
-
-- 502 [object-key/ar] حرج
-- 503 [object-key/ar] تعديل مطلوب
-- 504 [object-key/ar] مرتجع/ملغى
-- 505 [object-key/ar] مراجعة
-- 506 [object-key/ar] متأخر
-- 507 [object-key/ar] قيمة مرتفعة
-- 509 [object-key/ar] عادي
-- 513 [object-key/ar] تم التأكيد من العميل
-- 514 [object-key/ar] العميل طلب تعديل
-- 515 [object-key/ar] ألغاه العميل
-- 538 [object-key/ar] تم إنشاء الطلب
-- 541 [object-key/ar] تم رفع إثبات الدفع
-- 551 [object-key/ar] تم تأكيد الطلب
-- 554 [object-key/ar] العميل طلب تعديل
-- 558 [object-key/ar] جاهز للشحن
-- 561 [object-key/ar] تم إنشاء الشحنة
-- 564 [object-key/ar] تم التسليم
-- 577 [object-key/ar] ألغاه العميل
-- 1097 [jsx-text/ar] البحث
-- 1108 [attribute/ar] حالة الطلب
-- 1109 [attribute/ar] حالة الدفع
-- 1110 [attribute/ar] المصدر
-- 1112 [jsx-text/ar] التاريخ
-- 1435 [attribute/ar] البائع
-- 1436 [attribute/ar] الدفع
-- 1438 [attribute/ar] الشحن
-- 1440 [attribute/ar] دفع تعديل الفاتورة
-- 1531 [attribute/ar] البائع
-- 1532 [attribute/ar] الدفع
-- 1535 [attribute/ar] دفع تعديل الفاتورة
 
 ### src/modules/purchases/pages/SupplierStatement.jsx (main-erp — ar:29 en:0)
 
@@ -2200,10 +2167,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/marketing/services/marketingApi.js (main-erp — ar:0 en:1)
 
 - 213 [object-key/en] Test post from ERP
-
-### src/modules/orders/components/AiInboxOrderLink.jsx (shared — ar:0 en:1)
-
-- 45 [jsx-text/en] AI Inbox
 
 ### src/modules/pos/lib/thermalReceiptPrint.jsx (pos — ar:0 en:1)
 

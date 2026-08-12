@@ -19,6 +19,7 @@ const CHANNEL_META = {
 };
 
 export default function AiInboxOrderLink({ order, compact = false, className = "" }) {
+  const { t } = useTranslation();
   // Subscribes this screen to language changes; strings resolve through tt().
   useTranslation();
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ export default function AiInboxOrderLink({ order, compact = false, className = "
       className={`inline-flex items-center justify-center gap-1.5 rounded-full border font-black transition ${compact ? "h-6 w-6 p-0" : "px-2.5 py-1 text-[11px]"} ${meta.className} ${className}`}
     >
       <Icon className={compact ? "h-3.5 w-3.5" : "h-3.5 w-3.5"} />
-      {!compact ? <span>AI Inbox</span> : null}
+      {!compact ? <span>{t("orders.aiInboxLink")}</span> : null}
     </button>
   );
 }

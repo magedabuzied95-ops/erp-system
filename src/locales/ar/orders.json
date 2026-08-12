@@ -80,7 +80,11 @@
     "source": "المصدر",
     "branch": "الفرع",
     "all": "الكل",
-    "today": "اليوم"
+    "today": "اليوم",
+    "search": "البحث",
+    "orderStatus": "حالة الطلب",
+    "paymentStatus": "حالة الدفع",
+    "date": "التاريخ"
   },
   "bulk": {
     "markConfirmed": "تعيين كمؤكد",
@@ -155,10 +159,16 @@
   },
   "priority": {
     "awaitingVerification": "بانتظار التحقق",
-    "highValue": "قيمة عالية",
+    "highValue": "قيمة مرتفعة",
     "delayedPending": "طلب متأخر",
     "cod": "الدفع عند الاستلام",
-    "pending": "معلق"
+    "pending": "معلق",
+    "critical": "حرج",
+    "editRequested": "تعديل مطلوب",
+    "returnedCancelled": "مرتجع/ملغى",
+    "review": "مراجعة",
+    "late": "متأخر",
+    "normal": "عادي"
   },
   "payment": {
     "confirmed": "تم تأكيد الدفع",
@@ -250,7 +260,11 @@
     "qty": "الكمية",
     "noItemData": "لا توجد بيانات بنود",
     "noItemDataText": "هذا الطلب لا يحتوي على صفوف بنود في البيانات المحملة.",
-    "notes": "الملاحظات"
+    "notes": "الملاحظات",
+    "seller": "البائع",
+    "invoiceEditPayment": "دفع تعديل الفاتورة",
+    "manualShipping": "يدوي",
+    "shippingPending": "قيد الانتظار"
   },
   "edit": {
     "title": "تعديل الطلب",
@@ -504,5 +518,19 @@
     "created": "تم إنشاء الطلب",
     "notesUpdated": "تم تحديث الملاحظات",
     "shippingSet": "تم إعداد الشحن"
-  }
+  },
+  "timeline": {
+    "customerConfirmed": "تم التأكيد من العميل",
+    "customerRequestedEdit": "العميل طلب تعديل",
+    "customerCancelled": "ألغاه العميل",
+    "created": "تم إنشاء الطلب",
+    "paymentUploaded": "تم رفع إثبات الدفع",
+    "paymentRejected": "تم رفض الدفع",
+    "paymentVerified": "تم تأكيد الدفع",
+    "readyToShip": "جاهز للشحن",
+    "shipmentCreated": "تم إنشاء الشحنة",
+    "delivered": "تم التسليم",
+    "orderConfirmed": "تم تأكيد الطلب"
+  },
+  "aiInboxLink": "صندوق الذكاء الاصطناعي"
 }
