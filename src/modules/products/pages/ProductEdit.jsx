@@ -3645,7 +3645,7 @@ function ProductEdit() {
                     type="checkbox"
                     checked={Boolean(product.use_custom_compare_price)}
                     onChange={(event) => updateProductField("use_custom_compare_price", event.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-border-strong bg-surface"
+                    className="mt-1 h-4 w-4 rounded-[4px] border-border bg-surface accent-[var(--primary)]"
                   />
                   <span>
                     <span className="block text-sm font-black text-text">{t("products.editor.customComparePrice", "Custom storefront compare price")}</span>
@@ -3862,7 +3862,7 @@ function ProductEdit() {
                             setSeoTouched((current) => ({ ...current, description: true }));
                           }}
                           rows={3}
-                          className="mt-1.5 w-full rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2 text-sm leading-5 text-text outline-none"
+                          className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm leading-5 text-text outline-none"
                         />
                         <p className="mt-1 text-[11px] text-text-muted">{String(product.seo_description || "").length}/160 characters</p>
                       </div>
@@ -4609,12 +4609,12 @@ function ProductEdit() {
                                 className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
                               />
                               {editionSuggestions[group.id]?.status === "loading" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-text-muted shadow-2xl shadow-black/40">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-text-muted shadow-[var(--shadow-overlay)]">
                                   Searching similar products...
                                 </div>
                               ) : null}
                               {editionSuggestions[group.id]?.status === "ready" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-violet-400/20 bg-surface-raised p-3 shadow-2xl shadow-black/40">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-violet-400/20 bg-surface-raised p-3 shadow-[var(--shadow-overlay)]">
                                   {editionSuggestions[group.id].suggestion.source === "NO_TRUSTED_MATCH" ? (
                                     <div className="text-sm font-black text-text">{t("products.editor.noTrustedMatch")}</div>
                                   ) : (
@@ -4667,7 +4667,7 @@ function ProductEdit() {
                                 </div>
                               ) : null}
                               {editionSuggestions[group.id]?.status === "error" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border border-red-400/20 bg-surface-raised p-3 text-xs text-red-100 shadow-2xl shadow-black/40">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border border-red-400/20 bg-surface-raised p-3 text-xs text-red-100 shadow-[var(--shadow-overlay)]">
                                   <span>{editionSuggestions[group.id].error}</span>
                                   <button
                                     type="button"

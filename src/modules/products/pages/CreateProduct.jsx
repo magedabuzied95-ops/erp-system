@@ -2458,7 +2458,7 @@ function CreateProduct() {
             value={descriptionTone}
             onChange={(event) => setDescriptionTone(event.target.value)}
             placeholder={t("products.editor.promptPlaceholder", "premium tone, concise tone, friendly tone")}
-            className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm text-text shadow-inner shadow-black/20 outline-none placeholder:text-text-muted transition focus:border-amber-300/35 focus:bg-surface-soft"
+            className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm text-text outline-none placeholder:text-text-muted transition focus:border-amber-300/35 focus:bg-surface-soft"
           />
         </div>
         <div>
@@ -2473,7 +2473,7 @@ function CreateProduct() {
             rows={6}
             dir="rtl"
             placeholder={generatedDescriptionAr}
-            className="mt-1.5 w-full rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text shadow-inner shadow-black/20 outline-none placeholder:text-text-muted transition focus:border-primary focus:bg-surface-soft"
+            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-muted transition focus:border-primary focus:bg-surface-soft"
           />
         </div>
 
@@ -2488,7 +2488,7 @@ function CreateProduct() {
             }}
             rows={6}
             placeholder={generatedDescriptionEn}
-            className="mt-1.5 w-full rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text shadow-inner shadow-black/20 outline-none placeholder:text-text-muted transition focus:border-primary/35 focus:bg-surface-soft"
+            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-muted transition focus:border-primary/35 focus:bg-surface-soft"
           />
         </div>
       </div>
@@ -2520,7 +2520,7 @@ function CreateProduct() {
               setMetaTitle(event.target.value);
               setSeoTouched((current) => ({ ...current, title: true }));
             }}
-            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none"
           />
         </div>
         <div>
@@ -2531,7 +2531,7 @@ function CreateProduct() {
               setSeoKeywords(event.target.value);
               setSeoTouched((current) => ({ ...current, keywords: true }));
             }}
-            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text shadow-inner shadow-black/20 outline-none"
+            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none"
           />
         </div>
         <div className="lg:col-span-2">
@@ -2543,7 +2543,7 @@ function CreateProduct() {
               setSeoTouched((current) => ({ ...current, description: true }));
             }}
             rows={3}
-            className="mt-1.5 w-full rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text shadow-inner shadow-black/20 outline-none"
+            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text outline-none"
           />
           <p className="mt-1 text-[11px] text-text-muted">{seoDescription.length}/160 characters</p>
         </div>
@@ -2957,7 +2957,7 @@ function CreateProduct() {
               />
 
               <div className="mt-5 space-y-4">
-                <div className="hidden rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 transition duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-surface-soft hover:shadow-lg hover:shadow-black/10">
+                <div className="hidden rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 transition duration-200 hover:border-border hover:bg-surface-soft ">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text">{t("products.editor.identifiers", "Identifiers")}</p>
                     <p className="mt-0.5 text-xs text-text-muted">{t("products.editor.identifiersHelp", "Internal product codes and scannable labels.")}</p>
@@ -2972,12 +2972,12 @@ function CreateProduct() {
                             setSkuPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""));
                             setSkuPrefixTouched(true);
                           }}
-                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                         />
                         <button
                           type="button"
                           onClick={regenerateSkuPrefix}
-                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
+                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
                         >
                           <Sparkles className="h-3.5 w-3.5" />
                           {t("products.editor.regenerateFromProductName")}
@@ -2997,12 +2997,12 @@ function CreateProduct() {
                             setBarcode(e.target.value);
                             setBarcodePreview(e.target.value);
                           }}
-                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                         />
                         <button
                           type="button"
                           onClick={generateNewBarcode}
-                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
+                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
                         >
                           <ScanLine size={13} />
                           {t("products.editor.generate")}
@@ -3012,7 +3012,7 @@ function CreateProduct() {
                   </div>
                 </div>
 
-                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/10">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 transition duration-200 hover:border-primary/30 ">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text">{t("products.editor.pricingSummary", "Pricing summary")}</p>
                     <p className="mt-0.5 text-xs text-text-muted">{t("products.editor.pricingFilledFromPurchases", "Pricing is filled from purchase invoices after stock is received.")}</p>
@@ -3036,7 +3036,7 @@ function CreateProduct() {
                         type="checkbox"
                         checked={useCustomComparePrice}
                         onChange={(e) => setUseCustomComparePrice(e.target.checked)}
-                        className="mt-1 h-4 w-4 rounded border-border bg-surface-soft"
+                        className="mt-1 h-4 w-4 rounded-[4px] border-border bg-surface accent-[var(--primary)]"
                       />
                       <span>
                         <span className="block text-[13px] font-black text-text">{t("products.editor.customComparePrice", "Custom storefront compare price")}</span>
@@ -3051,7 +3051,7 @@ function CreateProduct() {
                         value={customComparePrice}
                         onChange={(e) => setCustomComparePrice(e.target.value)}
                         placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}
-                        className="mt-3 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                        className="mt-3 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                       />
                     ) : null}
                   </div>
@@ -3143,7 +3143,7 @@ function CreateProduct() {
                                 setMetaTitle(event.target.value);
                                 setSeoTouched((current) => ({ ...current, title: true }));
                               }}
-                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none"
                             />
                           </div>
                           <div>
@@ -3154,7 +3154,7 @@ function CreateProduct() {
                                 setCanonicalSlug(event.target.value);
                                 setSeoTouched((current) => ({ ...current, slug: true }));
                               }}
-                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none"
                             />
                           </div>
                           <div className="lg:col-span-2">
@@ -3166,7 +3166,7 @@ function CreateProduct() {
                                 setSeoTouched((current) => ({ ...current, description: true }));
                               }}
                               rows={3}
-                              className="mt-1.5 w-full rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text outline-none"
                             />
                             <p className="mt-1 text-[11px] text-text-muted">{seoDescription.length}/160 characters</p>
                           </div>
@@ -3178,7 +3178,7 @@ function CreateProduct() {
                                 setSeoKeywords(event.target.value);
                                 setSeoTouched((current) => ({ ...current, keywords: true }));
                               }}
-                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none"
                             />
                           </div>
                         </div>
@@ -3776,12 +3776,12 @@ function CreateProduct() {
                                       className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                                     />
                                       {editionSuggestions[group.id]?.status === "loading" ? (
-                                        <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-xs font-semibold text-text shadow-2xl shadow-black/40">
+                                        <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-xs font-semibold text-text shadow-[var(--shadow-overlay)]">
                                           {t("products.editor.searchingSimilarProducts")}
                                         </div>
                                       ) : null}
                                     {editionSuggestions[group.id]?.status === "ready" ? (
-                                      <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-violet-400/20 bg-surface-soft p-3 shadow-2xl shadow-black/40">
+                                      <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-violet-400/20 bg-surface-soft p-3 shadow-[var(--shadow-overlay)]">
                                         {editionSuggestions[group.id].suggestion.source === "NO_TRUSTED_MATCH" ? (
                                           <div className="text-sm font-black text-text">{t("products.editor.noTrustedMatch")}</div>
                                         ) : (
@@ -3834,7 +3834,7 @@ function CreateProduct() {
                                       </div>
                                     ) : null}
                                     {editionSuggestions[group.id]?.status === "error" ? (
-                                      <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border border-red-400/20 bg-surface-soft p-3 text-xs text-red-100 shadow-2xl shadow-black/40">
+                                      <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border border-red-400/20 bg-surface-soft p-3 text-xs text-red-100 shadow-[var(--shadow-overlay)]">
                                         <span>{editionSuggestions[group.id].error}</span>
                                         <button
                                           type="button"
@@ -3869,7 +3869,7 @@ function CreateProduct() {
                                   <label className="text-sm font-semibold text-text">الجمهور لهذا اللون</label>
                                   <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                                     {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].map((option) => (
-                                      <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:text-white"}`}>
+                                      <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:text-text"}`}>
                                         {option.label}
                                       </button>
                                     ))}
