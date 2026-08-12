@@ -11,9 +11,9 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 608
 - Files with debt: 204
-- Hardcoded Arabic UI strings: 1921
+- Hardcoded Arabic UI strings: 1902
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 4467
+- Total hardcoded UI strings: 4448
 - Mixed-language files (both scripts hardcoded): 51
 
 ### By surface
@@ -23,7 +23,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | main-erp | 105 | 1352 | 1821 | 3173 | 35 |
 | shared | 70 | 185 | 440 | 625 | 10 |
 | employee-portal | 22 | 185 | 149 | 334 | 3 |
-| pos | 5 | 199 | 122 | 321 | 3 |
+| pos | 5 | 180 | 122 | 302 | 3 |
 | manager-portal | 2 | 0 | 14 | 14 | 0 |
 
 ## Mixed-language files (ranked by density)
@@ -46,13 +46,13 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx | main-erp | 1 | 58 | 59 |
 | src/modules/marketing/pages/AiMarketingVideos.jsx | main-erp | 14 | 45 | 59 |
-| src/modules/pos/components/CartSidebar.jsx | pos | 46 | 13 | 59 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
 | src/modules/aiSupport/pages/AiSettings.jsx | main-erp | 5 | 45 | 50 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 44 | 4 | 48 |
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 42 | 47 |
 | src/modules/aiSupport/pages/AiSupportConsole.jsx | main-erp | 10 | 35 | 45 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 34 | 8 | 42 |
+| src/modules/pos/components/CartSidebar.jsx | pos | 27 | 13 | 40 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
 | src/modules/marketing/pages/SocialMediaPublisher.jsx | main-erp | 10 | 28 | 38 |
 | src/modules/orders/pages/OrdersDashboard.jsx | main-erp | 30 | 8 | 38 |
@@ -876,50 +876,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 689 [attribute/en] Preset
 - ... 19 more
 
-### src/modules/pos/components/CartSidebar.jsx (pos — ar:46 en:13)
-
-- 374 [attribute/en] Create order
-- 594 [attribute/ar] غير محفوظة
-- 600 [attribute/ar] إغلاق الفاتورة
-- 980 [jsx-text/ar] عملية شخصية
-- 985 [jsx-text/ar] نوع العملية الشخصية
-- 991 [jsx-text/ar] اختر النوع
-- 992 [jsx-text/ar] هدية / مصروف
-- 993 [jsx-text/ar] سلفة موظف
-- 994 [jsx-text/ar] استخدام شخصي للمالك
-- 998 [jsx-text/ar] ملاحظة
-- 1004 [attribute/ar] اختياري
-- 1087 [jsx-text/ar] بيع آجل للعميل
-- 1587 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
-- 1748 [jsx-text/ar] فاتورة بيع
-- 1750 [jsx-text/ar] التاريخ
-- 1751 [jsx-text/ar] البائع
-- 1752 [jsx-text/ar] العميل
-- 1753 [jsx-text/ar] الدفع
-- 1758 [jsx-text/ar] الإجمالي
-- 1758 [jsx-text/ar] السعر
-- 1758 [jsx-text/ar] الصنف
-- 1771 [jsx-text/ar] لا توجد منتجات
-- 1776 [jsx-text/ar] الإجمالي الفرعي
-- 1777 [jsx-text/ar] إجمالي الكمية
-- 1778 [jsx-text/ar] خصم المنتجات
-- 1779 [jsx-text/ar] خصم الفاتورة
-- 1780 [jsx-text/ar] خصم الكوبون
-- 1781 [jsx-text/ar] خصم الولاء
-- 1782 [jsx-text/ar] الضريبة
-- 1783 [jsx-text/ar] رسوم الخدمة
-- 1784 [jsx-text/ar] الإجمالي
-- 1785 [jsx-text/ar] المدفوع
-- 1786 [jsx-text/ar] الباقي
-- 1787 [jsx-text/ar] المتبقي
-- 1791 [jsx-text/ar] العنوان
-- 1792 [jsx-text/ar] خدمة العملاء
-- 1793 [jsx-text/ar] الموقع الإلكتروني الرسمي
-- 1795 [jsx-text/ar] سياسة الاستبدال والاسترجاع
-- 1797 [jsx-text/ar] شكرًا لزيارتكم
-- 2509 [jsx-text/ar] تعديل الفاتورة
-- ... 19 more
-
 ### src/modules/smartWarehouse/pages/SmartWarehouse.jsx (main-erp — ar:0 en:58)
 
 - 24 [object-key/en] Quick Count
@@ -1579,6 +1535,49 @@ of scope. The scanner is conservative and can still contain false positives.
 - 4452 [jsx-text/ar] حدّث صورتك ورقم الموبايل
 - 4454 [attribute/ar] إغلاق
 - ... 2 more
+
+### src/modules/pos/components/CartSidebar.jsx (pos — ar:27 en:13)
+
+- 374 [attribute/en] Create order
+- 1587 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
+- 1748 [jsx-text/ar] فاتورة بيع
+- 1750 [jsx-text/ar] التاريخ
+- 1751 [jsx-text/ar] البائع
+- 1752 [jsx-text/ar] العميل
+- 1753 [jsx-text/ar] الدفع
+- 1758 [jsx-text/ar] الإجمالي
+- 1758 [jsx-text/ar] السعر
+- 1758 [jsx-text/ar] الصنف
+- 1771 [jsx-text/ar] لا توجد منتجات
+- 1776 [jsx-text/ar] الإجمالي الفرعي
+- 1777 [jsx-text/ar] إجمالي الكمية
+- 1778 [jsx-text/ar] خصم المنتجات
+- 1779 [jsx-text/ar] خصم الفاتورة
+- 1780 [jsx-text/ar] خصم الكوبون
+- 1781 [jsx-text/ar] خصم الولاء
+- 1782 [jsx-text/ar] الضريبة
+- 1783 [jsx-text/ar] رسوم الخدمة
+- 1784 [jsx-text/ar] الإجمالي
+- 1785 [jsx-text/ar] المدفوع
+- 1786 [jsx-text/ar] الباقي
+- 1787 [jsx-text/ar] المتبقي
+- 1791 [jsx-text/ar] العنوان
+- 1792 [jsx-text/ar] خدمة العملاء
+- 1793 [jsx-text/ar] الموقع الإلكتروني الرسمي
+- 1795 [jsx-text/ar] سياسة الاستبدال والاسترجاع
+- 1797 [jsx-text/ar] شكرًا لزيارتكم
+- 2564 [attribute/en] Vodafone Cash
+- 2571 [attribute/en] InstaPay
+- 2646 [attribute/en] INV-123
+- 2898 [attribute/en] Clear payment amount
+- 2970 [notification/en] Enter a positive recharge amount
+- 2981 [notification/en] Treasury adjustment recorded
+- 3010 [attribute/en] Recharge treasury account
+- 3011 [attribute/en] Recharge / adjustment
+- 3043 [jsx-text/en] Treasury adjustment
+- 3050 [attribute/en] Close
+- 3063 [attribute/en] Recharge amount
+- 3069 [attribute/en] Audit note
 
 ### src/modules/reports/pages/Reports.jsx (main-erp — ar:9 en:31)
 

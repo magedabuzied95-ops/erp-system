@@ -101,6 +101,10 @@
     "favorite": "Favorite"
   },
   "cart": {
+    "invoiceTab": "Invoice {{index}}",
+    "newInvoice": "Invoice",
+    "editInvoice": "Edit the invoice",
+    "offlinePending": "Invoices awaiting sync: {{count}}",
     "title": "Cart",
     "items": "Items",
     "customer": "Customer",
@@ -283,6 +287,7 @@
     "savedOfflineInvoice": "Saved offline invoice. It will sync automatically when the connection returns."
   },
   "personal": {
+    "noCashImpact": " - does not affect cash",
     "operation": "Personal operation",
     "gift": "Personal operation / gift",
     "employeeAdvance": "Personal operation / employee advance",
@@ -295,6 +300,12 @@
     "stockNotice": "This operation deducts from stock and is not treated as a normal cash collection."
   },
   "payment": {
+    "cashLabel": "Cash",
+    "visaLabel": "Visa",
+    "instapayLabel": "InstaPay",
+    "vodafoneCashLabel": "Vodafone Cash",
+    "insufficientBalance": "Insufficient balance (shortfall: {{amount}})",
+    "fallbackHasBalance": "{{account}} has sufficient balance",
     "cash": "Cash",
     "split": "Split",
     "pay": "Pay",
@@ -307,6 +318,8 @@
     "negativeAllowed": "Negative balances are allowed for this account."
   },
   "credit": {
+    "short": "Credit",
+    "willRecordDebt": "{{amount}} will be recorded as customer debt",
     "selectCustomerFirst": "Select a customer first to create a credit sale",
     "saveDepositRest": "Save the deposit and record the rest as credit",
     "createForCustomer": "Create a credit sale for the selected customer",
