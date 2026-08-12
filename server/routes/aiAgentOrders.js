@@ -5024,6 +5024,31 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
     }
 
+    // Phase 11: server-side STALE protection (mandatory). If the employee is approving the UNEDITED AI
+    // suggestion and a newer customer message arrived after it was generated, block the send — they must
+    // regenerate. Edited/manual replies are intentional and are never blocked here.
+    const rawAiReplyDraft = conversation.last_ai_reply_draft || {};
+    const isUneditedSuggestionSend = aiReplyDraft?.status === "not_sent" && Boolean(aiReplyDraft.text) && envText(aiReplyDraft.text) === messageText;
+    if (isUneditedSuggestionSend) {
+      const { hasNewerCustomerMessage } = await import("../services/aiSupportLogService.js");
+      const stale = await hasNewerCustomerMessage({
+        tenantId,
+        sessionId: conversationId,
+        afterMessageId: Number(rawAiReplyDraft?.metadata?.source_message_id || 0),
+        afterTime: conversation.last_ai_reply_draft_updated_at || rawAiReplyDraft?.updated_at || null,
+      });
+      if (stale) {
+        try {
+          const { recordAssistedOutcome } = await import("../services/aiInboundIntakeService.js");
+          await recordAssistedOutcome({ tenantId, channel: normalizedChannel, conversationId, outcome: "stale", reason: "newer_customer_message" });
+        } catch { /* metrics best-effort */ }
+        return res.status(409).json({
+          success: false, sent: false, code: "STALE_SUGGESTION", reason: "newer_customer_message",
+          message: "العميل بعت رسالة أحدث — حدّث الاقتراح قبل الإرسال.",
+        });
+      }
+    }
+
     let sendResult = null;
     let deliveryStatus = "sent";
     let deliveryError = "";
@@ -5141,6 +5166,13 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         });
       }
       await clearAiReplySuggestionDraft({ tenantId, sessionId: conversationId }).catch(() => {});
+      // Phase 11 metric: an AI suggestion was approved & sent (edited vs unchanged distinguishable via corrections).
+      if (aiReplyDraft?.status === "not_sent" && aiReplyDraft.text) {
+        try {
+          const { recordAssistedOutcome } = await import("../services/aiInboundIntakeService.js");
+          await recordAssistedOutcome({ tenantId, channel: normalizedChannel, conversationId, outcome: "approved", reason: envText(aiReplyDraft.text) === messageText ? "unchanged" : "edited" });
+        } catch { /* metrics best-effort */ }
+      }
     }
     await logChannelEvent({
       tenantId,
