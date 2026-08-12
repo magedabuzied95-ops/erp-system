@@ -958,7 +958,7 @@ function Customers() {
               setCustomerFormOpen(true);
             }}
             aria-expanded={customerFormOpen}
-            className="inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
+            className="inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"
           >
             {customerFormOpen ? <X className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
             {customerFormOpen ? t("customers.form.cancel") : t("customers.form.titleAdd")}
@@ -1020,7 +1020,7 @@ function Customers() {
           <div className="mt-5 flex flex-wrap gap-3">
             <button
               type="submit"
-              className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-300"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-950/30 transition hover:bg-[var(--primary-hover)]"
             >
               {editingId ? t("customers.form.submitUpdate") : t("customers.form.submitAdd")}
             </button>
@@ -1321,7 +1321,7 @@ function CustomerImportModal({
                   type="button"
                   onClick={onConfirm}
                   disabled={loading || !preview?.summary || importDone}
-                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Sparkles className="h-4 w-4" />
                   {loading && summary ? "جاري الاستيراد..." : importDone ? "تم الاستيراد" : "تأكيد الاستيراد"}
@@ -1433,7 +1433,7 @@ function CustomerProfileDrawer({
               type="button"
               onClick={onExportStatement}
               disabled={!canExportStatement}
-              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               title={canExportStatement ? "كشف حساب العميل" : "Only admin/manager can export"}
             >
               <FileText className="h-4 w-4" />
@@ -1494,7 +1494,7 @@ function CustomerProfileDrawer({
             </select>
             <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" className={inputClass} />
             <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder="سبب/ملاحظات التعديل" className={inputClass} />
-            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300">حفظ</button>
+            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]">حفظ</button>
           </form>
         </section>
 
@@ -1660,7 +1660,7 @@ function CustomerStatementDrawer({
               type="button"
               onClick={onExportStatement}
               disabled={!canExportStatement}
-              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               title={canExportStatement ? "طباعة / تحميل PDF" : "Only admin/manager can export"}
             >
               <FileText className="h-4 w-4" />
@@ -1774,7 +1774,7 @@ function CustomerStatementDrawer({
                   >
                     إلغاء
                   </button>
-                  <button type="submit" disabled={paymentSaving || currentBalance <= 0} className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-6 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40">
+                  <button type="submit" disabled={paymentSaving || currentBalance <= 0} className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-6 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-40">
                     {paymentSaving ? "جاري الحفظ..." : "تسجيل الدفعة"}
                   </button>
                 </div>
@@ -1826,7 +1826,7 @@ function CustomerStatementDrawer({
             </select>
             <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" className={inputClass} />
             <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder="سبب/ملاحظات التعديل" className={inputClass} />
-            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300">حفظ</button>
+            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]">حفظ</button>
           </form>
         </section>
 

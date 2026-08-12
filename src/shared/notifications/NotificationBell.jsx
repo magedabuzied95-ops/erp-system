@@ -173,7 +173,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
               <button
                 type="button"
                 onClick={() => handleAction?.(safeNotification)}
-                className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-slate-800 dark:bg-primary dark:text-slate-950 dark:hover:bg-primary"
+                className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] dark:bg-primary dark:text-[var(--primary-contrast)] dark:hover:bg-primary"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 {safeNotification.action_label || "فتح"}
@@ -323,7 +323,7 @@ export default function NotificationBell() {
                 <button
                   type="button"
                   onClick={() => refresh()}
-                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-slate-800 dark:bg-primary dark:text-slate-950 dark:hover:bg-primary"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] dark:bg-primary dark:text-[var(--primary-contrast)] dark:hover:bg-primary"
                 >
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   تحديث

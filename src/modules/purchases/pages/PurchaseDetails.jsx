@@ -884,7 +884,7 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
           </div>
           <div className="flex shrink-0 gap-2">
             <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-            <button type="button" onClick={submit} disabled={saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-xs font-black text-black disabled:opacity-60">
+            <button type="button" onClick={submit} disabled={saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-xs font-black text-black disabled:opacity-60">
               <Save className="h-4 w-4" />
               {saving ? t("purchases.details.savingAdjustments") : t("purchases.details.saveChanges")}
             </button>
@@ -900,7 +900,7 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <button type="button" onClick={() => setConfirmReceivedSave(false)} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-                <button type="button" onClick={handleSave} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">{saving ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
+                <button type="button" onClick={handleSave} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-60">{saving ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
               </div>
             </div>
           </div>
@@ -1047,7 +1047,7 @@ function AdjustmentModal({ purchase, onClose, onSave }) {
           </button>
           <div className="flex items-center gap-3">
             <div className="text-xl font-black text-white">{t("purchases.details.totalWithValue", { value: formatCurrency(total) })}</div>
-            <button type="button" onClick={submit} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">
+            <button type="button" onClick={submit} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-60">
               {saving ? t("purchases.details.saving") : t("purchases.details.receiveAdjustment")}
             </button>
           </div>

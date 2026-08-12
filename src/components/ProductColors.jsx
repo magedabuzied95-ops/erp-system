@@ -355,16 +355,16 @@ export default function ProductColors({
                       active
 
                       ? `
-                        bg-blue-500
+                        bg-primary
                         border-blue-400
-                        text-white
+                        text-[var(--primary-contrast)]
                         scale-105
                       `
 
                       : `
                         bg-[#1e293b]
                         border-white/10
-                        text-white
+                        text-[var(--primary-contrast)]
                         hover:border-blue-500
                         hover:bg-[#263247]
                       `

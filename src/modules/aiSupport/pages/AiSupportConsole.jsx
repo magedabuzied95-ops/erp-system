@@ -794,7 +794,7 @@ export default function AiSupportConsole() {
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
-                        <button type="button" onClick={() => updateOrderDraft(draft, "confirm")} disabled={orderDraftsLoading || draft.ai_agent_status !== "ai_draft"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" onClick={() => updateOrderDraft(draft, "confirm")} disabled={orderDraftsLoading || draft.ai_agent_status !== "ai_draft"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-50">
                           <UserCheck className="h-4 w-4" />
                           Confirm Order
                         </button>

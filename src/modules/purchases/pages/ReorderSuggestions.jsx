@@ -336,7 +336,7 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
           type="button"
           onClick={onCreateDraft}
           disabled={creating || suggestedQty <= 0 || item.status === "DO_NOT_BUY"}
-          className="mt-1 inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 text-xs font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-45"
+          className="mt-1 inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-black transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-45"
           title={suggestedQty <= 0 || item.status === "DO_NOT_BUY" ? t("purchases.reorder.noSuggestedQty") : t("purchases.reorder.createDraft")}
         >
           <ShoppingBag className="h-4 w-4" />

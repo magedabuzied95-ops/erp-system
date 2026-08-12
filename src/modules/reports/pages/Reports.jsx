@@ -444,7 +444,7 @@ function Reports() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-sm font-black transition ${ activeTab === tab.key ? "border-emerald-300 bg-emerald-400 text-emerald-950" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-emerald-300/40 hover:text-white" }`}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-sm font-black transition ${ activeTab === tab.key ? "border-emerald-300 bg-primary text-emerald-950" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-emerald-300/40 hover:text-[var(--primary-contrast)]" }`}
                 >
                   {tab.label}
                 </button>

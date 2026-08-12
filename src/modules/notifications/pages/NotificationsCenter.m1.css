@@ -16,7 +16,7 @@
 .m1-notifications-center>div.grid article>span{background:var(--primary)!important;box-shadow:none!important;height:28px!important;top:14px!important}
 .m1-notifications-center>div.grid article>div{gap:10px!important;align-items:center!important}
 .m1-notifications-center>div.grid article>div>div:first-child{width:36px!important;height:36px!important;border-radius:9px!important;background:var(--primary-soft)!important;color:var(--primary)!important;border-color:color-mix(in srgb,var(--primary) 30%,var(--border))!important}
-.m1-notifications-center>div.grid article h3{font-size:13px!important;color:var(--text)!important}
+.m1-notifications-center>div.grid article h3{color:var(--text)!important}
 .m1-notifications-center>div.grid article p{margin-top:2px!important;font-size:11px!important;line-height:1.55!important;color:var(--muted)!important}
 .m1-notifications-center>div.grid article [class*="mt-3"]{margin-top:6px!important}
 .m1-notifications-center>div.grid article button[class*="dark:bg-cyan"]{background:var(--primary)!important;color:var(--primary-contrast)!important}
@@ -41,7 +41,7 @@
 .notification-card-grid article>span{background:var(--primary)!important;box-shadow:none!important;height:28px!important;top:14px!important}
 .notification-card-grid article>div{gap:10px!important;align-items:center!important}
 .notification-card-grid article>div>div:first-child{width:36px!important;height:36px!important;border-radius:9px!important;background:var(--primary-soft)!important;color:var(--primary)!important;border-color:color-mix(in srgb,var(--primary) 30%,var(--border))!important}
-.notification-card-grid article h3{font-size:13px!important;color:var(--text)!important}
+.notification-card-grid article h3{color:var(--text)!important}
 .notification-card-grid article p{margin-top:2px!important;font-size:11px!important;line-height:1.55!important;color:var(--muted)!important}
 .notification-card-grid article [class*="mt-3"]{margin-top:6px!important}
 .notification-card-grid article button[class*="dark:bg-cyan"]{background:var(--primary)!important;color:var(--primary-contrast)!important}

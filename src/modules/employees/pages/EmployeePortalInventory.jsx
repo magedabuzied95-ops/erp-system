@@ -508,7 +508,7 @@ function ScannerModal({ onClose, onScan }) {
                 type="button"
                 onClick={() => submitScan(manualValue)}
                 disabled={!clean(manualValue) || submitting}
-                className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50"
+                className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50"
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "بحث"}
               </button>
@@ -1466,7 +1466,7 @@ export default function EmployeePortalInventory() {
                 type="button"
                 onClick={handleCreateSession}
                 disabled={sessionSaving}
-                className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60 lg:inline-flex"
+                className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60 lg:inline-flex"
               >
                 {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 جرد جديد
@@ -1480,7 +1480,7 @@ export default function EmployeePortalInventory() {
                 key={filter.value}
                 type="button"
                 onClick={() => setStatusFilter(filter.value)}
-                className={`rounded-full border px-4 py-2 text-sm font-black transition ${ statusFilter === filter.value ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200 bg-white text-slate-600" }`}
+                className={`rounded-full border px-4 py-2 text-sm font-black transition ${ statusFilter === filter.value ? "border-emerald-500 bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-white text-slate-600" }`}
               >
                 {filter.label}
               </button>
@@ -1602,7 +1602,7 @@ export default function EmployeePortalInventory() {
                         type="button"
                         onClick={handleSubmitSession}
                         disabled={sessionSubmitting || !isEditable}
-                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-60"
+                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60"
                       >
                         {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         إرسال للمراجعة
@@ -1751,7 +1751,7 @@ export default function EmployeePortalInventory() {
                                 type="button"
                                 onClick={() => addColorGroup(group)}
                                 disabled={!isEditable}
-                                className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-xs font-black text-white disabled:opacity-60"
+                                className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-60"
                               >
                                 <Plus className="h-4 w-4" />
                                 إضافة اللون
@@ -1856,7 +1856,7 @@ export default function EmployeePortalInventory() {
                                     type="button"
                                     onClick={() => adjustVariantCount(variant, 1)}
                                     disabled={!isEditable || saving}
-                                    className="inline-flex h-14 items-center justify-center rounded-[var(--radius-control)] bg-emerald-600 text-2xl font-black text-white transition-colors disabled:opacity-50"
+                                    className="inline-flex h-14 items-center justify-center rounded-[var(--radius-control)] bg-primary text-2xl font-black text-[var(--primary-contrast)] transition-colors disabled:opacity-50"
                                     aria-label="زيادة الكمية"
                                   >
                                     +
@@ -1985,7 +1985,7 @@ function BranchInventoryDrawer({
                 key={filter.value}
                 type="button"
                 onClick={() => setStatusFilter(filter.value)}
-                className={`rounded-full border px-3 py-2 text-xs font-black transition ${ statusFilter === filter.value ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200 bg-white text-slate-600" }`}
+                className={`rounded-full border px-3 py-2 text-xs font-black transition ${ statusFilter === filter.value ? "border-emerald-500 bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-white text-slate-600" }`}
               >
                 {filter.label}
               </button>
@@ -1996,7 +1996,7 @@ function BranchInventoryDrawer({
             type="button"
             onClick={onCreateSession}
             disabled={sessionSaving}
-            className="mt-4 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
+            className="mt-4 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60"
           >
             {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             جرد جديد

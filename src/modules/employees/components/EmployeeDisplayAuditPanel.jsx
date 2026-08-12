@@ -86,7 +86,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
     const imageUrl = resolveProductImageUrl(product.image_url || product.product_image_url || product.image);
     return <article key={`${product.product_id}:${colorKey}`} className="grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
       <div className="h-[74px] w-[74px] overflow-hidden rounded-xl bg-slate-100">{imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover" /> : <PackageCheck className="m-5 h-8 w-8 text-slate-300" />}</div>
-      <div className="min-w-0"><h5 className="line-clamp-2 text-sm font-black leading-5 text-slate-950" dir="auto">{product.name}</h5><div className="mt-1 flex flex-wrap gap-1 text-[11px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">اللون: {product.color || "-"}</span><span className="rounded-full bg-primary-subtle px-2 py-1 text-primary">أصغر مقاس: {product.size || "-"}</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">الكمية: {product.stock || 0}</span></div><button type="button" onClick={() => onMarkDisplayed?.(product)} disabled={saving} className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-xs font-black text-white transition hover:bg-emerald-700 disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}معروض</button></div>
+      <div className="min-w-0"><h5 className="line-clamp-2 text-sm font-black leading-5 text-slate-950" dir="auto">{product.name}</h5><div className="mt-1 flex flex-wrap gap-1 text-[11px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">اللون: {product.color || "-"}</span><span className="rounded-full bg-primary-subtle px-2 py-1 text-primary">أصغر مقاس: {product.size || "-"}</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">الكمية: {product.stock || 0}</span></div><button type="button" onClick={() => onMarkDisplayed?.(product)} disabled={saving} className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}معروض</button></div>
     </article>;
   };
 
@@ -114,7 +114,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
           {PRODUCT_TABS.map((tab) => {
             const count = Number(data.product_group_counts?.[tab.key] || 0);
             const active = productGroup === tab.key;
-            return <button key={tab.key} type="button" onClick={() => count && setProductGroup(tab.key)} disabled={!count} className={`rounded-[var(--radius-control)] px-1 py-2.5 text-xs font-black transition ${active ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"} disabled:opacity-35`}>{tab.label}<span className="mr-1 opacity-75" dir="ltr">({count})</span></button>;
+            return <button key={tab.key} type="button" onClick={() => count && setProductGroup(tab.key)} disabled={!count} className={`rounded-[var(--radius-control)] px-1 py-2.5 text-xs font-black transition ${active ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-100 text-slate-700"} disabled:opacity-35`}>{tab.label}<span className="mr-1 opacity-75" dir="ltr">({count})</span></button>;
           })}
         </div>
 
@@ -126,7 +126,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
         </div> : null}
 
         {availableAudiences.length ? <div className={`mt-3 grid gap-1.5 rounded-2xl bg-slate-100 p-1.5 ${availableAudiences.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
-          {availableAudiences.map((audience) => <button key={audience.key} type="button" onClick={() => setAudienceKey(audience.key)} className={`rounded-[var(--radius-control)] px-2 py-2 text-xs font-black ${audienceKey === audience.key ? "bg-slate-950 text-white shadow-sm" : "text-slate-600"}`}>{audience.label} <span dir="ltr">({audience.count})</span></button>)}
+          {availableAudiences.map((audience) => <button key={audience.key} type="button" onClick={() => setAudienceKey(audience.key)} className={`rounded-[var(--radius-control)] px-2 py-2 text-xs font-black ${audienceKey === audience.key ? "bg-primary text-[var(--primary-contrast)] shadow-sm" : "text-slate-600"}`}>{audience.label} <span dir="ltr">({audience.count})</span></button>)}
         </div> : null}
       </section>
 

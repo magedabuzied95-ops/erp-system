@@ -1226,7 +1226,7 @@ export default function MarketingSettings() {
                     <p className="mt-1 text-sm text-slate-400">Runs live permission checks, token diagnostics, and webhook delivery health.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2 text-xs font-black text-white disabled:opacity-60">
+                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-60">
                       <PlayCircle className="h-3.5 w-3.5" />
                       {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
                     </button>
@@ -1394,7 +1394,7 @@ export default function MarketingSettings() {
                 type="button"
                 onClick={saveInstagramSecret}
                 disabled={savingInstagramSecret || !instagramAppSecret.trim()}
-                className="rounded-[var(--radius-control)] bg-emerald-400 px-4 py-3 text-sm font-black text-[#07150f] disabled:opacity-50"
+                className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[#07150f] disabled:opacity-50"
               >
                 {savingInstagramSecret ? "جارٍ الحفظ..." : "حفظ السر"}
               </button>
@@ -1457,7 +1457,7 @@ export default function MarketingSettings() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
-            <button onClick={save} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+            <button onClick={save} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-semibold text-[var(--primary-contrast)] disabled:opacity-60">
               {t("marketing.settings.save")}
             </button>
             <button onClick={reconnect} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary disabled:opacity-60">
@@ -1769,7 +1769,7 @@ export default function MarketingSettings() {
                   <input type="checkbox" checked={Boolean(ruleForm.is_active)} onChange={(event) => setRuleForm((current) => ({ ...current, is_active: event.target.checked }))} />
                   {t("marketing.campaigns.status.active")}
                 </label>
-                <button onClick={saveRule} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                <button onClick={saveRule} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-semibold text-[var(--primary-contrast)] disabled:opacity-60">
                   {editingRuleId ? t("marketing.automation.updateRule") : t("marketing.automation.createRule")}
                 </button>
               </div>

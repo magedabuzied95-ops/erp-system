@@ -1342,7 +1342,7 @@ function OrderDetails() {
                     type="button"
                     onClick={() => handleShippingPaymentReview("confirm")}
                     disabled={reviewingPayment || !canReviewShippingProof}
-                    className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-emerald-500 px-4 text-sm font-black text-white shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-950/20 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {t("orders.payment.confirm")}
                   </button>
@@ -1716,7 +1716,7 @@ function OrderDetails() {
                   {t("orders.shipping.markShipped", "تم الشحن")}
                 </button>
               ) : !shipmentDelivered ? (
-                <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-emerald-500 px-4 text-sm font-black text-white transition hover:bg-emerald-400">
+                <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary">
                   {t("orders.shipping.markDelivered", "تم التسليم")}
                 </button>
               ) : (

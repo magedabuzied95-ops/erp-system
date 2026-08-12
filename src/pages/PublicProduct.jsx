@@ -223,7 +223,7 @@ export default function PublicProduct() {
                   type="button"
                   onClick={() => handleEvent("add_to_cart")}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-5 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60"
                 >
                   <ShoppingCart className="h-4 w-4" />
                   Add to cart

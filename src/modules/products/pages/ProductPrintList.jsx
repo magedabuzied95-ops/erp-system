@@ -154,7 +154,7 @@ export default function ProductPrintList() {
       {section === "sneakers" ? (
         <div className="mt-4 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-zinc-950/70 p-3">
           {AUDIENCES.map((item) => (
-            <button key={item.key} type="button" onClick={() => setAudience(item.key)} className={`rounded-full px-4 py-2 text-sm font-bold ${audience === item.key ? "bg-emerald-400 text-black" : "border border-white/10 bg-white/5 text-white"}`}>
+            <button key={item.key} type="button" onClick={() => setAudience(item.key)} className={`rounded-full px-4 py-2 text-sm font-bold ${audience === item.key ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-[var(--primary-contrast)]"}`}>
               {item.label}
             </button>
           ))}
@@ -190,7 +190,7 @@ export default function ProductPrintList() {
                     type="button"
                     disabled={busyKey === key}
                     onClick={() => downloadMergedJob(job)}
-                    className="inline-flex items-center gap-2 rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-black text-black disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-black text-black disabled:opacity-50"
                   >
                     <Combine size={16} />
                     {job.key === "box"

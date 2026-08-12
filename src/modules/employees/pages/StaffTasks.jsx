@@ -647,7 +647,7 @@ function StaffTasks() {
               setForm({ ...emptyForm, template_kind: "daily", is_opening_day_task: false });
               setPanelOpen(true);
             }}
-            className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 text-sm font-black text-white"
+            className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)]"
           >
             <Plus className="h-4 w-4" />
             {tr("addDailyTask")}

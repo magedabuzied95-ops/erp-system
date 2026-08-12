@@ -1378,7 +1378,7 @@ function AttendanceWorkspace({
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary"
             >
               <Download className="h-4 w-4" />
               {tr("actions.printExport")}
@@ -1395,7 +1395,7 @@ function AttendanceWorkspace({
             key={tab.key}
             type="button"
             onClick={() => setSelectedTab(tab.key)}
-            className={`rounded-[var(--radius-control)] px-4 py-3 text-sm font-semibold transition ${ selectedTab === tab.key ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
+            className={`rounded-[var(--radius-control)] px-4 py-3 text-sm font-semibold transition ${ selectedTab === tab.key ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-[var(--primary-contrast)] hover:bg-white/10" }`}
           >
             {tab.label}
           </button>
@@ -1615,7 +1615,7 @@ function AttendanceWorkspace({
               <button
                 type="button"
                 onClick={handleStartNewEmployee}
-                className="inline-flex items-center justify-center rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
+                className="inline-flex items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary"
               >
                 {isArabic ? "+ إضافة موظف" : "+ Add Employee"}
               </button>
@@ -1730,7 +1730,7 @@ function AttendanceWorkspace({
                       type="button"
                       onClick={handleSaveEmployee}
                       disabled={saving}
-                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-5 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-50"
                     >
                       {saving ? t("common.saving") : employeeForm.id ? tr("actions.updateEmployee") : tr("actions.createEmployee")}
                     </button>
@@ -2051,7 +2051,7 @@ function AttendanceWorkspace({
                     type="button"
                     onClick={handleSaveEmployee}
                     disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-50"
                   >
                     {saving ? t("common.saving") : employeeForm.id ? tr("actions.updateEmployee") : tr("actions.createEmployee")}
                   </button>
@@ -2213,7 +2213,7 @@ function AttendanceWorkspace({
                               type="button"
                               onClick={() => handleApproveDevice(device.id)}
                               disabled={!isEditable || saving}
-                              className="inline-flex items-center gap-1 rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2 text-xs font-black text-black disabled:opacity-50"
+                              className="inline-flex items-center gap-1 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-black disabled:opacity-50"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               {tr("actions.approve")}
@@ -2403,7 +2403,7 @@ function AttendanceWorkspace({
                   type="button"
                   onClick={handleOpenShift}
                   disabled={!canCreateAttendance || saving}
-                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-50"
                 >
                   <UserCheck className="h-4 w-4" />
                   {tr("actions.openShift")}

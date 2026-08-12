@@ -258,8 +258,8 @@ export default function ShippingCenter() {
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Centralized shipment operations for Bosta and future providers with status monitoring, bulk actions, webhook timelines, and analytics.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-emerald-400 text-slate-950" : "border border-white/10 bg-white/5 text-slate-200"}`}>Table View</button>
-            <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-emerald-400 text-slate-950" : "border border-white/10 bg-white/5 text-slate-200"}`}>Board View</button>
+            <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-primary text-[var(--primary-contrast)]" : "border border-white/10 bg-white/5 text-slate-200"}`}>Table View</button>
+            <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-primary text-[var(--primary-contrast)]" : "border border-white/10 bg-white/5 text-slate-200"}`}>Board View</button>
             <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-slate-200"><RefreshCw className="h-4 w-4" /> Refresh</button>
           </div>
         </header>
@@ -292,7 +292,7 @@ export default function ShippingCenter() {
               <input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950"><Send className="h-4 w-4" /> Create Shipments</button>
+              <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)]"><Send className="h-4 w-4" /> Create Shipments</button>
               <button onClick={() => runBulk("refresh_status")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" /> Refresh Status</button>
               <button onClick={() => runBulk("print_labels")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Printer className="h-4 w-4" /> Print Labels</button>
               <button onClick={() => runBulk("mark_ready_to_ship")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><PackageCheck className="h-4 w-4" /> Mark Ready</button>

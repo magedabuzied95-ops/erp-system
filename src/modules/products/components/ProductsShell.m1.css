@@ -1,6 +1,5 @@
 .m1-products-page{font-family:var(--app-font);color:var(--text)}
 .m1-products-heading{border-radius:var(--radius-lg)!important;box-shadow:var(--shadow-card)!important;padding:20px!important}
-.m1-products-heading h1{font-size:26px!important;font-weight:800!important;line-height:1.3!important}
 .m1-products-heading p{line-height:1.65}
 .m1-products-heading .mobile-scroll-tabs{margin-top:18px!important;padding-top:16px;border-top:1px solid var(--border)}
 .m1-products-heading .mobile-scroll-tabs a{height:36px;border-radius:var(--radius-sm);font-size:12px;font-weight:700}
@@ -38,4 +37,4 @@
 
 html[data-density="compact"] .m1-products-catalog tbody td{padding-top:8px!important;padding-bottom:8px!important}
 html[data-density="compact"] .m1-products-heading{padding:16px!important}
-@media(max-width:767px){.m1-products-heading{padding:15px!important}.m1-products-heading h1{font-size:23px!important}.m1-products-primary-action,.m1-products-secondary-action{width:100%;justify-content:center}.m1-products-catalog{padding:10px!important}.m1-products-catalog article{background:var(--surface)!important;border-color:var(--border)!important;border-radius:var(--radius-md)!important}}
+@media(max-width:767px){.m1-products-heading{padding:15px!important}.m1-products-primary-action,.m1-products-secondary-action{width:100%;justify-content:center}.m1-products-catalog{padding:10px!important}.m1-products-catalog article{background:var(--surface)!important;border-color:var(--border)!important;border-radius:var(--radius-md)!important}}

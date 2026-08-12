@@ -1832,7 +1832,7 @@ export default function ManagerPortal() {
                   type="button"
                   data-testid={`task-approve-${task.id}`}
                   onClick={() => void sendTaskAction(task.id, "approve", { note })}
-                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-xs font-black text-white"
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)]"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   اعتماد
@@ -1928,7 +1928,7 @@ export default function ManagerPortal() {
           </div>
         ) : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <button type="button" data-testid={`task-approve-${task.id}`} onClick={() => void sendTaskAction(task.id, "approve", { note })} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 py-3 text-sm font-black text-white">
+          <button type="button" data-testid={`task-approve-${task.id}`} onClick={() => void sendTaskAction(task.id, "approve", { note })} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)]">
             <CheckCircle2 className="h-4 w-4" />
             اعتماد
           </button>
@@ -2012,7 +2012,7 @@ export default function ManagerPortal() {
                 <div className="min-w-0 flex-1">
                   <h2 className="m1-section-title text-slate-950 dark:text-white">تعذر تحميل بعض البيانات</h2>
                   <p className="mt-1 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">{error}</p>
-                  <button type="button" onClick={() => void loadAll()} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+                  <button type="button" onClick={() => void loadAll()} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
                     <RefreshCw className="h-4 w-4" />
                     إعادة المحاولة
                   </button>
@@ -2050,14 +2050,14 @@ export default function ManagerPortal() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-slate-100" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
+                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-slate-100" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
                     {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                   </button>
                   <button
                     type="button"
                     data-testid="refresh-button"
                     onClick={() => void loadAll({ silent: true })}
-                    className="manager-refresh-button inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-slate-100 shadow-sm transition hover:bg-slate-800"
+                    className="manager-refresh-button inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-slate-100 shadow-sm transition hover:bg-[var(--primary-hover)]"
                     aria-label="تحديث"
                   >
                     <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -2079,7 +2079,7 @@ export default function ManagerPortal() {
                 <div className="flex flex-col items-end gap-2">
                   <Badge className="border-slate-700 bg-slate-800 text-slate-100">مباشر</Badge>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-white" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"} title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
+                    <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-[var(--primary-contrast)]" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"} title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
                       {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </button>
                     <button
@@ -2133,7 +2133,7 @@ export default function ManagerPortal() {
                       : "أضف بوابة المدير إلى الشاشة الرئيسية لتفتح كتطبيق مستقل."}
                   </p>
                   {installPrompt ? (
-                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white">
+                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)]">
                       <Download className="h-4 w-4" />
                       إضافة إلى الشاشة الرئيسية
                     </button>
@@ -2175,7 +2175,7 @@ export default function ManagerPortal() {
                     <button
                       type="button"
                       onClick={() => setNotificationsOpen(false)}
-                      className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-white transition hover:border-slate-500 hover:bg-slate-800"
+                      className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-[var(--primary-contrast)] transition hover:border-slate-500 hover:bg-[var(--primary-hover)]"
                       aria-label="إغلاق الإشعارات"
                     >
                       <X className="h-5 w-5" />
@@ -2203,7 +2203,7 @@ export default function ManagerPortal() {
                     <button
                       type="button"
                       onClick={() => void loadAll({ silent: true })}
-                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-[var(--radius-control)] bg-slate-950 px-3 py-2.5 text-left text-white transition hover:bg-slate-800"
+                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-[var(--radius-control)] bg-primary px-3 py-2.5 text-left text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"
                     >
                       <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                       <span className="mt-1 text-xs font-black">تحديث</span>
@@ -2220,7 +2220,7 @@ export default function ManagerPortal() {
                           key={item.key}
                           type="button"
                           onClick={() => setNotificationCategory(item.key)}
-                          className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${ active ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950" }`}
+                          className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${ active ? "border-slate-950 bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-[var(--primary-contrast)]" }`}
                         >
                           <Icon className="h-3.5 w-3.5" />
                           <span>{item.label}</span>
@@ -2280,7 +2280,7 @@ export default function ManagerPortal() {
                                 <button
                                   type="button"
                                   onClick={() => void openNotification(item)}
-                                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] dark:bg-white dark:text-[var(--primary-contrast)] dark:hover:bg-slate-100"
                                 >
                                   <ArrowUpRight className="h-3.5 w-3.5" />
                                   فتح
@@ -2449,7 +2449,7 @@ export default function ManagerPortal() {
                           {request.message ? <div className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-600 dark:bg-black/20 dark:text-slate-300">{portalText(request.message)}</div> : null}
                           <div className="mt-3 grid grid-cols-2 gap-2">
                             <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "rejected")} className="rounded-[var(--radius-control)] border border-rose-300 px-3 py-2.5 text-xs font-black text-rose-700 disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-300">رفض</button>
-                            <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "approved")} className="rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2.5 text-xs font-black text-white disabled:opacity-50">{reviewing ? "جارٍ التنفيذ..." : "اعتماد السلفة"}</button>
+                            <button type="button" disabled={reviewing} onClick={() => reviewAdvanceRequest(request.id, "approved")} className="rounded-[var(--radius-control)] bg-primary px-3 py-2.5 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-50">{reviewing ? "جارٍ التنفيذ..." : "اعتماد السلفة"}</button>
                           </div>
                         </div>
                       );
@@ -2546,7 +2546,7 @@ export default function ManagerPortal() {
                     <option value="high">عالية</option>
                     <option value="critical">حرجة</option>
                   </select>
-                  <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+                  <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
                     <Plus className="h-4 w-4" />
                     إنشاء
                   </button>
@@ -3105,7 +3105,7 @@ export default function ManagerPortal() {
 
               <Card title="الصوت والإشعارات" subtitle="التحكم من المتصفح" icon={Volume2}>
                 <div className="grid gap-2 md:grid-cols-2">
-                  <button type="button" data-testid="sound-unlock-button" data-state={soundUnlocked ? "enabled" : "disabled"} onClick={enableSound} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+                  <button type="button" data-testid="sound-unlock-button" data-state={soundUnlocked ? "enabled" : "disabled"} onClick={enableSound} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
                     {soundUnlocked ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                     {soundUnlocked ? "الصوت مفعل" : "تفعيل الصوت"}
                   </button>
@@ -3142,7 +3142,7 @@ export default function ManagerPortal() {
                   ) : null}
                   {pushState.message ? <div className="text-xs font-bold text-slate-500 dark:text-slate-300">{pushState.message}</div> : null}
                   <div className="grid gap-2 sm:grid-cols-2">
-                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">
+                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-45 dark:bg-white dark:text-[var(--primary-contrast)]">
                       {pushState.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
                       {pushState.subscribed ? "تحديث إشعارات الويب الفورية" : "تفعيل إشعارات الويب الفورية"}
                     </button>
@@ -3299,7 +3299,7 @@ export default function ManagerPortal() {
                 <div className="text-xs font-black text-slate-300">تفاصيل الفاتورة</div>
                 <h2 className="m1-section-title mt-1 text-white">{invoiceSheet.invoice?.invoice_number || "فاتورة"}</h2>
               </div>
-              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-slate-900 text-white">
+              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-[var(--primary-contrast)]">
                 <X className="h-5 w-5" />
               </button>
             </div>

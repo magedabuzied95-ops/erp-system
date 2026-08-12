@@ -2008,7 +2008,7 @@ export default function SocialMediaPublisher() {
                             type="button"
                             onClick={useSuggestedFirstComment}
                             disabled={!firstComment.trim()}
-                            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Use Comment
                           </button>
@@ -2454,7 +2454,7 @@ export default function SocialMediaPublisher() {
                         type="button"
                         onClick={useAiTemplateCaption}
                         disabled={!aiTemplateCaption.trim()}
-                        className="rounded-[var(--radius-control)] bg-emerald-400 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                        className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
                       >
                         Use Caption
                       </button>
@@ -2579,7 +2579,7 @@ export default function SocialMediaPublisher() {
                               <button
                                 type="button"
                                 onClick={() => applyCatalogProduct(product)}
-                                className="rounded-[var(--radius-control)] bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300"
+                                className="rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"
                               >
                                 Select
                               </button>

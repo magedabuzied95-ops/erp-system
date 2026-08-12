@@ -732,7 +732,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
-              className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] px-3 text-xs font-black transition ${activeTab === id ? "bg-emerald-400 text-zinc-950" : "text-zinc-400 hover:bg-white/[0.06] hover:text-white"}`}
+              className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] px-3 text-xs font-black transition ${activeTab === id ? "bg-primary text-[var(--primary-contrast)]" : "text-zinc-400 hover:bg-white/[0.06] hover:text-[var(--primary-contrast)]"}`}
             >
               <Icon className="h-4 w-4" />
               {label}

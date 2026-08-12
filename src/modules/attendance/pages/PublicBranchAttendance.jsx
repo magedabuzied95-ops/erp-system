@@ -293,7 +293,7 @@ export default function PublicBranchAttendance() {
             <button
               type="submit"
               disabled={loading || identifying || !identifier.trim()}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-5 py-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 py-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <UserRound className="h-4 w-4" />
               {identifying ? "Finding employee..." : "Continue"}
@@ -328,7 +328,7 @@ export default function PublicBranchAttendance() {
                     type="button"
                     onClick={() => recordAttendance("check_in")}
                     disabled={Boolean(submittingAction) || locationStatus === "loading"}
-                    className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:opacity-50"
                   >
                     <LogIn className="h-4 w-4" />
                     {submittingAction === "check_in" ? "Saving..." : "Check In"}
@@ -339,7 +339,7 @@ export default function PublicBranchAttendance() {
                     type="button"
                     onClick={() => recordAttendance("check_out")}
                     disabled={Boolean(submittingAction) || locationStatus === "loading"}
-                    className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 py-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:opacity-50"
                   >
                     <LogOut className="h-4 w-4" />
                     {submittingAction === "check_out" ? "Saving..." : "Check Out"}

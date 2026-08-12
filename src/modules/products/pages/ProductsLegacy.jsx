@@ -691,7 +691,7 @@ function Products() {
         <button
           onClick={handleAddVariant}
 
-          className="mt-6 bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-[var(--radius-control)] font-black transition"
+          className="mt-6 bg-primary hover:bg-primary text-[var(--primary-contrast)] px-8 py-4 rounded-[var(--radius-control)] font-black transition"
         >
           {t("products.legacy.createVariants")}
         </button>

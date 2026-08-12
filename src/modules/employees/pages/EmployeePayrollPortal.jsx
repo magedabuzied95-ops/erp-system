@@ -1305,7 +1305,7 @@ function AttendancePanel({
         </div>
       ) : null}
       <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4">
-        <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
+        <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
           {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
           {text.checkIn}
         </button>
@@ -3439,7 +3439,7 @@ export default function EmployeePayrollPortal() {
                   onClick={() => {
                     setChatOpen(true);
                   }}
-                  className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-full bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm"
+                  className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-full bg-primary px-3 text-[11px] font-black text-[var(--primary-contrast)] shadow-sm"
                 >
                   <MessageCircle className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{ui("talkToManagement")}</span>
@@ -3558,7 +3558,7 @@ export default function EmployeePayrollPortal() {
                         : "أضف بوابة الموظف إلى الشاشة الرئيسية لتعمل كتطبيق مستقل."}
                     </p>
                     {installPrompt ? (
-                      <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-700 px-4 text-xs font-black text-white">
+                      <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)]">
                         <Download className="h-4 w-4" />
                         {text.addHome}
                       </button>
@@ -3601,14 +3601,14 @@ export default function EmployeePayrollPortal() {
                   </p>
                 </div>
                 {!notificationsReady && notificationState !== "unsupported" ? (
-                  <button type="button" onClick={() => enableNotifications()} disabled={notificationSaving} className="inline-flex min-h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
+                  <button type="button" onClick={() => enableNotifications()} disabled={notificationSaving} className="inline-flex min-h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-50">
                     {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                     تفعيل الإشعارات
                   </button>
                 ) : null}
               </div>
               {notificationsReady ? (
-                <button type="button" onClick={resetNotifications} disabled={notificationSaving} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
+                <button type="button" onClick={resetNotifications} disabled={notificationSaving} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-50">
                   {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   <span className="text-xs">إعادة ضبط الإشعارات</span>
                 </button>
@@ -3726,7 +3726,7 @@ export default function EmployeePayrollPortal() {
                               type="button"
                               onClick={() => resolveDisplayRefill(alert.id)}
                               disabled={isSaving}
-                              className="inline-flex h-[var(--control-height-md)] min-w-[6.75rem] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-[13px] font-black text-white disabled:opacity-60"
+                              className="inline-flex h-[var(--control-height-md)] min-w-[6.75rem] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-[13px] font-black text-[var(--primary-contrast)] disabled:opacity-60"
                             >
                               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
                               تم العرض
@@ -3900,7 +3900,7 @@ export default function EmployeePayrollPortal() {
                     ) : null}
                   </div>
 
-                  <button type="button" className="mt-4 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-sm font-black text-white shadow-sm">
+                  <button type="button" className="mt-4 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-[var(--primary-contrast)] shadow-sm">
                     <CheckCircle2 className="h-4 w-4" />
                     {payrollPrimaryActionLabel}
                   </button>
@@ -4188,7 +4188,7 @@ export default function EmployeePayrollPortal() {
                                 </button>
                               ) : null}
                               {taskStatusKey(task.status) === "in_progress" ? (
-                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "completed")} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
+                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "completed")} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
                                   {taskSavingId === `${task.id}:completed` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                                   {text.completeTask}
                                 </button>
@@ -4218,7 +4218,7 @@ export default function EmployeePayrollPortal() {
                   ["late_permission", ui("latePermission")],
                   ["hr_note", ui("hrNote")],
                 ].map(([value, label]) => (
-                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] px-2 text-xs font-black ${(value === requestType || (value === "late_permission" && requestMessage === ui("latePermission"))) ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"}`}>
+                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] px-2 text-xs font-black ${(value === requestType || (value === "late_permission" && requestMessage === ui("latePermission"))) ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-100 text-slate-700"}`}>
                     {label}
                   </button>
                 ))}
@@ -4251,7 +4251,7 @@ export default function EmployeePayrollPortal() {
                 </div>
                 <textarea value={requestMessage} onChange={(event) => setRequestMessage(event.target.value)} placeholder={text.message} className="min-h-24 rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold outline-none" dir="auto" />
               </div>
-              <button type="submit" disabled={requestSaving || (requestType === "advance" && !requestAmount)} className="mt-3 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50">
+              <button type="submit" disabled={requestSaving || (requestType === "advance" && !requestAmount)} className="mt-3 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
                 {requestSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                 {text.sendRequest}
               </button>
@@ -4296,7 +4296,7 @@ export default function EmployeePayrollPortal() {
         <button
           type="button"
           onClick={clearPortalToast}
-          className={`fixed inset-x-4 top-[calc(5rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-[var(--radius-control)] border px-4 py-3 text-center text-sm font-black text-white shadow-2xl transition ${ activeToast.type === "error" ? "border-red-300/50 bg-red-600" : activeToast.type === "warning" ? "border-amber-300/50 bg-amber-500 text-amber-950" : "border-emerald-300/40 bg-emerald-600" }`}
+          className={`fixed inset-x-4 top-[calc(5rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-[var(--radius-control)] border px-4 py-3 text-center text-sm font-black text-[var(--primary-contrast)] shadow-2xl transition ${ activeToast.type === "error" ? "border-red-300/50 bg-red-600" : activeToast.type === "warning" ? "border-amber-300/50 bg-amber-500 text-amber-950" : "border-emerald-300/40 bg-primary" }`}
           dir="auto"
         >
           {activeToast.message}
@@ -4436,7 +4436,7 @@ export default function EmployeePayrollPortal() {
               <button type="button" onClick={() => setEarlyCheckoutOpen(false)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 px-4 text-sm font-black text-slate-700">
                 {ui("cancel")}
               </button>
-              <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={!canCheckOutToday} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50">
+              <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={!canCheckOutToday} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
                 {ui("confirmCheckout")}
               </button>
             </div>
@@ -4486,7 +4486,7 @@ export default function EmployeePayrollPortal() {
                 dir="ltr"
               />
             </label>
-            <button type="submit" disabled={profileSaving} className="mt-5 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60">
+            <button type="submit" disabled={profileSaving} className="mt-5 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60">
               {profileSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {profileSaving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
             </button>

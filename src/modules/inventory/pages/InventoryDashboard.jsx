@@ -498,7 +498,7 @@ function InventoryDashboard() {
               type="button"
               onClick={handleCreatePurchaseDraft}
               disabled={!selectedAlerts.length || creatingPurchaseDraft}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-400 px-4 py-2 text-xs font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-emerald-400/35 disabled:text-black/50"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-black text-black transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:bg-emerald-400/35 disabled:text-black/50"
             >
               {creatingPurchaseDraft ? t("inventory.purchaseAlerts.actions.creating") : t("inventory.purchaseAlerts.actions.createDraft")}
             </button>

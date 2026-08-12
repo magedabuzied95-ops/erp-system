@@ -56,7 +56,7 @@ export default function CampaignModal({ open, campaign, onClose, onSave, saving 
             </label>
           ))}
           <div className="flex gap-3">
-            <button type="button" onClick={() => onSave?.(form)} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{t("marketing.common.save")}</button>
+            <button type="button" onClick={() => onSave?.(form)} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-semibold text-[var(--primary-contrast)] disabled:opacity-60">{t("marketing.common.save")}</button>
             <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("marketing.common.cancel")}</button>
           </div>
         </div>

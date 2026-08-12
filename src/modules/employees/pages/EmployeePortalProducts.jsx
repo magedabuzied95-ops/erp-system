@@ -700,7 +700,7 @@ function ProductPickerSheet({
                         key={color || "default"}
                         type="button"
                         onClick={() => onSelectColor(color)}
-                        className={`min-h-[var(--control-height-lg)] rounded-full border px-4 py-2 text-sm font-black transition ${ active ? "border-emerald-400/30 bg-emerald-500 text-zinc-950" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]" }`}
+                        className={`min-h-[var(--control-height-lg)] rounded-full border px-4 py-2 text-sm font-black transition ${ active ? "border-emerald-400/30 bg-primary text-[var(--primary-contrast)]" : "border-white/10 bg-black/30 text-[var(--primary-contrast)] hover:bg-white/[0.08]" }`}
                       >
                         {color}
                         <span className={`mr-2 text-[11px] font-bold ${active ? "text-zinc-950/70" : "text-zinc-400"}`}>({colorStock})</span>
@@ -728,7 +728,7 @@ function ProductPickerSheet({
                         type="button"
                         onClick={() => onSelectSize(size)}
                         disabled={Number(stock || 0) <= 0}
-                        className={`min-h-16 rounded-[var(--radius-control)] border px-3 py-2 text-right transition ${ active ? "border-emerald-400/30 bg-emerald-500 text-zinc-950" : Number(stock || 0) <= 0 ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]" }`}
+                        className={`min-h-16 rounded-[var(--radius-control)] border px-3 py-2 text-right transition ${ active ? "border-emerald-400/30 bg-primary text-[var(--primary-contrast)]" : Number(stock || 0) <= 0 ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/30 text-[var(--primary-contrast)] hover:bg-white/[0.08]" }`}
                       >
                         <div className="text-2xl font-black leading-none">{size}</div>
                         <div className={`mt-1 text-[11px] font-semibold leading-none ${active ? "text-zinc-950/70" : "text-zinc-400"}`}>Stock: {Number(stock || 0)}</div>
@@ -745,7 +745,7 @@ function ProductPickerSheet({
               type="button"
               onClick={onSubmit}
               disabled={!canSubmit || loadingSubmit}
-              className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loadingSubmit ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
               اطلب من المخزن
@@ -878,7 +878,7 @@ function EmployeePortalCameraScannerModal({
               <button
                 type="button"
                 onClick={onManualBarcodeSubmit}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-emerald-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-300"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"
               >
                 بحث
               </button>

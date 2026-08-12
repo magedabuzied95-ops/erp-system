@@ -56,7 +56,7 @@ const ChipEditor = ({ label, placeholder, value, onChange, addLabel }) => {
             onChange(Array.from(new Set([...value, ...next])));
             setText("");
           }}
-          className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 font-semibold text-white"
+          className="rounded-[var(--radius-control)] bg-primary px-4 py-3 font-semibold text-[var(--primary-contrast)]"
         >
           {addLabel}
         </button>
@@ -261,7 +261,7 @@ function Variants() {
               <button
                 type="button"
                 onClick={buildMatrix}
-                className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-semibold text-[var(--primary-contrast)]"
               >
                 <Plus size={18} />
                 {t("products.variantPage.buildMatrix")}

@@ -971,7 +971,7 @@ function ProductDetails() {
                 <button
                   type="button"
                   onClick={() => navigate(`/products/${product.id}/edit`)}
-                  className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black transition hover:bg-emerald-400"
+                  className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
                 >
                   <Pencil className="h-4 w-4" />
                   {t("products.actionsMenu.edit", "Edit product")}

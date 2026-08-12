@@ -131,7 +131,7 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
           <ExternalLink className="h-4 w-4" />
           {isArabic ? "فتح البوابة" : "Open Portal"}
         </button>
-        <button type="button" onClick={shareWhatsapp} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={shareWhatsapp} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isArabic ? "رابط واتساب" : "WhatsApp Link"}
         </button>

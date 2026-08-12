@@ -1307,7 +1307,7 @@ function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) 
               key={`${url}-${index}`}
               type="button"
               onClick={() => onSelect?.(index)}
-              className={`overflow-hidden rounded-[var(--radius-control)] border bg-slate-950 text-left transition ${ index === selectedIndex ? "border-primary ring-2 ring-primary/30" : "border-white/10 hover:border-white/30" }`}
+              className={`overflow-hidden rounded-[var(--radius-control)] border bg-primary text-left transition ${ index === selectedIndex ? "border-primary ring-2 ring-primary/30" : "border-white/10 hover:border-white/30" }`}
             >
               <div className="aspect-[9/16] w-full overflow-hidden bg-slate-900">
                 <img src={url} alt={`Generated thumbnail ${index + 1}`} className="h-full w-full object-cover" />

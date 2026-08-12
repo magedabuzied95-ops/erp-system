@@ -336,7 +336,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
                 type="button"
                 onClick={saveCount}
                 disabled={saving}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 py-3 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60"
               >
                 <Check className="h-4 w-4" />
                 {saving ? "Saving..." : "Save Count"}

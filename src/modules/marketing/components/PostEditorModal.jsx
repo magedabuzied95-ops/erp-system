@@ -1533,7 +1533,7 @@ export default function PostEditorModal({
                   type="button"
                   disabled={saving || isTikTokChannel}
                   onClick={() => handleSubmit("save")}
-                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-400 disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-primary disabled:opacity-60"
                 >
                   <Save className="h-4 w-4" />
                   {t("marketing.approval.saveDraft")}
@@ -1599,7 +1599,7 @@ export default function PostEditorModal({
                 type="button"
                 disabled={saving || isTikTokChannel}
                 onClick={() => handleSubmit("save")}
-                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-60"
+                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-500/20 transition hover:bg-primary disabled:opacity-60"
               >
                 <Save className="h-4 w-4" />
                 {t("marketing.approval.saveDraft")}

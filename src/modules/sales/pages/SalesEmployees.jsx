@@ -1948,7 +1948,7 @@ function PayrollFinancialSummary({
                   type="button"
                   onClick={actionHandler}
                   disabled={actionDisabled}
-                  className={`inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] px-5 text-sm font-black shadow-[0_14px_34px_rgba(212,175,55,.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${isReadyForApproval ? "bg-emerald-400 text-slate-950" : "bg-[var(--primary)] text-slate-950"}`}
+                  className={`inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] px-5 text-sm font-black shadow-[0_14px_34px_rgba(212,175,55,.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${isReadyForApproval ? "bg-primary text-[var(--primary-contrast)]" : "bg-[var(--primary)] text-[var(--primary-contrast)]"}`}
                 >
                   {actionLoading && !isPaid ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {actionLabel}

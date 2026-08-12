@@ -19,4 +19,4 @@
 .m1-settings-center nav button[class*="bg-slate-950"] svg,.m1-settings-center nav button[class*="dark:bg-white"] svg{color:var(--primary)!important}
 .m1-settings-center :where([class*="shadow-blue"],[class*="shadow-violet"],[class*="shadow-indigo"],[class*="shadow-black"]){box-shadow:none!important}
 .m1-settings-center [class*="fixed"][class*="bottom-0"]{background:var(--card)!important;border-color:var(--border)!important}
-@media(max-width:767px){.m1-settings-center>div{padding-inline:12px!important}.m1-settings-center h1{font-size:24px!important}}
+@media(max-width:767px){.m1-settings-center>div{padding-inline:12px!important}}

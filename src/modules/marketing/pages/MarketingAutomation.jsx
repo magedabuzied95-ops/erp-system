@@ -406,7 +406,7 @@ export default function MarketingAutomation() {
                   <RefreshCw className="h-4 w-4" />
                   {t("marketing.common.refresh")}
                 </button>
-                <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-semibold text-[var(--primary-contrast)] disabled:opacity-60">
                   <Save className="h-4 w-4" />
                   {t("marketing.common.save")}
                 </button>

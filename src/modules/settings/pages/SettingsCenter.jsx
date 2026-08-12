@@ -905,7 +905,7 @@ function SettingsCenterContent({ debugMode = false }) {
         <button
           type="button"
           onClick={() => updateValue(item.key, !current)}
-          className={`inline-flex h-[var(--control-height-lg)] items-center gap-3 rounded-full border px-3 text-sm font-black transition ${current ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-500/12 dark:text-emerald-200" : "border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300"}`}
+          className={`inline-flex h-[var(--control-height-lg)] items-center gap-3 rounded-full border px-3 text-sm font-black transition ${current ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-500/12 dark:text-emerald-200" : "border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-primary dark:text-slate-300"}`}
         >
           <span className={`h-6 w-11 rounded-full p-1 transition ${current ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"}`}>
             <span className={`block h-4 w-4 rounded-full bg-white transition ${current ? (direction === "rtl" ? "-translate-x-5" : "translate-x-5") : ""}`} />
@@ -935,7 +935,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 else next.add(option.value);
                 updateValue(item.key, Array.from(next));
               }}
-              className={`rounded-full border px-3 py-2 text-xs font-black ${selected.has(option.value) ? "border-sky-200 bg-sky-50 text-sky-800 dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-100" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300"}`}
+              className={`rounded-full border px-3 py-2 text-xs font-black ${selected.has(option.value) ? "border-sky-200 bg-sky-50 text-sky-800 dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-100" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-primary dark:text-slate-300"}`}
             >
               {localized(option.label, language)}
             </button>
@@ -1057,7 +1057,7 @@ function SettingsCenterContent({ debugMode = false }) {
               {shouldShowPreviewPanel ? (
                 <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
               ) : null}
-              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-white">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
+              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-[var(--primary-contrast)]">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
             </div>
           </div>
         </header>
@@ -1069,7 +1069,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 const Icon = iconMap[category.key] || Settings2;
                 const active = category.key === activeCategory;
                 return (
-                  <button key={category.key} type="button" onClick={() => switchCategory(category.key)} className={`group flex items-center gap-3 rounded-[var(--radius-control)] border p-3 text-start transition ${active ? "border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/10 dark:border-blue-400/35 dark:bg-gradient-to-br dark:from-blue-500/22 dark:to-violet-500/20 dark:text-white dark:shadow-[0_18px_44px_rgba(59,130,246,0.16)]" : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:border-white/10 dark:hover:bg-white/5"}`}>
+                  <button key={category.key} type="button" onClick={() => switchCategory(category.key)} className={`group flex items-center gap-3 rounded-[var(--radius-control)] border p-3 text-start transition ${active ? "border-slate-950 bg-primary text-[var(--primary-contrast)] shadow-lg shadow-slate-950/10 dark:border-blue-400/35 dark:bg-gradient-to-br dark:from-blue-500/22 dark:to-violet-500/20 dark:text-[var(--primary-contrast)] dark:shadow-[0_18px_44px_rgba(59,130,246,0.16)]" : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:border-white/10 dark:hover:bg-white/5"}`}>
                     <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl transition ${active ? "bg-white text-slate-950 dark:bg-white/12 dark:text-white" : "bg-slate-100 text-slate-500 group-hover:bg-white dark:bg-slate-900 dark:text-slate-400 dark:group-hover:bg-white/10 dark:group-hover:text-slate-200"}`}><Icon className="h-5 w-5" /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-black">{localized(category.label, language)}</span>
@@ -1195,7 +1195,7 @@ function SettingsCenterContent({ debugMode = false }) {
                         type="button"
                         onClick={saveSocialAutomationSettings}
                         disabled={socialAutomationLoading || socialAutomationSaving || !socialAutomationDirty}
-                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
+                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
                       >
                         {socialAutomationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                         {ui.socialAutomationSave}
@@ -1329,7 +1329,7 @@ function SettingsCenterContent({ debugMode = false }) {
             <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyCount} {ui.unsaved}</div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
               <button type="button" onClick={discard} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Undo2 className="h-4 w-4" />{ui.discard}</button>
-              <button type="button" onClick={save} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
+              <button type="button" onClick={save} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
             </div>
           </div>
         </div>
@@ -1437,7 +1437,7 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
           type="button"
           onClick={onSave}
           disabled={!dirty || saving || loading}
-          className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
+          className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {saving ? ui.saving : ui.save}
@@ -1750,7 +1750,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
             key={id}
             type="button"
             onClick={() => setActiveTab(id)}
-            className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] px-4 text-sm font-black transition ${activeTab === id ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
+            className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] px-4 text-sm font-black transition ${activeTab === id ? "bg-primary text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
           >
             <Icon className="h-4 w-4" />
             {label}
@@ -2014,7 +2014,7 @@ function BostaIntegrationPanel({ copy }) {
                 <h3 className={`m1-section-title ${headingText}`}>{copy.bostaConnection || "Connection"}</h3>
                 <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaConnectionHint || "Use your production Bosta API token. The key is never shown after saving."}</p>
               </div>
-              <button type="button" onClick={() => setSettings((current) => ({ ...current, enabled: !current.enabled }))} className={`rounded-full px-3 py-1.5 text-xs font-black ${settings.enabled ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"}`}>
+              <button type="button" onClick={() => setSettings((current) => ({ ...current, enabled: !current.enabled }))} className={`rounded-full px-3 py-1.5 text-xs font-black ${settings.enabled ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"}`}>
                 {settings.enabled ? copy.enabled || "Enabled" : copy.disabled || "Disabled"}
               </button>
             </div>
@@ -2027,7 +2027,7 @@ function BostaIntegrationPanel({ copy }) {
                 <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>API key</span>
                 <input type="password" value={settings.api_key} onChange={(event) => setSettings((current) => ({ ...current, api_key: event.target.value }))} className={inputClass} placeholder="Bosta API key" />
               </label>
-              <button type="button" disabled={loading} onClick={save} className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-60 dark:bg-white dark:text-slate-950">
+              <button type="button" disabled={loading} onClick={save} className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60 dark:bg-white dark:text-[var(--primary-contrast)]">
                 <Save className="h-4 w-4" />
                 {copy.saveBosta || "Save settings"}
               </button>
@@ -2174,7 +2174,7 @@ function ShippingQuickSetup({ zones, defaultPrice, copy, onChange }) {
             <input type="number" min="0" value={prices[key]} onChange={(event) => updatePrice(key, event.target.value)} className={inputClass} />
           </label>
         ))}
-        <button type="button" onClick={applyTemplate} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+        <button type="button" onClick={applyTemplate} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
           <Check className="h-4 w-4" />
           {copy.applyTemplate}
         </button>
@@ -2917,7 +2917,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
             {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
           <div className="flex flex-wrap gap-2 xl:justify-end">
-            <button type="button" onClick={importEgypt} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950"><MapPin className="h-4 w-4" />Import Egypt locations</button>
+            <button type="button" onClick={importEgypt} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]"><MapPin className="h-4 w-4" />Import Egypt locations</button>
             <button type="button" onClick={exportLocations} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"><Download className="h-4 w-4" />Export</button>
             <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">
               <Upload className="h-4 w-4" />Import Bosta locations CSV
@@ -2936,7 +2936,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
             {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
         </div>
-        <button type="button" onClick={addLocation} className="mt-3 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />Add location</button>
+        <button type="button" onClick={addLocation} className="mt-3 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]"><Plus className="h-4 w-4" />Add location</button>
       </div>
 
       <div className="overflow-auto rounded-[var(--radius-card)] border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
@@ -3317,7 +3317,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
           </select>
           <input type="number" min="0" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} placeholder="Price" className={inputClass} />
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => addRow("governorate")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">{copy.addZone}</button>
+            <button type="button" onClick={() => addRow("governorate")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] shadow-sm transition hover:bg-[var(--primary-hover)] dark:bg-white dark:text-[var(--primary-contrast)] dark:hover:bg-slate-200">{copy.addZone}</button>
             <button type="button" onClick={() => addRow("city")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createCity}</button>
             <button type="button" onClick={() => addRow("area")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createArea}</button>
           </div>
@@ -3335,11 +3335,11 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
         <div className="grid gap-3 xl:grid-cols-[minmax(14rem,0.8fr)_minmax(18rem,1.1fr)_auto]">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder={copy.bulkPrice} className={inputClass} />
-            <button type="button" onClick={applyBulkPrice} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkPrice}</button>
+            <button type="button" onClick={applyBulkPrice} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-45 dark:bg-white dark:text-[var(--primary-contrast)]">{copy.bulkPrice}</button>
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <input value={bulkEstimate} onChange={(event) => setBulkEstimate(event.target.value)} placeholder={copy.bulkEstimate} className={inputClass} />
-            <button type="button" onClick={applyBulkEstimate} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkEstimate}</button>
+            <button type="button" onClick={applyBulkEstimate} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-45 dark:bg-white dark:text-[var(--primary-contrast)]">{copy.bulkEstimate}</button>
           </div>
           <div className="flex flex-wrap gap-2 xl:justify-end">
             <button type="button" onClick={() => applyToSelected({ cod_allowed: true })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.enableCod}</button>
@@ -3388,13 +3388,13 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
                 <input type="checkbox" className="h-4 w-4" checked={freezeColumns} onChange={(event) => setFreezeColumns(event.target.checked)} />
                 {copy.freezeColumns}
               </label>
-              <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10"><Download className="h-3.5 w-3.5" />{copy.export}</button>
+              <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-primary px-3 text-xs font-black text-slate-200 transition hover:bg-white/10"><Download className="h-3.5 w-3.5" />{copy.export}</button>
               <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10">
                 <Upload className="h-3.5 w-3.5" />
                 {copy.import}
                 <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
               </label>
-              <button type="button" onClick={() => addRow("governorate")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 text-xs font-black text-slate-950 transition hover:bg-emerald-300"><Plus className="h-3.5 w-3.5" />Add Rule</button>
+              <button type="button" onClick={() => addRow("governorate")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"><Plus className="h-3.5 w-3.5" />Add Rule</button>
               <button type="button" onClick={toggleFullScreen} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white px-3 text-xs font-black text-slate-950 transition hover:bg-slate-200"><Minimize2 className="h-3.5 w-3.5" />{copy.exitFullScreen}</button>
             </div>
           </div>

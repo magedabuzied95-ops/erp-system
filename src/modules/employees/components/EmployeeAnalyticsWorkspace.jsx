@@ -568,7 +568,7 @@ export default function EmployeeAnalyticsWorkspace() {
               <button
                 type="button"
                 onClick={handleCreateRule}
-                className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
+                className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary"
               >
                 {t("common.employeeHub.analytics.commissions.addRule")}
               </button>

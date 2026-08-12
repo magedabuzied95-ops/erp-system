@@ -4179,7 +4179,7 @@ function ProductEdit() {
                     <button
                       type="button"
                       onClick={() => applyBulkSizes()}
-                      className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                      className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] bg-primary px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-primary"
                     >
                       Apply to all colors
                     </button>
@@ -5134,7 +5134,7 @@ function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = f
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-5 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-500/20 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           {saving ? t("common.saving", "Saving...") : label}

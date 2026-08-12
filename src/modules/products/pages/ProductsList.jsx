@@ -1202,7 +1202,7 @@ function PriceEditorModal({ product, onClose, onSave }) {
         </div>
         <div className="flex justify-end gap-2 border-t border-white/10 p-4">
           <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-          <button type="button" onClick={submit} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">
+          <button type="button" onClick={submit} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-60">
             {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}
           </button>
         </div>
@@ -1705,7 +1705,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
           <div className="flex justify-end gap-2">
             <button type="button" onClick={clearManualOverrides} disabled={saving} className="rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-bold text-amber-100 outline-none hover:bg-amber-400/15 disabled:opacity-50">{t("products.priceEditor.clearManualOverride", "إلغاء التعديل اليدوي")}</button>
             <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">{t("common.cancel")}</button>
-            <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black outline-none hover:bg-emerald-400 focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
+            <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black outline-none hover:bg-primary focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
               {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}
             </button>
           </div>
@@ -2828,7 +2828,7 @@ function ProductsList() {
               setCatalogTab("products");
               setPage(1);
             }}
-            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "products" ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-white" }`}
+            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "products" ? "bg-primary text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-[var(--primary-contrast)]" }`}
           >
             {t("products.tabs.products", "المنتجات")}
           </button>
@@ -2838,7 +2838,7 @@ function ProductsList() {
               setCatalogTab("offers");
               setPage(1);
             }}
-            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "offers" ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-white" }`}
+            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "offers" ? "bg-primary text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-[var(--primary-contrast)]" }`}
           >
             {t("products.tabs.offers", "العروض")}
           </button>
@@ -2993,7 +2993,7 @@ function ProductsList() {
                               key={`${group.key}-${option.value}`}
                               type="button"
                               onClick={() => setClassificationGroupFilter(group.key, option.value)}
-                              className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ isActive ? "border-emerald-300/70 bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-white" }`}
+                              className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ isActive ? "border-emerald-300/70 bg-primary text-black shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-[var(--primary-contrast)]" }`}
                             >
                               {option.label}
                             </button>
@@ -3447,7 +3447,7 @@ function ProductsList() {
               <button
                 type="button"
                 onClick={handleConfirmProductStatusToggle}
-                className={`rounded-[var(--radius-control)] px-4 py-2.5 text-sm font-black text-white ${ isInactiveProduct(statusActionProduct) ? "bg-emerald-600 hover:bg-emerald-500" : "bg-amber-600 hover:bg-amber-500" }`}
+                className={`rounded-[var(--radius-control)] px-4 py-2.5 text-sm font-black text-[var(--primary-contrast)] ${ isInactiveProduct(statusActionProduct) ? "bg-primary hover:bg-primary" : "bg-amber-600 hover:bg-amber-500" }`}
               >
                 {isInactiveProduct(statusActionProduct)
                   ? t("products.actionsMenu.activateProduct", "تفعيل المنتج")
@@ -3498,7 +3498,7 @@ function ProductsList() {
           <p className="mt-2 text-zinc-400">{t("products.empty.catalogDescription")}</p>
           <button
             onClick={() => navigate("/products/add")}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white"
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-semibold text-[var(--primary-contrast)]"
           >
             <Plus size={18} />
             {t("products.newProduct")}
@@ -3763,7 +3763,7 @@ function BarcodeQueueBulkModal({
               type="button"
               onClick={onSubmit}
               disabled={submitting || !selectedRows.length || (mode === "selected" && totalSelectedColors === 0)}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2.5 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Barcode size={16} />
               {submitting

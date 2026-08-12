@@ -266,7 +266,7 @@ export default function BarcodePrintQueue() {
                         type="button"
                         onClick={() => openLabels(item)}
                         disabled={!canPrint || busyId === item.id}
-                        className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Printer size={16} />
                         {t("products.barcodePrintQueue.printLabels", "Print labels")}

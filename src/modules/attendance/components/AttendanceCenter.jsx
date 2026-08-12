@@ -374,7 +374,7 @@ function ManualTimeInput({ hour, minute, period, onChange, isArabic, periodDefau
             key={value}
             type="button"
             onClick={() => onChange({ period: value })}
-            className={`min-w-11 rounded-[var(--radius-control)] px-2 text-xs font-black transition ${period === value ? "bg-emerald-500 text-slate-950" : "text-[var(--muted)]"}`}
+            className={`min-w-11 rounded-[var(--radius-control)] px-2 text-xs font-black transition ${period === value ? "bg-primary text-[var(--primary-contrast)]" : "text-[var(--muted)]"}`}
             aria-pressed={period === value}
             title={value === periodDefault ? (isArabic ? "الافتراضي" : "Default") : undefined}
           >
@@ -875,7 +875,7 @@ export default function AttendanceCenter() {
                   key={value}
                   type="button"
                   onClick={() => setManualForm((prev) => ({ ...prev, editMode: value }))}
-                  className={`min-h-[var(--control-height-md)] rounded-[var(--radius-control)] px-2 text-xs font-black transition ${manualForm.editMode === value ? "bg-emerald-500 text-slate-950" : "text-[var(--muted)] hover:bg-[var(--card)]"}`}
+                  className={`min-h-[var(--control-height-md)] rounded-[var(--radius-control)] px-2 text-xs font-black transition ${manualForm.editMode === value ? "bg-primary text-[var(--primary-contrast)]" : "text-[var(--muted)] hover:bg-[var(--card)]"}`}
                 >
                   {label}
                 </button>
@@ -929,7 +929,7 @@ export default function AttendanceCenter() {
             {manualError ? <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm font-bold text-rose-300">{manualError}</div> : null}
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] px-5 text-sm font-black text-[var(--muted)]">{isArabic ? "إلغاء" : "Cancel"}</button>
-              <button type="submit" disabled={manualSaving} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-emerald-500 px-6 text-sm font-black text-slate-950 disabled:opacity-60">{manualSaving ? (isArabic ? "جارٍ الحفظ..." : "Saving...") : (isArabic ? "حفظ التصحيح" : "Save correction")}</button>
+              <button type="submit" disabled={manualSaving} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-6 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60">{manualSaving ? (isArabic ? "جارٍ الحفظ..." : "Saving...") : (isArabic ? "حفظ التصحيح" : "Save correction")}</button>
             </div>
           </form>
         </div>
@@ -958,7 +958,7 @@ function OpeningSchedulePanel({ rows = [], isArabic, onGenerate, canGenerate }) 
         <button
           type="button"
           onClick={onGenerate}
-          className="rounded-full border border-emerald-400/30 bg-emerald-400 px-3 py-1.5 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full border border-emerald-400/30 bg-primary px-3 py-1.5 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!canGenerate}
           title={canGenerate ? "" : (isArabic ? "اختر الفرع أولًا" : "Select branch first")}
         >
@@ -1160,7 +1160,7 @@ function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
               </div>
               {String(row.status || "pending").toLowerCase() === "pending" ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onUpdate(row, "approved")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-3 text-xs font-black text-black">
+                  <button type="button" onClick={() => onUpdate(row, "approved")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-black">
                     <CheckCircle2 className="h-4 w-4" />{isArabic ? "اعتماد" : "Approve"}
                   </button>
                   <button type="button" onClick={() => onUpdate(row, "rejected")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-rose-500 px-3 text-xs font-black text-white">

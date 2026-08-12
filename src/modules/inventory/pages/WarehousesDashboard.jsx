@@ -352,7 +352,7 @@ function EditWarehouseModal({ warehouse, form, labels, error, saving, onChange, 
           <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50">
             {labels.cancel}
           </button>
-          <button type="button" onClick={onSave} disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50">
+          <button type="button" onClick={onSave} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-50">
             {saving ? labels.saving : labels.save}
           </button>
         </div>

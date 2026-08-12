@@ -481,7 +481,7 @@ function WebsiteSettings() {
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">{copy.shippingText}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={seedEgyptGovernorates} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-3 text-xs font-black text-white">
+                  <button type="button" onClick={seedEgyptGovernorates} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)]">
                     <Layers3 className="h-4 w-4" />
                     {copy.addGovernorates}
                   </button>
@@ -695,7 +695,7 @@ function EditableCell({ value, onChange, type = "text", compact = false, wide = 
 function ToggleCell({ checked, onChange }) {
   return (
     <td className="border-t border-[var(--border)] px-3 py-3">
-      <button type="button" onClick={() => onChange(!checked)} className={`h-[var(--control-height-sm)] w-14 rounded-full p-1 transition ${checked ? "bg-emerald-500" : "bg-zinc-500/40"}`} aria-pressed={checked}>
+      <button type="button" onClick={() => onChange(!checked)} className={`h-[var(--control-height-sm)] w-14 rounded-full p-1 transition ${checked ? "bg-primary" : "bg-zinc-500/40"}`} aria-pressed={checked}>
         <span className={`block h-6 w-6 rounded-full bg-white transition ${checked ? "ltr:translate-x-6 rtl:-translate-x-6" : ""}`} />
       </button>
     </td>

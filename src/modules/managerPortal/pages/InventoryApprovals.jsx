@@ -518,7 +518,7 @@ export default function InventoryApprovalsPage() {
                       type="button"
                       onClick={() => void handleApprove()}
                       disabled={approving || selectedSession.status !== "pending_review"}
-                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-3 py-3 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-3 text-sm font-black text-black transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
                     >
                       {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       موافقة واعتماد

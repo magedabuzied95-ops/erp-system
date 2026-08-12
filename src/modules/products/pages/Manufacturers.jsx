@@ -219,7 +219,7 @@ function Manufacturers() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-black transition hover:bg-emerald-400 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-semibold text-black transition hover:bg-primary disabled:opacity-60"
               >
                 <Save size={18} />
                 {saving ? t("products.shared.saving") : editingId ? t("products.manufacturers.updateManufacturer") : t("products.manufacturers.saveManufacturer")}

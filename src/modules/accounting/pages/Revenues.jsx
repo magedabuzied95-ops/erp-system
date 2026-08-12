@@ -111,7 +111,7 @@ function Revenues() {
             <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.notes")}</div>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" placeholder={t("accounting.revenues.placeholders.notes")} />
           </label>
-          <button type="button" onClick={submitIncome} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black">
+          <button type="button" onClick={submitIncome} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
             <CirclePlus className="h-4 w-4" />
             {t("accounting.revenues.createTitle")}
           </button>

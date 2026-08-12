@@ -1318,7 +1318,7 @@ function VerificationQueue({ t, orders, updateShippingPayment, openOrder }) {
                 <StatusBadge value={paymentBadgeValue(order)} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-emerald-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.confirm")}</button>
+                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-primary px-3 py-1.5 text-xs font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.confirm")}</button>
                 <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.reject")}</button>
                 <button type="button" onClick={() => openOrder(order)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white">{t("orders.actionsMenu.view")}</button>
               </div>
@@ -1475,7 +1475,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
             const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "قيد المراجعة" }));
             window.open(`https://wa.me/${String(order.customer_phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
           }} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">WhatsApp</button>
-          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-primary px-3 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
           <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
           <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
         </footer>
@@ -1563,7 +1563,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
           <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-emerald-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
           <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
         </div>
       </footer>

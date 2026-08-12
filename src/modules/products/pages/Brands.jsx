@@ -287,7 +287,7 @@ function Brands() {
               <button
                 type="submit"
                 disabled={saving || uploading}
-                className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-black transition hover:bg-emerald-400 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-semibold text-black transition hover:bg-primary disabled:opacity-60"
               >
                 {editingId ? <Save size={18} /> : <Plus size={18} />}
                 {saving ? t("products.shared.saving") : editingId ? t("products.brands.updateBrand") : t("products.brands.saveBrand")}

@@ -1354,7 +1354,7 @@ function InventoryCountPage() {
             <button
               type="button"
               onClick={() => setScopeModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black transition hover:bg-emerald-400"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
             >
               <Plus className="h-4 w-4" />
               بدء جرد جديد
@@ -1421,7 +1421,7 @@ function InventoryCountPage() {
                         session?.status === "rejected" ||
                         (session?.status === "pending_review" && !canReviewInventoryCount)
                       }
-                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-40"
                     >
                       {approvingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       اعتماد الجرد
@@ -1499,7 +1499,7 @@ function InventoryCountPage() {
                   <button
                     type="button"
                     onClick={() => setScannerOpen(true)}
-                    className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black shadow-[0_10px_28px_rgba(16,185,129,0.22)] transition hover:bg-emerald-400"
+                    className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black shadow-[0_10px_28px_rgba(16,185,129,0.22)] transition hover:bg-primary"
                   >
                     <Camera className="h-4 w-4" />
                     امسح الباركود
@@ -1641,7 +1641,7 @@ function InventoryCountPage() {
                       type="button"
                       onClick={() => addFullModelToCount(selectedLookupGroup)}
                       disabled={busyGroupKey === selectedLookupGroup.key}
-                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-40"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-40"
                     >
                       {busyGroupKey === selectedLookupGroup.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                       إضافة الموديل للجرد
@@ -1797,7 +1797,7 @@ function InventoryCountPage() {
                 <button
                   type="button"
                   onClick={() => setScopeModalOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black transition hover:bg-emerald-400"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
                 >
                   <Plus className="h-4 w-4" />
                   بدء جرد جديد
@@ -2242,7 +2242,7 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
         </div>
         <div className="mt-5 flex justify-end gap-3">
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">إلغاء</button>
-          <button type="button" onClick={onCreate} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">بدء الجرد</button>
+          <button type="button" onClick={onCreate} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">بدء الجرد</button>
         </div>
       </div>
     </div>

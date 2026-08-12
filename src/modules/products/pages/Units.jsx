@@ -97,7 +97,7 @@ function Units() {
 
             <button
               onClick={handleCreate}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-semibold text-[var(--primary-contrast)]"
             >
               <Plus size={18} />
               {t("products.units.saveUnit")}

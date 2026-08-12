@@ -127,7 +127,7 @@ export default function PortalChatComposer({
                 disabled={disabled}
               />
             )}
-            <button type="submit" disabled={disabled || sending || (!String(body || "").trim() && !attachment)} className={`${useTextarea ? "h-[var(--control-height-lg)] w-11" : "h-[var(--control-height-md)] w-10"} inline-flex shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50`}>
+            <button type="submit" disabled={disabled || sending || (!String(body || "").trim() && !attachment)} className={`${useTextarea ? "h-[var(--control-height-lg)] w-11" : "h-[var(--control-height-md)] w-10"} inline-flex shrink-0 items-center justify-center rounded-full bg-primary text-emerald-950 disabled:opacity-50`}>
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
           </div>

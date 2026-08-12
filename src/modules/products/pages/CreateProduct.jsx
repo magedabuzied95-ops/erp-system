@@ -3387,7 +3387,7 @@ function CreateProduct() {
                       <button
                         type="button"
                         onClick={() => applyBulkSizes()}
-                        className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                        className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] bg-primary px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-primary"
                       >
                         {t("products.editor.applyToAllColors")}
                       </button>
@@ -4133,7 +4133,7 @@ function CreateProduct() {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-6 py-3 font-semibold text-white disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-[var(--primary-contrast)] disabled:opacity-60"
           >
             <Plus size={18} />
             {saving ? t("common.saving", "جارٍ الحفظ...") : t("products.editor.createTitle", "إنشاء منتج")}

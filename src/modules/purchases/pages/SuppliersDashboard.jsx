@@ -610,7 +610,7 @@ function EmptyState({ onCreate }) {
       <ShieldCheck className="mx-auto h-12 w-12 text-zinc-500" />
       <h3 className="m1-section-title mt-4 text-white">{t("purchases.suppliersDashboard.emptyTitle")}</h3>
       <p className="mt-2 text-sm text-zinc-400">{t("purchases.suppliersDashboard.emptyDescription")}</p>
-      <button type="button" onClick={onCreate} className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black">
+      <button type="button" onClick={onCreate} className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black">
         <Plus className="h-4 w-4" />
         {t("purchases.suppliersDashboard.addSupplier")}
       </button>
@@ -649,7 +649,7 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
             <Field label={t("purchases.supplierDetails.openingBalance")} type="number" value={form.opening_balance} onChange={(value) => setField("opening_balance", Number(value || 0))} />
             <label className="flex items-center justify-between rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3">
               <span className="text-sm font-semibold text-white">{t("purchases.statusLabels.active")}</span>
-              <button type="button" onClick={() => setField("status", form.status === "active" ? "inactive" : "active")} className={`h-[var(--control-height-sm)] w-12 rounded-full p-1 transition ${form.status === "active" ? "bg-emerald-500" : "bg-zinc-700"}`}>
+              <button type="button" onClick={() => setField("status", form.status === "active" ? "inactive" : "active")} className={`h-[var(--control-height-sm)] w-12 rounded-full p-1 transition ${form.status === "active" ? "bg-primary" : "bg-zinc-700"}`}>
                 <span className={`block h-5 w-5 rounded-full bg-white transition ${form.status === "active" ? "translate-x-5" : ""}`} />
               </button>
             </label>
@@ -665,7 +665,7 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
             {t("common.cancel")}
           </button>
-          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-50">
+          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-50">
             {saving ? t("purchases.details.saving") : t("purchases.suppliersDashboard.saveSupplier")}
           </button>
         </div>
@@ -706,7 +706,7 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
               <Edit3 className="h-4 w-4" />
               {t("purchases.suppliersDashboard.edit")}
             </button>
-            <button type="button" onClick={onPurchase} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black">
+            <button type="button" onClick={onPurchase} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black">
               <FilePlus2 className="h-4 w-4" />
               {t("purchases.suppliersDashboard.purchaseOrder")}
             </button>

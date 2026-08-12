@@ -1053,7 +1053,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                         <button
                           type="button"
                           onClick={() => toggleItem(item)}
-                          className={`rounded-[var(--radius-control)] px-3 py-2 text-sm font-semibold ${checked ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-white"}`}
+                          className={`rounded-[var(--radius-control)] px-3 py-2 text-sm font-semibold ${checked ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-[var(--primary-contrast)]"}`}
                         >
                           {checked ? t("orders.returns.included") : t("orders.returns.select")}
                         </button>
@@ -1127,7 +1127,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
             إغلاق
           </button>
-          <button type="button" onClick={onSubmit} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black">
+          <button type="button" onClick={onSubmit} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
             {mode === "edit" ? "حفظ التعديلات" : t("orders.returns.saveReturn")}
           </button>
         </footer>

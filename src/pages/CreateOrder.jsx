@@ -512,7 +512,7 @@ function CreateOrder() {
         <button
           onClick={createOrder}
           disabled={loading}
-          className="mt-10 w-full bg-green-500 text-white py-5 rounded-[var(--radius-control)] font-black text-xl"
+          className="mt-10 w-full bg-primary text-[var(--primary-contrast)] py-5 rounded-[var(--radius-control)] font-black text-xl"
         >
 
           {loading

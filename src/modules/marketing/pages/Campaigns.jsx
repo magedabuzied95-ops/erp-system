@@ -114,7 +114,7 @@ export default function Campaigns() {
             </div>
             <div className="flex gap-3">
               {canCreate ? (
-                <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400">
+                <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-semibold text-[var(--primary-contrast)] hover:bg-primary">
                   <Plus className="h-4 w-4" />
                   {t("marketing.campaigns.new")}
                 </button>

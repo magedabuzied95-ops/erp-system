@@ -118,7 +118,7 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
             type="button"
             disabled={!canInstall}
             onClick={onInstall}
-            className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-text disabled:opacity-50"
+            className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-text disabled:opacity-50"
           >
             تثبيت التطبيق
           </button>
@@ -219,7 +219,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
             type="button"
             disabled={readOnly || saving || !isInProgress}
             onClick={() => onStatus(task.id, "completed")}
-            className={`${isInProgress ? "inline-flex" : "hidden"} min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 py-2.5 text-sm font-black text-white disabled:opacity-45`}
+            className={`${isInProgress ? "inline-flex" : "hidden"} min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2.5 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-45`}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
             تم التنفيذ

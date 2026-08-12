@@ -2521,7 +2521,7 @@ function PurchaseOrder() {
                     : (isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product that already has a purchase invoice.")}
                 </p>
                 {!search.trim() ? (
-                  <button type="button" onClick={() => setProductModalOpen(true)} className="mt-4 rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black">
+                  <button type="button" onClick={() => setProductModalOpen(true)} className="mt-4 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
                     {t("purchases.create.addProduct")}
                   </button>
                 ) : null}
@@ -2591,7 +2591,7 @@ function PurchaseOrder() {
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setConfirmReceivedEditSave(false)} disabled={posting} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-              <button type="button" onClick={() => postPurchase("received", { confirmReceivedEdit: true })} disabled={posting} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">{posting ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
+              <button type="button" onClick={() => postPurchase("received", { confirmReceivedEdit: true })} disabled={posting} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-60">{posting ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
             </div>
           </div>
         </div>
@@ -3664,7 +3664,7 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
             <button type="button" onClick={apply} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">
               تطبيق الأسعار
             </button>
-            <button type="button" onClick={saveAndClose} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">
+            <button type="button" onClick={saveAndClose} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">
               حفظ وإغلاق
             </button>
             <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
@@ -3886,7 +3886,7 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
             {t("common.cancel")}
           </button>
-          <button type="submit" className={`rounded-[var(--radius-control)] px-4 py-3 text-sm font-black text-black transition ${isPurchase ? "bg-emerald-500 hover:bg-emerald-400" : isSale ? "bg-amber-400 hover:bg-amber-300" : "bg-primary hover:bg-primary"}`}>
+          <button type="submit" className={`rounded-[var(--radius-control)] px-4 py-3 text-sm font-black text-black transition ${isPurchase ? "bg-primary hover:bg-primary" : isSale ? "bg-amber-400 hover:bg-amber-300" : "bg-primary hover:bg-primary"}`}>
             {t("purchases.create.apply")}
           </button>
         </div>
@@ -4036,7 +4036,7 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
           );
         })}
       </div>
-      <button type="button" onClick={addRun} className="mt-4 w-full rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black">
+      <button type="button" onClick={addRun} className="mt-4 w-full rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
         {t("purchases.create.addRun")}
       </button>
     </Modal>
@@ -4126,7 +4126,7 @@ function QuickSupplierModal({ form, setForm, saving, error, onClose, onSubmit })
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("common.cancel")}</button>
-          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.details.saving") : t("purchases.create.createAndSelect")}</button>
+          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.details.saving") : t("purchases.create.createAndSelect")}</button>
         </div>
       </form>
     </Modal>
@@ -4154,7 +4154,7 @@ function QuickProductModal({ form, setForm, saving, error, onClose, onSubmit }) 
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("common.cancel")}</button>
-          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.create.creating") : t("purchases.create.createAndAdd")}</button>
+          <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.create.creating") : t("purchases.create.createAndAdd")}</button>
         </div>
       </form>
     </Modal>

@@ -834,7 +834,7 @@ function Branches() {
                         <button
                           type="button"
                           onClick={() => loadBranchQr(viewBranch?.id)}
-                          className="mt-4 rounded-[var(--radius-control)] bg-slate-900 px-4 py-2 text-xs font-black text-white"
+                          className="mt-4 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-xs font-black text-[var(--primary-contrast)]"
                         >
                           Retry
                         </button>

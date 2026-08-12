@@ -119,7 +119,7 @@ function Reports() {
         </div>
 
         <div className="flex flex-wrap gap-4">
-          <button onClick={exportExcel} className="bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-[var(--radius-control)] font-black flex items-center gap-3">
+          <button onClick={exportExcel} className="bg-primary hover:bg-primary text-[var(--primary-contrast)] px-6 py-4 rounded-[var(--radius-control)] font-black flex items-center gap-3">
             <Download /> {t("reports.buttons.excel")}
           </button>
           <button onClick={exportCSV} className="bg-yellow-500 hover:bg-yellow-600 text-black px-6 py-4 rounded-[var(--radius-control)] font-black flex items-center gap-3">

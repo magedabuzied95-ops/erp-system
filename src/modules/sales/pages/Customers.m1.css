@@ -26,4 +26,4 @@
 .m1-customers-page :where(button,a){font-family:var(--app-font);box-shadow:none!important}
 html[data-theme="light"] .m1-customers-page :where([class*="bg-slate-8"],[class*="bg-slate-9"]){background:var(--surface)!important;color:var(--text)!important}
 html[data-theme="dark"] .m1-customers-page :where([class*="bg-slate-8"],[class*="bg-slate-9"]){background:var(--surface-soft)!important;color:var(--text)!important}
-@media(max-width:767px){.m1-customers-page{padding:12px!important}.m1-customers-page h1{font-size:28px!important}.m1-customers-page :where(section,form){padding:14px!important}}
+@media(max-width:767px){.m1-customers-page{padding:12px!important}.m1-customers-page :where(section,form){padding:14px!important}}
