@@ -73,7 +73,7 @@ function InboundAssistedRepliesCard() {
       </div>
       {stats ? (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
-          {[["Generated", w.generated], ["Approved", w.approved], ["Edited", w.approved_edited], ["Stale", w.stale], ["Skipped", w.skipped], ["Errors", w.errored]].map(([label, val]) => (
+          {[["Generated", w.generated], ["Approved unchanged", w.approved_unchanged], ["Approved after edit", w.approved_edited], ["Stale", w.stale], ["Skipped", w.skipped], ["Errors", w.errored]].map(([label, val]) => (
             <div key={label} className="rounded-xl border border-white/10 bg-white/[0.02] px-2.5 py-2"><div className="text-[9px] font-black uppercase tracking-wide text-slate-500">{label} 7d</div><div className="mt-0.5 text-lg font-black text-slate-100">{Number(val || 0)}</div></div>
           ))}
         </div>

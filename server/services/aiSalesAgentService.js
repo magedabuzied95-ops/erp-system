@@ -3,6 +3,8 @@ import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPerfContext } from "../utils/perfDebug.js";
 import { emitToRooms } from "../utils/socket.js";
 import { resolveAiProductUrl } from "./aiProductEligibilityService.js";
+// Phase 11.2 — canonical helpers to enrich a grounded card into a send-ready product card (image/url/price/sizes).
+import { resolvePublicProductUrl, resolvePublicProductImageUrl, resolveProductImageFromRecord, availableProductSizes } from "./aiProductCards.js";
 import {
   appendAiGeneratedSupportReply,
   appendManualAiSupportReply,
@@ -422,6 +424,10 @@ const DEFAULT_SETTINGS = {
   egyptian_tone_level: 0.72,
   emoji_level: 0.2,
   ai_assistant_global_enabled: true,
+  // Phase 11.2 — OPT-IN (default FALSE). Employee reply-style corrections are used as phrasing examples ONLY
+  // when a tenant explicitly enables this; never silently on. Verified ERP facts are NEVER affected either way
+  // (the grounding gate re-asserts stock/price/product AFTER generation, independent of style examples).
+  style_learning_enabled: false,
   reply_length: "balanced",
   sales_pressure: "medium",
   allowed_phrases: ["ط£ظٹظˆظ‡ ظٹط§ ظپظ†ط¯ظ…", "طھظ…ط§ظ…", "ط§ط®طھظٹط§ط± ط\u00adظ„ظˆ", "ط£ط±ط´ط\u00adظ„ظƒ"],
@@ -773,6 +779,7 @@ export const getAiAgentSettings = async ({ tenantId }) => {
     tone_intensity: stored.tone_intensity ?? stored.egyptian_tone_level ?? DEFAULT_SETTINGS.tone_intensity,
     egyptian_tone_level: stored.egyptian_tone_level ?? stored.tone_intensity ?? DEFAULT_SETTINGS.egyptian_tone_level,
     ai_assistant_global_enabled: stored.ai_assistant_global_enabled ?? DEFAULT_SETTINGS.ai_assistant_global_enabled,
+    style_learning_enabled: stored.style_learning_enabled === true, // opt-in: only a literal true enables it
   };
 };
 
@@ -4241,6 +4248,44 @@ const latestCustomerMessage = (messages = []) =>
 // assisted drafts are never sent, there are no outbound rows between fragments, so the recency gap is the real
 // boundary that keeps this from swallowing older, already-addressed turns. Returned oldest→newest.
 const OUTBOUND_SENDERS = new Set(["staff", "agent", "human", "assistant", "ai", "bot", "system"]);
+// Phase 11.2 — enrich a grounding-gate send-ready card IDENTITY ({product_id, variant_id, size, color}) into a
+// SEND-READY product card using the SAME canonical services the manual "إرسال منتج" path uses: customer display
+// price (blocks cost/wholesale), storefront URL, product image, available sizes. Never invents price/url. Returns
+// null if the product no longer exists. No cost/margin/supplier fields ever leave here.
+export const enrichGroundedSendReadyCard = async ({ tenantId, identity }) => {
+  if (!identity || !identity.product_id) return null;
+  try {
+    const prod = (await db.query("SELECT * FROM products WHERE tenant_id = $1 AND id = $2 LIMIT 1", [tenantId, identity.product_id]).catch(() => ({ rows: [] }))).rows[0];
+    if (!prod) return null;
+    let variant = null;
+    if (identity.variant_id) {
+      variant = (await db.query("SELECT * FROM product_variants WHERE tenant_id = $1 AND id = $2 LIMIT 1", [tenantId, identity.variant_id]).catch(() => ({ rows: [] }))).rows[0] || null;
+    }
+    const priceInfo = resolveCustomerDisplayPrice({ ...prod, variant, product: prod, selected_variant: variant, matched_variant: variant });
+    const image = resolvePublicProductImageUrl(resolveProductImageFromRecord({ ...prod, ...(variant || {}) }) || variant?.image_url || variant?.image || prod.image_url || prod.image || "");
+    const url = resolvePublicProductUrl(prod);
+    const sizes = availableProductSizes(prod);
+    return {
+      product_id: prod.id, id: prod.id, variant_id: identity.variant_id || null,
+      product_name: prod.name, name: prod.name,
+      image_url: image, storefront_url: url, product_url: url,
+      color: identity.color || variant?.color || "",
+      size: identity.size || variant?.size || "",
+      available_sizes: Array.isArray(sizes) ? sizes : [],
+      price: priceInfo?.display_price ?? null,
+      display_price: priceInfo?.display_price ?? null,
+      old_price: priceInfo?.old_price ?? null,
+      sale_active: priceInfo?.sale_active === true,
+      in_stock: identity.in_stock !== false,
+      grounded: true,
+      action: identity.action || null,
+    };
+  } catch (e) {
+    console.error("[ai-inbox] enrichGroundedSendReadyCard failed", { err: String(e?.message || e).slice(0, 140) });
+    return null;
+  }
+};
+
 const currentCustomerTurnTexts = (messages = [], { maxMessages = 8, turnGapMs = 180000 } = {}) => {
   const rows = asArray(messages);
   const cluster = [];
@@ -5362,7 +5407,11 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   const preloadedProductContext = buildProductContext(currentProductForConversation(conversation, recommendations.products));
   const productContext = replyHarness?.product_context?.active_product || preloadedProductContext;
   const replyProductContext = productContext || buildProductContext(getConversationMemory(conversationId)?.lastProduct);
-  const employeeCorrections = await searchRelevantCorrections({
+  // Phase 11.2 — bounded style learning: retrieve a SMALL number of relevant prior employee corrections as
+  // phrasing examples, but ONLY when the tenant has style learning enabled. Facts are unaffected regardless
+  // (the grounding gate deterministically re-asserts stock/price/product AFTER generation).
+  const styleLearningEnabled = aiSettings?.style_learning_enabled === true; // opt-in only; default off
+  const employeeCorrections = styleLearningEnabled ? await searchRelevantCorrections({
     tenantId,
     query: lastMessage,
     productId: replyProductContext?.id || productContext?.id || null,
@@ -5375,7 +5424,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       message: error?.message,
     });
     return [];
-  });
+  }) : [];
   pipelineQueryCounts.db_reads_count += 1;
   pipelineQueryCounts.correction_queries_count += 1;
   const preloadedCorrectionSources = buildReplyCorrectionContextSource(employeeCorrections, lastMessage);
@@ -5674,6 +5723,30 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       reply.detected_intent = effectiveIntent;
       reply.grounding = groundingResult.grounding || null;
       reply.visual_attachments = [];
+      // Phase 11.2 — SEND-READY PRODUCT CARD. Attach ONE enriched card only when grounding resolved exactly one
+      // product (send_ready_card); when ambiguous, attach NOTHING and surface choices for the employee to pick.
+      // Grounding is authoritative — no remembered/popular products ever become the attachment.
+      try {
+        if (groundingResult.send_ready_card) {
+          const enriched = await enrichGroundedSendReadyCard({ tenantId, identity: groundingResult.send_ready_card });
+          reply.suggested_products = enriched ? [enriched] : [];
+        } else {
+          reply.suggested_products = [];
+        }
+        const choices = Array.isArray(groundingResult.card_choices) ? groundingResult.card_choices : [];
+        const enrichedChoices = [];
+        for (const ch of choices.slice(0, 6)) {
+          const ec = await enrichGroundedSendReadyCard({ tenantId, identity: { ...ch, size: groundingResult?.grounding?.requested?.size || null, color: groundingResult?.grounding?.requested?.color || null } });
+          if (ec) enrichedChoices.push(ec);
+        }
+        reply.send_package = {
+          product_ambiguous: Boolean(groundingResult.product_ambiguous),
+          card_choices: enrichedChoices,
+          channel: conversation.channel || conversation.source || "web_chat",
+        };
+      } catch (cardError) {
+        console.error("[ai-inbox] send-ready card build error", { error: String(cardError?.message || cardError).slice(0, 140) });
+      }
     }
   } catch (gateError) {
     console.error("[ai-inbox] grounding gate error", { error: String(gateError?.message || gateError).slice(0, 140) });
@@ -5711,6 +5784,9 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       grounding_action: groundingResult?.changed ? groundingResult.action : null,
       source_message_id: resolvedSourceMessageId,      // Phase 11 stale-linkage
       source_message_at: new Date().toISOString(),
+      // Phase 11.2 — send-package: whether the product choice is ambiguous + enriched grounded choices for the
+      // employee to pick from. The single attached card (when unambiguous) lives in product_cards above.
+      send_package: reply.send_package || null,
     },
   });
   stageTimings.draft_storage_ms = Date.now() - draftStorageStartedAt;
