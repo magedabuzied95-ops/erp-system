@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 219
-- Hardcoded Arabic UI strings: 2546
+- Files with debt: 215
+- Hardcoded Arabic UI strings: 2222
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 5092
-- Mixed-language files (both scripts hardcoded): 53
+- Total hardcoded UI strings: 4768
+- Mixed-language files (both scripts hardcoded): 52
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 117 | 1928 | 1821 | 3749 | 36 |
+| main-erp | 113 | 1604 | 1821 | 3425 | 35 |
 | shared | 70 | 189 | 440 | 629 | 11 |
 | employee-portal | 24 | 223 | 149 | 372 | 3 |
 | pos | 6 | 206 | 122 | 328 | 3 |
@@ -35,7 +35,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 58 | 100 | 158 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 13 | 153 |
 | src/modules/accounting/pages/FinancialReports.jsx | main-erp | 140 | 3 | 143 |
-| src/modules/inventory/pages/InventoryCount.jsx | main-erp | 122 | 7 | 129 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 56 | 70 | 126 |
 | src/modules/orders/pages/OrderReturnsPage.jsx | main-erp | 94 | 4 | 98 |
 | src/modules/marketing/pages/AiMarketingCenter.jsx | main-erp | 36 | 57 | 93 |
@@ -305,50 +304,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 327 [inline-ternary/ar] isArabic ? "أعلى العملاء مديونية" : "Top customer receivables"
 - 330 [inline-ternary/ar] isArabic ? "العميل" : "Customer"
 - ... 103 more
-
-### src/modules/inventory/pages/InventoryCount.jsx (main-erp — ar:122 en:7)
-
-- 572 [object-key/ar] جرد جديد
-- 759 [notification/ar] الجرد في انتظار موافقة المدير
-- 824 [notification/ar] تم بدء جلسة الجرد
-- 843 [notification/ar] تم حفظ المسودة
-- 858 [notification/ar] تم فتح جلسة الجرد
-- 874 [notification/ar] تم إرسال الجرد للمراجعة
-- 885 [dialog/ar] هل تريد اعتماد الجرد الآن؟ سيتم إنشاء حركات مخزون رسمية لكل فرق.
-- 892 [notification/ar] تم اعتماد الجرد
-- 903 [dialog/ar] ما سبب رفض الجرد؟
-- 910 [notification/ar] تم رفض الجرد
-- 926 [notification/ar] تمت إعادة فتح الجرد للتعديل
-- 937 [dialog/ar] هل تريد إلغاء جلسة الجرد؟
-- 944 [notification/ar] تم إلغاء الجرد
-- 956 [notification/ar] لا يمكن حذف جلسة مكتملة
-- 959 [dialog/ar] هل تريد حذف جلسة الجرد بالكامل؟ سيتم حذف كل عناصر الجرد داخلها ولا يمكن التراجع.
-- 974 [notification/ar] تم حذف جلسة الجرد
-- 1013 [notification/ar] لم يتم العثور على نتائج مطابقة
-- 1073 [notification/ar] طھظ… ط¥ط¶ط§ظپط© ط§ظ„ظ…ظˆط¯ظٹظ„ ط¨ظ†ط¬ط§ط­
-- 1095 [notification/ar] الباركود غير موجود
-- 1174 [notification/ar] تمت إضافة اللون للجرد
-- 1200 [notification/ar] تمت إضافة الموديل للجرد
-- 1242 [dialog/ar] هل تريد حذف هذا اللون من الجرد؟ سيتم تركه مطابقًا للسيستم بدون فرق.
-- 1258 [notification/ar] تم حذف اللون من العرض
-- 1344 [attribute/ar] الجرد
-- 1345 [attribute/ar] إدارة جلسات الجرد، والبحث بالباركود أو رمز الصنف، واعتماد الفروقات عبر حركات مخزون رسمية فقط.
-- 1365 [object-key/ar] المخزون
-- 1366 [object-key/ar] الجرد
-- 1367 [object-key/ar] الحركات
-- 1368 [object-key/ar] التسويات
-- 1369 [object-key/ar] التحويلات
-- 1370 [object-key/ar] المخازن
-- 1473 [attribute/ar] إجمالي السطور
-- 1474 [attribute/ar] فروقات موجبة
-- 1475 [attribute/ar] فروقات سالبة
-- 1476 [attribute/ar] إجمالي الفروق
-- 1482 [jsx-text/ar] البحث ومسح الباركود
-- 1491 [attribute/ar] فتح ماسح الكاميرا
-- 1492 [attribute/ar] فتح ماسح الكاميرا
-- 1520 [attribute/ar] الفلتر
-- 1521 [attribute/ar] الفلتر
-- ... 89 more
 
 ### src/modules/aiSupport/pages/AiInboxPwa.jsx (main-erp — ar:56 en:70)
 
@@ -702,50 +657,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 3631 [attribute/en] Last Reason
 - ... 35 more
 
-### src/modules/inventory/pages/StockAdjustments.jsx (main-erp — ar:69 en:0)
-
-- 41 [object-key/ar] زيادة المخزون
-- 42 [object-key/ar] خفض المخزون
-- 272 [notification/ar] جارٍ استخدام مخازن احتياطية
-- 391 [notification/ar] تمت مطابقة الباركود مع أحد الاختيارات
-- 393 [notification/ar] لم يتم العثور على تطابق دقيق للباركود
-- 401 [notification/ar] ليس لديك صلاحية تنفيذ تسويات المخزون
-- 405 [notification/ar] اختر اختيارًا للمنتج أولًا
-- 409 [notification/ar] يجب أن تكون الكمية 1 على الأقل
-- 413 [notification/ar] لا يمكن أن ينخفض المخزون إلى أقل من صفر
-- 417 [notification/ar] هذه التسوية تحتاج إلى اعتماد المدير
-- 525 [notification/ar] تم تحديث المخزون وتسجيل الحركة
-- 543 [notification/ar] ليس لديك صلاحية تنفيذ تسويات المخزون
-- 547 [notification/ar] اختر اختيارًا للمنتج أولًا
-- 551 [notification/ar] يجب أن تكون الكمية 1 على الأقل
-- 555 [notification/ar] لا يمكن أن ينخفض المخزون إلى أقل من صفر
-- 609 [attribute/ar] تسويات المخزون
-- 610 [attribute/ar] ابحث عن المنتجات بالاسم أو SKU أو الباركود، وراجع الرصيد الحالي قبل التعديل، واحفظ كل تغيير داخل سجل حركات المخزون.
-- 630 [object-key/ar] المخزون
-- 631 [object-key/ar] الحركات
-- 632 [object-key/ar] التسويات
-- 633 [object-key/ar] الجرد
-- 634 [object-key/ar] التحويلات
-- 635 [object-key/ar] المخازن
-- 667 [attribute/ar] ابحث بالاسم أو SKU أو الباركود
-- 696 [attribute/ar] سياسة التسوية
-- 698 [attribute/ar] وضع الاعتماد
-- 703 [jsx-text/ar] حد الاعتماد القابل للتعديل
-- 714 [jsx-text/ar] جارٍ تحميل المخازن...
-- 720 [jsx-text/ar] نتائج البحث عن المنتجات
-- 721 [jsx-text/ar] ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.
-- 778 [jsx-text/ar] المنتج المحدد
-- 779 [jsx-text/ar] يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.
-- 794 [attribute/ar] اللون
-- 795 [attribute/ar] المقاس
-- 801 [attribute/ar] رمز الصنف
-- 802 [attribute/ar] الباركود
-- 803 [attribute/ar] الرصيد الحالي
-- 804 [attribute/ar] المخزن
-- 831 [jsx-text/ar] نموذج التسوية
-- 832 [jsx-text/ar] حدد طريقة حركة المخزون ثم أكد التغيير بعد مراجعة الرصيد المستهدف.
-- ... 29 more
-
 ### src/modules/aiSupport/pages/AiAgentAnalytics.jsx (main-erp — ar:0 en:67)
 
 - 104 [attribute/en] No rows.
@@ -789,50 +700,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 337 [object-key/en] Revenue
 - 341 [attribute/en] High Interest, Low Conversion
 - ... 27 more
-
-### src/modules/inventory/pages/StockMovements.jsx (main-erp — ar:65 en:0)
-
-- 420 [attribute/ar] حركات المخزون
-- 421 [attribute/ar] تُجمَّع حسب المنتج حتى تبقى الاختيارات بحسب المقاس واللون واضحة وسهلة البحث والفحص.
-- 431 [object-key/ar] المخزون
-- 432 [object-key/ar] الحركات
-- 433 [object-key/ar] التسويات
-- 434 [object-key/ar] الجرد
-- 435 [object-key/ar] التحويلات
-- 436 [object-key/ar] المخازن
-- 440 [attribute/ar] مجموعات المنتجات
-- 441 [attribute/ar] صفوف الحركات
-- 442 [attribute/ar] صافي الكمية
-- 443 [attribute/ar] حد الصفوف
-- 453 [attribute/ar] ابحث عن منتج أو SKU أو باركود أو لون أو مقاس أو سبب أو مستخدم...
-- 468 [jsx-text/ar] كل الأنواع
-- 478 [jsx-text/ar] الدرجة
-- 484 [jsx-text/ar] كل الدرجات
-- 494 [jsx-text/ar] الفئة
-- 500 [jsx-text/ar] كل الفئات
-- 510 [jsx-text/ar] عدد الصفوف
-- 543 [jsx-text/ar] سجل الحركات
-- 544 [jsx-text/ar] مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.
-- 601 [attribute/ar] عدد الحركات
-- 603 [attribute/ar] صافي التغيير
-- 607 [attribute/ar] آخر تاريخ
-- 627 [jsx-text/ar] حركات الاختيار
-- 628 [jsx-text/ar] اضغط صف الاختيار لفتح خطه الزمني الكامل.
-- 672 [jsx-text/ar] السبب:
-- 675 [jsx-text/ar] المرجع:
-- 679 [jsx-text/ar] المستخدم:
-- 682 [jsx-text/ar] التاريخ/الوقت:
-- 685 [jsx-text/ar] المخزن/الفرع:
-- 689 [jsx-text/ar] SKU/الباركود:
-- 696 [attribute/ar] الكمية
-- 697 [attribute/ar] قبل
-- 698 [attribute/ar] بعد
-- 699 [attribute/ar] السجل
-- 736 [jsx-text/ar] ملخص الرصيد الحالي
-- 737 [jsx-text/ar] الرصيد الحالي للاختيارات مجمّع حسب اللون والمقاس.
-- 743 [attribute/ar] إجمالي الرصيد الحالي
-- 744 [attribute/ar] عدد الألوان
-- ... 25 more
 
 ### src/modules/pos/components/RecentOperationsDrawer.jsx (pos — ar:60 en:2)
 
@@ -1758,50 +1625,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 860 [attribute/en] No fallback questions logged.
 - ... 5 more
 
-### src/modules/inventory/pages/InventoryHistory.jsx (main-erp — ar:45 en:0)
-
-- 122 [attribute/ar] سجل المخزون
-- 123 [attribute/ar] ابحث في سجل الحركات حسب المنتج أو الاختيار أو نوع الحركة أو التاريخ، ثم افتح أي صف لعرض خط زمني تفصيلي للمخزون.
-- 143 [object-key/ar] المخزون
-- 144 [object-key/ar] السجل
-- 145 [object-key/ar] الحركات
-- 146 [object-key/ar] التسويات
-- 147 [object-key/ar] الجرد
-- 148 [object-key/ar] التحويلات
-- 152 [attribute/ar] الحركات
-- 153 [attribute/ar] واردة
-- 154 [attribute/ar] صادرة
-- 155 [attribute/ar] إجمالي الصفوف
-- 165 [attribute/ar] ابحث عن منتج أو اختيار أو ملاحظات أو مستخدم...
-- 170 [attribute/ar] المنتج
-- 170 [attribute/ar] معرّف المنتج
-- 171 [attribute/ar] الاختيار
-- 171 [attribute/ar] معرّف الاختيار
-- 172 [attribute/ar] من
-- 173 [attribute/ar] إلى
-- 176 [jsx-text/ar] نوع الحركة
-- 182 [jsx-text/ar] الكل
-- 205 [jsx-text/ar] سجل الحركات
-- 206 [jsx-text/ar] اضغط أي صف لعرض الكمية قبل الحركة وبعدها.
-- 222 [jsx-text/ar] لا توجد حركات مسجلة.
-- 229 [jsx-text/ar] الوقت
-- 230 [jsx-text/ar] المنتج
-- 231 [jsx-text/ar] الاختيار
-- 232 [jsx-text/ar] النوع
-- 233 [jsx-text/ar] قبل
-- 234 [jsx-text/ar] التغيير
-- 235 [jsx-text/ar] بعد
-- 236 [jsx-text/ar] المستخدم
-- 237 [jsx-text/ar] المرجع
-- 354 [attribute/ar] إغلاق تفاصيل الحركة
-- 358 [jsx-text/ar] الخط الزمني للمخزون
-- 367 [attribute/ar] نوع الحركة
-- 368 [attribute/ar] الكمية قبل
-- 369 [attribute/ar] التغيير في الكمية
-- 370 [attribute/ar] الكمية بعد
-- 371 [attribute/ar] المرجع
-- ... 5 more
-
 ### src/modules/marketing/pages/AiLeadCenter.jsx (main-erp — ar:0 en:44)
 
 - 11 [object-key/en] All
@@ -2601,32 +2424,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 725 [jsx-text/en] Casual Egyptian
 - 726 [jsx-text/en] Professional
 - 727 [jsx-text/en] Luxury seller
-
-### src/modules/inventory/pages/StockTransfers.jsx (main-erp — ar:23 en:0)
-
-- 39 [notification/ar] جارٍ استخدام بيانات تحويل احتياطية
-- 56 [notification/ar] معرّف الاختيار مطلوب
-- 77 [notification/ar] تم إرسال التحويل
-- 88 [notification/ar] مسار التحويل غير متاح. تم الحفظ محليًا.
-- 94 [attribute/ar] تحويل المخزون بين المخازن
-- 95 [attribute/ar] إدارة تحويلات المخزون بين المخازن، ومراجعة السجل المحلي، وحفظ تفاصيل التحويل عندما تكون واجهة الخلفية غير مكتملة.
-- 108 [object-key/ar] المخزون
-- 109 [object-key/ar] الحركات
-- 110 [object-key/ar] التسويات
-- 111 [object-key/ar] الجرد
-- 112 [object-key/ar] التحويلات
-- 113 [object-key/ar] المخازن
-- 126 [attribute/ar] أدخل معرّف الاختيار
-- 126 [attribute/ar] معرّف الاختيار
-- 127 [attribute/ar] من مخزن
-- 128 [attribute/ar] إلى مخزن
-- 129 [attribute/ar] الكمية
-- 132 [jsx-text/ar] ملاحظات التحويل
-- 137 [attribute/ar] ملاحظات التعبئة، تفاصيل السائق، سبب التحويل...
-- 153 [jsx-text/ar] سجل التحويلات
-- 156 [jsx-text/ar] جارٍ تحميل المخازن...
-- 158 [jsx-text/ar] لا توجد تحويلات محفوظة محليًا.
-- 179 [jsx-text/ar] تحويل المخزون بين المخازن
 
 ### src/modules/saas/pages/Workspace.jsx (main-erp — ar:0 en:21)
 
@@ -3679,6 +3476,16 @@ of scope. The scanner is conservative and can still contain false positives.
 - 884 [object-key/en] Size
 - 885 [object-key/en] Brand
 - 886 [object-key/en] Manufacturer
+
+### src/modules/inventory/pages/InventoryCount.jsx (main-erp — ar:0 en:7)
+
+- 1587 [jsx-text/en] Products Counted
+- 1591 [jsx-text/en] Total Quantity Counted
+- 1595 [jsx-text/en] Variance Count
+- 1596 [jsx-text/en] 0 ? "text-rose-200" : itemSummary.varianceQuantity
+- 2107 [jsx-text/en] 0 ? "text-emerald-300" : diff
+- 2145 [jsx-text/en] 0 ? "text-rose-300" : group.difference_total
+- 2159 [jsx-text/en] 0 ? "text-rose-300" : diff
 
 ### src/modules/pos/components/QuickPosFilters.jsx (pos — ar:7 en:0)
 

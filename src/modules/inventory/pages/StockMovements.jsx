@@ -19,23 +19,29 @@ import InventoryShell from "../components/InventoryShell";
 import { formatDateTime } from "../../purchases/lib/flowStore";
 import { getProductsWithVariants } from "../../products/services/productsApi";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 const ROW_COUNT_OPTIONS = [50, 100, 200, 500];
 
 const MOVEMENT_TYPE_LABELS = {
-  purchase_in: "شراء وارد",
-  sale_out: "بيع صادر",
-  return_in: "مرتجع وارد",
-  adjustment: "تسوية",
-  transfer_in: "تحويل وارد",
-  transfer_out: "تحويل صادر",
-  count_adjustment: "تسوية جرد",
-  order_cancel_restore: "استرجاع إلغاء الطلب",
-  opening_balance: "رصيد افتتاحي",
-  inventory_count: "جرد مخزون",
-  manual_adjustment: "تعديل يدوي",
-};
+  get purchase_in() { return tt("inventory.movements.types.purchaseIn"); },
+  get sale_out() { return tt("inventory.movements.types.saleOut"); },
+  get return_in() { return tt("inventory.movements.types.returnIn"); },
+  get adjustment() { return tt("inventory.adjustments.adjustment"); },
+  get transfer_in() { return tt("inventory.movements.types.transferIn"); },
+  get transfer_out() { return tt("inventory.movements.types.transferOut"); },
+  get count_adjustment() { return tt("inventory.movements.types.countAdjustment"); },
+  get order_cancel_restore() { return tt("inventory.movements.types.orderCancelRestock"); },
+  get opening_balance() { return tt("inventory.movements.types.opening"); },
+  get inventory_count() { return tt("inventory.movements.types.stockCount"); },
+  get manual_adjustment() { return tt("inventory.movements.types.manualEdit"); },};
 
-const movementTypeLabel = (value = "") => MOVEMENT_TYPE_LABELS[String(value || "").toLowerCase()] || "حركة مخزون";
+const movementTypeLabel = (value = "") => MOVEMENT_TYPE_LABELS[String(value || "").toLowerCase()] || tt("inventory.movements.types.stockMovement");
 
 const normalizeText = (value = "") => String(value || "").trim();
 
@@ -188,6 +194,8 @@ const buildProductStockRows = (product = {}, sourceRows = []) => {
 };
 
 function StockMovements() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   const [search, setSearch] = useState("");
   const [movementType, setMovementType] = useState("");
   const [grade, setGrade] = useState("");
@@ -228,8 +236,8 @@ function StockMovements() {
       } catch (err) {
         if (!alive) return;
         setMovements([]);
-        setError(err?.message || "تعذر تحميل حركات المخزون");
-        toast.error(err?.message || "تعذر تحميل حركات المخزون");
+        setError(err?.message || tt("inventory.movements.errors.load"));
+        toast.error(err?.message || tt("inventory.movements.errors.load"));
       } finally {
         if (alive) setLoading(false);
       }
@@ -254,7 +262,7 @@ function StockMovements() {
         groups.set(key, {
           key,
           product_id: movement.product_id ?? movement.productId ?? null,
-          product_name: normalizeText(movement.product_name || "منتج غير معروف"),
+          product_name: normalizeText(movement.product_name || tt("inventory.labels.unknownProduct")),
           product_code: normalizeText(movement.product_code || movement.product_sku || movement.sku || movement.variant_article_code || ""),
           product_grade: normalizeText(movement.product_grade || ""),
           category_name: normalizeText(movement.category_name || ""),
@@ -353,7 +361,7 @@ function StockMovements() {
             if (!alive) return;
             const snapshot = {
               loading: false,
-              error: error?.message || "تعذر تحميل لقطة الرصيد الحالية",
+              error: error?.message || tt("inventory.adjustments.errors.loadSnapshot"),
               rows: buildProductStockRows(group),
             };
             snapshotCacheRef.current.set(cacheKey, snapshot);
@@ -401,8 +409,8 @@ function StockMovements() {
       const response = await api.get(`/inventory/variant/${encodeURIComponent(String(variantId))}/history?${params.toString()}`);
       setVariantHistoryMovements(Array.isArray(response?.movements) ? response.movements : []);
     } catch (err) {
-      setVariantHistoryError(err?.message || "تعذر تحميل سجل الاختيار");
-      toast.error(err?.message || "تعذر تحميل سجل الاختيار");
+      setVariantHistoryError(err?.message || tt("inventory.movements.errors.loadVariant"));
+      toast.error(err?.message || tt("inventory.movements.errors.loadVariant"));
     } finally {
       setVariantHistoryLoading(false);
     }
@@ -417,30 +425,30 @@ function StockMovements() {
 
   return (
     <InventoryShell
-      title="حركات المخزون"
-      subtitle="تُجمَّع حسب المنتج حتى تبقى الاختيارات بحسب المقاس واللون واضحة وسهلة البحث والفحص."
+      title={tt("inventory.movements.title")}
+      subtitle={tt("inventory.movements.groupingHintExact")}
       actions={
         <div className="flex flex-wrap gap-2">
           <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <Clock3 className="mr-2 inline h-4 w-4" />
-            سجل الاختيارات
+            {tt("inventory.movements.variantHistoryList")}
           </Link>
         </div>
       }
       tabs={[
-        { to: "/inventory", label: "المخزون", end: true },
-        { to: "/inventory/movements", label: "الحركات", end: true },
-        { to: "/inventory/adjustments", label: "التسويات" },
-        { to: "/inventory/count", label: "الجرد" },
-        { to: "/stock-transfers", label: "التحويلات" },
-        { to: "/warehouses", label: "المخازن" },
+        { to: "/inventory", label: tt("inventory.table.stock"), end: true },
+        { to: "/inventory/movements", label: tt("inventory.tabs.movements"), end: true },
+        { to: "/inventory/adjustments", label: tt("inventory.tabs.adjustments") },
+        { to: "/inventory/count", label: tt("inventory.tabs.count") },
+        { to: "/stock-transfers", label: tt("inventory.tabs.transfers") },
+        { to: "/warehouses", label: tt("inventory.tabs.warehouses") },
       ]}
     >
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-        <Metric label="مجموعات المنتجات" value={summary.productGroups} tone="emerald" />
-        <Metric label="صفوف الحركات" value={summary.movementRows} tone="blue" />
-        <Metric label="صافي الكمية" value={formatSignedQuantity(summary.netQuantity)} tone="violet" />
-        <Metric label="حد الصفوف" value={rowCount} tone="amber" />
+        <Metric label={tt("inventory.movements.productGroups")} value={summary.productGroups} tone="emerald" />
+        <Metric label={tt("inventory.movements.rows")} value={summary.movementRows} tone="blue" />
+        <Metric label={tt("inventory.movements.netQuantity")} value={formatSignedQuantity(summary.netQuantity)} tone="violet" />
+        <Metric label={tt("inventory.movements.rowLimit")} value={rowCount} tone="amber" />
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
@@ -450,7 +458,7 @@ function StockMovements() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث عن منتج أو SKU أو باركود أو لون أو مقاس أو سبب أو مستخدم..."
+              placeholder={tt("inventory.movements.searchPlaceholder")}
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
@@ -458,14 +466,14 @@ function StockMovements() {
           <label className="block">
             <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              نوع الحركة
+              {tt("inventory.movements.type")}
             </div>
             <select
               value={movementType}
               onChange={(e) => setMovementType(e.target.value)}
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="">كل الأنواع</option>
+              <option value="">{tt("inventory.filters.allTypes")}</option>
               {movementTypes.map((type) => (
                 <option key={type} value={type} className="bg-zinc-950 text-white">
                   {movementTypeLabel(type)}
@@ -475,13 +483,13 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">الدرجة</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.filters.grade")}</div>
             <select
               value={grade}
               onChange={(e) => setGrade(e.target.value)}
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="">كل الدرجات</option>
+              <option value="">{tt("inventory.filters.allGrades")}</option>
               {grades.map((value) => (
                 <option key={value} value={value} className="bg-zinc-950 text-white">
                   {value}
@@ -491,13 +499,13 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفئة</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.filters.category")}</div>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="">كل الفئات</option>
+              <option value="">{tt("inventory.filters.allCategories")}</option>
               {categories.map((value) => (
                 <option key={value} value={value} className="bg-zinc-950 text-white">
                   {value}
@@ -507,7 +515,7 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">عدد الصفوف</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.movements.rowCount")}</div>
             <select
               value={String(rowCount)}
               onChange={(e) => setRowCount(Number(e.target.value))}
@@ -532,7 +540,7 @@ function StockMovements() {
             }}
             className="self-end rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
-            إعادة ضبط
+            {tt("inventory.actions.reset")}
           </button>
         </div>
       </div>
@@ -540,8 +548,8 @@ function StockMovements() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
         <div className="flex flex-col gap-2 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="m1-section-title text-white">سجل الحركات</h3>
-            <p className="mt-1 text-sm text-zinc-400">مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.</p>
+            <h3 className="m1-section-title text-white">{tt("inventory.movements.log")}</h3>
+            <p className="mt-1 text-sm text-zinc-400">{tt("inventory.movements.groupedHint")}</p>
           </div>
           <div className="text-sm text-zinc-400">
             {groupedMovements.length} منتج مجمّع · {movements.length} صف
@@ -551,7 +559,7 @@ function StockMovements() {
         {loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-400">
             <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-            جارٍ تحميل حركات المخزون...
+            {tt("inventory.movements.loading")}
           </div>
         ) : error ? (
           <div className="p-5 text-sm text-red-100">
@@ -560,7 +568,7 @@ function StockMovements() {
         ) : groupedMovements.length === 0 ? (
           <div className="p-8 text-center text-zinc-400">
             <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">
-              لا توجد حركات.
+              {tt("inventory.movements.empty")}
             </div>
           </div>
         ) : (
@@ -598,16 +606,16 @@ function StockMovements() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[420px] md:justify-self-end">
-                      <Stat label="عدد الحركات" value={group.movementCount} />
+                      <Stat label={tt("inventory.movements.count")} value={group.movementCount} />
                       <Stat
-                        label="صافي التغيير"
+                        label={tt("inventory.movements.netChange")}
                         value={formatSignedQuantity(group.totalDelta)}
                         tone={group.totalDelta >= 0 ? "emerald" : "rose"}
                       />
-                      <Stat label="آخر تاريخ" value={group.lastMovementAt ? formatDateTime(group.lastMovementAt) : "غير متاح"} />
+                      <Stat label={tt("inventory.movements.lastDate")} value={group.lastMovementAt ? formatDateTime(group.lastMovementAt) : tt("inventory.labels.notAvailable")} />
                       <div className="flex items-center justify-end md:justify-center">
                         <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-zinc-300">
-                          {expanded ? "طي" : "توسيع"}
+                          {expanded ? tt("inventory.actions.collapse") : tt("inventory.actions.expand")}
                           {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </span>
                       </div>
@@ -624,8 +632,8 @@ function StockMovements() {
 
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">حركات الاختيار</div>
-                          <div className="mt-1 text-sm text-zinc-400">اضغط صف الاختيار لفتح خطه الزمني الكامل.</div>
+                          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.movements.variantMovements")}</div>
+                          <div className="mt-1 text-sm text-zinc-400">{tt("inventory.movements.variantRowHint")}</div>
                         </div>
                         <div className="text-xs font-semibold text-zinc-500">{group.movements.length} صف</div>
                       </div>
@@ -655,10 +663,10 @@ function StockMovements() {
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">{movementTypeLabel(movement.movement_type)}</span>
                                   <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
-                                    {movement.color || "لا يوجد لون"}
+                                    {movement.color || tt("inventory.labels.noColor")}
                                   </span>
                                   <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
-                                    {movement.size || "لا يوجد مقاس"}
+                                    {movement.size || tt("inventory.labels.noSize")}
                                   </span>
                                   {movement.variant_article_code ? (
                                     <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
@@ -669,34 +677,34 @@ function StockMovements() {
 
                                 <div className="mt-2 grid gap-1 text-xs text-zinc-400 md:grid-cols-2">
                                   <div>
-                                    <span className="font-black text-zinc-200">السبب:</span> {movement.reason || movement.notes || "غير متاح"}
+                                    <span className="font-black text-zinc-200">{tt("inventory.adjustments.reasonLabel")}</span> {movement.reason || movement.notes || tt("inventory.labels.notAvailable")}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">المرجع:</span>{" "}
-                                    {movement.reference_type || "غير متاح"} #{movement.reference_id || "غير متاح"}
+                                    <span className="font-black text-zinc-200">{tt("inventory.movements.referenceLabel")}</span>{" "}
+                                    {movement.reference_type || tt("inventory.labels.notAvailable")} #{movement.reference_id || tt("inventory.labels.notAvailable")}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">المستخدم:</span> {movement.created_by_name || "غير متاح"}
+                                    <span className="font-black text-zinc-200">{tt("inventory.movements.userLabel")}</span> {movement.created_by_name || tt("inventory.labels.notAvailable")}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">التاريخ/الوقت:</span> {formatDateTime(movement.created_at)}
+                                    <span className="font-black text-zinc-200">{tt("inventory.movements.dateTimeLabel")}</span> {formatDateTime(movement.created_at)}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">المخزن/الفرع:</span>{" "}
-                                    {[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" · ") || "غير متاح"}
+                                    <span className="font-black text-zinc-200">{tt("inventory.movements.warehouseBranchLabel")}</span>{" "}
+                                    {[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" · ") || tt("inventory.labels.notAvailable")}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">SKU/الباركود:</span>{" "}
-                                    {[movement.sku || "غير متاح", movement.barcode || "غير متاح"].join(" / ")}
+                                    <span className="font-black text-zinc-200">{tt("inventory.movements.skuBarcodeLabel")}</span>{" "}
+                                    {[movement.sku || tt("inventory.labels.notAvailable"), movement.barcode || tt("inventory.labels.notAvailable")].join(" / ")}
                                   </div>
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[350px]">
-                                <Stat label="الكمية" value={formatSignedQuantity(delta)} tone={delta >= 0 ? "emerald" : "rose"} />
-                                <Stat label="قبل" value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
-                                <Stat label="بعد" value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
-                                <Stat label="السجل" value="فتح" tone="violet" />
+                                <Stat label={tt("inventory.labels.quantity")} value={formatSignedQuantity(delta)} tone={delta >= 0 ? "emerald" : "rose"} />
+                                <Stat label={tt("inventory.movements.before")} value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
+                                <Stat label={tt("inventory.movements.after")} value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
+                                <Stat label={tt("inventory.labels.history")} value={tt("common.open")} tone="violet" />
                               </div>
                             </button>
                           );
@@ -733,16 +741,16 @@ function CurrentStockSummary({ loading, error, rows }) {
     <div className="mb-4 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">ملخص الرصيد الحالي</div>
-          <div className="mt-1 text-sm text-zinc-400">الرصيد الحالي للاختيارات مجمّع حسب اللون والمقاس.</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.movements.balanceSummary")}</div>
+          <div className="mt-1 text-sm text-zinc-400">{tt("inventory.movements.balanceSummaryHint")}</div>
         </div>
         {loading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : null}
       </div>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <Metric label="إجمالي الرصيد الحالي" value={totalStock} tone="emerald" />
-        <Metric label="عدد الألوان" value={numberOfColors} tone="blue" />
-        <Metric label="عدد المقاسات النشطة" value={numberOfActiveSizes} tone="violet" />
+        <Metric label={tt("inventory.movements.totalBalance")} value={totalStock} tone="emerald" />
+        <Metric label={tt("inventory.movements.colorCount")} value={numberOfColors} tone="blue" />
+        <Metric label={tt("inventory.movements.activeSizeCount")} value={numberOfActiveSizes} tone="violet" />
       </div>
 
       {error ? <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
@@ -754,8 +762,8 @@ function CurrentStockSummary({ loading, error, rows }) {
               <div key={`${row.color}::${row.size}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-white">{row.color || "غير محدد"}</div>
-                    <div className="mt-1 text-xs text-zinc-400">{row.size || "غير محدد"}</div>
+                    <div className="truncate text-sm font-black text-white">{row.color || tt("inventory.labels.unspecified")}</div>
+                    <div className="mt-1 text-xs text-zinc-400">{row.size || tt("inventory.labels.unspecified")}</div>
                   </div>
                   <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white tabular-nums">
                     {row.stock}
@@ -766,7 +774,7 @@ function CurrentStockSummary({ loading, error, rows }) {
           </div>
         ) : (
           <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 px-3 py-4 text-sm text-zinc-400">
-            لا توجد لقطة رصيد مباشرة متاحة.
+            {tt("inventory.movements.noSnapshot")}
           </div>
         )}
       </div>
@@ -776,24 +784,24 @@ function CurrentStockSummary({ loading, error, rows }) {
           <table className="m1-table m1-table--compact min-w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-zinc-500">
-                <th className="px-4 py-3 font-semibold">اللون</th>
-                <th className="px-4 py-3 font-semibold">المقاس</th>
-                <th className="px-4 py-3 font-semibold">الرصيد الحالي</th>
+                <th className="px-4 py-3 font-semibold">{tt("inventory.purchaseAlerts.cards.color")}</th>
+                <th className="px-4 py-3 font-semibold">{tt("inventory.sizes.size")}</th>
+                <th className="px-4 py-3 font-semibold">{tt("inventory.adjustments.currentBalance")}</th>
               </tr>
             </thead>
             <tbody>
               {rows.length ? (
                 rows.map((row) => (
                   <tr key={`${row.color}::${row.size}`} className="border-b border-white/5 last:border-b-0">
-                    <td className="px-4 py-3 font-semibold text-white">{row.color || "غير محدد"}</td>
-                    <td className="px-4 py-3 text-zinc-300">{row.size || "غير محدد"}</td>
+                    <td className="px-4 py-3 font-semibold text-white">{row.color || tt("inventory.labels.unspecified")}</td>
+                    <td className="px-4 py-3 text-zinc-300">{row.size || tt("inventory.labels.unspecified")}</td>
                     <td className="px-4 py-3 font-black text-emerald-300 tabular-nums">{row.stock}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td colSpan={3} className="px-4 py-6 text-center text-zinc-400">
-                    لا توجد لقطة رصيد مباشرة متاحة.
+                    {tt("inventory.movements.noSnapshot")}
                   </td>
                 </tr>
               )}
@@ -879,12 +887,12 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="إغلاق سجل الاختيار" />
+      <button type="button" className="absolute inset-0" onClick={onClose} aria-label={tt("inventory.movements.closeVariantHistory")} />
       <div className="relative flex h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div className="min-w-0">
-            <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">سجل الاختيار</div>
-            <h3 className="m1-section-title mt-1 truncate text-white">{group.product_name || movement.product_name || "سجل الاختيار"}</h3>
+            <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">{tt("inventory.movements.variantHistory")}</div>
+            <h3 className="m1-section-title mt-1 truncate text-white">{group.product_name || movement.product_name || tt("inventory.movements.variantHistory")}</h3>
             <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-zinc-400">
               {movement.color ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.color}</span> : null}
               {movement.size ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.size}</span> : null}
@@ -893,7 +901,7 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
             </div>
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-            إغلاق
+            {tt("common.close")}
           </button>
         </div>
 
@@ -901,43 +909,43 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
           <aside className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
-                {imageUrl ? <img src={imageUrl} alt={group.product_name || movement.product_name || "صورة المنتج"} className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6" />}
+                {imageUrl ? <img src={imageUrl} alt={group.product_name || movement.product_name || tt("inventory.labels.productImage")} className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6" />}
               </div>
               <div className="min-w-0 flex-1">
                 <MovementBadge type={movement.movement_type} />
                 <div className="mt-2 text-sm font-black text-white">{movementTypeLabel(movement.movement_type)}</div>
-                <div className="mt-1 text-xs leading-5 text-zinc-400">{movement.reason || movement.notes || "لم يتم توفير سبب."}</div>
+                <div className="mt-1 text-xs leading-5 text-zinc-400">{movement.reason || movement.notes || tt("inventory.adjustments.noReasonDot")}</div>
               </div>
             </div>
 
             <div className="mt-4 grid gap-2 text-sm">
-              <Detail label="الكمية قبل" value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
-              <Detail label="التغيير في الكمية" value={formatSignedQuantity(movement.quantity_change ?? movement.quantity_delta ?? movement.quantity ?? 0)} />
-              <Detail label="الكمية بعد" value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
-              <Detail label="المرجع" value={`${movement.reference_type || "غير متاح"} #${movement.reference_id || "غير متاح"}`} />
-              <Detail label="المستخدم" value={movement.created_by_name || "غير متاح"} />
-              <Detail label="المخزن / الفرع" value={[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" • ") || "غير متاح"} />
-              <Detail label="التاريخ/الوقت" value={formatDateTime(movement.created_at)} />
+              <Detail label={tt("inventory.movements.qtyBefore")} value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
+              <Detail label={tt("inventory.adjustments.quantityChange")} value={formatSignedQuantity(movement.quantity_change ?? movement.quantity_delta ?? movement.quantity ?? 0)} />
+              <Detail label={tt("inventory.movements.qtyAfter")} value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
+              <Detail label={tt("inventory.movements.reference")} value={`${movement.reference_type || tt("inventory.labels.notAvailable")} #${movement.reference_id || tt("inventory.labels.notAvailable")}`} />
+              <Detail label={tt("inventory.movements.user")} value={movement.created_by_name || tt("inventory.labels.notAvailable")} />
+              <Detail label={tt("inventory.movements.warehouseBranch")} value={[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" • ") || tt("inventory.labels.notAvailable")} />
+              <Detail label={tt("inventory.movements.dateTime")} value={formatDateTime(movement.created_at)} />
             </div>
           </aside>
 
           <section className="flex min-h-0 flex-col rounded-3xl border border-white/10 bg-black/10">
             <div className="border-b border-white/10 px-4 py-3">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">التسلسل الزمني الكامل للاختيار</div>
-              <div className="mt-1 text-sm text-zinc-400">المشتريات والمبيعات والمرتجعات والتحويلات والجرد والتسويات لهذا الاختيار تحديدًا.</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.movements.fullTimeline")}</div>
+              <div className="mt-1 text-sm text-zinc-400">{tt("inventory.movements.fullTimelineHint")}</div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {loading ? (
                 <div className="flex h-full items-center justify-center py-16 text-zinc-400">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-                  جارٍ تحميل سجل الاختيار...
+                  {tt("inventory.movements.loadingVariant")}
                 </div>
               ) : error ? (
                 <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
               ) : movements.length === 0 ? (
                 <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
-                  لا يوجد سجل حركات لهذا الاختيار.
+                  {tt("inventory.movements.noVariantHistory")}
                 </div>
               ) : (
                 <div className="grid gap-2">
@@ -947,7 +955,7 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
                     return (
                       <div key={String(item.id)} className="grid gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-4 md:grid-cols-[48px_minmax(0,1.4fr)_auto]">
                         <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
-                          {itemImage ? <img src={itemImage} alt={item.product_name || "الاختيار"} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5" />}
+                          {itemImage ? <img src={itemImage} alt={item.product_name || tt("inventory.tableHeaders.variant")} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5" />}
                         </div>
 
                         <div className="min-w-0">
@@ -958,33 +966,33 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
                           </div>
                           <div className="mt-2 grid gap-1 text-xs text-zinc-400 md:grid-cols-2">
                             <div>
-                              <span className="font-black text-zinc-200">السبب:</span> {item.reason || item.notes || "غير متاح"}
+                              <span className="font-black text-zinc-200">{tt("inventory.adjustments.reasonLabel")}</span> {item.reason || item.notes || tt("inventory.labels.notAvailable")}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">المرجع:</span> {item.reference_type || "غير متاح"} #{item.reference_id || "غير متاح"}
+                              <span className="font-black text-zinc-200">{tt("inventory.movements.referenceLabel")}</span> {item.reference_type || tt("inventory.labels.notAvailable")} #{item.reference_id || tt("inventory.labels.notAvailable")}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">المستخدم:</span> {item.created_by_name || "غير متاح"}
+                              <span className="font-black text-zinc-200">{tt("inventory.movements.userLabel")}</span> {item.created_by_name || tt("inventory.labels.notAvailable")}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">التاريخ/الوقت:</span> {formatDateTime(item.created_at)}
+                              <span className="font-black text-zinc-200">{tt("inventory.movements.dateTimeLabel")}</span> {formatDateTime(item.created_at)}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">المخزن/الفرع:</span>{" "}
-                              {[item.warehouse_name, item.branch_name].filter(Boolean).join(" · ") || "غير متاح"}
+                              <span className="font-black text-zinc-200">{tt("inventory.movements.warehouseBranchLabel")}</span>{" "}
+                              {[item.warehouse_name, item.branch_name].filter(Boolean).join(" · ") || tt("inventory.labels.notAvailable")}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">قبل / بعد:</span>{" "}
+                              <span className="font-black text-zinc-200">{tt("inventory.movements.beforeAfterLabel")}</span>{" "}
                               {Number(item.quantity_before ?? item.before_qty ?? 0)} / {Number(item.quantity_after ?? item.after_qty ?? 0)}
                             </div>
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[290px]">
-                          <Stat label="الكمية" value={formatSignedQuantity(delta)} tone={delta >= 0 ? "emerald" : "rose"} />
-                          <Stat label="قبل" value={Number(item.quantity_before ?? item.before_qty ?? 0)} />
-                          <Stat label="بعد" value={Number(item.quantity_after ?? item.after_qty ?? 0)} />
-                          <Stat label="النوع" value={movementTypeLabel(item.movement_type)} tone="violet" />
+                          <Stat label={tt("inventory.labels.quantity")} value={formatSignedQuantity(delta)} tone={delta >= 0 ? "emerald" : "rose"} />
+                          <Stat label={tt("inventory.movements.before")} value={Number(item.quantity_before ?? item.before_qty ?? 0)} />
+                          <Stat label={tt("inventory.movements.after")} value={Number(item.quantity_after ?? item.after_qty ?? 0)} />
+                          <Stat label={tt("inventory.labels.type")} value={movementTypeLabel(item.movement_type)} tone="violet" />
                         </div>
                       </div>
                     );

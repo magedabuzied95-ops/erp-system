@@ -46,6 +46,13 @@ import {
   upsertInventoryCountItem,
 } from "../services/inventoryCountApi";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 const COUNT_REASONS = [
   "خطأ بيع",
   "خطأ استلام",
@@ -56,11 +63,10 @@ const COUNT_REASONS = [
 ];
 
 const SESSION_STATUS_LABELS = {
-  draft: "مسودة",
-  in_progress: "قيد الجرد",
-  completed: "مكتمل",
-  cancelled: "ملغي",
-};
+  get draft() { return tt("inventory.count.status.draft"); },
+  get in_progress() { return tt("inventory.count.inProgress"); },
+  get completed() { return tt("inventory.count.status.completedMasc"); },
+  get cancelled() { return tt("inventory.count.status.cancelled"); },};
 
 const statusTone = {
   draft: "border-white/10 bg-white/5 text-white",
@@ -70,8 +76,8 @@ const statusTone = {
 };
 
 Object.assign(SESSION_STATUS_LABELS, {
-  pending_review: "قيد المراجعة",
-  rejected: "مرفوض",
+  pending_review: tt("inventory.count.status.pendingReview"),
+  rejected: tt("inventory.count.status.rejectedMasc"),
 });
 
 Object.assign(statusTone, {
@@ -529,6 +535,8 @@ const useMediaQuery = (query) => {
 };
 
 function InventoryCountPage() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   const { id: routeSessionId } = useParams();
   const navigate = useNavigate();
   const isDetail = Boolean(routeSessionId);
@@ -569,7 +577,7 @@ function InventoryCountPage() {
   const [scopeModalOpen, setScopeModalOpen] = useState(false);
   const [hiddenGroups, setHiddenGroups] = useState([]);
   const [newSessionForm, setNewSessionForm] = useState({
-    title: "جرد جديد",
+    title: tt("inventory.count.new"),
     branchId: "",
     warehouseId: "",
     notes: "",
@@ -690,8 +698,8 @@ function InventoryCountPage() {
     } catch (error) {
       console.error("[inventory-count] load sessions", error);
       setSessions([]);
-      setSessionsError(error?.message || "تعذر تحميل جلسات الجرد");
-      toast.error(error?.message || "تعذر تحميل جلسات الجرد");
+      setSessionsError(error?.message || tt("inventory.count.errors.loadSessions"));
+      toast.error(error?.message || tt("inventory.count.errors.loadSessions"));
     } finally {
       setSessionsLoading(false);
     }
@@ -708,7 +716,7 @@ function InventoryCountPage() {
       setSession(nextSession);
       setItems(nextItems);
       setNewSessionForm({
-        title: nextSession?.title || "جرد جديد",
+        title: nextSession?.title || tt("inventory.count.new"),
         branchId: nextSession?.branch_id ? String(nextSession.branch_id) : "",
         warehouseId: nextSession?.warehouse_id ? String(nextSession.warehouse_id) : "",
         notes: nextSession?.notes || "",
@@ -717,8 +725,8 @@ function InventoryCountPage() {
       console.error("[inventory-count] load session", error);
       setSession(null);
       setItems([]);
-      setSessionError(error?.message || "تعذر تحميل جلسة الجرد");
-      toast.error(error?.message || "تعذر تحميل جلسة الجرد");
+      setSessionError(error?.message || tt("inventory.count.errors.loadSession"));
+      toast.error(error?.message || tt("inventory.count.errors.loadSession"));
     } finally {
       setSessionLoading(false);
     }
@@ -756,7 +764,7 @@ function InventoryCountPage() {
   const persistVariant = async (variant, patch = {}) => {
     if (!routeSessionId || !variant) return null;
     if (sessionIsLockedForEditing) {
-      toast.error("الجرد في انتظار موافقة المدير");
+      toast.error(tt("inventory.count.awaitingManager"));
       return null;
     }
     const response = await upsertInventoryCountItem(routeSessionId, {
@@ -801,7 +809,7 @@ function InventoryCountPage() {
         if (saved) mergeSavedItem(saved);
         logDevDuration("save item", startedAt, { variantId });
       } catch (error) {
-        toast.error(error?.message || "تعذر حفظ القطعة");
+        toast.error(error?.message || tt("inventory.count.errors.saveItem"));
       } finally {
         setItemSavingId("");
       }
@@ -813,19 +821,19 @@ function InventoryCountPage() {
   const createSessionHandler = async () => {
     try {
       const response = await createInventoryCountSession({
-        title: newSessionForm.title || "جرد جديد",
+        title: newSessionForm.title || tt("inventory.count.new"),
         branchId: newSessionForm.branchId || null,
         warehouseId: newSessionForm.warehouseId || null,
         notes: newSessionForm.notes || "",
       });
       const createdSession = response?.session;
-      if (!createdSession?.id) throw new Error("فشل إنشاء جلسة الجرد");
+      if (!createdSession?.id) throw new Error(tt("inventory.count.errors.createSession"));
       setScopeModalOpen(false);
-      toast.success("تم بدء جلسة الجرد");
+      toast.success(tt("inventory.count.toasts.sessionStarted"));
       navigate(`/inventory/count/${createdSession.id}`);
     } catch (error) {
       console.error("[inventory-count] create session", error);
-      toast.error(error?.message || "تعذر بدء جلسة الجرد");
+      toast.error(error?.message || tt("inventory.count.errors.startSession"));
     }
   };
 
@@ -834,16 +842,16 @@ function InventoryCountPage() {
     try {
       setSavingDraft(true);
       const response = await updateInventoryCountSession(routeSessionId, {
-        title: newSessionForm.title || "جرد جديد",
+        title: newSessionForm.title || tt("inventory.count.new"),
         branchId: newSessionForm.branchId || null,
         warehouseId: newSessionForm.warehouseId || null,
         notes: newSessionForm.notes || "",
       });
       setSession(response?.session || session);
-      toast.success("تم حفظ المسودة");
+      toast.success(tt("inventory.count.toasts.draftSaved"));
     } catch (error) {
       console.error("[inventory-count] save draft", error);
-      toast.error(error?.message || "تعذر حفظ المسودة");
+      toast.error(error?.message || tt("inventory.count.errors.saveDraft"));
     } finally {
       setSavingDraft(false);
     }
@@ -855,10 +863,10 @@ function InventoryCountPage() {
       setOpeningSession(true);
       const response = await openInventoryCountSession(routeSessionId);
       setSession(response?.session || session);
-      toast.success("تم فتح جلسة الجرد");
+      toast.success(tt("inventory.count.toasts.sessionOpened"));
     } catch (error) {
       console.error("[inventory-count] open session", error);
-      toast.error(error?.message || "تعذر فتح جلسة الجرد");
+      toast.error(error?.message || tt("inventory.count.errors.openSession"));
     } finally {
       setOpeningSession(false);
     }
@@ -871,10 +879,10 @@ function InventoryCountPage() {
       const response = await submitInventoryCountSession(routeSessionId);
       setSession(response?.session || session);
       await loadSession();
-      toast.success("تم إرسال الجرد للمراجعة");
+      toast.success(tt("inventory.count.toasts.submitted"));
     } catch (error) {
       console.error("[inventory-count] submit session", error);
-      toast.error(error?.message || "تعذر إرسال الجرد للمراجعة");
+      toast.error(error?.message || tt("inventory.count.errors.submit"));
     } finally {
       setApprovingSession(false);
     }
@@ -882,17 +890,17 @@ function InventoryCountPage() {
 
   const approveSessionHandler = async () => {
     if (!routeSessionId) return;
-    const confirmed = window.confirm("هل تريد اعتماد الجرد الآن؟ سيتم إنشاء حركات مخزون رسمية لكل فرق.");
+    const confirmed = window.confirm(tt("inventory.count.confirmApprove"));
     if (!confirmed) return;
     try {
       setApprovingSession(true);
       const response = await approveInventoryCountSession(routeSessionId);
       setSession(response?.session || session);
       await loadSession();
-      toast.success("تم اعتماد الجرد");
+      toast.success(tt("inventory.count.toasts.approved"));
     } catch (error) {
       console.error("[inventory-count] approve session", error);
-      toast.error(error?.message || "تعذر اعتماد الجرد");
+      toast.error(error?.message || tt("inventory.count.errors.approve"));
     } finally {
       setApprovingSession(false);
     }
@@ -900,17 +908,17 @@ function InventoryCountPage() {
 
   const rejectSessionHandler = async () => {
     if (!routeSessionId) return;
-    const rejectionReason = window.prompt("ما سبب رفض الجرد؟", session?.rejection_reason || "");
+    const rejectionReason = window.prompt(tt("inventory.count.promptRejectReason"), session?.rejection_reason || "");
     if (rejectionReason === null) return;
     try {
       setApprovingSession(true);
       const response = await rejectInventoryCountSession(routeSessionId, { rejectionReason });
       setSession(response?.session || session);
       await loadSession();
-      toast.success("تم رفض الجرد");
+      toast.success(tt("inventory.count.toasts.rejected"));
     } catch (error) {
       console.error("[inventory-count] reject session", error);
-      toast.error(error?.message || "تعذر رفض الجرد");
+      toast.error(error?.message || tt("inventory.count.errors.reject"));
     } finally {
       setApprovingSession(false);
     }
@@ -923,10 +931,10 @@ function InventoryCountPage() {
       const response = await reopenInventoryCountSession(routeSessionId);
       setSession(response?.session || session);
       await loadSession();
-      toast.success("تمت إعادة فتح الجرد للتعديل");
+      toast.success(tt("inventory.count.toasts.reopened"));
     } catch (error) {
       console.error("[inventory-count] reopen session", error);
-      toast.error(error?.message || "تعذر إعادة فتح الجرد");
+      toast.error(error?.message || tt("inventory.count.errors.reopen"));
     } finally {
       setOpeningSession(false);
     }
@@ -934,17 +942,17 @@ function InventoryCountPage() {
 
   const cancelSessionHandler = async () => {
     if (!routeSessionId) return;
-    const confirmed = window.confirm("هل تريد إلغاء جلسة الجرد؟");
+    const confirmed = window.confirm(tt("inventory.count.confirmCancel"));
     if (!confirmed) return;
     try {
       setCancellingSession(true);
       const response = await cancelInventoryCountSession(routeSessionId, { notes: newSessionForm.notes || "" });
       setSession(response?.session || session);
       await loadSession();
-      toast.success("تم إلغاء الجرد");
+      toast.success(tt("inventory.count.toasts.cancelled"));
     } catch (error) {
       console.error("[inventory-count] cancel session", error);
-      toast.error(error?.message || "تعذر إلغاء الجرد");
+      toast.error(error?.message || tt("inventory.count.errors.cancel"));
     } finally {
       setCancellingSession(false);
     }
@@ -953,10 +961,10 @@ function InventoryCountPage() {
   const deleteSessionHandler = async (targetSessionId = routeSessionId, targetSessionStatus = session?.status) => {
     if (!targetSessionId) return;
     if (String(targetSessionStatus || "") === "completed") {
-      toast.error("لا يمكن حذف جلسة مكتملة");
+      toast.error(tt("inventory.count.errors.deleteCompleted"));
       return;
     }
-    const confirmed = window.confirm("هل تريد حذف جلسة الجرد بالكامل؟ سيتم حذف كل عناصر الجرد داخلها ولا يمكن التراجع.");
+    const confirmed = window.confirm(tt("inventory.count.confirmDelete"));
     if (!confirmed) return;
     try {
       setDeletingSession(true);
@@ -971,10 +979,10 @@ function InventoryCountPage() {
       } else {
         await loadSessions();
       }
-      toast.success("تم حذف جلسة الجرد");
+      toast.success(tt("inventory.count.toasts.sessionDeleted"));
     } catch (error) {
       console.error("[inventory-count] delete session", error);
-      toast.error(error?.message || "تعذر حذف جلسة الجرد");
+      toast.error(error?.message || tt("inventory.count.errors.deleteSession"));
     } finally {
       setDeletingSession(false);
     }
@@ -1010,11 +1018,11 @@ function InventoryCountPage() {
       });
 
       if (results.length === 0) {
-        toast.error("لم يتم العثور على نتائج مطابقة");
+        toast.error(tt("inventory.count.noMatches"));
       }
     } catch (error) {
       console.error("[inventory-count] lookup variants", error);
-      toast.error(error?.message || "تعذر البحث");
+      toast.error(error?.message || tt("inventory.count.errors.search"));
     } finally {
       setLookupLoading(false);
     }
@@ -1068,9 +1076,9 @@ function InventoryCountPage() {
             notes: existingBeforeScan?.notes || "",
           });
           await loadSession(routeSessionId);
-          toast.success(`طھظ… ط¹ط¯ ظ‚ط·ط¹ط© ظ…ظ† ظ…ظ‚ط§ط³ ${saved?.variant_size || scanExactVariant.size || "ط؛ظٹط± ظ…ط­ط¯ط¯"}`);
+          toast.success(`طھظ… ط¹ط¯ ظ‚ط·ط¹ط© ظ…ظ† ظ…ظ‚ط§ط³ ${saved?.variant_size || scanExactVariant.size || tt("inventory.labels.unspecified")}`);
         } else {
-          toast.success("طھظ… ط¥ط¶ط§ظپط© ط§ظ„ظ…ظˆط¯ظٹظ„ ط¨ظ†ط¬ط§ط­");
+          toast.success(tt("inventory.count.toasts.modelAdded"));
         }
         setLookupQuery("");
         setLookupResults([]);
@@ -1090,13 +1098,13 @@ function InventoryCountPage() {
         });
         setLookupQuery("");
         setLookupResults([]);
-        toast.success(`تم عد قطعة من مقاس ${saved?.variant_size || exactVariant.size || "غير محدد"}`);
+        toast.success(`تم عد قطعة من مقاس ${saved?.variant_size || exactVariant.size || tt("inventory.labels.unspecified")}`);
       } else if (results.length === 0) {
-        toast.error("الباركود غير موجود");
+        toast.error(tt("inventory.scanner.barcodeNotFound"));
       }
     } catch (error) {
       console.error("[inventory-count] scanner lookup", error);
-      toast.error(error?.message || "تعذر قراءة الباركود");
+      toast.error(error?.message || tt("inventory.scanner.readFailed"));
     } finally {
       setLookupLoading(false);
     }
@@ -1143,7 +1151,7 @@ function InventoryCountPage() {
       }
     } catch (error) {
       console.error("[inventory-count] persist item", error);
-      toast.error(error?.message || "تعذر حفظ الصنف");
+      toast.error(error?.message || tt("inventory.count.errors.saveLine"));
     }
   };
 
@@ -1171,10 +1179,10 @@ function InventoryCountPage() {
       }));
       await loadSession();
       logDevDuration("add color group", startedAt, { groupKey: group.key });
-      toast.success("تمت إضافة اللون للجرد");
+      toast.success(tt("inventory.count.toasts.colorAdded"));
     } catch (error) {
       console.error("[inventory-count] add color group", error);
-      toast.error(error?.message || "تعذر إضافة اللون للجرد");
+      toast.error(error?.message || tt("inventory.count.errors.addColor"));
     } finally {
       setBusyGroupKey("");
     }
@@ -1197,10 +1205,10 @@ function InventoryCountPage() {
       setLookupQuery("");
       setLookupResults([]);
       setSelectedLookupProductId("");
-      toast.success("تمت إضافة الموديل للجرد");
+      toast.success(tt("inventory.count.toasts.modelAddedToCount"));
     } catch (error) {
       console.error("[inventory-count] add model", error);
-      toast.error(error?.message || "تعذر إضافة الموديل للجرد");
+      toast.error(error?.message || tt("inventory.count.errors.addModel"));
     } finally {
       setBusyGroupKey("");
     }
@@ -1224,22 +1232,22 @@ function InventoryCountPage() {
       if (toastLabel) toast.success(toastLabel);
     } catch (error) {
       console.error("[inventory-count] group update", error);
-      toast.error(error?.message || "تعذر تحديث اللون");
+      toast.error(error?.message || tt("inventory.count.errors.updateColor"));
     } finally {
       setBusyGroupKey("");
     }
   };
 
   const matchGroupToSystem = async (group) => {
-    await setGroupCount(group, undefined, "تمت مطابقة السيستم");
+    await setGroupCount(group, undefined, tt("inventory.count.toasts.matchedSystem"));
   };
 
   const zeroGroup = async (group) => {
-    await setGroupCount(group, 0, "تم تصفير اللون");
+    await setGroupCount(group, 0, tt("inventory.count.toasts.colorZeroed"));
   };
 
   const removeGroupFromView = async (group) => {
-    const confirmed = window.confirm("هل تريد حذف هذا اللون من الجرد؟ سيتم تركه مطابقًا للسيستم بدون فرق.");
+    const confirmed = window.confirm(tt("inventory.count.confirmDeleteColor"));
     if (!confirmed) return;
     try {
       setBusyGroupKey(group.key);
@@ -1255,10 +1263,10 @@ function InventoryCountPage() {
       setHiddenGroups((current) => (current.includes(group.key) ? current : [...current, group.key]));
       await loadSession();
       logDevDuration("remove group", startedAt, { groupKey: group.key });
-      toast.success("تم حذف اللون من العرض");
+      toast.success(tt("inventory.count.toasts.colorRemoved"));
     } catch (error) {
       console.error("[inventory-count] remove group", error);
-      toast.error(error?.message || "تعذر حذف اللون");
+      toast.error(error?.message || tt("inventory.count.errors.deleteColor"));
     } finally {
       setBusyGroupKey("");
     }
@@ -1341,14 +1349,14 @@ function InventoryCountPage() {
   return (
     <>
       <InventoryShell
-        title="الجرد"
-        subtitle="إدارة جلسات الجرد، والبحث بالباركود أو رمز الصنف، واعتماد الفروقات عبر حركات مخزون رسمية فقط."
+        title={tt("inventory.tabs.count")}
+        subtitle={tt("inventory.count.pageSubtitle")}
         actions={
           <div className="flex flex-wrap gap-2">
             {isDetail ? (
               <Link to="/inventory/count" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
                 <ArrowLeft className="h-4 w-4" />
-                العودة إلى القائمة
+                {tt("inventory.count.backToList")}
               </Link>
             ) : null}
             <button
@@ -1357,17 +1365,17 @@ function InventoryCountPage() {
               className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
             >
               <Plus className="h-4 w-4" />
-              بدء جرد جديد
+              {tt("inventory.count.startNew")}
             </button>
           </div>
         }
         tabs={[
-          { to: "/inventory", label: "المخزون", end: true },
-          { to: "/inventory/count", label: "الجرد", end: true },
-          { to: "/inventory/movements", label: "الحركات" },
-          { to: "/inventory/adjustments", label: "التسويات" },
-          { to: "/stock-transfers", label: "التحويلات" },
-          { to: "/warehouses", label: "المخازن" },
+          { to: "/inventory", label: tt("inventory.table.stock"), end: true },
+          { to: "/inventory/count", label: tt("inventory.tabs.count"), end: true },
+          { to: "/inventory/movements", label: tt("inventory.tabs.movements") },
+          { to: "/inventory/adjustments", label: tt("inventory.tabs.adjustments") },
+          { to: "/stock-transfers", label: tt("inventory.tabs.transfers") },
+          { to: "/warehouses", label: tt("inventory.tabs.warehouses") },
         ]}
       >
         {isDetail ? (
@@ -1379,15 +1387,15 @@ function InventoryCountPage() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge value={SESSION_STATUS_LABELS[session?.status || "draft"] || session?.status || "مسودة"} />
+                      <StatusBadge value={SESSION_STATUS_LABELS[session?.status || "draft"] || session?.status || tt("inventory.count.status.draft")} />
                       <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone[session?.status || "draft"] || statusTone.draft}`}>
-                        {SESSION_STATUS_LABELS[session?.status || "draft"] || "مسودة"}
+                        {SESSION_STATUS_LABELS[session?.status || "draft"] || tt("inventory.count.status.draft")}
                       </span>
                     </div>
-                    <h1 className="m1-page-title mt-3 text-white">{newSessionForm.title || "جرد جديد"}</h1>
+                    <h1 className="m1-page-title mt-3 text-white">{newSessionForm.title || tt("inventory.count.new")}</h1>
                     <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-400">
-                      <span>الفرع: {session?.branch_name || selectedBranchName || "غير محدد"}</span>
-                      <span>المخزن: {session?.warehouse_name || selectedWarehouseName || "غير محدد"}</span>
+                      <span>الفرع: {session?.branch_name || selectedBranchName || tt("inventory.labels.unspecified")}</span>
+                      <span>المخزن: {session?.warehouse_name || selectedWarehouseName || tt("inventory.labels.unspecified")}</span>
                       <span>آخر تحديث: {formatDateTime(session?.updated_at || session?.created_at)}</span>
                     </div>
                   </div>
@@ -1433,7 +1441,7 @@ function InventoryCountPage() {
                         disabled={approvingSession}
                         className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"
                       >
-                        رفض وإرجاع للتعديل
+                        {tt("inventory.count.rejectAndReturn")}
                       </button>
                     ) : null}
                     {session?.status === "rejected" && canReviewInventoryCount ? (
@@ -1470,16 +1478,16 @@ function InventoryCountPage() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-4">
-                <MetricCard label="إجمالي السطور" value={itemSummary.total} tone="blue" />
-                <MetricCard label="فروقات موجبة" value={itemSummary.positive} tone="emerald" />
-                <MetricCard label="فروقات سالبة" value={itemSummary.negative} tone="rose" />
-                <MetricCard label="إجمالي الفروق" value={itemSummary.absoluteDiff} tone="amber" />
+                <MetricCard label={tt("inventory.count.metrics.totalLines")} value={itemSummary.total} tone="blue" />
+                <MetricCard label={tt("inventory.count.metrics.positiveVariance")} value={itemSummary.positive} tone="emerald" />
+                <MetricCard label={tt("inventory.count.metrics.negativeVariance")} value={itemSummary.negative} tone="rose" />
+                <MetricCard label={tt("inventory.count.metrics.totalVariance")} value={itemSummary.absoluteDiff} tone="amber" />
               </div>
 
               <section className="mt-3 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <h2 className="m1-section-title text-white">البحث ومسح الباركود</h2>
+                    <h2 className="m1-section-title text-white">{tt("inventory.count.searchAndScan")}</h2>
                     <div className="mt-2 inline-flex max-w-full rounded-2xl border border-primary/15 bg-primary/10 px-3 py-2 text-[11px] font-bold leading-5 text-primary">
                       Inventory counts are submitted for review before final approval.
                     </div>
@@ -1488,8 +1496,8 @@ function InventoryCountPage() {
                     type="button"
                     onClick={() => setScannerOpen(true)}
                     className="hidden h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
-                    aria-label="فتح ماسح الكاميرا"
-                    title="فتح ماسح الكاميرا"
+                    aria-label={tt("inventory.scanner.open")}
+                    title={tt("inventory.scanner.open")}
                   >
                     <Camera className="h-4 w-4" />
                   </button>
@@ -1502,7 +1510,7 @@ function InventoryCountPage() {
                     className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black shadow-[0_10px_28px_rgba(16,185,129,0.22)] transition hover:bg-primary"
                   >
                     <Camera className="h-4 w-4" />
-                    امسح الباركود
+                    {tt("inventory.scanner.scanNow")}
                   </button>
                   <div className="hidden items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500 sm:flex">
                     <span className="h-px w-10 bg-white/10" />
@@ -1517,8 +1525,8 @@ function InventoryCountPage() {
                     onClick={() => setFiltersOpen(true)}
                     aria-expanded={filtersOpen}
                     className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
-                    aria-label="الفلتر"
-                    title="الفلتر"
+                    aria-label={tt("inventory.count.filter")}
+                    title={tt("inventory.count.filter")}
                   >
                     <span className="relative inline-flex">
                       <Filter className="h-4 w-4" />
@@ -1528,7 +1536,7 @@ function InventoryCountPage() {
                         </span>
                       ) : null}
                     </span>
-                    <span className="sr-only">الفلتر</span>
+                    <span className="sr-only">{tt("inventory.count.filter")}</span>
                   </button>
 
                   <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
@@ -1543,7 +1551,7 @@ function InventoryCountPage() {
                           void lookupVariants();
                         }
                       }}
-                      placeholder="ابحث بالاسم أو الموديل أو الباركود أو الكود"
+                      placeholder={tt("inventory.count.searchPlaceholder")}
                       className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
                     />
                   </label>
@@ -1554,8 +1562,8 @@ function InventoryCountPage() {
                       setScannerOpen(true);
                     }}
                     className="hidden h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
-                    aria-label="فتح ماسح الكاميرا"
-                    title="فتح ماسح الكاميرا"
+                    aria-label={tt("inventory.scanner.open")}
+                    title={tt("inventory.scanner.open")}
                   >
                     <Camera className="h-4 w-4" />
                   </button>
@@ -1571,7 +1579,7 @@ function InventoryCountPage() {
                     }}
                     className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 self-start rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 text-xs font-black text-white transition hover:bg-white/[0.08]"
                   >
-                    + إضافة منتج يدوياً
+                    {tt("inventory.count.addManually")}
                   </button>
 
                   <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 sm:grid-cols-3">
@@ -1631,8 +1639,8 @@ function InventoryCountPage() {
                 {selectedLookupGroup ? (
                   <div className="mt-3 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">الموديل المحدد</div>
-                      <div className="mt-1 truncate text-sm font-bold text-white">{selectedLookupGroup.product_name || "منتج"}</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">{tt("inventory.count.selectedModel")}</div>
+                      <div className="mt-1 truncate text-sm font-bold text-white">{selectedLookupGroup.product_name || tt("inventory.labels.product")}</div>
                       <div className="mt-1 text-xs text-emerald-100/80">
                         {selectedLookupGroup.colors?.length || 0} ألوان · {selectedLookupGroup.variants.length} مقاسات
                       </div>
@@ -1652,7 +1660,7 @@ function InventoryCountPage() {
                 <div className="mt-4 space-y-3">
                   {filteredLookupGroups.length === 0 && lookupQuery.trim() && !lookupLoading ? (
                     <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center text-zinc-400">
-                      لا توجد نتائج مجمعة لهذا البحث.
+                      {tt("inventory.count.noGroupedResults")}
                     </div>
                   ) : null}
 
@@ -1671,13 +1679,13 @@ function InventoryCountPage() {
                   {sessionLoading ? (
                     <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
                       <Loader2 className="mx-auto h-10 w-10 animate-spin text-emerald-400" />
-                      <p className="mt-3">جاري تحميل جلسة الجرد...</p>
+                      <p className="mt-3">{tt("inventory.count.loadingSession")}</p>
                     </div>
                   ) : visibleGroupedItems.length === 0 ? (
                     <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
                       <ClipboardList className="mx-auto h-12 w-12 text-zinc-500" />
-                      <h3 className="m1-section-title mt-4 text-white">لا توجد أصناف بعد</h3>
-                      <p className="mt-2 text-sm text-zinc-400">ابدأ بالمسح أو البحث ثم أضف اللون إلى الجرد.</p>
+                      <h3 className="m1-section-title mt-4 text-white">{tt("inventory.count.noItemsYet")}</h3>
+                      <p className="mt-2 text-sm text-zinc-400">{tt("inventory.count.noItemsHint")}</p>
                     </div>
                   ) : (
                     visibleGroupedItems.map((group) => (
@@ -1706,54 +1714,54 @@ function InventoryCountPage() {
 
             <div className="space-y-4">
               <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-                <h3 className="m1-section-title text-white">بيانات الجلسة</h3>
+                <h3 className="m1-section-title text-white">{tt("inventory.count.sessionData")}</h3>
                 <div className="mt-3 grid gap-2">
-                  <Field label="اسم الجلسة" value={newSessionForm.title} onChange={(value) => setNewSessionForm((current) => ({ ...current, title: value }))} />
+                  <Field label={tt("inventory.count.sessionName")} value={newSessionForm.title} onChange={(value) => setNewSessionForm((current) => ({ ...current, title: value }))} />
                   <SelectField
-                    label="الفرع"
+                    label={tt("inventory.labels.branch")}
                     value={newSessionForm.branchId}
                     onChange={(value) => setNewSessionForm((current) => ({ ...current, branchId: value }))}
-                    options={[{ value: "", label: "بدون فرع" }, ...branches.map((branch) => ({ value: String(branch.id), label: branch.name }))]}
+                    options={[{ value: "", label: tt("inventory.count.noBranch") }, ...branches.map((branch) => ({ value: String(branch.id), label: branch.name }))]}
                     compactAction
                     badge={itemSummary.groups || 0}
                   />
                   <SelectField
-                    label="المخزن"
+                    label={tt("inventory.labels.warehouse")}
                     value={newSessionForm.warehouseId}
                     onChange={(value) => setNewSessionForm((current) => ({ ...current, warehouseId: value }))}
-                    options={[{ value: "", label: "بدون مخزن" }, ...warehouses.map((warehouse) => ({ value: String(warehouse.id), label: warehouse.name }))]}
+                    options={[{ value: "", label: tt("inventory.count.noWarehouse") }, ...warehouses.map((warehouse) => ({ value: String(warehouse.id), label: warehouse.name }))]}
                   />
                   <label className="block">
-                    <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات الجلسة</div>
+                    <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.count.sessionNotes")}</div>
                     <textarea
                       value={newSessionForm.notes}
                       onChange={(event) => setNewSessionForm((current) => ({ ...current, notes: event.target.value }))}
                     rows={4}
-                    placeholder="ملاحظات عامة حول الجرد أو منطقة العمل"
+                    placeholder={tt("inventory.count.sessionNotesPlaceholder")}
                     className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-3 text-sm text-white outline-none placeholder:text-zinc-500"
                   />
                 </label>
               </div>
                 <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">
                   <div className="flex items-center justify-between gap-3">
-                    <span>عدد المجموعات</span>
+                    <span>{tt("inventory.count.groupCount")}</span>
                     <span className="font-black text-white">{itemSummary.groups}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3">
-                    <span>إجمالي الفروق</span>
+                    <span>{tt("inventory.count.metrics.totalVariance")}</span>
                     <span className="font-black text-white">{itemSummary.absoluteDiff}</span>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-                <h3 className="m1-section-title text-white">إرشادات</h3>
+                <h3 className="m1-section-title text-white">{tt("inventory.count.guidance")}</h3>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-300">
-                  <li>• استخدم الماسح أو البحث السريع لإضافة قطعة مباشرة عند التطابق الدقيق.</li>
-                  <li>• البحث باسم المنتج يعرض كروت مجمعة حسب المنتج واللون فقط.</li>
-                  <li>• زر إضافة اللون للجرد يضيف كل المقاسات مرة واحدة بقيم فعلية صفرية.</li>
-                  <li>• مطابقة السيستم وتصفير اللون يعملان على كل المقاسات داخل اللون.</li>
-                  <li>• حذف اللون يتركه مطابقًا للسيستم حتى لا ينتج عنه فرق عند الاعتماد.</li>
+                  <li>{tt("inventory.count.guidance1")}</li>
+                  <li>{tt("inventory.count.guidance2")}</li>
+                  <li>{tt("inventory.count.guidance3")}</li>
+                  <li>{tt("inventory.count.guidance4")}</li>
+                  <li>{tt("inventory.count.guidance5")}</li>
                 </ul>
               </div>
             </div>
@@ -1763,26 +1771,26 @@ function InventoryCountPage() {
             {sessionsError ? <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{sessionsError}</div> : null}
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="إجمالي الجلسات" value={sessionSummary.total} tone="blue" />
-              <MetricCard label="مسودات" value={sessionSummary.draft} tone="amber" />
-              <MetricCard label="قيد الجرد" value={sessionSummary.inProgress} tone="emerald" />
-              <MetricCard label="مكتملة" value={sessionSummary.completed} tone="rose" />
+              <MetricCard label={tt("inventory.count.metrics.totalSessions")} value={sessionSummary.total} tone="blue" />
+              <MetricCard label={tt("inventory.count.metrics.drafts")} value={sessionSummary.draft} tone="amber" />
+              <MetricCard label={tt("inventory.count.inProgress")} value={sessionSummary.inProgress} tone="emerald" />
+              <MetricCard label={tt("inventory.count.status.completed")} value={sessionSummary.completed} tone="rose" />
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="m1-section-title text-white">جلسات الجرد</h2>
-                  <p className="mt-1 text-sm text-zinc-400">راجع الجلسات الحالية وافتح أي جلسة لمتابعة الأصناف أو اعتماد الفروقات.</p>
+                  <h2 className="m1-section-title text-white">{tt("inventory.count.sessions")}</h2>
+                  <p className="mt-1 text-sm text-zinc-400">{tt("inventory.count.sessionsHint")}</p>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {[
-                    { key: "all", label: "الكل" },
-                    { key: "draft", label: "مسودة" },
-                    { key: "in_progress", label: "قيد الجرد" },
-                    { key: "pending_review", label: "قيد المراجعة" },
-                    { key: "completed", label: "مكتملة" },
-                    { key: "rejected", label: "مرفوضة" },
+                    { key: "all", label: tt("inventory.purchaseAlerts.filters.all") },
+                    { key: "draft", label: tt("inventory.count.status.draft") },
+                    { key: "in_progress", label: tt("inventory.count.inProgress") },
+                    { key: "pending_review", label: tt("inventory.count.status.pendingReview") },
+                    { key: "completed", label: tt("inventory.count.status.completed") },
+                    { key: "rejected", label: tt("inventory.count.status.rejected") },
                   ].map((item) => (
                     <button
                       key={item.key}
@@ -1800,7 +1808,7 @@ function InventoryCountPage() {
                   className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
                 >
                   <Plus className="h-4 w-4" />
-                  بدء جرد جديد
+                  {tt("inventory.count.startNew")}
                 </button>
               </div>
 
@@ -1810,7 +1818,7 @@ function InventoryCountPage() {
                   <input
                     value={sessionSearch}
                     onChange={(event) => setSessionSearch(event.target.value)}
-                    placeholder="ابحث في الجلسات..."
+                    placeholder={tt("inventory.count.searchSessions")}
                     className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
                   />
                 </div>
@@ -1820,11 +1828,11 @@ function InventoryCountPage() {
                   className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  تحديث
+                  {tt("inventory.actions.refresh")}
                 </button>
                 <Link to="/inventory" className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
                   <Warehouse className="h-4 w-4" />
-                  المخزون
+                  {tt("inventory.table.stock")}
                 </Link>
               </div>
 
@@ -1832,13 +1840,13 @@ function InventoryCountPage() {
                 {sessionsLoading ? (
                   <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
                     <Loader2 className="mx-auto h-10 w-10 animate-spin text-emerald-400" />
-                    <p className="mt-3">جاري تحميل جلسات الجرد...</p>
+                    <p className="mt-3">{tt("inventory.count.loadingSessions")}</p>
                   </div>
                 ) : filteredSessions.length === 0 ? (
                   <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
                     <ClipboardList className="mx-auto h-12 w-12 text-zinc-500" />
-                    <h3 className="m1-section-title mt-4 text-white">لا توجد جلسات جرد بعد</h3>
-                    <p className="mt-2 text-sm text-zinc-400">ابدأ جردًا جديدًا ثم افتحه للمسح أو الاعتماد.</p>
+                    <h3 className="m1-section-title mt-4 text-white">{tt("inventory.count.noSessions")}</h3>
+                    <p className="mt-2 text-sm text-zinc-400">{tt("inventory.count.noSessionsHint")}</p>
                   </div>
                 ) : (
                   filteredSessions.map((row) => (
@@ -1858,13 +1866,13 @@ function InventoryCountPage() {
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <StatusBadge value={SESSION_STATUS_LABELS[row.status || "draft"] || row.status || "مسودة"} />
+                            <StatusBadge value={SESSION_STATUS_LABELS[row.status || "draft"] || row.status || tt("inventory.count.status.draft")} />
                             <span className="text-xs text-zinc-500">#{row.id}</span>
                           </div>
-                          <div className="mt-2 text-lg font-bold text-white">{row.title || "جرد جديد"}</div>
+                          <div className="mt-2 text-lg font-bold text-white">{row.title || tt("inventory.count.new")}</div>
                           <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-400">
-                            <span>الفرع: {row.branch_name || "غير محدد"}</span>
-                            <span>المخزن: {row.warehouse_name || "غير محدد"}</span>
+                            <span>الفرع: {row.branch_name || tt("inventory.labels.unspecified")}</span>
+                            <span>المخزن: {row.warehouse_name || tt("inventory.labels.unspecified")}</span>
                             <span>عدد الأصناف: {row.item_count || 0}</span>
                             <span>إجمالي الفرق: {row.difference_total || 0}</span>
                             <span>آخر تحديث: {formatDateTime(row.updated_at || row.created_at)}</span>
@@ -1872,7 +1880,7 @@ function InventoryCountPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone[row.status || "draft"] || statusTone.draft}`}>
-                            {SESSION_STATUS_LABELS[row.status || "draft"] || row.status || "مسودة"}
+                            {SESSION_STATUS_LABELS[row.status || "draft"] || row.status || tt("inventory.count.status.draft")}
                           </span>
                           <button
                             type="button"
@@ -1883,7 +1891,7 @@ function InventoryCountPage() {
                             className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black/30"
                           >
                             <SquareArrowOutUpRight className="h-4 w-4" />
-                            فتح
+                            {tt("common.open")}
                           </button>
                           <button
                             type="button"
@@ -1925,9 +1933,9 @@ function InventoryCountPage() {
         <ScannerModal
           onClose={() => setScannerOpen(false)}
           onScan={handleScannerScan}
-          onUnsupported={(message) => toast.error(message || "الماسح غير مدعوم على هذا الجهاز")}
-          onPermissionDenied={(message) => toast.error(message || "تم رفض إذن الكاميرا")}
-          onError={(message) => toast.error(message || "تعذر تشغيل الماسح")}
+          onUnsupported={(message) => toast.error(message || tt("inventory.scanner.unsupported"))}
+          onPermissionDenied={(message) => toast.error(message || tt("inventory.scanner.permissionDenied"))}
+          onError={(message) => toast.error(message || tt("inventory.scanner.startFailed"))}
         />
       ) : null}
     </>
@@ -1997,7 +2005,7 @@ function LookupGroupCard({ group, busy, selected, onAddModel }) {
         <div className="flex min-w-0 gap-3">
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
             {resolvedImage ? (
-              <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" />
+              <img src={resolvedImage} alt={group.product_name || tt("inventory.labels.product")} className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500">
                 <ClipboardList className="h-6 w-6" />
@@ -2005,8 +2013,8 @@ function LookupGroupCard({ group, busy, selected, onAddModel }) {
             )}
           </div>
           <div className="min-w-0">
-            <div className="text-lg font-bold text-white">{group.product_name || "منتج"}</div>
-            <div className="mt-1 text-sm text-zinc-400">{group.colors?.length ? `${group.colors.length} ألوان` : "لون غير محدد"}</div>
+            <div className="text-lg font-bold text-white">{group.product_name || tt("inventory.labels.product")}</div>
+            <div className="mt-1 text-sm text-zinc-400">{group.colors?.length ? `${group.colors.length} ألوان` : tt("inventory.count.unknownColor")}</div>
             <div className="mt-1 text-xs text-zinc-500">عدد المقاسات: {group.variants.length} · السيستم: {group.system_total}</div>
           </div>
         </div>
@@ -2020,7 +2028,7 @@ function LookupGroupCard({ group, busy, selected, onAddModel }) {
       <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         {group.variants.map((variant) => (
           <div key={String(variant.product_variant_id || variant.id)} className="rounded-2xl border border-white/10 bg-zinc-950/70 p-3">
-            <div className="text-sm font-black text-white">{variant.size || "غير محدد"}</div>
+            <div className="text-sm font-black text-white">{variant.size || tt("inventory.labels.unspecified")}</div>
             <div className="mt-1 text-xs text-zinc-400">السيستم: {variant.system_quantity}</div>
           </div>
         ))}
@@ -2069,14 +2077,14 @@ function GroupedCountCard({
     <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="text-lg font-black text-white">{group.product_name || "منتج"} - {group.color || "لون"}</div>
+          <div className="text-lg font-black text-white">{group.product_name || tt("inventory.labels.product")} - {group.color || tt("inventory.count.color")}</div>
           <div className="mt-1 text-sm text-zinc-400">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total} · الفرق: {group.difference_total}</div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button>
-          <button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />مطابقة السيستم</button>
-          <button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />تصفير</button>
-          <button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />حذف اللون</button>
+          <button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />{tt("inventory.count.matchSystem")}</button>
+          <button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />{tt("inventory.count.zero")}</button>
+          <button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />{tt("inventory.count.deleteColor")}</button>
         </div>
       </div>
       <div className="mt-4 space-y-3">
@@ -2101,15 +2109,15 @@ function DesktopGroupedCountRow({ item, disabled, onCountChange, onCountCommit, 
     <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
       <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(120px,1fr)_90px_120px_90px_160px_minmax(0,1fr)_44px] xl:items-center">
         <div className="min-w-0">
-          <div className="font-semibold text-white">{item.size || "مقاس غير محدد"}</div>
-          <div className="mt-1 text-xs text-zinc-400">رمز الصنف: {item.variant_sku || "غير متاح"} · الباركود: {item.variant_barcode || "غير متاح"}</div>
+          <div className="font-semibold text-white">{item.size || tt("inventory.count.unknownSize")}</div>
+          <div className="mt-1 text-xs text-zinc-400">رمز الصنف: {item.variant_sku || tt("inventory.labels.notAvailable")} · الباركود: {item.variant_barcode || tt("inventory.labels.notAvailable")}</div>
         </div>
-        <div><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السيستم</div><div className="mt-1 text-sm font-black text-white">{system}</div></div>
-        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفعلي</div><input type="number" disabled={disabled} value={counted} onChange={(event) => onCountChange(item.id, event.target.value)} onBlur={(event) => onCountCommit(item.id, { counted_quantity: Number(event.target.value || 0) })} className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50" /></label>
-        <div><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفرق</div><div className={`mt-1 text-sm font-black ${diffTone}`}>{diff > 0 ? "+" : ""}{diff}</div></div>
-        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السبب</div><select disabled={disabled} value={item.reason || "أخرى"} onChange={(event) => onReasonCommit(item.id, { reason: event.target.value })} className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-zinc-950 text-white">{reason}</option>))}</select></label>
-        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => onNotesCommit(item.id, { notes: event.target.value })} placeholder="ملاحظات" className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50" /></label>
-        <div className="flex justify-end"><button type="button" disabled={disabled} onClick={() => onCountCommit(item.id, { counted_quantity: counted })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white transition hover:bg-white/10 disabled:opacity-40" title="حفظ"><Save className="h-4 w-4" /></button></div>
+        <div><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.count.system")}</div><div className="mt-1 text-sm font-black text-white">{system}</div></div>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.count.actual")}</div><input type="number" disabled={disabled} value={counted} onChange={(event) => onCountChange(item.id, event.target.value)} onBlur={(event) => onCountCommit(item.id, { counted_quantity: Number(event.target.value || 0) })} className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50" /></label>
+        <div><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.count.difference")}</div><div className={`mt-1 text-sm font-black ${diffTone}`}>{diff > 0 ? "+" : ""}{diff}</div></div>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.purchaseAlerts.cards.reason")}</div><select disabled={disabled} value={item.reason || "أخرى"} onChange={(event) => onReasonCommit(item.id, { reason: event.target.value })} className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-zinc-950 text-white">{reason}</option>))}</select></label>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.labels.notes")}</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => onNotesCommit(item.id, { notes: event.target.value })} placeholder={tt("inventory.labels.notes")} className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50" /></label>
+        <div className="flex justify-end"><button type="button" disabled={disabled} onClick={() => onCountCommit(item.id, { counted_quantity: counted })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white transition hover:bg-white/10 disabled:opacity-40" title={tt("common.save")}><Save className="h-4 w-4" /></button></div>
       </div>
     </div>
   );
@@ -2130,16 +2138,16 @@ function MobileGroupedCountCard({ group, disabled, busy, onAddColor, onMatchSyst
     <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-lg shadow-black/10">
       <button type="button" onClick={onToggleExpanded} className="w-full text-start" aria-expanded={expanded}>
         <div className="flex items-start gap-3">
-          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">{resolvedImage ? <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500"><ClipboardList className="h-6 w-6" /></div>}</div>
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">{resolvedImage ? <img src={resolvedImage} alt={group.product_name || tt("inventory.labels.product")} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500"><ClipboardList className="h-6 w-6" /></div>}</div>
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-black leading-snug text-white">{group.product_name || "منتج"} - {group.color || "لون"}</div>
+            <div className="text-lg font-black leading-snug text-white">{group.product_name || tt("inventory.labels.product")} - {group.color || tt("inventory.count.color")}</div>
             <div className="mt-1 text-sm text-zinc-400">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total}</div>
-            <div className={`mt-1 text-sm font-black ${group.difference_total > 0 ? "text-rose-300" : group.difference_total < 0 ? "text-amber-300" : "text-emerald-300"}`}>{group.difference_total > 0 ? `زيادة ${group.difference_total}` : group.difference_total < 0 ? `عجز ${Math.abs(group.difference_total)}` : "مطابق"}</div>
+            <div className={`mt-1 text-sm font-black ${group.difference_total > 0 ? "text-rose-300" : group.difference_total < 0 ? "text-amber-300" : "text-emerald-300"}`}>{group.difference_total > 0 ? `زيادة ${group.difference_total}` : group.difference_total < 0 ? `عجز ${Math.abs(group.difference_total)}` : tt("inventory.count.matched")}</div>
           </div>
         </div>
-        <div className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">{expanded ? "إخفاء المقاسات" : "عرض المقاسات"}</div>
+        <div className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">{expanded ? tt("inventory.count.hideSizes") : tt("inventory.count.showSizes")}</div>
       </button>
-      {expanded ? <div className="mt-3 space-y-2">{group.variants.map((variant) => (<MemoGroupedCountRow key={String(variant.id)} item={variant} compact disabled={disabled} inputRef={(node) => { if (node) { inputRefs.current.set(String(variant.id), node); } else { inputRefs.current.delete(String(variant.id)); } }} onCountChange={onCountChange} onCountCommit={onCountCommit} onReasonCommit={onReasonCommit} onNotesCommit={onNotesCommit} onAdvance={focusNextSize} />))}<div className="flex flex-wrap gap-2 pt-2"><button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button><button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />مطابقة</button><button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />تصفير</button><button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />حذف اللون</button></div></div> : null}
+      {expanded ? <div className="mt-3 space-y-2">{group.variants.map((variant) => (<MemoGroupedCountRow key={String(variant.id)} item={variant} compact disabled={disabled} inputRef={(node) => { if (node) { inputRefs.current.set(String(variant.id), node); } else { inputRefs.current.delete(String(variant.id)); } }} onCountChange={onCountChange} onCountCommit={onCountCommit} onReasonCommit={onReasonCommit} onNotesCommit={onNotesCommit} onAdvance={focusNextSize} />))}<div className="flex flex-wrap gap-2 pt-2"><button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button><button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />{tt("inventory.count.match")}</button><button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />{tt("inventory.count.zero")}</button><button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />{tt("inventory.count.deleteColor")}</button></div></div> : null}
     </div>
   );
 }
@@ -2169,9 +2177,9 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
   const handleReasonChange = (reason) => { if (disabled) return; setReasonDraft(reason); void onReasonCommit(item.id, { reason }); };
   const handleNotesBlur = (value) => { if (disabled) return; void onNotesCommit(item.id, { notes: value }); };
   if (compact) {
-    return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_72px_minmax(0,1.35fr)_64px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">المتوقع</div><div className="mt-0.5 text-sm font-black tabular-nums text-white">{system}</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفعلي</div><div className="mt-1 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40" aria-label="إنقاص الكمية">-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-16 shrink-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label="زيادة الكمية">+</button></div></div><div className="min-w-[64px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "مطابق"}</div></div></div></div>);
+    return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_72px_minmax(0,1.35fr)_64px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">{tt("inventory.count.size")}</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">{tt("inventory.count.expected")}</div><div className="mt-0.5 text-sm font-black tabular-nums text-white">{system}</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">{tt("inventory.count.actual")}</div><div className="mt-1 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40" aria-label={tt("inventory.count.decrement")}>-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-16 shrink-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label={tt("inventory.count.increment")}>+</button></div></div><div className="min-w-[64px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">{tt("inventory.count.difference")}</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : tt("inventory.count.matched")}</div></div></div></div>);
   }
-  return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-2 py-2 shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[48px] grid-cols-[44px_minmax(0,1fr)_72px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div></div><div className="min-w-0"><div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400"><span className="uppercase tracking-[0.18em]">المتوقع</span><span className="tabular-nums text-white">{system}</span></div><div className="mt-1.5 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40" aria-label="إنقاص الكمية">-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-14 shrink-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label="زيادة الكمية">+</button></div></div><div className="min-w-[72px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "مطابق"}</div></div></div>{hasDetails ? <div className="mt-2"><button type="button" onClick={() => setShowDetails((current) => !current)} className="inline-flex items-center rounded-[var(--radius-control)] border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/10">{showDetails ? "إخفاء التفاصيل" : "تفاصيل إضافية"}</button>{showDetails ? <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-6 text-zinc-400">{item.variant_sku ? <div className="truncate">رمز الصنف: {item.variant_sku}</div> : null}{item.variant_barcode ? <div className="truncate">الباركود: {item.variant_barcode}</div> : null}{item.variant_article_code ? <div className="truncate">رقم الصنف: {item.variant_article_code}</div> : null}{item.product_id ? <div className="truncate">معرّف المنتج: {item.product_id}</div> : null}{item.product_variant_id || item.id ? <div className="truncate">معرّف المتغير: {item.product_variant_id || item.id}</div> : null}<label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">السبب</div><select disabled={disabled} value={reasonDraft} onChange={(event) => handleReasonChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-zinc-950 text-white">{reason}</option>))}</select></label><label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => handleNotesBlur(event.target.value)} placeholder="ملاحظات" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50" /></label></div> : null}</div> : null}</div>);
+  return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-2 py-2 shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[48px] grid-cols-[44px_minmax(0,1fr)_72px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">{tt("inventory.count.size")}</div></div><div className="min-w-0"><div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400"><span className="uppercase tracking-[0.18em]">{tt("inventory.count.expected")}</span><span className="tabular-nums text-white">{system}</span></div><div className="mt-1.5 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40" aria-label={tt("inventory.count.decrement")}>-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-14 shrink-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label={tt("inventory.count.increment")}>+</button></div></div><div className="min-w-[72px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">{tt("inventory.count.difference")}</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : tt("inventory.count.matched")}</div></div></div>{hasDetails ? <div className="mt-2"><button type="button" onClick={() => setShowDetails((current) => !current)} className="inline-flex items-center rounded-[var(--radius-control)] border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/10">{showDetails ? tt("inventory.actions.hideDetails") : tt("inventory.actions.moreDetails")}</button>{showDetails ? <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-6 text-zinc-400">{item.variant_sku ? <div className="truncate">رمز الصنف: {item.variant_sku}</div> : null}{item.variant_barcode ? <div className="truncate">الباركود: {item.variant_barcode}</div> : null}{item.variant_article_code ? <div className="truncate">رقم الصنف: {item.variant_article_code}</div> : null}{item.product_id ? <div className="truncate">معرّف المنتج: {item.product_id}</div> : null}{item.product_variant_id || item.id ? <div className="truncate">معرّف المتغير: {item.product_variant_id || item.id}</div> : null}<label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.purchaseAlerts.cards.reason")}</div><select disabled={disabled} value={reasonDraft} onChange={(event) => handleReasonChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-zinc-950 text-white">{reason}</option>))}</select></label><label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.labels.notes")}</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => handleNotesBlur(event.target.value)} placeholder={tt("inventory.labels.notes")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50" /></label></div> : null}</div> : null}</div>);
 }
 
 const areRowPropsEqual = (prev, next) =>
@@ -2221,28 +2229,28 @@ const MemoGroupedCountRow = memo(GroupedCountRow, areRowPropsEqual);
 function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="إغلاق" />
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={tt("common.close")} />
       <div className="relative w-full max-w-2xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">بدء جرد جديد</div>
-            <h3 className="m1-section-title mt-1 text-white">حدد نطاق الجرد</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">اختر فرعًا أو مخزنًا إذا كان متاحًا، ثم ابدأ جلسة الجرد.</p>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{tt("inventory.count.startNew")}</div>
+            <h3 className="m1-section-title mt-1 text-white">{tt("inventory.count.selectScope")}</h3>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">{tt("inventory.count.selectScopeHint")}</p>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">
+          <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label={tt("common.back")}>
             <ArrowRight className="h-4 w-4" />
-            <span>رجوع</span>
+            <span>{tt("common.back")}</span>
           </button>
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <Field label="اسم الجلسة" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} />
-          <SelectField label="الفرع" value={form.branchId} onChange={(value) => setForm((current) => ({ ...current, branchId: value }))} options={[{ value: "", label: "بدون فرع" }, ...branches.map((branch) => ({ value: String(branch.id), label: branch.name }))]} />
-          <SelectField label="المخزن" value={form.warehouseId} onChange={(value) => setForm((current) => ({ ...current, warehouseId: value }))} options={[{ value: "", label: "بدون مخزن" }, ...warehouses.map((warehouse) => ({ value: String(warehouse.id), label: warehouse.name }))]} />
-          <label className="block md:col-span-2"><div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} placeholder="ملاحظات عامة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" /></label>
+          <Field label={tt("inventory.count.sessionName")} value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} />
+          <SelectField label={tt("inventory.labels.branch")} value={form.branchId} onChange={(value) => setForm((current) => ({ ...current, branchId: value }))} options={[{ value: "", label: tt("inventory.count.noBranch") }, ...branches.map((branch) => ({ value: String(branch.id), label: branch.name }))]} />
+          <SelectField label={tt("inventory.labels.warehouse")} value={form.warehouseId} onChange={(value) => setForm((current) => ({ ...current, warehouseId: value }))} options={[{ value: "", label: tt("inventory.count.noWarehouse") }, ...warehouses.map((warehouse) => ({ value: String(warehouse.id), label: warehouse.name }))]} />
+          <label className="block md:col-span-2"><div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.labels.notes")}</div><textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} placeholder={tt("inventory.count.generalNotes")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" /></label>
         </div>
         <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">إلغاء</button>
-          <button type="button" onClick={onCreate} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">بدء الجرد</button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">{tt("common.cancel")}</button>
+          <button type="button" onClick={onCreate} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">{tt("inventory.count.start")}</button>
         </div>
       </div>
     </div>
@@ -2302,16 +2310,16 @@ function InventoryCountFiltersModal({
 function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onError }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="إغلاق الماسح" />
+      <button type="button" className="absolute inset-0" onClick={onClose} aria-label={tt("inventory.scanner.close")} />
       <div className="relative w-full max-w-2xl rounded-3xl border border-white/10 bg-zinc-950 p-4 shadow-2xl shadow-black">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">ماسح الباركود</div>
-            <h3 className="m1-section-title mt-1 text-white">امسح الباركود أو رمز QR</h3>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{tt("inventory.scanner.title")}</div>
+            <h3 className="m1-section-title mt-1 text-white">{tt("inventory.scanner.scanBarcodeOrQr")}</h3>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">
+          <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label={tt("common.back")}>
             <ArrowRight className="h-4 w-4" />
-            <span>رجوع</span>
+            <span>{tt("common.back")}</span>
           </button>
         </div>
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">

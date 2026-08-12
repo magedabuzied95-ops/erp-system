@@ -15,7 +15,16 @@ import {
   seedWarehouses,
 } from "../../purchases/lib/flowStore";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 function StockTransfers() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   const [warehouses, setWarehouses] = useState(seedWarehouses());
   const [variantId, setVariantId] = useState("");
   const [fromWarehouse, setFromWarehouse] = useState("");
@@ -35,8 +44,8 @@ function StockTransfers() {
       } catch (err) {
         console.log(err);
         setWarehouses(seedWarehouses());
-        setError("تم تفعيل البيانات الاحتياطية للتحويلات. قد لا يُرجع مسار الخلفية كل تفاصيل التحويل.");
-        toast.error("جارٍ استخدام بيانات تحويل احتياطية");
+        setError(tt("inventory.transfers.fallbackEnabled"));
+        toast.error(tt("inventory.transfers.usingFallback"));
       } finally {
         setLoading(false);
       }
@@ -53,7 +62,7 @@ function StockTransfers() {
 
   const submitTransfer = async () => {
     if (!variantId.trim()) {
-      toast.error("معرّف الاختيار مطلوب");
+      toast.error(tt("inventory.transfers.variantIdRequired"));
       return;
     }
 
@@ -71,10 +80,10 @@ function StockTransfers() {
         ...payload,
         notes,
         created_at: new Date().toISOString(),
-        status: "تم التحويل",
+        status: tt("inventory.transfers.transferred"),
       };
       saveInventoryTransfers([record, ...transfers]);
-      toast.success("تم إرسال التحويل");
+      toast.success(tt("inventory.transfers.sent"));
     } catch (err) {
       console.log(err);
       const record = {
@@ -82,35 +91,35 @@ function StockTransfers() {
         ...payload,
         notes,
         created_at: new Date().toISOString(),
-        status: "مسودة",
+        status: tt("inventory.count.status.draft"),
       };
       saveInventoryTransfers([record, ...transfers]);
-      toast.error("مسار التحويل غير متاح. تم الحفظ محليًا.");
+      toast.error(tt("inventory.transfers.routeUnavailable"));
     }
   };
 
   return (
     <InventoryShell
-      title="تحويل المخزون بين المخازن"
-      subtitle="إدارة تحويلات المخزون بين المخازن، ومراجعة السجل المحلي، وحفظ تفاصيل التحويل عندما تكون واجهة الخلفية غير مكتملة."
+      title={tt("inventory.transfers.title")}
+      subtitle={tt("inventory.transfers.pageSubtitle")}
       actions={
         <div className="flex flex-wrap gap-2">
           <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <Clock3 className="mr-2 inline h-4 w-4" />
-            سجل الاختيارات
+            {tt("inventory.movements.variantHistoryList")}
           </Link>
           <Link to="/warehouses" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
-            لوحة المخازن
+            {tt("warehouses.title")}
           </Link>
         </div>
       }
       tabs={[
-        { to: "/inventory", label: "المخزون", end: true },
-        { to: "/inventory/movements", label: "الحركات" },
-        { to: "/inventory/adjustments", label: "التسويات" },
-        { to: "/inventory/count", label: "الجرد" },
-        { to: "/stock-transfers", label: "التحويلات", end: true },
-        { to: "/warehouses", label: "المخازن" },
+        { to: "/inventory", label: tt("inventory.table.stock"), end: true },
+        { to: "/inventory/movements", label: tt("inventory.tabs.movements") },
+        { to: "/inventory/adjustments", label: tt("inventory.tabs.adjustments") },
+        { to: "/inventory/count", label: tt("inventory.tabs.count") },
+        { to: "/stock-transfers", label: tt("inventory.tabs.transfers"), end: true },
+        { to: "/warehouses", label: tt("inventory.tabs.warehouses") },
       ]}
     >
       {error ? (
@@ -123,18 +132,18 @@ function StockTransfers() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="معرّف الاختيار" value={variantId} onChange={setVariantId} placeholder="أدخل معرّف الاختيار" />
-            <Select label="من مخزن" value={fromWarehouse} onChange={setFromWarehouse} options={warehouses} />
-            <Select label="إلى مخزن" value={toWarehouse} onChange={setToWarehouse} options={warehouses} />
-            <Field label="الكمية" value={quantity} onChange={setQuantity} type="number" />
+            <Field label={tt("inventory.movements.variantId")} value={variantId} onChange={setVariantId} placeholder={tt("inventory.transfers.enterVariantId")} />
+            <Select label={tt("inventory.transfers.fromWarehouse")} value={fromWarehouse} onChange={setFromWarehouse} options={warehouses} />
+            <Select label={tt("inventory.transfers.toWarehouse")} value={toWarehouse} onChange={setToWarehouse} options={warehouses} />
+            <Field label={tt("inventory.labels.quantity")} value={quantity} onChange={setQuantity} type="number" />
           </div>
           <label className="mt-4 block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات التحويل</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.transfers.notes")}</div>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={5}
-              placeholder="ملاحظات التعبئة، تفاصيل السائق، سبب التحويل..."
+              placeholder={tt("inventory.transfers.notesPlaceholder")}
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
@@ -144,18 +153,18 @@ function StockTransfers() {
             className="mt-4 inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black"
           >
             <Save className="h-4 w-4" />
-            إرسال التحويل
+            {tt("inventory.transfers.send")}
           </button>
         </div>
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">سجل التحويلات</h3>
+            <h3 className="m1-section-title text-white">{tt("inventory.transfers.log")}</h3>
             <div className="mt-4 space-y-3">
               {loading ? (
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">جارٍ تحميل المخازن...</div>
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{tt("inventory.adjustments.loadingWarehouses")}</div>
               ) : transfers.length === 0 ? (
-                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">لا توجد تحويلات محفوظة محليًا.</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{tt("inventory.transfers.emptyLog")}</div>
               ) : (
                 transfers.map((transfer) => (
                   <div key={String(transfer.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
@@ -164,7 +173,7 @@ function StockTransfers() {
                         <div className="font-semibold text-white">الاختيار {transfer.variant_id}</div>
                         <div className="mt-1 text-xs text-zinc-500">{formatDateTime(transfer.created_at)}</div>
                       </div>
-                      <StatusBadge value={transfer.status || "مسودة"} />
+                      <StatusBadge value={transfer.status || tt("inventory.count.status.draft")} />
                     </div>
                     <div className="mt-2 text-sm text-zinc-300">
                       {transfer.from_warehouse} ← {transfer.to_warehouse} • الكمية {transfer.quantity}
@@ -176,9 +185,9 @@ function StockTransfers() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">تحويل المخزون بين المخازن</h3>
+            <h3 className="m1-section-title text-white">{tt("inventory.transfers.title")}</h3>
             <p className="mt-3 text-sm text-zinc-400">
-              تحافظ هذه الصفحة على سير العمل حتى عندما تكون بيانات التحويل في الخلفية غير مكتملة. يتم حفظ السجل محليًا، ويُستخدم مسار التحويل المباشر عندما يكون متاحًا.
+              {tt("inventory.transfers.resilienceHint")}
             </p>
           </div>
         </div>

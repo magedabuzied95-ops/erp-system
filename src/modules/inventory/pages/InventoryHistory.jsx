@@ -10,6 +10,13 @@ import { Pagination } from "../../../shared/ui";
 import InventoryShell from "../components/InventoryShell";
 import { formatDateTime } from "../../purchases/lib/flowStore";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 const MOVEMENT_TYPES = [
   "",
   "opening_stock",
@@ -28,24 +35,26 @@ const MOVEMENT_TYPES = [
 
 const movementTypeLabelAr = (value = "") => {
   const labels = {
-    opening_stock: "رصيد افتتاحي",
-    purchase: "شراء",
-    sale: "بيع",
-    return_in: "مرتجع وارد",
-    return_out: "مرتجع صادر",
-    manual_adjustment: "تعديل يدوي",
-    transfer_in: "تحويل وارد",
-    transfer_out: "تحويل صادر",
-    damaged: "تالف",
-    product_stock_edit: "تعديل مخزون المنتج",
-    edit_variant_stock: "تعديل مخزون الاختيار",
-    inventory_adjustment: "تسوية مخزون",
+    opening_stock: tt("inventory.movements.types.opening"),
+    purchase: tt("inventory.movements.types.purchase"),
+    sale: tt("inventory.movements.types.sale"),
+    return_in: tt("inventory.movements.types.returnIn"),
+    return_out: tt("inventory.movements.types.returnOut"),
+    manual_adjustment: tt("inventory.movements.types.manualEdit"),
+    transfer_in: tt("inventory.movements.types.transferIn"),
+    transfer_out: tt("inventory.movements.types.transferOut"),
+    damaged: tt("inventory.adjustments.damaged"),
+    product_stock_edit: tt("inventory.movements.types.productStockEdit"),
+    edit_variant_stock: tt("inventory.movements.types.variantStockEdit"),
+    inventory_adjustment: tt("inventory.movements.types.stockAdjustment"),
   };
 
-  return labels[value] || "حركة";
+  return labels[value] || tt("inventory.movements.movement");
 };
 
 function InventoryHistory() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   const { id: routeVariantId } = useParams();
   const [filters, setFilters] = useState({
     search: "",
@@ -94,8 +103,8 @@ function InventoryHistory() {
         console.log(err);
         if (!alive) return;
         setMovements([]);
-        setError(err?.message || "تعذر تحميل سجل المخزون");
-        toast.error(err?.message || "تعذر تحميل سجل المخزون");
+        setError(err?.message || tt("inventory.history.errors.load"));
+        toast.error(err?.message || tt("inventory.history.errors.load"));
       } finally {
         if (alive) setLoading(false);
       }
@@ -119,8 +128,8 @@ function InventoryHistory() {
 
   return (
     <InventoryShell
-      title="سجل المخزون"
-      subtitle="ابحث في سجل الحركات حسب المنتج أو الاختيار أو نوع الحركة أو التاريخ، ثم افتح أي صف لعرض خط زمني تفصيلي للمخزون."
+      title={tt("inventory.history")}
+      subtitle={tt("inventory.history.pageSubtitle")}
       actions={
         <>
           <Link
@@ -128,31 +137,31 @@ function InventoryHistory() {
             className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <Clock3 className="h-4 w-4" />
-            لوحة المخزون
+            {tt("inventory.title")}
           </Link>
           <Link
             to="/inventory/adjustments"
             className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
           >
             <History className="h-4 w-4" />
-            تسويات المخزون
+            {tt("inventory.adjustments")}
           </Link>
         </>
       }
       tabs={[
-        { to: "/inventory", label: "المخزون", end: true },
-        { to: "/inventory/history", label: "السجل", end: true },
-        { to: "/inventory/movements", label: "الحركات" },
-        { to: "/inventory/adjustments", label: "التسويات" },
-        { to: "/inventory/count", label: "الجرد" },
-        { to: "/stock-transfers", label: "التحويلات" },
+        { to: "/inventory", label: tt("inventory.table.stock"), end: true },
+        { to: "/inventory/history", label: tt("inventory.labels.history"), end: true },
+        { to: "/inventory/movements", label: tt("inventory.tabs.movements") },
+        { to: "/inventory/adjustments", label: tt("inventory.tabs.adjustments") },
+        { to: "/inventory/count", label: tt("inventory.tabs.count") },
+        { to: "/stock-transfers", label: tt("inventory.tabs.transfers") },
       ]}
     >
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-        <Metric label="الحركات" value={movements.length} />
-        <Metric label="واردة" value={summary.inbound} tone="emerald" />
-        <Metric label="صادرة" value={summary.outbound} tone="rose" />
-        <Metric label="إجمالي الصفوف" value={pagination.total || movements.length} tone="blue" />
+        <Metric label={tt("inventory.tabs.movements")} value={movements.length} />
+        <Metric label={tt("inventory.movements.inbound")} value={summary.inbound} tone="emerald" />
+        <Metric label={tt("inventory.movements.outbound")} value={summary.outbound} tone="rose" />
+        <Metric label={tt("inventory.metrics.totalRows")} value={pagination.total || movements.length} tone="blue" />
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
@@ -162,24 +171,24 @@ function InventoryHistory() {
             <input
               value={filters.search}
               onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-              placeholder="ابحث عن منتج أو اختيار أو ملاحظات أو مستخدم..."
+              placeholder={tt("inventory.history.searchPlaceholder")}
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
 
-          <Field label="المنتج" value={filters.productId} onChange={(value) => setFilters((prev) => ({ ...prev, productId: value }))} placeholder="معرّف المنتج" />
-          <Field label="الاختيار" value={filters.variantId} onChange={(value) => setFilters((prev) => ({ ...prev, variantId: value }))} placeholder="معرّف الاختيار" />
-          <Field label="من" value={filters.dateFrom} onChange={(value) => setFilters((prev) => ({ ...prev, dateFrom: value }))} type="date" />
-          <Field label="إلى" value={filters.dateTo} onChange={(value) => setFilters((prev) => ({ ...prev, dateTo: value }))} type="date" />
+          <Field label={tt("inventory.table.product")} value={filters.productId} onChange={(value) => setFilters((prev) => ({ ...prev, productId: value }))} placeholder={tt("inventory.movements.productId")} />
+          <Field label={tt("inventory.tableHeaders.variant")} value={filters.variantId} onChange={(value) => setFilters((prev) => ({ ...prev, variantId: value }))} placeholder={tt("inventory.movements.variantId")} />
+          <Field label={tt("inventory.labels.from")} value={filters.dateFrom} onChange={(value) => setFilters((prev) => ({ ...prev, dateFrom: value }))} type="date" />
+          <Field label={tt("inventory.labels.to")} value={filters.dateTo} onChange={(value) => setFilters((prev) => ({ ...prev, dateTo: value }))} type="date" />
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">نوع الحركة</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{tt("inventory.movements.type")}</div>
             <select
               value={filters.movementType}
               onChange={(e) => setFilters((prev) => ({ ...prev, movementType: e.target.value }))}
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="">الكل</option>
+              <option value="">{tt("inventory.purchaseAlerts.filters.all")}</option>
               {MOVEMENT_TYPES.filter(Boolean).map((type) => (
                 <option key={type} value={type} className="bg-zinc-950 text-white">
                   {movementTypeLabelAr(type)}
@@ -194,7 +203,7 @@ function InventoryHistory() {
             className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <X className="h-4 w-4" />
-            إعادة ضبط
+            {tt("inventory.actions.reset")}
           </button>
         </div>
       </div>
@@ -202,8 +211,8 @@ function InventoryHistory() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <h3 className="m1-section-title text-white">سجل الحركات</h3>
-            <p className="mt-1 text-sm text-zinc-400">اضغط أي صف لعرض الكمية قبل الحركة وبعدها.</p>
+            <h3 className="m1-section-title text-white">{tt("inventory.movements.log")}</h3>
+            <p className="mt-1 text-sm text-zinc-400">{tt("inventory.history.rowHint")}</p>
           </div>
           <div className="text-sm text-zinc-400">{movements.length} صفًا ظاهرًا</div>
         </div>
@@ -211,7 +220,7 @@ function InventoryHistory() {
         {loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-400">
             <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-            جارٍ تحميل سجل المخزون...
+            {tt("inventory.history.loading")}
           </div>
         ) : error ? (
           <div className="p-5 text-sm text-red-100">
@@ -219,22 +228,22 @@ function InventoryHistory() {
           </div>
         ) : movements.length === 0 ? (
           <div className="p-8 text-center text-zinc-400">
-            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">لا توجد حركات مسجلة.</div>
+            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">{tt("inventory.history.empty")}</div>
           </div>
         ) : (
           <div className="m1-table-container overflow-x-auto">
             <table className="m1-table m1-table--compact m1-table--separate min-w-full border-separate px-3 pb-3">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
-                  <th className="px-3 py-2">الوقت</th>
-                  <th className="px-3 py-2">المنتج</th>
-                  <th className="px-3 py-2">الاختيار</th>
-                  <th className="px-3 py-2">النوع</th>
-                  <th className="px-3 py-2">قبل</th>
-                  <th className="px-3 py-2">التغيير</th>
-                  <th className="px-3 py-2">بعد</th>
-                  <th className="px-3 py-2">المستخدم</th>
-                  <th className="px-3 py-2">المرجع</th>
+                  <th className="px-3 py-2">{tt("inventory.movements.time")}</th>
+                  <th className="px-3 py-2">{tt("inventory.table.product")}</th>
+                  <th className="px-3 py-2">{tt("inventory.tableHeaders.variant")}</th>
+                  <th className="px-3 py-2">{tt("inventory.labels.type")}</th>
+                  <th className="px-3 py-2">{tt("inventory.movements.before")}</th>
+                  <th className="px-3 py-2">{tt("inventory.adjustments.change")}</th>
+                  <th className="px-3 py-2">{tt("inventory.movements.after")}</th>
+                  <th className="px-3 py-2">{tt("inventory.movements.user")}</th>
+                  <th className="px-3 py-2">{tt("inventory.movements.reference")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,12 +257,12 @@ function InventoryHistory() {
                     >
                       <td className="px-3 py-4 text-sm text-zinc-300">{formatDateTime(movement.created_at)}</td>
                       <td className="px-3 py-4">
-                        <div className="font-semibold text-white">{movement.product_name || "منتج غير معروف"}</div>
-                        <div className="text-xs text-zinc-500">{movement.product_brand || "غير متاح"}</div>
+                        <div className="font-semibold text-white">{movement.product_name || tt("inventory.labels.unknownProduct")}</div>
+                        <div className="text-xs text-zinc-500">{movement.product_brand || tt("inventory.labels.notAvailable")}</div>
                       </td>
                       <td className="px-3 py-4 text-sm text-zinc-300">
-                        <div>{movement.variant_color || movement.variant_name || "افتراضي"}</div>
-                        <div className="text-xs text-zinc-500">{movement.variant_size || movement.variant_sku || "غير متاح"}</div>
+                        <div>{movement.variant_color || movement.variant_name || tt("inventory.labels.default")}</div>
+                        <div className="text-xs text-zinc-500">{movement.variant_size || movement.variant_sku || tt("inventory.labels.notAvailable")}</div>
                       </td>
                       <td className="px-3 py-4">
                         <MovementBadge type={movement.movement_type} />
@@ -264,10 +273,10 @@ function InventoryHistory() {
                         {change}
                       </td>
                       <td className="px-3 py-4 text-sm text-zinc-300">{Number(movement.quantity_after || 0)}</td>
-                      <td className="px-3 py-4 text-sm text-zinc-300">{movement.created_by_name || "غير متاح"}</td>
+                      <td className="px-3 py-4 text-sm text-zinc-300">{movement.created_by_name || tt("inventory.labels.notAvailable")}</td>
                       <td className="px-3 py-4 text-sm text-zinc-300">
-                        <div>{movement.reference_type || "غير متاح"}</div>
-                        <div className="text-xs text-zinc-500">#{movement.reference_id || "غير متاح"}</div>
+                        <div>{movement.reference_type || tt("inventory.labels.notAvailable")}</div>
+                        <div className="text-xs text-zinc-500">#{movement.reference_id || tt("inventory.labels.notAvailable")}</div>
                       </td>
                     </tr>
                   );
@@ -351,29 +360,29 @@ function TimelineDrawer({ movement, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" className="absolute inset-0 bg-black/70" onClick={onClose} aria-label="إغلاق تفاصيل الحركة" />
+      <button type="button" className="absolute inset-0 bg-black/70" onClick={onClose} aria-label={tt("inventory.history.closeDetails")} />
       <div className="absolute right-0 top-0 h-full w-full max-w-[520px] border-l border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">الخط الزمني للمخزون</p>
-            <h3 className="m1-section-title mt-1 text-white">{movement.product_name || "تفاصيل الحركة"}</h3>
+            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{tt("inventory.empty.timelineTitle")}</p>
+            <h3 className="m1-section-title mt-1 text-white">{movement.product_name || tt("inventory.history.details")}</h3>
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-            إغلاق
+            {tt("common.close")}
           </button>
         </div>
 
         <div className="space-y-4 overflow-y-auto p-5">
-          <Detail label="نوع الحركة" value={movement.movement_type} />
-          <Detail label="الكمية قبل" value={String(movement.quantity_before ?? 0)} />
-          <Detail label="التغيير في الكمية" value={change >= 0 ? `+${change}` : String(change)} />
-          <Detail label="الكمية بعد" value={String(movement.quantity_after ?? 0)} />
-          <Detail label="المرجع" value={`${movement.reference_type || "غير متاح"} #${movement.reference_id || "غير متاح"}`} />
-          <Detail label="المستخدم" value={movement.created_by_name || "غير متاح"} />
-          <Detail label="الوقت" value={formatDateTime(movement.created_at)} />
-          <Detail label="المخزن" value={movement.warehouse_id || movement.branch_id || "غير متاح"} />
-          <Detail label="التكلفة" value={movement.total_cost !== null && movement.total_cost !== undefined ? formatCurrency(movement.total_cost) : "غير متاح"} />
-          <Detail label="ملاحظات" value={movement.notes || movement.note || "غير متاح"} />
+          <Detail label={tt("inventory.movements.type")} value={movement.movement_type} />
+          <Detail label={tt("inventory.movements.qtyBefore")} value={String(movement.quantity_before ?? 0)} />
+          <Detail label={tt("inventory.adjustments.quantityChange")} value={change >= 0 ? `+${change}` : String(change)} />
+          <Detail label={tt("inventory.movements.qtyAfter")} value={String(movement.quantity_after ?? 0)} />
+          <Detail label={tt("inventory.movements.reference")} value={`${movement.reference_type || tt("inventory.labels.notAvailable")} #${movement.reference_id || tt("inventory.labels.notAvailable")}`} />
+          <Detail label={tt("inventory.movements.user")} value={movement.created_by_name || tt("inventory.labels.notAvailable")} />
+          <Detail label={tt("inventory.movements.time")} value={formatDateTime(movement.created_at)} />
+          <Detail label={tt("inventory.labels.warehouse")} value={movement.warehouse_id || movement.branch_id || tt("inventory.labels.notAvailable")} />
+          <Detail label={tt("inventory.labels.cost")} value={movement.total_cost !== null && movement.total_cost !== undefined ? formatCurrency(movement.total_cost) : tt("inventory.labels.notAvailable")} />
+          <Detail label={tt("inventory.labels.notes")} value={movement.notes || movement.note || tt("inventory.labels.notAvailable")} />
         </div>
       </div>
     </div>

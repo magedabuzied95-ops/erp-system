@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 2546,
+    "arabic": 2222,
     "english": 2546,
-    "total": 5092,
-    "mixedFiles": 53
+    "total": 4768,
+    "mixedFiles": 52
   },
   "files": {
     "src/App.jsx": {
@@ -518,34 +518,14 @@
       "total": 8
     },
     "src/modules/inventory/pages/InventoryCount.jsx": {
-      "arabic": 122,
+      "arabic": 0,
       "english": 7,
-      "total": 129
+      "total": 7
     },
     "src/modules/inventory/pages/InventoryDashboard.jsx": {
       "arabic": 20,
       "english": 0,
       "total": 20
-    },
-    "src/modules/inventory/pages/InventoryHistory.jsx": {
-      "arabic": 45,
-      "english": 0,
-      "total": 45
-    },
-    "src/modules/inventory/pages/StockAdjustments.jsx": {
-      "arabic": 69,
-      "english": 0,
-      "total": 69
-    },
-    "src/modules/inventory/pages/StockMovements.jsx": {
-      "arabic": 65,
-      "english": 0,
-      "total": 65
-    },
-    "src/modules/inventory/pages/StockTransfers.jsx": {
-      "arabic": 23,
-      "english": 0,
-      "total": 23
     },
     "src/modules/inventory/pages/WarehousesDashboard.jsx": {
       "arabic": 15,
