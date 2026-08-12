@@ -19,6 +19,83 @@ import { normalizeProductTypeValue } from "./productClassificationsService.js";
 // free-text term to REAL catalog rows by expanding it and matching name — no new taxonomy, no famous-shoe list.
 import { expandSearchAliasTerms, normalizeAliasText } from "./productAliasEngine.js";
 
+// ---- Phase 12.1 — Durable grounded PRODUCT SUBJECT context (bounded, deterministic) -------------------
+// Reuse a recently GROUNDED product IDENTITY as conversational context for a continuation that omits the
+// product ("طب مقاس 44؟", "والاسود؟"). SUBJECT only — never facts: stock/price/variant are always re-read
+// fresh below. Sources are strong evidence only (an employee-approved selection, or a sent product card),
+// strictly scoped to ONE canonical session, and bounded by recency. NOT chat memory / preference memory.
+export const DURABLE_PRODUCT_CONTEXT_MAX_AGE_MS = (() => {
+  const v = Number(process.env.AI_INBOX_PRODUCT_CONTEXT_MAX_AGE_MS);
+  return Number.isFinite(v) && v > 0 ? v : 30 * 60 * 1000; // default 30 minutes
+})();
+
+// The most recent DEFINITIVE grounded product subject for THIS session, within the recency bound. Precedence:
+//   1. an employee-APPROVED assisted product selection (ai_reply_corrections.product_id) — never ambiguous,
+//      never a rejected/stale suggestion (corrections are only written on an assisted approve),
+//   2. else the most recent SENT canonical product-card message (ai_support_messages product_cards[0]).
+// Cheap: session-scoped, indexed by created_at, LIMIT 1, no catalog scan. Returns null when nothing qualifies.
+export const resolveConversationProductSubject = async ({ tenantId, sessionId, maxAgeMs = DURABLE_PRODUCT_CONTEXT_MAX_AGE_MS, dbClient = db } = {}) => {
+  if (!tenantId || !sessionId) return null;
+  const seconds = String(Math.max(1, Math.round(maxAgeMs / 1000)));
+  const corr = await dbClient.query(
+    `SELECT product_id, message_id, ROUND(EXTRACT(EPOCH FROM (NOW() - created_at)))::int AS age_s
+       FROM ai_reply_corrections
+      WHERE tenant_id = $1 AND conversation_id = $2 AND NULLIF(product_id::text, '') IS NOT NULL
+        AND created_at > NOW() - ($3 || ' seconds')::interval
+      ORDER BY created_at DESC LIMIT 1`,
+    [tenantId, sessionId, seconds]
+  ).catch(() => ({ rows: [] }));
+  if (corr.rows[0]?.product_id) {
+    return { productId: String(corr.rows[0].product_id), sourceMessageId: corr.rows[0].message_id || null, ageSeconds: Number(corr.rows[0].age_s) || 0, source: "approved_selection" };
+  }
+  const card = await dbClient.query(
+    `SELECT id, product_cards, ROUND(EXTRACT(EPOCH FROM (NOW() - created_at)))::int AS age_s
+       FROM ai_support_messages
+      WHERE tenant_id = $1 AND session_id = $2 AND message_type = 'product_card'
+        AND sender_type IN ('staff', 'ai', 'agent', 'bot')
+        AND COALESCE(delivery_status, '') IN ('sent', 'mock_sent', 'delivered', 'read')
+        AND created_at > NOW() - ($3 || ' seconds')::interval
+      ORDER BY created_at DESC LIMIT 1`,
+    [tenantId, sessionId, seconds]
+  ).catch(() => ({ rows: [] }));
+  const cards = card.rows[0]?.product_cards;
+  const pid = Array.isArray(cards) && cards.length ? (cards[0].product_id || cards[0].id) : null;
+  if (pid) {
+    return { productId: String(pid), sourceMessageId: card.rows[0].id || null, ageSeconds: Number(card.rows[0].age_s) || 0, source: "sent_product_card" };
+  }
+  return null;
+};
+
+// Continuation fillers — leftover words that are NOT a product mention (so a bare follow-up like "طب مقاس 44؟"
+// or "والاسود؟" is recognised as continuation, not as a new/unresolvable product). Colour words are handled
+// separately via the alias vocabulary below.
+const CONTEXT_CONTINUATION_FILLERS = new Set([
+  "طب", "طيب", "ماشي", "تمام", "اوك", "ok", "اه", "ايوه", "اها", "بردو", "كمان", "وكمان", "مقاس", "مقاسي",
+  "size", "متاح", "متوفر", "موجود", "فيه", "بكام", "بكم", "السعر", "سعره", "كام", "وفيه", "هو", "هي", "ده", "دي",
+]);
+
+// True when the NEW message names a substantive product/brand term (so context must NOT override it). A bare
+// continuation (only fillers / colour / size / price words) returns false → durable context may be consulted.
+const hasExplicitProductMention = (entities = {}) => {
+  if (entities.productType) return true;
+  const colorSet = new Set(COLOR_ALIASES.flatMap(([, aliases]) => aliases.map((a) => clean(a))));
+  return String(entities.brandModelTerm || "")
+    .split(/\s+/)
+    .map((w) => clean(w).replace(/^وال|^ال|^و/, ""))
+    .filter(Boolean)
+    .some((w) => w.length >= 2 && !CONTEXT_CONTINUATION_FILLERS.has(w) && !colorSet.has(w));
+};
+
+const defaultResolveProductById = async ({ tenantId, productId, dbClient = db } = {}) => {
+  if (!tenantId || !productId) return null;
+  const r = await dbClient.query(
+    `SELECT id, name, product_type FROM products
+       WHERE tenant_id = $1 AND id = $2 AND COALESCE(is_storefront_visible, TRUE) = TRUE LIMIT 1`,
+    [tenantId, productId]
+  ).catch(() => ({ rows: [] }));
+  return r.rows[0] || null;
+};
+
 // ---- Vocabulary (reuses the same aliases the orchestrator already uses; not a new giant taxonomy) ----
 const COLOR_ALIASES = [
   ["black", ["black", "اسود", "بلاك"], "الأسود"],
@@ -267,7 +344,8 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
 const CANONICAL_LABELS = { PRODUCT_AVAILABILITY: "PRODUCT_AVAILABILITY", RESTOCK_REQUEST: "RESTOCK_REQUEST", ORDER_STATUS: "ORDER_STATUS", RETURN_POLICY: "RETURN_POLICY", PRICE_INQUIRY: "PRICE_INQUIRY", GREETING: "GREETING", GENERAL: "GENERAL" };
 
 // ---- Impure orchestrator: resolve compatible catalog products + exact variant, then decide. Failure-isolated. ----
-export const applyInboxGroundingGate = async ({ tenantId, message, contextMessages = null, styleProfile = null, deps = {} } = {}) => {
+export const applyInboxGroundingGate = async ({ tenantId, message, contextMessages = null, sessionId = "", styleProfile = null, deps = {} } = {}) => {
+  let productContextResolution = null;
   try {
     // Phase 11.1 — ground on the current unanswered customer TURN, not just the latest message. A fragmented
     // request ("عندكم جوردن فور" / "احمر" / "مقاس ٤١") merges to one composite (latest wins, missing dims
@@ -305,6 +383,33 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
         entities.productType = derivedType || "resolved"; // sentinel keeps decideGrounding out of the noop branch
         entities.productTerm = entities.brandModelTerm;
         entities.typeLabel = matched.length === 1 ? String(matched[0].name || "المنتج") : (entities.typeLabel || "المنتج");
+      }
+    }
+
+    // Phase 12.1 — durable grounded PRODUCT SUBJECT continuation. When the NEW message is continuation-shaped
+    // (explicit size / colour / availability ask) but names NO product AND NO brand/model, reuse the most
+    // recent deterministically-grounded product SUBJECT for THIS session as CONTEXT ONLY. Gated on
+    // !productType && !brandModelTerm so an explicit new product/brand ALWAYS wins (brand/model already ran
+    // above). The resolved product then flows through the SAME fresh grounding below — stock/price/variant are
+    // re-read from current ERP, never inherited from the remembered turn. Ambiguous/rejected/stale prior turns
+    // never produce a subject (only approved selections / sent cards qualify).
+    if (!entities.productType && !hasExplicitProductMention(entities) && sessionId) {
+      const priceAsk = /بكام|بكم|السعر|سعره|كام\s*سعر|price/i.test(String(message || ""));
+      const continuationShaped = Boolean(entities.color || (entities.size && (entities.sizeIsExplicit || entities.wantsAvailability)) || entities.wantsAvailability || priceAsk);
+      if (continuationShaped) {
+        const resolveSubject = deps.resolveProductSubject || resolveConversationProductSubject;
+        const subject = await resolveSubject({ tenantId, sessionId, maxAgeMs: DURABLE_PRODUCT_CONTEXT_MAX_AGE_MS }).catch(() => null);
+        if (subject && subject.productId) {
+          const resolveById = deps.resolveProductById || defaultResolveProductById;
+          const row = await resolveById({ tenantId, productId: subject.productId }).catch(() => null);
+          if (row && row.id) {
+            brandModelProducts = [row]; // reuse the exact-catalog-row path (labels + variant machinery apply)
+            entities.productType = normalizeProductTypeValue(row.product_type || "", "") || "resolved";
+            entities.productTerm = String(row.name || "");
+            entities.typeLabel = String(row.name || "المنتج");
+            productContextResolution = { source: "conversation_context", product_id: String(row.id), context_age_seconds: subject.ageSeconds ?? null, source_message_id: subject.sourceMessageId ?? null, evidence: subject.source || null };
+          }
+        }
       }
     }
 
@@ -444,6 +549,8 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
           ? { productId: variantGrounding?.exactVariant?.productId || null, variantId: variantGrounding?.exactVariant?.variantId || null, erpSize: variantGrounding?.exactVariant?.size || null, displaySize: variantGrounding?.exactVariant?.displaySize || entities.size || null, color: variantGrounding?.exactVariant?.color || null, stock: variantGrounding?.exactStock ?? null, matchType: variantGrounding?.sizeResolution?.matchType || null }
           : { candidates: compatibleProducts.length, exactVariantResolved: false, matchType: variantGrounding?.sizeResolution?.matchType || null, euSize: variantGrounding?.sizeResolution?.euSize || null },
         action: decision.action,
+        // Phase 12.1 — provenance: how the product SUBJECT was chosen (explicit new mention vs recalled context).
+        product_resolution: productContextResolution || { source: "explicit_message" },
       },
     };
   } catch (e) {

@@ -2868,7 +2868,10 @@ function AiSuggestionCard({
   const groundingAction = clean(grounding?.action || "");
   const factProducts = Array.isArray(facts?.products) ? facts.products.filter((p) => clean(p?.name)) : [];
   const actionLabel = { available: "متوفر", unavailable: "غير متوفر", soft_match: "مطابقة", clarify_size: "توضيح المقاس", clarify_color: "توضيح اللون", clarify_product: "توضيح المنتج", no_match: "لا يوجد", restock_suggestion: "إشعار توفر" }[groundingAction] || groundingAction;
+  // Phase 12.1 — surface when the product SUBJECT was recalled from conversation context (facts stay fresh).
+  const fromContext = grounding?.product_resolution?.source === "conversation_context";
   const factChips = [
+    fromContext ? "المنتج من سياق المحادثة" : "",
     resolved?.productId ? `#${resolved.productId}` : "",
     clean(requested?.productTerm || ""),
     (resolved?.displaySize || requested?.size) ? `مقاس ${resolved?.displaySize || requested?.size}` : "",

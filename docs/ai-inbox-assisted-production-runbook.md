@@ -223,7 +223,17 @@ differences from Messenger:
 Incident cases A–E apply per-conversation and per-channel exactly as for Messenger; case C
 ("misbehaving across many conversations") pauses the affected channel via its own toggle.
 
-## 9. Change log
+## 9. Durable grounded product context (Phase 12.1)
+
+A continuation that omits the product ("طب مقاس 44؟", "والاسود؟", "بكام؟") reuses the most recent
+**grounded product subject** for that one conversation instead of re-asking — then re-reads
+stock/price/variant **fresh** from ERP. Subject only, never facts. Source: last employee-approved
+selection, else last sent product card; session-scoped; ≤30 min (`AI_INBOX_PRODUCT_CONTEXT_MAX_AGE_MS`).
+Explicit new product always wins; ambiguous/expired → clarify. The operator sees a
+**"المنتج من سياق المحادثة"** chip. Full detail:
+[ai-inbox-durable-product-context.md](ai-inbox-durable-product-context.md).
+
+## 10. Change log
 
 - Stage A (Messenger, human-approved) declared GO. WA remains OFF.
 - Stage B (Instagram, human-approved, text+link) — code deployed dormant; enabled at the owner-run
