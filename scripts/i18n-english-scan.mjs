@@ -190,6 +190,33 @@ const devGatedRanges = (text) => {
   return ranges;
 };
 
+/**
+ * Line ranges of a GENERATED PRINT DOCUMENT: a template literal written into a
+ * print window, e.g. `printWindow.document.write(\`<html>...\`)`.
+ *
+ * That markup is print/export copy, not runtime chrome - it is never rendered
+ * inside the app shell and has its own (often deliberately English) layout.
+ * Bucketing it as print keeps it visible without counting it as UI debt.
+ *
+ * Narrow: the opener must be a document.write( that starts a template literal.
+ */
+const printDocumentRanges = (text) => {
+  const lines = text.split("\n");
+  const ranges = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/document\s*\.\s*write\s*\(\s*`/.test(lines[i])) continue;
+    // The close must be a line that IS the terminator (`);`). Matching a bare
+    // backtick-paren anywhere would stop at the first NESTED template, e.g.
+    // `${rows.map(([k, v]) => `<div>...</div>`).join("")}`.
+    let end = lines.length - 1;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      if (/^\s*`\s*\)\s*;?\s*$/.test(lines[j])) { end = j; break; }
+    }
+    ranges.push([i + 1, end + 1]);
+  }
+  return ranges;
+};
+
 const inRanges = (line, ranges) => ranges.some(([from, to]) => line >= from && line <= to);
 
 export function scanEnglish() {
@@ -214,12 +241,19 @@ export function scanEnglish() {
     const text = fs.readFileSync(file, "utf8");
     const bilingualRanges = bilingualEnglishRanges(text);
     const devRanges = devGatedRanges(text);
-    if (bilingualRanges.length || devRanges.length) {
-      const bilingualHits = hits.filter((hit) => inRanges(hit.line, bilingualRanges));
-      const devHits = hits.filter((hit) => !inRanges(hit.line, bilingualRanges) && inRanges(hit.line, devRanges));
+    const printRanges = printDocumentRanges(text);
+    if (bilingualRanges.length || devRanges.length || printRanges.length) {
+      const take = (ranges, exclude) =>
+        hits.filter((hit) => inRanges(hit.line, ranges) && !exclude.some((r) => inRanges(hit.line, r)));
+      const bilingualHits = take(bilingualRanges, []);
+      const devHits = take(devRanges, [bilingualRanges]);
+      const printHits = take(printRanges, [bilingualRanges, devRanges]);
       if (bilingualHits.length) buckets.bilingual.push({ file: relative, total: bilingualHits.length, hits: bilingualHits });
       if (devHits.length) buckets.debug.push({ file: relative, total: devHits.length, hits: devHits });
-      hits = hits.filter((hit) => !inRanges(hit.line, bilingualRanges) && !inRanges(hit.line, devRanges));
+      if (printHits.length) buckets.print.push({ file: relative, total: printHits.length, hits: printHits });
+      hits = hits.filter(
+        (hit) => ![bilingualRanges, devRanges, printRanges].some((r) => inRanges(hit.line, r))
+      );
       if (!hits.length) continue;
     }
 
