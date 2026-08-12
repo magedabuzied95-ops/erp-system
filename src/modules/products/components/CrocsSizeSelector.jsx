@@ -56,13 +56,13 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
   };
 
   return (
-    <div className="absolute left-0 top-full z-40 mt-2 w-[min(92vw,520px)] rounded-[18px] border border-white/10 bg-zinc-950 p-4 shadow-2xl shadow-black/50" dir="rtl">
+    <div className="absolute left-0 top-full z-40 mt-2 w-[min(92vw,520px)] rounded-[var(--radius-card)] border border-border bg-surface-raised p-4 shadow-[var(--shadow-overlay)]" dir="rtl">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-white">مقاسات كروكس</p>
-          <p className="mt-1 text-[11px] leading-5 text-zinc-400">اختر المقاس المكتوب فعليًا على المنتج. لن يتم إجراء أي تحويل.</p>
+          <p className="text-sm font-black text-text">مقاسات كروكس</p>
+          <p className="mt-1 text-[11px] leading-5 text-text-muted">اختر المقاس المكتوب فعليًا على المنتج. لن يتم إجراء أي تحويل.</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="إغلاق" className="grid h-[var(--control-height-sm)] w-8 shrink-0 place-items-center rounded-full border border-white/10 text-zinc-300 hover:bg-white/10">
+        <button type="button" onClick={onClose} aria-label="إغلاق" className="grid h-[var(--control-height-sm)] w-8 shrink-0 place-items-center rounded-full border border-border text-text-muted hover:bg-surface-hover">
           <X size={15} />
         </button>
       </div>
@@ -83,7 +83,7 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
                     disabled={existing}
                     aria-pressed={existing || selected}
                     onClick={() => toggleSize(size)}
-                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ existing ? "cursor-not-allowed border-emerald-400/25 bg-emerald-400/10 text-emerald-200 opacity-70" : selected ? "border-amber-300 bg-amber-300 text-zinc-950" : "border-white/10 bg-white/5 text-zinc-100 hover:border-amber-300/40 hover:bg-amber-400/10" }`}
+                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ existing ? "cursor-not-allowed border-success/25 bg-success-subtle text-success opacity-70" : selected ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-border bg-surface-soft text-text hover:border-primary/40 hover:bg-primary/10" }`}
                   >
                     {(existing || selected) ? <Check size={13} /> : null}
                     {size}
@@ -96,10 +96,10 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
 
         {legacySizes.length ? (
           <section>
-            <div className="mb-2 text-xs font-black text-zinc-300">مقاسات موجودة / قديمة</div>
+            <div className="mb-2 text-xs font-black text-text-muted">مقاسات موجودة / قديمة</div>
             <div className="flex flex-wrap gap-2">
               {legacySizes.map((size, index) => (
-                <span key={`${size}-${index}`} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary">
+                <span key={`${size}-${index}`} className="inline-flex min-h-9 items-center gap-1 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary">
                   <Check size={13} /> {size}
                 </span>
               ))}
@@ -107,9 +107,9 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
           </section>
         ) : null}
 
-        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
+        <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
           {!showCustom ? (
-            <button type="button" onClick={() => setShowCustom(true)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 px-3 text-xs font-black text-white hover:bg-white/10">
+            <button type="button" onClick={() => setShowCustom(true)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border px-3 text-xs font-black text-text hover:bg-surface-hover">
               <Plus size={14} /> مقاس آخر
             </button>
           ) : (
@@ -121,23 +121,23 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
                   onChange={(event) => { setCustomSize(event.target.value); setCustomError(""); }}
                   onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomSize(); } }}
                   placeholder="مثال: C11"
-                  className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-900 px-3 text-sm font-bold text-white outline-none focus:border-amber-300/50"
+                  className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-bold text-text outline-none focus:border-amber-300/50"
                 />
                 {customError ? <p className="mt-1 text-[11px] font-bold text-rose-300">{customError}</p> : null}
               </div>
-              <button type="button" onClick={addCustomSize} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-amber-300 px-4 text-xs font-black text-zinc-950">إضافة</button>
+              <button type="button" onClick={addCustomSize} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)]">إضافة</button>
             </div>
           )}
         </section>
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-2 border-t border-white/10 pt-3">
-        <button type="button" onClick={onClose} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 px-4 text-xs font-black text-zinc-300 hover:bg-white/10">إلغاء</button>
+      <div className="mt-4 flex items-center justify-end gap-2 border-t border-border pt-3">
+        <button type="button" onClick={onClose} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border px-4 text-xs font-black text-text-muted hover:bg-surface-hover">إلغاء</button>
         <button
           type="button"
           disabled={!selectedSizes.length}
           onClick={() => onApply?.(selectedSizes)}
-          className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-amber-300 px-4 text-xs font-black text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           إضافة المقاسات المحددة ({selectedSizes.length})
         </button>

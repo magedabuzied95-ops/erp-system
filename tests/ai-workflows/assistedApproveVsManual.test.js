@@ -110,3 +110,16 @@ test("frontend reconciliation: suggestion visibility is derived from authoritati
   assert.match(inboxSrc, /return `\$\{selectedConversation\.session_id\}:\$\{suggestionSourceId \|\| 0\}:\$\{stamp \|\| activeAiSuggestionText\.length\}`;/);
   assert.match(inboxSrc, /const suggestionSourceId = Number\(activeAiReplyDraft\?\.metadata\?\.source_message_id\) \|\| 0;/);
 });
+
+// Phase 11.3 Step 7 — the current-suggestion invariant: at most ONE actionable AI suggestion per
+// conversation, and it is always the authoritative server draft (last_ai_reply_draft). A regression that
+// renders a second/older suggestion, or derives the card from anything other than the persisted draft, breaks it.
+test("invariant: the actionable suggestion is the single authoritative server draft (not a stale/duplicate)", () => {
+  // (a) the card text comes from the one persisted draft, not a client-accumulated list
+  assert.match(inboxSrc, /const activeAiReplyDraft = /);
+  // (b) exactly one visibility gate — a newer inbound turn hides the old draft, so two can never be actionable at once
+  assert.match(inboxSrc, /const suggestionStale = latestCustomerMessageId > 0 && suggestionSourceId > 0 && latestCustomerMessageId > suggestionSourceId;/);
+  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
+  // (c) server side: the draft is the single source and is cleared on send so it cannot re-appear as actionable
+  assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId \}\)/);
+});

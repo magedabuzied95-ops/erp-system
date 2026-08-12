@@ -24,7 +24,7 @@ export default function ArticleCodeMultiInput({
 
   return (
     <div
-      className={`rounded-[14px] border border-white/8 bg-zinc-950 ${ compact ? "flex min-h-10 items-center gap-1.5 p-1 xl:mt-0" : "mt-1.5 p-1.5" }`}
+      className={`rounded-[var(--radius-control)] border border-border bg-surface ${ compact ? "flex min-h-10 items-center gap-1.5 p-1 xl:mt-0" : "mt-1.5 p-1.5" }`}
     >
       {codes.length ? (
         <div className={compact ? "flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto" : "mb-1 flex flex-wrap gap-1"}>
@@ -37,7 +37,7 @@ export default function ArticleCodeMultiInput({
               <button
                 type="button"
                 onClick={() => onChange?.(codes.filter((item) => item !== code))}
-                className="rounded-full p-0.5 text-amber-100/70 hover:bg-white/10 hover:text-white"
+                className="rounded-full p-0.5 text-amber-100/70 hover:bg-surface-hover hover:text-text"
                 aria-label={`حذف ${code}`}
               >
                 <X size={13} />
@@ -58,13 +58,13 @@ export default function ArticleCodeMultiInput({
           }}
           onBlur={() => addDraft()}
           placeholder={placeholder}
-          className={`min-w-0 bg-transparent text-sm text-white outline-none placeholder:text-zinc-500 ${ compact ? "h-[var(--control-height-sm)] w-16 px-1" : "h-[var(--control-height-sm)] flex-1 px-2" }`}
+          className={`min-w-0 bg-transparent text-sm text-text outline-none placeholder:text-text-muted ${ compact ? "h-[var(--control-height-sm)] w-16 px-1" : "h-[var(--control-height-sm)] flex-1 px-2" }`}
         />
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => addDraft()}
-          className={`inline-flex items-center justify-center rounded-[10px] border border-white/10 text-xs font-bold text-zinc-200 hover:bg-white/5 ${ compact ? "h-[var(--control-height-sm)] w-8 p-0" : "h-[var(--control-height-sm)] gap-1 px-2.5" }`}
+          className={`inline-flex items-center justify-center rounded-[var(--radius-control)] border border-border text-xs font-bold text-text hover:bg-surface-hover ${ compact ? "h-[var(--control-height-sm)] w-8 p-0" : "h-[var(--control-height-sm)] gap-1 px-2.5" }`}
         >
           <Plus size={14} />
           {compact ? null : "إضافة"}

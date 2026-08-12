@@ -4331,7 +4331,7 @@ function ProductEdit() {
                     className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-hover"
                     aria-expanded={isExpanded}
                   >
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-raised sm:h-[72px] sm:w-[72px]">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface sm:h-[72px] sm:w-[72px]">
                       {(getPrimaryColorImage(group) || group.imagePreview || group.image_url) ? (
                         <img
                           src={resolveAssetUrl(getPrimaryColorImage(group) || group.imagePreview || group.image_url)}
@@ -4374,7 +4374,7 @@ function ProductEdit() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center rounded-[var(--radius-control)] border border-border bg-surface-raised p-1" aria-label="ترتيب اللون">
+                      <div className="flex items-center rounded-[var(--radius-control)] border border-border bg-surface p-1" aria-label="ترتيب اللون">
                         <button
                           type="button"
                           onClick={(event) => {
@@ -4420,7 +4420,7 @@ function ProductEdit() {
                         aria-pressed={Boolean(group.generate_thermal_artwork)}
                         onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
                         disabled={!getPrimaryColorImage(group)}
-                        className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"}`}
+                        className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface text-text-muted hover:bg-surface-hover"}`}
                       >
                         <span>إنشاء Thermal لهذا اللون عند الحفظ</span>
                         <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
@@ -4431,7 +4431,7 @@ function ProductEdit() {
                           event.stopPropagation();
                           removeColorGroup(group.id);
                         }}
-                        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-raised text-red-300"
+                        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-red-300"
                         aria-label={`Remove color group ${group.color || groupIndex + 1}`}
                       >
                         <Trash2 size={16} />
@@ -4444,7 +4444,7 @@ function ProductEdit() {
                   <div className="border-t border-border p-4">
                     <div className="grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)] xl:items-start">
                     <div className="space-y-2">
-                      <label className="relative flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-raised">
+                      <label className="relative flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
                         <div className="absolute inset-0 flex items-center justify-center text-text-muted">
                           <ImagePlus size={26} />
                         </div>
@@ -4469,7 +4469,7 @@ function ProductEdit() {
                           }}
                         />
                       </label>
-                      <label className="inline-flex h-9 w-20 cursor-pointer items-center justify-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 text-xs font-semibold text-text transition hover:bg-surface-hover">
+                      <label className="inline-flex h-[var(--control-height-md)] w-20 cursor-pointer items-center justify-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface px-2 text-xs font-semibold text-text transition hover:bg-surface-hover">
                         <Upload size={14} />
                         Add
                         <input
@@ -4505,7 +4505,7 @@ function ProductEdit() {
                         </button>
                       ) : null}
                       <div className="flex w-full max-w-[520px] flex-col gap-2">
-                        <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-2">
+                        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-2">
                           <div className="flex h-20 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-surface">
                             {getPrimaryColorImage(group) ? (
                               <img
@@ -4561,7 +4561,7 @@ function ProductEdit() {
                           />
                         ))}
                         {normalizeColorImages(group.images).length === 0 ? (
-                          <div className="col-span-full rounded-[var(--radius-card)] border border-dashed border-border bg-surface-raised px-3 py-4 text-center text-[11px] font-semibold text-text-muted">
+                          <div className="col-span-full rounded-[var(--radius-card)] border border-dashed border-border bg-surface px-3 py-4 text-center text-[11px] font-semibold text-text-muted">
                             No images
                           </div>
                         ) : null}
@@ -4578,7 +4578,7 @@ function ProductEdit() {
                                 onBlur={(e) => updateColorGroup(group.id, "color", normalizeColorName(e.target.value))}
                                 list="m1-standard-color-names"
                                 placeholder={t("products.placeholders.colorExample")}
-                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted"
                               />
                               <datalist id="m1-standard-color-names">
                                 {STANDARD_COLOR_NAMES.map((name) => <option key={name} value={name} />)}
@@ -4606,15 +4606,15 @@ function ProductEdit() {
                                 value={group.edition_name || ""}
                                 onChange={(e) => updateColorGroup(group.id, "edition_name", e.target.value)}
                                 placeholder={t("products.editor.editionNamePlaceholder")}
-                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted"
                               />
                               {editionSuggestions[group.id]?.status === "loading" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-text-muted shadow-[var(--shadow-overlay)]">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2 text-xs font-semibold text-text-muted shadow-[var(--shadow-overlay)]">
                                   Searching similar products...
                                 </div>
                               ) : null}
                               {editionSuggestions[group.id]?.status === "ready" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-violet-400/20 bg-surface-raised p-3 shadow-[var(--shadow-overlay)]">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-violet-400/20 bg-surface p-3 shadow-[var(--shadow-overlay)]">
                                   {editionSuggestions[group.id].suggestion.source === "NO_TRUSTED_MATCH" ? (
                                     <div className="text-sm font-black text-text">{t("products.editor.noTrustedMatch")}</div>
                                   ) : (
@@ -4642,7 +4642,7 @@ function ProductEdit() {
                                       {editionSuggestions[group.id].suggestion.candidates.slice(0, 5).map((candidate) => (
                                         <div
                                           key={`${candidate.edition_name}-${candidate.source}-${candidate.source_url || ""}`}
-                                          className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2"
+                                          className="rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2"
                                         >
                                           <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
@@ -4667,12 +4667,12 @@ function ProductEdit() {
                                 </div>
                               ) : null}
                               {editionSuggestions[group.id]?.status === "error" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border border-red-400/20 bg-surface-raised p-3 text-xs text-red-100 shadow-[var(--shadow-overlay)]">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border border-red-400/20 bg-surface p-3 text-xs text-red-100 shadow-[var(--shadow-overlay)]">
                                   <span>{editionSuggestions[group.id].error}</span>
                                   <button
                                     type="button"
                                     onClick={() => requestEditionSuggestion(group, { retry: true })}
-                                    className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 font-black text-text"
+                                    className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 font-black text-text"
                                   >
                                     Retry
                                   </button>
@@ -4683,7 +4683,7 @@ function ProductEdit() {
                           <div>
                             <div className="mb-2 flex items-center justify-between gap-2">
                               <label className="text-sm font-semibold text-text-muted">{t("products.fields.manufacturer", "Manufacturer")}</label>
-                              <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
+                              <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                                 Color level
                               </span>
                             </div>
@@ -4699,7 +4699,7 @@ function ProductEdit() {
                             <label className="text-sm font-semibold text-text-muted">الجمهور لهذا اللون</label>
                             <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                               {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].map((option) => (
-                                <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-raised text-text-muted hover:text-text"}`}>
+                                <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface text-text-muted hover:text-text"}`}>
                                   {option.label}
                                 </button>
                               ))}
@@ -4733,7 +4733,7 @@ function ProductEdit() {
                               })
                             }
                             disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                            className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-semibold text-text transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             Pick color
                           </button>
@@ -4772,7 +4772,7 @@ function ProductEdit() {
                               <button
                                 type="button"
                                 onClick={() => addSizeRow(group.id)}
-                                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text"
+                                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-semibold text-text"
                               >
                                 <Plus size={16} />
                                 Add size
@@ -4800,7 +4800,7 @@ function ProductEdit() {
                           </div>
                         </div>
 
-                        <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-3">
+                        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3">
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
                               <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
@@ -4812,12 +4812,12 @@ function ProductEdit() {
                                         : t("products.editor.oneRowPerColor", "One row per color becomes the color-only variant.")}
                               </p>
                             </div>
-                            <div className="rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-semibold text-text-muted">
+                            <div className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-text-muted">
                               {isColorOnlyMode ? 1 : group.sizes.length} row(s)
                             </div>
                           </div>
 
-                          <div className={`hidden rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}>
+                          <div className={`hidden rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}>
                             {!isColorOnlyMode ? <div>{t("products.fields.size", "Size")}</div> : null}
                             <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                             <div>SKU</div>
@@ -4830,7 +4830,7 @@ function ProductEdit() {
                             {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                               <div
                                 key={row.id}
-                                className={`grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
+                                className={`grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
                               >
                                 {!isColorOnlyMode ? <div>
                                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">
@@ -4840,7 +4840,7 @@ function ProductEdit() {
                                     value={row.size}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
                                     placeholder="40"
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                   />
                                 </div> : null}
                                 <div>
@@ -4852,7 +4852,7 @@ function ProductEdit() {
                                     value={row.stock ?? ""}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
                                     placeholder="0"
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                   />
                                   {row.variantId ? (
                                     <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold leading-4 text-success">
@@ -4875,7 +4875,7 @@ function ProductEdit() {
                                     value={row.sku}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "sku", e.target.value)}
                                     placeholder=""
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                   />
                                 </div>
                                 <div>
@@ -4884,7 +4884,7 @@ function ProductEdit() {
                                     value={row.barcode}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
                                     placeholder={t("products.editor.scanOrEnterBarcode", "Scan or enter barcode")}
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                   />
                                 </div>
                                 <div>
@@ -4904,7 +4904,7 @@ function ProductEdit() {
                                     {row.variantId ? (
                                       <Link
                                         to={`/inventory/variant/${row.variantId}/history?productId=${id}`}
-                                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
+                                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                                       >
                                         <Clock3 size={16} />
                                         History
@@ -4914,7 +4914,7 @@ function ProductEdit() {
                                       type="button"
                                       onClick={() => removeSizeRow(group.id, row.id)}
                                       disabled={isColorOnlyMode || (group.sizes.length === 1 && rowIndex === 0)}
-                                      className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                      className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                       Remove
                                     </button>
