@@ -206,8 +206,27 @@ none are invented placeholders.
 
 ---
 
-## 8. Change log
+## 8. Instagram (Stage B)
 
-- Stage A (Messenger, human-approved) declared GO. IG/WA remain OFF.
+Instagram uses the **same** assisted pipeline (see
+[ai-inbox-instagram-assisted-rollout.md](ai-inbox-instagram-assisted-rollout.md)). Operational
+differences from Messenger:
+
+- **Product delivery is TEXT + product link only** — Instagram has no rich card. The operator sees
+  the internal Product-to-Send preview but the customer receives text + canonical link. The AI
+  Suggestion card shows a **التسليم: نص + لينك المنتج** chip so this is explicit.
+- Independent kill switch: `inbound_ai_channels.instagram` (AI Studio → Channels). Turning it off
+  stops Instagram suggestions only — Messenger, inbound persistence, and manual replies keep working.
+- Identity is IGSID-scoped and never merged with Messenger/WhatsApp.
+- All other behavior (A/B, stale, grounding, style, metrics) is identical and channel-agnostic.
+
+Incident cases A–E apply per-conversation and per-channel exactly as for Messenger; case C
+("misbehaving across many conversations") pauses the affected channel via its own toggle.
+
+## 9. Change log
+
+- Stage A (Messenger, human-approved) declared GO. WA remains OFF.
+- Stage B (Instagram, human-approved, text+link) — code deployed dormant; enabled at the owner-run
+  live proof. No new AI brain, no autonomous replies.
 - Style learning enabled for **tenant 1 only**, opt-in, ≥5-example threshold, facts never learned.
-- This runbook created for Phase 11.3 (production hardening — no new AI behavior).
+- Runbook created for Phase 11.3; Instagram section added for Phase 12.
