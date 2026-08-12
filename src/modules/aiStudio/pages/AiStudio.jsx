@@ -107,6 +107,7 @@ function ReplyStyleLearningCard() {
         </div>
       </div>
       <p className="mt-1.5 text-[12px] text-slate-400">Learns only <b className="text-slate-200">how</b> to phrase (brevity, stock-count omission, emoji) from repeated approved edits — <b className="text-slate-200">never</b> stock, price, size, product, or policy facts. A preference becomes <b className="text-slate-200">Stable</b> after ≥5 consistent edits per intent; conflicting edits disable it. Reset clears learned style but keeps correction/audit history.</p>
+      <p className="mt-1 text-[12px] text-slate-400" dir="rtl">يتعلم أسلوب الصياغة فقط — السعر والمخزون والمقاسات تظل من بيانات النظام.</p>
       {!intents.length ? (
         <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-[12px] text-slate-400">No stable style preference yet — evidence accumulating ({Number(data?.evidence_count || 0)} edits so far).</div>
       ) : intents.map((intent) => (
