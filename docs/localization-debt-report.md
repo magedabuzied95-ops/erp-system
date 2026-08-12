@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 610
 - Files with debt: 172
-- Hardcoded Arabic UI strings: 1883
+- Hardcoded Arabic UI strings: 1884
 - Hardcoded English UI strings: 2167
-- Total hardcoded UI strings: 4050
+- Total hardcoded UI strings: 4051
 - Mixed-language files (both scripts hardcoded): 50
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 94 | 1317 | 1629 | 2946 | 34 |
+| main-erp | 94 | 1318 | 1629 | 2947 | 34 |
 | shared | 62 | 200 | 455 | 655 | 11 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 157 | 260 | 417 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 158 | 260 | 418 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
@@ -82,7 +82,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:157 en:260)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:158 en:260)
 
 - 564 [object-key/en] All
 - 565 [object-key/en] Messages
@@ -124,7 +124,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2228 [attribute/ar] ابحث أو اكتب Label جديد...
 - 2232 [jsx-text/en] Current labels (
 - 2240 [jsx-text/ar] لا توجد Labels مختارة
-- ... 377 more
+- ... 378 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:10)
 
