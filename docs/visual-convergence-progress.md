@@ -4,6 +4,12 @@ Operational tracking only. Nothing here affects runtime behaviour.
 
 Started from `origin/main` @ `3ca9c07`.
 
+## Deployment checkpoints
+
+| # | Scope | Rollback ref | Released | Production | Suite |
+|---|---|---|---|---|---|
+| 1 | FlowShell fixed-dark retirement | `pre-visual-convergence-cp1-20260812` -> `b91cec6` | `e037562` | `e037562` verified | 1850 tests, 25 fail, identical to baseline |
+
 ## Method
 
 Production is the visual truth. Findings are **measured in the live authenticated
@@ -103,6 +109,15 @@ spacing, radius and type scale. Also corrected in the same owner:
 - `shadow-2xl` / `shadow-black/20` → `--shadow-card`
 
 Result: 0 raw hex, 0 gradients, 0 fixed-dark chrome, 0 arbitrary radii in the file.
+
+**Production verified after deploy (checkpoint 1, Production `e037562`):**
+
+| Theme | Shell background | Shell text | Islands |
+|---|---|---|---|
+| Light | `rgb(234, 231, 224)` = --bg | `rgb(27, 25, 21)` = --text | 0 dark islands |
+| Dark | `rgb(19, 18, 17)` = --bg | `rgb(243, 241, 236)` = --text | 0 light islands |
+
+`#050609` no longer present anywhere in the rendered document. State: **FIXED + VERIFIED (light + dark, RTL)**.
 
 ## RESUME MARKER
 
