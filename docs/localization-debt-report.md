@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 207
-- Hardcoded Arabic UI strings: 1966
+- Files with debt: 205
+- Hardcoded Arabic UI strings: 1939
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 4512
+- Total hardcoded UI strings: 4485
 - Mixed-language files (both scripts hardcoded): 51
 
 ### By surface
@@ -22,8 +22,8 @@ of scope. The scanner is conservative and can still contain false positives.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 105 | 1352 | 1821 | 3173 | 35 |
 | shared | 70 | 185 | 440 | 625 | 10 |
-| employee-portal | 24 | 223 | 149 | 372 | 3 |
-| pos | 6 | 206 | 122 | 328 | 3 |
+| employee-portal | 23 | 203 | 149 | 352 | 3 |
+| pos | 5 | 199 | 122 | 321 | 3 |
 | manager-portal | 2 | 0 | 14 | 14 | 0 |
 
 ## Mixed-language files (ranked by density)
@@ -2274,29 +2274,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 223 [jsx-text/ar] المدفوع:
 - 224 [jsx-text/ar] المتبقي:
 
-### src/modules/attendance/pages/AttendanceDashboard.jsx (employee-portal — ar:20 en:0)
-
-- 63 [object-key/ar] تم الانصراف
-- 65 [object-key/ar] تم تسجيل الحضور
-- 119 [jsx-text/ar] ملخص حضور اليوم
-- 142 [attribute/ar] الحاضرون اليوم
-- 142 [attribute/ar] الموظفون المسجل حضورهم اليوم
-- 143 [attribute/ar] المتأخرون اليوم
-- 143 [attribute/ar] الوصول بعد فترة السماح
-- 144 [attribute/ar] الغائبون اليوم
-- 145 [attribute/ar] الانصراف المبكر اليوم
-- 145 [attribute/ar] الانصراف قبل نهاية الوردية
-- 146 [attribute/ar] التحقق من GPS خارج النطاق
-- 146 [attribute/ar] خارج نطاق GPS اليوم
-- 152 [jsx-text/ar] جدول الموظفين المباشر
-- 162 [jsx-text/ar] الموظف
-- 163 [jsx-text/ar] الفرع
-- 164 [jsx-text/ar] تسجيل الحضور
-- 165 [jsx-text/ar] تسجيل الانصراف
-- 166 [jsx-text/ar] الحالة
-- 167 [jsx-text/ar] دقائق التأخير
-- 168 [jsx-text/ar] دقائق الانصراف المبكر
-
 ### src/modules/inventory/pages/InventoryDashboard.jsx (main-erp — ar:20 en:0)
 
 - 74 [object-key/ar] نفد
@@ -3247,16 +3224,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2107 [jsx-text/en] 0 ? "text-emerald-300" : diff
 - 2145 [jsx-text/en] 0 ? "text-rose-300" : group.difference_total
 - 2159 [jsx-text/en] 0 ? "text-rose-300" : diff
-
-### src/modules/pos/components/QuickPosFilters.jsx (pos — ar:7 en:0)
-
-- 78 [attribute/ar] بحث...
-- 109 [jsx-text/ar] لا توجد نتائج
-- 152 [object-key/ar] رجالي
-- 153 [object-key/ar] حريمي
-- 154 [object-key/ar] أطفال
-- 178 [attribute/ar] المصنع
-- 188 [attribute/ar] الماركة
 
 ### src/modules/products/components/CrocsSizeSelector.jsx (shared — ar:7 en:0)
 

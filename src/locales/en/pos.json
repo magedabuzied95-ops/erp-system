@@ -14,7 +14,10 @@
   },
   "searchPlaceholder": "Search products, SKU, barcode, color, size, category, brand...",
   "filters": {
-    "title": "Filters"
+    "title": "Filters",
+    "search": "Search...",
+    "clearAll": "Clear all",
+    "brand": "Brand"
   },
   "common": {
     "close": "Close"
@@ -82,7 +85,8 @@
     "noAvailableSizes": "No available sizes in stock",
     "inStock": "In stock",
     "lowStock": "Low stock",
-    "outOfStock": "Out of stock"
+    "outOfStock": "Out of stock",
+    "noSizes": "No sizes are available at this stage"
   },
   "productGrid": {
     "loading": "Loading products...",
@@ -157,7 +161,7 @@
     "notSet": "Not set",
     "other": "Other",
     "processing": "Processing...",
-    "savingInvoice": "Saving invoice...",
+    "savingInvoice": "Saving the invoice...",
     "createOrder": "Create order",
     "saveInvoiceEdit": "Save Changes",
     "thermalPrint": "Thermal print",
@@ -173,7 +177,13 @@
     "receiptPreview": "Receipt preview",
     "thermal": "Thermal",
     "a4": "A4",
-    "couponDiscount": "Coupon discount"
+    "couponDiscount": "Coupon discount",
+    "unsaved": "Unsaved",
+    "closeInvoice": "Close the invoice",
+    "note": "Note",
+    "optional": "Optional",
+    "editInvoice": "Edit the invoice",
+    "invoiceTotal": "Invoice total"
   },
   "saleMode": {
     "existingSalePrices": "Existing sale prices",
@@ -271,5 +281,54 @@
     "popupBlocked": "Popup blocked",
     "printFailed": "Unable to prepare the invoice for printing",
     "savedOfflineInvoice": "Saved offline invoice. It will sync automatically when the connection returns."
+  },
+  "personal": {
+    "operation": "Personal operation",
+    "gift": "Personal operation / gift",
+    "employeeAdvance": "Personal operation / employee advance",
+    "ownerUse": "Personal operation / personal use",
+    "type": "Personal operation type",
+    "selectType": "Select the type",
+    "giftOrExpense": "Gift / expense",
+    "advance": "Employee advance",
+    "ownerPersonalUse": "Owner personal use",
+    "stockNotice": "This operation deducts from stock and is not treated as a normal cash collection."
+  },
+  "payment": {
+    "cash": "Cash",
+    "split": "Split",
+    "pay": "Pay",
+    "selectRemainingMethod": "Choose how to collect the remaining amount",
+    "credit": "Credit - no cash collection needed now",
+    "previouslyPaid": "Previously paid",
+    "previousDetails": "Previous payment details",
+    "dueNow": "Due to collect now",
+    "methodHint": "Choose a collection method below. Press Cash if the whole amount is cash, or Split for more than one method.",
+    "negativeAllowed": "Negative balances are allowed for this account."
+  },
+  "credit": {
+    "selectCustomerFirst": "Select a customer first to create a credit sale",
+    "saveDepositRest": "Save the deposit and record the rest as credit",
+    "createForCustomer": "Create a credit sale for the selected customer",
+    "depositPlusCredit": "Deposit + remainder on credit",
+    "customerCreditSale": "Customer credit sale",
+    "recordRemainder": "Record the remainder as credit",
+    "selectCustomerForDebt": "Select the customer first to record the debt",
+    "saveDepositAndCredit": "Save the deposit and the credit remainder"
+  },
+  "audience": {
+    "men": "Men",
+    "women": "Women",
+    "kids": "Kids"
+  },
+  "categories": {
+    "sneakers": "Sneakers",
+    "crocs": "Crocs",
+    "bags": "Bags",
+    "winter": "Winter",
+    "special": "Special",
+    "baby": "Baby",
+    "medium": "Medium",
+    "boys": "Boys"
   }
 }

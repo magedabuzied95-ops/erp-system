@@ -14,7 +14,10 @@
   },
   "searchPlaceholder": "ابحث عن المنتجات أو SKU أو الباركود أو اللون أو المقاس أو القسم أو العلامة التجارية...",
   "filters": {
-    "title": "الفلاتر"
+    "title": "الفلاتر",
+    "search": "بحث...",
+    "clearAll": "مسح الكل",
+    "brand": "الماركة"
   },
   "common": {
     "close": "إغلاق"
@@ -82,7 +85,8 @@
     "noAvailableSizes": "لا توجد مقاسات متاحة في المخزون",
     "inStock": "متوفر",
     "lowStock": "مخزون منخفض",
-    "outOfStock": "غير متوفر"
+    "outOfStock": "غير متوفر",
+    "noSizes": "لا توجد مقاسات متاحة في هذه المرحلة"
   },
   "productGrid": {
     "loading": "جاري تحميل المنتجات...",
@@ -157,7 +161,7 @@
     "notSet": "غير محدد",
     "other": "أخرى",
     "processing": "جاري المعالجة...",
-    "savingInvoice": "جارٍ حفظ الفاتورة...",
+    "savingInvoice": "جارِ حفظ الفاتورة...",
     "createOrder": "إنشاء طلب",
     "saveInvoiceEdit": "حفظ التعديل",
     "thermalPrint": "طباعة حرارية",
@@ -173,7 +177,13 @@
     "receiptPreview": "معاينة الإيصال",
     "thermal": "حراري",
     "a4": "A4",
-    "couponDiscount": "خصم الكوبون"
+    "couponDiscount": "خصم الكوبون",
+    "unsaved": "غير محفوظة",
+    "closeInvoice": "إغلاق الفاتورة",
+    "note": "ملاحظة",
+    "optional": "اختياري",
+    "editInvoice": "تعديل الفاتورة",
+    "invoiceTotal": "إجمالي الفاتورة"
   },
   "saleMode": {
     "existingSalePrices": "أسعار العروض الحالية",
@@ -271,5 +281,54 @@
     "popupBlocked": "تم حظر النافذة المنبثقة",
     "printFailed": "تعذر تجهيز الفاتورة للطباعة",
     "savedOfflineInvoice": "تم حفظ الفاتورة دون اتصال. ستتم المزامنة تلقائيًا عند عودة الاتصال."
+  },
+  "personal": {
+    "operation": "عملية شخصية",
+    "gift": "عملية شخصية / هدية",
+    "employeeAdvance": "عملية شخصية / سلفة موظف",
+    "ownerUse": "عملية شخصية / استخدام شخصي",
+    "type": "نوع العملية الشخصية",
+    "selectType": "اختر النوع",
+    "giftOrExpense": "هدية / مصروف",
+    "advance": "سلفة موظف",
+    "ownerPersonalUse": "استخدام شخصي للمالك",
+    "stockNotice": "هذه العملية ستخصم من المخزون ولن تُعامل كتحصيل نقدي عادي."
+  },
+  "payment": {
+    "cash": "نقدًا",
+    "split": "تقسيم",
+    "pay": "دفع",
+    "selectRemainingMethod": "اختر طريقة تحصيل المبلغ المتبقي",
+    "credit": "آجل - لا يتطلب تحصيلاً نقدياً الآن",
+    "previouslyPaid": "المدفوع سابقًا",
+    "previousDetails": "تفاصيل الدفع السابق",
+    "dueNow": "المطلوب تحصيله الآن",
+    "methodHint": "اختر طريقة التحصيل بالأسفل. لو المبلغ كله كاش اضغط «كاش»، ولو أكثر من طريقة اضغط «تقسيم».",
+    "negativeAllowed": "مسموح بالسالب لهذا الحساب."
+  },
+  "credit": {
+    "selectCustomerFirst": "اختر عميلاً أولاً لإنشاء بيع آجل",
+    "saveDepositRest": "حفظ العربون وتسجيل الباقي آجل",
+    "createForCustomer": "إنشاء بيع آجل للعميل المحدد",
+    "depositPlusCredit": "العربون + الباقي آجل",
+    "customerCreditSale": "بيع آجل للعميل",
+    "recordRemainder": "تسجيل الباقي آجل",
+    "selectCustomerForDebt": "اختر العميل أولًا لتسجيل المديونية",
+    "saveDepositAndCredit": "حفظ العربون والباقي آجل"
+  },
+  "audience": {
+    "men": "رجالي",
+    "women": "حريمي",
+    "kids": "أطفال"
+  },
+  "categories": {
+    "sneakers": "اسنيكرز",
+    "crocs": "كروكس",
+    "bags": "شنط",
+    "winter": "شتوي",
+    "special": "خاص",
+    "baby": "بيبي",
+    "medium": "وسط",
+    "boys": "أولادي"
   }
 }

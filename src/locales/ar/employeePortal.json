@@ -356,7 +356,24 @@
     "recordedAt": "سجل الحضور في",
     "activeNow": "نشط الآن",
     "openingTomorrow": "أنت فاتح الفرع غدًا",
-    "tomorrowShift": "شيفت بكرة"
+    "tomorrowShift": "شيفت بكرة",
+    "errors": {
+      "loadToday": "تعذر تحميل حضور اليوم"
+    },
+    "dashboardTitle": "لوحة الحضور والانصراف",
+    "todaySummary": "ملخص حضور اليوم",
+    "dashboardSubtitle": "متابعة مباشرة للحضور والانصراف، والحالة الحالية، وعمليات تسجيل الحضور المفتوحة، والتأخرات في مكان واحد.",
+    "presentToday": "الموظفون المسجل حضورهم اليوم",
+    "lateToday": "المتأخرون اليوم",
+    "arrivedAfterGrace": "الوصول بعد فترة السماح",
+    "earlyLeaveToday": "الانصراف المبكر اليوم",
+    "leftBeforeShiftEnd": "الانصراف قبل نهاية الوردية",
+    "outsideGpsToday": "خارج نطاق GPS اليوم",
+    "gpsOutOfRange": "التحقق من GPS خارج النطاق",
+    "liveEmployeeTable": "جدول الموظفين المباشر",
+    "earlyLeaveMinutes": "دقائق الانصراف المبكر",
+    "loadingToday": "جارٍ تحميل حضور اليوم...",
+    "noRecordsToday": "لا توجد سجلات حضور لهذا اليوم."
   },
   "requests": {
     "leave": "طلب إجازة",
@@ -476,7 +493,12 @@
     "completeDisplay": "تمم العرض",
     "allowPopup": "اسمح بفتح نافذة الطباعة ثم أعد المحاولة",
     "showMoreOutlet": "عرض المزيد من المنفذ",
-    "hideOutlet": "إخفاء المنفذ"
+    "hideOutlet": "إخفاء المنفذ",
+    "independentManagement": "إدارة العرض المستقلة",
+    "confirmDisplay": "تمم على العرض",
+    "unconfirmedModels": "الموديلات الموجودة بالمخزن ولم يتم تأكيد عرضها على الستاند.",
+    "totalNotDisplayed": "إجمالي الموديلات غير المعروضة",
+    "allDisplayed": "كل الموديلات الموجودة بالمخزن معروضة"
   },
   "opportunities": {
     "item": "فرصة بيع",
