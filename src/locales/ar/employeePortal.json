@@ -498,7 +498,29 @@
     "confirmDisplay": "تمم على العرض",
     "unconfirmedModels": "الموديلات الموجودة بالمخزن ولم يتم تأكيد عرضها على الستاند.",
     "totalNotDisplayed": "إجمالي الموديلات غير المعروضة",
-    "allDisplayed": "كل الموديلات الموجودة بالمخزن معروضة"
+    "allDisplayed": "كل الموديلات الموجودة بالمخزن معروضة",
+    "smallestSize": "أصغر مقاس",
+    "quantity": "الكمية",
+    "markDisplayed": "معروض",
+    "stageSizesFrom": "مقاسات العرض من {{range}}",
+    "noStageSizes": "لا توجد مقاسات متاحة في هذه المرحلة",
+    "groups": {
+      "sneakers": "اسنيكرز",
+      "crocs": "كروكس",
+      "bags": "شنط",
+      "winter": "شتوي"
+    },
+    "audiences": {
+      "men": "رجالي",
+      "women": "حريمي",
+      "kids": "أطفال",
+      "special": "خاص"
+    },
+    "stages": {
+      "baby": "بيبي",
+      "middle": "وسط",
+      "boys": "أولادي"
+    }
   },
   "opportunities": {
     "item": "فرصة بيع",

@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 205
-- Hardcoded Arabic UI strings: 1939
+- Files with debt: 204
+- Hardcoded Arabic UI strings: 1921
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 4485
+- Total hardcoded UI strings: 4467
 - Mixed-language files (both scripts hardcoded): 51
 
 ### By surface
@@ -22,7 +22,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 105 | 1352 | 1821 | 3173 | 35 |
 | shared | 70 | 185 | 440 | 625 | 10 |
-| employee-portal | 23 | 203 | 149 | 352 | 3 |
+| employee-portal | 22 | 185 | 149 | 334 | 3 |
 | pos | 5 | 199 | 122 | 321 | 3 |
 | manager-portal | 2 | 0 | 14 | 14 | 0 |
 
@@ -878,46 +878,46 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/pos/components/CartSidebar.jsx (pos — ar:46 en:13)
 
-- 373 [attribute/en] Create order
-- 590 [attribute/ar] غير محفوظة
-- 596 [attribute/ar] إغلاق الفاتورة
-- 976 [jsx-text/ar] عملية شخصية
-- 981 [jsx-text/ar] نوع العملية الشخصية
-- 987 [jsx-text/ar] اختر النوع
-- 988 [jsx-text/ar] هدية / مصروف
-- 989 [jsx-text/ar] سلفة موظف
-- 990 [jsx-text/ar] استخدام شخصي للمالك
-- 994 [jsx-text/ar] ملاحظة
-- 1000 [attribute/ar] اختياري
-- 1083 [jsx-text/ar] بيع آجل للعميل
-- 1583 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
-- 1744 [jsx-text/ar] فاتورة بيع
-- 1746 [jsx-text/ar] التاريخ
-- 1747 [jsx-text/ar] البائع
-- 1748 [jsx-text/ar] العميل
-- 1749 [jsx-text/ar] الدفع
-- 1754 [jsx-text/ar] الإجمالي
-- 1754 [jsx-text/ar] السعر
-- 1754 [jsx-text/ar] الصنف
-- 1767 [jsx-text/ar] لا توجد منتجات
-- 1772 [jsx-text/ar] الإجمالي الفرعي
-- 1773 [jsx-text/ar] إجمالي الكمية
-- 1774 [jsx-text/ar] خصم المنتجات
-- 1775 [jsx-text/ar] خصم الفاتورة
-- 1776 [jsx-text/ar] خصم الكوبون
-- 1777 [jsx-text/ar] خصم الولاء
-- 1778 [jsx-text/ar] الضريبة
-- 1779 [jsx-text/ar] رسوم الخدمة
-- 1780 [jsx-text/ar] الإجمالي
-- 1781 [jsx-text/ar] المدفوع
-- 1782 [jsx-text/ar] الباقي
-- 1783 [jsx-text/ar] المتبقي
-- 1787 [jsx-text/ar] العنوان
-- 1788 [jsx-text/ar] خدمة العملاء
-- 1789 [jsx-text/ar] الموقع الإلكتروني الرسمي
-- 1791 [jsx-text/ar] سياسة الاستبدال والاسترجاع
-- 1793 [jsx-text/ar] شكرًا لزيارتكم
-- 2505 [jsx-text/ar] تعديل الفاتورة
+- 374 [attribute/en] Create order
+- 594 [attribute/ar] غير محفوظة
+- 600 [attribute/ar] إغلاق الفاتورة
+- 980 [jsx-text/ar] عملية شخصية
+- 985 [jsx-text/ar] نوع العملية الشخصية
+- 991 [jsx-text/ar] اختر النوع
+- 992 [jsx-text/ar] هدية / مصروف
+- 993 [jsx-text/ar] سلفة موظف
+- 994 [jsx-text/ar] استخدام شخصي للمالك
+- 998 [jsx-text/ar] ملاحظة
+- 1004 [attribute/ar] اختياري
+- 1087 [jsx-text/ar] بيع آجل للعميل
+- 1587 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
+- 1748 [jsx-text/ar] فاتورة بيع
+- 1750 [jsx-text/ar] التاريخ
+- 1751 [jsx-text/ar] البائع
+- 1752 [jsx-text/ar] العميل
+- 1753 [jsx-text/ar] الدفع
+- 1758 [jsx-text/ar] الإجمالي
+- 1758 [jsx-text/ar] السعر
+- 1758 [jsx-text/ar] الصنف
+- 1771 [jsx-text/ar] لا توجد منتجات
+- 1776 [jsx-text/ar] الإجمالي الفرعي
+- 1777 [jsx-text/ar] إجمالي الكمية
+- 1778 [jsx-text/ar] خصم المنتجات
+- 1779 [jsx-text/ar] خصم الفاتورة
+- 1780 [jsx-text/ar] خصم الكوبون
+- 1781 [jsx-text/ar] خصم الولاء
+- 1782 [jsx-text/ar] الضريبة
+- 1783 [jsx-text/ar] رسوم الخدمة
+- 1784 [jsx-text/ar] الإجمالي
+- 1785 [jsx-text/ar] المدفوع
+- 1786 [jsx-text/ar] الباقي
+- 1787 [jsx-text/ar] المتبقي
+- 1791 [jsx-text/ar] العنوان
+- 1792 [jsx-text/ar] خدمة العملاء
+- 1793 [jsx-text/ar] الموقع الإلكتروني الرسمي
+- 1795 [jsx-text/ar] سياسة الاستبدال والاسترجاع
+- 1797 [jsx-text/ar] شكرًا لزيارتكم
+- 2509 [jsx-text/ar] تعديل الفاتورة
 - ... 19 more
 
 ### src/modules/smartWarehouse/pages/SmartWarehouse.jsx (main-erp — ar:0 en:58)
@@ -2454,27 +2454,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 191 [jsx-text/en] Employee
 - 191 [jsx-text/en] Orders
 - 191 [jsx-text/en] Sales
-
-### src/modules/employees/components/EmployeeDisplayAuditPanel.jsx (employee-portal — ar:18 en:0)
-
-- 20 [object-key/ar] اسنيكرز
-- 21 [object-key/ar] كروكس
-- 22 [object-key/ar] شنط
-- 23 [object-key/ar] شتوي
-- 26 [object-key/ar] رجالي
-- 27 [object-key/ar] حريمي
-- 28 [object-key/ar] أطفال
-- 29 [object-key/ar] خاص
-- 32 [object-key/ar] بيبي
-- 33 [object-key/ar] وسط
-- 34 [object-key/ar] أولادي
-- 98 [jsx-text/ar] إدارة العرض المستقلة
-- 99 [jsx-text/ar] تمم على العرض
-- 100 [jsx-text/ar] الموديلات الموجودة بالمخزن ولم يتم تأكيد عرضها على الستاند.
-- 102 [attribute/ar] تحديث
-- 107 [jsx-text/ar] إجمالي الموديلات غير المعروضة
-- 135 [jsx-text/ar] كل الموديلات الموجودة بالمخزن معروضة
-- 145 [jsx-text/ar] لا توجد مقاسات متاحة في هذه المرحلة
 
 ### src/modules/marketing/pages/SocialCommentsCenter.jsx (main-erp — ar:0 en:18)
 

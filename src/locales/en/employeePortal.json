@@ -498,7 +498,29 @@
     "confirmDisplay": "Confirm the display",
     "unconfirmedModels": "Models held in the warehouse whose display on the stand has not been confirmed.",
     "totalNotDisplayed": "Total models not on display",
-    "allDisplayed": "Every model held in the warehouse is on display"
+    "allDisplayed": "Every model held in the warehouse is on display",
+    "smallestSize": "Smallest size",
+    "quantity": "Quantity",
+    "markDisplayed": "On display",
+    "stageSizesFrom": "Display sizes from {{range}}",
+    "noStageSizes": "No sizes available at this stage",
+    "groups": {
+      "sneakers": "Sneakers",
+      "crocs": "Crocs",
+      "bags": "Bags",
+      "winter": "Winter"
+    },
+    "audiences": {
+      "men": "Men",
+      "women": "Women",
+      "kids": "Kids",
+      "special": "Special"
+    },
+    "stages": {
+      "baby": "Baby",
+      "middle": "Middle",
+      "boys": "Boys"
+    }
   },
   "opportunities": {
     "item": "Sales opportunity",

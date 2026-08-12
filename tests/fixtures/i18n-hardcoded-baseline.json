@@ -1,9 +1,9 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1939,
+    "arabic": 1921,
     "english": 2546,
-    "total": 4485,
+    "total": 4467,
     "mixedFiles": 51
   },
   "files": {
@@ -401,11 +401,6 @@
       "arabic": 2,
       "english": 0,
       "total": 2
-    },
-    "src/modules/employees/components/EmployeeDisplayAuditPanel.jsx": {
-      "arabic": 18,
-      "english": 0,
-      "total": 18
     },
     "src/modules/employees/components/EmployeePortalAccessCard.jsx": {
       "arabic": 15,
