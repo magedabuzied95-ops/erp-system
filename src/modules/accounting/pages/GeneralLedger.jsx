@@ -7,7 +7,16 @@ import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency, formatDateTime } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 function GeneralLedger() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   const [accounts, setAccounts] = useState([]);
   const [payload, setPayload] = useState({
     account: null,
@@ -40,7 +49,7 @@ function GeneralLedger() {
       } catch (requestError) {
         if (!active) return;
         setAccounts([]);
-        setError(requestError?.message || "تعذر تحميل الحسابات المتاحة.");
+        setError(requestError?.message || tt("accounting.ledgers.errors.loadAccounts"));
       } finally {
         if (active) setLoadingAccounts(false);
       }
@@ -54,7 +63,7 @@ function GeneralLedger() {
   const loadLedger = async (event) => {
     event?.preventDefault?.();
     if (!filters.account_id) {
-      setError("اختر حسابًا أولاً لعرض دفتر الأستاذ.");
+      setError(tt("accounting.ledgers.selectAccountFirst"));
       setPayload({
         account: null,
         rows: [],
@@ -93,7 +102,7 @@ function GeneralLedger() {
           closing_balance: 0,
         },
       });
-      setError(requestError?.message || "تعذر تحميل دفتر الأستاذ.");
+      setError(requestError?.message || tt("accounting.ledgers.errors.loadDot"));
     } finally {
       setLoading(false);
     }
@@ -104,14 +113,14 @@ function GeneralLedger() {
   };
 
   const headline = useMemo(() => {
-    if (!payload.account) return "دفتر الأستاذ العام";
+    if (!payload.account) return tt("accounting.ledgers.generalLedger");
     return `${payload.account.account_code} - ${payload.account.account_name}`;
   }, [payload.account]);
 
   return (
     <AccountingShell
-      title="دفتر الأستاذ"
-      subtitle="دفتر الأستاذ العام مبني مباشرة على الحسابات والقيود اليومية وسطور القيود"
+      title={tt("accounting.tabs.ledgers")}
+      subtitle={tt("accounting.ledgers.generalLedgerSubtitle")}
       actions={
         <>
           <button
@@ -120,35 +129,35 @@ function GeneralLedger() {
             className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            تحديث
+            {tt("orders.details.refresh")}
           </button>
           <Link
             to="/accounting"
             className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
           >
             <BookOpenText className="h-4 w-4" />
-            لوحة المحاسبة
+            {tt("accounting.dashboardTitle")}
           </Link>
         </>
       }
       tabs={[
-        { to: "/accounting", label: "لوحة التحكم" },
-        { to: "/accounting/journal-entries", label: "القيود اليومية" },
-        { to: "/accounting/accounts", label: "دليل الحسابات" },
-        { to: "/accounting/general-ledger", label: "دفتر الأستاذ", end: true },
-        { to: "/accounting/trial-balance", label: "ميزان المراجعة" },
-        { to: "/accounting/reports", label: "التقارير" },
+        { to: "/accounting", label: tt("accounting.tabs.dashboard") },
+        { to: "/accounting/journal-entries", label: tt("accounting.tabs.journal") },
+        { to: "/accounting/accounts", label: tt("accounting.tabs.accounts") },
+        { to: "/accounting/general-ledger", label: tt("accounting.tabs.ledgers"), end: true },
+        { to: "/accounting/trial-balance", label: tt("accounting.reports.tabs.trialBalance") },
+        { to: "/accounting/reports", label: tt("accounting.tabs.reports") },
       ]}
     >
       <form onSubmit={loadLedger} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-4">
-        <Field label="الحساب">
+        <Field label={tt("accounting.common.labels.account")}>
           <select
             value={filters.account_id}
             onChange={(event) => updateFilter("account_id", event.target.value)}
             className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none"
             disabled={loadingAccounts}
           >
-            <option value="">{loadingAccounts ? "جارٍ تحميل الحسابات..." : "اختر الحساب"}</option>
+            <option value="">{loadingAccounts ? tt("accounting.accounts.loading") : tt("accounting.common.actions.selectAccount")}</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.account_code} - {account.account_name}
@@ -156,19 +165,19 @@ function GeneralLedger() {
             ))}
           </select>
         </Field>
-        <Field label="من تاريخ">
+        <Field label={tt("accounting.common.filters.fromDate")}>
           <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
         </Field>
-        <Field label="إلى تاريخ">
+        <Field label={tt("accounting.common.filters.toDate")}>
           <input type="date" value={filters.to_date} onChange={(event) => updateFilter("to_date", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
         </Field>
-        <Field label="الفرع">
-          <input type="number" min="1" value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder="اختياري" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
+        <Field label={tt("orders.table.branch")}>
+          <input type="number" min="1" value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder={tt("accounting.common.labels.optional")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
         </Field>
         <div className="md:col-span-4">
           <button type="submit" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <Search className="h-4 w-4" />
-            عرض دفتر الأستاذ
+            {tt("accounting.ledgers.view")}
           </button>
         </div>
       </form>
@@ -176,10 +185,10 @@ function GeneralLedger() {
       {error ? <Banner text={error} tone="amber" /> : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <FinanceMetricCard label="الرصيد الافتتاحي" value={formatCurrency(payload.totals.opening_balance)} tone="cyan" icon={<BookOpenText className="h-5 w-5" />} />
-        <FinanceMetricCard label="إجمالي المدين" value={formatCurrency(payload.totals.total_debit)} tone="emerald" icon={<BookOpenText className="h-5 w-5" />} />
-        <FinanceMetricCard label="إجمالي الدائن" value={formatCurrency(payload.totals.total_credit)} tone="rose" icon={<BookOpenText className="h-5 w-5" />} />
-        <FinanceMetricCard label="الرصيد الختامي" value={formatCurrency(payload.totals.closing_balance)} tone="amber" icon={<BookOpenText className="h-5 w-5" />} />
+        <FinanceMetricCard label={tt("accounting.ledgers.openingBalance")} value={formatCurrency(payload.totals.opening_balance)} tone="cyan" icon={<BookOpenText className="h-5 w-5" />} />
+        <FinanceMetricCard label={tt("accounting.common.metrics.totalDebit")} value={formatCurrency(payload.totals.total_debit)} tone="emerald" icon={<BookOpenText className="h-5 w-5" />} />
+        <FinanceMetricCard label={tt("accounting.common.metrics.totalCredit")} value={formatCurrency(payload.totals.total_credit)} tone="rose" icon={<BookOpenText className="h-5 w-5" />} />
+        <FinanceMetricCard label={tt("accounting.common.metrics.endingBalance")} value={formatCurrency(payload.totals.closing_balance)} tone="amber" icon={<BookOpenText className="h-5 w-5" />} />
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
@@ -189,23 +198,23 @@ function GeneralLedger() {
         </div>
 
         {loading ? (
-          <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-8 text-sm text-zinc-400">جارٍ تحميل الحركات...</div>
+          <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.ledgers.loadingMovements")}</div>
         ) : !filters.account_id ? (
-          <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">اختر حسابًا لعرض دفتر الأستاذ العام.</div>
+          <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.ledgers.selectAccount")}</div>
         ) : payload.rows.length === 0 ? (
-          <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حركات ضمن الفلاتر الحالية.</div>
+          <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.common.empty.noMovements")}</div>
         ) : (
           <div className="m1-table-container mt-5 overflow-x-auto">
             <table className="m1-table m1-table--compact min-w-[1080px] w-full text-right text-sm" dir="rtl">
               <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                 <tr>
-                  <Th>التاريخ</Th>
-                  <Th>القيد</Th>
-                  <Th>المرجع</Th>
-                  <Th>الوصف</Th>
-                  <Th align="right">مدين</Th>
-                  <Th align="right">دائن</Th>
-                  <Th align="right">الرصيد الجاري</Th>
+                  <Th>{tt("orders.table.date")}</Th>
+                  <Th>{tt("accounting.journal.entry")}</Th>
+                  <Th>{tt("accounting.common.labels.reference")}</Th>
+                  <Th>{tt("accounting.common.labels.description")}</Th>
+                  <Th align="right">{tt("accounting.common.labels.debit")}</Th>
+                  <Th align="right">{tt("accounting.common.labels.credit")}</Th>
+                  <Th align="right">{tt("accounting.ledgers.runningBalance")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -248,16 +257,16 @@ function Banner({ text, tone = "amber" }) {
 
 function translateSourceType(value) {
   const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "sale") return "بيع";
-  if (normalized === "purchase") return "شراء";
-  if (normalized === "return") return "مرتجع";
-  if (normalized === "manual") return "يدوي";
-  if (normalized === "expense") return "مصروف";
-  if (normalized === "inventory") return "مخزون";
-  if (normalized === "payment") return "سداد";
-  if (normalized === "transfer") return "تحويل";
-  if (normalized === "journal") return "قيد يومي";
-  return "غير معروف";
+  if (normalized === "sale") return tt("accounting.journal.referenceTypes.order");
+  if (normalized === "purchase") return tt("accounting.journal.referenceTypes.purchase");
+  if (normalized === "return") return tt("orders.statusLabels.returned");
+  if (normalized === "manual") return tt("orders.sources.manual");
+  if (normalized === "expense") return tt("accounting.common.labels.expense");
+  if (normalized === "inventory") return tt("inventory.matrix.stock");
+  if (normalized === "payment") return tt("accounting.common.labels.settlement");
+  if (normalized === "transfer") return tt("accounting.financialAccounts.actions.transfer");
+  if (normalized === "journal") return tt("accounting.journal.journalEntry");
+  return tt("inventory.labels.unknown");
 }
 
 function Th({ children, align = "left" }) {

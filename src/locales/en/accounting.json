@@ -39,7 +39,9 @@
       "view": "View",
       "clear": "Clear",
       "delete": "Delete",
-      "save": "Save"
+      "save": "Save",
+      "selectAccount": "Select the account",
+      "filter": "Filter"
     },
     "labels": {
       "account": "Account",
@@ -72,7 +74,14 @@
       "noNotes": "No notes",
       "notAvailable": "n/a",
       "status": "Status",
-      "title": "Title"
+      "title": "Title",
+      "expense": "Expense",
+      "order": "Order",
+      "accountName": "Account name",
+      "settlement": "Settlement",
+      "optional": "Optional",
+      "negative": "Negative",
+      "healthy": "Healthy"
     },
     "metrics": {
       "endingBalance": "Ending balance",
@@ -87,10 +96,18 @@
       "liveRows_plural": "{{count}} live rows",
       "rows": "{{count}} row",
       "rows_plural": "{{count}} rows"
-    }
+    },
+    "filters": {
+      "fromDate": "From date",
+      "toDate": "To date"
+    },
+    "empty": {
+      "noMovements": "There are no movements within the current filters."
+    },
+    "loading": "Loading..."
   },
   "accountTypes": {
-    "asset": "Assets",
+    "asset": "Asset",
     "bank": "Bank",
     "card_settlement": "Card settlement",
     "cash_drawer": "Cash drawer",
@@ -98,10 +115,11 @@
     "equity": "Equity",
     "expense": "Expenses",
     "ledger": "Ledger entries",
-    "liability": "Liabilities",
+    "liability": "Liability",
     "revenue": "Revenue",
     "safe": "Safe",
-    "wallet": "Wallet"
+    "wallet": "Wallet",
+    "cash": "Cash"
   },
   "kpis": {
     "revenue": "Revenue",
@@ -142,7 +160,10 @@
       "allAccounts": "All accounts"
     },
     "errors": {
-      "loadFailed": "Unable to load ledgers."
+      "loadFailed": "Unable to load ledgers.",
+      "load": "Unable to load the ledger",
+      "loadAccounts": "Unable to load the available accounts.",
+      "loadDot": "Unable to load the ledger."
     },
     "states": {
       "loadingTitle": "Loading ledgers",
@@ -152,7 +173,18 @@
     "table": {
       "title": "Transaction ledger",
       "empty": "No ledger rows for the selected filters."
-    }
+    },
+    "view": "View the ledger",
+    "loading": "Loading the ledger",
+    "loadingHint": "Fetching the current accounting movements.",
+    "ledger": "Ledger",
+    "selectAccountFirst": "Select an account first to view the ledger.",
+    "generalLedger": "General ledger",
+    "generalLedgerSubtitle": "The general ledger is built directly on accounts, journal entries, and entry lines",
+    "openingBalance": "Opening balance",
+    "loadingMovements": "Loading movements...",
+    "selectAccount": "Select an account to view the general ledger.",
+    "runningBalance": "Running balance"
   },
   "reports": {
     "title": "Financial Reports",
@@ -474,7 +506,7 @@
   },
   "journal": {
     "title": "Journal Entries",
-    "subtitle": "Balanced accounting ledger with filters, reference search, and journal detail review.",
+    "subtitle": "Journal entries with manual entry and backfill preview only — no automatic posting",
     "ledgerTitle": "Ledger",
     "ledgerSubtitle": "Search by reference, filter by type, and inspect each balanced entry.",
     "detailTitle": "Journal detail",
@@ -486,7 +518,12 @@
     "errors": {
       "detailFailed": "Unable to load journal entry details",
       "loadFailed": "Unable to load journal entries",
-      "loadFailedWithPeriod": "Unable to load journal entries."
+      "loadFailedWithPeriod": "Unable to load journal entries.",
+      "loadPeriod": "Unable to load the journal entries for the current period.",
+      "load": "Failed to load the journal entries",
+      "loadEntry": "Unable to load the entry details",
+      "create": "Unable to create the journal entry",
+      "preview": "Unable to prepare the preview"
     },
     "fallbacks": {
       "journalEntry": "Journal entry"
@@ -500,7 +537,12 @@
       "balanced": "Balanced",
       "credits": "Credits",
       "debits": "Debits",
-      "entries": "Entries"
+      "entries": "Entries",
+      "unbalanced": "Unbalanced",
+      "totalItems": "Total items",
+      "ready": "Ready",
+      "skipped": "Skipped",
+      "alreadyPosted": "Already posted"
     },
     "placeholders": {
       "search": "Search by reference, account, description, or notes..."
@@ -517,7 +559,27 @@
       "emptyRows": "No journal entries found.",
       "loadingDetail": "Loading entry details...",
       "loadingRows": "Loading journal entries..."
-    }
+    },
+    "postingPreview": "Posting preview",
+    "toasts": {
+      "created": "Journal entry created successfully"
+    },
+    "manualEntry": "Manual entry",
+    "manualJournalEntry": "Manual journal entry",
+    "unbalancedWarning": "An unbalanced entry is rejected by the backend before saving.",
+    "addLine": "Add a line",
+    "create": "Create the entry",
+    "previewOnly": "This screen only shows proposed entries and performs no actual posting.",
+    "purchases": "Purchases",
+    "limit": "Limit",
+    "preparingPreview": "Preparing the preview...",
+    "loadPreview": "Load the preview",
+    "noPreviewResults": "No preview results yet.",
+    "debitColumn": "Debit",
+    "creditColumn": "Credit",
+    "posted": "Posted",
+    "entry": "Entry",
+    "journalEntry": "Journal entry"
   },
   "paymentMappings": {
     "title": "Payment Method Mappings",
@@ -640,5 +702,93 @@
     "status": {
       "placeholder": "Placeholder"
     }
+  },
+  "treasury": {
+    "title": "Treasury",
+    "in": "In",
+    "out": "Out",
+    "errors": {
+      "load": "Unable to load the treasury data",
+      "transferFields": "Choose a source account, a destination account, and an amount greater than zero",
+      "transfer": "Unable to record the transfer",
+      "settlementFields": "Choose an account and an amount greater than zero",
+      "settlement": "Unable to record the settlement"
+    },
+    "toasts": {
+      "transferRecorded": "Transfer recorded",
+      "settlementRecorded": "Settlement recorded"
+    },
+    "subtitle": "Actual cash, bank, card, and wallet balances plus card settlements, backed by linked financial movements.",
+    "metrics": {
+      "totalCash": "Total cash",
+      "totalBank": "Total bank",
+      "totalWallets": "Total wallets",
+      "inToday": "In today",
+      "outToday": "Out today",
+      "netMovement": "Net movement"
+    },
+    "reconciled": "Cash account reconciliation is balanced",
+    "accountBalances": "Account balances",
+    "accountBalancesHint": "Cash and operating accounts used across POS, purchases, expenses, refunds, and payroll.",
+    "topUp": "Top up",
+    "opening": "Opening",
+    "cashTransfer": "Cash transfer",
+    "fromAccount": "From account",
+    "toAccount": "To account",
+    "recordTransfer": "Record the transfer",
+    "auditNote": "Audit note",
+    "recordSettlement": "Record the settlement",
+    "cashMovements": "Cash movements",
+    "cashMovementsHint": "Immutable account movements from sales, purchases, expenses, advances, refunds, transfers, and settlements.",
+    "loadingMovements": "Loading cash movements...",
+    "noMovements": "There are no cash movements."
+  },
+  "accounts": {
+    "loading": "Loading accounts...",
+    "errors": {
+      "loadTree": "Unable to load the chart of accounts",
+      "load": "Unable to load the accounts"
+    },
+    "subtitle": "A baseline accounting foundation built on the chart of accounts while keeping the existing ledger",
+    "metrics": {
+      "total": "Total accounts",
+      "active": "Active accounts",
+      "assets": "Asset accounts",
+      "expenses": "Expense accounts"
+    },
+    "tree": "Chart of accounts",
+    "defaultsHint": "Default accounts are created once per tenant with no duplication.",
+    "searchPlaceholder": "Search by code or name",
+    "noMatches": "No accounts match the search.",
+    "parent": "Parent account",
+    "suspended": "Suspended"
+  },
+  "dashboardTitle": "Accounting dashboard",
+  "accountGroups": {
+    "assets": "Assets",
+    "liabilities": "Liabilities",
+    "revenues": "Revenues",
+    "expenses": "Expenses"
+  },
+  "trialBalance": {
+    "errors": {
+      "load": "Unable to load the trial balance."
+    },
+    "subtitle": "A trial balance built only on accounts, journal entries, and entry lines",
+    "view": "View the trial balance",
+    "sourceNote": "This report relies only on `journal_entry_lines` linked to journal entries.",
+    "loading": "Loading the trial balance...",
+    "noBalances": "There are no balances within the current period.",
+    "accountCode": "Account code"
+  },
+  "dashboard": {
+    "afterCogsAndExpenses": "After cost of goods and expenses",
+    "unifiedReportsNote": "Figures come from the unified financial reports",
+    "exclusionsNote": "Cancelled sales, returns, and discounts are excluded or counted by status, with company and branch data isolated.",
+    "openExecutiveReports": "Open the executive reports",
+    "customerReceivables": "Customer receivables",
+    "supplierPayables": "Supplier payables",
+    "grossMargin": "Gross profit margin",
+    "executiveReports": "Executive reports"
   }
 }

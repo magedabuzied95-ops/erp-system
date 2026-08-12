@@ -38,7 +38,15 @@ test("Bosta delivery id and customer-facing shipment number are persisted separa
 });
 
 test("Bosta shipment number is read-only and filled automatically in order details", () => {
-  assert.match(orderDetailsSource, /label=\{isBostaShippingProvider\(shipping\.provider\) \? "رقم شحنة Bosta"/);
+  // The label is localized now, so the wording lives in the dictionaries.
+  assert.match(
+    orderDetailsSource,
+    /label=\{isBostaShippingProvider\(shipping\.provider\) \? tt\("orders\.shipping\.bostaTrackingNumber"\)/
+  );
+  const ar = JSON.parse(readFileSync(new URL("../src/locales/ar/orders.json", import.meta.url), "utf8"));
+  const en = JSON.parse(readFileSync(new URL("../src/locales/en/orders.json", import.meta.url), "utf8"));
+  assert.match(ar.shipping.bostaTrackingNumber, /Bosta/);
+  assert.match(en.shipping.bostaTrackingNumber, /Bosta/i);
   assert.match(orderDetailsSource, /readOnly=\{isBostaShippingProvider\(shipping\.provider\)\}/);
   assert.match(orderDetailsSource, /shipping\.tracking_number \|\| shipping\.shipment_id/);
 });

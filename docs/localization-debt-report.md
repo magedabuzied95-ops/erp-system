@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 215
-- Hardcoded Arabic UI strings: 2222
+- Files with debt: 207
+- Hardcoded Arabic UI strings: 1966
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 4768
-- Mixed-language files (both scripts hardcoded): 52
+- Total hardcoded UI strings: 4512
+- Mixed-language files (both scripts hardcoded): 51
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 113 | 1604 | 1821 | 3425 | 35 |
-| shared | 70 | 189 | 440 | 629 | 11 |
+| main-erp | 105 | 1352 | 1821 | 3173 | 35 |
+| shared | 70 | 185 | 440 | 625 | 10 |
 | employee-portal | 24 | 223 | 149 | 372 | 3 |
 | pos | 6 | 206 | 122 | 328 | 3 |
 | manager-portal | 2 | 0 | 14 | 14 | 0 |
@@ -30,7 +30,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 140 | 253 | 393 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 148 | 253 | 401 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 106 | 179 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 58 | 100 | 158 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 13 | 153 |
@@ -74,7 +74,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/notifications/pages/NotificationsCenter.jsx | main-erp | 7 | 1 | 8 |
 | src/modules/sales/pages/InvoicesLegacy.jsx | main-erp | 6 | 1 | 7 |
 | src/modules/marketing/components/MarketingStudioHeader.jsx | shared | 4 | 2 | 6 |
-| src/modules/orders/components/AiInboxOrderLink.jsx | shared | 4 | 1 | 5 |
 | src/modules/products/lib/productClassifications.js | main-erp | 1 | 4 | 5 |
 | src/modules/products/pages/BarcodeLabels.jsx | main-erp | 4 | 1 | 5 |
 | src/modules/products/pages/ProductDetails.jsx | main-erp | 4 | 1 | 5 |
@@ -85,7 +84,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:140 en:253)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:148 en:253)
 
 - 564 [object-key/en] All
 - 565 [object-key/en] Messages
@@ -127,7 +126,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2244 [jsx-text/en] Edit label
 - 2245 [attribute/en] Label name
 - 2251 [jsx-text/en] Cancel
-- ... 353 more
+- ... 361 more
 
 ### src/modules/pos/pages/POSPro.jsx (pos — ar:73 en:106)
 
@@ -745,50 +744,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 972 [jsx-text/ar] مرتجع POS
 - ... 22 more
 
-### src/modules/orders/pages/OrderDetails.jsx (main-erp — ar:60 en:0)
-
-- 74 [object-key/ar] ملغي عبر واتساب
-- 80 [object-key/ar] مؤكد عبر واتساب
-- 86 [object-key/ar] بانتظار تأكيد واتساب
-- 92 [object-key/ar] تم إرسال مراجعة الدفع عبر واتساب
-- 102 [object-key/ar] تم إرسال فاتورة واتساب
-- 109 [object-key/ar] تم إرسال الشحنة عبر واتساب
-- 112 [object-key/ar] تم إشعار الشحن عبر واتساب
-- 115 [object-key/ar] تم إشعار في الطريق للتسليم عبر واتساب
-- 118 [object-key/ar] تم إشعار التسليم عبر واتساب
-- 192 [object-key/ar] استلام من الفرع
-- 196 [object-key/ar] بيع مباشر · POS
-- 197 [object-key/ar] فاتورة مباشرة
-- 343 [object-key/ar] مدفوع جزئياً
-- 346 [object-key/ar] مدفوع
-- 349 [object-key/ar] بانتظار المراجعة
-- 352 [object-key/ar] مرفوض
-- 355 [object-key/ar] مسترد
-- 645 [notification/ar] أكمل هاتف العميل ومدينة ومنطقة وحي بوسطة واسم الشارع ورقم المبنى
-- 649 [notification/ar] أدخل رقم هاتف العميل والعنوان التفصيلي قبل حفظ الشحن
-- 1068 [jsx-text/ar] فاتورة بيع مباشر — لا توجد خطوات شحن أو مراجعة تحويل مطلوبة
-- 1069 [jsx-text/ar] يمكنك طباعة الفاتورة أو إرجاع الأصناف مباشرة، وأضف الشحن فقط إذا طلب العميل توصيلها.
-- 1494 [attribute/ar] رقم هاتف العميل
-- 1499 [attribute/ar] مدينة Bosta
-- 1509 [attribute/ar] المنطقة
-- 1518 [attribute/ar] الحي
-- 1528 [attribute/ar] اسم الشارع والعنوان بالتفصيل
-- 1529 [attribute/ar] مثال: شارع التسعين الشمالي *
-- 1532 [attribute/ar] رقم المبنى
-- 1533 [attribute/ar] رقم المبنى *
-- 1535 [attribute/ar] الدور
-- 1536 [attribute/ar] الدور
-- 1538 [attribute/ar] رقم الشقة
-- 1539 [attribute/ar] الشقة
-- 1541 [attribute/ar] علامة مميزة
-- 1542 [attribute/ar] بجوار...
-- 1547 [attribute/ar] المحافظة
-- 1548 [attribute/ar] المدينة / المنطقة
-- 1548 [attribute/ar] المدينة أو المنطقة
-- 1549 [attribute/ar] بجوار...
-- 1549 [attribute/ar] علامة مميزة
-- ... 20 more
-
 ### src/pages/ComponentsPreview.jsx (main-erp — ar:58 en:2)
 
 - 14 [jsx-text/ar] بانتظار الدفع
@@ -1053,50 +1008,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 86 [jsx-text/ar] تحديث مباشر
 - ... 18 more
 
-### src/modules/accounting/pages/Treasury.jsx (main-erp — ar:54 en:0)
-
-- 11 [object-key/ar] لوحة التحكم
-- 12 [object-key/ar] الخزينة
-- 13 [object-key/ar] الحسابات المالية
-- 14 [object-key/ar] ربط طرق الدفع
-- 15 [object-key/ar] التقارير
-- 16 [object-key/ar] سجل التدقيق
-- 50 [object-key/ar] سالب
-- 51 [object-key/ar] منخفض
-- 52 [object-key/ar] سليم
-- 101 [notification/ar] اختر حساب المصدر وحساب الوجهة ومبلغًا أكبر من صفر
-- 108 [notification/ar] تم تسجيل التحويل
-- 120 [notification/ar] اختر حسابًا ومبلغًا أكبر من صفر
-- 127 [notification/ar] تم تسجيل التسوية
-- 150 [attribute/ar] الخزينة
-- 151 [attribute/ar] الأرصدة الفعلية للنقدية والبنوك والبطاقات والمحافظ وتسويات البطاقات، معززة بحركات مالية مرتبطة.
-- 161 [attribute/ar] إجمالي النقدية
-- 162 [attribute/ar] إجمالي البنوك
-- 163 [attribute/ar] إجمالي المحافظ
-- 164 [attribute/ar] تسويات البطاقات
-- 165 [attribute/ar] الداخل اليوم
-- 166 [attribute/ar] الخارج اليوم
-- 167 [attribute/ar] صافي الحركة
-- 190 [jsx-text/ar] أرصدة الحسابات
-- 191 [jsx-text/ar] الحسابات النقدية والتشغيلية المستخدمة في نقاط البيع والمشتريات والمصروفات والاستردادات والرواتب.
-- 209 [jsx-text/ar] تعزيز
-- 210 [jsx-text/ar] افتتاحي
-- 211 [jsx-text/ar] تحويل
-- 221 [jsx-text/ar] تحويل نقدية
-- 223 [attribute/ar] من حساب
-- 224 [attribute/ar] إلى حساب
-- 225 [attribute/ar] المبلغ
-- 226 [attribute/ar] ملاحظات
-- 227 [jsx-text/ar] تسجيل التحويل
-- 232 [jsx-text/ar] تسوية يدوية
-- 234 [attribute/ar] الحساب
-- 236 [jsx-text/ar] داخل
-- 237 [jsx-text/ar] خارج
-- 239 [attribute/ar] المبلغ
-- 240 [attribute/ar] ملاحظة تدقيقية
-- 241 [jsx-text/ar] تسجيل التسوية
-- ... 14 more
-
 ### src/modules/marketing/components/MarketingCampaignAnalyticsPanel.jsx (shared — ar:0 en:54)
 
 - 79 [jsx-text/en] No post image
@@ -1272,50 +1183,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 273 [jsx-text/en] Memory fallback
 - 276 [jsx-text/en] Last product:
 - ... 10 more
-
-### src/modules/accounting/pages/JournalEntries.jsx (main-erp — ar:49 en:0)
-
-- 93 [notification/ar] فشل تحميل القيود اليومية
-- 128 [notification/ar] تعذر تحميل تفاصيل القيد
-- 202 [notification/ar] تم إنشاء القيد بنجاح
-- 248 [attribute/ar] قيود اليومية مع إدخال يدوي ومعاينة Backfill فقط بدون تشغيل تلقائي
-- 272 [object-key/ar] دفتر الأستاذ
-- 273 [object-key/ar] ميزان المراجعة
-- 430 [jsx-text/ar] قيد يومي يدوي
-- 431 [jsx-text/ar] القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.
-- 434 [attribute/ar] إجمالي المدين
-- 435 [attribute/ar] إجمالي الدائن
-- 436 [attribute/ar] الحالة
-- 441 [attribute/ar] الوصف
-- 444 [attribute/ar] التاريخ
-- 447 [attribute/ar] الفرع
-- 452 [attribute/ar] ملاحظات
-- 460 [jsx-text/ar] الحساب
-- 461 [jsx-text/ar] مدين
-- 462 [jsx-text/ar] دائن
-- 463 [jsx-text/ar] ملاحظات
-- 464 [jsx-text/ar] حذف
-- 472 [jsx-text/ar] اختر الحساب
-- 516 [jsx-text/ar] معاينة الترحيل
-- 517 [jsx-text/ar] هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.
-- 521 [attribute/ar] المصدر
-- 523 [jsx-text/ar] الكل
-- 524 [jsx-text/ar] الطلبات
-- 525 [jsx-text/ar] المشتريات
-- 526 [jsx-text/ar] المصروفات
-- 529 [attribute/ar] من تاريخ
-- 532 [attribute/ar] إلى تاريخ
-- 535 [attribute/ar] الحد الأقصى
-- 547 [attribute/ar] إجمالي العناصر
-- 548 [attribute/ar] جاهزة
-- 549 [attribute/ar] متخطاة
-- 550 [attribute/ar] منشورة مسبقًا
-- 558 [jsx-text/ar] لا توجد نتائج معاينة حتى الآن.
-- 564 [jsx-text/ar] المصدر
-- 565 [jsx-text/ar] الوصف
-- 566 [jsx-text/ar] التاريخ
-- 567 [jsx-text/ar] المدين
-- ... 9 more
 
 ### src/modules/purchases/pages/PurchaseOrder.jsx (main-erp — ar:44 en:4)
 
@@ -1860,25 +1727,25 @@ of scope. The scanner is conservative and can still contain false positives.
 - 561 [object-key/ar] تم إنشاء الشحنة
 - 564 [object-key/ar] تم التسليم
 - 577 [object-key/ar] ألغاه العميل
-- 1092 [jsx-text/ar] البحث
-- 1103 [attribute/ar] حالة الطلب
-- 1104 [attribute/ar] حالة الدفع
-- 1105 [attribute/ar] المصدر
-- 1107 [jsx-text/ar] التاريخ
-- 1142 [inline-ternary/en] language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone"
-- 1143 [inline-ternary/en] language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items"
-- 1144 [inline-ternary/en] language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status"
-- 1146 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid"
-- 1147 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u0633\u062a\u062d\u0642" : "Due"
-- 1148 [inline-ternary/en] language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller"
-- 1430 [attribute/ar] البائع
-- 1431 [attribute/ar] الدفع
-- 1433 [attribute/ar] الشحن
-- 1435 [attribute/ar] دفع تعديل الفاتورة
-- 1526 [attribute/ar] البائع
-- 1527 [attribute/ar] الدفع
-- 1530 [attribute/ar] دفع تعديل الفاتورة
-- 1595 [inline-ternary/en] locale = isArabicLanguage(language) ? "ar-EG" : "en-US"
+- 1093 [jsx-text/ar] البحث
+- 1104 [attribute/ar] حالة الطلب
+- 1105 [attribute/ar] حالة الدفع
+- 1106 [attribute/ar] المصدر
+- 1108 [jsx-text/ar] التاريخ
+- 1143 [inline-ternary/en] language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone"
+- 1144 [inline-ternary/en] language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items"
+- 1145 [inline-ternary/en] language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status"
+- 1147 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid"
+- 1148 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u0633\u062a\u062d\u0642" : "Due"
+- 1149 [inline-ternary/en] language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller"
+- 1431 [attribute/ar] البائع
+- 1432 [attribute/ar] الدفع
+- 1434 [attribute/ar] الشحن
+- 1436 [attribute/ar] دفع تعديل الفاتورة
+- 1527 [attribute/ar] البائع
+- 1528 [attribute/ar] الدفع
+- 1531 [attribute/ar] دفع تعديل الفاتورة
+- 1596 [inline-ternary/en] locale = isArabicLanguage(language) ? "ar-EG" : "en-US"
 
 ### src/modules/aiStudio/lib/workflowGraph.js (main-erp — ar:0 en:33)
 
@@ -2021,39 +1888,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 299 [jsx-text/en] Export CSV
 - 334 [jsx-text/en] No shipments match the current filters.
 
-### src/modules/accounting/pages/Accounts.jsx (main-erp — ar:30 en:0)
-
-- 57 [object-key/ar] كل الحسابات
-- 58 [object-key/ar] أصول
-- 59 [object-key/ar] التزامات
-- 60 [object-key/ar] حقوق ملكية
-- 61 [object-key/ar] إيرادات
-- 62 [object-key/ar] مصروفات
-- 156 [attribute/ar] دليل الحسابات
-- 157 [attribute/ar] أساس محاسبي أولي مبني على دليل الحسابات مع الإبقاء على دفتر الأستاذ الحالي
-- 182 [object-key/ar] دفتر الأستاذ
-- 183 [object-key/ar] ميزان المراجعة
-- 210 [attribute/ar] تعذر تحميل الحسابات
-- 222 [attribute/ar] إجمالي الحسابات
-- 223 [attribute/ar] الحسابات النشطة
-- 224 [attribute/ar] حسابات الأصول
-- 225 [attribute/ar] حسابات المصروفات
-- 231 [jsx-text/ar] شجرة الحسابات
-- 232 [jsx-text/ar] الحسابات الافتراضية تُنشأ مرة واحدة فقط لكل مستأجر بدون تكرار.
-- 240 [attribute/ar] ابحث بالكود أو الاسم
-- 252 [jsx-text/ar] جارٍ تحميل الحسابات...
-- 254 [jsx-text/ar] لا توجد حسابات مطابقة للبحث.
-- 260 [jsx-text/ar] الكود
-- 261 [jsx-text/ar] اسم الحساب
-- 262 [jsx-text/ar] النوع
-- 263 [jsx-text/ar] الحساب الأب
-- 264 [jsx-text/ar] الحالة
-- 265 [jsx-text/ar] تاريخ الإنشاء
-- 318 [attribute/ar] جارٍ تحميل دفتر الأستاذ
-- 323 [attribute/ar] تعذر تحميل دفتر الأستاذ
-- 343 [jsx-text/ar] دفتر الأستاذ
-- 349 [jsx-text/ar] لا توجد حركات ضمن الفلاتر الحالية.
-
 ### src/modules/purchases/pages/SupplierStatement.jsx (main-erp — ar:29 en:0)
 
 - 23 [inline-ternary/ar] isArabic ? "حركة" : "Transaction"
@@ -2085,36 +1919,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 158 [inline-ternary/ar] isArabic ? "مدين" : "Debit"
 - 159 [inline-ternary/ar] isArabic ? "دائن" : "Credit"
 - 160 [inline-ternary/ar] isArabic ? "الرصيد" : "Balance"
-
-### src/modules/accounting/pages/GeneralLedger.jsx (main-erp — ar:27 en:0)
-
-- 113 [attribute/ar] دفتر الأستاذ
-- 114 [attribute/ar] دفتر الأستاذ العام مبني مباشرة على الحسابات والقيود اليومية وسطور القيود
-- 135 [object-key/ar] لوحة التحكم
-- 136 [object-key/ar] القيود اليومية
-- 137 [object-key/ar] دليل الحسابات
-- 138 [object-key/ar] دفتر الأستاذ
-- 139 [object-key/ar] ميزان المراجعة
-- 140 [object-key/ar] التقارير
-- 144 [attribute/ar] الحساب
-- 159 [attribute/ar] من تاريخ
-- 162 [attribute/ar] إلى تاريخ
-- 165 [attribute/ar] الفرع
-- 166 [attribute/ar] اختياري
-- 179 [attribute/ar] الرصيد الافتتاحي
-- 180 [attribute/ar] إجمالي المدين
-- 181 [attribute/ar] إجمالي الدائن
-- 182 [attribute/ar] الرصيد الختامي
-- 192 [jsx-text/ar] جارٍ تحميل الحركات...
-- 194 [jsx-text/ar] اختر حسابًا لعرض دفتر الأستاذ العام.
-- 196 [jsx-text/ar] لا توجد حركات ضمن الفلاتر الحالية.
-- 202 [jsx-text/ar] التاريخ
-- 203 [jsx-text/ar] القيد
-- 204 [jsx-text/ar] المرجع
-- 205 [jsx-text/ar] الوصف
-- 206 [jsx-text/ar] مدين
-- 207 [jsx-text/ar] دائن
-- 208 [jsx-text/ar] الرصيد الجاري
 
 ### src/pages/AppShellPreview.jsx (main-erp — ar:25 en:2)
 
@@ -2344,33 +2148,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 203 [inline-ternary/ar] isArabic ? "رفض" : "Reject"
 - 215 [inline-ternary/ar] isArabic ? "جاري تحميل الطلبات..." : "Loading requests..."
 - 216 [inline-ternary/ar] isArabic ? "لا توجد طلبات في هذا القسم." : "No requests in this section."
-
-### src/modules/accounting/pages/TrialBalance.jsx (main-erp — ar:24 en:0)
-
-- 75 [attribute/ar] ميزان المراجعة
-- 76 [attribute/ar] ميزان مراجعة مبني فقط على الحسابات والقيود اليومية وسطور القيود
-- 97 [object-key/ar] لوحة التحكم
-- 98 [object-key/ar] القيود اليومية
-- 99 [object-key/ar] دليل الحسابات
-- 100 [object-key/ar] دفتر الأستاذ
-- 101 [object-key/ar] ميزان المراجعة
-- 102 [object-key/ar] التقارير
-- 106 [attribute/ar] من تاريخ
-- 109 [attribute/ar] إلى تاريخ
-- 112 [attribute/ar] الفرع
-- 113 [attribute/ar] اختياري
-- 126 [attribute/ar] إجمالي المدين
-- 127 [attribute/ar] إجمالي الدائن
-- 128 [attribute/ar] الحالة
-- 136 [jsx-text/ar] يعتمد هذا التقرير فقط على `journal_entry_lines` المربوطة بقيود اليومية.
-- 140 [jsx-text/ar] جارٍ تحميل ميزان المراجعة...
-- 142 [jsx-text/ar] لا توجد أرصدة ضمن الفترة الحالية.
-- 148 [jsx-text/ar] كود الحساب
-- 149 [jsx-text/ar] اسم الحساب
-- 150 [jsx-text/ar] نوع الحساب
-- 151 [jsx-text/ar] إجمالي المدين
-- 152 [jsx-text/ar] إجمالي الدائن
-- 168 [jsx-text/ar] الإجمالي
 
 ### src/modules/employees/pages/Branches.jsx (employee-portal — ar:0 en:24)
 
@@ -3002,22 +2779,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 57 [jsx-text/ar] داكن
 - 57 [jsx-text/ar] سمة المحادثة
 
-### src/modules/accounting/pages/Accounting.jsx (main-erp — ar:13 en:0)
-
-- 90 [object-key/ar] الخزينة
-- 93 [object-key/ar] دفتر الأستاذ
-- 94 [object-key/ar] ميزان المراجعة
-- 141 [attribute/ar] صافي الربح
-- 143 [attribute/ar] بعد تكلفة البضاعة والمصروفات
-- 153 [jsx-text/ar] الأرقام من التقارير المالية الموحدة
-- 154 [jsx-text/ar] المبيعات الملغاة والمرتجعات والخصومات مستبعدة أو محسوبة حسب حالتها، مع عزل بيانات الشركة والفرع.
-- 174 [attribute/ar] صافي المبيعات
-- 175 [attribute/ar] مديونيات العملاء
-- 176 [attribute/ar] مستحقات الموردين
-- 177 [attribute/ar] هامش مجمل الربح
-- 178 [attribute/ar] الخصومات
-- 179 [attribute/ar] المرتجعات
-
 ### src/modules/accounting/pages/AccountingAnalytics.jsx (main-erp — ar:13 en:0)
 
 - 23 [inline-ternary/ar] isArabic ? "تعذر فتح التحليلات المتقدمة." : "Unable to open advanced analytics."
@@ -3622,14 +3383,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 215 [object-key/en] Friendly
 - 237 [object-key/en] Sales
 
-### src/modules/orders/components/AiInboxOrderLink.jsx (shared — ar:4 en:1)
-
-- 8 [object-key/ar] فتح محادثة Instagram
-- 9 [object-key/ar] فتح محادثة Messenger
-- 10 [object-key/ar] فتح محادثة WhatsApp
-- 19 [object-key/ar] فتح محادثة AI Inbox
-- 35 [jsx-text/en] AI Inbox
-
 ### src/modules/products/lib/productClassifications.js (main-erp — ar:1 en:4)
 
 - 9 [object-key/en] Crocs
@@ -3719,12 +3472,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 81 [object-key/en] Ready
 - 82 [object-key/en] Ready
 - 83 [object-key/en] Coming Soon
-
-### src/modules/orders/lib/ordersStore.js (main-erp — ar:3 en:0)
-
-- 243 [object-key/ar] تم إنشاء الطلب
-- 251 [object-key/ar] تم تحديث الملاحظات
-- 259 [object-key/ar] تم إعداد الشحن
 
 ### src/modules/products/lib/barcodeLabels.js (main-erp — ar:2 en:1)
 
@@ -3910,6 +3657,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/marketing/services/marketingApi.js (main-erp — ar:0 en:1)
 
 - 213 [object-key/en] Test post from ERP
+
+### src/modules/orders/components/AiInboxOrderLink.jsx (shared — ar:0 en:1)
+
+- 45 [jsx-text/en] AI Inbox
 
 ### src/modules/permissions/components/PermissionMatrix.jsx (shared — ar:0 en:1)
 

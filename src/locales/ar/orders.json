@@ -22,7 +22,13 @@
     "whatsapp": "واتساب",
     "instagram": "إنستجرام",
     "manual": "يدوي",
-    "onlineOrder": "طلب أونلاين"
+    "onlineOrder": "طلب أونلاين",
+    "onlineShipping": "طلب أونلاين · شحن",
+    "shippingOrder": "طلب شحن",
+    "directPos": "بيع مباشر · POS",
+    "directInvoice": "فاتورة مباشرة",
+    "directInvoiceHint": "فاتورة بيع مباشر — لا توجد خطوات شحن أو مراجعة تحويل مطلوبة",
+    "directInvoiceActions": "يمكنك طباعة الفاتورة أو إرجاع الأصناف مباشرة، وأضف الشحن فقط إذا طلب العميل توصيلها."
   },
   "statusLabels": {
     "pending": "قيد الانتظار",
@@ -54,7 +60,10 @@
     "created": "تم الإنشاء",
     "picked_up": "تم الاستلام من المتجر",
     "failed": "فشل",
-    "failed_delivery": "فشل التسليم"
+    "failed_delivery": "فشل التسليم",
+    "outForDelivery": "خرج للتوصيل",
+    "partiallyPaid": "مدفوع جزئياً",
+    "partiallyRefunded": "مسترد جزئياً"
   },
   "kpis": {
     "totalOrders": "إجمالي الطلبات",
@@ -280,7 +289,7 @@
     "shipmentCreated": "تم إنشاء الشحنة",
     "providerNotConfigured": "مزود الشحن غير مهيأ. الشحن اليدوي متاح.",
     "createFailed": "تعذر إنشاء الشحنة",
-    "provider": "مزود الشحن",
+    "provider": "المزود",
     "trackingNumber": "رقم التتبع",
     "shipment": "الشحنة",
     "courier": "المندوب",
@@ -300,7 +309,51 @@
     "cancelShipment": "إلغاء الشحنة",
     "shipmentUpdated": "تم تحديث الشحنة",
     "updateFailed": "تعذر تحديث الشحنة",
-    "timeline": "الخط الزمني للشحنة"
+    "timeline": "الخط الزمني للشحنة",
+    "zone": "المنطقة",
+    "district": "الحي",
+    "apartment": "الشقة",
+    "landmarkPlaceholder": "بجوار...",
+    "bostaTrackingNumber": "رقم شحنة Bosta",
+    "bostaPlanRequired": "حساب بوسطة متصل بنجاح، لكن يلزم تفعيل باقة شحن لإنشاء الشحنات.",
+    "completeBostaFields": "أكمل هاتف العميل ومدينة ومنطقة وحي بوسطة واسم الشارع ورقم المبنى",
+    "enterPhoneAndAddress": "أدخل رقم هاتف العميل والعنوان التفصيلي قبل حفظ الشحن",
+    "setUpForInvoice": "إعداد شحن للفاتورة",
+    "addToInvoice": "إضافة شحن للفاتورة",
+    "bostaAddress": "عنوان شحن Bosta",
+    "customerDelivery": "بيانات توصيل العميل",
+    "bostaDirectoryHint": "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة.",
+    "saveBeforeCreate": "احفظ بيانات التوصيل قبل إنشاء الشحنة.",
+    "customerPhone": "رقم هاتف العميل",
+    "bostaCity": "مدينة Bosta",
+    "loadingCities": "تحميل مدن Bosta...",
+    "selectCity": "اختر المدينة *",
+    "loadingZones": "تحميل المناطق...",
+    "selectZone": "اختر المنطقة *",
+    "loadingDistricts": "تحميل الأحياء...",
+    "selectDistrict": "اختر الحي *",
+    "streetAndAddress": "اسم الشارع والعنوان بالتفصيل",
+    "streetPlaceholder": "مثال: شارع التسعين الشمالي *",
+    "buildingNumber": "رقم المبنى",
+    "buildingNumberRequired": "رقم المبنى *",
+    "apartmentNumber": "رقم الشقة",
+    "cityOrZone": "المدينة أو المنطقة",
+    "fullAddress": "العنوان التفصيلي",
+    "addressPlaceholder": "الشارع، رقم المبنى، الدور والشقة",
+    "createBostaShipment": "إنشاء شحنة Bosta",
+    "refreshStatus": "تحديث الحالة",
+    "city": "المدينة",
+    "street": "الشارع",
+    "building": "المبنى",
+    "floor": "الطابق",
+    "bostaInternalId": "معرّف Bosta الداخلي",
+    "labelLink": "رابط الملصق",
+    "subscriptionRequired": "الاشتراك مطلوب",
+    "bostaError": "خطأ Bosta",
+    "providerSettings": "إعدادات مزود الشحن",
+    "appearsAfterCreate": "يظهر تلقائيًا بعد إنشاء الشحنة",
+    "delivered": "تم تسليم الشحنة",
+    "delivery": "توصيل"
   },
   "details": {
     "title": "تفاصيل الطلب",
@@ -407,6 +460,46 @@
       "COD amount mismatch": "مبلغ الدفع عند الاستلام غير مطابق",
       "One or more items are out of stock": "منتج واحد أو أكثر غير متوفر"
     },
-    "currentStatus": "الحالة الحالية"
+    "currentStatus": "الحالة الحالية",
+    "invoice": "فاتورة الطلب",
+    "activityLog": "سجل العملية",
+    "moreActions": "إجراءات إضافية",
+    "enterpriseOps": "إدارة عمليات المؤسسة والاشتراكات"
+  },
+  "channels": {
+    "instagramStory": "قصة إنستغرام",
+    "story": "قصة",
+    "facebookPost": "منشور فيسبوك",
+    "instagramPost": "منشور إنستغرام",
+    "whatsappCampaign": "حملة واتساب",
+    "tiktokCampaign": "حملة تيك توك"
+  },
+  "whatsapp": {
+    "cancelled": "ملغي عبر واتساب",
+    "confirmed": "مؤكد عبر واتساب",
+    "awaitingConfirmation": "بانتظار تأكيد واتساب",
+    "paymentReviewSent": "تم إرسال مراجعة الدفع عبر واتساب",
+    "invoiceSent": "تم إرسال فاتورة واتساب",
+    "shipmentSent": "تم إرسال الشحنة عبر واتساب",
+    "shippingNotified": "تم إشعار الشحن عبر واتساب",
+    "outForDeliveryNotified": "تم إشعار في الطريق للتسليم عبر واتساب",
+    "deliveryNotified": "تم إشعار التسليم عبر واتساب"
+  },
+  "links": {
+    "openInstagram": "فتح محادثة Instagram",
+    "openMessenger": "فتح محادثة Messenger",
+    "openWhatsapp": "فتح محادثة WhatsApp",
+    "openAiInbox": "فتح محادثة AI Inbox"
+  },
+  "customer": {
+    "walkIn": "عميل متجول"
+  },
+  "breadcrumb": {
+    "home": "الرئيسية"
+  },
+  "toasts": {
+    "created": "تم إنشاء الطلب",
+    "notesUpdated": "تم تحديث الملاحظات",
+    "shippingSet": "تم إعداد الشحن"
   }
 }

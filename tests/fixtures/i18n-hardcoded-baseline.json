@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 2222,
+    "arabic": 1966,
     "english": 2546,
-    "total": 4768,
-    "mixedFiles": 52
+    "total": 4512,
+    "mixedFiles": 51
   },
   "files": {
     "src/App.jsx": {
@@ -82,20 +82,10 @@
       "english": 4,
       "total": 4
     },
-    "src/modules/accounting/pages/Accounting.jsx": {
-      "arabic": 13,
-      "english": 0,
-      "total": 13
-    },
     "src/modules/accounting/pages/AccountingAnalytics.jsx": {
       "arabic": 13,
       "english": 0,
       "total": 13
-    },
-    "src/modules/accounting/pages/Accounts.jsx": {
-      "arabic": 30,
-      "english": 0,
-      "total": 30
     },
     "src/modules/accounting/pages/Expenses.jsx": {
       "arabic": 23,
@@ -106,26 +96,6 @@
       "arabic": 140,
       "english": 3,
       "total": 143
-    },
-    "src/modules/accounting/pages/GeneralLedger.jsx": {
-      "arabic": 27,
-      "english": 0,
-      "total": 27
-    },
-    "src/modules/accounting/pages/JournalEntries.jsx": {
-      "arabic": 49,
-      "english": 0,
-      "total": 49
-    },
-    "src/modules/accounting/pages/Treasury.jsx": {
-      "arabic": 54,
-      "english": 0,
-      "total": 54
-    },
-    "src/modules/accounting/pages/TrialBalance.jsx": {
-      "arabic": 24,
-      "english": 0,
-      "total": 24
     },
     "src/modules/aiStudio/components/AiStudioNav.jsx": {
       "arabic": 0,
@@ -338,9 +308,9 @@
       "total": 25
     },
     "src/modules/aiSupport/pages/AiInbox.jsx": {
-      "arabic": 140,
+      "arabic": 148,
       "english": 253,
-      "total": 393
+      "total": 401
     },
     "src/modules/aiSupport/pages/AiInboxPwa.jsx": {
       "arabic": 56,
@@ -643,19 +613,9 @@
       "total": 8
     },
     "src/modules/orders/components/AiInboxOrderLink.jsx": {
-      "arabic": 4,
+      "arabic": 0,
       "english": 1,
-      "total": 5
-    },
-    "src/modules/orders/lib/ordersStore.js": {
-      "arabic": 3,
-      "english": 0,
-      "total": 3
-    },
-    "src/modules/orders/pages/OrderDetails.jsx": {
-      "arabic": 60,
-      "english": 0,
-      "total": 60
+      "total": 1
     },
     "src/modules/orders/pages/OrderReturnsPage.jsx": {
       "arabic": 94,

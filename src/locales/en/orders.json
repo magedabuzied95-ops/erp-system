@@ -22,7 +22,13 @@
     "whatsapp": "WhatsApp",
     "instagram": "Instagram",
     "manual": "Manual",
-    "onlineOrder": "Online Order"
+    "onlineOrder": "Online Order",
+    "onlineShipping": "Online order · shipping",
+    "shippingOrder": "Shipping order",
+    "directPos": "Direct sale · POS",
+    "directInvoice": "Direct invoice",
+    "directInvoiceHint": "Direct sale invoice — no shipping or transfer-review steps are required",
+    "directInvoiceActions": "You can print the invoice or return items directly, and add shipping only if the customer asks for delivery."
   },
   "statusLabels": {
     "pending": "Pending",
@@ -54,7 +60,10 @@
     "created": "Created",
     "picked_up": "Picked Up",
     "failed": "Failed",
-    "failed_delivery": "Failed Delivery"
+    "failed_delivery": "Failed Delivery",
+    "outForDelivery": "Out for delivery",
+    "partiallyPaid": "Partially paid",
+    "partiallyRefunded": "Partially refunded"
   },
   "kpis": {
     "totalOrders": "Total orders",
@@ -300,7 +309,51 @@
     "cancelShipment": "Cancel shipment",
     "shipmentUpdated": "Shipment updated",
     "updateFailed": "Failed to update shipment",
-    "timeline": "Shipment timeline"
+    "timeline": "Shipment timeline",
+    "zone": "Zone",
+    "district": "District",
+    "apartment": "Apartment",
+    "landmarkPlaceholder": "Nearby landmark...",
+    "bostaTrackingNumber": "Bosta tracking number",
+    "bostaPlanRequired": "The Bosta account is connected, but a shipping plan must be enabled before shipments can be created.",
+    "completeBostaFields": "Complete the customer phone, Bosta city, zone and district, street name, and building number",
+    "enterPhoneAndAddress": "Enter the customer phone and full address before saving the shipment",
+    "setUpForInvoice": "Set up shipping for the invoice",
+    "addToInvoice": "Add shipping to the invoice",
+    "bostaAddress": "Bosta shipping address",
+    "customerDelivery": "Customer delivery details",
+    "bostaDirectoryHint": "City, zone, and district options come straight from the Bosta directory so the shipment is accepted.",
+    "saveBeforeCreate": "Save the delivery details before creating the shipment.",
+    "customerPhone": "Customer phone number",
+    "bostaCity": "Bosta city",
+    "loadingCities": "Loading Bosta cities...",
+    "selectCity": "Select the city *",
+    "loadingZones": "Loading zones...",
+    "selectZone": "Select the zone *",
+    "loadingDistricts": "Loading districts...",
+    "selectDistrict": "Select the district *",
+    "streetAndAddress": "Street name and full address",
+    "streetPlaceholder": "Example: North 90th Street *",
+    "buildingNumber": "Building number",
+    "buildingNumberRequired": "Building number *",
+    "apartmentNumber": "Apartment number",
+    "cityOrZone": "City or zone",
+    "fullAddress": "Full address",
+    "addressPlaceholder": "Street, building number, floor, and apartment",
+    "createBostaShipment": "Create a Bosta shipment",
+    "refreshStatus": "Refresh status",
+    "city": "City",
+    "street": "Street",
+    "building": "Building",
+    "floor": "Floor",
+    "bostaInternalId": "Internal Bosta ID",
+    "labelLink": "Label link",
+    "subscriptionRequired": "Subscription required",
+    "bostaError": "Bosta error",
+    "providerSettings": "Shipping provider settings",
+    "appearsAfterCreate": "Appears automatically once the shipment is created",
+    "delivered": "Shipment delivered",
+    "delivery": "Delivery"
   },
   "details": {
     "title": "Order Details",
@@ -407,6 +460,46 @@
       "COD amount mismatch": "COD amount mismatch",
       "One or more items are out of stock": "One or more items are out of stock"
     },
-    "currentStatus": "Current status"
+    "currentStatus": "Current status",
+    "invoice": "Order invoice",
+    "activityLog": "Activity log",
+    "moreActions": "More actions",
+    "enterpriseOps": "Manage enterprise operations and subscriptions"
+  },
+  "channels": {
+    "instagramStory": "Instagram story",
+    "story": "Story",
+    "facebookPost": "Facebook post",
+    "instagramPost": "Instagram post",
+    "whatsappCampaign": "WhatsApp campaign",
+    "tiktokCampaign": "TikTok campaign"
+  },
+  "whatsapp": {
+    "cancelled": "Cancelled via WhatsApp",
+    "confirmed": "Confirmed via WhatsApp",
+    "awaitingConfirmation": "Awaiting WhatsApp confirmation",
+    "paymentReviewSent": "Payment review sent via WhatsApp",
+    "invoiceSent": "Invoice sent via WhatsApp",
+    "shipmentSent": "Shipment sent via WhatsApp",
+    "shippingNotified": "Shipping notified via WhatsApp",
+    "outForDeliveryNotified": "Out-for-delivery notified via WhatsApp",
+    "deliveryNotified": "Delivery notified via WhatsApp"
+  },
+  "links": {
+    "openInstagram": "Open the Instagram conversation",
+    "openMessenger": "Open the Messenger conversation",
+    "openWhatsapp": "Open the WhatsApp conversation",
+    "openAiInbox": "Open the AI Inbox conversation"
+  },
+  "customer": {
+    "walkIn": "Walk-in customer"
+  },
+  "breadcrumb": {
+    "home": "Home"
+  },
+  "toasts": {
+    "created": "Order created",
+    "notesUpdated": "Notes updated",
+    "shippingSet": "Shipping set up"
   }
 }
