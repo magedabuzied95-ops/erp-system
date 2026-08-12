@@ -14,6 +14,10 @@
 import db from "../database/db.js";
 import { normalizeSalesText } from "./aiSalesOrchestratorService.js";
 import { normalizeProductTypeValue } from "./productClassificationsService.js";
+// Phase 10.8 — reuse the EXISTING alias engine (a linguistic Arabic↔English map: جوردن→jordan, فور→4/four),
+// NOT a hardcoded product list. Brand/model live in products.name on the canonical schema, so we resolve a
+// free-text term to REAL catalog rows by expanding it and matching name — no new taxonomy, no famous-shoe list.
+import { expandSearchAliasTerms, normalizeAliasText } from "./productAliasEngine.js";
 
 // ---- Vocabulary (reuses the same aliases the orchestrator already uses; not a new giant taxonomy) ----
 const COLOR_ALIASES = [
@@ -38,6 +42,56 @@ const TYPE_TERMS = [
 
 const clean = (v) => normalizeSalesText(String(v || ""));
 
+// Non-product noise stripped before a residual brand/model term is handed to the alias engine. These are
+// greeting / availability / restock / price / size-keyword / stopword tokens — NOT product identity.
+const STOPWORDS = new Set([
+  "هل", "في", "فى", "من", "على", "عن", "مع", "انا", "انت", "احنا", "حضرتك", "يا", "لو", "سمحت", "ممكن",
+  "عايز", "عاوز", "عايزه", "عاوزه", "محتاج", "محتاجه", "بدي", "اريد", "اطلب", "ابحث", "بدور", "دور",
+  "عندكم", "عندك", "عندكو", "متوفر", "متوفره", "موجود", "موجوده", "فيه", "فيها", "available", "بتوفر", "بتتوفر", "هو", "هي",
+  "السلام", "سلام", "عليكم", "وعليكم", "ورحمه", "الله", "اهلا", "اهلين", "ازيك", "ازيكم", "هاي", "هلو", "مرحبا",
+  "صباح", "مساء", "الخير", "النور", "hello", "hi", "hey",
+  "مقاس", "مقاسي", "المقاس", "size", "لون", "اللون", "الوان", "الالوان", "color", "colour",
+  "بكام", "السعر", "سعر", "كام", "price", "الثمن",
+  "بلغني", "بلغوني", "ابلغني", "لما", "تاني", "رجع", "نزل", "ينزل", "يتوفر", "يرجع", "ينزل",
+  "شكرا", "تمام", "ok", "اوك", "please", "the", "a", "an", "do", "you", "have", "is", "there", "any", "of",
+]);
+
+// Phase 10.8 — expand a free-text brand/model term into meaningful matcher terms via the shared alias engine.
+// Keeps only terms with a letter (drops bare numbers so a lone size/quantity can't cause a false name match).
+export const buildBrandModelTerms = (term = "") =>
+  expandSearchAliasTerms(term, { limit: 60 }).filter((t) => t && t.length >= 3 && /[a-z؀-ۿ]/.test(t));
+
+// Score how SPECIFICALLY a product name matches the expanded terms. A multi-word phrase ("nike air max",
+// "jordan 4") dominates a single token ("air", "jordan"); among equal word-counts the longer term wins. This
+// is what lets an explicit model outrank a bare brand deterministically — no hardcoded model ranking table.
+export const scoreBrandModelMatch = (productName = "", terms = []) => {
+  const name = normalizeAliasText(productName);
+  let best = { score: 0, matchedTerm: "" };
+  if (!name) return best;
+  for (const t of terms) {
+    if (!t || !name.includes(t)) continue;
+    const words = t.split(/\s+/).filter(Boolean).length;
+    const score = words * 1000 + t.length;
+    if (score > best.score) best = { score, matchedTerm: t };
+  }
+  return best;
+};
+
+// Rank catalog rows against a brand/model term and keep ONLY the most-specific tier (all rows sharing the top
+// score). Single winner → variant grounding; several equally-specific rows → present/clarify; none → []. Pure.
+export const rankBrandModelMatches = (term = "", products = []) => {
+  const terms = buildBrandModelTerms(term);
+  if (!terms.length) return [];
+  const scored = products
+    .map((p) => ({ product: p, ...scoreBrandModelMatch(p.name || p.title || p.product_name || "", terms) }))
+    .filter((x) => x.score > 0);
+  if (!scored.length) return [];
+  const top = Math.max(...scored.map((x) => x.score));
+  return scored
+    .filter((x) => x.score === top)
+    .map((x) => ({ ...x.product, _brandModelScore: x.score, _matchedTerm: x.matchedTerm }));
+};
+
 // ---- Pure: extract the customer's REQUESTED entities (deterministic; Arabic digits already normalized) ----
 export const extractRequestedEntities = (message = "") => {
   const norm = clean(message);
@@ -58,7 +112,19 @@ export const extractRequestedEntities = (message = "") => {
   const hasGreeting = /سلام|اهلا|أهلا|ازيك|هاي|صباح|مساء|وعليكم/.test(norm) || /\b(hello|hi|hey)\b/.test(norm);
   const wantsAvailability = /(عندكم|عندك|متوفر|موجود|فيه|في\s|available|هل\s*في|بتوفر)/.test(norm);
   const wantsRestock = /(بلغني|بلغوني|ابلغني|نزل\s*تاني|رجع\s*تاني)/.test(norm) || /لما.*(ينزل|يتوفر|يرجع|ينزّل)/.test(norm);
-  return { normalized: norm, productType, productTerm, typeLabel, color, colorLabel, size, hasGreeting, wantsAvailability, wantsRestock };
+  // Phase 10.8 — residual brand/model term: the message minus greeting/availability/size/color/stopwords.
+  // Brand & model live in products.name (no products.brand/model column), so this is fed to the alias engine
+  // to resolve real catalog rows by name. The matched SIZE token is dropped, but other digits (a model number
+  // like the "4" in "Jordan 4") are preserved so an explicit model still resolves.
+  const colorTokens = new Set(COLOR_ALIASES.flatMap(([, aliases]) => aliases.map((a) => clean(a))));
+  const sizeTokens = new Set([size].filter(Boolean));
+  const brandModelTerm = norm
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]+/gu, ""))
+    .filter((w) => w && !STOPWORDS.has(w) && !colorTokens.has(w) && !sizeTokens.has(w) && w !== clean(productTerm))
+    .join(" ")
+    .trim();
+  return { normalized: norm, productType, productTerm, typeLabel, color, colorLabel, size, hasGreeting, wantsAvailability, wantsRestock, brandModelTerm };
 };
 
 // ---- Pure: substantive business intent beats a leading greeting ----
@@ -155,6 +221,39 @@ export const applyInboxGroundingGate = async ({ tenantId, message, deps = {} } =
   try {
     const entities = extractRequestedEntities(message);
     const requestedIntent = resolveRequestedIntent(message);
+
+    // Phase 10.8 — brand/model grounding. If NO product-category term matched but the customer named a
+    // brand/model ("جوردن فور", "Jordan 4", "نايك Air Max"), resolve it to REAL catalog rows by name via the
+    // shared alias engine, then treat those rows as the compatible set (deriving product_type from them so the
+    // existing size/variant/availability machinery + labels apply). No match → fall through to clarify (never
+    // hallucinate a product). Failure-isolated by the outer try/catch.
+    let brandModelProducts = null;
+    if (!entities.productType && entities.brandModelTerm && (requestedIntent === "PRODUCT_AVAILABILITY" || entities.wantsRestock)) {
+      const resolveByBrandModel = deps.resolveByBrandModel || (async (term) => {
+        const terms = buildBrandModelTerms(term);
+        if (!terms.length) return [];
+        const likeTerms = terms.slice(0, 24).map((t) => `%${t}%`);
+        const r = await db.query(
+          `SELECT id, name, product_type FROM products
+             WHERE tenant_id = $1 AND COALESCE(is_storefront_visible, TRUE) = TRUE
+               AND LOWER(name) LIKE ANY($2::text[])
+             ORDER BY id DESC LIMIT 40`,
+          [tenantId, likeTerms]
+        ).catch(() => ({ rows: [] }));
+        return rankBrandModelMatches(term, r.rows || []);
+      });
+      const matched = await resolveByBrandModel(entities.brandModelTerm);
+      if (Array.isArray(matched) && matched.length) {
+        brandModelProducts = matched;
+        // Dominant product_type from the matched rows so labels + the footwear size resolver stay type-aware.
+        const types = matched.map((m) => normalizeProductTypeValue(m.product_type || "", "")).filter(Boolean);
+        const derivedType = types.slice().sort((a, b) => types.filter((t) => t === b).length - types.filter((t) => t === a).length)[0] || "";
+        entities.productType = derivedType || "resolved"; // sentinel keeps decideGrounding out of the noop branch
+        entities.productTerm = entities.brandModelTerm;
+        entities.typeLabel = matched.length === 1 ? String(matched[0].name || "المنتج") : (entities.typeLabel || "المنتج");
+      }
+    }
+
     const typeLabel = entities.typeLabel || "المنتج";
     const colorTxt = entities.colorLabel ? ` باللون ${entities.colorLabel}` : "";
     const sizeTxt = entities.size ? ` مقاس ${entities.size}` : "";
@@ -192,7 +291,11 @@ export const applyInboxGroundingGate = async ({ tenantId, message, deps = {} } =
       return getInventoryFacts({ tenantId, productId });
     });
 
-    const compatibleProducts = (await queryProducts(entities.productType, entities.productTerm)).filter((p) => isCompatibleProduct(p, entities));
+    // In brand/model mode the ranked catalog rows ARE the compatible set (already name-matched + tier-filtered);
+    // otherwise resolve by category and apply the category-compatibility gate.
+    const compatibleProducts = brandModelProducts
+      ? brandModelProducts
+      : (await queryProducts(entities.productType, entities.productTerm)).filter((p) => isCompatibleProduct(p, entities));
 
     // Exact-variant grounding via the canonical size resolver (Phase 10.7). Available variants authoritative.
     let variantGrounding = null;
@@ -247,7 +350,7 @@ export const applyInboxGroundingGate = async ({ tenantId, message, deps = {} } =
       confidence: decision.confidence,
       suggested_products: groundedCards,
       grounding: {
-        requested: { productType: entities.productType, productTerm: entities.productTerm, color: entities.color || null, size: entities.size || null },
+        requested: { productType: entities.productType, productTerm: entities.productTerm, color: entities.color || null, size: entities.size || null, brandModel: Boolean(brandModelProducts) },
         resolved: (decision.action === "available" || decision.action === "unavailable")
           ? { productId: variantGrounding?.exactVariant?.productId || null, variantId: variantGrounding?.exactVariant?.variantId || null, erpSize: variantGrounding?.exactVariant?.size || null, displaySize: variantGrounding?.exactVariant?.displaySize || entities.size || null, color: variantGrounding?.exactVariant?.color || null, stock: variantGrounding?.exactStock ?? null, matchType: variantGrounding?.sizeResolution?.matchType || null }
           : { candidates: compatibleProducts.length, exactVariantResolved: false, matchType: variantGrounding?.sizeResolution?.matchType || null, euSize: variantGrounding?.sizeResolution?.euSize || null },
