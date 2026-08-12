@@ -404,7 +404,8 @@ export function Drawer({ open, title, description, children, footer, onClose, pl
 /*                          data model: grouped ledgers, colspan totals,       */
 /*                          per-row editors.                                   */
 /*                                                                             */
-/* The visual truth lives in m1-table.css, so a plain <table className="m1- */ /* table"> is equally canonical. That is what makes broad migration possible   */
+/* The visual truth lives in m1-table.css, so a plain <table className="m1-    */
+/* table"> is equally canonical. That is what makes broad migration possible   */
 /* without touching any query, handler or calculation.                         */
 /*                                                                             */
 /* Re-audit of the two historical defects (both real, both now gone):          */
