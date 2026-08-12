@@ -268,6 +268,15 @@ export const matchesRequestedSize = (variantSize, requested) => {
   return new RegExp(`(^|[^0-9])${requested}([^0-9]|$)`).test(vs);
 };
 
+// Phase 12.2 — ONE deterministic helper for customer-facing Arabic stock-count wording (presentation only;
+// never changes the fact/number/decision). 1 → "قطعة واحدة", 2 → "قطعتين", else "N قطع" (0, 3..10, …).
+export const formatArabicPieces = (count) => {
+  const c = Math.max(0, Math.trunc(Number(count) || 0));
+  if (c === 1) return "قطعة واحدة";
+  if (c === 2) return "قطعتين";
+  return `${c} قطع`;
+};
+
 // ---- Pure: decide the grounded outcome from resolved catalog facts (unit-testable, no DB) ----
 // compatibleProducts: [{ id, name, product_type }]; variantGrounding: { exactVariant, exactStock,
 // requestedSizeExistsForType, requestedColorExistsForType, availableSizesSample }
@@ -276,13 +285,13 @@ export const matchesRequestedSize = (variantSize, requested) => {
 // hardcodes a tenant phrase and never changes the fact. `styleProfile` is the bounded PRODUCT_AVAILABILITY profile.
 export const renderGroundedAvailability = ({ typeLabel = "المنتج", colorTxt = "", sizeTxt = "", stock = null, styleProfile = null } = {}) => {
   const st = Number(stock);
-  const neutral = `أيوه 👍 ${typeLabel}${colorTxt}${sizeTxt} متوفر حاليًا${st > 0 && st <= 5 ? ` (${st} قطع بس)` : ""}. تحب أجهزلك الطلب؟`;
+  const neutral = `أيوه 👍 ${typeLabel}${colorTxt}${sizeTxt} متوفر حاليًا${st > 0 && st <= 5 ? ` (${formatArabicPieces(st)} بس)` : ""}. تحب أجهزلك الطلب؟`;
   const p = styleProfile?.PRODUCT_AVAILABILITY || null;
   const concise = p?.brevity?.status === "stable" && p.brevity.value === "concise";
   if (!concise) return neutral;
   const omitStock = p.exact_stock_count?.status === "stable" && p.exact_stock_count.value === "usually_omit";
   const emoji = (p.emoji?.status === "stable" && p.emoji.value && p.emoji.value !== "none") ? " 🌹" : "";
-  const stockPart = omitStock ? "" : (st > 0 && st <= 5 ? ` (${st} قطع)` : "");
+  const stockPart = omitStock ? "" : (st > 0 && st <= 5 ? ` (${formatArabicPieces(st)})` : "");
   // Concise wording that STILL asserts the verified availability fact — structural style only (no tenant phrase
   // hardcoded; the specific "إن شاء الله" wording would come from a future learned availability-phrasing signal).
   return `أيوه متاح حاليًا${stockPart}${emoji}`.replace(/\s+/g, " ").trim();
@@ -314,6 +323,13 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
     const sr = variantGrounding?.sizeResolution || null;
     const dispSizes = Array.isArray(variantGrounding?.availableSizesDisplay) ? variantGrounding.availableSizesDisplay.slice(0, 8) : [];
     const sizesHint = dispSizes.length ? ` المقاسات المتاحة${colorTxt}: ${dispSizes.join("، ")}.` : "";
+    // Phase 12.2 — the requested size is available in >1 colour and none was requested: confirm availability but
+    // require a colour before a specific variant/card is definitive (no silent highest-stock pick).
+    if (Array.isArray(variantGrounding?.colorChoices) && variantGrounding.colorChoices.length > 1) {
+      const colorsList = variantGrounding.colorChoices.map((c) => String(c.color || "").trim()).filter(Boolean).join("، ");
+      return { action: "color_choice_required", confidence: 0.6, cards, color_choices: variantGrounding.colorChoices,
+        answer: `أيوه مقاس ${entities.size} متاح إن شاء الله 🌹 موجود بالألوان: ${colorsList}. تحب أنهي لون؟` };
+    }
     if (variantGrounding?.exactVariant) {
       const stock = Number(variantGrounding.exactStock || 0);
       if (stock > 0) {
@@ -487,23 +503,34 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       const availableSizesDisplay = [...new Set(hintSource.map((v) => toDisplaySize(v.size, entities.productType)).filter(Boolean))];
       if (entities.size) {
         const sizeResolution = resolveFootwearSize({ productType: entities.productType, requestedSize: entities.size, availableVariantSizes: [...new Set(allVariants.map((v) => v.size).filter(Boolean))] });
-        let exactVariant = null, exactStock = 0, sizeAvailableOtherColor = false, ambiguousInColor = false;
+        let exactVariant = null, exactStock = 0, sizeAvailableOtherColor = false, ambiguousInColor = false, colorChoices = null;
         if (sizeResolution.canonicalMatches.length) {
           const sizeMatched = allVariants.filter((v) => sizeResolution.canonicalMatches.includes(v.size));
           const colorSizeMatched = entities.color ? sizeMatched.filter((v) => matchesRequestedColor(v.color, entities.color)) : sizeMatched;
           const distinctColorSizes = [...new Set(colorSizeMatched.map((v) => v.size))];
           if (colorSizeMatched.length && distinctColorSizes.length === 1) {
-            // Unambiguous within the requested color → exact variant, best-stock representative.
-            const best = colorSizeMatched.reduce((a, b) => (b.stock > (a?.stock ?? -1) ? b : a), null);
-            exactVariant = { productId: best.productId, variantId: best.variantId, size: best.size, color: best.color, displaySize: toDisplaySize(best.size, entities.productType) };
-            exactStock = best.stock;
+            // Phase 12.2 — MULTI-COLOR SIZE DISAMBIGUATION. When NO colour was requested and the requested size has
+            // >1 DISTINCT in-stock colour, do NOT silently pick the highest-stock one — surface grounded colour
+            // choices (deterministic, deduped by normalised colour, representative = best-stock per colour). 0
+            // in-stock → falls through to unavailable; exactly 1 in-stock colour → keep the proven auto-select.
+            const inStock = colorSizeMatched.filter((v) => Number(v.stock) > 0);
+            const byColor = new Map();
+            for (const v of inStock) { const key = clean(String(v.color || "")).toLowerCase(); if (!key) continue; const cur = byColor.get(key); if (!cur || v.stock > cur.stock) byColor.set(key, v); }
+            if (!entities.color && byColor.size > 1) {
+              colorChoices = [...byColor.values()].map((v) => ({ product_id: v.productId, variant_id: v.variantId, color: v.color, size: v.size, stock: v.stock, displaySize: toDisplaySize(v.size, entities.productType) }));
+            } else {
+              // Unambiguous (requested colour, or ≤1 in-stock colour) → exact variant, best-stock representative.
+              const best = colorSizeMatched.reduce((a, b) => (b.stock > (a?.stock ?? -1) ? b : a), null);
+              exactVariant = { productId: best.productId, variantId: best.variantId, size: best.size, color: best.color, displaySize: toDisplaySize(best.size, entities.productType) };
+              exactStock = best.stock;
+            }
           } else if (colorSizeMatched.length && distinctColorSizes.length > 1) {
             ambiguousInColor = true; // genuinely ambiguous for the requested color → clarify, never guess
           } else if (entities.color && sizeMatched.length) {
             sizeAvailableOtherColor = true; // size exists but not in the requested color
           }
         }
-        variantGrounding = { sizeResolution, exactVariant, exactStock, sizeAvailableOtherColor, ambiguousInColor, availableSizesDisplay };
+        variantGrounding = { sizeResolution, exactVariant, exactStock, sizeAvailableOtherColor, ambiguousInColor, colorChoices, availableSizesDisplay };
       } else {
         variantGrounding = { sizeResolution: null, exactVariant: null, colorExists: colorVariants.length > 0, availableSizesDisplay };
       }
@@ -512,7 +539,8 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     const decision = decideGrounding({ entities, compatibleProducts, variantGrounding, styleProfile });
     if (decision.action === "noop") return { changed: false, entities, requestedIntent };
     // Deterministic safety net: style rendering can never assert availability for a non-available decision.
-    if (decision.answer && decision.action !== "available") {
+    // color_choice_required IS an availability state (size available in multiple colours) — exclude it.
+    if (decision.answer && decision.action !== "available" && decision.action !== "color_choice_required") {
       const neutralUnavail = `${entities.typeLabel || "المنتج"}${entities.colorLabel ? ` باللون ${entities.colorLabel}` : ""}${entities.size ? ` مقاس ${entities.size}` : ""} مش متوفر حاليًا.`;
       decision.answer = guardNoFalseAvailability(decision.action, decision.answer, neutralUnavail);
     }
@@ -554,6 +582,8 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       send_ready_card: sendReadyCard,
       card_choices: cardChoices,
       product_ambiguous: productAmbiguous,
+      color_choices: Array.isArray(decision.color_choices) ? decision.color_choices : [],
+      color_choice_required: decision.action === "color_choice_required",
       grounding: {
         requested: { productType: entities.productType, productTerm: entities.productTerm, color: entities.color || null, size: entities.size || null, brandModel: Boolean(brandModelProducts) },
         resolved: (decision.action === "available" || decision.action === "unavailable")

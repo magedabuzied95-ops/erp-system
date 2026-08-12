@@ -5744,9 +5744,19 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
           const ec = await enrichGroundedSendReadyCard({ tenantId, identity: { ...ch, size: groundingResult?.grounding?.requested?.size || null, color: groundingResult?.grounding?.requested?.color || null } });
           if (ec) enrichedChoices.push(ec);
         }
+        // Phase 12.2 — multi-colour disambiguation: enrich one card per available colour (customer-safe fields
+        // only; cost/wholesale/supplier are blocked by the shared enricher). No card is definitive until picked.
+        const colorChoices = Array.isArray(groundingResult.color_choices) ? groundingResult.color_choices : [];
+        const enrichedColorChoices = [];
+        for (const cc of colorChoices.slice(0, 8)) {
+          const ec = await enrichGroundedSendReadyCard({ tenantId, identity: { product_id: cc.product_id, id: cc.product_id, variant_id: cc.variant_id, size: cc.size || null, color: cc.color || null, grounded: true } });
+          if (ec) enrichedColorChoices.push({ ...ec, stock: cc.stock });
+        }
         reply.send_package = {
           product_ambiguous: Boolean(groundingResult.product_ambiguous),
           card_choices: enrichedChoices,
+          color_choice_required: Boolean(groundingResult.color_choice_required),
+          color_choices: enrichedColorChoices,
           channel: conversation.channel || conversation.source || "web_chat",
         };
       } catch (cardError) {
