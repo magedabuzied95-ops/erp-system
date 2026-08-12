@@ -187,7 +187,7 @@ export const extractRequestedEntities = (message = "") => {
   // "سلام" is embedded in "السلام" (no word boundary), so match greetings as substrings for Arabic and
   // with word boundaries for Latin (avoid matching "hi" inside other words).
   const hasGreeting = /سلام|اهلا|أهلا|ازيك|هاي|صباح|مساء|وعليكم/.test(norm) || /\b(hello|hi|hey)\b/.test(norm);
-  const wantsAvailability = /(عندكم|عندك|متوفر|موجود|فيه|في\s|available|هل\s*في|بتوفر)/.test(norm);
+  const wantsAvailability = /(عندكم|عندك|متوفر|متاح|موجود|فيه|في\s|available|هل\s*في|بتوفر)/.test(norm);
   const wantsRestock = /(بلغني|بلغوني|ابلغني|نزل\s*تاني|رجع\s*تاني)/.test(norm) || /لما.*(ينزل|يتوفر|يرجع|ينزّل)/.test(norm);
   // Phase 10.8 — residual brand/model term: the message minus greeting/availability/size/color/stopwords.
   // Brand & model live in products.name (no products.brand/model column), so this is fed to the alias engine
@@ -195,10 +195,12 @@ export const extractRequestedEntities = (message = "") => {
   // like the "4" in "Jordan 4") are preserved so an explicit model still resolves.
   const colorTokens = new Set(COLOR_ALIASES.flatMap(([, aliases]) => aliases.map((a) => clean(a))));
   const sizeTokens = new Set([size].filter(Boolean));
+  // Availability/ask words must not pollute the brand/model term ("متاح اديداس اديستار" → "اديداس اديستار").
+  const availabilityWords = new Set(["متاح", "متاحه", "متاحة", "متوفر", "متوفره", "موجود", "موجوده", "عندكم", "عندك", "فيه", "هل", "بتوفر", "available", "عايز", "عاوز", "محتاج"]);
   const brandModelTerm = norm
     .split(/\s+/)
     .map((w) => w.replace(/[^\p{L}\p{N}]+/gu, ""))
-    .filter((w) => w && !STOPWORDS.has(w) && !colorTokens.has(w) && !sizeTokens.has(w) && w !== clean(productTerm))
+    .filter((w) => w && !STOPWORDS.has(w) && !colorTokens.has(w) && !sizeTokens.has(w) && !availabilityWords.has(w) && w !== clean(productTerm))
     .join(" ")
     .trim();
   return { normalized: norm, productType, productTerm, typeLabel, color, colorLabel, size, sizeIsExplicit: Boolean(sizeExplicit), hasGreeting, wantsAvailability, wantsRestock, brandModelTerm };
@@ -431,10 +433,19 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       // raw ungrounded draft (remembered/popular items) pass through. Bounded to an EXPLICIT size marker
       // (مقاس/size), an availability ask, or a color, so a stray number ("خصم ٣٠") does not trigger a clarify.
       const colorOrExplicit = entities.color || (entities.size && (entities.sizeIsExplicit || entities.wantsAvailability));
-      if (colorOrExplicit) {
+      // FAIL CLOSED (Adistar regression): the customer EXPLICITLY named a product/model we could not resolve to a
+      // real catalog row. Never let the raw brain leak a generic "أطلعلك بديل شبه ده؟" — ask which product
+      // instead. No invented availability, no arbitrary alternatives, no durable-context reuse (explicit mention).
+      // Require a REAL availability/restock ask (not a stray number like "خصم ٣٠" that only makes the intent
+      // look product-shaped) so an explicit named product with an availability signal fails closed, but noise does not.
+      const explicitUnresolved = hasExplicitProductMention(entities) && (entities.wantsAvailability || entities.wantsRestock);
+      if (colorOrExplicit || explicitUnresolved) {
+        const answer = explicitUnresolved
+          ? `مش لاقي المنتج ده عندنا بالظبط${sizeTxt}${colorTxt}. ممكن تبعتلي اسم المنتج أو الموديل بالظبط وأنا أشيكلك على التوفر من المخزون؟`
+          : `تقصد أنهي منتج؟ قولّي اسم أو نوع المنتج${sizeTxt}${colorTxt} وأنا أشيكلك على التوفر بالظبط.`;
         return { changed: true, entities, requestedIntent: "PRODUCT_AVAILABILITY", action: "clarify_product", confidence: 0.4, suggested_products: [],
-          answer: `تقصد أنهي منتج؟ قولّي اسم أو نوع المنتج${sizeTxt}${colorTxt} وأنا أشيكلك على التوفر بالظبط.`,
-          grounding: { requested: { productType: null, color: entities.color || null, size: entities.size || null }, resolved: { note: "no_product_specified" }, action: "clarify_product" } };
+          answer,
+          grounding: { requested: { productType: null, productTerm: entities.brandModelTerm || null, color: entities.color || null, size: entities.size || null }, resolved: { note: explicitUnresolved ? "product_not_found" : "no_product_specified" }, action: "clarify_product", product_resolution: { source: "explicit_message" } } };
       }
       return { changed: false, entities, requestedIntent };
     }
