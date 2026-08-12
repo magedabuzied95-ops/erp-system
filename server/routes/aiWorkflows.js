@@ -41,6 +41,8 @@ import { createIntent, listIntents, cancelIntent, markIntentFulfilled, getIntent
 import { listNotifications, getNotification, getNotificationCounts, editNotificationDraft, rejectNotification, sendApprovedRestockNotification, getMessagingMode, setMessagingMode } from "../services/restockNotificationService.js";
 import { getDeliveryCounts, listUnmatchedDeliveryEvents } from "../services/messageDeliveryReconciliationService.js";
 import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats, isInboundWorkflowsEnabled, getInboundAiChannels, setInboundAiChannel, ASSISTED_CHANNELS } from "../services/aiInboundIntakeService.js";
+import { getTenantStyleProfile } from "../services/aiCorrectionMemoryService.js";
+import { getAiAgentSettings, updateAiAgentSettings } from "../services/aiSalesAgentService.js";
 
 const router = express.Router();
 
@@ -154,6 +156,30 @@ router.get("/inbound-ai/channels", protect, permit("settings", "view"), async (r
 });
 router.post("/inbound-ai/channels", protect, permit("settings", "edit"), async (req, res) => {
   try { res.json({ success: true, channels: await setInboundAiChannel(tid(req), String(req.body?.channel || ""), req.body?.enabled === true, uid(req)) }); } catch (error) { fail(res, error); }
+});
+// Phase 11.2 — bounded Reply Style Learning: inspect the derived profile, toggle the flag, reset (clears the
+// learned profile via a reset timestamp WITHOUT deleting correction/audit rows).
+router.get("/inbound-ai/style-profile", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const s = await getAiAgentSettings({ tenantId: tid(req) });
+    const { profile, evidence_count } = await getTenantStyleProfile({ tenantId: tid(req), resetAt: s?.style_reset_at || null });
+    res.json({ success: true, learning_enabled: s?.style_learning_enabled === true, reset_at: s?.style_reset_at || null, evidence_count, profile });
+  } catch (error) { fail(res, error); }
+});
+router.post("/inbound-ai/style-learning", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const cur = await getAiAgentSettings({ tenantId: tid(req) });
+    await updateAiAgentSettings({ tenantId: tid(req), settings: { ...cur, style_learning_enabled: req.body?.enabled === true } });
+    res.json({ success: true, learning_enabled: req.body?.enabled === true });
+  } catch (error) { fail(res, error); }
+});
+router.post("/inbound-ai/style-learning/reset", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const cur = await getAiAgentSettings({ tenantId: tid(req) });
+    const resetAt = new Date().toISOString();
+    await updateAiAgentSettings({ tenantId: tid(req), settings: { ...cur, style_reset_at: resetAt } });
+    res.json({ success: true, reset_at: resetAt, note: "learned style profile cleared; correction/audit history retained" });
+  } catch (error) { fail(res, error); }
 });
 router.get("/restock-notifications/:id", protect, permit("settings", "view"), async (req, res) => {
   try {

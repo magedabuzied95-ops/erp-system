@@ -26,7 +26,7 @@ import { useTenant } from "../../saas/context/TenantContext";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiStudioNav from "../components/AiStudioNav";
 import { useStudioHeaders } from "../lib/studioRequest";
-import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats, getInboundAiChannels, setInboundAiChannel } from "../services/aiStudioApi";
+import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats, getInboundAiChannels, setInboundAiChannel, getStyleProfile, setStyleLearning, resetStyleLearning } from "../services/aiStudioApi";
 
 // Phase 10/11 — Inbound Assisted Replies control (default OFF). AI drafts a grounded reply SUGGESTION for
 // inbound WhatsApp/Messenger/Instagram text; a human approves/edits/sends from the existing AI Inbox.
@@ -80,6 +80,51 @@ function InboundAssistedRepliesCard() {
       ) : null}
       {mode !== "off" ? <div className="mt-2 text-[11px] text-amber-200">Suggestions are generated on enabled channels. Review and send from the AI Inbox — nothing is sent without a human. A newer customer message blocks approving a stale suggestion (server-enforced).</div> : null}
       <div className="mt-1 text-[10px] text-slate-500">Last 24h — generated {Number(d.generated || 0)} · approved {Number(d.approved || 0)} · stale {Number(d.stale || 0)}</div>
+    </section>
+  );
+}
+
+// Phase 11.2 — bounded Reply Style Learning inspector (learn presentation only; facts stay authoritative).
+function ReplyStyleLearningCard() {
+  const { headers } = useStudioHeaders();
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => { const r = await getStyleProfile(headers).catch(() => null); if (r) setData(r); }, [headers]);
+  useEffect(() => { load(); }, [load]);
+  const toggle = async (enabled) => { setBusy(true); try { await setStyleLearning(enabled, headers); await load(); } finally { setBusy(false); } };
+  const reset = async () => { setBusy(true); try { await resetStyleLearning(headers); await load(); } finally { setBusy(false); } };
+  const SIGNAL_LABEL = { brevity: "Concise replies", exact_stock_count: "Exact stock counts", emoji: "Emoji usage" };
+  const VALUE_LABEL = { concise: "concise", normal: "normal", usually_omit: "usually omitted", usually_include: "usually included", light: "light", heavy: "heavy", none: "none" };
+  const profile = data?.profile || {};
+  const intents = Object.keys(profile);
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">Reply Style Learning</h2>
+        <div className="flex items-center gap-2">
+          <button type="button" disabled={busy} onClick={() => toggle(!data?.learning_enabled)} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black ${data?.learning_enabled ? "border-emerald-300/50 bg-emerald-300/15 text-emerald-50" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{data?.learning_enabled ? "Learning: ON" : "Learning: OFF"}</button>
+          <button type="button" disabled={busy} onClick={reset} className="inline-flex h-8 items-center rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 text-[11px] font-black text-amber-100">Reset learned style</button>
+        </div>
+      </div>
+      <p className="mt-1.5 text-[12px] text-slate-400">Learns only <b className="text-slate-200">how</b> to phrase (brevity, stock-count omission, emoji) from repeated approved edits — <b className="text-slate-200">never</b> stock, price, size, product, or policy facts. A preference becomes <b className="text-slate-200">Stable</b> after ≥5 consistent edits per intent; conflicting edits disable it. Reset clears learned style but keeps correction/audit history.</p>
+      {!intents.length ? (
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-[12px] text-slate-400">No stable style preference yet — evidence accumulating ({Number(data?.evidence_count || 0)} edits so far).</div>
+      ) : intents.map((intent) => (
+        <div key={intent} className="mt-3">
+          <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">{intent.replace(/_/g, " ")}</div>
+          <div className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+            {Object.entries(profile[intent]).map(([signal, info]) => (
+              <div key={signal} className="rounded-xl border border-white/10 bg-white/[0.02] px-2.5 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-slate-200">{SIGNAL_LABEL[signal] || signal}</span>
+                  <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase ${info.status === "stable" ? "bg-emerald-400/15 text-emerald-100" : info.status === "conflicting" ? "bg-rose-400/15 text-rose-100" : "bg-slate-500/20 text-slate-300"}`}>{info.status}</span>
+                </div>
+                <div className="mt-0.5 text-[11px] text-slate-300">{info.status === "stable" ? (VALUE_LABEL[info.value] || info.value) : `evidence ${info.evidence}/${info.threshold}`}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </section>
   );
 }
@@ -279,6 +324,7 @@ export default function AiStudio() {
       </section>
 
       <InboundAssistedRepliesCard />
+      <ReplyStyleLearningCard />
 
       {/* Real metrics */}
       <section>

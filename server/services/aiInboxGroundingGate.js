@@ -192,7 +192,32 @@ export const matchesRequestedSize = (variantSize, requested) => {
 // ---- Pure: decide the grounded outcome from resolved catalog facts (unit-testable, no DB) ----
 // compatibleProducts: [{ id, name, product_type }]; variantGrounding: { exactVariant, exactStock,
 // requestedSizeExistsForType, requestedColorExistsForType, availableSizesSample }
-export const decideGrounding = ({ entities, compatibleProducts = [], variantGrounding = null } = {}) => {
+// Phase 11.2 — STYLE-AWARE RENDERING: the FACT (available/stock) is decided by grounding; only the WORDING is
+// shaped by the tenant style profile. Neutral phrasing unless a STABLE concise preference is learned. Never
+// hardcodes a tenant phrase and never changes the fact. `styleProfile` is the bounded PRODUCT_AVAILABILITY profile.
+export const renderGroundedAvailability = ({ typeLabel = "المنتج", colorTxt = "", sizeTxt = "", stock = null, styleProfile = null } = {}) => {
+  const st = Number(stock);
+  const neutral = `أيوه 👍 ${typeLabel}${colorTxt}${sizeTxt} متوفر حاليًا${st > 0 && st <= 5 ? ` (${st} قطع بس)` : ""}. تحب أجهزلك الطلب؟`;
+  const p = styleProfile?.PRODUCT_AVAILABILITY || null;
+  const concise = p?.brevity?.status === "stable" && p.brevity.value === "concise";
+  if (!concise) return neutral;
+  const omitStock = p.exact_stock_count?.status === "stable" && p.exact_stock_count.value === "usually_omit";
+  const emoji = (p.emoji?.status === "stable" && p.emoji.value && p.emoji.value !== "none") ? " 🌹" : "";
+  const stockPart = omitStock ? "" : (st > 0 && st <= 5 ? ` (${st} قطع)` : "");
+  // Concise wording that STILL asserts the verified availability fact — structural style only (no tenant phrase
+  // hardcoded; the specific "إن شاء الله" wording would come from a future learned availability-phrasing signal).
+  return `أيوه متاح حاليًا${stockPart}${emoji}`.replace(/\s+/g, " ").trim();
+};
+
+// Deterministic post-render guard: style rendering may NEVER assert availability for a non-available fact.
+export const guardNoFalseAvailability = (action = "", rendered = "", neutral = "") => {
+  if (action === "available") return rendered;
+  const s = String(rendered || "");
+  const claimsAvailable = /(^|\s)متاح(\s|$)|متوفر/.test(s) && !/(مش|غير|لا)\s*(متاح|متوفر)/.test(s);
+  return claimsAvailable ? neutral : rendered;
+};
+
+export const decideGrounding = ({ entities, compatibleProducts = [], variantGrounding = null, styleProfile = null } = {}) => {
   const typeLabel = entities.typeLabel || "المنتج";
   const colorTxt = entities.colorLabel ? ` باللون ${entities.colorLabel}` : "";
   const sizeTxt = entities.size ? ` مقاس ${entities.size}` : "";
@@ -214,7 +239,7 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
       const stock = Number(variantGrounding.exactStock || 0);
       if (stock > 0) {
         return { action: "available", confidence: 0.9, cards,
-          answer: `أيوه 👍 ${typeLabel}${colorTxt}${sizeTxt} متوفر حاليًا${stock <= 5 ? ` (${stock} قطع بس)` : ""}. تحب أجهزلك الطلب؟` };
+          answer: renderGroundedAvailability({ typeLabel, colorTxt, sizeTxt, stock, styleProfile }) };
       }
       return { action: "unavailable", confidence: 0.85, cards,
         answer: `${typeLabel}${colorTxt}${sizeTxt} مش متوفر حاليًا. تحب أسجلك إشعار أبلغك أول ما يرجع؟` };
@@ -242,7 +267,7 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
 const CANONICAL_LABELS = { PRODUCT_AVAILABILITY: "PRODUCT_AVAILABILITY", RESTOCK_REQUEST: "RESTOCK_REQUEST", ORDER_STATUS: "ORDER_STATUS", RETURN_POLICY: "RETURN_POLICY", PRICE_INQUIRY: "PRICE_INQUIRY", GREETING: "GREETING", GENERAL: "GENERAL" };
 
 // ---- Impure orchestrator: resolve compatible catalog products + exact variant, then decide. Failure-isolated. ----
-export const applyInboxGroundingGate = async ({ tenantId, message, contextMessages = null, deps = {} } = {}) => {
+export const applyInboxGroundingGate = async ({ tenantId, message, contextMessages = null, styleProfile = null, deps = {} } = {}) => {
   try {
     // Phase 11.1 — ground on the current unanswered customer TURN, not just the latest message. A fragmented
     // request ("عندكم جوردن فور" / "احمر" / "مقاس ٤١") merges to one composite (latest wins, missing dims
@@ -368,8 +393,13 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       }
     }
 
-    const decision = decideGrounding({ entities, compatibleProducts, variantGrounding });
+    const decision = decideGrounding({ entities, compatibleProducts, variantGrounding, styleProfile });
     if (decision.action === "noop") return { changed: false, entities, requestedIntent };
+    // Deterministic safety net: style rendering can never assert availability for a non-available decision.
+    if (decision.answer && decision.action !== "available") {
+      const neutralUnavail = `${entities.typeLabel || "المنتج"}${entities.colorLabel ? ` باللون ${entities.colorLabel}` : ""}${entities.size ? ` مقاس ${entities.size}` : ""} مش متوفر حاليًا.`;
+      decision.answer = guardNoFalseAvailability(decision.action, decision.answer, neutralUnavail);
+    }
 
     // Build grounded product cards from compatible catalog products only (never incompatible ones).
     const groundedCards = (decision.cards || []).map((p) => ({ id: p.id, product_id: p.id, name: p.name, product_type: p.product_type, grounded: true }));
