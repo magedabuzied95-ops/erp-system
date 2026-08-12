@@ -726,6 +726,23 @@ const canSyncMessengerProfile = (conversation) => {
     externalConversationId.startsWith("facebook_messenger:")
   );
 };
+// Phase 12 polish — MIRRORS server instagramProductShareText (aiProductCards.js) so the AI Inbox preview shows
+// the exact concise text/link package that will reach Instagram. Kept field-for-field identical to the server
+// formatter; the instagramShareParity test guards against drift. Name + optional colour + customer price + URL.
+const instagramShareText = (card = {}) => {
+  const name = clean(card.name || card.product_name || card.title || "");
+  const color = clean(card.color || "");
+  const price = card.display_price ?? card.price ?? null;
+  const url = clean(card.storefront_url || card.product_url || card.url || "");
+  return [
+    name,
+    color ? `اللون: ${color}` : "",
+    (price != null && price !== "" && Number.isFinite(Number(price))) ? `السعر: ${Math.round(Number(price))} جنيه` : "",
+    url ? "عرض المنتج:" : "",
+    url || "",
+  ].filter(Boolean).join("\n");
+};
+
 const channelLabel = (value = "") => {
   const key = clean(value).toLowerCase();
   if (key === "facebook_messenger") return "ماسنجر فيسبوك";
@@ -2761,7 +2778,7 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
-function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, removed = false, deliveryFormat = "", onRemove, onChange, onChoose }) {
+function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, removed = false, deliveryFormat = "", instagramDelivery = false, onRemove, onChange, onChoose }) {
   const hasCard = Boolean(card && (card.product_id || card.id));
   const showChoices = ambiguous && !hasCard && !removed && Array.isArray(choices) && choices.length > 0;
   if (removed) {
@@ -2807,6 +2824,12 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
           {(card.storefront_url || card.product_url) ? <a href={card.storefront_url || card.product_url} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-cyan-200 underline">عرض المنتج ↗</a> : null}
         </div>
       </div>
+      {instagramDelivery ? (
+        <div className="mt-2 rounded-lg border border-white/10 bg-slate-950/60 p-2">
+          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200/80">اللي هيوصل للعميل (نص + لينك)</div>
+          <pre dir="rtl" className="mt-1 whitespace-pre-wrap break-words font-sans text-[11px] leading-5 text-slate-100">{instagramShareText(card)}</pre>
+        </div>
+      ) : null}
       <div className="mt-2 flex flex-wrap gap-1.5">
         <button type="button" onClick={onRemove} className="rounded-lg border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-black text-slate-200 hover:bg-white/[0.08]">🗑️ حذف المنتج</button>
         <button type="button" onClick={onChange} className="rounded-lg border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100 hover:bg-violet-400/15">🔁 تغيير المنتج</button>
@@ -2828,6 +2851,7 @@ function AiSuggestionCard({
   productRemoved = false,
   deliveryFormat = "",
   channelName = "",
+  instagramDelivery = false,
   onRemoveProduct,
   onChangeProduct,
   onChooseProduct,
@@ -2905,6 +2929,7 @@ function AiSuggestionCard({
         ambiguous={productAmbiguous}
         removed={productRemoved}
         deliveryFormat={deliveryFormat}
+        instagramDelivery={instagramDelivery}
         onRemove={onRemoveProduct}
         onChange={onChangeProduct}
         onChoose={onChooseProduct}
@@ -3051,6 +3076,7 @@ function ManualReplyComposer({
           productRemoved={aiSuggestionProductRemoved}
           deliveryFormat={aiSuggestionDeliveryFormat}
           channelName={channelLabel(conversation?.channel || conversation?.source)}
+          instagramDelivery={String(conversation?.channel || conversation?.source || "").toLowerCase().includes("instagram")}
           onRemoveProduct={onRemoveSuggestionProduct}
           onChangeProduct={onChangeSuggestionProduct}
           onChooseProduct={onChooseSuggestionProduct}
