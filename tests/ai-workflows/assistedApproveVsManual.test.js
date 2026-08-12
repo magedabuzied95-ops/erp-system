@@ -76,3 +76,19 @@ test("frontend: human_takeover state is clearly labelled + Take Over / Return co
   assert.match(inboxSrc, /onAction\("takeover"\)/);
   assert.match(inboxSrc, /onAction\("return"\)/);
 });
+
+test("frontend lifecycle: a successful approval CONSUMES the suggestion (card removed + state reset, no refresh)", () => {
+  // dismiss the active suggestion key immediately after a successful send
+  assert.match(inboxSrc, /setDismissedAiSuggestionKey\(activeAiSuggestionKey\);\s*\n\s*setEditingAiDraft\(false\);\s*\n\s*setAiSuggestionEditText\(""\);\s*\n\s*setSuggestionProductRemoved\(false\);\s*\n\s*setSuggestionChosenCard\(null\);/);
+  // completed status indication
+  assert.match(inboxSrc, /تم اعتماد وإرسال اقتراح AI/);
+});
+
+test("frontend lifecycle: text failure keeps the suggestion pending (no dismiss); card failure is surfaced", () => {
+  assert.match(inboxSrc, /\/\/ Text failed or was stale \(409\) → keep the suggestion pending\/actionable[\s\S]*?if \(!result\?\.ok\) return;/);
+  assert.match(inboxSrc, /cardOk = false;[\s\S]*?كارت المنتج فشل/);
+});
+
+test("backend lifecycle: the draft is cleared on send (not returned as an active suggestion afterwards)", () => {
+  assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId \}\)/);
+});

@@ -7090,13 +7090,26 @@ export default function AiInbox() {
         variant_id: card?.variant_id || null,
       },
     });
-    if (result?.ok && card) {
+    // Text failed or was stale (409) → keep the suggestion pending/actionable (do NOT clear the card).
+    if (!result?.ok) return;
+    let cardOk = true;
+    if (card) {
       try {
         await sendProductCards([card]);
       } catch {
-        setToast({ tone: "amber", text: "تم إرسال الرد، لكن فشل إرسال كارت المنتج" });
+        cardOk = false;
+        setToast({ tone: "amber", text: "الرد اتبعت، لكن كارت المنتج فشل — ابعته من زرار المنتج" });
       }
     }
+    // Phase 11.2 lifecycle — a successful assisted approval CONSUMES the suggestion: remove the actionable card
+    // immediately (no page refresh) and reset all local suggestion state so it can never be re-approved. The
+    // backend already cleared the draft; dismissing the key also survives any refetch race.
+    setDismissedAiSuggestionKey(activeAiSuggestionKey);
+    setEditingAiDraft(false);
+    setAiSuggestionEditText("");
+    setSuggestionProductRemoved(false);
+    setSuggestionChosenCard(null);
+    if (cardOk) setToast({ tone: "emerald", text: card ? "✓ تم اعتماد وإرسال اقتراح AI مع المنتج" : "✓ تم اعتماد وإرسال اقتراح AI" });
   };
 
   const handleDismissAiSuggestion = useCallback(() => {
