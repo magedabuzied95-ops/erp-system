@@ -15,6 +15,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 | 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
 | 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | `cfdbb72` | `cfdbb72` verified (see note) | build green |
+| 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | see below | see below | build green |
 
 ## Method
 
@@ -534,6 +535,53 @@ Shell in Light `rgb(234,231,224)` = `--bg`; in Dark `rgb(19,18,17)` = `--bg`.
 Two of the three routes are **FIXED_VERIFIED (light + dark)**. `/loyalty` is
 **FIXED (light verified, dark pending re-measure)** — recorded honestly rather
 than assumed from the identical token substitution applied to all three files.
+
+## Phase 2 — page-title convergence to the approved 22px (checkpoint 7)
+
+**Checkpoint 6 closed:** `/loyalty` re-measured in Dark on the deployed build —
+**0 offenders**, shell `rgb(19,18,17)` = `--bg`, title 22px. All three loyalty
+routes are now **FIXED_VERIFIED (light + dark, RTL)**.
+
+**Measured before the fix** (live, on Production):
+
+| Route | Rendered title | Cause |
+|---|---|---|
+| `/marketing/analytics` | **44px** / 800 / lh 59.4 | `xl:text-[2.75rem]` |
+| `/marketing/social-calendar` | **37.6px** / 800 / lh 50.76 | `sm:text-[2rem] xl:text-[2.35rem]` |
+| `/marketing/social-media-publisher` | 37.6px | same non-large branch |
+
+The tokens themselves were already correct — `--font-display` = 30px,
+`--font-page-title` = 22px. The oversizing came entirely from **page-local
+arbitrary font utilities** overriding the token, which is precisely the
+"inconsistent page-local font utilities" class the typography audit targets.
+
+**Real owner:** `src/modules/marketing/components/MarketingStudioHeader.jsx:39`
+— a **shared** header, not the three page files. The `<h1 className="m1-display">`
+lines in `MarketingAnalytics.jsx` / `SocialCalendar.jsx` are *not* the rendered
+title; tracing by computed class was what located the true owner.
+
+**Blast radius — wider than the three approved routes (recorded deliberately):**
+the header has **5 consumers**: MarketingAnalytics (`size="large"`),
+SocialCalendar, SocialMediaPublisher, **MarketingSettings** and **PostTemplates**.
+Converging the owner therefore also brings settings and templates to the
+canonical 22px. All five are ordinary operational marketing pages — none is a
+hero/display context — so 22px is the correct target for all of them under the
+ruling. Fixing the shared owner is the owner-first procedure; patching only
+three call sites would have left the same defect live on two others.
+
+**Change (one line):**
+`m1-display` + `xl:text-[2.75rem]` / `sm:text-[2rem] xl:text-[2.35rem]` +
+`text-white` -> `m1-page-title` + `text-[var(--text)]`, keeping the `mt-3`/`mt-2`
+spacing distinction between the large and default sizes.
+
+**`.m1-display` was NOT globally replaced** — it remains in 40 other files for
+legitimate hero/display consumers, exactly as ruled.
+
+**Known debt left in this file (deliberately out of scope):** the header's tab
+pills still use `border-white/10 bg-white/[0.04] text-slate-300`. They produce
+**no measured surface offender** (too small for the 9000px2 / 60px gate), and
+Phase 2 is scoped to page-title presentation only, so they are recorded rather
+than converged.
 
 ## Typography ruling — page-title scale (DECIDED)
 
