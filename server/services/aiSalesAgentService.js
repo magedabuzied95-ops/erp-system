@@ -5719,7 +5719,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     const tenantStyleProfile = styleLearningEnabled
       ? (await getTenantStyleProfile({ tenantId, channel: conversation.channel || conversation.source || "", resetAt: aiSettings?.style_reset_at || null }).catch(() => ({ profile: null }))).profile
       : null;
-    groundingResult = await applyInboxGroundingGate({ tenantId, message: lastMessage, contextMessages: currentTurn, styleProfile: tenantStyleProfile, reply, intent });
+    groundingResult = await applyInboxGroundingGate({ tenantId, message: lastMessage, contextMessages: currentTurn, sessionId: conversation?.session_id || conversationId || "", styleProfile: tenantStyleProfile, reply, intent });
     if (groundingResult?.requestedIntent) effectiveIntent = groundingResult.requestedIntent;
     if (groundingResult?.changed) {
       reply.answer = groundingResult.answer;

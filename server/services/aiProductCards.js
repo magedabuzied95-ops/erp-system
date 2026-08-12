@@ -957,6 +957,24 @@ export const productCardReplyText = (product = {}) => {
   ].filter(Boolean).join("\n");
 };
 
+// Phase 12 polish — Instagram-ONLY concise product share. Deterministic + grounded, but customer-facing output
+// stays minimal: canonical name, canonical customer price, canonical URL (+ colour only when present). It does
+// NOT include available sizes, stock count, SKU, cost/wholesale, supplier, or a duplicate CTA — the approved
+// employee/AI reply already carries the conversational tone/CTA. Messenger/WhatsApp keep productCardReplyText.
+export const instagramProductShareText = (product = {}) => {
+  const name = productCardName(product);
+  const price = formatCloserPrice(product.price);
+  const url = productCardUrl(product);
+  const color = text(product.color);
+  return [
+    name,
+    color ? `اللون: ${color}` : "",
+    price ? `السعر: ${price}` : "",
+    url ? "عرض المنتج:" : "",
+    url || "",
+  ].filter(Boolean).join("\n");
+};
+
 export const productImageCaption = (product = {}) => {
   const priceText = formatCloserPrice(product.price);
   const sizesLine = formatAvailableSizesLine(product.available_sizes || product.sizes);

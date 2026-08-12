@@ -2637,13 +2637,6 @@ function CreateProduct() {
       }
     >
       <form id="create-product-form" onSubmit={handleSubmit} className="m1-product-form w-full min-w-0 max-w-none space-y-4 overflow-x-hidden pb-28 lg:pb-24">
-        <ProductActionBar
-          mode="create"
-          saving={saving}
-          savingStep={savingStep}
-          hasUnsavedChanges={hasUnsavedChanges}
-          formId="create-product-form"
-        />
         <div className="flex w-full min-w-0 max-w-none flex-col gap-4 px-4 sm:px-6 lg:px-8">
           {/* One bar instead of three stacked layers. The page title is already
               rendered by ProductsShell directly above, so repeating it here only
@@ -4152,6 +4145,13 @@ function CreateProduct() {
             إلغاء
           </button>
         </div>
+        <ProductActionBar
+          mode="create"
+          saving={saving}
+          savingStep={savingStep}
+          hasUnsavedChanges={hasUnsavedChanges}
+          formId="create-product-form"
+        />
       </form>
       {colorPickTarget ? (
         <ColorPickModal
