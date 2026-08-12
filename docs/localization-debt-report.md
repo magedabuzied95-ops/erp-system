@@ -12,15 +12,15 @@ of scope. The scanner is conservative and can still contain false positives.
 - Source files scanned: 611
 - Files with debt: 148
 - Hardcoded Arabic UI strings: 1704
-- Hardcoded English UI strings: 1387
-- Total hardcoded UI strings: 3091
-- Mixed-language files (both scripts hardcoded): 40
+- Hardcoded English UI strings: 1365
+- Total hardcoded UI strings: 3069
+- Mixed-language files (both scripts hardcoded): 39
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 78 | 1148 | 990 | 2138 | 26 |
+| main-erp | 78 | 1148 | 968 | 2116 | 25 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -50,7 +50,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 13 | 12 | 25 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 22 | 2 | 24 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
-| src/modules/aiSupport/pages/AiChannels.jsx | main-erp | 1 | 22 | 23 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
 | src/modules/saas/pages/RegisterCompany.jsx | main-erp | 15 | 5 | 20 |
 | src/modules/marketing/components/storyTemplateEngine.js | shared | 5 | 12 | 17 |
@@ -1378,32 +1377,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 232 [jsx-text/ar] المدفوع:
 - 233 [jsx-text/ar] المتبقي:
 
-### src/modules/aiSupport/pages/AiChannels.jsx (main-erp — ar:1 en:22)
-
-- 275 [object-key/ar] اختبار من بوابة واتساب ERP.
-- 476 [object-key/en] AI LIVE
-- 479 [object-key/en] AI OFF
-- 585 [jsx-text/en] WhatsApp Gateway / Evolution API
-- 603 [jsx-text/en] Gateway connection settings
-- 606 [jsx-text/en] Provider
-- 614 [jsx-text/en] Connection status
-- 622 [jsx-text/en] API URL
-- 626 [attribute/en] EVOLUTION_API_URL is not configured
-- 631 [jsx-text/en] API Key
-- 635 [attribute/en] EVOLUTION_API_KEY is missing
-- 640 [jsx-text/en] Instance Name
-- 644 [attribute/en] EVOLUTION_INSTANCE_NAME is not configured
-- 652 [jsx-text/en] Send manual test message
-- 655 [jsx-text/en] Egyptian phone
-- 665 [jsx-text/en] Message
-- 711 [jsx-text/en] Off
-- 712 [jsx-text/en] Suggest only
-- 713 [jsx-text/en] Fully automatic
-- 724 [jsx-text/en] Inherit global
-- 725 [jsx-text/en] Casual Egyptian
-- 726 [jsx-text/en] Professional
-- 727 [jsx-text/en] Luxury seller
-
 ### src/modules/employees/lib/employeeAnalyticsExport.js (employee-portal — ar:0 en:22)
 
 - 136 [jsx-text/en] Employee Analytics Report
@@ -2464,6 +2437,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/aiSupport/decision/strategies/AutomationStrategy.ts (main-erp — ar:0 en:1)
 
 - 11 [object-key/en] Human review
+
+### src/modules/aiSupport/pages/AiChannels.jsx (main-erp — ar:1 en:0)
+
+- 275 [object-key/ar] اختبار من بوابة واتساب ERP.
 
 ### src/modules/aiSupport/pages/AiSettings.jsx (main-erp — ar:1 en:0)
 

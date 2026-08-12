@@ -473,10 +473,10 @@ export default function AiChannels() {
       setupRequired,
       statusKey: connected ? "connected" : localAvailable ? "local" : setupRequired ? "setup" : "disconnected",
       aiStatus: connected && status.ai_replies_enabled === true
-        ? { status: "LIVE", label: "AI LIVE", color: "green" }
+        ? { status: "LIVE", label: tr("status.aiLive", "AI LIVE"), color: "green" }
         : status.aiStatus || {
           status: connected ? "OFF" : "OFF",
-          label: "AI OFF",
+          label: tr("status.aiOff", "AI OFF"),
         },
       autoReply: localAvailable ? true : status.ai_replies_enabled === true,
       messagesToday,
@@ -516,7 +516,8 @@ export default function AiChannels() {
     }, {});
     if (!Object.keys(counts).length && (customerConversations.length || total > 0)) counts.neutral = customerConversations.length || total;
     return Object.entries(counts).map(([label, count]) => ({ label: formatSentiment(label), count }));
-  }, [customerConversations, formatSentiment, total]);
+    // tr is a dependency: the AI status labels above are RESOLVED strings.
+  }, [customerConversations, formatSentiment, total, tr]);
 
   const topIntentRows = useMemo(() => {
     const apiRows = asArray(analytics?.topIntents).filter((item) => item.label && item.count > 0);
@@ -582,7 +583,7 @@ export default function AiChannels() {
                 <MessageCircle className="h-3.5 w-3.5" />
                 WhatsApp Gateway
               </div>
-              <h2 className="m1-section-title mt-3 text-white">WhatsApp Gateway / Evolution API</h2>
+              <h2 className="m1-section-title mt-3 text-white">{tr("gateway.title", "WhatsApp Gateway / Evolution API")}</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
                 Manual WhatsApp gateway foundation for order confirmations and tests. This is separate from the existing Meta WhatsApp AI Inbox integration.
               </p>
@@ -594,16 +595,16 @@ export default function AiChannels() {
               className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-4 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Refresh status
+              {tr("gateway.refresh", "Refresh status")}
             </button>
           </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1.15fr]">
             <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
-              <div className="mb-3 text-sm font-black text-white">Gateway connection settings</div>
+              <div className="mb-3 text-sm font-black text-white">{tr("gateway.connectionSettings", "Gateway connection settings")}</div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Provider</span>
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{tr("gateway.provider", "Provider")}</span>
                   <input
                     value="Evolution API"
                     readOnly
@@ -611,37 +612,37 @@ export default function AiChannels() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Connection status</span>
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{tr("gateway.connectionStatus", "Connection status")}</span>
                   <input
-                    value={whatsappGateway?.connected ? `Connected / ${whatsappGateway?.state || "open"}` : whatsappGateway?.configured === false ? "Not configured" : whatsappGateway?.state || "Unknown"}
+                    value={whatsappGateway?.connected ? tr("gateway.connected", "Connected / {{state}}", { state: whatsappGateway?.state || "open" }) : whatsappGateway?.configured === false ? tr("gateway.notConfigured", "Not configured") : whatsappGateway?.state || tr("gateway.unknown", "Unknown")}
                     readOnly
                     className={whatsappGateway?.connected ? "mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 outline-none" : "mt-1 h-[var(--control-height-lg)] w-full  border border-amber-300/20 bg-amber-400/10 px-3 text-sm font-black text-amber-100 outline-none"}
                   />
                 </label>
                 <label className="block sm:col-span-2">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">API URL</span>
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{tr("gateway.apiUrl", "API URL")}</span>
                   <input
                     value={whatsappGateway?.apiUrl || ""}
                     readOnly
-                    placeholder="EVOLUTION_API_URL is not configured"
+                    placeholder={tr("gateway.apiUrlMissing", "EVOLUTION_API_URL is not configured")}
                     className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">API Key</span>
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{tr("gateway.apiKey", "API Key")}</span>
                   <input
-                    value={whatsappGateway?.apiKeyConfigured ? "مهيأ" : ""}
+                    value={whatsappGateway?.apiKeyConfigured ? tr("gateway.apiKeyConfigured", "Configured") : ""}
                     readOnly
-                    placeholder="EVOLUTION_API_KEY is missing"
+                    placeholder={tr("gateway.apiKeyMissing", "EVOLUTION_API_KEY is missing")}
                     className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Instance Name</span>
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{tr("gateway.instanceName", "Instance Name")}</span>
                   <input
                     value={whatsappGateway?.instanceName || ""}
                     readOnly
-                    placeholder="EVOLUTION_INSTANCE_NAME is not configured"
+                    placeholder={tr("gateway.instanceMissing", "EVOLUTION_INSTANCE_NAME is not configured")}
                     className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
                   />
                 </label>
@@ -649,10 +650,10 @@ export default function AiChannels() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
-              <div className="mb-3 text-sm font-black text-white">Send manual test message</div>
+              <div className="mb-3 text-sm font-black text-white">{tr("gateway.sendTest", "Send manual test message")}</div>
               <div className="grid gap-3">
                 <label className="block">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Egyptian phone</span>
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{tr("gateway.egyptianPhone", "Egyptian phone")}</span>
                   <input
                     value={whatsappTest.phone}
                     onChange={(event) => setWhatsappTest((current) => ({ ...current, phone: event.target.value }))}
@@ -662,7 +663,7 @@ export default function AiChannels() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Message</span>
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{tr("gateway.message", "Message")}</span>
                   <textarea
                     value={whatsappTest.message}
                     onChange={(event) => setWhatsappTest((current) => ({ ...current, message: event.target.value }))}
@@ -708,9 +709,9 @@ export default function AiChannels() {
                         disabled={Boolean(settingsSaving)}
                         className="mt-1 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-primary/40 disabled:opacity-60"
                       >
-                        <option value="off">Off</option>
-                        <option value="suggest_only">Suggest only</option>
-                        <option value="fully_automatic">Fully automatic</option>
+                        <option value="off">{tr("card.modeOff", "Off")}</option>
+                        <option value="suggest_only">{tr("card.modeSuggestOnly", "Suggest only")}</option>
+                        <option value="fully_automatic">{tr("card.modeFullyAutomatic", "Fully automatic")}</option>
                       </select>
                     </label>
                     <label className="block">
@@ -721,10 +722,10 @@ export default function AiChannels() {
                         disabled={Boolean(settingsSaving)}
                         className="mt-1 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-2 text-xs font-black text-white outline-none focus:border-primary/40 disabled:opacity-60"
                       >
-                        <option value="">Inherit global</option>
-                        <option value="casual">Casual Egyptian</option>
-                        <option value="professional">Professional</option>
-                        <option value="luxury">Luxury seller</option>
+                        <option value="">{tr("card.toneInherit", "Inherit global")}</option>
+                        <option value="casual">{tr("card.toneCasual", "Casual Egyptian")}</option>
+                        <option value="professional">{tr("card.toneProfessional", "Professional")}</option>
+                        <option value="luxury">{tr("card.toneLuxury", "Luxury seller")}</option>
                       </select>
                     </label>
                   </div>

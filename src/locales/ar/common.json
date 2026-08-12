@@ -52,7 +52,9 @@
         "online": "متصل",
         "offline": "غير متصل",
         "enabled": "مفعل",
-        "disabled": "معطل"
+        "disabled": "معطل",
+        "aiLive": "الذكاء الاصطناعي نشط",
+        "aiOff": "الذكاء الاصطناعي متوقف"
       },
       "health": {
         "status": "حالة دعم الذكاء الاصطناعي",
@@ -81,7 +83,14 @@
         "autoReply": "الرد التلقائي",
         "messagesToday": "رسائل اليوم",
         "lastSync": "آخر مزامنة",
-        "pending": "محادثات معلقة"
+        "pending": "محادثات معلقة",
+        "modeOff": "متوقف",
+        "modeSuggestOnly": "اقتراح فقط",
+        "modeFullyAutomatic": "تلقائي بالكامل",
+        "toneInherit": "اتباع الإعداد العام",
+        "toneCasual": "مصري ودّي",
+        "toneProfessional": "احترافي",
+        "toneLuxury": "بائع فاخر"
       },
       "actions": {
         "manage": "إدارة",
@@ -150,6 +159,26 @@
         "noConversations": "لا توجد محادثات ذكاء اصطناعي بعد. اربط قناة أو فعل دردشة الموقع لبدء استقبال الرسائل.",
         "noAnalytics": "لا توجد بيانات تحليلية بعد.",
         "noSentiment": "لا توجد إشارات انطباع بعد."
+      },
+      "gateway": {
+        "title": "بوابة WhatsApp / Evolution API",
+        "refresh": "تحديث الحالة",
+        "connectionSettings": "إعدادات اتصال البوابة",
+        "provider": "المزوّد",
+        "connectionStatus": "حالة الاتصال",
+        "connected": "متصل / {{state}}",
+        "notConfigured": "غير مهيأ",
+        "unknown": "غير معروف",
+        "apiUrl": "رابط الـ API",
+        "apiUrlMissing": "لم يتم ضبط EVOLUTION_API_URL",
+        "apiKey": "مفتاح الـ API",
+        "apiKeyMissing": "مفتاح EVOLUTION_API_KEY مفقود",
+        "apiKeyConfigured": "مهيأ",
+        "instanceName": "اسم النسخة",
+        "instanceMissing": "لم يتم ضبط EVOLUTION_INSTANCE_NAME",
+        "sendTest": "إرسال رسالة اختبار يدوية",
+        "egyptianPhone": "رقم هاتف مصري",
+        "message": "الرسالة"
       }
     },
     "employeeHub": {
