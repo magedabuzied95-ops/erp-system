@@ -842,7 +842,11 @@ export default function PostProductLinksDrawer({
                               <button
                                 type="button"
                                 onClick={() => handleToggleProduct(item)}
-                                className={`inline-flex h-8 items-center gap-2 rounded-xl px-3 text-[11px] font-black ${ active ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100" }`}
+                                className={`inline-flex h-8 items-center gap-2 rounded-xl px-3 text-[11px] font-black ${
+                                  active
+                                    ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                                    : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+                                }`}
                               >
                                 {active ? "Added" : <><Plus className="h-3.5 w-3.5" /> Add</>}
                               </button>
@@ -940,7 +944,11 @@ export default function PostProductLinksDrawer({
                               <button
                                 type="button"
                                 onClick={() => setPrimaryProductId(item.id)}
-                                className={`inline-flex h-8 items-center gap-2 rounded-xl px-3 text-[11px] font-black ${ isPrimary ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border border-white/10 bg-white/[0.04] text-slate-200" }`}
+                                className={`inline-flex h-8 items-center gap-2 rounded-xl px-3 text-[11px] font-black ${
+                                  isPrimary
+                                    ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                                    : "border border-white/10 bg-white/[0.04] text-slate-200"
+                                }`}
                               >
                                 <Star className="h-3.5 w-3.5" />
                                 {isPrimary ? "Primary" : "Set Primary"}

@@ -25,15 +25,21 @@ export default function AutomationWorkflowTimeline({ steps = [], state = {} }) {
           return (
             <div
               key={step}
-              className={`flex items-start gap-3 rounded-2xl border p-3 ${ active ? "border-cyan-300/30 bg-cyan-300/10" : "border-white/10 bg-white/[0.03]" }`}
+              className={`flex items-start gap-3 rounded-2xl border p-3 ${
+                active ? "border-cyan-300/30 bg-cyan-300/10" : "border-white/10 bg-white/[0.03]"
+              }`}
             >
-              <div className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${ active ? "border-cyan-300/30 bg-cyan-300 text-slate-950" : "border-white/10 bg-white/[0.05] text-slate-300" }`}>
+              <div className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${
+                active ? "border-cyan-300/30 bg-cyan-300 text-slate-950" : "border-white/10 bg-white/[0.05] text-slate-300"
+              }`}>
                 {stepIconMap[step] || <span className="text-[11px] font-black">{index + 1}</span>}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-black text-white">{step}</div>
-                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${ active ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-slate-400" }`}>
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${
+                    active ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-slate-400"
+                  }`}>
                     {active ? "Enabled" : "Idle"}
                   </span>
                 </div>

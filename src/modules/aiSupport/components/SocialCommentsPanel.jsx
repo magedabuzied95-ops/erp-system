@@ -207,7 +207,9 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
       onMouseLeave={onPrefetchItem ? clearPrefetch : undefined}
       onFocus={onPrefetchItem ? schedulePrefetch : undefined}
       onBlur={onPrefetchItem ? clearPrefetch : undefined}
-      className={`rounded-2xl border p-3 transition shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${ active ? "border-slate-300 ring-1 ring-slate-200" : "border-slate-200 hover:border-slate-300" }`}
+      className={`rounded-2xl border p-3 transition shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${
+        active ? "border-slate-300 ring-1 ring-slate-200" : "border-slate-200 hover:border-slate-300"
+      }`}
       style={{ minHeight: "112px" }}
     >
       <div className="flex gap-3">
@@ -243,7 +245,11 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
                   event.stopPropagation();
                   onLinkProduct(item, itemKey);
                 }}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[10px] font-black transition ${ isProductLinked ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" }`}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[10px] font-black transition ${
+                  isProductLinked
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                    : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                }`}
               >
                 <Link2 className="h-3.5 w-3.5" />
                 {isProductLinked ? `مربوط${linkedProductsCount ? ` (${linkedProductsCount})` : ""} · تعديل` : "ربط منتج"}
@@ -397,7 +403,9 @@ function SocialCommentsPanel({
               key={item.key}
               type="button"
               onClick={() => handleFilterChange(item.key)}
-              className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${ active ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300" }`}
+              className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${
+                active ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+              }`}
             >
               {item.label}
             </button>

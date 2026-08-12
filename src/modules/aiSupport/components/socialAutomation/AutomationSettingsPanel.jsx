@@ -21,7 +21,9 @@ export default function AutomationSettingsPanel({ settings = {}, onChange }) {
               key={toggle.key}
               type="button"
               onClick={() => onChange?.({ [toggle.key]: !active })}
-              className={`rounded-2xl border p-3 text-left transition ${ active ? "border-emerald-300/30 bg-emerald-300/10" : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]" }`}
+              className={`rounded-2xl border p-3 text-left transition ${
+                active ? "border-emerald-300/30 bg-emerald-300/10" : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]"
+              }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>

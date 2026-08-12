@@ -22,7 +22,11 @@ export default function AutomationTemplatePicker({ templates = [], selectedTempl
               key={template.id}
               type="button"
               onClick={() => onSelectTemplate?.(template.id)}
-              className={`rounded-2xl border p-3 text-left transition ${ active ? "border-cyan-300/40 bg-cyan-300/10 ring-1 ring-cyan-300/15" : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]" }`}
+              className={`rounded-2xl border p-3 text-left transition ${
+                active
+                  ? "border-cyan-300/40 bg-cyan-300/10 ring-1 ring-cyan-300/15"
+                  : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]"
+              }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
