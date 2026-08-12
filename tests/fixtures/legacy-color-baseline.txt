@@ -37,7 +37,6 @@ src/modules/pos/components/CartSidebar.jsx
 src/modules/pos/components/PosHeader.jsx
 src/modules/pos/components/RecentOperationsDrawer.jsx
 src/modules/pos/pages/POSPro.jsx
-src/modules/products/pages/CreateProduct.jsx
 src/modules/purchases/components/StatusBadge.jsx
 src/modules/sales/pages/Customers.jsx
 src/modules/sales/pages/Customers.m1.css

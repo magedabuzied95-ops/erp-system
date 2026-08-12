@@ -35,7 +35,8 @@ import MultiVersionGenerator from "../components/MultiVersionGenerator";
 import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
 import CrocsSizeSelector from "../components/CrocsSizeSelector";
 import { normalizeArticleCodes } from "../../../../shared/articleCode";
-import "./CreateProduct.m1.css";
+import { SECTION_CARD_CLASSES, SECTION_ICON_CLASSES, buttonClasses } from "../lib/formChrome";
+import "./product-form.m1.css";
 
 import {
   generateBarcode,
@@ -2414,7 +2415,7 @@ function CreateProduct() {
   };
 
   const productDescriptionPanel = (
-    <div className="rounded-[18px] border border-border bg-surface-soft p-4">
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-black text-text">{t("products.editor.customerDescriptionShortTitle", "Customer-facing description")}</p>
@@ -2427,7 +2428,7 @@ function CreateProduct() {
             type="button"
             onClick={() => regenerateDescriptions("ar")}
             disabled={descriptionGenerating.ar}
-            className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100"
+            className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
           >
             {descriptionGenerating.ar ? t("products.editor.generatingArabic", "Generating Arabic...") : t("products.editor.regenerateArabic", "Regenerate Arabic")}
           </button>
@@ -2435,7 +2436,7 @@ function CreateProduct() {
             type="button"
             onClick={() => regenerateDescriptions("en")}
             disabled={descriptionGenerating.en}
-            className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+            className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
           >
             {descriptionGenerating.en ? t("products.editor.generatingEnglish", "Generating English...") : t("products.editor.regenerateEnglish", "Regenerate English")}
           </button>
@@ -2443,7 +2444,7 @@ function CreateProduct() {
             type="button"
             onClick={() => regenerateDescriptions("all")}
             disabled={descriptionGenerating.ar || descriptionGenerating.en}
-            className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
+            className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
           >
             {descriptionGenerating.ar && descriptionGenerating.en ? t("products.editor.generating", "Generating...") : t("products.editor.regenerateAll", "Regenerate All")}
           </button>
@@ -2457,7 +2458,7 @@ function CreateProduct() {
             value={descriptionTone}
             onChange={(event) => setDescriptionTone(event.target.value)}
             placeholder={t("products.editor.promptPlaceholder", "premium tone, concise tone, friendly tone")}
-            className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[14px] border border-border bg-surface-soft px-4 text-sm text-text shadow-inner shadow-black/20 outline-none placeholder:text-text-muted transition focus:border-amber-300/35 focus:bg-surface-soft"
+            className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm text-text outline-none placeholder:text-text-muted transition focus:border-amber-300/35 focus:bg-surface-soft"
           />
         </div>
         <div>
@@ -2472,7 +2473,7 @@ function CreateProduct() {
             rows={6}
             dir="rtl"
             placeholder={generatedDescriptionAr}
-            className="mt-1.5 w-full rounded-[14px] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text shadow-inner shadow-black/20 outline-none placeholder:text-text-muted transition focus:border-emerald-300/35 focus:bg-surface-soft"
+            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-muted transition focus:border-primary focus:bg-surface-soft"
           />
         </div>
 
@@ -2487,7 +2488,7 @@ function CreateProduct() {
             }}
             rows={6}
             placeholder={generatedDescriptionEn}
-            className="mt-1.5 w-full rounded-[14px] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text shadow-inner shadow-black/20 outline-none placeholder:text-text-muted transition focus:border-primary/35 focus:bg-surface-soft"
+            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-muted transition focus:border-primary/35 focus:bg-surface-soft"
           />
         </div>
       </div>
@@ -2495,7 +2496,7 @@ function CreateProduct() {
   );
 
   const seoMetadataPanel = (
-    <div className="rounded-[18px] border border-border bg-surface-soft p-4">
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-black text-text">{t("products.editor.seoMetadata", "SEO metadata")}</p>
@@ -2505,7 +2506,7 @@ function CreateProduct() {
           type="button"
           onClick={regenerateSeoMetadata}
           disabled={seoGenerating}
-          className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
+          className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
         >
           {seoGenerating ? t("products.editor.generatingSeo", "جاري توليد تحسينات البحث...") : t("products.editor.regenerateSeoMetadata", "إعادة توليد بيانات تحسين البحث")}
         </button>
@@ -2519,7 +2520,7 @@ function CreateProduct() {
               setMetaTitle(event.target.value);
               setSeoTouched((current) => ({ ...current, title: true }));
             }}
-            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none"
           />
         </div>
         <div>
@@ -2530,7 +2531,7 @@ function CreateProduct() {
               setSeoKeywords(event.target.value);
               setSeoTouched((current) => ({ ...current, keywords: true }));
             }}
-            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text shadow-inner shadow-black/20 outline-none"
+            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none"
           />
         </div>
         <div className="lg:col-span-2">
@@ -2542,7 +2543,7 @@ function CreateProduct() {
               setSeoTouched((current) => ({ ...current, description: true }));
             }}
             rows={3}
-            className="mt-1.5 w-full rounded-[14px] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text shadow-inner shadow-black/20 outline-none"
+            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text outline-none"
           />
           <p className="mt-1 text-[11px] text-text-muted">{seoDescription.length}/160 characters</p>
         </div>
@@ -2552,19 +2553,19 @@ function CreateProduct() {
 
   const socialPreviewPanel = (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="rounded-[18px] border border-border bg-surface-soft p-4">
+      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
         <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">
           <Search size={14} />
           {t("products.editor.googlePreview")}
         </div>
-        <div className="rounded-[16px] border border-border bg-surface-soft p-3">
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
           <p className="truncate text-[13px] text-text-muted">{seoPreviewUrl}</p>
           <p className="mt-1 line-clamp-1 text-lg font-semibold text-primary">{seoPreviewTitle}</p>
           <p className="mt-1 line-clamp-2 text-sm leading-5 text-text">{seoPreviewDescription}</p>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[18px] border border-border bg-surface-soft">
+      <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
         {/* Deliberate white matte, NOT a surface: this is the Open Graph image
             preview and product photography is shot on white. It must not follow
             the theme. Same for the <img> below. */}
@@ -2587,7 +2588,7 @@ function CreateProduct() {
   );
 
   const aiVisionPanel = aiProductData ? (
-    <div className="mt-5 rounded-[18px] border border-primary/20 bg-primary/[0.07] p-4">
+    <div className="mt-5 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-black text-text">{t("products.editor.aiVisionResults", "AI Vision results")}</p>
@@ -2598,7 +2599,7 @@ function CreateProduct() {
         <button
           type="button"
           onClick={applyAllAiProductSuggestions}
-          className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
+          className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
         >
           {t("products.editor.applyAll")}
         </button>
@@ -2611,7 +2612,7 @@ function CreateProduct() {
         ].map(([field, label]) => {
           const value = getSuggestionValue(aiProductData.suggestions, field, field === "suggested_product_type" ? "silhouette" : "");
           return (
-            <div key={field} className="rounded-[14px] border border-border bg-surface-soft p-3">
+            <div key={field} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</p>
               <p className="mt-2 line-clamp-3 text-sm leading-5 text-text">{value || "Not detected yet"}</p>
             </div>
@@ -2629,13 +2630,13 @@ function CreateProduct() {
         <Link
           to="/products"
           onClick={confirmLeaveIfDirty}
-          className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-5 py-3 font-semibold text-text"
+          className={buttonClasses("secondary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
         >
           Back to list
         </Link>
       }
     >
-      <form id="create-product-form" onSubmit={handleSubmit} className="m1-create-product w-full min-w-0 max-w-none space-y-6 overflow-x-hidden pb-28 lg:pb-24">
+      <form id="create-product-form" onSubmit={handleSubmit} className="m1-product-form w-full min-w-0 max-w-none space-y-6 overflow-x-hidden pb-28 lg:pb-24">
         <ProductActionBar
           mode="create"
           saving={saving}
@@ -2644,7 +2645,7 @@ function CreateProduct() {
           formId="create-product-form"
         />
         <div className="flex w-full min-w-0 max-w-none flex-col gap-5 px-4 sm:px-6 lg:px-8">
-          <section className="rounded-[18px] border border-border bg-surface-soft p-4 shadow-[var(--shadow-card)]">
+          <section className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-4 shadow-[var(--shadow-card)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h1 className="m1-page-title text-text">{t("products.editor.createTitle", "إنشاء منتج")}</h1>
@@ -2657,14 +2658,14 @@ function CreateProduct() {
                 <Link
                   to="/products"
                   onClick={confirmLeaveIfDirty}
-                  className="inline-flex h-9 items-center gap-2 rounded-[12px] border border-border bg-surface-soft px-4 text-sm font-semibold text-text transition hover:border-border hover:bg-surface-soft"
+                  className={buttonClasses("secondary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
                 >
                   {t("products.editor.backToList")}
                 </Link>
                 <button
                   type="submit"
                   disabled={saving}
-                  className={buttonClasses("primary", "h-[var(--control-height-md)] rounded-[12px] px-4")}
+                  className={buttonClasses("primary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
                 >
                   <Plus size={16} strokeWidth={2} />
                   {saving ? savingStep || t("products.shared.saving") : t("products.editor.saveProduct")}
@@ -2673,14 +2674,14 @@ function CreateProduct() {
             </div>
           </section>
 
-          <nav className="sticky top-0 z-30 -mx-1 overflow-x-auto border-y border-border bg-surface-soft/92 px-1 py-2 shadow-[var(--shadow-card)] backdrop-blur">
+          <nav className="sticky top-[58px] z-30 -mx-1 md:top-[64px] overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-2 backdrop-blur">
             <div className="flex min-w-max gap-2">
               {pageNavSections.map((section) => (
                 <button
                   key={section.id}
                   type="button"
                   onClick={() => scrollToSection(section.id)}
-                  className="h-[var(--control-height-md)] rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-bold text-text transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-100"
+                  className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
                 >
                   {section.title}
                 </button>
@@ -2775,7 +2776,7 @@ function CreateProduct() {
             />
 
               {isColorOnlyMode ? (
-                <div className="mt-5 rounded-[24px] border border-primary/15 bg-primary/10 p-4">
+                <div className="mt-5 rounded-[var(--radius-card)] border border-primary/15 bg-primary/10 p-4">
                   <label className="text-sm font-semibold text-primary">{t("products.editor.fixedSize", "Fixed size")}</label>
                   <input
                     value={fixedSizeLabel}
@@ -2798,9 +2799,9 @@ function CreateProduct() {
 
               <div className="mt-5 grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <div>
-                  <label className="flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-border bg-surface-soft p-6 text-center hover:border-primary/60">
+                  <label className="flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-soft p-6 text-center hover:border-primary/60">
                     {coverImage ? (
-                      <img src={coverImage} alt="cover" className="h-full max-h-[220px] w-full rounded-[24px] object-cover" />
+                      <img src={coverImage} alt="cover" className="h-full max-h-[220px] w-full rounded-[var(--radius-card)] object-cover" />
                     ) : (
                       <>
                         <Upload className="text-primary" size={42} />
@@ -2822,16 +2823,16 @@ function CreateProduct() {
                       aria-pressed={generateCoverThermalArtwork}
                       onClick={() => setGenerateCoverThermalArtwork((value) => !value)}
                       disabled={!coverImage}
-                      className={`inline-flex h-[var(--control-height-lg)] w-full items-center justify-between rounded-[16px] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-border bg-surface-soft text-text hover:bg-surface-soft"}`}
+                      className={`inline-flex h-[var(--control-height-lg)] w-full items-center justify-between rounded-[var(--radius-control)] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text hover:bg-surface-soft"}`}
                     >
                       <span>إنشاء Thermal للكفر عند الحفظ</span>
-                      <span className={`h-5 w-9 rounded-full p-0.5 transition ${generateCoverThermalArtwork ? "bg-emerald-400" : "bg-[var(--border-strong)]"}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${generateCoverThermalArtwork ? "translate-x-4" : "translate-x-0"}`} /></span>
+                      <span className={`h-5 w-9 rounded-full p-0.5 transition ${generateCoverThermalArtwork ? "bg-primary" : "bg-[var(--border-strong)]"}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${generateCoverThermalArtwork ? "translate-x-4" : "translate-x-0"}`} /></span>
                     </button>
                     <button
                       type="button"
                       onClick={handleGenerateAiProductData}
                       disabled={aiProductLoading || !coverImage}
-                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                       {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
@@ -2840,18 +2841,18 @@ function CreateProduct() {
                       type="button"
                       onClick={handleGenerateThermalImage}
                       disabled={thermalImageGenerating || !getEligibleThermalColorGroups(colorGroups).length}
-                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                       {"Generate AI Thermal Artwork"}
                     </button>
                   </div>
 
-                  <div className="mt-4 rounded-[24px] border border-border bg-surface-soft p-4">
+                  <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">Original / AI Thermal</p>
                     <div className="mt-3 grid grid-cols-2 gap-3">
-                      <div className="rounded-[18px] border border-border bg-surface-soft p-2">
-                        <div className="flex h-28 items-center justify-center overflow-hidden rounded-[14px] bg-surface-soft">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-2">
+                        <div className="flex h-28 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-surface-soft">
                           {coverImage ? (
                             <img src={resolveAssetUrl(coverImage)} alt="Original product" className="h-full w-full object-contain" />
                           ) : (
@@ -2859,8 +2860,8 @@ function CreateProduct() {
                           )}
                         </div>
                       </div>
-                      <div className="rounded-[18px] border border-border bg-surface-soft p-2">
-                        <div className="flex h-28 items-center justify-center overflow-hidden rounded-[14px] bg-surface-soft">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-2">
+                        <div className="flex h-28 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-surface-soft">
                           {thermalImageUrl ? (
                             <img src={resolveAssetUrl(thermalImageUrl)} alt="AI thermal artwork" className="h-full w-full object-contain" />
                           ) : (
@@ -2872,9 +2873,9 @@ function CreateProduct() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-border bg-surface-soft p-5">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5">
                   <p className="text-sm font-semibold text-text">{t("products.editor.galleryUpload", "Gallery upload")}</p>
-                  <label className="mt-4 flex min-h-[220px] cursor-pointer items-center justify-center rounded-[24px] border-2 border-dashed border-border bg-surface-soft text-center">
+                  <label className="mt-4 flex min-h-[220px] cursor-pointer items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-soft text-center">
                     <div>
                       <ImagePlus className="mx-auto text-text-muted" size={38} />
                       <p className="mt-4 text-sm font-semibold text-text">{t("products.editor.addMultipleGalleryImages", "Add multiple gallery images")}</p>
@@ -2923,7 +2924,7 @@ function CreateProduct() {
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveContentTab(tab.id)}
-                      className={`h-[var(--control-height-md)] rounded-[12px] border px-3 text-xs font-bold transition ${ activeContentTab === tab.id ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text hover:border-border hover:bg-surface-soft" }`}
+                      className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border px-3 text-xs font-bold transition ${ activeContentTab === tab.id ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text hover:border-border hover:bg-surface-soft" }`}
                     >
                       {tab.title}
                     </button>
@@ -2956,7 +2957,7 @@ function CreateProduct() {
               />
 
               <div className="mt-5 space-y-4">
-                <div className="hidden rounded-[18px] border border-border bg-surface-soft p-3 transition duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-surface-soft hover:shadow-lg hover:shadow-black/10">
+                <div className="hidden rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 transition duration-200 hover:border-border hover:bg-surface-soft ">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text">{t("products.editor.identifiers", "Identifiers")}</p>
                     <p className="mt-0.5 text-xs text-text-muted">{t("products.editor.identifiersHelp", "Internal product codes and scannable labels.")}</p>
@@ -2971,12 +2972,12 @@ function CreateProduct() {
                             setSkuPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""));
                             setSkuPrefixTouched(true);
                           }}
-                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                         />
                         <button
                           type="button"
                           onClick={regenerateSkuPrefix}
-                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[13px] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
+                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
                         >
                           <Sparkles className="h-3.5 w-3.5" />
                           {t("products.editor.regenerateFromProductName")}
@@ -2996,12 +2997,12 @@ function CreateProduct() {
                             setBarcode(e.target.value);
                             setBarcodePreview(e.target.value);
                           }}
-                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                         />
                         <button
                           type="button"
                           onClick={generateNewBarcode}
-                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[13px] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
+                          className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2.5 text-xs font-bold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
                         >
                           <ScanLine size={13} />
                           {t("products.editor.generate")}
@@ -3011,7 +3012,7 @@ function CreateProduct() {
                   </div>
                 </div>
 
-                <div className="rounded-[18px] border border-border bg-surface-soft p-4 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300/20 hover:shadow-lg hover:shadow-black/10">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 transition duration-200 hover:border-primary/30 ">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text">{t("products.editor.pricingSummary", "Pricing summary")}</p>
                     <p className="mt-0.5 text-xs text-text-muted">{t("products.editor.pricingFilledFromPurchases", "Pricing is filled from purchase invoices after stock is received.")}</p>
@@ -3023,19 +3024,19 @@ function CreateProduct() {
                       t("products.editor.currentCost"),
                       t("products.editor.lastUpdatedFromPurchase"),
                     ].map((label) => (
-                      <div key={label} className="rounded-[16px] border border-border bg-surface-soft p-3">
+                      <div key={label} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</p>
                         <p className="mt-2 text-sm font-black text-text">{t("products.editor.notSet")}</p>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3 rounded-[16px] border border-border bg-surface-soft p-3" style={{ display: "none" }}>
+                  <div className="mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3" style={{ display: "none" }}>
                     <label className="flex items-start gap-3">
                       <input
                         type="checkbox"
                         checked={useCustomComparePrice}
                         onChange={(e) => setUseCustomComparePrice(e.target.checked)}
-                        className="mt-1 h-4 w-4 rounded border-border bg-surface-soft"
+                        className="mt-1 h-4 w-4 rounded-[4px] border-border bg-surface accent-[var(--primary)]"
                       />
                       <span>
                         <span className="block text-[13px] font-black text-text">{t("products.editor.customComparePrice", "Custom storefront compare price")}</span>
@@ -3050,7 +3051,7 @@ function CreateProduct() {
                         value={customComparePrice}
                         onChange={(e) => setCustomComparePrice(e.target.value)}
                         placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}
-                        className="mt-3 h-[var(--control-height-md)] w-full rounded-[13px] border border-border bg-surface-soft px-3.5 font-semibold text-text shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
+                        className="mt-3 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text outline-none ring-1 ring-inset ring-border transition placeholder:text-text-muted hover:border-border focus:border-amber-300/35 focus:bg-surface-soft"
                       />
                     ) : null}
                   </div>
@@ -3058,14 +3059,14 @@ function CreateProduct() {
 
                 </div>
 
-                <div className="hidden rounded-[22px] border border-primary/18 bg-surface-soft p-4 shadow-[var(--shadow-card)] transition">
+                <div className="hidden rounded-[var(--radius-card)] border border-primary/18 bg-surface-soft p-4 shadow-[var(--shadow-card)] transition">
                     <button
                       type="button"
                       onClick={() => setSeoOpen((current) => !current)}
                       className="flex w-full items-center justify-between gap-3 text-left"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-amber-200/20 bg-amber-300/10 text-amber-100">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-amber-200/20 bg-amber-300/10 text-amber-100">
                           <Search size={17} />
                         </div>
                         <div className="min-w-0">
@@ -3090,31 +3091,31 @@ function CreateProduct() {
                             type="button"
                             onClick={regenerateSeoMetadata}
                             disabled={seoGenerating}
-                            className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
+                            className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
                           >
                             {seoGenerating ? t("products.editor.generatingSeo", "Generating SEO...") : t("products.editor.regenerateSeoMetadata", "Regenerate SEO Metadata")}
                           </button>
                         </div>
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                          <div className="rounded-[18px] border border-border bg-surface-soft p-4 lg:col-span-2">
+                          <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 lg:col-span-2">
                             <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">
                               <Search size={14} />
                               {t("products.editor.googlePreview")}
                             </div>
-                            <div className="rounded-[16px] border border-border bg-surface-soft p-3">
+                            <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                               <p className="truncate text-[13px] text-text-muted">{seoPreviewUrl}</p>
                               <p className="mt-1 line-clamp-1 text-lg font-semibold text-primary">{seoPreviewTitle}</p>
                               <p className="mt-1 line-clamp-2 text-sm leading-5 text-text">{seoPreviewDescription}</p>
                             </div>
                           </div>
-                          <div className="rounded-[18px] border border-border bg-surface-soft p-4 lg:col-span-2">
+                          <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 lg:col-span-2">
                             <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">
                               <Share2 size={14} />
                               {t("products.editor.facebookWhatsappPreview")}
                             </div>
-                            <div className="overflow-hidden rounded-[16px] border border-border bg-surface-soft">
+                            <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
                               {/* Deliberate white matte — see the Open Graph preview above. */}
-                              <div className="relative w-full aspect-[1.91/1] overflow-hidden rounded-t-2xl bg-white">
+                              <div className="relative w-full aspect-[1.91/1] overflow-hidden rounded-t-[var(--radius-card)] bg-white">
                                 {coverImage ? (
                                   <img
                                     src={coverImage}
@@ -3142,7 +3143,7 @@ function CreateProduct() {
                                 setMetaTitle(event.target.value);
                                 setSeoTouched((current) => ({ ...current, title: true }));
                               }}
-                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none"
                             />
                           </div>
                           <div>
@@ -3153,7 +3154,7 @@ function CreateProduct() {
                                 setCanonicalSlug(event.target.value);
                                 setSeoTouched((current) => ({ ...current, slug: true }));
                               }}
-                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none"
                             />
                           </div>
                           <div className="lg:col-span-2">
@@ -3165,7 +3166,7 @@ function CreateProduct() {
                                 setSeoTouched((current) => ({ ...current, description: true }));
                               }}
                               rows={3}
-                              className="mt-1.5 w-full rounded-[14px] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text outline-none"
                             />
                             <p className="mt-1 text-[11px] text-text-muted">{seoDescription.length}/160 characters</p>
                           </div>
@@ -3177,7 +3178,7 @@ function CreateProduct() {
                                 setSeoKeywords(event.target.value);
                                 setSeoTouched((current) => ({ ...current, keywords: true }));
                               }}
-                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text shadow-inner shadow-black/20 outline-none"
+                              className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none"
                             />
                           </div>
                         </div>
@@ -3186,7 +3187,7 @@ function CreateProduct() {
                   </div>
 
               {false && aiProductData ? (
-                <div className="mt-5 rounded-[24px] border border-primary/20 bg-primary/[0.07] p-4">
+                <div className="mt-5 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-black text-text">{t("products.editor.aiProductSuggestions", "AI product suggestions")}</p>
@@ -3197,7 +3198,7 @@ function CreateProduct() {
                     <button
                       type="button"
                       onClick={applyAllAiProductSuggestions}
-                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
+                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
                     >
                       {t("products.editor.applyAll")}
                     </button>
@@ -3220,14 +3221,14 @@ function CreateProduct() {
                       if (!value) return null;
                       const canApply = field !== "name_ar";
                       return (
-                        <div key={field} className="rounded-[16px] border border-border bg-surface-soft p-3">
+                        <div key={field} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                           <div className="flex items-center justify-between gap-3">
                             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</p>
                             {canApply ? (
                               <button
                                 type="button"
                                 onClick={() => applyAiProductSuggestion(field)}
-                                className="shrink-0 rounded-[10px] border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-bold text-text hover:border-primary/30 hover:text-primary"
+                                className="shrink-0 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-bold text-text hover:border-primary/30 hover:text-primary"
                               >
                                 Apply
                               </button>
@@ -3238,11 +3239,11 @@ function CreateProduct() {
                       );
                     })}
                     {getSuggestionValue(aiProductData.suggestions, "dominant_colors") ? (
-                      <div className="rounded-[16px] border border-border bg-surface-soft p-3">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{t("products.editor.detectedColors", "Detected colors")}</p>
                           {getDetectionConfidenceLabel(aiProductData.suggestions, "colors") ? (
-                            <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
+                            <span className="shrink-0 rounded-full border border-success/25 bg-success-subtle px-2 py-0.5 text-[10px] font-black text-success">
                               {getDetectionConfidenceLabel(aiProductData.suggestions, "colors")}
                             </span>
                           ) : null}
@@ -3253,11 +3254,11 @@ function CreateProduct() {
                       </div>
                     ) : null}
                     {getSuggestionValue(aiProductData.suggestions, "suggested_product_type", "silhouette", "fashion_category") ? (
-                      <div className="rounded-[16px] border border-border bg-surface-soft p-3">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{t("products.editor.detectedProductType", "Detected product type")}</p>
                           {getDetectionConfidenceLabel(aiProductData.suggestions, "product_type") ? (
-                            <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
+                            <span className="shrink-0 rounded-full border border-success/25 bg-success-subtle px-2 py-0.5 text-[10px] font-black text-success">
                               {getDetectionConfidenceLabel(aiProductData.suggestions, "product_type")}
                             </span>
                           ) : null}
@@ -3268,7 +3269,7 @@ function CreateProduct() {
                       </div>
                     ) : null}
                     {getSuggestionValue(aiProductData.suggestions, "brand_resemblance") ? (
-                      <div className="rounded-[16px] border border-border bg-surface-soft p-3">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                         <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{t("products.editor.brandResemblance", "Brand resemblance")}</p>
                         <p className="mt-2 text-sm leading-5 text-text">
                           {getSuggestionValue(aiProductData.suggestions, "brand_resemblance")}
@@ -3276,7 +3277,7 @@ function CreateProduct() {
                       </div>
                     ) : null}
                     {getSuggestionValue(aiProductData.suggestions, "classification") ? (
-                      <div className="rounded-[16px] border border-border bg-surface-soft p-3">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                         <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{t("products.editor.classification", "Classification")}</p>
                         <p className="mt-2 text-sm leading-5 text-text">
                           {getSuggestionValue(aiProductData.suggestions, "classification")}
@@ -3326,7 +3327,7 @@ function CreateProduct() {
                         <div className="mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-4">
                           <p className="text-xs uppercase tracking-[0.3em] text-text-muted">SKU</p>
                           <p className="mt-2 text-xl font-black text-text">{skuPrefix || uniqueSmartSkuPrefix || generateSku(name).split("-")[0]}</p>
-                          <div className="mt-4 h-14 rounded-2xl bg-surface-soft p-3">
+                          <div className="mt-4 h-14 rounded-[var(--radius-card)] bg-surface-soft p-3">
                             <div className="flex h-full items-end gap-1">
                               {Array.from({ length: 22 }).map((_, index) => (
                                 <span
@@ -3372,8 +3373,8 @@ function CreateProduct() {
 
               <div className={`mt-4 grid gap-4 ${isFullVariationMode ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
                 {isFullVariationMode ? (
-                  <div className="rounded-[20px] border border-border bg-surface-soft p-3">
-                    <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{t("products.editor.bulkSizes", "Bulk Sizes")}</p>
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">{t("products.editor.bulkSizes", "Bulk Sizes")}</p>
                     <label className="mt-3 block">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                         {t("products.editor.sizeRange")}
@@ -3382,19 +3383,19 @@ function CreateProduct() {
                         value={bulkSizesInput}
                         onChange={(event) => setBulkSizesInput(event.target.value)}
                         placeholder={t("products.editor.sizeRangePlaceholder")}
-                        className="h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                        className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                       />
                       <button
                         type="button"
                         onClick={() => applyBulkSizes()}
-                        className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] bg-primary px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-primary"
+                        className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-primary"
                       >
                         {t("products.editor.applyToAllColors")}
                       </button>
                     </label>
                   </div>
                 ) : null}
-                <div className="rounded-[20px] border border-border bg-surface-soft p-3">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                   <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{t("products.editor.bulkStockTools", "Bulk Stock Tools")}</p>
                   <label className="mt-3 block">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
@@ -3407,13 +3408,13 @@ function CreateProduct() {
                       value={bulkStockInput}
                       onChange={(event) => setBulkStockInput(event.target.value)}
                       placeholder={t("products.editor.stockQuantityPlaceholder")}
-                      className="h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                      className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                     />
                   </label>
                   <button
                     type="button"
                     onClick={() => applyBulkStock()}
-                    className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
+                    className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
                   >
                     {t("products.editor.applyStockAllSizes")}
                   </button>
@@ -3421,7 +3422,7 @@ function CreateProduct() {
                     {t("products.editor.planningStockOnly")}
                   </p>
                 </div>
-                <div className="rounded-[20px] border border-border bg-surface-soft p-3">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                   <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">{t("products.editor.bulkArticleTools", "Bulk Article Tools")}</p>
                   <label className="mt-3 block">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
@@ -3431,13 +3432,13 @@ function CreateProduct() {
                       value={bulkArticleCodeInput}
                       onChange={(event) => setBulkArticleCodeInput(event.target.value)}
                       placeholder={t("products.editor.articleCodePlaceholder", "Example: L122")}
-                      className="h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                      className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                     />
                   </label>
                   <button
                     type="button"
                     onClick={() => applyBulkArticleCode()}
-                    className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                    className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
                   >
                     {t("products.editor.applyArticleAllColors", "Apply article to all colors")}
                   </button>
@@ -3449,7 +3450,7 @@ function CreateProduct() {
             </SectionCard>
 
             <SectionCard hidden={isSimpleMode}>
-              <div className="sticky top-3 z-20 -mx-1 mb-5 rounded-[18px] border border-border bg-surface-soft/95 p-3 shadow-[var(--shadow-overlay)] backdrop-blur">
+              <div className="sticky top-3 z-20 -mx-1 mb-5 rounded-[var(--radius-card)] border border-border bg-surface-soft/95 p-3 shadow-[var(--shadow-overlay)] backdrop-blur">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <SectionHeader
                     icon={Layers3}
@@ -3462,7 +3463,7 @@ function CreateProduct() {
                     <button
                       type="button"
                       onClick={zeroAllColorStock}
-                      className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
+                      className={buttonClasses("danger", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
                     >
                       <Trash2 size={16} strokeWidth={2} />
                       {t("products.editor.zeroAllColorStock", "Zero stock for all colors")}
@@ -3470,7 +3471,7 @@ function CreateProduct() {
                     <button
                       type="button"
                       onClick={addColorGroup}
-                      className={buttonClasses("primary", "h-[var(--control-height-md)] rounded-full px-4")}
+                      className={buttonClasses("primary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
                     >
                       <Plus size={16} strokeWidth={2} />
                       {t("products.editor.addColor")}
@@ -3479,7 +3480,7 @@ function CreateProduct() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[20px] border border-border bg-surface-soft p-3">
+              <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-text-muted">{t("products.editor.defaultManufacturer")}</p>
                   <p className="mt-1 text-sm text-text-muted">
@@ -3496,7 +3497,7 @@ function CreateProduct() {
                       placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                     />
                   </label>
-                  <div className="rounded-[14px] border border-border bg-surface-soft px-3 py-2">
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2">
                     <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{t("products.editor.behavior")}</div>
                     <div className="mt-1 text-sm text-text">
                       {t("products.editor.defaultColorsHelp")}
@@ -3507,7 +3508,7 @@ function CreateProduct() {
 
               <div className="mt-4 space-y-3">
                 {getDuplicateColorGroupNames(colorGroups).size > 0 ? (
-                  <div className="rounded-[14px] border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-100">
+                  <div className="rounded-[var(--radius-card)] border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-100">
                     تنبيه: يوجد لونان أو أكثر بنفس الاسم. كل بلوك مستقل تمامًا بصوره ومقاساته، ولن تُدمج صوره مع البلوك الآخر عند الحفظ.
                   </div>
                 ) : null}
@@ -3515,7 +3516,7 @@ function CreateProduct() {
                   const isExpanded = expandedGroupId === group.id;
 
                   return (
-                    <div key={group.id} className="overflow-visible rounded-[14px] border border-border bg-surface-soft">
+                    <div key={group.id} className="overflow-visible rounded-[var(--radius-card)] border border-border bg-surface-soft">
                       <div
                         role="button"
                         tabIndex={0}
@@ -3529,7 +3530,7 @@ function CreateProduct() {
                         className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-soft"
                         aria-expanded={isExpanded}
                       >
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-border bg-surface-soft sm:h-[72px] sm:w-[72px]">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft sm:h-[72px] sm:w-[72px]">
                           {group.imagePreview ? (
                             <img
                               src={group.imagePreview}
@@ -3560,7 +3561,7 @@ function CreateProduct() {
                               </span>
                             ) : null}
                             {getColorGroupThermalUrl(group) ? (
-                              <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                              <span className="rounded-full border border-success/25 bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success">
                                 Thermal Artwork جاهز
                               </span>
                             ) : null}
@@ -3619,7 +3620,7 @@ function CreateProduct() {
                         <div className="border-t border-border p-4">
                           <div className="grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)] xl:items-start">
                             <div className="space-y-2">
-                              <label className="flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[12px] border border-border bg-surface-soft">
+                              <label className="flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
                                 {getPrimaryColorImage(group) ? (
                                   <img
                                     src={getPrimaryColorImage(group)}
@@ -3643,7 +3644,7 @@ function CreateProduct() {
                                   }}
                                 />
                               </label>
-                              <label className="inline-flex h-9 w-20 cursor-pointer items-center justify-center gap-1.5 rounded-[12px] border border-border bg-surface-soft px-2 text-xs font-semibold text-text transition hover:bg-surface-soft">
+                              <label className="inline-flex h-9 w-20 cursor-pointer items-center justify-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 text-xs font-semibold text-text transition hover:bg-surface-soft">
                                 <Upload size={14} />
                                 {t("products.shared.add")}
                                 <input
@@ -3662,7 +3663,7 @@ function CreateProduct() {
                                 aria-pressed={Boolean(group.generate_thermal_artwork)}
                                 onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
                                 disabled={!getPrimaryColorImage(group)}
-                                className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[12px] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-border bg-surface-soft text-text hover:bg-surface-soft"}`}
+                                className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text hover:bg-surface-soft"}`}
                               >
                                 <span>إنشاء Thermal لهذا اللون عند الحفظ</span>
                                 <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
@@ -3671,14 +3672,14 @@ function CreateProduct() {
                                 type="button"
                                 onClick={() => handleGenerateThermalImage({ colorGroup: group })}
                                 disabled={thermalImageGenerating || !getPrimaryColorImage(group)}
-                                className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[12px] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                                 {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
                               </button>
                               <div className="flex w-full max-w-[520px] flex-col gap-2">
-                                <div className="rounded-[12px] border border-border bg-surface-soft p-2">
-                                  <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-surface-soft">
+                                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-2">
+                                  <div className="flex h-20 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-surface-soft">
                                     {getPrimaryColorImage(group) ? (
                                       <img
                                         src={getPrimaryColorImage(group)}
@@ -3691,7 +3692,7 @@ function CreateProduct() {
                                   </div>
                                 </div>
                                 {getColorGroupThermalUrl(group) ? (
-                                  <div className="rounded-[12px] border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-semibold text-emerald-100">
+                                  <div className="rounded-[var(--radius-card)] border border-success/25 bg-success-subtle px-3 py-2 text-[11px] font-semibold text-success">
                                     Thermal Artwork جاهز
                                   </div>
                                 ) : null}
@@ -3733,7 +3734,7 @@ function CreateProduct() {
                                   />
                                 ))}
                                 {normalizeColorImages(group.images).length === 0 ? (
-                                  <div className="col-span-full rounded-[14px] border border-dashed border-border bg-surface-soft px-3 py-4 text-center text-[11px] font-semibold text-text-muted">
+                                  <div className="col-span-full rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-4 text-center text-[11px] font-semibold text-text-muted">
                                     {t("products.images.noImage")}
                                   </div>
                                 ) : null}
@@ -3750,7 +3751,7 @@ function CreateProduct() {
                                     onBlur={(e) => updateColorGroup(group.id, "color", normalizeColorName(e.target.value))}
                                     list="m1-standard-color-names"
                                     placeholder={t("products.placeholders.colorExample")}
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                                   />
                                   <p className="mt-1 text-xs text-text-muted">{t("products.editor.pickColorHelp")}</p>
                                   {colorDetecting[group.id] ? (
@@ -3772,15 +3773,15 @@ function CreateProduct() {
                                       value={group.edition_name || ""}
                                       onChange={(e) => updateColorGroup(group.id, "edition_name", e.target.value)}
                                       placeholder={t("products.editor.editionNamePlaceholder")}
-                                      className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
+                                      className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                                     />
                                       {editionSuggestions[group.id]?.status === "loading" ? (
-                                        <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-border bg-surface-soft px-3 py-2 text-xs font-semibold text-text shadow-2xl shadow-black/40">
+                                        <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-xs font-semibold text-text shadow-[var(--shadow-overlay)]">
                                           {t("products.editor.searchingSimilarProducts")}
                                         </div>
                                       ) : null}
                                     {editionSuggestions[group.id]?.status === "ready" ? (
-                                      <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-violet-400/20 bg-surface-soft p-3 shadow-2xl shadow-black/40">
+                                      <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-violet-400/20 bg-surface-soft p-3 shadow-[var(--shadow-overlay)]">
                                         {editionSuggestions[group.id].suggestion.source === "NO_TRUSTED_MATCH" ? (
                                           <div className="text-sm font-black text-text">{t("products.editor.noTrustedMatch")}</div>
                                         ) : (
@@ -3797,7 +3798,7 @@ function CreateProduct() {
                                             <button
                                               type="button"
                                               onClick={() => updateColorGroup(group.id, "edition_name", editionSuggestions[group.id].suggestion.edition_name)}
-                                              className="h-[var(--control-height-md)] rounded-[14px] bg-surface px-3 text-xs font-black text-text"
+                                              className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-surface px-3 text-xs font-black text-text"
                                             >
                                               Apply
                                             </button>
@@ -3808,7 +3809,7 @@ function CreateProduct() {
                                             {editionSuggestions[group.id].suggestion.candidates.slice(0, 5).map((candidate) => (
                                               <div
                                                 key={`${candidate.edition_name}-${candidate.source}-${candidate.source_url || ""}`}
-                                                className="rounded-[12px] border border-border bg-surface-soft px-3 py-2"
+                                                className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2"
                                               >
                                                 <div className="flex items-start justify-between gap-2">
                                                   <div className="min-w-0">
@@ -3821,7 +3822,7 @@ function CreateProduct() {
                                                   <button
                                                     type="button"
                                                     onClick={() => updateColorGroup(group.id, "edition_name", candidate.edition_name)}
-                                                    className="h-[var(--control-height-sm)] shrink-0 rounded-[10px] bg-surface px-2 text-[10px] font-black text-text"
+                                                    className="h-[var(--control-height-sm)] shrink-0 rounded-[var(--radius-control)] bg-surface px-2 text-[10px] font-black text-text"
                                                   >
                                                     Apply
                                                   </button>
@@ -3833,12 +3834,12 @@ function CreateProduct() {
                                       </div>
                                     ) : null}
                                     {editionSuggestions[group.id]?.status === "error" ? (
-                                      <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[14px] border border-red-400/20 bg-surface-soft p-3 text-xs text-red-100 shadow-2xl shadow-black/40">
+                                      <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border border-red-400/20 bg-surface-soft p-3 text-xs text-red-100 shadow-[var(--shadow-overlay)]">
                                         <span>{editionSuggestions[group.id].error}</span>
                                         <button
                                           type="button"
                                           onClick={() => requestEditionSuggestion(group, { retry: true })}
-                                          className="h-[var(--control-height-md)] rounded-[14px] border border-border bg-surface-soft px-3 font-black text-text"
+                                          className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 font-black text-text"
                                         >
                                           Retry
                                         </button>
@@ -3868,7 +3869,7 @@ function CreateProduct() {
                                   <label className="text-sm font-semibold text-text">الجمهور لهذا اللون</label>
                                   <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                                     {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].map((option) => (
-                                      <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[12px] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-border bg-surface-soft text-text-muted hover:text-white"}`}>
+                                      <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:text-text"}`}>
                                         {option.label}
                                       </button>
                                     ))}
@@ -3881,7 +3882,7 @@ function CreateProduct() {
                                     type="button"
                                     aria-pressed={group.is_storefront_visible !== false}
                                     onClick={() => updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false)}
-                                    className={`mt-1.5 flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
+                                    className={`mt-1.5 flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-primary/40 bg-primary/15 text-primary" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
                                   >
                                     <span>{group.is_storefront_visible !== false ? "ظاهر على الموقع" : "مخفي من الموقع"}</span>
                                     <span>{group.is_storefront_visible !== false ? "مفعّل" : "متوقف"}</span>
@@ -3896,7 +3897,7 @@ function CreateProduct() {
                                   type="button"
                                   onClick={() => detectColorNameForGroup(group.id, getPrimaryColorImage(group) || group.imagePreview || group.image_url, { overwrite: true })}
                                   disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
+                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
                                 >
                                   {colorDetecting[group.id] ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                                   AI Rename
@@ -3911,7 +3912,7 @@ function CreateProduct() {
                                     })
                                   }
                                   disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-45"
+                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-45"
                                 >
                                   اختيار اللون
                                 </button>
@@ -3920,7 +3921,7 @@ function CreateProduct() {
                                     type="button"
                                     onClick={() => requestEditionSuggestion(group)}
                                     disabled={editionSuggestions[group.id]?.status === "loading"}
-                                    className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[14px] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     {editionSuggestions[group.id]?.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                                       اقتراح الإصدار
@@ -3932,7 +3933,7 @@ function CreateProduct() {
                                     <button
                                       type="button"
                                       onClick={() => applyBulkSizes(group.id)}
-                                      className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-emerald-500/20 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15"
+                                      className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
                                     >
                                       تطبيق الأحجام دفعة واحدة
                                     </button>
@@ -3940,7 +3941,7 @@ function CreateProduct() {
                                   <button
                                     type="button"
                                     onClick={() => applyBulkArticleCode(group.id)}
-                                    className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                                    className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
                                   >
                                     {t("products.editor.applyArticleThisColor", "Apply article to this color")}
                                   </button>
@@ -3950,7 +3951,7 @@ function CreateProduct() {
                                     <button
                                       type="button"
                                       onClick={() => addSizeRow(group.id)}
-                                      className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-border bg-surface-soft px-3 text-sm font-semibold text-text"
+                                      className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text"
                                     >
                                       <Plus size={16} />
                                       إضافة مقاس
@@ -3961,7 +3962,7 @@ function CreateProduct() {
                                       <button
                                         type="button"
                                         onClick={() => setCrocsLibraryGroupId((current) => (current === group.id ? "" : group.id))}
-                                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-amber-400/20 bg-amber-400/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15"
+                                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-400/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15"
                                       >
                                         <Plus size={16} />
                                         + إضافة مقاسات كروكس
@@ -3978,7 +3979,7 @@ function CreateProduct() {
                                 </div>
                               </div>
 
-                              <div className="rounded-[14px] border border-border bg-surface-soft p-3">
+                              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                                 <div className="mb-3 flex items-center justify-between gap-3">
                                   <div>
                                     <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
@@ -3995,7 +3996,7 @@ function CreateProduct() {
                                   </div>
                                 </div>
 
-                                <div className={`hidden rounded-[12px] border border-border bg-surface-soft px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}>
+                                <div className={`hidden rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}>
                                   {!isColorOnlyMode ? <div>{t("products.fields.size", "Size")}</div> : null}
                                   <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                                   <div>SKU</div>
@@ -4008,7 +4009,7 @@ function CreateProduct() {
                                   {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                                   <div
                                     key={row.id}
-                                    className={`grid gap-2 rounded-[12px] border border-border bg-surface-soft p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
+                                    className={`grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
                                   >
                                       {!isColorOnlyMode ? <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">
@@ -4018,7 +4019,7 @@ function CreateProduct() {
                                           value={row.size}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
                                           placeholder="40"
-                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                       </div> : null}
                                       <div>
@@ -4030,7 +4031,7 @@ function CreateProduct() {
                                           value={row.stock ?? ""}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
                                           placeholder="0"
-                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                         <p className="mt-1 text-[10px] leading-4 text-text-muted xl:hidden">{t("products.editor.preparationOnlyStock", "للتجهيز فقط. تتم إضافة المخزون الفعلي من فواتير الشراء.")}</p>
                                       </div>
@@ -4040,7 +4041,7 @@ function CreateProduct() {
                                           value={row.sku}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "sku", e.target.value)}
                                           placeholder=""
-                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                       </div>
                                       <div>
@@ -4049,7 +4050,7 @@ function CreateProduct() {
                                           value={row.barcode}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
                                           placeholder={t("products.editor.scanOrEnterBarcode", "امسح أو أدخل الباركود")}
-                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
+                                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                       </div>
                                       <div>
@@ -4069,7 +4070,7 @@ function CreateProduct() {
                                           type="button"
                                           onClick={() => removeSizeRow(group.id, row.id)}
                                           disabled={isColorOnlyMode || (group.sizes.length === 1 && rowIndex === 0)}
-                                          className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[12px] border border-border bg-surface-soft px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                          className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                           إزالة
                                         </button>
@@ -4097,7 +4098,7 @@ function CreateProduct() {
               />
 
               {variantNotice ? (
-                <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                <div className="mt-4 rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
                   {variantNotice}
                 </div>
               ) : null}
@@ -4133,7 +4134,7 @@ function CreateProduct() {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-[var(--primary-contrast)] disabled:opacity-60"
+            className={buttonClasses("primary", "rounded-[var(--radius-control)] px-6 py-3")}
           >
             <Plus size={18} />
             {saving ? t("common.saving", "جارٍ الحفظ...") : t("products.editor.createTitle", "إنشاء منتج")}
@@ -4141,7 +4142,7 @@ function CreateProduct() {
           <button
             type="button"
             onClick={() => navigate("/products")}
-            className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-6 py-3 font-semibold text-text"
+            className={buttonClasses("secondary", "rounded-[var(--radius-control)] px-6 py-3")}
           >
             إلغاء
           </button>
@@ -4168,7 +4169,7 @@ function ColorPickModal({ target, onClose, onPick }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-      <div className="w-full max-w-2xl rounded-[28px] border border-border bg-surface-soft p-4 shadow-2xl">
+      <div className="w-full max-w-2xl rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-black text-text">{t("products.editor.pickColor", "اختيار اللون")}</p>
@@ -4178,7 +4179,7 @@ function ColorPickModal({ target, onClose, onPick }) {
             {t("common.close", "إغلاق")}
           </button>
         </div>
-        <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-2xl bg-surface-soft">
+        <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-[var(--radius-card)] bg-surface-soft">
           <img
             src={target.source}
             alt={target.alt || t("products.editor.pickColor", "اختيار اللون")}
@@ -4197,31 +4198,17 @@ function ColorPickModal({ target, onClose, onPick }) {
   );
 }
 
-const toneClasses = {
-  emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-emerald-500/10",
-  blue: "border-blue-400/20 bg-blue-500/10 text-blue-300 shadow-blue-500/10",
-  amber: "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-amber-500/10",
-  violet: "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-violet-500/10",
-  cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-cyan-500/10",
-  sky: "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-sky-500/10",
-};
-
-const buttonClasses = (variant = "secondary", extra = "") => {
-  const base = "inline-flex items-center justify-center gap-2 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-50";
-  const variants = {
-    primary: "bg-gradient-to-r from-emerald-500 to-teal-400 text-white shadow-lg shadow-emerald-500/18 hover:-translate-y-0.5 hover:shadow-emerald-500/24",
-    secondary: "border border-border bg-surface-soft text-text shadow-sm shadow-black/10 hover:-translate-y-0.5 hover:border-border hover:bg-surface-soft",
-    ghost: "text-text hover:bg-surface-soft hover:text-text",
-    danger: "border border-red-400/20 bg-red-500/10 text-red-200 hover:border-red-300/35 hover:bg-red-500/15",
-  };
-  return `${base} ${variants[variant] || variants.secondary} ${extra}`;
-};
+/* `tone` is kept as a prop so no call site changes, but every tone now resolves
+   to the one canonical tile shared with the Edit route. The six per-section hues
+   it replaced were decorative wayfinding rather than meaning, and three of them
+   (blue / sky / cyan) were the last legacy-palette occurrences in this file. */
+const toneClasses = { emerald: SECTION_ICON_CLASSES };
 
 function SectionHeader({ icon: Icon, title, subtitle, tone = "emerald", action = null }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 items-start gap-3">
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border shadow-[0_0_28px_var(--tw-shadow-color)] ${toneClasses[tone] || toneClasses.emerald}`}>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-control)] border ${toneClasses[tone] || SECTION_ICON_CLASSES}`}>
           <Icon size={18} strokeWidth={2} />
         </div>
         <div className="min-w-0">
@@ -4237,7 +4224,7 @@ function SectionHeader({ icon: Icon, title, subtitle, tone = "emerald", action =
 function SectionCard({ children, hidden = false, className = "", id }) {
   if (hidden) return null;
   return (
-    <section id={id} className={`m1-create-section scroll-mt-24 rounded-[18px] border border-border bg-surface-soft p-4 transition duration-200 sm:p-5 ${className}`}>
+    <section id={id} className={`m1-product-section ${SECTION_CARD_CLASSES} p-4 transition duration-200 sm:p-5 ${className}`}>
       {children}
     </section>
   );
@@ -4251,11 +4238,11 @@ function ProductActionBar({ mode = "create", saving = false, savingStep = "", ha
       : t("products.editor.updateProduct", "تحديث المنتج");
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-soft/95 px-4 py-3 shadow-[var(--shadow-overlay)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[24px] md:border">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised px-4 py-3 shadow-[var(--shadow-overlay)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[var(--radius-card)] md:border">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-text-muted">{t("products.editor.productEditor", "محرر المنتج")}</p>
-          <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-amber-200" : "text-emerald-200"}`}>
+          <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-warning" : "text-success"}`}>
             {saving && savingStep
               ? savingStep
               : hasUnsavedChanges
@@ -4267,7 +4254,7 @@ function ProductActionBar({ mode = "create", saving = false, savingStep = "", ha
           type="submit"
           form={formId}
           disabled={saving}
-          className={buttonClasses("primary", "h-[var(--control-height-lg)] w-full rounded-[14px] px-5 sm:w-auto")}
+          className={buttonClasses("primary", "h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] px-5 sm:w-auto")}
         >
           {saving ? <Loader2 size={16} strokeWidth={2} className="animate-spin" /> : <Save size={16} strokeWidth={2} />}
           {saving ? savingStep || t("common.saving", "جارٍ الحفظ...") : label}

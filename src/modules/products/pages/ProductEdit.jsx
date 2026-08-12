@@ -92,6 +92,8 @@ import { canViewCostPrices } from "../../permissions/lib/rbacStore";
 import { normalizeArticleCodes } from "../../../../shared/articleCode";
 import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
 import { isSchoolBagType } from "../lib/schoolBagSizes";
+import "./product-form.m1.css";
+import { SECTION_CARD_CLASSES, SECTION_ICON_CLASSES, SECTION_PANEL_CLASSES, buttonClasses } from "../lib/formChrome";
 
 const emptyProduct = {
   name: "",
@@ -3537,7 +3539,7 @@ function ProductEdit() {
         <Link
           to="/products"
           onClick={confirmLeaveIfDirty}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
+          className={buttonClasses("secondary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
         >
           <ArrowLeft size={18} />
           Back to products
@@ -3545,17 +3547,17 @@ function ProductEdit() {
       }
     >
       {loading ? (
-        <div className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-10 text-center text-zinc-400">
-          <Loader2 className="mx-auto h-10 w-10 animate-spin text-emerald-400" />
-          <p className="mt-4 text-sm font-semibold text-white">{t("products.editor.loading")}</p>
+        <div className={`${SECTION_CARD_CLASSES} p-10 text-center text-text-muted`}>
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
+          <p className="mt-4 text-sm font-semibold text-text">{t("products.editor.loading")}</p>
         </div>
       ) : error ? (
-        <div className="rounded-[34px] border border-red-500/20 bg-red-500/10 p-8 text-red-100">
-          <p className="text-lg font-black text-white">{error}</p>
+        <div className="rounded-[var(--radius-card)] border border-danger/25 bg-danger-subtle p-8 text-danger">
+          <p className="text-lg font-black text-text">{error}</p>
           <button
             type="button"
             onClick={() => navigate("/products")}
-            className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white"
+            className={buttonClasses("secondary", "mt-4 h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
           >
             <ArrowLeft size={16} />
             Back
@@ -3569,24 +3571,26 @@ function ProductEdit() {
             hasUnsavedChanges={hasUnsavedChanges}
             onSave={handleSave}
           />
-          <section className="rounded-[30px] border border-white/8 bg-zinc-950/80 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
-            <div className="flex items-center gap-3">
-              <Sparkles className="h-5 w-5 text-emerald-400" />
-              <h2 className="m1-section-title text-white">{t("products.editor.basicInformation", "Basic information")}</h2>
+          <section className={`m1-product-section ${SECTION_CARD_CLASSES} p-5`}>
+            <div className="flex min-w-0 items-start gap-3">
+              <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-control)] border ${SECTION_ICON_CLASSES}`}>
+                <Sparkles size={18} strokeWidth={2} />
+              </div>
+              <h2 className="m1-section-title text-text">{t("products.editor.basicInformation", "Basic information")}</h2>
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-4">
               <div>
-                <label className="text-sm font-semibold text-zinc-200">{t("products.form.productName", "Product name")}</label>
+                <label className="text-sm font-semibold text-text">{t("products.form.productName", "Product name")}</label>
                 <input
                   value={product.name}
                   onChange={(event) => updateProductField("name", event.target.value)}
-                  className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] transition focus:border-emerald-300/35 focus:bg-zinc-900"
+                  className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3.5 font-semibold text-text outline-none transition focus:border-primary focus:bg-surface"
                 />
               </div>
 
-              <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3" style={{ display: "none" }}>
-                <label className="text-sm font-semibold text-zinc-200">{t("products.editor.skuPrefix", "SKU prefix")}</label>
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3" style={{ display: "none" }}>
+                <label className="text-sm font-semibold text-text">{t("products.editor.skuPrefix", "SKU prefix")}</label>
                 <div className="mt-1.5 flex gap-2">
                   <input
                     value={product.sku || ""}
@@ -3594,58 +3598,58 @@ function ProductEdit() {
                       updateProductField("sku", event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""));
                       setSkuTouched(true);
                     }}
-                    className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition focus:border-emerald-300/35 focus:bg-white/[0.06]"
+                    className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text outline-none transition focus:border-primary focus:bg-surface"
                   />
                   <button
                     type="button"
                     onClick={regenerateSkuPrefix}
-                    className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[13px] border border-white/10 bg-white/[0.045] px-3 text-xs font-bold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-100"
+                    className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-bold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     Regenerate from product name
                   </button>
                 </div>
-                <p className="mt-1 text-[11px] text-zinc-500">
+                <p className="mt-1 text-[11px] text-text-muted">
                   Auto: {uniqueSmartSkuPrefix}{skuTouched ? " (manual override)" : ""}
                 </p>
               </div>
 
-              <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-200">{t("products.editor.pricingSummary", "Pricing summary")}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{t("products.editor.pricingSummaryHelp", "Read-only. Active pricing is updated when purchase invoice stock is received.")}</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text">{t("products.editor.pricingSummary", "Pricing summary")}</p>
+                  <p className="mt-0.5 text-xs text-text-muted">{t("products.editor.pricingSummaryHelp", "Read-only. Active pricing is updated when purchase invoice stock is received.")}</p>
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-                  <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.fields.sellingPrice", "Selling price")}</p>
-                    <p className="mt-2 text-sm font-black text-zinc-100">{Number((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price || 0) > 0 ? formatCurrency((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price) : "Not set"}</p>
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{t("products.fields.sellingPrice", "Selling price")}</p>
+                    <p className="mt-2 text-sm font-black text-text">{Number((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price || 0) > 0 ? formatCurrency((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price) : "Not set"}</p>
                   </div>
-                  <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.fields.originalPrice", "Original price")}</p>
-                    <p className="mt-2 text-sm font-black text-zinc-100">{Number(product.custom_compare_price || (product.sale_price_enabled ? product.regular_price || product.price : 0) || 0) > Number((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price || 0) ? formatCurrency(product.custom_compare_price || product.regular_price || product.price) : t("products.editor.notSet", "Not set")}</p>
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{t("products.fields.originalPrice", "Original price")}</p>
+                    <p className="mt-2 text-sm font-black text-text">{Number(product.custom_compare_price || (product.sale_price_enabled ? product.regular_price || product.price : 0) || 0) > Number((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price || 0) ? formatCurrency(product.custom_compare_price || product.regular_price || product.price) : t("products.editor.notSet", "Not set")}</p>
                   </div>
-                  <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.currentCost", "Current cost")}</p>
-                    <p className="mt-2 text-sm font-black text-zinc-100">{canViewCostPrice ? (Number(product.cost_price || 0) > 0 ? formatCurrency(product.cost_price) : "Not set") : "—"}</p>
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{t("products.editor.currentCost", "Current cost")}</p>
+                    <p className="mt-2 text-sm font-black text-text">{canViewCostPrice ? (Number(product.cost_price || 0) > 0 ? formatCurrency(product.cost_price) : "Not set") : "—"}</p>
                   </div>
-                  <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.lastUpdatedFromPurchase", "Last updated from purchase invoice")}</p>
-                    <p className="mt-2 text-sm font-black text-zinc-100">{product.last_purchase_pricing_at ? String(product.last_purchase_pricing_at).slice(0, 16).replace("T", " ") : "Not yet"}</p>
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{t("products.editor.lastUpdatedFromPurchase", "Last updated from purchase invoice")}</p>
+                    <p className="mt-2 text-sm font-black text-text">{product.last_purchase_pricing_at ? String(product.last_purchase_pricing_at).slice(0, 16).replace("T", " ") : "Not yet"}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                 <label className="flex items-start gap-3">
                   <input
                     type="checkbox"
                     checked={Boolean(product.use_custom_compare_price)}
                     onChange={(event) => updateProductField("use_custom_compare_price", event.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-white/20 bg-zinc-900"
+                    className="mt-1 h-4 w-4 rounded-[4px] border-border bg-surface accent-[var(--primary)]"
                   />
                   <span>
-                    <span className="block text-sm font-black text-zinc-100">{t("products.editor.customComparePrice", "Custom storefront compare price")}</span>
-                    <span className="mt-1 block text-xs text-zinc-500">{t("products.editor.customComparePriceHelp", "Marketing-only old price. It does not affect POS, invoices, cost, valuation, or profit.")}</span>
+                    <span className="block text-sm font-black text-text">{t("products.editor.customComparePrice", "Custom storefront compare price")}</span>
+                    <span className="mt-1 block text-xs text-text-muted">{t("products.editor.customComparePriceHelp", "Marketing-only old price. It does not affect POS, invoices, cost, valuation, or profit.")}</span>
                   </span>
                 </label>
                 {product.use_custom_compare_price ? (
@@ -3656,23 +3660,23 @@ function ProductEdit() {
                     value={product.custom_compare_price || ""}
                     onChange={(event) => updateProductField("custom_compare_price", event.target.value)}
                     placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}
-                    className="mt-3 h-[var(--control-height-md)] w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-emerald-300/35 focus:border-emerald-300/50 focus:bg-white/[0.06]"
+                    className="mt-3 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3.5 font-semibold text-text outline-none transition placeholder:text-text-muted hover:border-primary/40 focus:border-primary focus:bg-surface"
                   />
                 ) : null}
               </div>
 
-              <div className="rounded-[28px] border border-emerald-300/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.055] to-primary/10 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.18)] transition duration-200 hover:border-emerald-300/25 hover:bg-white/[0.07]">
+              <div className={`${SECTION_PANEL_CLASSES} p-5 transition duration-200 hover:border-border-strong`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-base font-black text-white">{t("products.editor.customerDescriptionTitle", "Product Description (Customer-facing)")}</p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-400">{t("products.editor.customerDescriptionHelp", "Primary storefront content for catalog pages, product pages, reports, and customer-facing previews.")}</p>
+                    <p className="text-base font-black text-text">{t("products.editor.customerDescriptionTitle", "Product Description (Customer-facing)")}</p>
+                    <p className="mt-1 text-xs leading-5 text-text-muted">{t("products.editor.customerDescriptionHelp", "Primary storefront content for catalog pages, product pages, reports, and customer-facing previews.")}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => regenerateDescriptions("ar")}
                       disabled={descriptionGenerating.ar}
-                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100"
+                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
                     >
                       {descriptionGenerating.ar ? t("products.editor.generatingArabic", "Generating Arabic...") : t("products.editor.regenerateArabic", "Regenerate Arabic")}
                     </button>
@@ -3680,7 +3684,7 @@ function ProductEdit() {
                       type="button"
                       onClick={() => regenerateDescriptions("en")}
                       disabled={descriptionGenerating.en}
-                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                     >
                       {descriptionGenerating.en ? t("products.editor.generatingEnglish", "Generating English...") : t("products.editor.regenerateEnglish", "Regenerate English")}
                     </button>
@@ -3688,7 +3692,7 @@ function ProductEdit() {
                       type="button"
                       onClick={() => regenerateDescriptions("all")}
                       disabled={descriptionGenerating.ar || descriptionGenerating.en}
-                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
+                      className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
                     >
                       {descriptionGenerating.ar && descriptionGenerating.en ? t("products.editor.generating", "Generating...") : t("products.editor.regenerateAll", "Regenerate All")}
                     </button>
@@ -3697,16 +3701,16 @@ function ProductEdit() {
 
                 <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div className="lg:col-span-2">
-                    <label className="text-sm font-semibold text-zinc-200">{t("products.editor.promptCustomization", "Prompt customization")}</label>
+                    <label className="text-sm font-semibold text-text">{t("products.editor.promptCustomization", "Prompt customization")}</label>
                     <input
                       value={descriptionTone}
                       onChange={(event) => setDescriptionTone(event.target.value)}
                       placeholder={t("products.editor.promptPlaceholder", "premium tone, concise tone, friendly tone")}
-                      className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 text-sm text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-amber-300/35 focus:bg-zinc-900"
+                      className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-sm text-text outline-none placeholder:text-text-muted transition focus:border-amber-300/35 focus:bg-surface"
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-semibold text-zinc-200">{t("products.editor.arabicDescription", "Arabic description")}</label>
+                    <label className="text-sm font-semibold text-text">{t("products.editor.arabicDescription", "Arabic description")}</label>
                     <textarea
                       value={product.description_ar || ""}
                       onChange={(event) => {
@@ -3722,12 +3726,12 @@ function ProductEdit() {
                       rows={6}
                       dir="rtl"
                       placeholder={generatedDescriptions.description_ar}
-                      className="mt-1.5 w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm leading-6 text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-emerald-300/35 focus:bg-zinc-900"
+                      className="mt-1.5 w-full rounded-[var(--radius-card)] border border-border bg-surface px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-muted transition focus:border-primary focus:bg-surface"
                     />
                   </div>
 
                   <div>
-                    <label className="text-sm font-semibold text-zinc-200">{t("products.editor.englishDescription", "English description")}</label>
+                    <label className="text-sm font-semibold text-text">{t("products.editor.englishDescription", "English description")}</label>
                     <textarea
                       value={product.description_en || ""}
                       onChange={(event) => {
@@ -3742,7 +3746,7 @@ function ProductEdit() {
                       }}
                       rows={6}
                       placeholder={generatedDescriptions.description_en}
-                      className="mt-1.5 w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm leading-6 text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-primary/35 focus:bg-zinc-900"
+                      className="mt-1.5 w-full rounded-[var(--radius-card)] border border-border bg-surface px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-muted transition focus:border-primary/35 focus:bg-surface"
                     />
                   </div>
               </div>
@@ -3756,58 +3760,58 @@ function ProductEdit() {
                 />
               </div>
 
-              <div className={`rounded-[22px] border p-3 shadow-[0_16px_45px_rgba(0,0,0,0.18)] transition ${seoOpen ? "border-amber-300/28 bg-amber-300/[0.075]" : "border-primary/20 bg-primary/[0.06] hover:border-primary/32 hover:bg-primary/[0.09]"}`}>
+              <div className={`rounded-[var(--radius-card)] border p-3 shadow-[var(--shadow-card)] transition ${seoOpen ? "border-amber-300/28 bg-amber-300/[0.075]" : "border-primary/20 bg-primary/[0.06] hover:border-primary/32 hover:bg-primary/[0.09]"}`}>
                 <button type="button" onClick={() => setSeoOpen((current) => !current)} className="flex w-full items-center justify-between gap-3 text-left">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-amber-200/20 bg-amber-300/10 text-amber-100">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-amber-200/20 bg-amber-300/10 text-amber-100">
                       <Search size={17} />
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-black text-white">{t("products.editor.seoMetadata", "SEO metadata")}</p>
+                        <p className="text-sm font-black text-text">{t("products.editor.seoMetadata", "SEO metadata")}</p>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${seoOpen ? "bg-amber-300/20 text-amber-100" : "bg-primary/15 text-primary"}`}>
                           {seoOpen ? t("products.editor.expanded", "Expanded") : t("products.editor.collapsed", "Collapsed")}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs font-semibold text-zinc-300">{t("products.editor.googleFacebookPreview", "Google / Facebook Preview")}</p>
-                      <p className="mt-0.5 text-xs text-zinc-500">{t("products.editor.advancedPreviewHelp", "Advanced preview fields generated separately from product descriptions.")}</p>
+                      <p className="mt-0.5 text-xs font-semibold text-text-muted">{t("products.editor.googleFacebookPreview", "Google / Facebook Preview")}</p>
+                      <p className="mt-0.5 text-xs text-text-muted">{t("products.editor.advancedPreviewHelp", "Advanced preview fields generated separately from product descriptions.")}</p>
                     </div>
                   </div>
                   <ChevronDown className={`h-5 w-5 shrink-0 text-amber-100 transition ${seoOpen ? "rotate-180" : ""}`} />
                 </button>
 
                 {seoOpen ? (
-                  <div className="mt-3 border-t border-white/10 pt-3">
+                  <div className="mt-3 border-t border-border pt-3">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{t("products.editor.advancedSeo", "Advanced SEO")}</p>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-text-muted">{t("products.editor.advancedSeo", "Advanced SEO")}</p>
                       <button
                         type="button"
                         onClick={regenerateSeoMetadata}
                         disabled={seoGenerating}
-                        className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
+                        className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
                       >
                         {seoGenerating ? t("products.editor.generatingSeo", "Generating SEO...") : t("products.editor.regenerateSeoMetadata", "Regenerate SEO Metadata")}
                       </button>
                     </div>
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                      <div className="rounded-[18px] border border-white/10 bg-zinc-950/75 p-4 lg:col-span-2">
-                        <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-4 lg:col-span-2">
+                        <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">
                           <Search size={14} />
                           Google search result preview
                         </div>
-                        <div className="rounded-[16px] border border-white/8 bg-white/[0.03] p-3">
-                          <p className="truncate text-[13px] text-zinc-400">{seoPreviewUrl}</p>
+                        <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+                          <p className="truncate text-[13px] text-text-muted">{seoPreviewUrl}</p>
                           <p className="mt-1 line-clamp-1 text-lg font-semibold text-primary">{seoPreviewTitle}</p>
-                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-zinc-300">{seoPreviewDescription}</p>
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-text-muted">{seoPreviewDescription}</p>
                         </div>
                       </div>
-                      <div className="rounded-[18px] border border-white/10 bg-zinc-950/75 p-4 lg:col-span-2">
-                        <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-4 lg:col-span-2">
+                        <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">
                           <Share2 size={14} />
                           Facebook / WhatsApp preview
                         </div>
-                        <div className="overflow-hidden rounded-[16px] border border-white/10 bg-white/[0.04]">
-                          <div className="relative w-full aspect-[1.91/1] overflow-hidden rounded-t-2xl bg-white">
+                        <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
+                          <div className="relative w-full aspect-[1.91/1] overflow-hidden rounded-t-[var(--radius-card)] bg-white">
                             {coverImage ? (
                               <img
                                 src={resolveAssetUrl(coverImage)}
@@ -3815,42 +3819,42 @@ function ProductEdit() {
                                 className="h-full w-full object-contain bg-white"
                               />
                             ) : (
-                              <div className="flex h-full w-full items-center justify-center bg-zinc-900/90">
-                                <Share2 className="text-zinc-600" size={28} />
+                              <div className="flex h-full w-full items-center justify-center bg-surface">
+                                <Share2 className="text-text-muted" size={28} />
                               </div>
                             )}
                           </div>
                           <div className="p-3">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.previewDomain")}</p>
-                            <p className="mt-1 line-clamp-1 text-sm font-black text-white">{seoPreviewTitle}</p>
-                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">{seoPreviewDescription}</p>
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted">{t("products.editor.previewDomain")}</p>
+                            <p className="mt-1 line-clamp-1 text-sm font-black text-text">{seoPreviewTitle}</p>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-text-muted">{seoPreviewDescription}</p>
                           </div>
                         </div>
                       </div>
                       <div>
-                        <label className="text-sm font-semibold text-zinc-300">{t("products.editor.metaTitle", "Meta title")}</label>
+                        <label className="text-sm font-semibold text-text-muted">{t("products.editor.metaTitle", "Meta title")}</label>
                         <input
                           value={product.meta_title || ""}
                           onChange={(event) => {
                             updateProductField("meta_title", event.target.value);
                             setSeoTouched((current) => ({ ...current, title: true }));
                           }}
-                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm font-semibold text-white shadow-inner shadow-black/20 outline-none"
+                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-semibold text-text outline-none"
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-semibold text-zinc-300">{t("products.editor.canonicalSlug")}</label>
+                        <label className="text-sm font-semibold text-text-muted">{t("products.editor.canonicalSlug")}</label>
                         <input
                           value={product.canonical_slug || ""}
                           onChange={(event) => {
                             updateProductField("canonical_slug", event.target.value);
                             setSeoTouched((current) => ({ ...current, slug: true }));
                           }}
-                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm font-semibold text-white shadow-inner shadow-black/20 outline-none"
+                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-semibold text-text outline-none"
                         />
                       </div>
                       <div className="lg:col-span-2">
-                        <label className="text-sm font-semibold text-zinc-300">{t("products.editor.seoMetaDescriptionPreview")}</label>
+                        <label className="text-sm font-semibold text-text-muted">{t("products.editor.seoMetaDescriptionPreview")}</label>
                         <textarea
                           value={product.seo_description || ""}
                           onChange={(event) => {
@@ -3858,19 +3862,19 @@ function ProductEdit() {
                             setSeoTouched((current) => ({ ...current, description: true }));
                           }}
                           rows={3}
-                          className="mt-1.5 w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm leading-5 text-white shadow-inner shadow-black/20 outline-none"
+                          className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm leading-5 text-text outline-none"
                         />
-                        <p className="mt-1 text-[11px] text-zinc-500">{String(product.seo_description || "").length}/160 characters</p>
+                        <p className="mt-1 text-[11px] text-text-muted">{String(product.seo_description || "").length}/160 characters</p>
                       </div>
                       <div className="lg:col-span-2">
-                        <label className="text-sm font-semibold text-zinc-300">{t("products.editor.seoKeywords", "SEO keywords")}</label>
+                        <label className="text-sm font-semibold text-text-muted">{t("products.editor.seoKeywords", "SEO keywords")}</label>
                         <input
                           value={product.seo_keywords || ""}
                           onChange={(event) => {
                             updateProductField("seo_keywords", event.target.value);
                             setSeoTouched((current) => ({ ...current, keywords: true }));
                           }}
-                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-3 text-sm text-white shadow-inner shadow-black/20 outline-none"
+                          className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none"
                         />
                       </div>
                     </div>
@@ -3932,17 +3936,17 @@ function ProductEdit() {
               onSuggestedPurchaseCartonsChange={(value) => updateProductField("suggested_purchase_cartons", value)}
             />
           </section>
-          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+          <section className={`m1-product-section ${SECTION_CARD_CLASSES} p-6`}>
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
               <div className="flex-1">
-                <label className="flex min-h-[260px] cursor-pointer items-center justify-center overflow-hidden rounded-[28px] border border-white/10 bg-white/5 text-center">
+                <label className="flex min-h-[260px] cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft text-center">
                   {coverImage ? (
                     <img src={resolveAssetUrl(coverImage)} alt="Product cover" className="h-full max-h-[320px] w-full object-contain p-4" />
                   ) : (
                     <div>
-                      <ImagePlus className="mx-auto text-zinc-400" size={42} />
-                      <p className="mt-4 text-sm font-semibold text-white">{t("products.editor.addProductCoverImage", "Add product cover image")}</p>
-                      <p className="mt-2 text-xs text-zinc-500">{t("products.editor.imageFileTypes")}</p>
+                      <ImagePlus className="mx-auto text-text-muted" size={42} />
+                      <p className="mt-4 text-sm font-semibold text-text">{t("products.editor.addProductCoverImage", "Add product cover image")}</p>
+                      <p className="mt-2 text-xs text-text-muted">{t("products.editor.imageFileTypes")}</p>
                     </div>
                   )}
                   <input type="file" hidden accept="image/*" onChange={handleCover} />
@@ -3954,7 +3958,7 @@ function ProductEdit() {
                     aria-pressed={generateCoverThermalArtwork}
                     onClick={() => setGenerateCoverThermalArtwork((value) => !value)}
                     disabled={!coverImage}
-                    className={`inline-flex h-[var(--control-height-lg)] w-full items-center justify-between rounded-[16px] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}
+                    className={`inline-flex h-[var(--control-height-lg)] w-full items-center justify-between rounded-[var(--radius-control)] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"}`}
                   >
                     <span>إنشاء Thermal للكفر عند الحفظ</span>
                     <span>{generateCoverThermalArtwork ? "مفعّل" : "غير مفعّل"}</span>
@@ -3964,7 +3968,7 @@ function ProductEdit() {
                       type="button"
                       onClick={() => handleRegenerateAiCover({ trigger: "manual" })}
                       disabled={aiCoverRegeneratingKey === "product:product" || !productId || !coverImage}
-                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/50 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {aiCoverRegeneratingKey === "product:product" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                       {aiCoverRegeneratingKey === "product:product" ? "Queueing AI Cover..." : "Regenerate AI Cover"}
@@ -3974,7 +3978,7 @@ function ProductEdit() {
                     type="button"
                     onClick={handleGenerateAiProductData}
                     disabled={aiProductLoading || !coverImage}
-                    className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/45 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                     {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
@@ -3983,31 +3987,31 @@ function ProductEdit() {
                     type="button"
                     onClick={handleGenerateThermalImage}
                     disabled={thermalImageGenerating || !product?.id || !getEligibleThermalColorGroups(colorGroups).length}
-                    className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                     {"Generate AI Thermal Artwork"}
                   </button>
                 </div>
 
-                <div className="mt-4 rounded-[24px] border border-white/8 bg-white/5 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">Original / AI Thermal</p>
+                <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">Original / AI Thermal</p>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="rounded-[18px] border border-white/8 bg-zinc-950/70 p-2">
-                      <div className="flex h-28 items-center justify-center overflow-hidden rounded-[14px] bg-zinc-900">
+                    <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-2">
+                      <div className="flex h-28 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-surface">
                         {coverImage ? (
                           <img src={resolveAssetUrl(coverImage)} alt="Original product" className="h-full w-full object-contain" />
                         ) : (
-                          <span className="text-[11px] font-semibold text-zinc-500">Original</span>
+                          <span className="text-[11px] font-semibold text-text-muted">Original</span>
                         )}
                       </div>
                     </div>
-                    <div className="rounded-[18px] border border-white/8 bg-zinc-950/70 p-2">
-                      <div className="flex h-28 items-center justify-center overflow-hidden rounded-[14px] bg-zinc-900">
+                    <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-2">
+                      <div className="flex h-28 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-surface">
                         {thermalImageUrl ? (
                           <img src={resolveAssetUrl(thermalImageUrl)} alt="AI thermal artwork" className="h-full w-full object-contain" />
                         ) : (
-                          <span className="text-[11px] font-semibold text-zinc-500">AI Thermal</span>
+                          <span className="text-[11px] font-semibold text-text-muted">AI Thermal</span>
                         )}
                       </div>
                     </div>
@@ -4015,13 +4019,13 @@ function ProductEdit() {
                 </div>
               </div>
 
-              <div className="w-full rounded-[28px] border border-white/8 bg-white/5 p-5 xl:w-[460px]">
-                <p className="text-sm font-semibold text-zinc-300">{t("products.editor.productGallery", "Product gallery")}</p>
-                <label className="mt-4 flex min-h-[120px] cursor-pointer items-center justify-center rounded-[24px] border-2 border-dashed border-white/10 bg-zinc-950/60 text-center">
+              <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface-soft p-5 xl:w-[460px]">
+                <p className="text-sm font-semibold text-text-muted">{t("products.editor.productGallery", "Product gallery")}</p>
+                <label className="mt-4 flex min-h-[120px] cursor-pointer items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-raised text-center">
                   <div>
-                    <ImagePlus className="mx-auto text-zinc-400" size={30} />
-                    <p className="mt-3 text-sm font-semibold text-white">{t("products.editor.addGalleryImages", "Add gallery images")}</p>
-                    <p className="mt-1 text-xs text-zinc-500">{gallery.length} image(s)</p>
+                    <ImagePlus className="mx-auto text-text-muted" size={30} />
+                    <p className="mt-3 text-sm font-semibold text-text">{t("products.editor.addGalleryImages", "Add gallery images")}</p>
+                    <p className="mt-1 text-xs text-text-muted">{gallery.length} image(s)</p>
                   </div>
                   <input type="file" hidden accept="image/*" multiple onChange={handleGallery} />
                 </label>
@@ -4042,7 +4046,7 @@ function ProductEdit() {
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-zinc-950/60 px-4 py-5 text-center text-xs font-semibold text-zinc-500">
+                  <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-border bg-surface-raised px-4 py-5 text-center text-xs font-semibold text-text-muted">
                     No gallery images.
                   </div>
                 )}
@@ -4050,18 +4054,18 @@ function ProductEdit() {
             </div>
 
             {aiProductData ? (
-              <div className="mt-5 rounded-[24px] border border-primary/20 bg-primary/[0.07] p-4">
+              <div className="mt-5 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-black text-white">{t("products.editor.aiProductSuggestions", "AI product suggestions")}</p>
-                    <p className="mt-1 text-xs text-zinc-400">
+                    <p className="text-sm font-black text-text">{t("products.editor.aiProductSuggestions", "AI product suggestions")}</p>
+                    <p className="mt-1 text-xs text-text-muted">
                       Source: {aiProductData.source || "AI"} · Confidence: {aiProductData.confidence ?? 0}%
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={applyAllAiProductSuggestions}
-                    className="inline-flex h-[var(--control-height-md)] items-center rounded-[12px] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
+                    className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/15"
                   >
                     Apply all
                   </button>
@@ -4084,65 +4088,65 @@ function ProductEdit() {
                     if (!value) return null;
                     const canApply = field !== "name_ar";
                     return (
-                      <div key={field} className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
+                      <div key={field} className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</p>
+                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</p>
                           {canApply ? (
                             <button
                               type="button"
                               onClick={() => applyAiProductSuggestion(field)}
-                              className="shrink-0 rounded-[10px] border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-zinc-100 hover:border-primary/30 hover:text-primary"
+                              className="shrink-0 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-bold text-text hover:border-primary/30 hover:text-primary"
                             >
                               Apply
                             </button>
                           ) : null}
                         </div>
-                        <p className="mt-2 line-clamp-3 text-sm leading-5 text-zinc-200">{value}</p>
+                        <p className="mt-2 line-clamp-3 text-sm leading-5 text-text">{value}</p>
                       </div>
                     );
                   })}
                   {getSuggestionValue(aiProductData.suggestions, "dominant_colors") ? (
-                    <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
+                    <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedColors", "Detected colors")}</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{t("products.editor.detectedColors", "Detected colors")}</p>
                         {getDetectionConfidenceLabel(aiProductData.suggestions, "colors") ? (
-                          <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
+                          <span className="shrink-0 rounded-full border border-success/25 bg-success-subtle px-2 py-0.5 text-[10px] font-black text-success">
                             {getDetectionConfidenceLabel(aiProductData.suggestions, "colors")}
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-2 text-sm leading-5 text-zinc-200">
+                      <p className="mt-2 text-sm leading-5 text-text">
                         {getSuggestionValue(aiProductData.suggestions, "dominant_colors")}
                       </p>
                     </div>
                   ) : null}
                   {getSuggestionValue(aiProductData.suggestions, "suggested_product_type", "silhouette", "fashion_category") ? (
-                    <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
+                    <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedProductType", "Detected product type")}</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{t("products.editor.detectedProductType", "Detected product type")}</p>
                         {getDetectionConfidenceLabel(aiProductData.suggestions, "product_type") ? (
-                          <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
+                          <span className="shrink-0 rounded-full border border-success/25 bg-success-subtle px-2 py-0.5 text-[10px] font-black text-success">
                             {getDetectionConfidenceLabel(aiProductData.suggestions, "product_type")}
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-2 text-sm leading-5 text-zinc-200">
+                      <p className="mt-2 text-sm leading-5 text-text">
                         {[getSuggestionValue(aiProductData.suggestions, "suggested_product_type"), getSuggestionValue(aiProductData.suggestions, "silhouette"), getSuggestionValue(aiProductData.suggestions, "fashion_category")].filter(Boolean).join(" · ")}
                       </p>
                     </div>
                   ) : null}
                   {getSuggestionValue(aiProductData.suggestions, "brand_resemblance") ? (
-                    <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.brandResemblance", "Brand resemblance")}</p>
-                      <p className="mt-2 text-sm leading-5 text-zinc-200">
+                    <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{t("products.editor.brandResemblance", "Brand resemblance")}</p>
+                      <p className="mt-2 text-sm leading-5 text-text">
                         {getSuggestionValue(aiProductData.suggestions, "brand_resemblance")}
                       </p>
                     </div>
                   ) : null}
                   {getSuggestionValue(aiProductData.suggestions, "classification") ? (
-                    <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.classification", "Classification")}</p>
-                      <p className="mt-2 text-sm leading-5 text-zinc-200">
+                    <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{t("products.editor.classification", "Classification")}</p>
+                      <p className="mt-2 text-sm leading-5 text-text">
                         {getSuggestionValue(aiProductData.suggestions, "classification")}
                       </p>
                     </div>
@@ -4151,12 +4155,12 @@ function ProductEdit() {
               </div>
             ) : null}
           </section>
-          <section ref={colorGroupsSectionRef} className={`${isSimpleMode ? "hidden" : ""} rounded-[28px] border border-white/8 bg-zinc-950/80 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-5`}>
+          <section ref={colorGroupsSectionRef} className={`${isSimpleMode ? "hidden" : ""} m1-product-section ${SECTION_CARD_CLASSES} p-4 sm:p-5`}>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300">{t("products.editor.bulkTools", "Bulk Tools")}</p>
-                <h2 className="m1-section-title mt-1 text-white">{t("products.editor.bulkToolsHelp", "Add sizes and setup stock faster")}</h2>
-                <p className="mt-1 max-w-3xl text-sm leading-5 text-zinc-400">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-primary">{t("products.editor.bulkTools", "Bulk Tools")}</p>
+                <h2 className="m1-section-title mt-1 text-text">{t("products.editor.bulkToolsHelp", "Add sizes and setup stock faster")}</h2>
+                <p className="mt-1 max-w-3xl text-sm leading-5 text-text-muted">
                   Enter comma-separated sizes, ranges, and planning stock shortcuts. Existing saved variants keep their IDs.
                 </p>
               </div>
@@ -4164,32 +4168,32 @@ function ProductEdit() {
 
             <div className={`mt-4 grid gap-4 ${isFullVariationMode ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
               {isFullVariationMode ? (
-                <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{t("products.editor.bulkSizes", "Bulk Sizes")}</p>
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">{t("products.editor.bulkSizes", "Bulk Sizes")}</p>
                   <label className="mt-3 block">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                       Size range
                     </div>
                     <input
                       value={bulkSizesInput}
                       onChange={(event) => setBulkSizesInput(event.target.value)}
                       placeholder={t("products.editor.sizeRangePlaceholder")}
-                      className="h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
                     />
                     <button
                       type="button"
                       onClick={() => applyBulkSizes()}
-                      className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] bg-primary px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-primary"
+                      className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-primary"
                     >
                       Apply to all colors
                     </button>
                   </label>
                 </div>
               ) : null}
-              <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{t("products.editor.bulkStockTools", "Bulk Stock Tools")}</p>
                 <label className="mt-3 block">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                     Stock Quantity
                   </div>
                   <input
@@ -4199,52 +4203,52 @@ function ProductEdit() {
                     value={bulkStockInput}
                     onChange={(event) => setBulkStockInput(event.target.value)}
                     placeholder={t("products.editor.stockQuantityPlaceholder")}
-                    className="h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
                   />
                 </label>
                 <button
                   type="button"
                   onClick={() => applyBulkStock()}
-                  className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
+                  className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
                 >
                   Apply stock to all sizes in all colors
                 </button>
-                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                <p className="mt-2 text-xs leading-5 text-text-muted">
                   Planning/setup stock only. Real inventory is still received from purchase invoices.
                 </p>
               </div>
-              <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">{t("products.editor.bulkArticleTools", "Bulk Article Tools")}</p>
                 <label className="mt-3 block">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                     {t("products.fields.articleCode", "Article Code")}
                   </div>
                   <input
                     value={bulkArticleCodeInput}
                     onChange={(event) => setBulkArticleCodeInput(event.target.value)}
                     placeholder={t("products.editor.articleCodePlaceholder", "Example: L122")}
-                    className="h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
                   />
                 </label>
                 <button
                   type="button"
                   onClick={() => applyBulkArticleCode()}
-                  className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                  className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
                 >
                   {t("products.editor.applyArticleAllColors", "Apply article to all colors")}
                 </button>
-                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                <p className="mt-2 text-xs leading-5 text-text-muted">
                   {t("products.editor.bulkArticleHelp", "Existing article codes are protected unless you confirm overwrite. Manual article fields stay editable.")}
                 </p>
               </div>
             </div>
           </section>
 
-          <section className={`${isSimpleMode ? "hidden" : ""} rounded-[28px] border border-white/8 bg-zinc-950/80 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-5`}>
+          <section className={`${isSimpleMode ? "hidden" : ""} m1-product-section ${SECTION_CARD_CLASSES} p-4 sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="m1-section-title text-white">{t("products.editor.variantColorGroups", "Variant color groups")}</h2>
-                <p className="mt-1 text-sm text-zinc-400">
+                <h2 className="m1-section-title text-text">{t("products.editor.variantColorGroups", "Variant color groups")}</h2>
+                <p className="mt-1 text-sm text-text-muted">
                   Each color owns one image. Every size row under that color becomes one variant.
                 </p>
               </div>
@@ -4253,7 +4257,7 @@ function ProductEdit() {
                 <button
                   type="button"
                   onClick={zeroAllColorStock}
-                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[14px] border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
+                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
                 >
                   <Trash2 size={16} />
                   {t("products.editor.zeroAllColorStock", "Zero stock for all colors")}
@@ -4261,7 +4265,7 @@ function ProductEdit() {
                 <button
                   type="button"
                   onClick={addColorGroup}
-                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white"
+                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm font-semibold text-text"
                 >
                   <Plus size={16} />
                   Add color
@@ -4269,16 +4273,16 @@ function ProductEdit() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-[20px] border border-white/8 bg-white/5 p-3">
+            <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{t("products.editor.defaultManufacturer")}</p>
-                <p className="mt-1 text-sm text-zinc-400">
+                <p className="text-xs uppercase tracking-[0.24em] text-text-muted">{t("products.editor.defaultManufacturer")}</p>
+                <p className="mt-1 text-sm text-text-muted">
                   Applied to every color group until you override a color manually.
                 </p>
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
                 <label className="block">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                     Manufacturer
                   </div>
                   <ManufacturerSelect
@@ -4288,9 +4292,9 @@ function ProductEdit() {
                     placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                   />
                 </label>
-                <div className="rounded-[14px] border border-white/8 bg-zinc-950/60 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("products.editor.behavior")}</div>
-                  <div className="mt-1 text-sm text-zinc-200">{t("products.editor.defaultColorsHelp")}</div>
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{t("products.editor.behavior")}</div>
+                  <div className="mt-1 text-sm text-text">{t("products.editor.defaultColorsHelp")}</div>
                 </div>
               </div>
             </div>
@@ -4303,7 +4307,7 @@ function ProductEdit() {
                   if (key) counts.set(key, (counts.get(key) || 0) + 1);
                 });
                 return [...counts.values()].some((count) => count > 1) ? (
-                  <div className="rounded-[14px] border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-100">
+                  <div className="rounded-[var(--radius-card)] border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-100">
                     تنبيه: يوجد لونان أو أكثر بنفس الاسم. كل بلوك مستقل تمامًا بصوره ومقاساته، ولن تُدمج صوره مع البلوك الآخر عند الحفظ.
                   </div>
                 ) : null;
@@ -4313,7 +4317,7 @@ function ProductEdit() {
                 const isMissingImageHighlight = highlightMissingColorKeys.has(normalizeColorKey(group.color));
 
                 return (
-                <div key={group.id} className={`overflow-visible rounded-[14px] border bg-white/5 transition ${ isMissingImageHighlight ? "border-red-300/60 shadow-[0_0_0_1px_rgba(252,165,165,0.25),0_0_28px_rgba(239,68,68,0.18)]" : "border-white/8" }`}>
+                <div key={group.id} className={`overflow-visible rounded-[var(--radius-card)] border bg-surface-soft transition ${ isMissingImageHighlight ? "border-red-300/60 shadow-[0_0_0_1px_var(--danger-soft),0_0_28px_var(--danger-soft)]" : "border-border" }`}>
                   <div
                     role="button"
                     tabIndex={0}
@@ -4324,10 +4328,10 @@ function ProductEdit() {
                         setExpandedGroupId((current) => (current === group.id ? "" : group.id));
                       }
                     }}
-                    className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.03]"
+                    className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-hover"
                     aria-expanded={isExpanded}
                   >
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-white/10 bg-zinc-950/70 sm:h-[72px] sm:w-[72px]">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-raised sm:h-[72px] sm:w-[72px]">
                       {(getPrimaryColorImage(group) || group.imagePreview || group.image_url) ? (
                         <img
                           src={resolveAssetUrl(getPrimaryColorImage(group) || group.imagePreview || group.image_url)}
@@ -4335,13 +4339,13 @@ function ProductEdit() {
                           className="h-full w-full object-contain p-2"
                         />
                       ) : (
-                        <span className="px-2 text-center text-[11px] font-semibold text-zinc-500">لا توجد صورة</span>
+                        <span className="px-2 text-center text-[11px] font-semibold text-text-muted">لا توجد صورة</span>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                        <h3 className="m1-section-title truncate text-white">{group.color || `Color group ${groupIndex + 1}`}</h3>
+                        <h3 className="m1-section-title truncate text-text">{group.color || `Color group ${groupIndex + 1}`}</h3>
                         {getGroupManufacturerSummary(group) ? (
                           <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">
                             المصنع: {getGroupManufacturerSummary(group)}
@@ -4358,19 +4362,19 @@ function ProductEdit() {
                           </span>
                         ) : null}
                         {getColorGroupThermalUrl(group) ? (
-                          <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                          <span className="rounded-full border border-success/25 bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success">
                             Thermal Artwork جاهز
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400">
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
                         <span>{getGroupSizeCount(group)} size(s)</span>
                         {getGroupPlannedQty(group) ? <span>{getGroupPlannedQty(group)} stock qty</span> : null}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center rounded-xl border border-white/10 bg-zinc-950/70 p-1" aria-label="ترتيب اللون">
+                      <div className="flex items-center rounded-[var(--radius-control)] border border-border bg-surface-raised p-1" aria-label="ترتيب اللون">
                         <button
                           type="button"
                           onClick={(event) => {
@@ -4378,7 +4382,7 @@ function ProductEdit() {
                             moveColorGroup(group.id, -1);
                           }}
                           disabled={groupIndex === 0}
-                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-text-muted transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-25"
                           aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأعلى`}
                           title="تحريك لأعلى"
                         >
@@ -4391,7 +4395,7 @@ function ProductEdit() {
                             moveColorGroup(group.id, 1);
                           }}
                           disabled={groupIndex === colorGroups.length - 1}
-                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-text-muted transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-25"
                           aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأسفل`}
                           title="تحريك لأسفل"
                         >
@@ -4405,7 +4409,7 @@ function ProductEdit() {
                           event.stopPropagation();
                           updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false);
                         }}
-                        className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-[12px] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
+                        className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-primary/40 bg-primary/15 text-primary" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
                         title={group.is_storefront_visible !== false ? "اللون ظاهر على الموقع" : "اللون مخفي من الموقع"}
                       >
                         {group.is_storefront_visible !== false ? <Eye size={15} /> : <EyeOff size={15} />}
@@ -4416,7 +4420,7 @@ function ProductEdit() {
                         aria-pressed={Boolean(group.generate_thermal_artwork)}
                         onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
                         disabled={!getPrimaryColorImage(group)}
-                        className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[12px] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}
+                        className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"}`}
                       >
                         <span>إنشاء Thermal لهذا اللون عند الحفظ</span>
                         <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
@@ -4427,21 +4431,21 @@ function ProductEdit() {
                           event.stopPropagation();
                           removeColorGroup(group.id);
                         }}
-                        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[14px] border border-white/10 bg-zinc-950 text-red-300"
+                        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-raised text-red-300"
                         aria-label={`Remove color group ${group.color || groupIndex + 1}`}
                       >
                         <Trash2 size={16} />
                       </button>
-                      {isExpanded ? <ChevronDown className="text-zinc-400" size={18} /> : <ChevronRight className="text-zinc-400" size={18} />}
+                      {isExpanded ? <ChevronDown className="text-text-muted" size={18} /> : <ChevronRight className="text-text-muted" size={18} />}
                     </div>
                   </div>
 
                   {isExpanded ? (
-                  <div className="border-t border-white/8 p-4">
+                  <div className="border-t border-border p-4">
                     <div className="grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)] xl:items-start">
                     <div className="space-y-2">
-                      <label className="relative flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[12px] border border-white/10 bg-zinc-950/70">
-                        <div className="absolute inset-0 flex items-center justify-center text-zinc-400">
+                      <label className="relative flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-raised">
+                        <div className="absolute inset-0 flex items-center justify-center text-text-muted">
                           <ImagePlus size={26} />
                         </div>
                         {(getPrimaryColorImage(group) || group.imagePreview || group.image_url) ? (
@@ -4465,7 +4469,7 @@ function ProductEdit() {
                           }}
                         />
                       </label>
-                      <label className="inline-flex h-9 w-20 cursor-pointer items-center justify-center gap-1.5 rounded-[12px] border border-white/10 bg-white/5 px-2 text-xs font-semibold text-white transition hover:bg-white/10">
+                      <label className="inline-flex h-9 w-20 cursor-pointer items-center justify-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 text-xs font-semibold text-text transition hover:bg-surface-hover">
                         <Upload size={14} />
                         Add
                         <input
@@ -4483,7 +4487,7 @@ function ProductEdit() {
                         type="button"
                         onClick={() => handleGenerateThermalImage({ colorGroup: group })}
                         disabled={thermalImageGenerating || !product?.id || !getPrimaryColorImage(group)}
-                        className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[12px] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                         {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
@@ -4494,15 +4498,15 @@ function ProductEdit() {
                           type="button"
                           onClick={() => handleRegenerateAiCover({ colorGroup: group, trigger: "manual" })}
                           disabled={aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` || !getPrimaryColorImage(group)}
-                          className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[12px] border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 text-xs font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                           {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? "Queueing AI Cover..." : "Regenerate AI Cover"}
                         </button>
                       ) : null}
                       <div className="flex w-full max-w-[520px] flex-col gap-2">
-                        <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
-                          <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">
+                        <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-2">
+                          <div className="flex h-20 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-surface">
                             {getPrimaryColorImage(group) ? (
                               <img
                                 src={resolveAssetUrl(getPrimaryColorImage(group))}
@@ -4510,12 +4514,12 @@ function ProductEdit() {
                                 className="h-full w-full object-contain"
                               />
                             ) : (
-                              <span className="text-[10px] font-semibold text-zinc-500">لا توجد صورة</span>
+                              <span className="text-[10px] font-semibold text-text-muted">لا توجد صورة</span>
                             )}
                           </div>
                         </div>
                         {getColorGroupThermalUrl(group) ? (
-                          <div className="rounded-[12px] border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-semibold text-emerald-100">
+                          <div className="rounded-[var(--radius-card)] border border-success/25 bg-success-subtle px-3 py-2 text-[11px] font-semibold text-success">
                             Thermal Artwork جاهز
                           </div>
                         ) : null}
@@ -4533,11 +4537,11 @@ function ProductEdit() {
                             onDelete={() => removeColorImage(group.id, image.id)}
                             actions={(
                               <>
-                                <GripVertical className="hidden h-3.5 w-3.5 text-zinc-300 sm:block" aria-hidden="true" />
+                                <GripVertical className="hidden h-3.5 w-3.5 text-text-muted sm:block" aria-hidden="true" />
                                 <button
                                   type="button"
                                   onClick={() => moveColorImage(group.id, image.id, "up")}
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-black/65 text-text shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
                                   disabled={imageIndex === 0}
                                   aria-label={t("products.images.moveUp", "Move image up")}
                                 >
@@ -4546,7 +4550,7 @@ function ProductEdit() {
                                 <button
                                   type="button"
                                   onClick={() => moveColorImage(group.id, image.id, "down")}
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-black/65 text-text shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
                                   disabled={imageIndex === normalizeColorImages(group.images).length - 1}
                                   aria-label={t("products.images.moveDown", "Move image down")}
                                 >
@@ -4557,7 +4561,7 @@ function ProductEdit() {
                           />
                         ))}
                         {normalizeColorImages(group.images).length === 0 ? (
-                          <div className="col-span-full rounded-[14px] border border-dashed border-white/10 bg-zinc-950/60 px-3 py-4 text-center text-[11px] font-semibold text-zinc-500">
+                          <div className="col-span-full rounded-[var(--radius-card)] border border-dashed border-border bg-surface-raised px-3 py-4 text-center text-[11px] font-semibold text-text-muted">
                             No images
                           </div>
                         ) : null}
@@ -4567,25 +4571,25 @@ function ProductEdit() {
                     <div className="min-w-0 space-y-3">
                         <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
                           <div>
-                            <label className="text-sm font-semibold text-zinc-300">{t("products.editor.colorName")}</label>
+                            <label className="text-sm font-semibold text-text-muted">{t("products.editor.colorName")}</label>
                               <input
                                 value={group.color}
                                 onChange={(e) => updateColorGroup(group.id, "color", e.target.value)}
                                 onBlur={(e) => updateColorGroup(group.id, "color", normalizeColorName(e.target.value))}
                                 list="m1-standard-color-names"
                                 placeholder={t("products.placeholders.colorExample")}
-                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
                               />
                               <datalist id="m1-standard-color-names">
                                 {STANDARD_COLOR_NAMES.map((name) => <option key={name} value={name} />)}
                               </datalist>
-                            <p className="mt-1 text-xs text-zinc-500">{t("products.editor.pickColorHelp")}</p>
+                            <p className="mt-1 text-xs text-text-muted">{t("products.editor.pickColorHelp")}</p>
                             {colorDetecting[group.id] ? (
                               <p className="mt-1 text-xs font-semibold text-primary">{t("products.editor.detectingColor")}</p>
                             ) : null}
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-zinc-300">{t("products.fields.articleCode", "Article Code")}</label>
+                            <label className="text-sm font-semibold text-text-muted">{t("products.fields.articleCode", "Article Code")}</label>
                             <ArticleCodeMultiInput
                               value={group.color_article_codes || []}
                               onChange={(codes) => {
@@ -4593,65 +4597,65 @@ function ProductEdit() {
                                 updateColorGroup(group.id, "color_article_code", codes[0] || "");
                               }}
                             />
-                            <p className="mt-1 text-xs text-zinc-500">أضف كل كود منفصلًا واضغط Enter. البحث بأي كود سيعرض هذا اللون مباشرة.</p>
+                            <p className="mt-1 text-xs text-text-muted">أضف كل كود منفصلًا واضغط Enter. البحث بأي كود سيعرض هذا اللون مباشرة.</p>
                           </div>
                           {mirrorEditionEnabled ? (
                             <div className="relative">
-                              <label className="text-sm font-semibold text-zinc-300">{t("products.editor.editionName")}</label>
+                              <label className="text-sm font-semibold text-text-muted">{t("products.editor.editionName")}</label>
                               <input
                                 value={group.edition_name || ""}
                                 onChange={(e) => updateColorGroup(group.id, "edition_name", e.target.value)}
                                 placeholder={t("products.editor.editionNamePlaceholder")}
-                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
                               />
                               {editionSuggestions[group.id]?.status === "loading" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-2xl shadow-black/40">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-text-muted shadow-[var(--shadow-overlay)]">
                                   Searching similar products...
                                 </div>
                               ) : null}
                               {editionSuggestions[group.id]?.status === "ready" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-violet-400/20 bg-zinc-950 p-3 shadow-2xl shadow-black/40">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[var(--radius-card)] border border-violet-400/20 bg-surface-raised p-3 shadow-[var(--shadow-overlay)]">
                                   {editionSuggestions[group.id].suggestion.source === "NO_TRUSTED_MATCH" ? (
-                                    <div className="text-sm font-black text-white">{t("products.editor.noTrustedMatch")}</div>
+                                    <div className="text-sm font-black text-text">{t("products.editor.noTrustedMatch")}</div>
                                   ) : (
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                       <div>
-                                        <div className="text-sm font-black text-white">{editionSuggestions[group.id].suggestion.edition_name}</div>
+                                        <div className="text-sm font-black text-text">{editionSuggestions[group.id].suggestion.edition_name}</div>
                                         <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">
                                           {editionSuggestions[group.id].suggestion.source} · {Math.round(Number(editionSuggestions[group.id].suggestion.confidence || 0) * 100)}%
                                         </div>
                                         {editionSuggestions[group.id].suggestion.source_title ? (
-                                          <div className="mt-1 line-clamp-2 text-xs text-zinc-400">{editionSuggestions[group.id].suggestion.source_title}</div>
+                                          <div className="mt-1 line-clamp-2 text-xs text-text-muted">{editionSuggestions[group.id].suggestion.source_title}</div>
                                         ) : null}
                                       </div>
                                       <button
                                         type="button"
                                         onClick={() => updateColorGroup(group.id, "edition_name", editionSuggestions[group.id].suggestion.edition_name)}
-                                        className="h-[var(--control-height-md)] rounded-[14px] bg-white px-3 text-xs font-black text-zinc-950"
+                                        className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-black text-text transition hover:bg-surface-hover"
                                       >
                                         Apply
                                       </button>
                                     </div>
                                   )}
                                   {editionSuggestions[group.id].suggestion.candidates?.length ? (
-                                    <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
+                                    <div className="mt-3 space-y-1.5 border-t border-border pt-3">
                                       {editionSuggestions[group.id].suggestion.candidates.slice(0, 5).map((candidate) => (
                                         <div
                                           key={`${candidate.edition_name}-${candidate.source}-${candidate.source_url || ""}`}
-                                          className="rounded-[12px] border border-white/8 bg-white/5 px-3 py-2"
+                                          className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2"
                                         >
                                           <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
-                                              <div className="text-xs font-black text-white">{candidate.edition_name}</div>
-                                              <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                                              <div className="text-xs font-black text-text">{candidate.edition_name}</div>
+                                              <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-text-muted">
                                                 {candidate.source} · {Math.round(Number(candidate.confidence || 0) * 100)}%
                                               </div>
-                                              {candidate.title ? <div className="mt-1 line-clamp-2 text-[11px] text-zinc-500">{candidate.title}</div> : null}
+                                              {candidate.title ? <div className="mt-1 line-clamp-2 text-[11px] text-text-muted">{candidate.title}</div> : null}
                                             </div>
                                             <button
                                               type="button"
                                               onClick={() => updateColorGroup(group.id, "edition_name", candidate.edition_name)}
-                                              className="h-[var(--control-height-sm)] shrink-0 rounded-[10px] bg-white px-2 text-[10px] font-black text-zinc-950"
+                                              className="h-[var(--control-height-sm)] shrink-0 rounded-[var(--radius-control)] border border-border bg-surface px-2 text-[10px] font-black text-text transition hover:bg-surface-hover"
                                             >
                                               Apply
                                             </button>
@@ -4663,12 +4667,12 @@ function ProductEdit() {
                                 </div>
                               ) : null}
                               {editionSuggestions[group.id]?.status === "error" ? (
-                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[14px] border border-red-400/20 bg-zinc-950 p-3 text-xs text-red-100 shadow-2xl shadow-black/40">
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-30 flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border border-red-400/20 bg-surface-raised p-3 text-xs text-red-100 shadow-[var(--shadow-overlay)]">
                                   <span>{editionSuggestions[group.id].error}</span>
                                   <button
                                     type="button"
                                     onClick={() => requestEditionSuggestion(group, { retry: true })}
-                                    className="h-[var(--control-height-md)] rounded-[14px] border border-white/10 bg-white/10 px-3 font-black text-white"
+                                    className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 font-black text-text"
                                   >
                                     Retry
                                   </button>
@@ -4678,8 +4682,8 @@ function ProductEdit() {
                           ) : null}
                           <div>
                             <div className="mb-2 flex items-center justify-between gap-2">
-                              <label className="text-sm font-semibold text-zinc-300">{t("products.fields.manufacturer", "Manufacturer")}</label>
-                              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
+                              <label className="text-sm font-semibold text-text-muted">{t("products.fields.manufacturer", "Manufacturer")}</label>
+                              <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                                 Color level
                               </span>
                             </div>
@@ -4692,15 +4696,15 @@ function ProductEdit() {
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-zinc-300">الجمهور لهذا اللون</label>
+                            <label className="text-sm font-semibold text-text-muted">الجمهور لهذا اللون</label>
                             <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                               {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].map((option) => (
-                                <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[12px] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-zinc-950 text-zinc-400 hover:text-white"}`}>
+                                <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border text-xs font-bold transition ${String(group.audience || "").split(",").includes(option.value) ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-raised text-text-muted hover:text-text"}`}>
                                   {option.label}
                                 </button>
                               ))}
                             </div>
-                              <p className="mt-1 text-[11px] text-zinc-500">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
+                              <p className="mt-1 text-[11px] text-text-muted">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
                             </div>
                         </div>
 
@@ -4714,7 +4718,7 @@ function ProductEdit() {
                               })
                             }
                             disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             {colorDetecting[group.id] ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                             AI Rename
@@ -4729,7 +4733,7 @@ function ProductEdit() {
                               })
                             }
                             disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
-                            className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             Pick color
                           </button>
@@ -4738,7 +4742,7 @@ function ProductEdit() {
                               type="button"
                               onClick={() => requestEditionSuggestion(group)}
                               disabled={editionSuggestions[group.id]?.status === "loading"}
-                              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[14px] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {editionSuggestions[group.id]?.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                               Suggest Edition
@@ -4750,7 +4754,7 @@ function ProductEdit() {
                               <button
                                 type="button"
                                 onClick={() => applyBulkSizes(group.id)}
-                                className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-emerald-500/20 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15"
+                                className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
                               >
                                 Apply bulk sizes
                               </button>
@@ -4758,7 +4762,7 @@ function ProductEdit() {
                             <button
                               type="button"
                               onClick={() => applyBulkArticleCode(group.id)}
-                              className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[14px] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                              className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
                             >
                               {t("products.editor.applyArticleThisColor", "Apply article to this color")}
                             </button>
@@ -4768,7 +4772,7 @@ function ProductEdit() {
                               <button
                                 type="button"
                                 onClick={() => addSizeRow(group.id)}
-                                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white"
+                                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text"
                               >
                                 <Plus size={16} />
                                 Add size
@@ -4779,7 +4783,7 @@ function ProductEdit() {
                                 <button
                                   type="button"
                                   onClick={() => setCrocsLibraryGroupId((current) => (current === group.id ? "" : group.id))}
-                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[14px] border border-amber-400/20 bg-amber-400/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15"
+                                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-400/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15"
                                 >
                                   <Plus size={16} />
                                   + إضافة مقاسات كروكس
@@ -4796,24 +4800,24 @@ function ProductEdit() {
                           </div>
                         </div>
 
-                        <div className="rounded-[14px] border border-white/8 bg-zinc-950/60 p-3">
+                        <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-3">
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
                                 {isFullVariationMode ? t("products.editor.sizeRows", "Size rows") : t("products.editor.fixedSizeRow", "Fixed size row")}
                               </p>
-                              <p className="mt-0.5 text-xs text-zinc-400">
+                              <p className="mt-0.5 text-xs text-text-muted">
                                 {isFullVariationMode
                                         ? t("products.editor.oneRowBecomesVariant", "One row becomes one variant.")
                                         : t("products.editor.oneRowPerColor", "One row per color becomes the color-only variant.")}
                               </p>
                             </div>
-                            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
+                            <div className="rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-semibold text-text-muted">
                               {isColorOnlyMode ? 1 : group.sizes.length} row(s)
                             </div>
                           </div>
 
-                          <div className={`hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}>
+                          <div className={`hidden rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}>
                             {!isColorOnlyMode ? <div>{t("products.fields.size", "Size")}</div> : null}
                             <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                             <div>SKU</div>
@@ -4826,21 +4830,21 @@ function ProductEdit() {
                             {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                               <div
                                 key={row.id}
-                                className={`grid gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
+                                className={`grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
                               >
                                 {!isColorOnlyMode ? <div>
-                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">
+                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">
                                     {t("products.fields.size", "Size")}
                                   </label>
                                   <input
                                     value={row.size}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
                                     placeholder="40"
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                   />
                                 </div> : null}
                                 <div>
-                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.editor.stockQty", "Stock Qty")}</label>
+                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">{t("products.editor.stockQty", "Stock Qty")}</label>
                                   <input
                                     type="number"
                                     min="0"
@@ -4848,43 +4852,43 @@ function ProductEdit() {
                                     value={row.stock ?? ""}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
                                     placeholder="0"
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                   />
                                   {row.variantId ? (
-                                    <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold leading-4 text-emerald-300">
+                                    <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold leading-4 text-success">
                                       <span>{t("products.editor.actualWarehouseStock", "Actual warehouse stock")}:</span>
                                       <span dir="ltr" className="font-black tabular-nums">
                                         {Number.isFinite(Number(row.available_stock)) ? Number(row.available_stock) : 0}
                                       </span>
                                     </p>
                                   ) : (
-                                    <p className="mt-1 text-[10px] leading-4 text-zinc-500">
+                                    <p className="mt-1 text-[10px] leading-4 text-text-muted">
                                       {t("products.editor.newSizeNoWarehouseStock", "New size — no warehouse stock yet.")}
                                     </p>
                                   )}
                                 </div>
                                 <div>
-                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">
+                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">
                                     SKU
                                   </label>
                                   <input
                                     value={row.sku}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "sku", e.target.value)}
                                     placeholder=""
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.selected.barcode", "Barcode")}</label>
+                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">{t("products.selected.barcode", "Barcode")}</label>
                                   <input
                                     value={row.barcode}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
                                     placeholder={t("products.editor.scanOrEnterBarcode", "Scan or enter barcode")}
-                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
+                                    className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.fields.articleCode", "Article Code")}</label>
+                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">{t("products.fields.articleCode", "Article Code")}</label>
                                   <ArticleCodeMultiInput
                                     compact
                                     value={normalizeArticleCodes(row.article_codes, row.article_code)}
@@ -4900,7 +4904,7 @@ function ProductEdit() {
                                     {row.variantId ? (
                                       <Link
                                         to={`/inventory/variant/${row.variantId}/history?productId=${id}`}
-                                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                                       >
                                         <Clock3 size={16} />
                                         History
@@ -4910,7 +4914,7 @@ function ProductEdit() {
                                       type="button"
                                       onClick={() => removeSizeRow(group.id, row.id)}
                                       disabled={isColorOnlyMode || (group.sizes.length === 1 && rowIndex === 0)}
-                                      className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center rounded-[12px] border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                      className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                       Remove
                                     </button>
@@ -4950,17 +4954,17 @@ function ColorPickModal({ target, onClose, onPick }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-      <div className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-zinc-950 p-4 shadow-2xl">
+      <div className="w-full max-w-2xl rounded-[var(--radius-card)] border border-border bg-surface-raised p-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-black text-white">{t("products.editor.pickColor", "Pick color")}</p>
-            <p className="mt-1 text-xs text-zinc-400">{t("products.editor.pickColorHelp", "Click the real shoe material color, not the sole or background.")}</p>
+            <p className="text-sm font-black text-text">{t("products.editor.pickColor", "Pick color")}</p>
+            <p className="mt-1 text-xs text-text-muted">{t("products.editor.pickColorHelp", "Click the real shoe material color, not the sole or background.")}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 px-3 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border px-3 py-2 text-sm font-semibold text-text">
             {t("common.close", "Close")}
           </button>
         </div>
-        <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-2xl bg-zinc-900">
+        <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-[var(--radius-card)] bg-surface">
           <img
             src={target.source}
             alt={target.alt || t("products.editor.pickColor", "Pick color")}
@@ -4982,12 +4986,12 @@ function ColorPickModal({ target, onClose, onPick }) {
 function Field({ label, value, onChange, type = "text" }) {
   return (
     <div>
-      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{label}</label>
+      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+        className="mt-2 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none placeholder:text-text-muted"
       />
     </div>
   );
@@ -4995,9 +4999,9 @@ function Field({ label, value, onChange, type = "text" }) {
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-lg font-black text-white">{value}</div>
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <div className="mt-1 text-lg font-black text-text">{value}</div>
     </div>
   );
 }
@@ -5008,7 +5012,7 @@ function AiCoverStatusBadge({ state = null }) {
 
   const tone =
     status === "COMPLETED"
-      ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+      ? "border-success/30 bg-success-subtle text-success"
       : status === "FAILED"
         ? "border-red-300/30 bg-red-400/10 text-red-100"
         : status === "PROCESSING"
@@ -5120,11 +5124,11 @@ function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = f
       : t("products.editor.updateProduct", "Update Product");
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-zinc-950/95 px-4 py-3 shadow-[0_-18px_60px_rgba(0,0,0,0.45)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[28px] md:border">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised px-4 py-3 shadow-[var(--shadow-overlay)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[var(--radius-card)] md:border">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.editor.productEditor", "Product Editor")}</p>
-          <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-amber-200" : "text-emerald-200"}`}>
+          <p className="text-xs font-semibold text-text-muted">{t("products.editor.productEditor", "Product Editor")}</p>
+          <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-warning" : "text-success"}`}>
             {hasUnsavedChanges
               ? t("products.editor.unsavedChanges", "Unsaved changes")
               : t("products.editor.allChangesSaved", "All changes saved")}
@@ -5134,7 +5138,7 @@ function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = f
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-500/20 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className={buttonClasses("primary", "h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] px-5 sm:w-auto")}
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           {saving ? t("common.saving", "Saving...") : label}
