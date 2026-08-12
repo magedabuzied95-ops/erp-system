@@ -15,7 +15,8 @@ Started from `origin/main` @ `3ca9c07`.
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 | 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
 | 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | `cfdbb72` | `cfdbb72` verified (see note) | build green |
-| 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | **REVERTED** in `8304aed` — see INCIDENT | build green |
+| 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | REVERTED in `8304aed` (automation-session failure, not a real outage) | build green |
+| 7b | Re-apply of cp7 after the incident was cleared | `pre-visual-convergence-cp7b-20260813` -> `21ba628` | `c950a77` | `c950a77` verified Light + Dark (5 routes) | build green |
 
 ## Method
 
@@ -583,6 +584,28 @@ pills still use `border-white/10 bg-white/[0.04] text-slate-300`. They produce
 Phase 2 is scoped to page-title presentation only, so they are recorded rather
 than converged.
 
+**Checkpoint 7b production verification (Production `c950a77`):**
+
+All five consumers of the shared header, both themes, Arabic RTL:
+
+| Route | Before | Light after | Dark after | Offenders | Overflow |
+|---|---|---|---|---|---|
+| `/marketing/analytics` | 44px | **22px/800** | **22px/800** | 0 | none |
+| `/marketing/social-calendar` | 37.6px | **22px/800** | **22px/800** | 0 | none |
+| `/marketing/social-media-publisher` | 37.6px | **22px/800** | **22px/800** | 0 | none |
+| `/marketing/settings` | — | **22px/800** | **22px/800** | 0 | none |
+| `/marketing/templates` | — | **22px/800** | **22px/800** | 0 | none |
+
+Title colour resolves to `--text` in both themes (`rgb(27,25,21)` Light,
+`rgb(243,241,236)` Dark). Line-height 29.7px. **Hierarchy preserved:** title
+22px sits above the 16px section subtitle. No horizontal overflow on any route.
+
+**Frozen references re-checked after this shared-component change:**
+`/dashboard` 0 offenders, title 22px — unchanged. `/products` 0 offenders, title
+30px — unchanged. Neither consumes `MarketingStudioHeader`, and neither moved.
+
+Typography debt from the ruling is now **cleared**: 0 routes remain oversized.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
@@ -635,7 +658,24 @@ reference. This is a systemic decision affecting ~90 call sites and is left for
 an explicit ruling rather than an autonomous change. Observed spread:
 22px on 7 settings routes, 30px on accounting, marketing and 3 settings routes.
 
-## INCIDENT — app stopped mounting during checkpoint 7 (UNRESOLVED)
+### INCIDENT CLEARED — automation session failure, not a Production outage
+
+The user opened the ERP in their own browser and confirmed it **renders and
+works normally**. The empty `#root` was confined to this automated browser
+session. Nothing in the SPA bootstrap, `runtime-config.json`, auth or backend was
+at fault, and none of it was modified.
+
+Recovery procedure that worked: close the stale tab group, create a fresh tab,
+reload. `/dashboard` then mounted normally (`#root` 2 children, shell present,
+2110 chars) and the auditor re-validated against the frozen `/products`
+reference at **0 offenders**.
+
+**Standing rule for future sessions:** if the automation browser shows an empty
+`#root` while Production is healthy, treat it as an **automation session
+failure** — re-establish the browser session. Do **not** roll back healthy
+Production code, as was mistakenly done in `8304aed`.
+
+## INCIDENT (RESOLVED) — app stopped mounting during checkpoint 7
 
 **Status: cp7 source change has been REVERTED on main (`8304aed`). The app was
 still not mounting after the revert, so cp7 was not the cause.**

@@ -6216,25 +6216,21 @@ export default function AiInbox() {
     setEditingAiDraft(false);
     setAiSuggestionEditText("");
   }, [activeAiSuggestionKey]);
+  // Phase 13 fix — validation/confidence panels share the ONE authoritative current-suggestion identity as the
+  // AI Suggested Reply card (aiSuggestionVisible). When there is NO current actionable draft (null / sent / cleared
+  // / stale / superseded / dismissed), the panels derive from {} → hidden. They NEVER fall back to stale frontend
+  // state (aiReply.*) or a prior conversation's values — so an old suggestion's confidence can't linger.
   const activeAiReplyValidation = useMemo(
     () => normalizeValidationSummary(
-      aiReply.validation ||
-      selectedConversation?.last_ai_reply_validation ||
-      activeAiReplyDraft?.validation ||
-      activeAiReplyDraft?.metadata?.validation ||
-      {}
+      aiSuggestionVisible ? (activeAiReplyDraft?.validation || activeAiReplyDraft?.metadata?.validation || {}) : {}
     ),
-    [activeAiReplyDraft?.metadata?.validation, activeAiReplyDraft?.validation, aiReply.validation, selectedConversation?.last_ai_reply_validation]
+    [aiSuggestionVisible, activeAiReplyDraft?.validation, activeAiReplyDraft?.metadata?.validation]
   );
   const activeAiReplyConfidence = useMemo(
     () => normalizeConfidenceEngineSummary(
-      aiReply.confidence_engine ||
-      selectedConversation?.last_ai_reply_confidence_engine ||
-      activeAiReplyDraft?.confidence_engine ||
-      activeAiReplyDraft?.metadata?.confidence_engine ||
-      {}
+      aiSuggestionVisible ? (activeAiReplyDraft?.confidence_engine || activeAiReplyDraft?.metadata?.confidence_engine || {}) : {}
     ),
-    [activeAiReplyDraft?.confidence_engine, activeAiReplyDraft?.metadata?.confidence_engine, aiReply.confidence_engine, selectedConversation?.last_ai_reply_confidence_engine]
+    [aiSuggestionVisible, activeAiReplyDraft?.confidence_engine, activeAiReplyDraft?.metadata?.confidence_engine]
   );
   const activeAiReplyShadow = useMemo(
     () => activeAiReplyDraft?.metadata?.auto_reply_shadow || selectedConversation?.last_ai_reply_draft?.metadata?.auto_reply_shadow || null,
