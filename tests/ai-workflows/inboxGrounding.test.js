@@ -109,6 +109,101 @@ test("gate E (missing product) → clarify which product; gate H (restock) → s
   assert.equal(h.requestedIntent, "RESTOCK_REQUEST");
 });
 
+// ---- Phase 10.8 — Product / Brand / Model grounding (reuse the alias engine, NOT a hardcoded shoe list) ----
+
+test("10.8 buildBrandModelTerms: جوردن فور expands (via alias engine) to jordan/jordan 4", () => {
+  const terms = G.buildBrandModelTerms("جوردن فور");
+  assert.ok(terms.includes("jordan"), "expected 'jordan'");
+  assert.ok(terms.includes("jordan 4"), "expected 'jordan 4'");
+});
+
+test("10.8 rankBrandModelMatches: explicit model (Jordan 4) outranks the bare-brand row", () => {
+  const rows = [
+    { id: 208, name: "Jordan 4", product_type: "sneakers" },
+    { id: 3, name: "Nike Air Jordan 1 Low Sneakers", product_type: "sneakers" },
+  ];
+  const ranked = G.rankBrandModelMatches("جوردن فور", rows);
+  assert.equal(ranked.length, 1);
+  assert.equal(ranked[0].id, 208); // "jordan 4" (2-word phrase) beats "jordan" (single token)
+  // Bare brand "جوردن" is ambiguous → BOTH Jordan rows survive (present/clarify, never silently pick one).
+  const brandOnly = G.rankBrandModelMatches("جوردن", rows);
+  assert.equal(brandOnly.length, 2);
+});
+
+test("10.8 extractRequestedEntities: brand/model term isolated from greeting/availability/size", () => {
+  const e = G.extractRequestedEntities("السلام عليكم عندكم جوردن فور مقاس ٤٥؟");
+  assert.equal(e.productType, ""); // no CATEGORY term — this is the Phase 10.5 miss
+  assert.equal(e.size, "45");
+  assert.equal(e.brandModelTerm, "جوردن فور");
+  // Latin + a MODEL NUMBER must be preserved (size dropped, model "4" kept).
+  const l = G.extractRequestedEntities("عندكم Jordan 4 مقاس 45؟");
+  assert.equal(l.size, "45");
+  assert.equal(l.brandModelTerm, "jordan 4");
+});
+
+test("10.8 END-TO-END: EXACT live Jordan message → Jordan 4 resolved → size 45 in stock → available", async () => {
+  const deps = {
+    resolveByBrandModel: async () => ([{ id: 208, name: "Jordan 4", product_type: "sneakers" }]),
+    inventoryFacts: async () => ({ variant_stock: [
+      { variant_id: 4101, size: "41", color: "Black", stock: 2 },
+      { variant_id: 4105, size: "45", color: "Black", stock: 1 },
+    ] }),
+  };
+  const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "السلام عليكم\nعندكم جوردن فور مقاس ٤٥؟", deps });
+  assert.equal(r.changed, true);
+  assert.equal(r.requestedIntent, "PRODUCT_AVAILABILITY"); // NOT clarify_product, NOT GREETING
+  assert.equal(r.action, "available");
+  assert.match(r.answer, /متوفر/);
+  assert.equal(r.grounding.requested.brandModel, true);
+  assert.equal(r.grounding.resolved.productId, 208);
+  assert.equal(String(r.grounding.resolved.displaySize), "45");
+  assert.equal(r.suggested_products[0].id, 208); // grounded to the REAL product
+  assert.equal(r.suggested_products[0].grounded, true);
+});
+
+test("10.8 Latin 'Jordan 4 مقاس 45' → available (same grounding path)", async () => {
+  const deps = {
+    resolveByBrandModel: async () => ([{ id: 208, name: "Jordan 4", product_type: "sneakers" }]),
+    inventoryFacts: async () => ({ variant_stock: [{ variant_id: 4105, size: "45", color: "Black", stock: 1 }] }),
+  };
+  const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "عندكم Jordan 4 مقاس 45؟", deps });
+  assert.equal(r.action, "available");
+  assert.equal(r.grounding.resolved.productId, 208);
+});
+
+test("10.8 bare brand 'عندكم جوردن؟' → multiple compatible options (present, never a false availability claim)", async () => {
+  const deps = {
+    resolveByBrandModel: async () => ([
+      { id: 208, name: "Jordan 4", product_type: "sneakers" },
+      { id: 3, name: "Nike Air Jordan 1 Low Sneakers", product_type: "sneakers" },
+    ]),
+    inventoryFacts: async () => ({ variant_stock: [] }),
+  };
+  const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "عندكم جوردن؟", deps });
+  assert.equal(r.changed, true);
+  assert.equal(r.action, "soft_match"); // no size → present compatible options, ask
+  assert.equal(r.suggested_products.length, 2);
+  for (const c of r.suggested_products) assert.equal(c.product_type, "sneakers");
+  assert.doesNotMatch(r.answer, /^أيوه/); // never a positive availability claim without an exact variant
+});
+
+test("10.8 model + size 'نايك Air Max مقاس 44' → resolved model, exact variant → available", async () => {
+  const deps = {
+    resolveByBrandModel: async () => ([{ id: 512, name: "Nike Air Max 90", product_type: "sneakers" }]),
+    inventoryFacts: async () => ({ variant_stock: [{ variant_id: 900, size: "44", color: "Black", stock: 3 }] }),
+  };
+  const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "عندكم نايك Air Max مقاس 44؟", deps });
+  assert.equal(r.action, "available");
+  assert.equal(r.grounding.resolved.productId, 512);
+});
+
+test("10.8 UNKNOWN brand/model resolves to NOTHING → clarify (no hallucinated product)", async () => {
+  const deps = { resolveByBrandModel: async () => ([]), inventoryFacts: async () => ({}) };
+  const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "عندكم سوبر ستار الفلاني مقاس 44؟", deps });
+  assert.equal(r.action, "clarify_product"); // falls through — never invents a product
+  assert.equal(r.suggested_products.length, 0);
+});
+
 test("SAFETY: gate never throws, never sends, never writes stock/orders/restock intents", async () => {
   const bad = await G.applyInboxGroundingGate({ tenantId: 1, message: LIVE, reply: {}, deps: { queryProducts: async () => { throw new Error("boom"); } } });
   assert.equal(bad.changed, false); // failure-isolated
