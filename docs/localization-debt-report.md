@@ -12,15 +12,15 @@ of scope. The scanner is conservative and can still contain false positives.
 - Source files scanned: 611
 - Files with debt: 147
 - Hardcoded Arabic UI strings: 1704
-- Hardcoded English UI strings: 1300
-- Total hardcoded UI strings: 3004
+- Hardcoded English UI strings: 1272
+- Total hardcoded UI strings: 2976
 - Mixed-language files (both scripts hardcoded): 39
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 77 | 1148 | 903 | 2051 | 25 |
+| main-erp | 77 | 1148 | 875 | 2023 | 25 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -42,7 +42,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 44 | 8 | 52 |
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 39 | 5 | 44 |
-| src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
@@ -56,6 +55,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/products/pages/ProductPrintList.jsx | main-erp | 15 | 2 | 17 |
 | src/modules/products/pages/ProductEdit.jsx | main-erp | 3 | 13 | 16 |
 | src/modules/website/pages/WebsiteSettings.jsx | main-erp | 2 | 13 | 15 |
+| src/modules/reports/pages/Reports.jsx | main-erp | 9 | 3 | 12 |
 | src/modules/products/pages/BarcodeLabels.jsx | main-erp | 4 | 7 | 11 |
 | src/modules/products/pages/CreateProduct.jsx | main-erp | 7 | 4 | 11 |
 | src/modules/sales/pages/Customers.jsx | main-erp | 7 | 3 | 10 |
@@ -818,49 +818,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 4425 [attribute/ar] ابحث في الرسائل
 - 4459 [jsx-text/ar] إعدادات الملف الشخصي
 - ... 4 more
-
-### src/modules/reports/pages/Reports.jsx (main-erp — ar:9 en:31)
-
-- 56 [object-key/en] AI Insights
-- 57 [object-key/en] Sales
-- 58 [object-key/en] Employees
-- 59 [object-key/en] Inventory
-- 60 [object-key/en] Customers & Loyalty
-- 61 [object-key/en] Financial
-- 291 [dialog/en] Preset name
-- 296 [notification/en] Report preset saved
-- 351 [jsx-text/en] Analytics & Reports
-- 353 [jsx-text/en] Analytics & Reports
-- 370 [inline-ternary/ar] isArabic ? "التحليلات والتقارير" : "Analytics & Reports"
-- 372 [inline-ternary/ar] isArabic ? "مركز التقارير المؤسسية" : "Enterprise Reports Center"
-- 374 [inline-ternary/ar] isArabic ? "عرض مركزي لأداء المبيعات والطلبات والمخزون والموظفين والولاء والحسابات والفروع والمخازن." : "Centralized per
-- 378 [attribute/en] Refresh
-- 379 [attribute/en] Save preset
-- 381 [attribute/en] Excel
-- 383 [attribute/en] Print
-- 419 [inline-ternary/ar] isArabic ? "المبيعات اليومية" : "Daily Sales"
-- 422 [inline-ternary/ar] isArabic ? "الإيراد والربح الشهري" : "Monthly Revenue / Profit"
-- 425 [inline-ternary/ar] isArabic ? "الطلبات حسب الساعة" : "Orders by Hour"
-- 428 [inline-ternary/ar] isArabic ? "طرق الدفع" : "Payment Methods"
-- 431 [inline-ternary/ar] isArabic ? "المبيعات حسب الفرع" : "Sales by Branch"
-- 434 [inline-ternary/ar] isArabic ? "اتجاه الحضور" : "Attendance Trend"
-- 457 [attribute/en] Search report rows
-- 504 [attribute/en] Range
-- 505 [attribute/en] Start
-- 506 [attribute/en] End
-- 507 [attribute/en] Warehouse ID
-- 508 [attribute/en] Employee ID
-- 509 [attribute/en] Product ID
-- 510 [attribute/en] Category ID
-- 511 [attribute/en] Payment Method
-- 512 [attribute/en] Customer ID
-- 513 [attribute/en] Shift ID
-- 514 [attribute/en] Salesperson ID
-- 568 [jsx-text/en] Business Intelligence & Smart Recommendations
-- 599 [attribute/en] Smart Recommendations
-- 610 [attribute/en] Restock Predictions
-- 623 [attribute/en] People & Customers
-- 781 [jsx-text/en] No report rows match the current filters.
 
 ### src/modules/aiSupport/components/ProductCardPicker.jsx (shared — ar:28 en:10)
 
@@ -1815,6 +1772,21 @@ of scope. The scanner is conservative and can still contain false positives.
 - 164 [jsx-text/ar] استبدال النقاط
 - 165 [jsx-text/ar] حوّل النقاط إلى قيمة عند إتمام شراء العميل.
 - 168 [jsx-text/ar] النقاط المطلوب استبدالها
+
+### src/modules/reports/pages/Reports.jsx (main-erp — ar:9 en:3)
+
+- 358 [jsx-text/en] Analytics & Reports
+- 360 [jsx-text/en] Analytics & Reports
+- 377 [inline-ternary/ar] isArabic ? "التحليلات والتقارير" : "Analytics & Reports"
+- 379 [inline-ternary/ar] isArabic ? "مركز التقارير المؤسسية" : "Enterprise Reports Center"
+- 381 [inline-ternary/ar] isArabic ? "عرض مركزي لأداء المبيعات والطلبات والمخزون والموظفين والولاء والحسابات والفروع والمخازن." : "Centralized per
+- 388 [attribute/en] Excel
+- 426 [inline-ternary/ar] isArabic ? "المبيعات اليومية" : "Daily Sales"
+- 429 [inline-ternary/ar] isArabic ? "الإيراد والربح الشهري" : "Monthly Revenue / Profit"
+- 432 [inline-ternary/ar] isArabic ? "الطلبات حسب الساعة" : "Orders by Hour"
+- 435 [inline-ternary/ar] isArabic ? "طرق الدفع" : "Payment Methods"
+- 438 [inline-ternary/ar] isArabic ? "المبيعات حسب الفرع" : "Sales by Branch"
+- 441 [inline-ternary/ar] isArabic ? "اتجاه الحضور" : "Attendance Trend"
 
 ### src/modules/warehouse/pages/WarehouseLivePicks.jsx (main-erp — ar:12 en:0)
 

@@ -31,8 +31,14 @@ import {
  * A file is "already bilingual" when it carries parallel copy for both locales.
  * Migrating it changes no rendered text, so it is architecture debt, not a bug.
  */
+/*
+ * `.startsWith("ar")` is the SAME language test as `language === "ar"`, written
+ * for a full BCP-47 tag ("ar-EG"). A line that branches on it and supplies both
+ * halves is bilingual by construction - e.g. the reports number suffix
+ * `startsWith("ar") ? " ألف" : "K"`. The trailing `?` keeps it to ternaries.
+ */
 const BILINGUAL_MARKERS =
-  /(^\s*en:\s*\{|^\s*ar:\s*\{|labelEn:|labelAr:|isArabic\s*\?|isAr\s*\?|isRtl\s*\?|language\s*===\s*"ar"|lang\s*===\s*"ar"|locale\s*===\s*"ar")/gm;
+  /(^\s*en:\s*\{|^\s*ar:\s*\{|labelEn:|labelAr:|isArabic\s*\?|isAr\s*\?|isRtl\s*\?|language\s*===\s*"ar"|lang\s*===\s*"ar"|locale\s*===\s*"ar"|\.startsWith\("ar"\)\s*\?)/gm;
 
 /** Preview/prototype screens that are not reachable production routes. */
 const PROTOTYPE_FILES = [

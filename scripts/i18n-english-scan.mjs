@@ -27,6 +27,8 @@ const TECHNICAL = new Set([
   "egp", "usd", "sar", "aed", "eur", "gbp", "kpi", "roi", "aov", "ltv", "cogs", "crm", "hr", "it", "ui", "ux", "cta",
   "seo", "slug", "uuid", "jwt", "http", "https", "ip", "db", "sql", "ms", "kb", "mb", "gb", "px", "rgb", "hex",
   "ai", "gpt", "llm", "ocr", "gps", "pwa", "swr", "dom", "css", "js", "ttf", "woff", "n/a", "ok", "id:", "vapid",
+  // spreadsheet/document formats, same class as pdf/csv/xlsx above
+  "excel",
 ]);
 
 const BRANDS = new Set([
@@ -375,8 +377,28 @@ export const devGatedRanges = (text) => {
 export const printDocumentRanges = (text) => {
   const lines = text.split("\n");
   const ranges = [];
+  /*
+   * A generated print document is print/export copy, not app chrome, wherever
+   * it is built. The original rule only saw `document.write(\``; Reports builds
+   * the same document into a variable first (`const html = \`` ... `</html>\`;`)
+   * and hands it to a print window. Requiring `<html` inside the opening lines
+   * keeps this to real documents rather than any template literal.
+   */
+  const opensPrintDocument = (i) => {
+    if (/document\s*\.\s*write\s*\(\s*`/.test(lines[i])) return true;
+    if (!/^\s*(?:const|let|var)\s+\w+\s*=\s*`\s*$/.test(lines[i])) return false;
+    return lines.slice(i + 1, i + 3).some((l) => /<html\b/i.test(l));
+  };
   for (let i = 0; i < lines.length; i += 1) {
-    if (!/document\s*\.\s*write\s*\(\s*`/.test(lines[i])) continue;
+    if (!opensPrintDocument(i)) continue;
+    if (!/document\s*\.\s*write\s*\(\s*`/.test(lines[i])) {
+      let end = lines.length - 1;
+      for (let j = i + 1; j < lines.length; j += 1) {
+        if (/`\s*;\s*$/.test(lines[j])) { end = j; break; }
+      }
+      ranges.push([i + 1, end + 1]);
+      continue;
+    }
     // The close must be a line that IS the terminator (`);`). Matching a bare
     // backtick-paren anywhere would stop at the first NESTED template, e.g.
     // `${rows.map(([k, v]) => `<div>...</div>`).join("")}`.
@@ -545,7 +567,16 @@ export function scanEnglish() {
     // Reclassify per HIT before the file-level bucketing below: a file can hold
     // a working bilingual table, a dev-only panel AND genuine broken chrome.
     const text = fs.readFileSync(file, "utf8");
+    /*
+     * A single-LINE language ternary is bilingual by construction and the
+     * range-based detectors above only see the `? {` JSX shape. This catches
+     * the plain-string form, e.g. the reports chart's
+     * `startsWith("ar") ? "ar-EG" : "en-GB"`. It requires the language test AND
+     * a ternary on the hit's own line, so an ordinary literal is still reported.
+     */
+    const LANGUAGE_TERNARY = /(?:\.startsWith\("ar"\)|language\s*===\s*"ar"|lang\s*===\s*"ar"|locale\s*===\s*"ar"|isArabic|isRtl)\s*\?/;
     const bilingualRanges = [...bilingualHalfRanges(text), ...bilingualTernaryRanges(text)];
+    const isLanguageTernary = (hit) => LANGUAGE_TERNARY.test(sourceLines[hit.line - 1] || "");
     const devRanges = devGatedRanges(text);
     const printRanges = printDocumentRanges(text);
     /*
@@ -561,6 +592,15 @@ export function scanEnglish() {
     /** A catalogue hit is content only when the hit's OWN line is a content field. */
     const isCatalogueContent = (hit) =>
       inRanges(hit.line, catalogueRanges) && CONTENT_FIELD.test(sourceLines[hit.line - 1] || "");
+    // language ternaries are bilingual regardless of the range detectors
+    {
+      const ternaryHits = hits.filter(isLanguageTernary);
+      if (ternaryHits.length) {
+        buckets.bilingual.push({ file: relative, total: ternaryHits.length, hits: ternaryHits });
+        hits = hits.filter((hit) => !isLanguageTernary(hit));
+        if (!hits.length) continue;
+      }
+    }
     if (bilingualRanges.length || devRanges.length || printRanges.length || seedRanges.length || catalogueRanges.length) {
       const take = (ranges, exclude) =>
         hits.filter((hit) => inRanges(hit.line, ranges) && !exclude.some((r) => inRanges(hit.line, r)));
