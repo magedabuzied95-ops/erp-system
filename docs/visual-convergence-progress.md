@@ -16,7 +16,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
 | 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | `cfdbb72` | `cfdbb72` verified (see note) | build green |
 | 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | REVERTED in `8304aed` (automation-session failure, not a real outage) | build green |
-| 7b | Re-apply of cp7 after the incident was cleared | `pre-visual-convergence-cp7b-20260813` -> `21ba628` | see below | see below | build green |
+| 7b | Re-apply of cp7 after the incident was cleared | `pre-visual-convergence-cp7b-20260813` -> `21ba628` | `c950a77` | `c950a77` verified Light + Dark (5 routes) | build green |
 
 ## Method
 
@@ -583,6 +583,28 @@ pills still use `border-white/10 bg-white/[0.04] text-slate-300`. They produce
 **no measured surface offender** (too small for the 9000px2 / 60px gate), and
 Phase 2 is scoped to page-title presentation only, so they are recorded rather
 than converged.
+
+**Checkpoint 7b production verification (Production `c950a77`):**
+
+All five consumers of the shared header, both themes, Arabic RTL:
+
+| Route | Before | Light after | Dark after | Offenders | Overflow |
+|---|---|---|---|---|---|
+| `/marketing/analytics` | 44px | **22px/800** | **22px/800** | 0 | none |
+| `/marketing/social-calendar` | 37.6px | **22px/800** | **22px/800** | 0 | none |
+| `/marketing/social-media-publisher` | 37.6px | **22px/800** | **22px/800** | 0 | none |
+| `/marketing/settings` | — | **22px/800** | **22px/800** | 0 | none |
+| `/marketing/templates` | — | **22px/800** | **22px/800** | 0 | none |
+
+Title colour resolves to `--text` in both themes (`rgb(27,25,21)` Light,
+`rgb(243,241,236)` Dark). Line-height 29.7px. **Hierarchy preserved:** title
+22px sits above the 16px section subtitle. No horizontal overflow on any route.
+
+**Frozen references re-checked after this shared-component change:**
+`/dashboard` 0 offenders, title 22px — unchanged. `/products` 0 offenders, title
+30px — unchanged. Neither consumes `MarketingStudioHeader`, and neither moved.
+
+Typography debt from the ruling is now **cleared**: 0 routes remain oversized.
 
 ## Typography ruling — page-title scale (DECIDED)
 
