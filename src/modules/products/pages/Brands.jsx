@@ -14,6 +14,7 @@ import {
   uploadProductImage,
 } from "../services/productsApi";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { keyboardLayoutIncludes } from "../../../../shared/keyboardLayoutSearch";
 
 const emptyForm = {
   name: "",
@@ -73,14 +74,10 @@ function Brands() {
   }, []);
 
   const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = search.trim();
     if (!query) return items;
     return items.filter((item) =>
-      [item.name, item.status, item.id]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(query)
+      keyboardLayoutIncludes([item.name, item.status, item.id].filter(Boolean).join(" "), query)
     );
   }, [items, search]);
 

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useProductClassifications } from "../hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../lib/productClassifications";
 import { isSchoolBagType, SCHOOL_BAG_SIZE_OPTIONS } from "../lib/schoolBagSizes";
+import { keyboardLayoutIncludes } from "../../../../shared/keyboardLayoutSearch";
 
 const PRODUCT_AUDIENCE_OPTIONS = [
   { value: "men", label: "رجال" },
@@ -53,9 +54,9 @@ function ProductForm({
   const [brandQuery, setBrandQuery] = useState(() => brand || "");
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const filteredBrands = useMemo(() => {
-    const query = String(brandQuery || "").trim().toLowerCase();
+    const query = String(brandQuery || "").trim();
     if (!query) return brands;
-    return brands.filter((item) => String(item.name || "").toLowerCase().includes(query));
+    return brands.filter((item) => keyboardLayoutIncludes(item.name, query));
   }, [brands, brandQuery]);
   const selectedAudiences = useMemo(() => normalizeAudiences(audiences, gender), [audiences, gender]);
   const classificationOptions = useMemo(
