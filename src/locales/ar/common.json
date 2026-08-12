@@ -654,7 +654,10 @@
         "empty": {
           "noAdvances": "لا توجد سلف مسجلة."
         }
-      }
+      },
+      "workspaceUnavailable": "مساحة العمل غير متاحة.",
+      "payrollWorkspaceFailed": "تعذر تحميل مساحة الرواتب. يرجى تحديث الصفحة.",
+      "staffTasksWorkspaceFailed": "تعذر تحميل مهام الموظفين. يرجى تحديث الصفحة."
     },
     "attendanceCenterPage": {
       "eyebrow": "مركز الحضور",

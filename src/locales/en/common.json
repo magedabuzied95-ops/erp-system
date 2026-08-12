@@ -654,7 +654,10 @@
         "empty": {
           "noAdvances": "No advances found."
         }
-      }
+      },
+      "workspaceUnavailable": "This workspace is unavailable.",
+      "payrollWorkspaceFailed": "Could not load the payroll workspace. Please refresh the page.",
+      "staffTasksWorkspaceFailed": "Could not load employee tasks. Please refresh the page."
     },
     "attendanceCenterPage": {
       "eyebrow": "Attendance Center",

@@ -796,6 +796,17 @@
   "expenses": {
     "noEmployeeFound": "لا يوجد موظف",
     "confirmAction": "سيؤدي هذا إلى {{action}} المصروف رقم #{{id}}.",
-    "confirmActionTitle": "تأكيد الإجراء"
+    "confirmActionTitle": "تأكيد الإجراء",
+    "toastTitleAmountRequired": "مطلوب عنوان المصروف والمبلغ",
+    "toastActionDone": "تم تنفيذ الإجراء",
+    "toastCategoryNameRequired": "اسم الفئة مطلوب",
+    "toastCategoryCreated": "تم إنشاء الفئة",
+    "toastAdvanceFieldsRequired": "الموظف والمبلغ مطلوبان",
+    "toastAdvanceCreated": "تم إنشاء سلفة الموظف",
+    "toastRecurringFieldsRequired": "عنوان المصروف المتكرر والمبلغ مطلوبان",
+    "toastRecurringCreated": "تم إنشاء المصروف المتكرر",
+    "trendTitle": "الاتجاه الشهري للمصروفات",
+    "trendEmpty": "لا توجد بيانات للاتجاه",
+    "confirm": "تأكيد"
   }
 }

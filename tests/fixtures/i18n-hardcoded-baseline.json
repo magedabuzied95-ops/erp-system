@@ -1,9 +1,9 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1551,
+    "arabic": 1496,
     "english": 1147,
-    "total": 2698,
+    "total": 2643,
     "mixedFiles": 38
   },
   "files": {
@@ -88,14 +88,14 @@
       "total": 13
     },
     "src/modules/accounting/pages/Expenses.jsx": {
-      "arabic": 22,
+      "arabic": 6,
       "english": 2,
-      "total": 24
+      "total": 8
     },
     "src/modules/accounting/pages/FinancialReports.jsx": {
-      "arabic": 140,
+      "arabic": 139,
       "english": 0,
-      "total": 140
+      "total": 139
     },
     "src/modules/aiStudio/components/editor/ExecutionDrawer.jsx": {
       "arabic": 0,
@@ -303,14 +303,14 @@
       "total": 22
     },
     "src/modules/employees/pages/EmployeeHub.jsx": {
-      "arabic": 7,
+      "arabic": 4,
       "english": 0,
-      "total": 7
+      "total": 4
     },
     "src/modules/employees/pages/EmployeePayrollPortal.jsx": {
-      "arabic": 39,
+      "arabic": 4,
       "english": 5,
-      "total": 44
+      "total": 9
     },
     "src/modules/employees/pages/EmployeePortalProducts.jsx": {
       "arabic": 0,
