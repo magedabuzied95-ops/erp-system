@@ -105,17 +105,17 @@ function LoyaltyRules() {
   };
 
   return (
-    <div className="space-y-6 text-white">
-      <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-6">
+    <div className="space-y-6 text-[var(--text)]">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6">
         <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Loyalty Rules</p>
         <h1 className="m1-page-title mt-2">Reward policy and tier management</h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-400">
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
           Control points earning, redemption value, and tier thresholds from a single rules screen.
         </p>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
             <h2 className="m1-section-title">Existing rules</h2>
@@ -129,19 +129,19 @@ function LoyaltyRules() {
                   setSelectedId(rule.id);
                   setForm(rule);
                 }}
-                className={`w-full rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${ selectedId === rule.id ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/[0.03] hover:border-primary/20" }`}
+                className={`w-full rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${ selectedId === rule.id ? "border-primary/40 bg-primary/10" : "border-[var(--border)] bg-[var(--surface)] hover:border-primary/20" }`}
               >
-                <p className="font-semibold text-white">{rule.name}</p>
-                <p className="mt-1 text-xs text-zinc-500">
+                <p className="font-semibold text-[var(--text)]">{rule.name}</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {Number(rule.points_per_currency_amount || 0)} points / currency unit
                 </p>
               </button>
             ))}
-            {!loading && rules.length === 0 ? <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-zinc-400">No rules found.</div> : null}
+            {!loading && rules.length === 0 ? <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">No rules found.</div> : null}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
             <h2 className="m1-section-title">Rule editor</h2>
@@ -158,27 +158,27 @@ function LoyaltyRules() {
               ["gold_threshold", "Gold threshold", "number"],
               ["platinum_threshold", "Platinum threshold", "number"],
             ].map(([field, label, type]) => (
-              <label key={field} className="space-y-2 text-sm text-zinc-300">
-                <span className="block text-xs uppercase tracking-[0.2em] text-zinc-500">{label}</span>
+              <label key={field} className="space-y-2 text-sm text-[var(--muted)]">
+                <span className="block text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</span>
                 <input
                   type={type}
                   value={form[field] ?? ""}
                   onChange={(e) => handleChange(field, type === "number" ? e.target.value : e.target.value)}
-                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-primary/40"
+                  className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--text)] outline-none ring-0 focus:border-primary/40"
                 />
               </label>
             ))}
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
             <div>
-              <p className="font-semibold text-white">Active</p>
-              <p className="text-xs text-zinc-500">Inactive rules do not apply to new orders</p>
+              <p className="font-semibold text-[var(--text)]">Active</p>
+              <p className="text-xs text-[var(--muted)]">Inactive rules do not apply to new orders</p>
             </div>
             <button
               type="button"
               onClick={() => handleChange("is_active", !form.is_active)}
-              className={`rounded-full px-4 py-2 text-sm font-bold ${form.is_active ? "bg-emerald-500/15 text-emerald-300" : "bg-zinc-800 text-zinc-300"}`}
+              className={`rounded-full px-4 py-2 text-sm font-bold ${form.is_active ? "bg-emerald-500/15 text-emerald-300" : "bg-[var(--card)] text-[var(--muted)]"}`}
             >
               {form.is_active ? "Enabled" : "Disabled"}
             </button>

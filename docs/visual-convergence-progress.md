@@ -14,6 +14,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 3b | Residual dark gradient hero on `/marketing/settings` | -> `2fa8eb3` | `0278020` | `0278020` verified Light + Dark | build green |
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 | 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
+| 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | see below | see below | build green |
 
 ## Method
 
@@ -457,6 +458,69 @@ solid red fill — the same protection applied to `#1877f2` in checkpoint 3.
 
 State: **FIXED_VERIFIED (light + dark, RTL)**. Change confined to one page file;
 no shared component or CSS touched, so frozen references are unaffected.
+
+## Session 5 — Phase 1: ID-bound detail routes
+
+IDs were harvested **read-only**: order IDs from rendered table text, and
+supplier/customer/purchase/product/workflow IDs from the same authenticated GET
+list endpoints the pages already call. No records created, no data modified, no
+forms submitted.
+
+Measured on Production at `fbacc5b` (Light / Arabic RTL). The auditor also
+checks horizontal overflow (`scrollWidth > clientWidth`) and body overflow.
+
+| Route | Record | Offenders | Overflow | Page title | State |
+|---|---|---|---|---|---|
+| `/orders/365` | order 365 | 0 | none | 22px | PARTIAL_PASS (light/rtl) |
+| `/suppliers/6` | supplier 6 | 0 | none | 22px | PARTIAL_PASS (light/rtl) |
+| `/purchases/92` | PO 92 | 0 | none | 22px | PARTIAL_PASS (light/rtl) |
+| `/suppliers/6/statement` | supplier 6 | 0 | none | 22px | PARTIAL_PASS (light/rtl) |
+| `/customers/3176/statement` | customer 3176 | 0 | none | — | PARTIAL_PASS (light/rtl) |
+| `/products/740` | product 740 | 0 | none | 30px | PARTIAL_PASS (light/rtl) |
+| `/loyalty/customers/3176` | customer 3176 | **3** | none | 22px | **FIXED (cp6)** |
+
+### BLOCKED — `/ai-studio/workflows/:id/edit`
+
+**BLOCKED_NO_RENDER.** Proof: on a clean full navigation (no `__m1_reload`
+param) the route mounts nothing — `#root.childElementCount === 0`,
+`document.body.innerText.length === 0`, no `.m1-shell-content`, and **no console
+errors**, after a 9s settle. Reproduced on **two different valid workflow IDs
+(11 and 10)** harvested from the list API, so it is not record-specific. The
+list route `/ai-studio/workflows` renders normally (281 nodes).
+
+There is nothing rendered to audit, and a non-mounting route is a functional
+failure rather than a presentation defect, so it is **not** fixed here (that
+would also mean touching AI Studio behaviour, which is outside the presentation
+freeze). Flagged for separate investigation.
+
+### Deep-link mount anomaly (auditor/environment note)
+
+`/inventory/count` also rendered an empty root under a **direct full page load**
+in this session, yet audited normally earlier via SPA `pushState` navigation
+(0 offenders, settled). So some deep routes appear not to mount on a cold
+direct load while working under in-app navigation. This is recorded as an
+observation, not a convergence defect; `/inventory/count/:id` and
+`/inventory/variant/:id/history` remain **PENDING** because no record ID could be
+harvested (`inventory-counts`, `inventory/counts`, `stock-counts` and
+`inventory-count` list endpoints all return 404).
+
+### 6. Loyalty module — fixed-dark surfaces in Light (checkpoint 6)
+
+**Measured in Light:** `/loyalty/customers/3176` 3 offenders,
+`/loyalty` **5** offenders (a 1937 x 132 header and a 1148 x 654 panel),
+`/loyalty/rules` 3 offenders — all `bg-[#0b1220]`, computed `rgb(11,18,32)`,
+luminance **0.006**.
+
+**Why this was missed earlier:** `/loyalty` and `/loyalty/rules` were recorded
+in session 3 as "0 offenders" — but that sweep ran in **Dark only**, where a
+`#0b1220` panel is unremarkable. The defect is Light-specific. This is a direct
+vindication of the rule that a single-theme sweep is PARTIAL_PASS and must never
+be promoted to PASS.
+
+**Owners repaired:** `CustomerLoyaltyProfile.jsx`, `LoyaltyDashboard.jsx`,
+`LoyaltyRules.jsx`. Residual off-system chrome across the module: **0**.
+Diff is 70 insertions / 70 deletions, class strings only (including the tier
+badge palettes, whose `text-slate-100` was a dark-theme-only value).
 
 ## Typography ruling — page-title scale (DECIDED)
 

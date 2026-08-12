@@ -9,7 +9,7 @@ import { loyaltyMockData } from "../lib/loyaltyMockData";
 
 const tierStyles = {
   Bronze: "border-amber-500/20 bg-amber-500/10 text-amber-200",
-  Silver: "border-slate-300/20 bg-slate-300/10 text-slate-100",
+  Silver: "border-slate-300/20 bg-slate-300/10 text-[var(--text)]",
   Gold: "border-yellow-500/20 bg-yellow-500/10 text-yellow-200",
   Platinum: "border-primary/20 bg-primary/10 text-primary",
 };
@@ -85,8 +85,8 @@ function CustomerLoyaltyProfile() {
   };
 
   return (
-    <div className="space-y-6 text-white">
-      <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-[#0b1220] p-6 xl:flex-row xl:items-center xl:justify-between">
+    <div className="space-y-6 text-[var(--text)]">
+      <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-start gap-4">
           <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
             <UserCircle2 className="h-6 w-6" />
@@ -94,13 +94,13 @@ function CustomerLoyaltyProfile() {
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-primary/80">ملف الولاء للعميل</p>
             <h1 className="m1-page-title mt-2">{loading ? "Loading..." : customer?.name}</h1>
-            <p className="mt-2 text-sm text-zinc-400">
+            <p className="mt-2 text-sm text-[var(--muted)]">
               {customer?.phone || "No phone"} {customer?.email ? `| ${customer.email}` : ""}
             </p>
           </div>
         </div>
         <div className="flex gap-3">
-          <Link to="/loyalty" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">
+          <Link to="/loyalty" className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold hover:bg-[var(--surface)]">
             Back to dashboard
           </Link>
           <Link to="/loyalty/rules" className="rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-slate-950">
@@ -116,11 +116,11 @@ function CustomerLoyaltyProfile() {
           ["Points earned", Number(loyalty?.total_points_earned || 0).toLocaleString(), ReceiptText],
           ["إجمالي الإنفاق", Number(loyalty?.lifetime_spent || 0).toLocaleString(), ReceiptText],
         ].map(([label, value, Icon]) => (
-          <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-5">
+          <div key={label} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{label}</p>
-                <p className="mt-3 text-2xl font-black text-white">{value}</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
+                <p className="mt-3 text-2xl font-black text-[var(--text)]">{value}</p>
               </div>
               <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
                 <Icon className="h-5 w-5" />
@@ -131,14 +131,14 @@ function CustomerLoyaltyProfile() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center justify-between">
             <h2 className="m1-section-title">سجل المعاملات</h2>
             <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tierStyles[loyalty?.tier] || tierStyles.Bronze}`}>{loyalty?.tier || "Bronze"}</span>
           </div>
-          <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--border)]">
             <table className="m1-table m1-table--compact min-w-full text-left text-sm">
-              <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-zinc-500">
+              <thead className="bg-[var(--surface)] text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 <tr>
                   <th className="px-4 py-3">النوع</th>
                   <th className="px-4 py-3">النقاط</th>
@@ -148,11 +148,11 @@ function CustomerLoyaltyProfile() {
               </thead>
               <tbody>
                 {(transactions || []).map((tx) => (
-                  <tr key={tx.id} className="border-t border-white/10">
+                  <tr key={tx.id} className="border-t border-[var(--border)]">
                     <td className="px-4 py-3 text-primary">{tx.transaction_type}</td>
-                    <td className="px-4 py-3 text-zinc-300">{Number(tx.points || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-zinc-300">{Number(tx.amount_value || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-zinc-400">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : "-"}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{Number(tx.points || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{Number(tx.amount_value || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -160,17 +160,17 @@ function CustomerLoyaltyProfile() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <h2 className="m1-section-title">استبدال النقاط</h2>
-          <p className="mt-2 text-sm text-zinc-500">حوّل النقاط إلى قيمة عند إتمام شراء العميل.</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">حوّل النقاط إلى قيمة عند إتمام شراء العميل.</p>
 
-          <label className="mt-5 block space-y-2 text-sm text-zinc-300">
-            <span className="block text-xs uppercase tracking-[0.2em] text-zinc-500">النقاط المطلوب استبدالها</span>
+          <label className="mt-5 block space-y-2 text-sm text-[var(--muted)]">
+            <span className="block text-xs uppercase tracking-[0.2em] text-[var(--muted)]">النقاط المطلوب استبدالها</span>
             <input
               type="number"
               value={points}
               onChange={(e) => setPoints(e.target.value)}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-primary/40"
+              className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--text)] outline-none ring-0 focus:border-primary/40"
             />
           </label>
 

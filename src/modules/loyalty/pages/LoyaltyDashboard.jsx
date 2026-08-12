@@ -8,18 +8,18 @@ import { loyaltyMockData } from "../lib/loyaltyMockData";
 
 const tierStyles = {
   Bronze: "border-amber-500/20 bg-amber-500/10 text-amber-200",
-  Silver: "border-slate-300/20 bg-slate-300/10 text-slate-100",
+  Silver: "border-slate-300/20 bg-slate-300/10 text-[var(--text)]",
   Gold: "border-yellow-500/20 bg-yellow-500/10 text-yellow-200",
   Platinum: "border-primary/20 bg-primary/10 text-primary",
 };
 
 const StatCard = ({ label, value, icon: Icon, hint }) => (
-  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-5 shadow-lg shadow-black/20">
+  <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{label}</p>
-        <p className="mt-3 text-3xl font-black text-white">{value}</p>
-        {hint ? <p className="mt-2 text-sm text-zinc-400">{hint}</p> : null}
+        <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
+        <p className="mt-3 text-3xl font-black text-[var(--text)]">{value}</p>
+        {hint ? <p className="mt-2 text-sm text-[var(--muted)]">{hint}</p> : null}
       </div>
       <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
         <Icon className="h-5 w-5" />
@@ -92,17 +92,17 @@ function LoyaltyDashboard() {
   }, [summary.tierDistribution]);
 
   return (
-    <div className="space-y-6 text-white">
-      <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-[#0b1220] p-6 shadow-2xl shadow-black/20 xl:flex-row xl:items-center">
+    <div className="space-y-6 text-[var(--text)]">
+      <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-card)] xl:flex-row xl:items-center">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Loyalty</p>
           <h1 className="m1-page-title mt-2">Customer Loyalty Intelligence</h1>
-          <p className="mt-2 max-w-3xl text-sm text-zinc-400">
+          <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
             Track points issuance, redemptions, tier movement, and customer value from one operational dashboard.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link to="/loyalty/rules" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
+          <Link to="/loyalty/rules" className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface)]">
             Manage Rules
           </Link>
           <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-bold text-slate-950">
@@ -122,11 +122,11 @@ function LoyaltyDashboard() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="m1-section-title">Top Loyalty Customers</h2>
-              <p className="mt-1 text-sm text-zinc-500">Highest value and point balance customers</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">Highest value and point balance customers</p>
             </div>
             <TrendingUp className="h-5 w-5 text-primary" />
           </div>
@@ -136,11 +136,11 @@ function LoyaltyDashboard() {
               <Link
                 key={customer.id}
                 to={`/loyalty/customers/${customer.id}`}
-                className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-primary/30 hover:bg-primary/5"
+                className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition hover:border-primary/30 hover:bg-primary/5"
               >
                 <div>
-                  <p className="font-semibold text-white">{customer.name}</p>
-                  <p className="mt-1 text-xs text-zinc-500">
+                  <p className="font-semibold text-[var(--text)]">{customer.name}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
                     Lifetime spend {Number(customer.lifetime_spent || 0).toLocaleString()} EGP
                   </p>
                 </div>
@@ -150,22 +150,22 @@ function LoyaltyDashboard() {
                   </span>
                   <p className="mt-2 text-sm text-primary">{Number(customer.available_points || 0).toLocaleString()} pts</p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-zinc-500" />
+                <ChevronRight className="h-4 w-4 text-[var(--muted)]" />
               </Link>
             ))}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <h2 className="m1-section-title">Tier Distribution</h2>
           <div className="mt-5 space-y-3">
             {Object.entries(tierCounts).map(([tier, count]) => (
-              <div key={tier} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
+              <div key={tier} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-white">{tier}</span>
-                  <span className="text-sm text-zinc-400">{count}</span>
+                  <span className="text-sm font-semibold text-[var(--text)]">{tier}</span>
+                  <span className="text-sm text-[var(--muted)]">{count}</span>
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/5">
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface)]">
                   <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (count / Math.max(summary.totalCustomers || 1, 1)) * 100)}%` }} />
                 </div>
               </div>
@@ -175,11 +175,11 @@ function LoyaltyDashboard() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <h2 className="m1-section-title">Transaction History</h2>
-          <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--border)]">
             <table className="m1-table m1-table--compact min-w-full text-left text-sm">
-              <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-zinc-500">
+              <thead className="bg-[var(--surface)] text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 <tr>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Customer</th>
@@ -190,12 +190,12 @@ function LoyaltyDashboard() {
               </thead>
               <tbody>
                 {(summary.transactions || []).slice(0, 8).map((tx) => (
-                  <tr key={tx.id} className="border-t border-white/10">
+                  <tr key={tx.id} className="border-t border-[var(--border)]">
                     <td className="px-4 py-3 text-primary">{tx.transaction_type}</td>
-                    <td className="px-4 py-3 text-white">{tx.customer_name || "Customer"}</td>
-                    <td className="px-4 py-3 text-zinc-300">{Number(tx.points || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-zinc-300">{Number(tx.amount_value || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-zinc-400">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : "-"}</td>
+                    <td className="px-4 py-3 text-[var(--text)]">{tx.customer_name || "Customer"}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{Number(tx.points || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{Number(tx.amount_value || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -203,23 +203,23 @@ function LoyaltyDashboard() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <h2 className="m1-section-title">Rules Snapshot</h2>
           <div className="mt-5 space-y-3">
             {rules.map((rule) => (
-              <div key={rule.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
+              <div key={rule.id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-white">{rule.name}</p>
-                    <p className="mt-1 text-xs text-zinc-500">
+                    <p className="font-semibold text-[var(--text)]">{rule.name}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
                       {Number(rule.points_per_currency_amount || 0)} pts / currency unit
                     </p>
                   </div>
-                  <span className={`rounded-full border px-3 py-1 text-xs font-bold ${rule.is_active ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : "border-zinc-600 bg-zinc-800 text-zinc-300"}`}>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-bold ${rule.is_active ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : "border-zinc-600 bg-[var(--card)] text-[var(--muted)]"}`}>
                     {rule.is_active ? "Active" : "Inactive"}
                   </span>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-400">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[var(--muted)]">
                   <div>Min order: {Number(rule.minimum_order_amount || 0).toLocaleString()}</div>
                   <div>Redeem value: {Number(rule.redeem_value || 0).toLocaleString()}</div>
                   <div>Silver: {Number(rule.silver_threshold || 0).toLocaleString()}</div>
