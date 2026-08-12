@@ -2585,7 +2585,7 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Pill tone={status === "human_takeover" ? "amber" : status === "closed" ? "rose" : "emerald"}>
             {status === "human_takeover" ? <PauseCircle className="h-3 w-3" /> : status === "closed" ? <LockKeyhole className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
-            {status === "human_takeover" ? "AI paused" : status === "closed" ? "Closed" : "AI active"}
+            {status === "human_takeover" ? "الموظف مسيطر — اقتراحات AI متوقفة" : status === "closed" ? "Closed" : "AI active"}
           </Pill>
           <Pill tone={liveChannel ? "emerald" : "amber"}>
             <Radio className="h-3 w-3" />
@@ -6930,6 +6930,10 @@ export default function AiInbox() {
     const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
     const correctionMetadata = options.correctionMetadata || {};
     const sendFlow = options.flow || (allowSameTextCorrection ? "edit" : "normal");
+    // Phase 11.2 A/B — an AI-assisted approval keeps the conversation assisted (ai_active); a manual composer
+    // reply takes over. Assisted = the card's Approve (flow:"approve") OR sending while editing an AI draft.
+    // The server re-validates this flag against a real current draft, so a stale/forged flag can't take effect.
+    const assistedApproval = options.assistedApproval === true || sendFlow === "approve" || editingAiDraft === true;
     // Atomic in-flight guard: a rapid double-click can fire twice before the
     // disabled state renders. Placed after the (synchronous) confirm prompt and
     // before the optimistic bubble, so a blocked second click neither sends a
@@ -6953,9 +6957,10 @@ export default function AiInbox() {
     patchConversation(conversationIdentifier, (conversation) => ({
       ...conversation,
       messages: [...asArray(conversation.messages), optimistic],
-      conversation_status: "human_takeover",
-      status: "human_takeover",
-      ai_paused: true,
+      // Phase 11.2 A/B — assisted approval keeps the conversation assisted; only a manual reply takes over.
+      conversation_status: assistedApproval ? (conversation.conversation_status || "ai_active") : "human_takeover",
+      status: assistedApproval ? (conversation.status || "ai_active") : "human_takeover",
+      ai_paused: assistedApproval ? Boolean(conversation.ai_paused) : true,
       latest_message_preview: message,
       last_activity_at: now,
       updated_at: now,
@@ -6964,7 +6969,7 @@ export default function AiInbox() {
     setReplySending(true);
     setError("");
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey }, { headers, perfComponent: "AiInbox.sendManualReply" });
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval }, { headers, perfComponent: "AiInbox.sendManualReply" });
       if (payload.message) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
@@ -7059,10 +7064,12 @@ export default function AiInbox() {
     }
     const card = effectiveSuggestionCard;
     const disposition = suggestionProductRemoved ? "removed" : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none"));
-    setReplyText(activeAiSuggestionText);
-    const result = await sendCurrentReply(activeAiSuggestionText, {
+    // Send the EDITED text when the employee edited the draft; otherwise the unchanged suggestion.
+    const textToSend = editingAiDraft && clean(replyText) ? clean(replyText) : activeAiSuggestionText;
+    const result = await sendCurrentReply(textToSend, {
       allowSameTextCorrection: true,
       flow: "approve",
+      assistedApproval: true,
       correctionMetadata: {
         source: "ai_suggestion_approved",
         approved_ai_reply: true,

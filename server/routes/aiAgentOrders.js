@@ -5028,8 +5028,15 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     // suggestion and a newer customer message arrived after it was generated, block the send — they must
     // regenerate. Edited/manual replies are intentional and are never blocked here.
     const rawAiReplyDraft = conversation.last_ai_reply_draft || {};
-    const isUneditedSuggestionSend = aiReplyDraft?.status === "not_sent" && Boolean(aiReplyDraft.text) && envText(aiReplyDraft.text) === messageText;
-    if (isUneditedSuggestionSend) {
+    const hasCurrentDraft = aiReplyDraft?.status === "not_sent" && Boolean(envText(aiReplyDraft?.text));
+    // Phase 11.2 A/B — SERVER-VALIDATED assisted approval: the client requested to approve the AI suggestion
+    // AND a real current not_sent draft exists. A forged flag without a live draft is ignored (falls back to
+    // manual/human_takeover). This is the authoritative signal, not a bare browser boolean.
+    const isAssistedApprove = req.body?.assisted_approval === true && hasCurrentDraft;
+    const isUneditedSuggestionSend = hasCurrentDraft && envText(aiReplyDraft.text) === messageText;
+    // Stale protection applies to ANY assisted approval (unedited OR edited-then-approved) — a newer customer
+    // message blocks the whole package. Manual composer replies are intentional and are never blocked here.
+    if (isUneditedSuggestionSend || isAssistedApprove) {
       const { hasNewerCustomerMessage } = await import("../services/aiSupportLogService.js");
       const stale = await hasNewerCustomerMessage({
         tenantId,
@@ -5126,7 +5133,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       resolvedPhone: recipientId || "",
     });
     if (deliveryStatus === "sent") {
-      if (aiReplyDraft.status === "not_sent" && aiReplyDraft.text && envText(aiReplyDraft.text) !== messageText) {
+      if (isAssistedApprove && envText(aiReplyDraft.text) !== messageText) {
         const customerQuestion = [...(Array.isArray(conversation.messages) ? conversation.messages : [])]
           .reverse()
           .find((item) => envText(item.customer_message || item.message_text || item.last_message || ""));
@@ -5166,12 +5173,19 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         });
       }
       await clearAiReplySuggestionDraft({ tenantId, sessionId: conversationId }).catch(() => {});
-      // Phase 11 metric: an AI suggestion was approved & sent (edited vs unchanged distinguishable via corrections).
-      if (aiReplyDraft?.status === "not_sent" && aiReplyDraft.text) {
+      // Phase 11.2 A/B — deterministic, canonical conversation-state transition after a successful send:
+      //   • AI-assisted approval  → KEEP ai_active (the next customer message stays eligible for a suggestion),
+      //     and record the approved_unchanged / approved_edited metric.
+      //   • Manual composer reply → human_takeover ("the employee stepped in"); no assisted metric/correction.
+      // The employee can still explicitly Take Over (button) or Return to AI. Never bypasses stale/RBAC/idempotency.
+      if (isAssistedApprove) {
         try {
           const { recordAssistedOutcome } = await import("../services/aiInboundIntakeService.js");
           await recordAssistedOutcome({ tenantId, channel: normalizedChannel, conversationId, outcome: "approved", reason: envText(aiReplyDraft.text) === messageText ? "unchanged" : "edited" });
         } catch { /* metrics best-effort */ }
+        await updateAiSupportConversationState({ tenantId, sessionId: conversationId, channel, status: "ai_active", actorUserId: req.user?.id || null }).catch(() => {});
+      } else {
+        await updateAiSupportConversationState({ tenantId, sessionId: conversationId, channel, status: "human_takeover", assignedUserId: req.user?.id || null, assignedUserName: userDisplayName(req.user), actorUserId: req.user?.id || null }).catch(() => {});
       }
     }
     await logChannelEvent({
