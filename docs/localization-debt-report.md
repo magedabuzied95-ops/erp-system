@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 151
+- Files with debt: 150
 - Hardcoded Arabic UI strings: 1749
-- Hardcoded English UI strings: 1544
-- Total hardcoded UI strings: 3293
+- Hardcoded English UI strings: 1493
+- Total hardcoded UI strings: 3242
 - Mixed-language files (both scripts hardcoded): 42
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 81 | 1193 | 1147 | 2340 | 28 |
+| main-erp | 80 | 1193 | 1096 | 2289 | 28 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -777,50 +777,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 3346 [object-key/ar] تسعير المنتجات المختارة
 - 3347 [object-key/ar] أدخل سعرًا واحدًا لكل منتج؛ سيُطبّق تلقائيًا على جميع ألوانه ومقاساته مع استخدام الكميات المحفوظة.
 - ... 12 more
-
-### src/modules/aiSupport/pages/AiAgentSettings.jsx (main-erp — ar:0 en:51)
-
-- 184 [jsx-text/en] AI Agent Control Center
-- 185 [jsx-text/en] Sales Agent Settings
-- 204 [attribute/en] Personality & Tone
-- 205 [attribute/en] Agent name
-- 207 [attribute/en] Egyptian tone level
-- 208 [attribute/en] Emoji level
-- 209 [jsx-text/en] Balanced
-- 209 [jsx-text/en] Detailed
-- 209 [attribute/en] Reply length
-- 209 [jsx-text/en] Short
-- 210 [jsx-text/en] High
-- 210 [jsx-text/en] Low
-- 210 [jsx-text/en] Medium
-- 210 [attribute/en] Sales pressure
-- 212 [attribute/en] Forbidden phrases
-- 212 [attribute/en] One phrase per line. These are stripped from AI sales replies.
-- 213 [attribute/en] One phrase per line. Used as natural sales openers.
-- 213 [attribute/en] Preferred phrases
-- 216 [attribute/en] Sales Rules
-- 217 [attribute/en] Allow auto draft creation
-- 218 [attribute/en] Require human approval before confirm
-- 219 [attribute/en] Allow discount promises
-- 219 [attribute/en] Off by default. When off, AI can only say a staff member will review discounts.
-- 220 [attribute/en] Max discount percent
-- 221 [attribute/en] COD availability text
-- 223 [attribute/en] Delivery policy text
-- 226 [attribute/en] Follow-up Rules
-- 227 [attribute/en] Enable follow-ups
-- 229 [attribute/en] Cooldown hours
-- 230 [attribute/en] Max follow-ups per customer
-- 232 [attribute/en] Stop after rejection
-- 233 [attribute/en] Follow-up templates
-- 233 [attribute/en] One template per line.
-- 236 [attribute/en] Handoff Rules
-- 238 [attribute/en] Angry customer
-- 239 [attribute/en] Low confidence
-- 240 [attribute/en] Discount request
-- 241 [attribute/en] Return/exchange complaint
-- 242 [attribute/en] Stock conflict
-- 243 [attribute/en] Payment issue
-- ... 11 more
 
 ### src/modules/aiSupport/components/Customer360Drawer.jsx (shared — ar:5 en:44)
 

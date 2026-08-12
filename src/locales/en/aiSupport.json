@@ -96,5 +96,81 @@
       "confidenceDistribution": "Confidence Distribution",
       "channelsBreakdown": "Channels Breakdown"
     }
+  },
+  "agentSettings": {
+    "eyebrow": "AI Agent Control Center",
+    "title": "Sales Agent Settings",
+    "subtitle": "Tenant-scoped controls for tone, sales rules, follow-ups, handoff triggers, and staff suggested replies.",
+    "refresh": "Refresh",
+    "save": "Save settings",
+    "tone": {
+      "title": "Personality & Tone",
+      "agentName": "Agent name",
+      "egyptianLevel": "Egyptian tone level",
+      "emojiLevel": "Emoji level",
+      "replyLength": "Reply length",
+      "short": "Short",
+      "balanced": "Balanced",
+      "detailed": "Detailed",
+      "salesPressure": "Sales pressure",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "forbidden": "Forbidden phrases",
+      "forbiddenHint": "One phrase per line. These are stripped from AI sales replies.",
+      "preferred": "Preferred phrases",
+      "preferredHint": "One phrase per line. Used as natural sales openers."
+    },
+    "sales": {
+      "title": "Sales Rules",
+      "autoDraft": "Allow auto draft creation",
+      "requireApproval": "Require human approval before confirm",
+      "allowDiscount": "Allow discount promises",
+      "allowDiscountHint": "Off by default. When off, AI can only say a staff member will review discounts.",
+      "maxDiscount": "Max discount percent",
+      "codText": "COD availability text",
+      "exchangeText": "Exchange / return policy text",
+      "deliveryText": "Delivery policy text"
+    },
+    "followups": {
+      "title": "Follow-up Rules",
+      "enable": "Enable follow-ups",
+      "cooldown": "Cooldown hours",
+      "maxPerCustomer": "Max follow-ups per customer",
+      "stopAfterRejection": "Stop after rejection",
+      "templates": "Follow-up templates",
+      "templatesHint": "One template per line."
+    },
+    "handoff": {
+      "title": "Handoff Rules",
+      "angry": "Angry customer",
+      "lowConfidence": "Low confidence",
+      "discount": "Discount request",
+      "returnExchange": "Return/exchange complaint",
+      "stock": "Stock conflict",
+      "payment": "Payment issue"
+    },
+    "suggested": {
+      "title": "Suggested Replies Rules",
+      "enable": "Enable suggested replies",
+      "count": "Suggestion count",
+      "toneSource": "Tone source",
+      "aiSettings": "AI settings",
+      "requireTakeover": "Require takeover before suggestions"
+    },
+    "snapshot": {
+      "title": "Active Policy Snapshot",
+      "discounts": "Discount promises:",
+      "discountAllowed": "Allowed up to {{percent}}%",
+      "disabled": "Disabled",
+      "drafts": "Order drafts:",
+      "humanOnly": "Human only",
+      "aiCanDraft": "AI can create drafts",
+      "confirmations": "Confirmations:",
+      "approvalRequired": "Human approval required",
+      "aiCanConfirm": "AI can confirm existing drafts",
+      "suggested": "Suggested replies:",
+      "suggestionCount": "{{count}} suggestions"
+    }
   }
 }
