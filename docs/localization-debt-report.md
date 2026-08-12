@@ -10,20 +10,20 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 191
-- Hardcoded Arabic UI strings: 1993
-- Hardcoded English UI strings: 2492
-- Total hardcoded UI strings: 4485
+- Files with debt: 188
+- Hardcoded Arabic UI strings: 1992
+- Hardcoded English UI strings: 2429
+- Total hardcoded UI strings: 4421
 - Mixed-language files (both scripts hardcoded): 52
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 106 | 1428 | 1876 | 3304 | 36 |
+| main-erp | 106 | 1428 | 1873 | 3301 | 36 |
 | shared | 66 | 199 | 463 | 662 | 11 |
-| employee-portal | 14 | 184 | 101 | 285 | 2 |
 | pos | 5 | 182 | 52 | 234 | 3 |
+| employee-portal | 11 | 183 | 41 | 224 | 2 |
 
 ## Mixed-language files (ranked by density)
 
@@ -39,8 +39,8 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/marketing/pages/MarketingSettings.jsx | main-erp | 63 | 23 | 86 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
-| src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 12 | 76 |
 | src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx | main-erp | 1 | 69 | 70 |
+| src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 62 | 2 | 64 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/modules/marketing/pages/AiMarketingVideos.jsx | main-erp | 14 | 45 | 59 |
@@ -612,50 +612,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 3618 [jsx-text/en] Config and runtime summary
 - ... 41 more
 
-### src/modules/attendance/components/AttendanceCenter.jsx (employee-portal — ar:64 en:12)
-
-- 121 [object-key/en] Attendance Center
-- 122 [object-key/en] Live attendance, QR and GPS check-ins, absences, late arrivals, missing hours, and branch monitoring.
-- 207 [object-key/ar] مركز الحضور
-- 208 [object-key/ar] حضور QR والغياب وساعات النقص وتأثير الرواتب والإجازات وتحليل الفروع.
-- 364 [inline-ternary/ar] isArabic ? "الساعة" : "Hour"
-- 365 [inline-ternary/ar] isArabic ? "الساعة" : "Hour"
-- 368 [inline-ternary/ar] isArabic ? "الدقيقة" : "Minute"
-- 379 [inline-ternary/ar] isArabic ? "الافتراضي" : "Default"
-- 412 [attribute/en] DD/MM/YYYY
-- 413 [attribute/en] DD/MM/YYYY
-- 435 [attribute/en] Open calendar
-- 479 [inline-ternary/ar] isArabic ? "قواعد الحضور والمرتبات" : "Attendance payroll rules"
-- 482 [inline-ternary/ar] isArabic ? "إعدادات الاحتساب الأساسية" : "Core calculation settings"
-- 485 [inline-ternary/ar] isArabic ? "القواعد دي بتأثر على الإجازات المدفوعة، التأخير، وفاتح الفرع عند قفل نقطة البيع." : "These rules affect paid
-- 494 [inline-ternary/ar] isArabic ? "جاري الحفظ..." : "Saving..."
-- 494 [inline-ternary/ar] isArabic ? "حفظ الإعدادات" : "Save settings"
-- 499 [inline-ternary/ar] isArabic ? "سماحية التأخير بالدقائق" : "Late grace minutes"
-- 502 [inline-ternary/ar] isArabic ? "الإجازات المدفوعة شهريًا" : "Monthly paid leave days"
-- 511 [inline-ternary/ar] isArabic ? "إلزام اختيار فاتح الفرع عند قفل شيفت POS" : "Require next opener when closing POS shift"
-- 517 [inline-ternary/ar] isArabic ? "أيام ممنوع طلب إجازة فيها بدون موافقة خاصة" : "Weekdays blocked for leave without override"
-- 540 [inline-ternary/ar] isArabic ? "مركز الحضور" : "Attendance Center"
-- 694 [inline-ternary/ar] isArabic ? "اختر الفرع أولًا لتوليد جدول فاتح الفرع." : "Select a branch first to generate opening schedule."
-- 745 [inline-ternary/ar] isArabic ? "اختر الموظف والتاريخ وأدخل الوقت المطلوب ثم اكتب سبب التصحيح." : "Select the employee and date, enter the re
-- 770 [inline-ternary/ar] isArabic ? "تعذر حفظ التصحيح." : "Failed to save the correction."
-- 788 [inline-ternary/ar] isArabic ? "إضافة حضور / انصراف" : "Add attendance"
-- 810 [jsx-text/en] Imported
-- 810 [jsx-text/en] Manual
-- 810 [jsx-text/en] QR Branch
-- 836 [attribute/en] Attendance trend
-- 837 [attribute/en] Late arrivals trend
-- 838 [attribute/en] Branch attendance comparison
-- 839 [attribute/en] Employee attendance ranking
-- 862 [inline-ternary/ar] isArabic ? "تصحيح إداري" : "Admin correction"
-- 863 [inline-ternary/ar] isArabic ? "إضافة حضور وانصراف" : "Add attendance and checkout"
-- 864 [inline-ternary/ar] isArabic ? "يتم إنشاء سجل اليوم أو تصحيح السجل الموجود مع حفظ السبب واسم المسؤول." : "Creates the daily record or correc
-- 870 [inline-ternary/ar] isArabic ? "الحضور فقط" : "Check-in only"
-- 871 [inline-ternary/ar] isArabic ? "الانصراف فقط" : "Checkout only"
-- 872 [inline-ternary/ar] isArabic ? "الحضور والانصراف" : "Both"
-- 885 [inline-ternary/ar] isArabic ? "عند اختيار الحضور فقط أو الانصراف فقط، لن تتغير القيمة الأخرى المسجلة." : "Choosing check-in only or checkou
-- 888 [inline-ternary/ar] isArabic ? "اختر الموظف" : "Select employee"
-- ... 36 more
-
 ### src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx (main-erp — ar:1 en:69)
 
 - 53 [dialog/en] Enable APPROVAL_SEND? Approving a draft will send a real message to the customer through the connected channel. Drafting and approval still require a human; nothing is autonomous.
@@ -699,6 +655,50 @@ of scope. The scanner is conservative and can still contain false positives.
 - 233 [jsx-text/en] Advanced
 - 235 [jsx-text/en] Provider message id:
 - ... 30 more
+
+### src/modules/attendance/components/AttendanceCenter.jsx (employee-portal — ar:64 en:4)
+
+- 121 [object-key/en] Attendance Center
+- 122 [object-key/en] Live attendance, QR and GPS check-ins, absences, late arrivals, missing hours, and branch monitoring.
+- 207 [object-key/ar] مركز الحضور
+- 208 [object-key/ar] حضور QR والغياب وساعات النقص وتأثير الرواتب والإجازات وتحليل الفروع.
+- 364 [inline-ternary/ar] isArabic ? "الساعة" : "Hour"
+- 365 [inline-ternary/ar] isArabic ? "الساعة" : "Hour"
+- 368 [inline-ternary/ar] isArabic ? "الدقيقة" : "Minute"
+- 379 [inline-ternary/ar] isArabic ? "الافتراضي" : "Default"
+- 413 [attribute/en] DD/MM/YYYY
+- 414 [attribute/en] DD/MM/YYYY
+- 480 [inline-ternary/ar] isArabic ? "قواعد الحضور والمرتبات" : "Attendance payroll rules"
+- 483 [inline-ternary/ar] isArabic ? "إعدادات الاحتساب الأساسية" : "Core calculation settings"
+- 486 [inline-ternary/ar] isArabic ? "القواعد دي بتأثر على الإجازات المدفوعة، التأخير، وفاتح الفرع عند قفل نقطة البيع." : "These rules affect paid
+- 495 [inline-ternary/ar] isArabic ? "جاري الحفظ..." : "Saving..."
+- 495 [inline-ternary/ar] isArabic ? "حفظ الإعدادات" : "Save settings"
+- 500 [inline-ternary/ar] isArabic ? "سماحية التأخير بالدقائق" : "Late grace minutes"
+- 503 [inline-ternary/ar] isArabic ? "الإجازات المدفوعة شهريًا" : "Monthly paid leave days"
+- 512 [inline-ternary/ar] isArabic ? "إلزام اختيار فاتح الفرع عند قفل شيفت POS" : "Require next opener when closing POS shift"
+- 518 [inline-ternary/ar] isArabic ? "أيام ممنوع طلب إجازة فيها بدون موافقة خاصة" : "Weekdays blocked for leave without override"
+- 541 [inline-ternary/ar] isArabic ? "مركز الحضور" : "Attendance Center"
+- 695 [inline-ternary/ar] isArabic ? "اختر الفرع أولًا لتوليد جدول فاتح الفرع." : "Select a branch first to generate opening schedule."
+- 746 [inline-ternary/ar] isArabic ? "اختر الموظف والتاريخ وأدخل الوقت المطلوب ثم اكتب سبب التصحيح." : "Select the employee and date, enter the re
+- 771 [inline-ternary/ar] isArabic ? "تعذر حفظ التصحيح." : "Failed to save the correction."
+- 789 [inline-ternary/ar] isArabic ? "إضافة حضور / انصراف" : "Add attendance"
+- 863 [inline-ternary/ar] isArabic ? "تصحيح إداري" : "Admin correction"
+- 864 [inline-ternary/ar] isArabic ? "إضافة حضور وانصراف" : "Add attendance and checkout"
+- 865 [inline-ternary/ar] isArabic ? "يتم إنشاء سجل اليوم أو تصحيح السجل الموجود مع حفظ السبب واسم المسؤول." : "Creates the daily record or correc
+- 871 [inline-ternary/ar] isArabic ? "الحضور فقط" : "Check-in only"
+- 872 [inline-ternary/ar] isArabic ? "الانصراف فقط" : "Checkout only"
+- 873 [inline-ternary/ar] isArabic ? "الحضور والانصراف" : "Both"
+- 886 [inline-ternary/ar] isArabic ? "عند اختيار الحضور فقط أو الانصراف فقط، لن تتغير القيمة الأخرى المسجلة." : "Choosing check-in only or checkou
+- 889 [inline-ternary/ar] isArabic ? "اختر الموظف" : "Select employee"
+- 889 [inline-ternary/ar] isArabic ? "الموظف" : "Employee"
+- 890 [inline-ternary/ar] isArabic ? "تاريخ سجل الحضور" : "Attendance record date"
+- 892 [inline-ternary/ar] isArabic ? "وقت الحضور — الافتراضي PM" : "Check-in time — PM default"
+- 910 [inline-ternary/ar] isArabic ? "تاريخ الانصراف" : "Checkout date"
+- 911 [inline-ternary/ar] isArabic ? "وقت الانصراف — الافتراضي AM" : "Checkout time — AM default"
+- 928 [inline-ternary/ar] isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"
+- 928 [inline-ternary/ar] isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"
+- 932 [inline-ternary/ar] isArabic ? "إلغاء" : "Cancel"
+- ... 28 more
 
 ### src/modules/aiSupport/pages/AiAgentAnalytics.jsx (main-erp — ar:0 en:67)
 
@@ -1535,50 +1535,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 4425 [attribute/ar] ابحث في الرسائل
 - 4459 [jsx-text/ar] إعدادات الملف الشخصي
 - ... 4 more
-
-### src/modules/attendance/pages/AttendanceReports.jsx (employee-portal — ar:0 en:41)
-
-- 157 [jsx-text/en] Export-ready attendance reports
-- 190 [jsx-text/en] From
-- 208 [jsx-text/en] Employee ID
-- 213 [attribute/en] All employees
-- 223 [attribute/en] All logs in the filtered range
-- 223 [attribute/en] Present
-- 224 [attribute/en] Checked out
-- 224 [attribute/en] Completed attendance rows
-- 225 [attribute/en] Missing checkout
-- 225 [attribute/en] Open rows without a checkout
-- 226 [attribute/en] Late
-- 226 [attribute/en] Rows with late minutes
-- 227 [attribute/en] Worked hours
-- 231 [attribute/en] Manual and generated schedules
-- 231 [attribute/en] Scheduled shifts
-- 232 [attribute/en] Next opener rows
-- 232 [attribute/en] Opening assignments
-- 233 [attribute/en] Approved overtime
-- 234 [attribute/en] Pending overtime
-- 240 [jsx-text/en] Monthly totals
-- 246 [jsx-text/en] Loading monthly totals...
-- 263 [attribute/en] Opening assignments
-- 265 [jsx-text/en] Loading opening assignments...
-- 267 [jsx-text/en] No opening assignments in this range.
-- 285 [attribute/en] Overtime approvals
-- 287 [jsx-text/en] Loading overtime approvals...
-- 289 [jsx-text/en] No overtime approval requests in this range.
-- 313 [jsx-text/en] Attendance table
-- 314 [jsx-text/en] Employee, branch, worked hours, and checkout status.
-- 323 [jsx-text/en] Employee
-- 324 [jsx-text/en] Branch
-- 325 [jsx-text/en] Date
-- 326 [jsx-text/en] Scheduled shift
-- 327 [jsx-text/en] Check in
-- 328 [jsx-text/en] Check out
-- 329 [jsx-text/en] Worked
-- 330 [jsx-text/en] Late / OT
-- 331 [jsx-text/en] OT approval
-- 332 [jsx-text/en] Status
-- 371 [jsx-text/en] Late:
-- ... 1 more
 
 ### src/modules/marketing/pages/SocialMediaPublisher.jsx (main-erp — ar:10 en:30)
 
@@ -3133,18 +3089,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 287 [notification/en] Failed to create order
 - 330 [attribute/en] Customer Name
 
-### src/pages/Branches.jsx (main-erp — ar:0 en:9)
-
-- 450 [notification/en] Short link copied
-- 453 [notification/en] Failed to copy short link
-- 514 [jsx-text/en] Branch attendance
-- 517 [attribute/en] Attendance QR
-- 519 [jsx-text/en] 1. Scan QR
-- 520 [jsx-text/en] 2. Enter code/phone
-- 521 [jsx-text/en] 3. Check in/out
-- 524 [jsx-text/en] Generated $
-- 788 [attribute/en] Branch map preview
-
 ### src/pages/CreateOrder.jsx (main-erp — ar:0 en:9)
 
 - 76 [notification/en] Failed to load products
@@ -3167,17 +3111,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 8 [object-key/en] Create lead
 - 13 [jsx-text/en] Automation Settings
 - 14 [jsx-text/en] Rules and execution toggles
-
-### src/modules/attendance/pages/StaffQrAttendance.jsx (employee-portal — ar:0 en:8)
-
-- 162 [jsx-text/en] Scan branch QR, then confirm GPS
-- 205 [jsx-text/en] Processing QR and GPS location...
-- 218 [jsx-text/en] Result
-- 224 [attribute/en] Employee
-- 225 [attribute/en] Branch
-- 226 [attribute/en] Time
-- 227 [attribute/en] Distance
-- 228 [attribute/en] Allowed radius
 
 ### src/modules/employees/pages/EmployeePortalProducts.jsx (employee-portal — ar:0 en:8)
 
@@ -3317,6 +3250,15 @@ of scope. The scanner is conservative and can still contain false positives.
 - 222 [jsx-text/en] Saved templates
 - 223 [jsx-text/en] Custom templates
 
+### src/pages/Branches.jsx (main-erp — ar:0 en:6)
+
+- 514 [jsx-text/en] Branch attendance
+- 517 [attribute/en] Attendance QR
+- 519 [jsx-text/en] 1. Scan QR
+- 520 [jsx-text/en] 2. Enter code/phone
+- 521 [jsx-text/en] 3. Check in/out
+- 524 [jsx-text/en] Generated $
+
 ### src/pages/PublicProduct.jsx (main-erp — ar:0 en:6)
 
 - 217 [jsx-text/en] Source:
@@ -3382,14 +3324,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 77 [attribute/en] Channel mix
 - 77 [attribute/en] Sales distribution across commerce channels.
 - 90 [attribute/en] No sales channel data available.
-
-### src/modules/attendance/pages/PublicBranchAttendance.jsx (employee-portal — ar:0 en:5)
-
-- 223 [jsx-text/en] Attendance
-- 235 [attribute/en] Branch map preview
-- 249 [jsx-text/en] Location
-- 283 [jsx-text/en] Phone or employee code
-- 308 [jsx-text/en] Employee identified
 
 ### src/modules/marketing/components/socialAiCopy.js (shared — ar:0 en:5)
 
@@ -3550,6 +3484,11 @@ of scope. The scanner is conservative and can still contain false positives.
 - 19 [jsx-text/en] Workflow Timeline
 - 20 [jsx-text/en] ManyChat-style flow preview
 
+### src/modules/attendance/pages/AttendanceReports.jsx (employee-portal — ar:0 en:2)
+
+- 373 [jsx-text/en] Late:
+- 374 [jsx-text/en] OT:
+
 ### src/modules/employees/components/EmployeeAnalyticsWorkspace.jsx (employee-portal — ar:2 en:0)
 
 - 91 [inline-ternary/ar] isRtl ? "موظف غير مرتبط" : "Unlinked employee"
@@ -3605,10 +3544,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/analytics/components/AiInsightCard.jsx (shared — ar:0 en:1)
 
 - 17 [jsx-text/en] AI insight
-
-### src/modules/attendance/pages/AttendanceDashboard.jsx (employee-portal — ar:1 en:0)
-
-- 162 [jsx-text/ar] آخر القراءات ليوم
 
 ### src/modules/inventory/pages/StockTransfers.jsx (main-erp — ar:1 en:0)
 

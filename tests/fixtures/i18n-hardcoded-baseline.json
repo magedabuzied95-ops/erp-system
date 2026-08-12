@@ -1,9 +1,9 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1993,
-    "english": 2492,
-    "total": 4485,
+    "arabic": 1992,
+    "english": 2429,
+    "total": 4421,
     "mixedFiles": 52
   },
   "files": {
@@ -364,33 +364,18 @@
     },
     "src/modules/attendance/components/AttendanceCenter.jsx": {
       "arabic": 64,
-      "english": 12,
-      "total": 76
+      "english": 4,
+      "total": 68
     },
     "src/modules/attendance/components/AttendanceWorkspace.jsx": {
       "arabic": 12,
       "english": 0,
       "total": 12
     },
-    "src/modules/attendance/pages/AttendanceDashboard.jsx": {
-      "arabic": 1,
-      "english": 0,
-      "total": 1
-    },
     "src/modules/attendance/pages/AttendanceReports.jsx": {
       "arabic": 0,
-      "english": 41,
-      "total": 41
-    },
-    "src/modules/attendance/pages/PublicBranchAttendance.jsx": {
-      "arabic": 0,
-      "english": 5,
-      "total": 5
-    },
-    "src/modules/attendance/pages/StaffQrAttendance.jsx": {
-      "arabic": 0,
-      "english": 8,
-      "total": 8
+      "english": 2,
+      "total": 2
     },
     "src/modules/coupons/pages/CouponsManager.jsx": {
       "arabic": 12,
@@ -829,8 +814,8 @@
     },
     "src/pages/Branches.jsx": {
       "arabic": 0,
-      "english": 9,
-      "total": 9
+      "english": 6,
+      "total": 6
     },
     "src/pages/ComponentsPreview.jsx": {
       "arabic": 58,

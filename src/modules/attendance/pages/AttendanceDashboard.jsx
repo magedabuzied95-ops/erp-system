@@ -159,7 +159,7 @@ export default function AttendanceDashboard() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{tt("employeePortal.attendance.liveEmployeeTable")}</h2>
-              <p className="text-sm text-slate-400">آخر القراءات ليوم {payload?.date || new Date().toISOString().slice(0, 10)}</p>
+              <p className="text-sm text-slate-400">{tt("attendance.dashboard.latestReadingsFor")} {payload?.date || new Date().toISOString().slice(0, 10)}</p>
             </div>
             <div className="text-sm text-slate-400">{summary.totalWorkedHours ? `ساعات العمل ${summary.totalWorkedHours}` : ""}</div>
           </div>
