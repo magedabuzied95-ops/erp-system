@@ -279,6 +279,47 @@ test("11.1b stray number 'خصم ٣٠' (no explicit size marker, no availability
   assert.equal(r.changed, false); // must not treat a discount number as a size → no clarify
 });
 
+// ---- Phase 11.2 — send-ready grounded card + deterministic disambiguation ----
+
+test("11.2 single grounded product → send_ready_card with variant identity, no choices", async () => {
+  const deps = {
+    resolveByBrandModel: async () => ([{ id: 39, name: "Air Jordan 4  Sneakers for Men", product_type: "sneakers" }]),
+    inventoryFacts: async () => ({ variant_stock: [{ variant_id: 1414, size: "45", color: "black", stock: 3 }] }),
+  };
+  const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "عندكم جوردن فور مقاس ٤٥؟", deps });
+  assert.equal(r.action, "available");
+  assert.equal(r.product_ambiguous, false);
+  assert.deepEqual(r.card_choices, []);
+  assert.ok(r.send_ready_card, "expected a send-ready card");
+  assert.equal(r.send_ready_card.product_id, 39);
+  assert.equal(r.send_ready_card.variant_id, 1414);
+  assert.equal(String(r.send_ready_card.size), "45");
+  assert.equal(r.send_ready_card.in_stock, true);
+});
+
+test("11.2 ambiguous product (Jordan 4 → 208 + 39) → choices, NO silent single card", async () => {
+  const deps = {
+    resolveByBrandModel: async () => ([
+      { id: 208, name: "Jordan 4", product_type: "sneakers" },
+      { id: 39, name: "Air Jordan 4  Sneakers for Men", product_type: "sneakers" },
+    ]),
+    inventoryFacts: async () => ({ variant_stock: [{ variant_id: 1414, size: "45", color: "black", stock: 3 }] }),
+  };
+  const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "عندكم جوردن فور مقاس ٤٥؟", deps });
+  assert.equal(r.product_ambiguous, true);
+  assert.equal(r.send_ready_card, null); // never silently attach one product's card when ambiguous
+  assert.equal(r.card_choices.length, 2);
+  for (const c of r.card_choices) assert.ok(c.product_id && c.name);
+});
+
+test("11.2 unresolved product → no send-ready card (never attach remembered/popular)", async () => {
+  const deps = { resolveByBrandModel: async () => ([]), inventoryFacts: async () => ({}) };
+  const r = await G.applyInboxGroundingGate({ tenantId: 1, message: "عندكم منتج غير معروف مقاس 44؟", deps });
+  assert.equal(r.action, "clarify_product");
+  assert.ok(!r.send_ready_card);
+  assert.ok(!(r.card_choices && r.card_choices.length));
+});
+
 test("SAFETY: gate never throws, never sends, never writes stock/orders/restock intents", async () => {
   const bad = await G.applyInboxGroundingGate({ tenantId: 1, message: LIVE, reply: {}, deps: { queryProducts: async () => { throw new Error("boom"); } } });
   assert.equal(bad.changed, false); // failure-isolated
