@@ -1,0 +1,100 @@
+{
+  "analytics": {
+    "eyebrow": "تحليلات وكيل الذكاء الاصطناعي",
+    "title": "لوحة الأداء",
+    "subtitle": "الأداء التجاري والتشغيلي للمحادثات والمسودات والطلبات والمتابعات والاعتراضات والطلب على المنتجات المدعومة بالذكاء الاصطناعي.",
+    "allBranches": "كل الفروع",
+    "branchNumber": "فرع {{id}}",
+    "refresh": "تحديث",
+    "loadingAnalytics": "جارٍ تحميل التحليلات...",
+    "noData": "لا توجد بيانات لهذه الفترة.",
+    "noRows": "لا توجد صفوف.",
+    "unknown": "غير معروف",
+    "noEventLogs": "لا توجد سجلات أحداث للذكاء الاصطناعي في الفترة المحددة.",
+    "event": "حدث",
+    "aiEvent": "حدث ذكاء اصطناعي",
+    "conversation": "المحادثة: {{id}}",
+    "conversationNone": "المحادثة: -",
+    "errorSuffix": " • خطأ: {{message}}",
+    "kpi": {
+      "aiRevenue": "إيرادات بمساعدة الذكاء الاصطناعي",
+      "drafts": "مسودات أنشأها الذكاء الاصطناعي",
+      "confirmedOrders": "طلبات مؤكدة بالذكاء الاصطناعي",
+      "conversionRate": "معدل التحويل",
+      "averageOrderValue": "متوسط قيمة الطلب",
+      "abandonedRecovered": "متروكة / مستردة",
+      "totalConversations": "إجمالي المحادثات",
+      "aiReplies": "ردود الذكاء الاصطناعي",
+      "humanTakeovers": "التدخلات البشرية",
+      "avgResponseTime": "متوسط زمن الرد",
+      "waitingCustomers": "عملاء في الانتظار",
+      "closedConversations": "محادثات مغلقة"
+    },
+    "lead": {
+      "title": "جودة العملاء المحتملين",
+      "hot": "عملاء محتملون ساخنون",
+      "warm": "عملاء محتملون فاترون",
+      "cold": "عملاء محتملون باردون",
+      "vip": "عملاء مميزون",
+      "complaints": "الشكاوى"
+    },
+    "objections": {
+      "title": "أبرز الاعتراضات"
+    },
+    "followups": {
+      "title": "أداء المتابعات",
+      "scheduled": "مجدولة",
+      "due": "مستحقة",
+      "sent": "مرسلة",
+      "manuallySent": "أُرسلت يدويًا",
+      "snoozed": "مؤجلة",
+      "cancelled": "ملغاة",
+      "recovered": "مستردة بعد المتابعة",
+      "stopped": "توقفت بعد الرفض"
+    },
+    "products": {
+      "asked": "أكثر المنتجات المسؤول عنها",
+      "converted": "أكثر المنتجات تحويلًا",
+      "highInterest": "اهتمام مرتفع وتحويل منخفض",
+      "stockConflicts": "منتجات بتعارض في المخزون",
+      "columns": {
+        "product": "المنتج",
+        "interest": "الاهتمام",
+        "orders": "الطلبات",
+        "revenue": "الإيرادات",
+        "conversion": "التحويل",
+        "conflicts": "التعارضات"
+      }
+    },
+    "shadow": {
+      "title": "التحليلات الظلية",
+      "totalDrafts": "إجمالي المسودات",
+      "eligible": "مؤهلة",
+      "review": "للمراجعة",
+      "humanRequired": "تتطلب موظفًا",
+      "eligibilityRate": "نسبة الأهلية %",
+      "pilotReadiness": "جاهزية التجربة",
+      "weeklyScore": "درجة الجاهزية الأسبوعية",
+      "corrections": "التصحيحات",
+      "safetyBlocks": "حجب الأمان",
+      "validatorViolations": "مخالفات المُحقِّق",
+      "readiness": {
+        "ready": "جاهز",
+        "near_ready": "شبه جاهز",
+        "not_ready": "غير جاهز"
+      }
+    },
+    "safety": {
+      "title": "مراقب أمان الذكاء الاصطناعي",
+      "duplicatePrevented": "تم منع التكرار",
+      "autoReplyFailures": "إخفاقات الرد التلقائي",
+      "totalEvents": "إجمالي الأحداث",
+      "latestEvents": "آخر ٥ أحداث",
+      "topBlockers": "أبرز أسباب الحجب",
+      "topIntents": "أبرز النوايا",
+      "intentDistribution": "توزيع نوايا الأمان",
+      "confidenceDistribution": "توزيع مستوى الثقة",
+      "channelsBreakdown": "تفصيل القنوات"
+    }
+  }
+}

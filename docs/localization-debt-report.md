@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 152
+- Files with debt: 151
 - Hardcoded Arabic UI strings: 1749
-- Hardcoded English UI strings: 1611
-- Total hardcoded UI strings: 3360
+- Hardcoded English UI strings: 1544
+- Total hardcoded UI strings: 3293
 - Mixed-language files (both scripts hardcoded): 42
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 82 | 1193 | 1214 | 2407 | 28 |
+| main-erp | 81 | 1193 | 1147 | 2340 | 28 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -513,50 +513,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 928 [inline-ternary/ar] isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"
 - 932 [inline-ternary/ar] isArabic ? "إلغاء" : "Cancel"
 - ... 28 more
-
-### src/modules/aiSupport/pages/AiAgentAnalytics.jsx (main-erp — ar:0 en:67)
-
-- 104 [attribute/en] No rows.
-- 249 [jsx-text/en] AI Agent Analytics
-- 250 [jsx-text/en] Performance Dashboard
-- 257 [jsx-text/en] All branches
-- 275 [attribute/en] AI-assisted revenue
-- 276 [attribute/en] AI-created drafts
-- 277 [attribute/en] Confirmed AI orders
-- 278 [attribute/en] Conversion rate
-- 279 [attribute/en] Average order value
-- 280 [attribute/en] Abandoned / recovered
-- 284 [attribute/en] Total conversations
-- 285 [attribute/en] AI replies
-- 286 [attribute/en] Human takeovers
-- 287 [attribute/en] Avg response time
-- 288 [attribute/en] Waiting customers
-- 289 [attribute/en] Closed conversations
-- 293 [attribute/en] Lead Quality
-- 295 [attribute/en] Hot leads
-- 296 [attribute/en] Warm leads
-- 297 [attribute/en] Cold leads
-- 298 [attribute/en] VIP customers
-- 299 [attribute/en] Complaints
-- 303 [attribute/en] Top Objections
-- 307 [attribute/en] Follow-up Performance
-- 309 [attribute/en] Scheduled
-- 310 [attribute/en] Due
-- 311 [attribute/en] Sent
-- 312 [attribute/en] Manually sent
-- 313 [attribute/en] Snoozed
-- 314 [attribute/en] Cancelled
-- 315 [attribute/en] Recovered after follow-up
-- 316 [attribute/en] Stopped after rejection
-- 322 [attribute/en] Top Products Asked About
-- 326 [object-key/en] Product
-- 327 [object-key/en] Interest
-- 331 [attribute/en] Top Products Converted
-- 335 [object-key/en] Product
-- 336 [object-key/en] Orders
-- 337 [object-key/en] Revenue
-- 341 [attribute/en] High Interest, Low Conversion
-- ... 27 more
 
 ### src/modules/pos/components/RecentOperationsDrawer.jsx (pos — ar:62 en:2)
 
