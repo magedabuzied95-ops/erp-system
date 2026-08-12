@@ -384,6 +384,14 @@ const WALK_IN_CUSTOMER = {
   type: "walk_in",
 };
 
+const customerSnapshotFromOrder = (order = {}) => {
+  const id = order?.customer_id || order?.customer?.id || null;
+  const name = String(order?.customer_name || order?.customer?.name || "").trim();
+  const phone = String(order?.customer_phone || order?.customer?.phone || "").trim();
+  if (!id && !name && !phone) return null;
+  return { id, customer_id: id, name, customer_name: name, phone, customer_phone: phone };
+};
+
 const normalizeInvoiceDiscountType = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized === "percentage" || normalized === "percent" ? "percentage" : "fixed";
@@ -5154,8 +5162,16 @@ function POSPro() {
       setInvoiceDiscount(Number(loadedOrder.invoice_discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
       setEditRefundMethod("cash");
-      setSelectedCustomerId(loadedOrder.customer_id || null);
-      setCustomerSearch(loadedOrder.customer_name || "");
+      const loadedCustomer = customerSnapshotFromOrder(loadedOrder);
+      if (loadedCustomer?.id) {
+        setCustomers((current) => {
+          const rows = Array.isArray(current) ? current : [];
+          if (rows.some((item) => String(item?.id || item?.customer_id) === String(loadedCustomer.id))) return rows;
+          return [loadedCustomer, ...rows];
+        });
+      }
+      setSelectedCustomerId(loadedCustomer?.id || null);
+      setCustomerSearch(loadedCustomer?.name || loadedCustomer?.phone || "");
       const openStartedAt = performance.now();
       setRecentOperationsOpen(false);
       markEditTiming("open_edit_mode_ms", openStartedAt);
@@ -5740,8 +5756,11 @@ function POSPro() {
         });
       }
 
-      const invoiceCustomer = customer || WALK_IN_CUSTOMER;
-      const customerId = customer ? customer.id || customer.customer_id : null;
+      // The customer list is lazy-loaded. During invoice editing the original
+      // customer may not be in that list yet, so retain the order snapshot
+      // instead of silently replacing it with Walk-in Customer.
+      const invoiceCustomer = customer || (editingOrder?.id ? customerSnapshotFromOrder(editingOrder) : null) || WALK_IN_CUSTOMER;
+      const customerId = invoiceCustomer.id || invoiceCustomer.customer_id || null;
 
       if (customer && !customerId) {
         console.error("[pos] selected customer is missing id/customer_id at checkout:", customer);
@@ -5890,7 +5909,7 @@ function POSPro() {
       const payload = {
         customer_name: invoiceCustomer.name,
         customer_id: customerId || null,
-        customer_phone: customer?.phone || "",
+        customer_phone: invoiceCustomer.phone || invoiceCustomer.customer_phone || "",
         payment_method: isPersonalTransaction ? "personal" : ((creditSaleCheckout || partialCreditCheckout) ? "credit_sale" : (paymobTerminalConfirmed ? "card" : paymentMode)),
         payment_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         paymob_terminal_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,

@@ -5593,6 +5593,11 @@ const restoreOrderInventory = async (client, { tenantId, order, items, movementT
   return restoredItems;
 };
 
+const isDefaultWalkInCustomerName = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+  return !normalized || ["walk in customer", "walkin customer", "customer", "عميل نقدي"].includes(normalized);
+};
+
 export const editOrder = async (req, res) => {
   const client = await db.connect();
   try {
@@ -5879,13 +5884,24 @@ export const editOrder = async (req, res) => {
         edit_additional_payment: true,
       })),
     ];
-    const resolvedCustomerId = Object.prototype.hasOwnProperty.call(req.body, "customer_id")
-      ? req.body.customer_id || null
-      : loaded.order.customer_id || null;
-    const resolvedCustomerName = String(req.body.customer_name || loaded.order.customer_name || "").trim() || "Walk-in Customer";
-    const resolvedCustomerPhone = Object.prototype.hasOwnProperty.call(req.body, "customer_phone")
-      ? req.body.customer_phone || ""
-      : loaded.order.customer_phone || "";
+    const requestedCustomerName = String(req.body.customer_name || "").trim();
+    const loadedCustomerName = String(loaded.order.customer_name || "").trim();
+    const preserveLoadedCustomer = req.body.customer_changed !== true
+      && isDefaultWalkInCustomerName(requestedCustomerName)
+      && !isDefaultWalkInCustomerName(loadedCustomerName);
+    const resolvedCustomerId = preserveLoadedCustomer
+      ? loaded.order.customer_id || null
+      : Object.prototype.hasOwnProperty.call(req.body, "customer_id")
+        ? req.body.customer_id || null
+        : loaded.order.customer_id || null;
+    const resolvedCustomerName = preserveLoadedCustomer
+      ? loadedCustomerName
+      : String(requestedCustomerName || loadedCustomerName).trim() || "Walk-in Customer";
+    const resolvedCustomerPhone = preserveLoadedCustomer
+      ? loaded.order.customer_phone || ""
+      : Object.prototype.hasOwnProperty.call(req.body, "customer_phone")
+        ? req.body.customer_phone || ""
+        : loaded.order.customer_phone || "";
 
     await client.query(`DELETE FROM order_items WHERE order_id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)`, [loaded.order.id, tenantId]);
     const orderItemAvailableColumns = await getTableColumnSet(client, "order_items");
