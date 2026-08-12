@@ -7200,6 +7200,12 @@ export default function AiInbox() {
     setAiSuggestionEditText("");
     setSuggestionProductRemoved(false);
     setSuggestionChosenCard(null);
+    // Phase 13 — a completed assisted approval CONSUMES the draft. Optimistically clear the AUTHORITATIVE draft in
+    // conversation state to match the backend (which cleared it to {}), so activeAiReplyDraft becomes empty at once
+    // and EVERY derived surface (reply card, validation, confidence, grounding facts, product/colour choices,
+    // Product-to-Send preview, send-package) collapses immediately — no refetch/cache race can re-show the
+    // completed suggestion. Only reached after result.ok (a stale/failed TEXT send returns above and stays actionable).
+    patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conv) => ({ ...conv, ai_reply_draft: {}, last_ai_reply_draft: {} }));
     if (cardOk) setToast({ tone: "emerald", text: card ? "✓ تم اعتماد وإرسال اقتراح AI مع المنتج" : "✓ تم اعتماد وإرسال اقتراح AI" });
   };
 
