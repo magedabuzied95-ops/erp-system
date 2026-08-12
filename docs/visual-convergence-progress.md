@@ -14,7 +14,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 3b | Residual dark gradient hero on `/marketing/settings` | -> `2fa8eb3` | `0278020` | `0278020` verified Light + Dark | build green |
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 | 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
-| 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | see below | see below | build green |
+| 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | `cfdbb72` | `cfdbb72` verified (see note) | build green |
 
 ## Method
 
@@ -522,6 +522,19 @@ be promoted to PASS.
 Diff is 70 insertions / 70 deletions, class strings only (including the tier
 badge palettes, whose `text-slate-100` was a dark-theme-only value).
 
+**Checkpoint 6 production verification (Production `cfdbb72`):**
+
+| Route | Light before | Light after | Dark after |
+|---|---|---|---|
+| `/loyalty` | 5 offenders | **0** | not re-measured post-fix (was 0 pre-fix; defect was Light-only) |
+| `/loyalty/rules` | 3 offenders | **0** | **0** |
+| `/loyalty/customers/3176` | 3 offenders | **0** | **0** |
+
+Shell in Light `rgb(234,231,224)` = `--bg`; in Dark `rgb(19,18,17)` = `--bg`.
+Two of the three routes are **FIXED_VERIFIED (light + dark)**. `/loyalty` is
+**FIXED (light verified, dark pending re-measure)** — recorded honestly rather
+than assumed from the identical token substitution applied to all three files.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
@@ -576,21 +589,36 @@ an explicit ruling rather than an autonomous change. Observed spread:
 
 ## RESUME MARKER
 
-/products/variants was audited clean in Dark after checkpoint 4.
+**Phase 1 (ID-bound routes) is complete except two records that do not exist /
+one route that does not render:**
 
-**The static pending route queue is EXHAUSTED.**
+- `/inventory/count/:id` and `/inventory/variant/:id/history` — **PENDING**, no
+  record ID obtainable read-only (all four candidate list endpoints 404). Next
+  attempt: harvest via in-app SPA navigation into `/inventory/count` and read a
+  rendered session row, rather than a cold direct load.
+- `/ai-studio/workflows/:id/edit` — **BLOCKED_NO_RENDER** (proof recorded above).
 
-Next: the dedicated completion sweep, in this order — (1) approved 22px
-page-title convergence, (2) remaining PARTIAL_PASS routes, (3) missing
-Light/Dark verification, (4) RTL/LTR verification, (5) re-verification of any
-route touched by a shared-owner change. The only routes still un-audited are the
-ID-bound detail routes listed in the Session 4 section, which need live record
-IDs harvested from their list pages.
-The marketing fixes were verified in both themes, so those routes are
-`FIXED_VERIFIED` rather than partial.
+Also re-measure `/loyalty` in Dark on cfdbb72 (one call) to close checkpoint 6.
 
-Do not re-audit routes already marked PASS/FIXED unless a later shared change
-touches them.
+**Next: Phase 2 — typography convergence** against the approved 22px ruling.
+Trace and converge the page-title owner on exactly these three routes:
+
+1. `/marketing/analytics` — 44px
+2. `/marketing/social-calendar` — 37px
+3. `/marketing/social-media-publisher` — 37px
+
+`/marketing/automation` already measures 22px and must NOT be touched.
+Do NOT globally replace `.m1-display` — it has legitimate hero/display consumers.
+Verify after: title computes 22px, hierarchy intact, no spacing regression,
+Light + Dark, RTL + LTR.
+
+Then Phase 3 (PARTIAL_PASS completion — run only the missing states per route),
+Phase 4 (`/products/labels` bounded verification -> PASS_BOUNDED), Phase 5
+(final frozen-reference sweep).
+
+**Phase 3 priority warning:** the loyalty module proved that a single-theme
+sweep hides real defects — `/loyalty` measured 0 offenders in Dark and 5 in
+Light. Treat every Dark-only or Light-only row as genuinely unverified.
 
 ### Remaining queue (PENDING)
 
