@@ -24,22 +24,33 @@ test("customer payments are stored separately from loyalty wallet adjustments", 
 
 test("customer statement has a professional payment workflow", () => {
   const customers = source("src/modules/sales/pages/Customers.jsx");
-  assert.match(customers, /تسجيل دفعة من العميل/);
   assert.match(customers, /payment_method/);
   assert.match(customers, /payment_date/);
-  assert.match(customers, /المتبقي على العميل/);
-  assert.match(customers, /دفعات العملاء/);
-  assert.match(customers, /العودة للعملاء/);
   assert.match(customers, /onViewOrder/);
   assert.match(customers, /onEditOrder/);
-  assert.match(customers, /مسدد بالكامل/);
-  assert.match(customers, /مسدد جزئيًا/);
-  assert.match(customers, /آجل غير مسدد/);
   assert.match(customers, /\/pos\?editOrderId=/);
   assert.match(customers, /\/customers\/\$\{encodeURIComponent\(customer\.id\)\}\/statement/);
   assert.match(customers, /useParams/);
-  assert.match(customers, /عرض الفاتورة/);
-  assert.match(customers, /تعديل الفاتورة/);
+
+  // The copy is localized now: the page references keys and the Arabic wording
+  // lives in the dictionary. Both halves are asserted so neither can drift.
+  const ar = JSON.parse(source("src/locales/ar/customers.json"));
+  for (const [key, arabic] of [
+    ["customers.payment.title", "تسجيل دفعة من العميل"],
+    ["customers.statement.outstanding", "المتبقي على العميل"],
+    ["customers.filters.customerPayments", "دفعات العملاء"],
+    ["customers.statement.backToCustomers", "العودة للعملاء"],
+    ["customers.paymentState.fullyPaid", "مسدد بالكامل"],
+    ["customers.paymentState.partiallyPaid", "مسدد جزئيًا"],
+    ["customers.paymentState.unpaidCredit", "آجل غير مسدد"],
+    ["customers.statement.viewInvoice", "عرض الفاتورة"],
+    ["customers.statement.editInvoice", "تعديل الفاتورة"],
+  ]) {
+    // Referenced either directly as tt("key") or as a labelKey in an options array.
+    assert.match(customers, new RegExp(`"${key.replace(/\./g, "\\.")}"`), `${key} is not used by the page`);
+    const value = key.split(".").slice(1).reduce((node, part) => node?.[part], ar);
+    assert.equal(value, arabic, `${key} lost its Arabic wording`);
+  }
   assert.match(
     customers.match(/function CustomerStatementDrawer[\s\S]*?export default Customers;/)?.[0] || "",
     /m1-customers-page min-h-screen/
