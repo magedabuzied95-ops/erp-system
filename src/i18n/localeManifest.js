@@ -63,6 +63,7 @@ export const RESOURCE_BRANCHES = [
   { branch: "marketing", file: "marketing" },
   { branch: "aiStudio", file: "aiStudio" },
   { branch: "aiSupport", file: "aiSupport" },
+  { branch: "shipping", file: "shipping" },
   { branch: "storefront", file: "storefront" },
   { branch: "print", file: "print" },
   { branch: "sales", file: "sales" },

@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 147
+- Files with debt: 146
 - Hardcoded Arabic UI strings: 1704
-- Hardcoded English UI strings: 1272
-- Total hardcoded UI strings: 2976
+- Hardcoded English UI strings: 1241
+- Total hardcoded UI strings: 2945
 - Mixed-language files (both scripts hardcoded): 39
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 77 | 1148 | 875 | 2023 | 25 |
+| main-erp | 76 | 1148 | 844 | 1992 | 25 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -965,40 +965,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2579 [attribute/en] Vodafone Cash
 - 2586 [attribute/en] InstaPay
 - 2661 [attribute/en] INV-123
-
-### src/modules/shipping/pages/ShippingCenter.jsx (main-erp — ar:0 en:31)
-
-- 94 [jsx-text/en] Shipment Drawer
-- 122 [jsx-text/en] Address
-- 125 [jsx-text/en] Print Label
-- 129 [jsx-text/en] Shipping Timeline
-- 136 [jsx-text/en] No timeline events yet.
-- 140 [jsx-text/en] Webhook Events
-- 147 [jsx-text/en] No webhook events received.
-- 211 [notification/en] Select shipments first
-- 256 [jsx-text/en] Operations
-- 257 [jsx-text/en] Shipping Center
-- 261 [jsx-text/en] Table View
-- 262 [jsx-text/en] Board View
-- 263 [jsx-text/en] Refresh
-- 272 [jsx-text/en] Delivery Success Rate
-- 273 [jsx-text/en] Return Rate
-- 274 [jsx-text/en] Average Delivery Time
-- 275 [jsx-text/en] Orders Per Provider
-- 276 [jsx-text/en] Orders Per City
-- 284 [attribute/en] Search order, customer, phone, tracking...
-- 286 [jsx-text/en] All providers
-- 287 [jsx-text/en] All branches
-- 288 [jsx-text/en] All shipping statuses
-- 289 [jsx-text/en] All payment statuses
-- 290 [jsx-text/en] COD / Prepaid
-- 290 [jsx-text/en] Prepaid
-- 295 [jsx-text/en] Create Shipments
-- 296 [jsx-text/en] Refresh Status
-- 297 [jsx-text/en] Print Labels
-- 298 [jsx-text/en] Mark Ready
-- 299 [jsx-text/en] Export CSV
-- 334 [jsx-text/en] No shipments match the current filters.
 
 ### src/modules/orders/pages/OrdersDashboard.jsx (main-erp — ar:30 en:0)
 
