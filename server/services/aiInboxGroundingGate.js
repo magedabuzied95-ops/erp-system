@@ -124,7 +124,7 @@ export const extractRequestedEntities = (message = "") => {
     .filter((w) => w && !STOPWORDS.has(w) && !colorTokens.has(w) && !sizeTokens.has(w) && w !== clean(productTerm))
     .join(" ")
     .trim();
-  return { normalized: norm, productType, productTerm, typeLabel, color, colorLabel, size, hasGreeting, wantsAvailability, wantsRestock, brandModelTerm };
+  return { normalized: norm, productType, productTerm, typeLabel, color, colorLabel, size, sizeIsExplicit: Boolean(sizeExplicit), hasGreeting, wantsAvailability, wantsRestock, brandModelTerm };
 };
 
 // ---- Pure: substantive business intent beats a leading greeting (operates on entities — single or merged turn) ----
@@ -160,7 +160,7 @@ export const mergeTurnEntities = (entitiesList = []) => {
     }
   }
   if (!merged.color) { const p = priorNewestFirst.find((e) => e.color); if (p) { merged.color = p.color; merged.colorLabel = p.colorLabel; } }
-  if (!merged.size) { const p = priorNewestFirst.find((e) => e.size); if (p) merged.size = p.size; }
+  if (!merged.size) { const p = priorNewestFirst.find((e) => e.size); if (p) { merged.size = p.size; merged.sizeIsExplicit = p.sizeIsExplicit; } }
   merged.wantsAvailability = list.some((e) => e.wantsAvailability);
   merged.wantsRestock = list.some((e) => e.wantsRestock);
   merged.hasGreeting = list.some((e) => e.hasGreeting);
@@ -297,7 +297,11 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // No specific product/category named. If a size/color availability question was asked without a
     // product, ask WHICH product instead of guessing (no unrelated product substitution).
     if (!entities.productType) {
-      if ((entities.size || entities.color) && entities.wantsAvailability) {
+      // Phase 11.1 — a size/color fragment that resolves to NO product must ask which product, never let the
+      // raw ungrounded draft (remembered/popular items) pass through. Bounded to an EXPLICIT size marker
+      // (مقاس/size), an availability ask, or a color, so a stray number ("خصم ٣٠") does not trigger a clarify.
+      const colorOrExplicit = entities.color || (entities.size && (entities.sizeIsExplicit || entities.wantsAvailability));
+      if (colorOrExplicit) {
         return { changed: true, entities, requestedIntent: "PRODUCT_AVAILABILITY", action: "clarify_product", confidence: 0.4, suggested_products: [],
           answer: `تقصد أنهي منتج؟ قولّي اسم أو نوع المنتج${sizeTxt}${colorTxt} وأنا أشيكلك على التوفر بالظبط.`,
           grounding: { requested: { productType: null, color: entities.color || null, size: entities.size || null }, resolved: { note: "no_product_specified" }, action: "clarify_product" } };
