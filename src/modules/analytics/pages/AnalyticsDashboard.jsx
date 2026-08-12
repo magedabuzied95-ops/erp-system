@@ -489,14 +489,14 @@ function AnalyticsDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-950 to-slate-900 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.24)] xl:p-8">
+      <div className="rounded-[34px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.24)] xl:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs uppercase tracking-[0.32em] text-primary">{t("analytics.eyebrow")}</p>
-            <h1 className="m1-display mt-3 text-white">
+            <h1 className="m1-display mt-3 text-[var(--text)]">
               {t("analytics.title")}
             </h1>
-            <p className="mt-4 text-sm leading-7 text-zinc-400 xl:text-base">
+            <p className="mt-4 text-sm leading-7 text-[var(--muted)] xl:text-base">
               {t("analytics.subtitle")}
             </p>
           </div>
@@ -514,14 +514,14 @@ function AnalyticsDashboard() {
           {refreshing ? <StatusPill label={t("analytics.buttons.refreshing")} tone="amber" /> : null}
         </div>
 
-        <div className="mt-6 rounded-[30px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.16)]">
+        <div className="mt-6 rounded-[30px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.16)]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text)]">
                 <Filter className="h-4 w-4 text-primary" />
                 {t("analytics.filters.title")}
               </div>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-[var(--muted)]">
                 {t("analytics.filters.description")}
               </p>
             </div>
@@ -529,7 +529,7 @@ function AnalyticsDashboard() {
           <button
             type="button"
             onClick={handleFilterReset}
-            className="inline-flex items-center gap-2 self-start rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-primary/30 hover:bg-primary/10 hover:text-white"
+            className="inline-flex items-center gap-2 self-start rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-primary/30 hover:bg-primary/10 hover:text-[var(--text)]"
           >
             <RotateCcw className="h-4 w-4" />
             {t("analytics.filters.reset")}
@@ -540,7 +540,7 @@ function AnalyticsDashboard() {
             <button
               type="button"
               onClick={handleExportPdf}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/20 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/20 hover:text-[var(--text)]"
             >
               <Download className="h-4 w-4" />
               {t("analytics.exportPdf")}
@@ -548,7 +548,7 @@ function AnalyticsDashboard() {
             <button
               type="button"
               onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400/40 hover:bg-emerald-500/20 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-500 transition hover:border-emerald-400/40 hover:bg-emerald-500/20 hover:text-[var(--text)]"
             >
               <Download className="h-4 w-4" />
               {t("analytics.exportCsv")}
@@ -556,7 +556,7 @@ function AnalyticsDashboard() {
             <button
               type="button"
               onClick={handlePrintReport}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--border)] hover:bg-[var(--surface)] hover:text-[var(--text)]"
             >
               <Printer className="h-4 w-4" />
               {t("analytics.printReport")}
@@ -564,14 +564,14 @@ function AnalyticsDashboard() {
           </div>
 
           <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-            <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
               Date range
               <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                 <select
                   value={filters.datePreset}
                   onChange={(event) => handlePresetChange(event.target.value)}
-                  className="w-full appearance-none rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950"
+                  className="w-full appearance-none rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-10 py-3 text-sm font-medium text-[var(--text)] outline-none transition focus:border-primary/40 focus:bg-[var(--card)]"
                 >
                   {presetOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -579,11 +579,11 @@ function AnalyticsDashboard() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
               </div>
             </label>
 
-            <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
               Start date
               <input
                 type="date"
@@ -596,11 +596,11 @@ function AnalyticsDashboard() {
                     startDate: event.target.value,
                   }))
                 }
-                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text)] outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
-            <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
               End date
               <input
                 type="date"
@@ -613,16 +613,16 @@ function AnalyticsDashboard() {
                     endDate: event.target.value,
                   }))
                 }
-                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text)] outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:col-span-1">
               {branchOptions.length > 1 ? (
-                <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
                   Branch
                   <div className="relative">
-                    <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                    <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                     <select
                       value={filters.branchId}
                       onChange={(event) =>
@@ -631,7 +631,7 @@ function AnalyticsDashboard() {
                           branchId: event.target.value,
                         }))
                       }
-                      className="w-full appearance-none rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950 disabled:opacity-60"
+                      className="w-full appearance-none rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-10 py-3 text-sm font-medium text-[var(--text)] outline-none transition focus:border-primary/40 focus:bg-[var(--card)] disabled:opacity-60"
                     >
                       <option value="">{t("analytics.labels.allBranches")}</option>
                       {branchOptions.map((branch) => (
@@ -640,15 +640,15 @@ function AnalyticsDashboard() {
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                   </div>
                 </label>
               ) : null}
 
-              <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+              <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
                 Warehouse
                 <div className="relative">
-                  <Warehouse className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                  <Warehouse className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                   <select
                     value={filters.warehouseId}
                     onChange={(event) =>
@@ -657,7 +657,7 @@ function AnalyticsDashboard() {
                         warehouseId: event.target.value,
                       }))
                     }
-                    className="w-full appearance-none rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 focus:bg-zinc-950 disabled:opacity-60"
+                    className="w-full appearance-none rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-10 py-3 text-sm font-medium text-[var(--text)] outline-none transition focus:border-primary/40 focus:bg-[var(--card)] disabled:opacity-60"
                     disabled={warehouseOptions.length === 0}
                   >
                     <option value="">{t("analytics.labels.allWarehouses")}</option>
@@ -667,14 +667,14 @@ function AnalyticsDashboard() {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                 </div>
               </label>
             </div>
           </div>
 
           {!showScopeFilters ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-400">
+            <div className="mt-4 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
               Branch and warehouse filters are hidden because no warehouse metadata is available.
             </div>
           ) : null}
@@ -692,7 +692,7 @@ function AnalyticsDashboard() {
             icon={getKpiIcon(kpi.label)}
           />
         )) : (
-          <div className="rounded-[28px] border border-dashed border-white/10 bg-zinc-950/70 p-8 text-sm font-semibold text-zinc-400 md:col-span-2 xl:col-span-3">
+          <div className="rounded-[28px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-sm font-semibold text-[var(--muted)] md:col-span-2 xl:col-span-3">
             {t("analytics.empty.noSalesData", "No sales data")}
           </div>
         )}
@@ -711,31 +711,31 @@ function AnalyticsDashboard() {
             <InfoCard label={t("analytics.labels.loyaltyPoints", "Loyalty points")} value={data.customerSummary.loyaltyPoints || 0} />
           </div>
 
-          <div className="mt-4 rounded-[26px] border border-white/10 bg-white/5 p-4">
-            <div className="text-sm font-black text-white">{t("analytics.sections.customers")}</div>
+          <div className="mt-4 rounded-[26px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="text-sm font-black text-[var(--text)]">{t("analytics.sections.customers")}</div>
             <div className="mt-3 space-y-3">
               {data.topCustomers.length > 0 ? (
                 data.topCustomers.map((customer, index) => (
-                  <div key={`${customer.name || customer.id || index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3">
+                  <div key={`${customer.name || customer.id || index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                     <div>
-                      <div className="font-semibold text-white">{customer.name || customer.customer_name || t("analytics.labels.customer", "Customer")}</div>
-                      <div className="text-xs text-zinc-400">{t("analytics.labels.topCustomers")}</div>
+                      <div className="font-semibold text-[var(--text)]">{customer.name || customer.customer_name || t("analytics.labels.customer", "Customer")}</div>
+                      <div className="text-xs text-[var(--muted)]">{t("analytics.labels.topCustomers")}</div>
                     </div>
-                    <div className="text-right text-sm text-zinc-300">{customer.revenue !== undefined ? formatCurrency(customer.revenue) : t("analytics.labels.nA")}</div>
+                    <div className="text-right text-sm text-[var(--muted)]">{customer.revenue !== undefined ? formatCurrency(customer.revenue) : t("analytics.labels.nA")}</div>
                   </div>
                 ))
               ) : data.recentCustomers.length > 0 ? (
                 data.recentCustomers.slice(0, 3).map((customer, index) => (
-                  <div key={`${customer.name || customer.id || index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3">
+                  <div key={`${customer.name || customer.id || index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                     <div>
-                      <div className="font-semibold text-white">{customer.name || t("analytics.labels.customer", "Customer")}</div>
-                      <div className="text-xs text-zinc-400">{customer.phone || t("analytics.labels.recentCustomer", "Recent customer")}</div>
+                      <div className="font-semibold text-[var(--text)]">{customer.name || t("analytics.labels.customer", "Customer")}</div>
+                      <div className="text-xs text-[var(--muted)]">{customer.phone || t("analytics.labels.recentCustomer", "Recent customer")}</div>
                     </div>
-                    <div className="text-right text-sm text-zinc-300">{customer.status || t("analytics.kpis.customers")}</div>
+                    <div className="text-right text-sm text-[var(--muted)]">{customer.status || t("analytics.kpis.customers")}</div>
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-zinc-950/70 px-4 py-4 text-sm text-zinc-400">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-4 text-sm text-[var(--muted)]">
                   {t("analytics.labels.noCustomerIntelligence")}
                 </div>
               )}
@@ -757,7 +757,7 @@ function AnalyticsDashboard() {
                 />
               ))
             ) : (
-              <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-zinc-400">
+              <div className="rounded-[26px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
                 No AI insights available yet.
               </div>
             )}
@@ -769,27 +769,27 @@ function AnalyticsDashboard() {
             <div className="grid gap-4 sm:grid-cols-2">
               {data.predictedSales.length > 0 ? (
                 data.predictedSales.map((item) => (
-                  <div key={item.label} className="rounded-[26px] border border-white/10 bg-white/5 p-5">
+                  <div key={item.label} className="rounded-[26px] border border-[var(--border)] bg-[var(--surface)] p-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">{item.label}</p>
-                        <div className="mt-3 text-3xl font-black text-white">{formatCurrency(item.value)}</div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">{item.label}</p>
+                        <div className="mt-3 text-3xl font-black text-[var(--text)]">{formatCurrency(item.value)}</div>
                       </div>
                       <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
                         <Sparkles className="h-5 w-5" />
                       </div>
                     </div>
-                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--surface)]">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-400"
                         style={{ width: `${item.confidence}%` }}
                       />
                     </div>
-                    <p className="mt-3 text-sm text-zinc-400">Confidence: {item.confidence}%</p>
+                    <p className="mt-3 text-sm text-[var(--muted)]">Confidence: {item.confidence}%</p>
                   </div>
                 ))
               ) : (
-                <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-zinc-400">
+                <div className="rounded-[26px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
                   No forecast data available yet.
                 </div>
               )}
@@ -801,7 +801,7 @@ function AnalyticsDashboard() {
               {data.smartAlerts.length > 0 ? (
                 data.smartAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} />)
               ) : (
-                <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-zinc-400">
+                <div className="rounded-[26px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
                   {t("analytics.labels.noSmartAlerts", "No smart alerts available yet.")}
                 </div>
               )}
@@ -832,11 +832,11 @@ function AnalyticsDashboard() {
               />
             </div>
 
-            <div className="overflow-hidden rounded-[26px] border border-white/10 bg-white/5">
+            <div className="overflow-hidden rounded-[26px] border border-[var(--border)] bg-[var(--surface)]">
               <div className="m1-table-container overflow-x-auto">
                 <table className="m1-table m1-table--compact min-w-full">
                   <thead>
-                    <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
+                    <tr className="text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
                       <th className="px-4 py-3">{t("analytics.labels.customer", "Customer")}</th>
                       <th className="px-4 py-3">{t("analytics.labels.segment", "Segment")}</th>
                       <th className="px-4 py-3">{t("analytics.kpis.orders")}</th>
@@ -851,21 +851,21 @@ function AnalyticsDashboard() {
                   </thead>
                   <tbody>
                     {data.customerIntelligence.map((item, index) => (
-                      <tr key={`${item.customer_name || item.phone || index}`} className="border-t border-white/5">
+                      <tr key={`${item.customer_name || item.phone || index}`} className="border-t border-[var(--border)]">
                         <td className="px-4 py-4">
-                          <div className="font-semibold text-white">{item.customer_name}</div>
-                          <div className="text-xs text-zinc-500">{item.phone || item.email || t("analytics.labels.nA")}</div>
+                          <div className="font-semibold text-[var(--text)]">{item.customer_name}</div>
+                          <div className="text-xs text-[var(--muted)]">{item.phone || item.email || t("analytics.labels.nA")}</div>
                         </td>
                         <td className="px-4 py-4">
                           <StatusPill label={item.customer_segment} tone={getCustomerSegmentTone(item.customer_segment)} />
                         </td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.total_orders}</td>
-                        <td className="px-4 py-4 text-sm font-semibold text-white">{formatCurrency(item.total_spent)}</td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{formatCurrency(item.average_order_value)}</td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.last_order_date || t("analytics.labels.nA")}</td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.days_since_last_order}</td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.favorite_products || t("analytics.labels.nA")}</td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.favorite_categories || t("analytics.labels.nA")}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.total_orders}</td>
+                        <td className="px-4 py-4 text-sm font-semibold text-[var(--text)]">{formatCurrency(item.total_spent)}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{formatCurrency(item.average_order_value)}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.last_order_date || t("analytics.labels.nA")}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.days_since_last_order}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.favorite_products || t("analytics.labels.nA")}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.favorite_categories || t("analytics.labels.nA")}</td>
                         <td className="px-4 py-4">
                           <StatusPill label={item.recommendation} tone={getRecommendationTone(item.recommendation)} />
                         </td>
@@ -877,7 +877,7 @@ function AnalyticsDashboard() {
             </div>
           </div>
         ) : (
-          <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-zinc-400">
+          <div className="rounded-[26px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
             {t("analytics.labels.noCustomerIntelligence")}
           </div>
         )}
@@ -885,11 +885,11 @@ function AnalyticsDashboard() {
 
       <Panel title={t("analytics.sections.reorder")} subtitle={t("analytics.sections.reorder")}>
         {data.reorderSuggestions.length > 0 ? (
-          <div className="overflow-hidden rounded-[26px] border border-white/10 bg-white/5">
+          <div className="overflow-hidden rounded-[26px] border border-[var(--border)] bg-[var(--surface)]">
             <div className="m1-table-container overflow-x-auto">
               <table className="m1-table m1-table--compact min-w-full">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
+                  <tr className="text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
                     <th className="px-4 py-3">{t("analytics.labels.product")}</th>
                     <th className="px-4 py-3">{t("analytics.labels.variant")}</th>
                     <th className="px-4 py-3">{t("analytics.labels.stock")}</th>
@@ -901,18 +901,18 @@ function AnalyticsDashboard() {
                 </thead>
                 <tbody>
                   {data.reorderSuggestions.map((item, index) => (
-                    <tr key={`${item.sku || item.product_name}-${index}`} className="border-t border-white/5">
+                    <tr key={`${item.sku || item.product_name}-${index}`} className="border-t border-[var(--border)]">
                       <td className="px-4 py-4">
-                        <div className="font-semibold text-white">{item.product_name}</div>
-                        <div className="text-xs text-zinc-500">{item.sku}</div>
+                        <div className="font-semibold text-[var(--text)]">{item.product_name}</div>
+                        <div className="text-xs text-[var(--muted)]">{item.sku}</div>
                       </td>
-                      <td className="px-4 py-4 text-sm text-zinc-300">
+                      <td className="px-4 py-4 text-sm text-[var(--muted)]">
                         {item.color} / {item.size}
                       </td>
-                      <td className="px-4 py-4 text-sm text-zinc-300">{item.current_stock}</td>
-                      <td className="px-4 py-4 text-sm text-zinc-300">{Number(item.average_daily_sales || 0).toFixed(2)}</td>
-                      <td className="px-4 py-4 text-sm text-zinc-300">{Number(item.estimated_days_remaining || 0).toFixed(1)}</td>
-                      <td className="px-4 py-4 text-sm font-semibold text-white">{item.suggested_reorder_quantity}</td>
+                      <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.current_stock}</td>
+                      <td className="px-4 py-4 text-sm text-[var(--muted)]">{Number(item.average_daily_sales || 0).toFixed(2)}</td>
+                      <td className="px-4 py-4 text-sm text-[var(--muted)]">{Number(item.estimated_days_remaining || 0).toFixed(1)}</td>
+                      <td className="px-4 py-4 text-sm font-semibold text-[var(--text)]">{item.suggested_reorder_quantity}</td>
                       <td className="px-4 py-4">
                         <StatusPill label={item.risk_level} tone={getRiskTone(item.risk_level)} />
                       </td>
@@ -923,7 +923,7 @@ function AnalyticsDashboard() {
             </div>
           </div>
         ) : (
-          <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-zinc-400">
+          <div className="rounded-[26px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
             No reorder suggestions at the moment.
           </div>
         )}
@@ -947,11 +947,11 @@ function AnalyticsDashboard() {
                 value={data.deadStockAnalysis.filter((item) => item.recommendation === "clearance").length}
               />
             </div>
-            <div className="overflow-hidden rounded-[26px] border border-white/10 bg-white/5">
+            <div className="overflow-hidden rounded-[26px] border border-[var(--border)] bg-[var(--surface)]">
               <div className="m1-table-container overflow-x-auto">
                 <table className="m1-table m1-table--compact min-w-full">
                   <thead>
-                    <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
+                    <tr className="text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
                       <th className="px-4 py-3">{t("analytics.labels.product")}</th>
                       <th className="px-4 py-3">{t("analytics.labels.variant")}</th>
                       <th className="px-4 py-3">{t("analytics.labels.stock")}</th>
@@ -964,16 +964,16 @@ function AnalyticsDashboard() {
                   </thead>
                   <tbody>
                     {data.deadStockAnalysis.map((item, index) => (
-                      <tr key={`${item.sku || item.product}-${index}`} className="border-t border-white/5">
+                      <tr key={`${item.sku || item.product}-${index}`} className="border-t border-[var(--border)]">
                         <td className="px-4 py-4">
-                          <div className="font-semibold text-white">{item.product}</div>
-                          <div className="text-xs text-zinc-500">{item.sku}</div>
+                          <div className="font-semibold text-[var(--text)]">{item.product}</div>
+                          <div className="text-xs text-[var(--muted)]">{item.sku}</div>
                         </td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.variant}</td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.stock_quantity}</td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.last_sold_date || "n/a"}</td>
-                        <td className="px-4 py-4 text-sm text-zinc-300">{item.days_without_sales}</td>
-                        <td className="px-4 py-4 text-sm font-semibold text-white">{formatCurrency(item.estimated_blocked_capital)}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.variant}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.stock_quantity}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.last_sold_date || "n/a"}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--muted)]">{item.days_without_sales}</td>
+                        <td className="px-4 py-4 text-sm font-semibold text-[var(--text)]">{formatCurrency(item.estimated_blocked_capital)}</td>
                         <td className="px-4 py-4">
                           <StatusPill label={`${item.risk_score}/100`} tone={item.risk_score >= 80 ? "rose" : item.risk_score >= 50 ? "amber" : "emerald"} />
                         </td>
@@ -988,7 +988,7 @@ function AnalyticsDashboard() {
             </div>
           </div>
         ) : (
-          <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-zinc-400">
+          <div className="rounded-[26px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
             No dead stock intelligence available yet.
           </div>
         )}
@@ -999,11 +999,11 @@ function AnalyticsDashboard() {
           <div className="grid gap-4 lg:grid-cols-2">
             {data.deadStockItems.length > 0 ? (
               data.deadStockItems.map((item) => (
-                <div key={item.id} className="rounded-[26px] border border-white/10 bg-white/5 p-5">
+                <div key={item.id} className="rounded-[26px] border border-[var(--border)] bg-[var(--surface)] p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="m1-section-title text-white">{item.name}</h3>
-                      <p className="mt-1 text-sm text-zinc-400">{item.sku}</p>
+                      <h3 className="m1-section-title text-[var(--text)]">{item.name}</h3>
+                      <p className="mt-1 text-sm text-[var(--muted)]">{item.sku}</p>
                     </div>
                     <div className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
                       {item.daysIdle} days idle
@@ -1019,7 +1019,7 @@ function AnalyticsDashboard() {
                 </div>
               ))
             ) : (
-              <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-zinc-400">
+              <div className="rounded-[26px] border border-dashed border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
                 No dead stock detected.
               </div>
             )}
@@ -1069,21 +1069,21 @@ function AnalyticsDashboard() {
 function AnalyticsLoadingState() {
   return (
     <div className="space-y-6 animate-pulse">
-      <div className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.24)] xl:p-8">
-        <div className="h-8 w-48 rounded-full bg-white/10" />
-        <div className="mt-5 h-12 max-w-4xl rounded-3xl bg-white/10" />
-        <div className="mt-4 h-6 max-w-2xl rounded-full bg-white/10" />
+      <div className="rounded-[34px] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.24)] xl:p-8">
+        <div className="h-8 w-48 rounded-full bg-[var(--surface)]" />
+        <div className="mt-5 h-12 max-w-4xl rounded-[var(--radius-card)] bg-[var(--surface)]" />
+        <div className="mt-4 h-6 max-w-2xl rounded-full bg-[var(--surface)]" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="h-36 rounded-[28px] border border-white/10 bg-zinc-950/90" />
+          <div key={index} className="h-36 rounded-[28px] border border-[var(--border)] bg-[var(--surface)]" />
         ))}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
-        <div className="h-[400px] rounded-[34px] border border-white/10 bg-zinc-950/90" />
-        <div className="h-[400px] rounded-[34px] border border-white/10 bg-zinc-950/90" />
+        <div className="h-[400px] rounded-[34px] border border-[var(--border)] bg-[var(--surface)]" />
+        <div className="h-[400px] rounded-[34px] border border-[var(--border)] bg-[var(--surface)]" />
       </div>
     </div>
   );
@@ -1091,11 +1091,11 @@ function AnalyticsLoadingState() {
 
 function Panel({ title, subtitle, children }) {
   return (
-    <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.2)]">
+    <section className="rounded-[34px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.2)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="m1-section-title text-white">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-zinc-400">{subtitle}</p>
+          <h2 className="m1-section-title text-[var(--text)]">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{subtitle}</p>
         </div>
       </div>
       <div className="mt-5">{children}</div>
@@ -1108,15 +1108,15 @@ function ChartsSkeleton() {
     <>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
         {[0, 1].map((item) => (
-          <div key={item} className="h-[420px] rounded-[34px] border border-white/10 bg-zinc-950/90 p-6">
-            <div className="h-4 w-32 rounded-full bg-white/10" />
-            <div className="mt-8 h-[300px] animate-pulse rounded-[var(--radius-card)] border border-white/5 bg-white/[0.04]" />
+          <div key={item} className="h-[420px] rounded-[34px] border border-[var(--border)] bg-[var(--surface)] p-6">
+            <div className="h-4 w-32 rounded-full bg-[var(--surface)]" />
+            <div className="mt-8 h-[300px] animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]" />
           </div>
         ))}
       </div>
-      <div className="h-[420px] rounded-[34px] border border-white/10 bg-zinc-950/90 p-6">
-        <div className="h-4 w-32 rounded-full bg-white/10" />
-        <div className="mt-8 h-[300px] animate-pulse rounded-[var(--radius-card)] border border-white/5 bg-white/[0.04]" />
+      <div className="h-[420px] rounded-[34px] border border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="h-4 w-32 rounded-full bg-[var(--surface)]" />
+        <div className="mt-8 h-[300px] animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]" />
       </div>
     </>
   );
@@ -1124,13 +1124,13 @@ function ChartsSkeleton() {
 
 function SummaryChip({ label, value, icon: Icon }) {
   return (
-    <div className="inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 text-primary">
+    <div className="inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-primary">
         {Icon ? <Icon className="h-5 w-5" /> : null}
       </div>
       <div>
-        <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-        <div className="text-lg font-black text-white">{value}</div>
+        <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+        <div className="text-lg font-black text-[var(--text)]">{value}</div>
       </div>
     </div>
   );
@@ -1150,54 +1150,54 @@ function StatusPill({ label, tone = "cyan" }) {
 function AlertRow({ alert }) {
   const style =
     alert.severity === "high"
-      ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
+      ? "border-rose-500/20 bg-rose-500/10 text-rose-500"
       : alert.severity === "medium"
-        ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
-        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+        ? "border-amber-500/20 bg-amber-500/10 text-amber-500"
+        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-500";
 
   return (
     <div className={`rounded-[24px] border p-4 ${style}`}>
       <div className="text-sm font-black">{alert.title}</div>
-      <p className="mt-2 text-sm leading-6 text-white/85">{alert.message}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--text)]">{alert.message}</p>
     </div>
   );
 }
 
 function Stat({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-950/80 p-3">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-[var(--text)]">{value}</div>
     </div>
   );
 }
 
 function RiskCard({ title, value, description, icon: Icon }) {
   return (
-    <div className="rounded-[26px] border border-white/10 bg-white/5 p-5">
+    <div className="rounded-[26px] border border-[var(--border)] bg-[var(--surface)] p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">{title}</p>
-          <div className="mt-3 text-2xl font-black text-white">{value}</div>
+          <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">{title}</p>
+          <div className="mt-3 text-2xl font-black text-[var(--text)]">{value}</div>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-primary">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] text-primary">
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <p className="mt-4 text-sm leading-6 text-zinc-400">{description}</p>
+      <p className="mt-4 text-sm leading-6 text-[var(--muted)]">{description}</p>
     </div>
   );
 }
 
 function MiniInsight({ icon: Icon, title, value }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-zinc-950/90 p-5">
+    <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{title}</div>
-          <div className="mt-3 text-xl font-black text-white">{value}</div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{title}</div>
+          <div className="mt-3 text-xl font-black text-[var(--text)]">{value}</div>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-primary">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] text-primary">
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -1207,16 +1207,16 @@ function MiniInsight({ icon: Icon, title, value }) {
 
 function InfoCard({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-[var(--text)]">{value}</div>
     </div>
   );
 }
 
 function EmptyChartState({ label }) {
   return (
-    <div className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-white/10 bg-white/5 text-sm text-zinc-400">
+    <div className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--muted)]">
       {label}
     </div>
   );
