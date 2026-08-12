@@ -1078,5 +1078,110 @@
       "failed": "Failed",
       "archived": "Archived"
     }
+  },
+  "metaSettings": {
+    "actions": {
+      "copy": "Copy"
+    },
+    "toasts": {
+      "selectFacebookPage": "Select a Facebook page to finish the Meta setup",
+      "enterInstagramToken": "Enter the Instagram access token first",
+      "instagramTokenSaved": "The Instagram token was saved and linked securely",
+      "instagramTokenDisabled": "The standalone Instagram token was disabled",
+      "enterInstagramAppSecret": "Enter the Instagram App Secret first",
+      "appSecretSaved": "The Instagram App Secret was saved encrypted",
+      "appSecretDisabled": "The Instagram App Secret was disabled",
+      "metaTimeout": "Meta connection timed out. You can try again.",
+      "publishPermissionsVerified": "Publishing permissions verified",
+      "webhookVerified": "The webhook subscription was verified",
+      "copiedLabel": "{{label}} copied"
+    },
+    "status": {
+      "metaPageConnected": "Meta Page connected",
+      "metaSetupComplete": "Meta setup complete"
+    },
+    "steps": {
+      "facebookLogin": "Log in with Facebook",
+      "selectFacebookPage": "Select a Facebook page",
+      "selectInstagramAccount": "Select an Instagram business account",
+      "savePermissions": "Save permissions",
+      "verifyWebhook": "Verify the webhook",
+      "completeSetup": "Complete setup"
+    },
+    "panels": {
+      "connectionStatus": "Connection status",
+      "messages": "Messages",
+      "webhook": "Webhook",
+      "permissions": "Permissions"
+    },
+    "summary": {
+      "metaStatusAria": "Meta status summary",
+      "title": "Meta connection readiness and developer details",
+      "subtitle": "Click to show the OAuth and webhook links and the required permissions.",
+      "runtimeEnvironment": "Runtime environment",
+      "oauthRedirectUrl": "OAuth redirect URL",
+      "copyRedirectUrl": "Copy the redirect URL",
+      "webhookCallbackUrl": "Webhook callback URL",
+      "copyWebhookUrl": "Copy the webhook URL",
+      "copyVerifyToken": "Copy the verify token",
+      "requiredPermissions": "Required permissions",
+      "setupSteps": "Setup steps"
+    },
+    "oauth": {
+      "result": "Post-OAuth result",
+      "connectedPage": "Connected page",
+      "connectedInstagram": "Connected Instagram account",
+      "missingPermissions": "Missing permissions",
+      "nextAction": "Next required action"
+    },
+    "connect": {
+      "title": "Connect a Meta account",
+      "step": "Step",
+      "facebookLogin": "Log in with Facebook",
+      "facebookLoginHint": "Start Meta's official OAuth flow, then grant the permissions and return.",
+      "selectPageAndAccount": "Select a Facebook page and an Instagram business account",
+      "selectPageHint": "The connected token is used to discover the page and the linked Instagram account.",
+      "pageId": "Page ID:",
+      "instagram": "Instagram:",
+      "verifyWebhook": "Verify webhook and capabilities",
+      "verifyWebhookHint": "Runs live permission checks, token diagnostics, and webhook delivery health."
+    },
+    "stages": {
+      "title": "Setup stages",
+      "connection": "Connection",
+      "pageAndAccount": "Facebook page and Instagram account"
+    },
+    "fields": {
+      "facebookPage": "Facebook page",
+      "pageIdManaged": "Page ID is managed by the guided connection flow.",
+      "instagramBusinessAccount": "Instagram business account",
+      "manualAccountHidden": "Manual Account ID entry is hidden unless advanced mode is enabled.",
+      "pasteInstagramToken": "Paste the Instagram token here, then save it",
+      "status": "Status:",
+      "pasteAppSecret": "Paste the Instagram App Secret here, then save it"
+    },
+    "capabilities": {
+      "webhookHealthy": "Webhook healthy",
+      "tokenValid": "Token valid",
+      "receiveMessages": "Receive messages",
+      "sendReplies": "Send replies",
+      "aiAutomationActive": "AI automation active",
+      "storyMentionSupport": "Story mention support"
+    },
+    "publishing": {
+      "feedPublish": "Feed publishing",
+      "mediaUpload": "Media upload",
+      "scheduledPublish": "Scheduled publishing",
+      "failedPostsProcessed": "Failed posts processed"
+    },
+    "events": {
+      "receiveStatus": "Event delivery status",
+      "commentToMessagePerformance": "Comment-to-message performance"
+    },
+    "preview": {
+      "template": "Template",
+      "fallbackReply": "Fallback reply",
+      "simulator": "Preview simulator"
+    }
   }
 }

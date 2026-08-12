@@ -1078,5 +1078,110 @@
       "failed": "فشل",
       "archived": "مؤرشف"
     }
+  },
+  "metaSettings": {
+    "actions": {
+      "copy": "نسخ"
+    },
+    "toasts": {
+      "selectFacebookPage": "اختر صفحة فيسبوك لاستكمال إعداد ميتا",
+      "enterInstagramToken": "أدخل رمز وصول Instagram أولًا",
+      "instagramTokenSaved": "تم حفظ وربط رمز Instagram بأمان",
+      "instagramTokenDisabled": "تم تعطيل رمز Instagram المستقل",
+      "enterInstagramAppSecret": "أدخل Instagram App Secret أولًا",
+      "appSecretSaved": "تم حفظ Instagram App Secret مشفّرًا",
+      "appSecretDisabled": "تم تعطيل Instagram App Secret",
+      "metaTimeout": "انتهت مهلة الاتصال بـ Meta. يمكنك المحاولة مرة أخرى.",
+      "publishPermissionsVerified": "تم التحقق من صلاحيات النشر",
+      "webhookVerified": "تم التحقق من اشتراك Webhook",
+      "copiedLabel": "تم نسخ {{label}}"
+    },
+    "status": {
+      "metaPageConnected": "تم ربط صفحة Meta",
+      "metaSetupComplete": "اكتمل إعداد Meta"
+    },
+    "steps": {
+      "facebookLogin": "تسجيل الدخول عبر فيسبوك",
+      "selectFacebookPage": "اختيار صفحة فيسبوك",
+      "selectInstagramAccount": "اختيار حساب إنستجرام للأعمال",
+      "savePermissions": "حفظ الصلاحيات",
+      "verifyWebhook": "التحقق من Webhook",
+      "completeSetup": "إكمال الإعداد"
+    },
+    "panels": {
+      "connectionStatus": "حالة الربط",
+      "messages": "الرسائل",
+      "webhook": "Webhook",
+      "permissions": "الصلاحيات"
+    },
+    "summary": {
+      "metaStatusAria": "ملخص حالة Meta",
+      "title": "جاهزية ربط Meta وبيانات المطور",
+      "subtitle": "اضغط لعرض روابط OAuth وWebhook والصلاحيات المطلوبة. القيم السرية لا تظهر هنا.",
+      "runtimeEnvironment": "بيئة التشغيل",
+      "oauthRedirectUrl": "رابط إعادة توجيه OAuth",
+      "copyRedirectUrl": "نسخ رابط إعادة التوجيه",
+      "webhookCallbackUrl": "رابط استدعاء Webhook",
+      "copyWebhookUrl": "نسخ رابط Webhook",
+      "copyVerifyToken": "نسخ حالة التحقق",
+      "requiredPermissions": "الصلاحيات المطلوبة",
+      "setupSteps": "خطوات الإعداد"
+    },
+    "oauth": {
+      "result": "نتيجة ما بعد OAuth",
+      "connectedPage": "الصفحة المتصلة",
+      "connectedInstagram": "حساب إنستجرام المتصل",
+      "missingPermissions": "الصلاحيات الناقصة",
+      "nextAction": "الإجراء التالي المطلوب"
+    },
+    "connect": {
+      "title": "ربط حساب Meta",
+      "step": "الخطوة",
+      "facebookLogin": "تسجيل الدخول عبر فيسبوك",
+      "facebookLoginHint": "ابدأ تدفق OAuth الرسمي من ميتا، ثم امنح الصلاحيات وبعدها اختر صفحة فيسبوك وحساب إنستجرام للأعمال المرتبط.",
+      "selectPageAndAccount": "اختيار صفحة فيسبوك وحساب إنستجرام للأعمال",
+      "selectPageHint": "يُستخدم الرمز المتصل لاكتشاف الصفحة وحساب إنستجرام المرتبط. الاختيارات الحالية:",
+      "pageId": "معرّف الصفحة:",
+      "instagram": "إنستجرام:",
+      "verifyWebhook": "التحقق من Webhook والقدرات",
+      "verifyWebhookHint": "يشغّل فحوصات صلاحيات حية وتشخيص الرموز وحالة الاشتراك."
+    },
+    "stages": {
+      "title": "مراحل الإعداد",
+      "connection": "الاتصال",
+      "pageAndAccount": "صفحة فيسبوك وحساب إنستجرام"
+    },
+    "fields": {
+      "facebookPage": "صفحة فيسبوك",
+      "pageIdManaged": "معرّف الصفحة تتم إدارته عبر تدفق الربط الموجّه.",
+      "instagramBusinessAccount": "حساب إنستجرام للأعمال",
+      "manualAccountHidden": "إدخال معرّف الحساب يدويًا مخفي إلا في الوضع المتقدم.",
+      "pasteInstagramToken": "ألصق رمز Instagram هنا ثم احفظه",
+      "status": "الحالة:",
+      "pasteAppSecret": "ألصق Instagram App Secret هنا ثم احفظه"
+    },
+    "capabilities": {
+      "webhookHealthy": "Webhook سليم",
+      "tokenValid": "الرمز صالح",
+      "receiveMessages": "استقبال الرسائل",
+      "sendReplies": "إرسال الردود",
+      "aiAutomationActive": "أتمتة الذكاء الاصطناعي نشطة",
+      "storyMentionSupport": "دعم الإشارة في القصص"
+    },
+    "publishing": {
+      "feedPublish": "نشر الخلاصة",
+      "mediaUpload": "رفع الوسائط",
+      "scheduledPublish": "النشر المجدول",
+      "failedPostsProcessed": "تمت معالجة المنشورات الفاشلة"
+    },
+    "events": {
+      "receiveStatus": "حالة استقبال الأحداث",
+      "commentToMessagePerformance": "أداء التعليق إلى الرسالة"
+    },
+    "preview": {
+      "template": "القالب",
+      "fallbackReply": "رد بديل",
+      "simulator": "محاكي المعاينة"
+    }
   }
 }

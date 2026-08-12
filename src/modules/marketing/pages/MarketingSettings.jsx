@@ -186,18 +186,20 @@ function SkeletonBlock() {
   );
 }
 
-function CopyButton({ value, label = "Copy" }) {
+function CopyButton({ value, label = "" }) {
+  const { t } = useTranslation();
+  const copyLabel = label || t("marketing.metaSettings.actions.copy");
   return (
     <button
       type="button"
       onClick={() => {
         navigator.clipboard?.writeText(String(value || ""));
-        toast.success(`${label} copied`);
+        toast.success(t("marketing.metaSettings.toasts.copiedLabel", { label: copyLabel }));
       }}
       className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-100 transition hover:bg-white/10"
     >
       <Copy className="h-3.5 w-3.5" />
-      {label}
+      {copyLabel}
     </button>
   );
 }
@@ -568,7 +570,7 @@ export default function MarketingSettings() {
           setOauthPages(Array.isArray(pagesPayload.pages) ? pagesPayload.pages : []);
           setOauthResult(buildOAuthResult({ payload, refreshed }));
           setWizardStep(1);
-          toast.success("اختر صفحة فيسبوك لاستكمال إعداد ميتا");
+          toast.success(t("marketing.metaSettings.toasts.selectFacebookPage"));
           return;
         }
         setOauthPages([]);
@@ -601,7 +603,7 @@ export default function MarketingSettings() {
 
   const saveInstagramToken = async () => {
     if (!instagramAccessToken.trim()) {
-      toast.error("أدخل رمز وصول Instagram أولًا");
+      toast.error(t("marketing.metaSettings.toasts.enterInstagramToken"));
       return;
     }
     setSavingInstagramToken(true);
@@ -614,7 +616,7 @@ export default function MarketingSettings() {
       const refreshed = await refreshMetaStatus();
       applyMetaStatus(refreshed || payload);
       if (payload?.warning) toast(payload.warning, { icon: "⚠️" });
-      else toast.success("تم حفظ وربط رمز Instagram بأمان");
+      else toast.success(t("marketing.metaSettings.toasts.instagramTokenSaved"));
     } catch (err) {
       toast.error(err?.message || "تعذر حفظ رمز Instagram");
     } finally {
@@ -629,7 +631,7 @@ export default function MarketingSettings() {
       setInstagramAccessToken("");
       const refreshed = await refreshMetaStatus();
       applyMetaStatus(refreshed || {});
-      toast.success("تم تعطيل رمز Instagram المستقل");
+      toast.success(t("marketing.metaSettings.toasts.instagramTokenDisabled"));
     } catch (err) {
       toast.error(err?.message || "تعذر تعطيل رمز Instagram");
     } finally {
@@ -639,7 +641,7 @@ export default function MarketingSettings() {
 
   const saveInstagramSecret = async () => {
     if (!instagramAppSecret.trim()) {
-      toast.error("أدخل Instagram App Secret أولًا");
+      toast.error(t("marketing.metaSettings.toasts.enterInstagramAppSecret"));
       return;
     }
     setSavingInstagramSecret(true);
@@ -648,7 +650,7 @@ export default function MarketingSettings() {
       setInstagramAppSecret("");
       const refreshed = await refreshMetaStatus();
       applyMetaStatus(refreshed || payload);
-      toast.success("تم حفظ Instagram App Secret مشفّرًا");
+      toast.success(t("marketing.metaSettings.toasts.appSecretSaved"));
     } catch (err) {
       toast.error(err?.message || "تعذر حفظ Instagram App Secret");
     } finally {
@@ -663,7 +665,7 @@ export default function MarketingSettings() {
       setInstagramAppSecret("");
       const refreshed = await refreshMetaStatus();
       applyMetaStatus(refreshed || {});
-      toast.success("تم تعطيل Instagram App Secret");
+      toast.success(t("marketing.metaSettings.toasts.appSecretDisabled"));
     } catch (err) {
       toast.error(err?.message || "تعذر تعطيل Instagram App Secret");
     } finally {
@@ -721,7 +723,7 @@ export default function MarketingSettings() {
       metaOAuthDevLog("OAuth popup opened");
       oauthTimeoutRef.current = window.setTimeout(() => {
         clearOAuthLoading("timeout");
-        toast.error("Meta connection timed out. You can try again.");
+        toast.error(t("marketing.metaSettings.toasts.metaTimeout"));
       }, META_OAUTH_TIMEOUT_MS);
       oauthClosedIntervalRef.current = window.setInterval(() => {
         if (!oauthPopupRef.current?.closed) return;
@@ -745,7 +747,7 @@ export default function MarketingSettings() {
       setOauthPages([]);
       const refreshed = await refreshMetaStatus();
       const nextResult = buildOAuthResult({
-        payload: { success: true, status: "page_selected", message: "Meta Page connected" },
+        payload: { success: true, status: "page_selected", message: t("marketing.metaSettings.status.metaPageConnected") },
         refreshed,
         page,
       });
@@ -772,7 +774,7 @@ export default function MarketingSettings() {
   const runMetaPublishTest = async (platform = "facebook") => {
     try {
       await testMetaPublish({ platform });
-      toast.success("تم التحقق من صلاحيات النشر");
+      toast.success(t("marketing.metaSettings.toasts.publishPermissionsVerified"));
       await loadMetaDiagnostics();
       await refreshMetaStatus();
     } catch (err) {
@@ -806,7 +808,7 @@ export default function MarketingSettings() {
       });
       setWebhookSelfTest(result);
       if (result?.success && subscription?.success !== false) {
-        toast.success("تم التحقق من اشتراك Webhook");
+        toast.success(t("marketing.metaSettings.toasts.webhookVerified"));
       } else {
         toast.error(subscription?.subscription?.error || result?.error || "فشل التحقق من Webhook");
       }
@@ -820,7 +822,7 @@ export default function MarketingSettings() {
       });
       metaOAuthDevLog("webhook verification refreshed setup", completion);
       if (completion.complete) {
-        setOauthResult(buildOAuthResult({ payload: { success: true, status: "fully_connected", message: "Meta setup complete" }, refreshed }));
+        setOauthResult(buildOAuthResult({ payload: { success: true, status: "fully_connected", message: t("marketing.metaSettings.status.metaSetupComplete") }, refreshed }));
       }
     } catch (err) {
       toast.error(err?.message || "فشل التحقق من Webhook");
@@ -842,8 +844,8 @@ export default function MarketingSettings() {
       });
       metaOAuthDevLog("complete setup evaluation", completion);
       if (completion.complete) {
-        setOauthResult(buildOAuthResult({ payload: { success: true, status: "fully_connected", message: "Meta setup complete" }, refreshed }));
-        toast.success("Meta setup complete");
+        setOauthResult(buildOAuthResult({ payload: { success: true, status: "fully_connected", message: t("marketing.metaSettings.status.metaSetupComplete") }, refreshed }));
+        toast.success(t("marketing.metaSettings.status.metaSetupComplete"));
       } else {
         setOauthResult(buildOAuthResult({ payload: { success: true, status: "partially_connected" }, refreshed }));
         toast.error(META_PARTIAL_SETUP_MESSAGE);
@@ -943,12 +945,12 @@ export default function MarketingSettings() {
       ((instagramTokenReady || tokenReady) && webhookReady && (metaConfig.instagram_business_account_id || form.instagram_account_id))
   );
   const setupSteps = [
-    { label: "تسجيل الدخول عبر فيسبوك", done: setupCompletion.oauth_connected },
-    { label: "اختيار صفحة فيسبوك", done: setupCompletion.page_selected },
-    { label: "اختيار حساب إنستجرام للأعمال", done: setupCompletion.instagram_connected },
-    { label: "حفظ الصلاحيات", done: permissionsReady },
-    { label: "التحقق من Webhook", done: webhookReady },
-    { label: "Complete setup", done: setupCompletion.complete },
+    { label: t("marketing.metaSettings.steps.facebookLogin"), done: setupCompletion.oauth_connected },
+    { label: t("marketing.metaSettings.steps.selectFacebookPage"), done: setupCompletion.page_selected },
+    { label: t("marketing.metaSettings.steps.selectInstagramAccount"), done: setupCompletion.instagram_connected },
+    { label: t("marketing.metaSettings.steps.savePermissions"), done: permissionsReady },
+    { label: t("marketing.metaSettings.steps.verifyWebhook"), done: webhookReady },
+    { label: t("marketing.metaSettings.steps.completeSetup"), done: setupCompletion.complete },
   ];
   const completedSteps = setupSteps.filter((step) => step.done).length;
   const partialSetupDetected = completedSteps > 0 && completedSteps < setupSteps.length;
@@ -967,28 +969,28 @@ export default function MarketingSettings() {
   const instagramLabel = metaConfig.instagram_username || form.instagram_account_id;
   const overviewCards = [
     {
-      label: "حالة الربط",
+      label: t("marketing.metaSettings.panels.connectionStatus"),
       value: setupCompletion.complete ? "مكتمل" : partialSetupDetected ? "يحتاج استكمال" : "غير متصل",
       hint: pageLabel || "لم يتم اختيار صفحة فيسبوك",
       ok: setupCompletion.complete,
       icon: Workflow,
     },
     {
-      label: "الرسائل",
+      label: t("marketing.metaSettings.panels.messages"),
       value: messengerOperationalConnected && instagramDmOperationalConnected ? "تعمل بالكامل" : messengerOperationalConnected || instagramDmOperationalConnected ? "تعمل جزئيًا" : "غير مفعلة",
       hint: instagramLabel || "حساب إنستجرام غير محدد",
       ok: messengerOperationalConnected && instagramDmOperationalConnected,
       icon: MessageCircle,
     },
     {
-      label: "Webhook",
+      label: t("marketing.metaSettings.panels.webhook"),
       value: webhookReady ? "سليم" : "يحتاج مراجعة",
       hint: webhookReady ? "استقبال الأحداث يعمل" : "تحقق من الاشتراك والرمز",
       ok: webhookReady,
       icon: Zap,
     },
     {
-      label: "الصلاحيات",
+      label: t("marketing.metaSettings.panels.permissions"),
       value: permissionsReady ? "مكتملة" : `${missingPermissions.length || 0} مفقودة`,
       hint: permissionsReady ? "جاهزة للنشر والرسائل" : "راجع صلاحيات تطبيق Meta",
       ok: permissionsReady,
@@ -1028,7 +1030,7 @@ export default function MarketingSettings() {
           </div>
         </section>
 
-        <section aria-label="ملخص حالة Meta" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label={t("marketing.metaSettings.summary.metaStatusAria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {overviewCards.map(({ label, value, hint, ok, icon: Icon }) => (
             <div key={label} className="rounded-2xl border border-white/[0.12] bg-[#171a18] p-5 shadow-lg shadow-black/10">
               <div className="flex items-start justify-between gap-4">
@@ -1054,8 +1056,8 @@ export default function MarketingSettings() {
                 <ShieldCheck className="h-4 w-4" />
                 الإعدادات التقنية المتقدمة
               </div>
-              <h2 className="m1-section-title mt-3">جاهزية ربط Meta وبيانات المطور</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">اضغط لعرض روابط OAuth وWebhook والصلاحيات المطلوبة. القيم السرية لا تظهر هنا.</p>
+              <h2 className="m1-section-title mt-3">{t("marketing.metaSettings.summary.title")}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">{t("marketing.metaSettings.summary.subtitle")}</p>
             </div>
             <div className="flex items-center gap-3">
               <StatusBadge status={setupCheck?.env_ready ? "connected" : "missing_permissions"} />
@@ -1064,7 +1066,7 @@ export default function MarketingSettings() {
           </summary>
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">بيئة التشغيل</div>
+              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.runtimeEnvironment")}</div>
               <div className="mt-2 text-base font-black text-white">{setupCheck?.env_ready ? "جاهز" : "غير جاهز"}</div>
               <div dir="ltr" className="mt-3 space-y-2 text-sm text-slate-300">
                 {["META_APP_ID", "META_APP_SECRET", "META_REDIRECT_URI", "META_VERIFY_TOKEN"].map((key) => (
@@ -1076,18 +1078,18 @@ export default function MarketingSettings() {
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">رابط إعادة توجيه OAuth</div>
+              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.oauthRedirectUrl")}</div>
               <code dir="ltr" className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-sm text-slate-200">{setupCheck?.redirect_uri || "غير مهيأ"}</code>
               <div className="mt-3">
-                <CopyButton value={setupCheck?.redirect_uri || ""} label="نسخ رابط إعادة التوجيه" />
+                <CopyButton value={setupCheck?.redirect_uri || ""} label={t("marketing.metaSettings.summary.copyRedirectUrl")} />
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">رابط استدعاء Webhook</div>
+              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.webhookCallbackUrl")}</div>
               <code dir="ltr" className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-sm text-amber-100">{setupCheck?.webhook_url || "غير مهيأ"}</code>
               <div className="mt-3 flex flex-wrap gap-2">
-                <CopyButton value={setupCheck?.webhook_url || ""} label="نسخ رابط Webhook" />
-                <CopyButton value={setupCheck?.verify_token_status === "configured" ? "configured" : ""} label="نسخ حالة التحقق" />
+                <CopyButton value={setupCheck?.webhook_url || ""} label={t("marketing.metaSettings.summary.copyWebhookUrl")} />
+                <CopyButton value={setupCheck?.verify_token_status === "configured" ? "configured" : ""} label={t("marketing.metaSettings.summary.copyVerifyToken")} />
               </div>
             </div>
           </div>
@@ -1098,7 +1100,7 @@ export default function MarketingSettings() {
           ) : null}
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
             <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">الصلاحيات المطلوبة</div>
+              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.requiredPermissions")}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(setupCheck?.required_permissions || []).map((permission) => (
                   <span dir="ltr" key={permission} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-bold text-slate-200">{permission}</span>
@@ -1107,7 +1109,7 @@ export default function MarketingSettings() {
               <p className="mt-4 text-sm text-slate-400">App review reminder: production messaging and publishing require Meta review approval for the requested permissions.</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">خطوات الإعداد</div>
+              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.setupSteps")}</div>
               <div className="mt-3 space-y-2 text-sm text-slate-300">
                 {(setupCheck?.setup_steps || []).map((step) => (
                   <div key={step} className="flex gap-2 rounded-xl bg-white/[0.03] px-3 py-2">
@@ -1124,26 +1126,26 @@ export default function MarketingSettings() {
           <section className={`rounded-3xl border p-5 shadow-2xl shadow-black/20 ${oauthResult.status === "partially_connected" ? "border-amber-400/20 bg-amber-400/10" : "border-emerald-400/20 bg-emerald-400/10"}`}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <div className={`text-xs font-black uppercase tracking-[0.18em] ${oauthResult.status === "partially_connected" ? "text-amber-200" : "text-emerald-200"}`}>Post-OAuth result</div>
+                <div className={`text-xs font-black uppercase tracking-[0.18em] ${oauthResult.status === "partially_connected" ? "text-amber-200" : "text-emerald-200"}`}>{t("marketing.metaSettings.oauth.result")}</div>
                 <h2 className="m1-section-title mt-2 text-white">{oauthResult.message}</h2>
               </div>
               <StatusBadge status={oauthResult.status || "connected"} />
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">Connected page</div>
+                <div className="text-xs text-slate-400">{t("marketing.metaSettings.oauth.connectedPage")}</div>
                 <div className="mt-1 font-black text-white">{oauthResult.page || pageLabel || "Not available"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">حساب إنستجرام المتصل</div>
+                <div className="text-xs text-slate-400">{t("marketing.metaSettings.oauth.connectedInstagram")}</div>
                 <div className="mt-1 font-black text-white">{oauthResult.instagram || instagramLabel || "Not linked"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">Missing permissions</div>
+                <div className="text-xs text-slate-400">{t("marketing.metaSettings.oauth.missingPermissions")}</div>
                 <div className="mt-1 text-sm font-black text-white">{missingPermissions.length ? missingPermissions.join(", ") : "لا يوجد"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">الإجراء التالي المطلوب</div>
+                <div className="text-xs text-slate-400">{t("marketing.metaSettings.oauth.nextAction")}</div>
                 <div className="mt-1 text-sm font-black text-white">{setupCompletion.complete ? "اكتمل الإعداد." : missingPermissions.length ? "اطلب الصلاحيات المفقودة في مراجعة تطبيق ميتا." : liveWebhook.webhook_verified ? "شغّل اختبارات الرسائل الحية والنشر." : "تحقق من اشتراك Webhook في Meta Developer."}</div>
               </div>
             </div>
@@ -1158,7 +1160,7 @@ export default function MarketingSettings() {
                   <Workflow className="h-4 w-4" />
                   مركز ربط Meta
                 </div>
-                <h2 className="m1-section-title mt-3">ربط حساب Meta</h2>
+                <h2 className="m1-section-title mt-3">{t("marketing.metaSettings.connect.title")}</h2>
                 <p className="mt-2 max-w-2xl text-base leading-7 text-slate-300">
                   يستخدم الإعداد الموجّه تسجيل الدخول عبر فيسبوك واختيار الصفحة واكتشاف حساب إنستجرام والتحقق من الصلاحيات وفحوصات Webhook. وتبقى المعرّفات اليدوية متاحة في الوضع المتقدم.
                 </p>
@@ -1172,7 +1174,7 @@ export default function MarketingSettings() {
                   onClick={() => setWizardStep(index)}
                   className={`min-h-16 rounded-[var(--radius-control)] border px-4 py-3 text-right text-sm transition ${wizardStep === index ? "border-amber-400/35 bg-amber-400/10 text-amber-100" : "border-white/10 bg-[#101310] text-slate-300 hover:bg-white/5"}`}
                 >
-                  <div className="text-sm font-black text-slate-400">الخطوة {index + 1}</div>
+                  <div className="text-sm font-black text-slate-400">{t("marketing.metaSettings.connect.step")} {index + 1}</div>
                   <div className="mt-1 font-black">{label}</div>
                 </button>
               ))}
@@ -1181,8 +1183,8 @@ export default function MarketingSettings() {
               {wizardStep === 0 ? (
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="font-black text-white">تسجيل الدخول عبر فيسبوك</div>
-                    <p className="mt-1 text-sm text-slate-400">ابدأ تدفق OAuth الرسمي من ميتا، ثم امنح الصلاحيات وبعدها اختر صفحة فيسبوك وحساب إنستجرام للأعمال المرتبط.</p>
+                    <div className="font-black text-white">{t("marketing.metaSettings.connect.facebookLogin")}</div>
+                    <p className="mt-1 text-sm text-slate-400">{t("marketing.metaSettings.connect.facebookLoginHint")}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={connectMetaOAuth} disabled={oauthLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[#1877f2] px-4 py-3 text-sm font-black text-white disabled:opacity-60">
@@ -1204,15 +1206,15 @@ export default function MarketingSettings() {
                 </div>
               ) : wizardStep === 1 ? (
                 <div>
-                  <div className="font-black text-white">اختيار صفحة فيسبوك وحساب إنستجرام للأعمال</div>
-                  <p className="mt-1 text-sm text-slate-400">يُستخدم الرمز المتصل لاكتشاف الصفحة وحساب إنستجرام المرتبط. الاختيارات الحالية: {pageLabel || "لا توجد صفحة"} / {instagramLabel || "لا يوجد حساب إنستجرام"}.</p>
+                  <div className="font-black text-white">{t("marketing.metaSettings.connect.selectPageAndAccount")}</div>
+                  <p className="mt-1 text-sm text-slate-400">{t("marketing.metaSettings.connect.selectPageHint")} {pageLabel || "لا توجد صفحة"} / {instagramLabel || "لا يوجد حساب إنستجرام"}.</p>
                   {oauthPages.length ? (
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {oauthPages.map((page) => (
                         <button key={page.page_id} onClick={() => chooseOAuthPage(page)} disabled={oauthLoading} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.07] disabled:opacity-60">
                           <div className="font-black text-white">{page.page_name || page.page_id}</div>
-                          <div className="mt-1 text-xs text-slate-400">Page ID: {page.page_id}</div>
-                          <div className="mt-2 text-xs text-primary">إنستجرام: {page.instagram_username || page.instagram_business_account_id || "لا يوجد حساب أعمال مرتبط"}</div>
+                          <div className="mt-1 text-xs text-slate-400">{t("marketing.metaSettings.connect.pageId")} {page.page_id}</div>
+                          <div className="mt-2 text-xs text-primary">{t("marketing.metaSettings.connect.instagram")} {page.instagram_username || page.instagram_business_account_id || "لا يوجد حساب أعمال مرتبط"}</div>
                           <div className="mt-2 text-xs text-slate-500">Token: {page.page_access_token_masked || "configured"}</div>
                         </button>
                       ))}
@@ -1222,8 +1224,8 @@ export default function MarketingSettings() {
               ) : (
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="font-black text-white">Verify webhook and capabilities</div>
-                    <p className="mt-1 text-sm text-slate-400">Runs live permission checks, token diagnostics, and webhook delivery health.</p>
+                    <div className="font-black text-white">{t("marketing.metaSettings.connect.verifyWebhook")}</div>
+                    <p className="mt-1 text-sm text-slate-400">{t("marketing.metaSettings.connect.verifyWebhookHint")}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-60">
@@ -1243,7 +1245,7 @@ export default function MarketingSettings() {
           <aside className="rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-black text-slate-400">مراحل الإعداد</div>
+                <div className="text-sm font-black text-slate-400">{t("marketing.metaSettings.stages.title")}</div>
                 <div className="mt-1 text-2xl font-black text-white">{completedSteps}/{setupSteps.length}</div>
               </div>
               <StatusBadge status={setupStatus} />
@@ -1275,8 +1277,8 @@ export default function MarketingSettings() {
         <section id="marketing-settings-facebook" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Connection</div>
-              <h2 className="m1-section-title mt-1 text-white">صفحة فيسبوك وحساب إنستجرام</h2>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{t("marketing.metaSettings.stages.connection")}</div>
+              <h2 className="m1-section-title mt-1 text-white">{t("marketing.metaSettings.stages.pageAndAccount")}</h2>
             </div>
             <button onClick={() => setAdvancedMode((value) => !value)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">
               {advancedMode ? "Guided mode" : "Advanced mode"}
@@ -1302,14 +1304,14 @@ export default function MarketingSettings() {
           </div> : (
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">صفحة فيسبوك</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("marketing.metaSettings.fields.facebookPage")}</div>
                 <div className="mt-2 font-black text-white">{pageLabel || "Not selected"}</div>
-                <p className="mt-1 text-xs text-slate-400">Page ID is managed by the guided connection flow.</p>
+                <p className="mt-1 text-xs text-slate-400">{t("marketing.metaSettings.fields.pageIdManaged")}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">حساب إنستجرام للأعمال</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("marketing.metaSettings.fields.instagramBusinessAccount")}</div>
                 <div className="mt-2 font-black text-white">{instagramLabel || "Not selected"}</div>
-                <p className="mt-1 text-xs text-slate-400">Manual Account ID entry is hidden unless advanced mode is enabled.</p>
+                <p className="mt-1 text-xs text-slate-400">{t("marketing.metaSettings.fields.manualAccountHidden")}</p>
               </div>
             </div>
           )}
@@ -1336,7 +1338,7 @@ export default function MarketingSettings() {
                 autoComplete="new-password"
                 value={instagramAccessToken}
                 onChange={(event) => setInstagramAccessToken(event.target.value)}
-                placeholder="ألصق رمز Instagram هنا ثم احفظه"
+                placeholder={t("marketing.metaSettings.fields.pasteInstagramToken")}
                 className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-400/40"
               />
               <button
@@ -1359,7 +1361,7 @@ export default function MarketingSettings() {
               ) : null}
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
-              <span>الحالة: {metaConfig.instagram_token_status || "missing"}</span>
+              <span>{t("marketing.metaSettings.fields.status")} {metaConfig.instagram_token_status || "missing"}</span>
               <span>•</span>
               <span>{metaConfig.instagram_webhook_subscribed ? "Webhook مشترك" : "Webhook يحتاج تحقق"}</span>
             </div>
@@ -1387,7 +1389,7 @@ export default function MarketingSettings() {
                 autoComplete="new-password"
                 value={instagramAppSecret}
                 onChange={(event) => setInstagramAppSecret(event.target.value)}
-                placeholder="ألصق Instagram App Secret هنا ثم احفظه"
+                placeholder={t("marketing.metaSettings.fields.pasteAppSecret")}
                 className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40"
               />
               <button
@@ -1490,11 +1492,11 @@ export default function MarketingSettings() {
               connected={messengerOperationalConnected}
               status={messengerOperationalConnected ? "connected" : liveCapabilities.messenger?.status}
               checks={[
-                { label: "Webook سليم", ok: webhookReady || facebookStatus.webhook_healthy },
-                { label: "الرمز صالح", ok: tokenReady || facebookStatus.token_valid },
-                { label: "Receive messages", ok: messengerOperationalConnected || liveCapabilities.messenger?.details?.receive_messages },
-                { label: "Send replies", ok: messengerOperationalConnected || liveCapabilities.messenger?.details?.send_replies },
-                { label: "AI automation active", ok: facebookStatus.messaging_active || liveCapabilities.messenger?.details?.auto_replies },
+                { label: t("marketing.metaSettings.capabilities.webhookHealthy"), ok: webhookReady || facebookStatus.webhook_healthy },
+                { label: t("marketing.metaSettings.capabilities.tokenValid"), ok: tokenReady || facebookStatus.token_valid },
+                { label: t("marketing.metaSettings.capabilities.receiveMessages"), ok: messengerOperationalConnected || liveCapabilities.messenger?.details?.receive_messages },
+                { label: t("marketing.metaSettings.capabilities.sendReplies"), ok: messengerOperationalConnected || liveCapabilities.messenger?.details?.send_replies },
+                { label: t("marketing.metaSettings.capabilities.aiAutomationActive"), ok: facebookStatus.messaging_active || liveCapabilities.messenger?.details?.auto_replies },
               ]}
               connectedLabel={t("marketing.settings.status.connected", "Connected")}
               disconnectedLabel={t("marketing.settings.status.disconnected", "Not connected")}
@@ -1515,12 +1517,12 @@ export default function MarketingSettings() {
               connected={instagramDmOperationalConnected}
               status={instagramDmOperationalConnected ? "connected" : liveCapabilities.instagram_dm?.status}
               checks={[
-                { label: "Webhook سليم", ok: webhookReady || instagramStatus.webhook_healthy },
-                { label: "الرمز صالح", ok: instagramTokenReady || tokenReady || instagramStatus.token_valid },
-                { label: "استقبال الرسائل", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.receive_dms },
-                { label: "إرسال الردود", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.send_replies },
-                { label: "Story mention support", ok: liveCapabilities.instagram_dm?.details?.story_mention_support },
-                { label: "AI automation active", ok: instagramStatus.messaging_active || liveCapabilities.instagram_dm?.details?.automation_status === "enabled" },
+                { label: t("marketing.metaSettings.capabilities.webhookHealthy"), ok: webhookReady || instagramStatus.webhook_healthy },
+                { label: t("marketing.metaSettings.capabilities.tokenValid"), ok: instagramTokenReady || tokenReady || instagramStatus.token_valid },
+                { label: t("marketing.metaSettings.capabilities.receiveMessages"), ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.receive_dms },
+                { label: t("marketing.metaSettings.capabilities.sendReplies"), ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.send_replies },
+                { label: t("marketing.metaSettings.capabilities.storyMentionSupport"), ok: liveCapabilities.instagram_dm?.details?.story_mention_support },
+                { label: t("marketing.metaSettings.capabilities.aiAutomationActive"), ok: instagramStatus.messaging_active || liveCapabilities.instagram_dm?.details?.automation_status === "enabled" },
               ]}
               connectedLabel={t("marketing.settings.status.connected", "Connected")}
               disconnectedLabel={t("marketing.settings.status.disconnected", "Not connected")}
@@ -1551,10 +1553,10 @@ export default function MarketingSettings() {
               connected={Boolean(facebookStatus.publishing_connected)}
               status={liveCapabilities.facebook_publishing?.status}
               checks={[
-                { label: "نشر الخلاصة", ok: liveCapabilities.facebook_publishing?.details?.feed_publishing },
-                { label: "رفع الوسائط", ok: liveCapabilities.facebook_publishing?.details?.media_upload },
-                { label: "النشر المجدول", ok: liveCapabilities.facebook_publishing?.details?.scheduled_publishing },
-                { label: "تمت معالجة المنشورات الفاشلة", ok: !liveCapabilities.facebook_publishing?.details?.failed_publishes },
+                { label: t("marketing.metaSettings.publishing.feedPublish"), ok: liveCapabilities.facebook_publishing?.details?.feed_publishing },
+                { label: t("marketing.metaSettings.publishing.mediaUpload"), ok: liveCapabilities.facebook_publishing?.details?.media_upload },
+                { label: t("marketing.metaSettings.publishing.scheduledPublish"), ok: liveCapabilities.facebook_publishing?.details?.scheduled_publishing },
+                { label: t("marketing.metaSettings.publishing.failedPostsProcessed"), ok: !liveCapabilities.facebook_publishing?.details?.failed_publishes },
               ]}
               connectedLabel={t("marketing.settings.status.connected", "Connected")}
               disconnectedLabel={t("marketing.settings.status.disconnected", "Not connected")}
@@ -1573,10 +1575,10 @@ export default function MarketingSettings() {
               connected={Boolean(instagramStatus.publishing_connected)}
               status={liveCapabilities.instagram_publishing?.status}
               checks={[
-                { label: "نشر الخلاصة", ok: liveCapabilities.instagram_publishing?.details?.feed_publishing },
-                { label: "رفع الوسائط", ok: liveCapabilities.instagram_publishing?.details?.media_upload },
-                { label: "النشر المجدول", ok: liveCapabilities.instagram_publishing?.details?.scheduled_publishing },
-                { label: "تمت معالجة المنشورات الفاشلة", ok: !liveCapabilities.instagram_publishing?.details?.failed_publishes },
+                { label: t("marketing.metaSettings.publishing.feedPublish"), ok: liveCapabilities.instagram_publishing?.details?.feed_publishing },
+                { label: t("marketing.metaSettings.publishing.mediaUpload"), ok: liveCapabilities.instagram_publishing?.details?.media_upload },
+                { label: t("marketing.metaSettings.publishing.scheduledPublish"), ok: liveCapabilities.instagram_publishing?.details?.scheduled_publishing },
+                { label: t("marketing.metaSettings.publishing.failedPostsProcessed"), ok: !liveCapabilities.instagram_publishing?.details?.failed_publishes },
               ]}
               connectedLabel={t("marketing.settings.status.connected", "Connected")}
               disconnectedLabel={t("marketing.settings.status.disconnected", "Not connected")}
@@ -1598,7 +1600,7 @@ export default function MarketingSettings() {
                 <Zap className="h-4 w-4" />
                 تشخيص Webhook
               </div>
-              <h2 className="m1-section-title mt-3">حالة استقبال الأحداث</h2>
+              <h2 className="m1-section-title mt-3">{t("marketing.metaSettings.events.receiveStatus")}</h2>
             </div>
             <StatusBadge status={liveWebhook.webhook_verified ? "connected" : "webhook_issue"} />
           </div>
@@ -1693,7 +1695,7 @@ export default function MarketingSettings() {
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-sm font-black text-white">أداء التعليق إلى الرسالة</div>
+              <div className="text-sm font-black text-white">{t("marketing.metaSettings.events.commentToMessagePerformance")}</div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {[
                   ["القواعد النشطة", activeRulesCount],
@@ -1752,7 +1754,7 @@ export default function MarketingSettings() {
                   <textarea value={ruleForm.response_message} onChange={(event) => setRuleForm((current) => ({ ...current, response_message: event.target.value }))} rows={4} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">القالب</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.metaSettings.preview.template")}</span>
                   <input value={ruleForm.template_name || ""} onChange={(event) => setRuleForm((current) => ({ ...current, template_name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-200">
@@ -1760,7 +1762,7 @@ export default function MarketingSettings() {
                   الردود المُولدة بالذكاء الاصطناعي
                 </label>
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">رد بديل</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.metaSettings.preview.fallbackReply")}</span>
                   <textarea value={ruleForm.fallback_reply || ""} onChange={(event) => setRuleForm((current) => ({ ...current, fallback_reply: event.target.value }))} rows={2} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
               </div>
@@ -1777,7 +1779,7 @@ export default function MarketingSettings() {
 
             <div className="space-y-3">
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                <div className="text-sm font-black text-white">محاكي المعاينة</div>
+                <div className="text-sm font-black text-white">{t("marketing.metaSettings.preview.simulator")}</div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <input value={simulator.commenter_name} onChange={(event) => setSimulator((current) => ({ ...current, commenter_name: event.target.value }))} className="rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
                   <input value={simulator.comment_text} onChange={(event) => setSimulator((current) => ({ ...current, comment_text: event.target.value }))} className="rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />

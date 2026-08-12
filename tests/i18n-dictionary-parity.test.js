@@ -38,6 +38,8 @@ const PRESERVED_LATIN = new Set([
   "ltv", "cogs", "p&l", "crm", "ai", "gtin", "ean", "upc", "barcode shop", "n/a", "x", "ok",
   // product and carrier brand names, identical in both locales
   "google analytics", "mylerz", "shipblu",
+  // protocol/technical terms used verbatim in Arabic UI
+  "webhook",
 ]);
 
 /** Interpolation-only values such as "{{count}}" or "{{start}} - {{end}}". */

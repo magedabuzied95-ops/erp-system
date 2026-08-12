@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 610
 - Files with debt: 168
-- Hardcoded Arabic UI strings: 1842
-- Hardcoded English UI strings: 2079
-- Total hardcoded UI strings: 3921
-- Mixed-language files (both scripts hardcoded): 48
+- Hardcoded Arabic UI strings: 1779
+- Hardcoded English UI strings: 2057
+- Total hardcoded UI strings: 3836
+- Mixed-language files (both scripts hardcoded): 47
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 91 | 1280 | 1543 | 2823 | 33 |
+| main-erp | 91 | 1217 | 1521 | 2738 | 32 |
 | shared | 61 | 196 | 453 | 649 | 10 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -34,7 +34,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
-| src/modules/marketing/pages/MarketingSettings.jsx | main-erp | 63 | 23 | 86 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
 | src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx | main-erp | 1 | 69 | 70 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
@@ -431,50 +430,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 68 [attribute/ar] اسم المنتج
 - 68 [attribute/ar] الاسم كما يظهر للعميل
 - ... 48 more
-
-### src/modules/marketing/pages/MarketingSettings.jsx (main-erp — ar:63 en:23)
-
-- 189 [attribute/en] Copy
-- 571 [notification/ar] اختر صفحة فيسبوك لاستكمال إعداد ميتا
-- 604 [notification/ar] أدخل رمز وصول Instagram أولًا
-- 617 [notification/ar] تم حفظ وربط رمز Instagram بأمان
-- 632 [notification/ar] تم تعطيل رمز Instagram المستقل
-- 642 [notification/ar] أدخل Instagram App Secret أولًا
-- 651 [notification/ar] تم حفظ Instagram App Secret مشفّرًا
-- 666 [notification/ar] تم تعطيل Instagram App Secret
-- 724 [notification/en] Meta connection timed out. You can try again.
-- 748 [object-key/en] Meta Page connected
-- 775 [notification/ar] تم التحقق من صلاحيات النشر
-- 809 [notification/ar] تم التحقق من اشتراك Webhook
-- 823 [object-key/en] Meta setup complete
-- 845 [object-key/en] Meta setup complete
-- 846 [notification/en] Meta setup complete
-- 946 [object-key/ar] تسجيل الدخول عبر فيسبوك
-- 947 [object-key/ar] اختيار صفحة فيسبوك
-- 948 [object-key/ar] اختيار حساب إنستجرام للأعمال
-- 949 [object-key/ar] حفظ الصلاحيات
-- 950 [object-key/ar] التحقق من Webhook
-- 951 [object-key/en] Complete setup
-- 970 [object-key/ar] حالة الربط
-- 977 [object-key/ar] الرسائل
-- 984 [object-key/en] Webhook
-- 991 [object-key/ar] الصلاحيات
-- 1031 [attribute/ar] ملخص حالة Meta
-- 1057 [jsx-text/ar] جاهزية ربط Meta وبيانات المطور
-- 1058 [jsx-text/ar] اضغط لعرض روابط OAuth وWebhook والصلاحيات المطلوبة. القيم السرية لا تظهر هنا.
-- 1067 [jsx-text/ar] بيئة التشغيل
-- 1079 [jsx-text/ar] رابط إعادة توجيه OAuth
-- 1082 [attribute/ar] نسخ رابط إعادة التوجيه
-- 1086 [jsx-text/ar] رابط استدعاء Webhook
-- 1089 [attribute/ar] نسخ رابط Webhook
-- 1090 [attribute/ar] نسخ حالة التحقق
-- 1101 [jsx-text/ar] الصلاحيات المطلوبة
-- 1110 [jsx-text/ar] خطوات الإعداد
-- 1127 [jsx-text/en] Post-OAuth result
-- 1134 [jsx-text/en] Connected page
-- 1138 [jsx-text/ar] حساب إنستجرام المتصل
-- 1142 [jsx-text/en] Missing permissions
-- ... 46 more
 
 ### src/modules/aiSupport/components/SocialCommentsWorkspace.jsx (shared — ar:6 en:75)
 
@@ -3182,6 +3137,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/aiSupport/decision/strategies/AutomationStrategy.ts (main-erp — ar:0 en:1)
 
 - 11 [object-key/en] Human review
+
+### src/modules/marketing/pages/MarketingSettings.jsx (main-erp — ar:0 en:1)
+
+- 1218 [jsx-text/en] Token:
 
 ### src/modules/marketing/services/marketingApi.js (main-erp — ar:0 en:1)
 
