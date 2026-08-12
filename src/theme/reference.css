@@ -226,11 +226,14 @@
   .dashboard-kpi-grid article strong,
   .dashboard-kpi-grid article .m1-kpi-value {
     color: var(--text);
-    font-size: clamp(var(--font-section-title), 2.1vw, var(--font-display));
+    max-width: 100%;
+    overflow: hidden;
+    font-size: clamp(1rem, 1.25vw, 1.5rem);
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: -0.01em;
     font-variant-numeric: tabular-nums;
+    unicode-bidi: isolate;
   }
 
   /* icon container — quiet, square, never coloured unless it means something */

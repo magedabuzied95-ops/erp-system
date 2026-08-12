@@ -10,7 +10,8 @@ Started from `origin/main` @ `3ca9c07`.
 |---|---|---|---|---|---|
 | 1 | FlowShell fixed-dark retirement | `pre-visual-convergence-cp1-20260812` -> `b91cec6` | `e037562` | `e037562` verified | 1850 tests, 25 fail, identical to baseline |
 | 2 | Marketing core fixed-dark retirement (5 files / 4 routes) | `pre-visual-convergence-cp2-20260812` -> `98110df` | `aec6497` | `aec6497` verified Light + Dark | build green |
-| 3 | Marketing remainder: analytics, templates, settings (4 files / 3 routes) | `pre-visual-convergence-cp3-20260812` -> `aec6497` | see below | see below | build green |
+| 3 | Marketing remainder: analytics, templates, settings (4 files / 3 routes) | `pre-visual-convergence-cp3-20260812` -> `aec6497` | `2fa8eb3` | `2fa8eb3` verified Light + Dark | build green |
+| 3b | Residual dark gradient hero on `/marketing/settings` | -> `2fa8eb3` | `0278020` | `0278020` verified Light + Dark | build green |
 
 ## Method
 
@@ -252,12 +253,73 @@ for a fixed brand fill. This is the same defect class as the gold-contrast issue
 found in checkpoint 1, in the opposite direction. A repo-wide check for
 `brand fill + --text` found no other instance.
 
+**Checkpoint 3 production verification (Production `2fa8eb3`):**
+
+| Route | Before (Light) | Light after | Dark after |
+|---|---|---|---|
+| `/marketing/analytics` | 20 offenders | 0 | 0 |
+| `/marketing/templates` | 1 offender + 6 dark gradients | 0 | 0 |
+| `/marketing/settings` | 43 offenders | 0 offenders, **1 dark gradient left** | 0 |
+
+### 3b. Residual dark gradient hero — `/marketing/settings`
+
+The offender sweep reached 0, but the gradient probe still reported one dark
+gradient in Light: `section` 1216 × 253 px painting
+`linear-gradient(rgb(29,27,18) → rgb(23,25,21) → rgb(17,20,17))` — near-black
+in the Light theme. The checkpoint-3 rule only rewrote `bg-[#…]`; this element
+carries its darkness in the *gradient stops*
+(`from-[#1d1b12] via-[#171915] to-[#111411]`), which the rule did not match.
+Replaced with `--card` at `MarketingSettings.jsx:1003`.
+
+**Deliberately not changed:** `src/modules/marketing/components/storyTemplateEngine.js`
+also contains dark `from-/via-/to-[#…]` stops, but those are Instagram **story
+artwork** designs, not application chrome. Converging them would corrupt
+generated creative output, so they are out of scope by design.
+
+**Checkpoint 3b production verification (Production `0278020`):**
+`/marketing/settings` — Light: 0 offenders, 0 dark gradients, hero now
+`rgb(255,255,255)` = `--card` with `background-image: none`. Dark: 0 offenders,
+hero `rgb(35,34,32)` = `--card`, shell `rgb(19,18,17)` = `--bg`.
+State: **FIXED_VERIFIED (light + dark, RTL)**.
+
+The marketing module is now fully converged: 14 routes, 0 offenders and 0 dark
+gradients in both themes.
+
+## Auditor notes (session 2)
+
+- The session-1 harness was **not persisted**; it was rebuilt from the documented
+  spec and re-validated against `/products` (0 offenders) before use. Both
+  original safeguards are intact: settle-detection (`innerText.length` stable for
+  3 consecutive reads, 9s cap) and a run token that cancels superseded loops.
+- Two auditor corrections were needed this session:
+  1. theme detection read a stale class regex and reported `"l"`; the source of
+     truth is `document.documentElement[data-theme]`.
+  2. the offender rule flagged an approved gold `--primary` button on the frozen
+     reference `/products`. Fixed by excluding computed brand-token colours and
+     requiring a real surface (height >= 60px), which restored the documented
+     0-offender baseline.
+- **Batching is unsafe on this app.** Sweeping 2–3 routes inside one CDP
+  evaluation repeatedly hit the 45s `Runtime.evaluate` ceiling, leaving a sweep
+  running in-page. Every occurrence was cancelled via the run token and the
+  results discarded, per protocol. One route per call is the reliable mode.
+- `/products` force-reloads the SPA (`?__m1_reload=…`), which destroys the
+  injected harness; it must be re-injected after visiting that route.
+- The gradient probe reports *all* large gradients. Only gradients that are dark
+  in Light (or light in Dark) are defects — `/marketing/social-comments` carries
+  a near-white `oklab(0.999…)` gradient and is benign.
+
 ## RESUME MARKER
 
-**Next route to audit: `/marketing/analytics`** — re-measure after checkpoint 2
-(the shared metric card is already repaired), then fix its remaining
-`bg-[#171815]` section as checkpoint 3 together with `/marketing/templates`,
-then `/marketing/settings` as checkpoint 4. After that continue to `settings/*`.
+`/settings` was measured clean in Light/RTL at the end of this session
+(0 offenders, 0 dark gradients, landed == requested, settled) — PARTIAL_PASS.
+
+**Next route to audit: `/settings/appearance`**, then the rest of `settings/*`
+(appearance, company, currencies, debug, payments, permissions, roles, shipping,
+storefront, users), then `reports/*`.
+
+The accounting and marketing modules are complete for Light **and** Dark in RTL.
+The marketing fixes were verified in both themes, so those routes are
+`FIXED_VERIFIED` rather than partial.
 
 Do not re-audit routes already marked PASS/FIXED unless a later shared change
 touches them.

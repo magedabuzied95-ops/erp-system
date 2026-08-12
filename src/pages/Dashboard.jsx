@@ -101,7 +101,7 @@ const hasSocketClient = Boolean(socket && typeof socket.on === "function");
 
 const percent = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toFixed(1)}%`;
 const dashboardLocale = () =>
-  (typeof document !== "undefined" && document.documentElement.lang === "ar") ? "ar-EG" : "en-US";
+  (typeof document !== "undefined" && document.documentElement.lang === "ar") ? "ar-EG-u-nu-latn" : "en-US";
 const number = (value) => Number(value || 0).toLocaleString(dashboardLocale());
 const compactNumber = (value) =>
   Intl.NumberFormat(dashboardLocale(), { notation: "compact", maximumFractionDigits: 1 }).format(Number(value || 0));
@@ -649,15 +649,16 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
   const body = (
     <article className={`flex h-full min-h-[172px] flex-col rounded-[var(--radius-card)] border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-border-strong" : ""}`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="line-clamp-2 min-h-8 text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</div>
-          <div className={`m1-kpi-value mt-2 font-black tracking-normal text-text ${textValue ? "line-clamp-2 text-base leading-6" : "whitespace-nowrap"}`}>
-            {loading ? <SkeletonLine className="h-8 w-20" /> : value}
-          </div>
-        </div>
+        <div className="line-clamp-2 min-h-8 min-w-0 text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</div>
         <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-control)] ${iconTones[tone] || iconTones.slate}`}>
           <Icon className="h-5 w-5" />
         </div>
+      </div>
+      <div
+        dir={textValue ? undefined : "ltr"}
+        className={`m1-kpi-value mt-2 min-w-0 max-w-full font-black tracking-normal text-text ${textValue ? "line-clamp-2 text-base leading-6" : "whitespace-nowrap"}`}
+      >
+        {loading ? <SkeletonLine className="h-8 w-20" /> : value}
       </div>
       <div className={`mt-auto border-t border-border pt-2.5 text-xs font-semibold ${deltaTone ? deltaColors[deltaTone] : "text-text-muted"}`}>
         {loading ? <SkeletonLine className="h-4 w-24" /> : detail}
