@@ -4980,6 +4980,22 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     const channel = conversation.channel || conversation.source || "";
     const normalizedChannel = normalizeProductCardSendChannel(channel);
     const channelMetadata = conversation.channel_metadata || {};
+    // Phase 11.2 FIX — the non-summary loadAiInbox conversation does NOT carry the raw last_ai_reply_draft
+    // (only the summaryOnly query selects it), so hasCurrentDraft / the stale guard / assisted approval / the
+    // correction capture were all reading an EMPTY draft. Load the authoritative draft straight from the DB.
+    try {
+      const draftSessionId = conversation.session_id || conversationId;
+      const draftRow = (await db.query(
+        "SELECT last_ai_reply_draft, last_ai_reply_draft_updated_at FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 LIMIT 1",
+        [tenantId, draftSessionId]
+      )).rows[0];
+      if (draftRow) {
+        conversation.last_ai_reply_draft = draftRow.last_ai_reply_draft || conversation.last_ai_reply_draft || {};
+        conversation.last_ai_reply_draft_updated_at = draftRow.last_ai_reply_draft_updated_at || conversation.last_ai_reply_draft_updated_at || null;
+      }
+    } catch (draftLoadError) {
+      console.warn("[ai-inbox:send-route] draft load failed", { conversation_id: conversationId, error: String(draftLoadError?.message || draftLoadError).slice(0, 120) });
+    }
     const aiReplyDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
     const recipientId = envText(
       channelMetadata.customer_psid ||
