@@ -111,6 +111,15 @@ test("frontend reconciliation: suggestion visibility is derived from authoritati
   assert.match(inboxSrc, /const suggestionSourceId = Number\(activeAiReplyDraft\?\.metadata\?\.source_message_id\) \|\| 0;/);
 });
 
+// Phase 12 — a STALE/SUPERSEDED approve (409 STALE_SUGGESTION) must be presented distinctly, NOT as a red
+// provider "failed" bubble. The server never called the provider, so nothing reached the customer.
+test("frontend: STALE_SUGGESTION is classified as superseded, not a provider failure", () => {
+  // server returns 409 STALE_SUGGESTION and returns BEFORE the provider send block
+  assert.match(routeSrc, /return res\.status\(409\)\.json\(\{\s*\n\s*success: false, sent: false, code: "STALE_SUGGESTION", reason: "newer_customer_message",/);
+  // the frontend branches on stale FIRST and removes the optimistic bubble (never marks it delivery_status:"failed")
+  assert.match(inboxSrc, /if \(stale\) \{[\s\S]*?tone: "amber", text: "لم يتم الإرسال — وصلت رسالة أحدث من العميل\. تم إلغاء الاقتراح القديم\."[\s\S]*?messages: asArray\(conversation\.messages\)\.filter\(\(item\) => item\.id !== optimistic\.id\)[\s\S]*?return \{ ok: false, stale: true, superseded: true \};/);
+});
+
 // Phase 11.3 Step 7 — the current-suggestion invariant: at most ONE actionable AI suggestion per
 // conversation, and it is always the authoritative server draft (last_ai_reply_draft). A regression that
 // renders a second/older suggestion, or derives the card from anything other than the persisted draft, breaks it.

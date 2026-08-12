@@ -521,7 +521,9 @@ function CartSidebar({
     const setter = paymentMethods.find((item) => item.key === method)?.setter;
     const selected = paymentMethods.find((item) => item.key === method);
     setter?.(Number(capped.toFixed(2)));
-    if (options.manual) setPaymentMode?.(appliedCredit > 0 || otherTotal > 0 ? "split" : selected?.paymentMode || method);
+    if (options.manual) {
+      setPaymentMode?.(options.forceSplit ? "split" : appliedCredit > 0 || otherTotal > 0 ? "split" : selected?.paymentMode || method);
+    }
   };
   const selectPaymentMethod = (method) => {
     setActiveSplitMethod?.(method);
@@ -1148,7 +1150,7 @@ function CartSidebar({
         deferRemainder={deferSplitRemainder}
         onDeferRemainderChange={setDeferSplitRemainder}
         onClose={() => setSplitPaymentOpen(false)}
-        onSetMethodAmount={(method, value) => setMethodAmount(method, value, { manual: true })}
+        onSetMethodAmount={(method, value) => setMethodAmount(method, value, { manual: true, forceSplit: true })}
         onFillMethod={selectPaymentMethod}
         onClear={clearPaymentMethods}
       />
