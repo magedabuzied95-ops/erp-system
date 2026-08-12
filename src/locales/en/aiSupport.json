@@ -411,5 +411,20 @@
     "notAvailable": "Not available",
     "conversation": "Conversation",
     "viewDetails": "View details"
+  },
+  "metaReviewer": {
+    "eyebrow": "META REVIEW",
+    "title": "AI Inbox",
+    "logout": "Log out",
+    "reviewChannel": "Review channel",
+    "searchPlaceholder": "Search authorized {{channel}} chat",
+    "counts": "Conversations: {{total}} · Unread: {{unread}}",
+    "channelLocked": "This channel is locked until its authorized test account is configured.",
+    "noConversation": "No authorized test conversation is available.",
+    "selectConversation": "Select the authorized test conversation",
+    "beginReview": "Send a new message from the authorized test account to begin the review.",
+    "replyPlaceholder": "Write a manual reply",
+    "send": "Send",
+    "sendBlocked": "The reply could not be sent outside the authorized test conversation."
   }
 }

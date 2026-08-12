@@ -411,5 +411,20 @@
     "notAvailable": "غير متاح",
     "conversation": "المحادثة",
     "viewDetails": "عرض التفاصيل"
+  },
+  "metaReviewer": {
+    "eyebrow": "مراجعة Meta",
+    "title": "صندوق الذكاء الاصطناعي",
+    "logout": "تسجيل الخروج",
+    "reviewChannel": "قناة المراجعة",
+    "searchPlaceholder": "ابحث في محادثة {{channel}} المصرّح بها",
+    "counts": "المحادثات: {{total}} · غير المقروءة: {{unread}}",
+    "channelLocked": "هذه القناة مقفلة حتى يتم ضبط حساب الاختبار المصرّح به.",
+    "noConversation": "لا توجد محادثة اختبار مصرّح بها.",
+    "selectConversation": "اختر محادثة الاختبار المصرّح بها",
+    "beginReview": "أرسل رسالة جديدة من حساب الاختبار المصرّح به لبدء المراجعة.",
+    "replyPlaceholder": "اكتب ردًا يدويًا",
+    "send": "إرسال",
+    "sendBlocked": "تعذّر إرسال الرد خارج محادثة الاختبار المصرّح بها."
   }
 }

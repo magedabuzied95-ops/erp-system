@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 148
+- Files with debt: 147
 - Hardcoded Arabic UI strings: 1704
-- Hardcoded English UI strings: 1365
-- Total hardcoded UI strings: 3069
+- Hardcoded English UI strings: 1356
+- Total hardcoded UI strings: 3060
 - Mixed-language files (both scripts hardcoded): 39
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 78 | 1148 | 968 | 2116 | 25 |
+| main-erp | 77 | 1148 | 959 | 2107 | 25 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -1982,18 +1982,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1771 [jsx-text/en] Vodafone Cash
 - 1934 [jsx-text/ar] حركة #
 - 1988 [jsx-text/ar] الرصيد الافتتاحي:
-
-### src/modules/aiSupport/pages/MetaReviewerInbox.jsx (main-erp — ar:0 en:9)
-
-- 81 [jsx-text/en] AI Inbox
-- 81 [jsx-text/en] META REVIEW
-- 82 [attribute/en] Log out
-- 84 [attribute/en] Review channel
-- 95 [jsx-text/en] Conversations:
-- 102 [jsx-text/en] This channel is locked until its authorized test account is configured.
-- 103 [jsx-text/en] No authorized test conversation is available.
-- 115 [attribute/en] Write a manual reply
-- 116 [attribute/en] Send
 
 ### src/modules/loyalty/pages/LoyaltyRules.jsx (main-erp — ar:0 en:9)
 
