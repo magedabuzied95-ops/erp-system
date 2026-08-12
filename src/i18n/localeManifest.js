@@ -61,6 +61,7 @@ export const RESOURCE_BRANCHES = [
   { branch: "access", file: "access" },
   { branch: "auth", file: "auth" },
   { branch: "marketing", file: "marketing" },
+  { branch: "aiStudio", file: "aiStudio" },
   { branch: "storefront", file: "storefront" },
   { branch: "print", file: "print" },
   { branch: "sales", file: "sales" },

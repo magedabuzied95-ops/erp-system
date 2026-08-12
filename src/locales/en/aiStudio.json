@@ -1,0 +1,167 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "workflows": "Workflows",
+    "executions": "Executions",
+    "approvals": "Approvals",
+    "restockRecovery": "Restock Recovery",
+    "tools": "Tools"
+  },
+  "page": {
+    "eyebrow": "AI Studio",
+    "title": "AI Studio",
+    "subtitle": "Central control plane for every AI capability in your store — configure agents, channels, knowledge and automations, and observe what the AI is doing.",
+    "refresh": "Refresh",
+    "overview": "Overview"
+  },
+  "metrics": {
+    "aiReplies": "AI replies",
+    "conversations": "Conversations",
+    "waiting": "Waiting customers",
+    "takeovers": "Human takeovers",
+    "pendingFollowups": "Pending follow-ups",
+    "connectedChannels": "Connected channels",
+    "fromAnalytics": "From AI agent analytics",
+    "totalTracked": "Total tracked",
+    "awaitingReply": "Awaiting a reply",
+    "escalated": "Escalated to a human",
+    "openTasks": "Open follow-up tasks",
+    "liveChannels": "Live AI channels",
+    "notAvailable": "Not available"
+  },
+  "assisted": {
+    "title": "Inbound Assisted Replies",
+    "capabilityOn": "Capability enabled",
+    "capabilityOff": "Capability off (server flag)",
+    "explainerBefore": "On an inbound customer text, AI drafts a",
+    "explainerStrong": "grounded reply suggestion",
+    "explainerAfter": "that a human approves, edits, or rejects in the AI Inbox.",
+    "neverAutonomous": "It never sends autonomously.",
+    "capabilityOffNote": " The server capability flag is off, so no suggestions are generated yet.",
+    "mode": "Mode",
+    "modes": {
+      "off": "Off",
+      "suggestOnly": "Suggest only",
+      "approvalReply": "Approval + Send"
+    },
+    "pauseAll": "⏸ Pause all (kill switch)",
+    "channelsStaged": "Channels (staged)",
+    "stats": {
+      "generated": "Generated",
+      "approvedUnchanged": "Approved unchanged",
+      "approvedEdited": "Approved after edit",
+      "stale": "Stale",
+      "skipped": "Skipped",
+      "errored": "Errors",
+      "window7d": "{{label}} 7d"
+    },
+    "enabledNote": "Suggestions are generated on enabled channels. Review and send from the AI Inbox — nothing is sent without a human. A newer customer message blocks approving a stale suggestion (server-enforced).",
+    "last24h": "Last 24h — generated {{generated}} · approved {{approved}} · stale {{stale}}"
+  },
+  "style": {
+    "title": "Reply Style Learning",
+    "learningOn": "Learning: ON",
+    "learningOff": "Learning: OFF",
+    "reset": "Reset learned style",
+    "explainer1": "Learns only",
+    "explainerHow": "how",
+    "explainer2": "to phrase (brevity, stock-count omission, emoji) from repeated approved edits —",
+    "explainerNever": "never",
+    "explainer3": "stock, price, size, product, or policy facts. A preference becomes",
+    "explainerStable": "Stable",
+    "explainer4": "after ≥5 consistent edits per intent; conflicting edits disable it. Reset clears learned style but keeps correction/audit history.",
+    "factsNote": "Style only — price, stock and sizes always come from system data.",
+    "noPreference": "No stable style preference yet — evidence accumulating ({{count}} edits so far).",
+    "evidence": "evidence {{have}}/{{need}}",
+    "signals": {
+      "brevity": "Concise replies",
+      "exactStockCount": "Exact stock counts",
+      "emoji": "Emoji usage"
+    },
+    "values": {
+      "concise": "concise",
+      "normal": "normal",
+      "usuallyOmit": "usually omitted",
+      "usuallyInclude": "usually included",
+      "light": "light",
+      "heavy": "heavy",
+      "none": "none"
+    }
+  },
+  "groups": {
+    "conversations": {
+      "title": "Conversations",
+      "subtitle": "Operational AI conversation surfaces"
+    },
+    "agents": {
+      "title": "Agents & Behaviour",
+      "subtitle": "Configure how the AI agent replies"
+    },
+    "channels": {
+      "title": "Channels & Automation",
+      "subtitle": "Where the AI operates and its triggers"
+    },
+    "observability": {
+      "title": "Observability & Approvals",
+      "subtitle": "Understand and govern AI actions"
+    },
+    "marketing": {
+      "title": "Marketing AI",
+      "subtitle": "Autonomous content and lead intelligence"
+    }
+  },
+  "modules": {
+    "aiInbox": {
+      "label": "AI Inbox",
+      "description": "Desktop omni-channel support inbox with AI drafts."
+    },
+    "inboxPwa": {
+      "label": "Inbox (mobile / PWA)",
+      "description": "Mobile-optimized conversation inbox."
+    },
+    "followups": {
+      "label": "AI Follow-ups",
+      "description": "Scheduled follow-up queue and takeovers."
+    },
+    "agentSettings": {
+      "label": "AI Agent Settings",
+      "description": "Agent tone, phrases, follow-up templates."
+    },
+    "replySettings": {
+      "label": "AI Reply Settings",
+      "description": "Reply mode, tone and AI feature toggles."
+    },
+    "knowledgeBase": {
+      "label": "AI Knowledge Base",
+      "description": "Store info the AI uses to answer questions."
+    },
+    "channels": {
+      "label": "AI Channels",
+      "description": "Messenger / Instagram / WhatsApp connection status."
+    },
+    "marketingAutomation": {
+      "label": "Marketing Automation",
+      "description": "Comment → DM automation rules."
+    },
+    "socialComments": {
+      "label": "Social Comments",
+      "description": "Moderate and reply to social comments."
+    },
+    "agentAnalytics": {
+      "label": "AI Agent Analytics",
+      "description": "Replies, takeovers, intents and shadow analytics."
+    },
+    "marketingCenter": {
+      "label": "AI Marketing Center",
+      "description": "Autonomous social content generation & queue."
+    },
+    "leadCenter": {
+      "label": "AI Lead Center",
+      "description": "Lead pipeline built from conversations."
+    },
+    "marketingVideos": {
+      "label": "AI Marketing Videos",
+      "description": "Autonomous video generation queue."
+    }
+  }
+}

@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 610
-- Files with debt: 164
-- Hardcoded Arabic UI strings: 1750
-- Hardcoded English UI strings: 1872
-- Total hardcoded UI strings: 3622
-- Mixed-language files (both scripts hardcoded): 44
+- Files with debt: 162
+- Hardcoded Arabic UI strings: 1749
+- Hardcoded English UI strings: 1805
+- Total hardcoded UI strings: 3554
+- Mixed-language files (both scripts hardcoded): 43
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 89 | 1194 | 1406 | 2600 | 30 |
-| shared | 59 | 190 | 383 | 573 | 9 |
+| main-erp | 88 | 1193 | 1345 | 2538 | 29 |
+| shared | 58 | 190 | 377 | 567 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
@@ -38,7 +38,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx | main-erp | 1 | 69 | 70 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 62 | 2 | 64 |
-| src/modules/aiStudio/pages/AiStudio.jsx | main-erp | 1 | 61 | 62 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
 | src/modules/aiSupport/pages/AiSettings.jsx | main-erp | 7 | 48 | 55 |
@@ -647,50 +646,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 862 [jsx-text/ar] إلغاء
 - 936 [notification/ar] اختر المنتجات المراد إرجاعها
 - ... 24 more
-
-### src/modules/aiStudio/pages/AiStudio.jsx (main-erp — ar:1 en:61)
-
-- 57 [jsx-text/en] Inbound Assisted Replies
-- 60 [jsx-text/en] grounded reply suggestion
-- 60 [jsx-text/en] It never sends autonomously.
-- 60 [jsx-text/en] On an inbound customer text, AI drafts a
-- 60 [jsx-text/en] that a human approves, edits, or rejects in the AI Inbox.
-- 62 [jsx-text/en] Mode
-- 69 [jsx-text/en] Channels (staged)
-- 81 [jsx-text/en] Suggestions are generated on enabled channels. Review and send from the AI Inbox — nothing is sent without a human. A newer customer message blocks approving a stale suggestion (server-enforced).
-- 82 [jsx-text/en] Last 24h — generated
-- 103 [jsx-text/en] Reply Style Learning
-- 106 [jsx-text/en] Reset learned style
-- 109 [jsx-text/en] after ≥5 consistent edits per intent; conflicting edits disable it. Reset clears learned style but keeps correction/audit history.
-- 109 [jsx-text/en] Learns only
-- 109 [jsx-text/en] Stable
-- 109 [jsx-text/en] stock, price, size, product, or policy facts. A preference becomes
-- 109 [jsx-text/en] to phrase (brevity, stock-count omission, emoji) from repeated approved edits —
-- 110 [jsx-text/ar] يتعلم أسلوب الصياغة فقط — السعر والمخزون والمقاسات تظل من بيانات النظام.
-- 112 [jsx-text/en] No stable style preference yet — evidence accumulating (
-- 154 [object-key/en] Conversations
-- 155 [object-key/en] Operational AI conversation surfaces
-- 157 [object-key/en] AI Inbox
-- 157 [object-key/en] Desktop omni-channel support inbox with AI drafts.
-- 158 [object-key/en] Inbox (mobile / PWA)
-- 158 [object-key/en] Mobile-optimized conversation inbox.
-- 159 [object-key/en] AI Follow-ups
-- 159 [object-key/en] Scheduled follow-up queue and takeovers.
-- 163 [object-key/en] Agents & Behaviour
-- 164 [object-key/en] Configure how the AI agent replies
-- 166 [object-key/en] Agent tone, phrases, follow-up templates.
-- 166 [object-key/en] AI Agent Settings
-- 167 [object-key/en] AI Reply Settings
-- 167 [object-key/en] Reply mode, tone and AI feature toggles.
-- 168 [object-key/en] AI Knowledge Base
-- 168 [object-key/en] Store info the AI uses to answer questions.
-- 172 [object-key/en] Channels & Automation
-- 173 [object-key/en] Where the AI operates and its triggers
-- 175 [object-key/en] AI Channels
-- 175 [object-key/en] Messenger / Instagram / WhatsApp connection status.
-- 176 [object-key/en] Comment → DM automation rules.
-- 176 [object-key/en] Marketing Automation
-- ... 22 more
 
 ### src/pages/ComponentsPreview.jsx (main-erp — ar:58 en:2)
 
@@ -2645,15 +2600,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 615 [attribute/ar] عدد الصفوف في الصفحة
 - 647 [attribute/ar] لا توجد نتائج
 - 653 [attribute/ar] جاري التحميل...
-
-### src/modules/aiStudio/components/AiStudioNav.jsx (shared — ar:0 en:6)
-
-- 5 [object-key/en] Overview
-- 6 [object-key/en] Workflows
-- 7 [object-key/en] Executions
-- 8 [object-key/en] Approvals
-- 9 [object-key/en] Restock Recovery
-- 10 [object-key/en] Tools
 
 ### src/modules/aiSupport/components/socialCommentTimeline.jsx (shared — ar:0 en:6)
 
