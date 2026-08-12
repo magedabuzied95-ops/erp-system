@@ -3,14 +3,12 @@ import { Target } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export const TodayTargetsCard = memo(function TodayTargetsCard({ metrics, target = 0, formatCurrency }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
-  const copy = {
-    title: isArabic ? "أهداف اليوم" : "Today Targets",
-    of: isArabic ? "من" : "of",
-    noTarget: isArabic ? "لا يوجد هدف يومي مُعدّ." : "No daily target configured",
-    conversion: isArabic ? "معدل التحويل" : "Conversion",
-    aov: isArabic ? "متوسط الطلب" : "AOV",
+  const { t } = useTranslation();  const copy = {
+    title: t("dashboard.realtime.todayTargets.title"),
+    of: t("dashboard.realtime.todayTargets.of"),
+    noTarget: t("dashboard.realtime.todayTargets.noTarget"),
+    conversion: t("dashboard.realtime.todayTargets.conversion"),
+    aov: t("dashboard.realtime.todayTargets.aov"),
   };
   const progress = target ? Math.min(100, (metrics.todaySales / target) * 100) : 0;
   return (

@@ -3,16 +3,14 @@ import { AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export const InventoryPulseCard = memo(function InventoryPulseCard({ lowStock = [], inventory = {} }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
-  const copy = {
-    title: isArabic ? "نبض المخزون" : "Inventory Pulse",
-    pressure: isArabic ? "حالات حرجة" : "pressure",
-    healthy: isArabic ? "سليم" : "Healthy",
-    product: isArabic ? "منتج" : "Product",
-    empty: isArabic ? "لا توجد ضغوط حرجة على المخزون حاليًا." : "No critical stock pressure right now.",
-    fastMovers: isArabic ? "الأصناف الأسرع حركة" : "Fast movers",
-    pendingTransfers: isArabic ? "التحويلات المعلقة" : "Pending transfers",
+  const { t } = useTranslation();  const copy = {
+    title: t("dashboard.realtime.inventoryPulse.title"),
+    pressure: t("dashboard.realtime.inventoryPulse.pressure"),
+    healthy: t("dashboard.realtime.inventoryPulse.healthy"),
+    product: t("dashboard.realtime.inventoryPulse.product"),
+    empty: t("dashboard.realtime.inventoryPulse.empty"),
+    fastMovers: t("dashboard.realtime.inventoryPulse.fastMovers"),
+    pendingTransfers: t("dashboard.realtime.inventoryPulse.pendingTransfers"),
   };
   const rows = lowStock.slice(0, 4);
   return (

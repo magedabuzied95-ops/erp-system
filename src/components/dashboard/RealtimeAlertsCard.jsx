@@ -10,20 +10,19 @@ const tone = {
 };
 
 export const RealtimeAlertsCard = memo(function RealtimeAlertsCard({ alerts = [] }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const { t } = useTranslation();
 
   return (
     <section className="rounded-2xl border border-white/[0.07] bg-zinc-950/58 p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-black text-white"><Siren className="h-4 w-4 text-rose-300" />{isArabic ? "التنبيهات المباشرة" : "Realtime Alerts"}</div>
+        <div className="flex items-center gap-2 text-sm font-black text-white"><Siren className="h-4 w-4 text-rose-300" />{t("dashboard.realtime.alerts.title")}</div>
         <span className="rounded-full bg-white/[0.05] px-2 py-1 text-[10px] font-black text-zinc-300">{alerts.length}</span>
       </div>
       <div className="space-y-2">
         {alerts.length ? alerts.map((alert) => {
           const content = <AlertContent alert={alert} />;
           return alert.href ? <Link key={alert.id} to={alert.href} className="block">{content}</Link> : <div key={alert.id}>{content}</div>;
-        }) : <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{isArabic ? "لا توجد تنبيهات تشغيلية حرجة حاليًا." : "No critical operational alerts right now."}</div>}
+        }) : <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{t("dashboard.realtime.alerts.empty")}</div>}
       </div>
     </section>
   );

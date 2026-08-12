@@ -19,8 +19,7 @@ export const RealtimeKPICard = memo(function RealtimeKPICard({
   tone = "emerald",
   suffix = "",
 }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const { t } = useTranslation();
   const previous = useRef(Number(value || 0));
   const [pulse, setPulse] = useState(false);
   const increased = Number(value || 0) > previous.current;
@@ -51,7 +50,7 @@ export const RealtimeKPICard = memo(function RealtimeKPICard({
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs font-bold text-zinc-400">
-        <span className={increased ? "text-emerald-200" : ""}>{increased ? (isArabic ? "ارتفاع مباشر" : "Live increase") : (isArabic ? "مراقبة مباشرة" : "Live monitor")}</span>
+        <span className={increased ? "text-emerald-200" : ""}>{increased ? t("dashboard.realtime.kpi.liveIncrease") : t("dashboard.realtime.kpi.liveMonitor")}</span>
         <span className={`inline-flex items-center gap-1 ${trend >= 0 ? "text-emerald-200" : "text-rose-200"}`}>
           <TrendIcon className="h-3.5 w-3.5" />
           {Math.abs(Number(trend || 0)).toFixed(1)}%

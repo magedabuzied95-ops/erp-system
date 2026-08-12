@@ -269,9 +269,17 @@ test("Arabic and English inventory bundles have identical key shapes", async () 
 
 test("the bundle is registered under its own file and namespace", async () => {
   const i18n = await read("../../src/i18n/i18n.js");
-  assert.match(i18n, /inventory: inventoryAnalyticsAr/);
   assert.match(i18n, /inventoryAnalytics\.json/);
-  // One bundle file per namespace — the collision that broke the commissions screen.
+  assert.match(i18n, /inventoryAnalytics: inventoryAnalyticsAr/);
+
+  // This bundle used to be assigned to the `inventory` branch, which already
+  // held the operational inventory bundle — the second assignment silently
+  // replaced the first. The branch wiring now lives in the manifest, and
+  // tests/i18n-dictionary-parity.test.js fails on a duplicate branch.
+  const manifest = await read("../../src/i18n/localeManifest.js");
+  assert.match(manifest, /branch: "inventoryAnalytics", file: "inventoryAnalytics"/);
+
+  // One bundle file per import binding — the collision that broke the commissions screen.
   const imports = [...i18n.matchAll(/^import\s+(\w+)\s+from\s+"\.\.\/locales\/(\w+)\/([\w.-]+)"/gm)];
   const byFile = new Map();
   for (const [, binding, language, file] of imports) {

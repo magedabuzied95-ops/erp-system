@@ -3,15 +3,13 @@ import { Banknote } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export const RevenuePulseCard = memo(function RevenuePulseCard({ metrics, salesTrend = [], branchPerformance = [], formatCurrency }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
-  const copy = {
-    title: isArabic ? "نبض الإيرادات" : "Revenue Pulse",
-    avgOrder: isArabic ? "متوسط الطلب" : "Avg order",
-    orders: isArabic ? "الطلبات" : "Orders",
-    peakPeriod: isArabic ? "فترة الذروة" : "Peak period",
-    bestBranch: isArabic ? "أفضل فرع" : "Best branch",
-    singleBranch: isArabic ? "فرع واحد" : "Single branch",
+  const { t } = useTranslation();  const copy = {
+    title: t("dashboard.realtime.revenuePulse.title"),
+    avgOrder: t("dashboard.realtime.revenuePulse.avgOrder"),
+    orders: t("dashboard.realtime.revenuePulse.orders"),
+    peakPeriod: t("dashboard.realtime.revenuePulse.peakPeriod"),
+    bestBranch: t("dashboard.realtime.revenuePulse.bestBranch"),
+    singleBranch: t("dashboard.realtime.revenuePulse.singleBranch"),
   };
   const bestBranch = [...branchPerformance].sort((a, b) => Number(b.sales || 0) - Number(a.sales || 0))[0];
   const peakHour = [...salesTrend].sort((a, b) => Number(b.revenue || b.sales || 0) - Number(a.revenue || a.sales || 0))[0];

@@ -138,7 +138,7 @@
     "duplicate": "نسخ",
     "toggleStatus": "تبديل الحالة",
     "printBarcode": "طباعة الباركود",
-    "barcodeShop": "باركود المنتج",
+    "barcodeShop": "باركود المتجر",
     "generateMarketingPost": "إنشاء منشور تسويقي",
     "delete": "حذف",
     "activateProduct": "تفعيل المنتج",
@@ -223,7 +223,7 @@
     "deleteFailed": "فشل حذف الخيار"
   },
   "shared": {
-    "saving": "جار الحفظ...",
+    "saving": "جارٍ الحفظ...",
     "cancel": "إلغاء",
     "retry": "إعادة المحاولة",
     "add": "إضافة"
@@ -388,7 +388,7 @@
   "barcodeLabels": {
     "a4Sheet": "ورقة A4",
     "thermalSheet": "ملصق حراري",
-    "barcodeShopTitle": "متجر الباركود",
+    "barcodeShopTitle": "باركود المتجر",
     "barcodeShopDescription": "اطبع QR على مستوى المنتج. يقوم POS بمسح هذا الـ QR لعرض الألوان والمقاسات المتاحة للمنتج.",
     "printBarcodeShop": "طباعة متجر الباركود",
     "loadingBarcodeShop": "جاري تحميل متجر الباركود...",
@@ -445,7 +445,7 @@
     "sku": "SKU",
     "price": "السعر",
     "image": "الصورة",
-    "variant": "الخيار",
+    "variant": "الاختيار",
     "layout": "التخطيط",
     "a4": "A4",
     "thermal": "حراري"
@@ -484,7 +484,7 @@
   "editor": {
     "title": "تعديل المنتج",
     "save": "حفظ التغييرات",
-    "saving": "جاري الحفظ...",
+    "saving": "جارٍ الحفظ...",
     "removeImage": "إزالة صورة المنتج",
     "defaultManufacturer": "المصنّع الافتراضي",
     "defaultColorsHelp": "ترث الألوان الافتراضية هذا المصنّع تلقائيًا.",
@@ -756,7 +756,7 @@
     "active": "نشط",
     "inactive": "غير نشط",
     "save": "حفظ",
-    "saving": "جار الحفظ...",
+    "saving": "جارٍ الحفظ...",
     "delete": "حذف",
     "deleting": "جار الحذف...",
     "deactivate": "إلغاء التفعيل",

@@ -1,39 +1,115 @@
 {
-    "eyebrow":  "نظرة عامة على المؤسسة",
-    "title":  "لوحة تحكم ERP",
-    "description":  "ملخص تشغيلي للمبيعات والمخزون وأداء الأعمال خلال الفترة الحالية.",
-    "status":  "الحالة",
-    "live":  "مباشر",
-    "warehouse":  "المخزن",
-    "orders":  "الطلبات",
-    "margin":  "الهامش",
-    "revenueAnalytics":  "تحليلات الإيرادات",
-    "monthlyPerformanceTrend":  "اتجاه الأداء الشهري",
-    "salesChannels":  "قنوات البيع",
-    "distributionMix":  "توزيع المبيعات",
-    "activityFlow":  "تدفق النشاط",
-    "salesInventoryOperationsTrend":  "اتجاه المبيعات والمخزون والعمليات",
-    "operations":  "العمليات",
-    "lowStockItems":  "أصناف منخفضة المخزون",
-    "pendingApprovals":  "الموافقات المعلقة",
-    "overdueInvoices":  "الفواتير المتأخرة",
-    "channels":  {
-                     "online":  "أونلاين",
-                     "retail":  "تجزئة",
-                     "wholesale":  "جملة"
-                 },
-    "months":  {
-                   "jan":  "يناير",
-                   "feb":  "فبراير",
-                   "mar":  "مارس",
-                   "apr":  "أبريل",
-                   "may":  "مايو",
-                   "jun":  "يونيو"
-               },
-    "kpis":  {
-                 "totalRevenue":  "إجمالي الإيرادات",
-                 "orders":  "الطلبات",
-                 "products":  "المنتجات",
-                 "activeUsers":  "المستخدمون النشطون"
-             }
+  "eyebrow": "نظرة عامة على المؤسسة",
+  "title": "لوحة تحكم ERP",
+  "description": "ملخص تشغيلي للمبيعات والمخزون وأداء الأعمال خلال الفترة الحالية.",
+  "status": "الحالة",
+  "live": "مباشر",
+  "warehouse": "المخزن",
+  "orders": "الطلبات",
+  "margin": "الهامش",
+  "revenueAnalytics": "تحليلات الإيرادات",
+  "monthlyPerformanceTrend": "اتجاه الأداء الشهري",
+  "salesChannels": "قنوات البيع",
+  "distributionMix": "توزيع المبيعات",
+  "activityFlow": "تدفق النشاط",
+  "salesInventoryOperationsTrend": "اتجاه المبيعات والمخزون والعمليات",
+  "operations": "العمليات",
+  "lowStockItems": "أصناف منخفضة المخزون",
+  "pendingApprovals": "الموافقات المعلقة",
+  "overdueInvoices": "الفواتير المتأخرة",
+  "channels": {
+    "online": "أونلاين",
+    "retail": "تجزئة",
+    "wholesale": "جملة"
+  },
+  "months": {
+    "jan": "يناير",
+    "feb": "فبراير",
+    "mar": "مارس",
+    "apr": "أبريل",
+    "may": "مايو",
+    "jun": "يونيو"
+  },
+  "kpis": {
+    "totalRevenue": "إجمالي الإيرادات",
+    "orders": "الطلبات",
+    "products": "المنتجات",
+    "activeUsers": "المستخدمون النشطون"
+  },
+  "realtime": {
+    "inventoryPulse": {
+      "title": "نبض المخزون",
+      "pressure": "حالات حرجة",
+      "healthy": "سليم",
+      "product": "منتج",
+      "empty": "لا توجد ضغوط حرجة على المخزون حاليًا.",
+      "fastMovers": "الأصناف الأسرع حركة",
+      "pendingTransfers": "التحويلات المعلقة"
+    },
+    "topSellingNow": {
+      "title": "الأكثر مبيعًا الآن",
+      "product": "منتج",
+      "empty": "ستظهر المنتجات الأكثر مبيعًا بعد وجود نشاط مبيعات."
+    },
+    "liveSalesTicker": {
+      "eyebrow": "شريط المبيعات المباشر",
+      "title": "أحدث أحداث الإيراد",
+      "live": "مباشر",
+      "order": "طلب",
+      "empty": "ستظهر هنا أحدث الطلبات وحركات السداد.",
+      "secondsAgo": "منذ {{count}} ث",
+      "minutesAgo": "منذ {{count}} د",
+      "hoursAgo": "منذ {{count}} س"
+    },
+    "staffActivity": {
+      "title": "نشاط الموظفين",
+      "checkedIn": "الحاضرون",
+      "openShifts": "الورديات المفتوحة",
+      "taskEvents": "أحداث المهام",
+      "urgentTasks": "المهام العاجلة"
+    },
+    "todayTargets": {
+      "title": "أهداف اليوم",
+      "of": "من",
+      "noTarget": "لا يوجد هدف يومي مُعدّ.",
+      "conversion": "معدل التحويل",
+      "aov": "متوسط الطلب"
+    },
+    "aiActivity": {
+      "title": "نشاط الذكاء الاصطناعي",
+      "active": "نشط",
+      "escalations": "التصعيدات",
+      "signals": "الإشارات",
+      "fallback": "نشاط دعم الذكاء الاصطناعي",
+      "empty": "ستظهر محادثات الذكاء الاصطناعي عند تفاعل العملاء."
+    },
+    "revenuePulse": {
+      "title": "نبض الإيرادات",
+      "avgOrder": "متوسط الطلب",
+      "orders": "الطلبات",
+      "peakPeriod": "فترة الذروة",
+      "bestBranch": "أفضل فرع",
+      "singleBranch": "فرع واحد"
+    },
+    "alerts": {
+      "title": "التنبيهات المباشرة",
+      "empty": "لا توجد تنبيهات تشغيلية حرجة حاليًا."
+    },
+    "branchStatus": {
+      "title": "حالة الفروع",
+      "orders": "طلب",
+      "empty": "وضع الفرع الواحد مفعل أو لا يوجد نشاط فروع بعد."
+    },
+    "kpi": {
+      "liveIncrease": "ارتفاع مباشر",
+      "liveMonitor": "مراقبة مباشرة"
+    },
+    "activeVisitors": {
+      "title": "المتجر المباشر",
+      "visitorsOnline": "الزوار المتصلون",
+      "activeCarts": "السلات النشطة",
+      "activeCheckouts": "عمليات الدفع النشطة",
+      "abandonedCarts": "السلات المتروكة"
+    }
+  }
 }

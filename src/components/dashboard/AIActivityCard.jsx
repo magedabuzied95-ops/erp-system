@@ -3,15 +3,13 @@ import { Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export const AIActivityCard = memo(function AIActivityCard({ metrics, events = [], insights = [] }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
-  const copy = {
-    title: isArabic ? "نشاط الذكاء الاصطناعي" : "AI Activity",
-    active: isArabic ? "نشط" : "active",
-    escalations: isArabic ? "التصعيدات" : "Escalations",
-    signals: isArabic ? "الإشارات" : "Signals",
-    fallback: isArabic ? "نشاط دعم الذكاء الاصطناعي" : "AI support activity",
-    empty: isArabic ? "ستظهر محادثات الذكاء الاصطناعي عند تفاعل العملاء." : "AI conversations will appear as customers interact.",
+  const { t } = useTranslation();  const copy = {
+    title: t("dashboard.realtime.aiActivity.title"),
+    active: t("dashboard.realtime.aiActivity.active"),
+    escalations: t("dashboard.realtime.aiActivity.escalations"),
+    signals: t("dashboard.realtime.aiActivity.signals"),
+    fallback: t("dashboard.realtime.aiActivity.fallback"),
+    empty: t("dashboard.realtime.aiActivity.empty"),
   };
   const aiEvents = events.filter((event) => event.category === "ai").slice(0, 3);
   return (

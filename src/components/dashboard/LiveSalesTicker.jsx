@@ -3,24 +3,23 @@ import { Link } from "react-router-dom";
 import { ReceiptText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-const timeAgo = (value, isArabic) => {
+const timeAgo = (value, t) => {
   const time = new Date(value).getTime();
   if (Number.isNaN(time)) return "";
   const seconds = Math.max(0, Math.floor((Date.now() - time) / 1000));
-  if (seconds < 60) return isArabic ? `منذ ${seconds || 1} ث` : `${seconds || 1}s ago`;
-  if (seconds < 3600) return isArabic ? `منذ ${Math.floor(seconds / 60)} د` : `${Math.floor(seconds / 60)}m ago`;
-  return isArabic ? `منذ ${Math.floor(seconds / 3600)} س` : `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 60) return t("dashboard.realtime.liveSalesTicker.secondsAgo", { count: seconds || 1 });
+  if (seconds < 3600) return t("dashboard.realtime.liveSalesTicker.minutesAgo", { count: Math.floor(seconds / 60) });
+  return t("dashboard.realtime.liveSalesTicker.hoursAgo", { count: Math.floor(seconds / 3600) });
 };
 
 export const LiveSalesTicker = memo(function LiveSalesTicker({ sales = [], formatCurrency }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const { t } = useTranslation();
   const copy = {
-    eyebrow: isArabic ? "شريط المبيعات المباشر" : "Live Sales Ticker",
-    title: isArabic ? "أحدث أحداث الإيراد" : "Recent revenue events",
-    live: isArabic ? "مباشر" : "LIVE",
-    order: isArabic ? "طلب" : "Order",
-    empty: isArabic ? "ستظهر هنا أحدث الطلبات وحركات السداد." : "Recent order and payment events will appear here.",
+    eyebrow: t("dashboard.realtime.liveSalesTicker.eyebrow"),
+    title: t("dashboard.realtime.liveSalesTicker.title"),
+    live: t("dashboard.realtime.liveSalesTicker.live"),
+    order: t("dashboard.realtime.liveSalesTicker.order"),
+    empty: t("dashboard.realtime.liveSalesTicker.empty"),
   };
 
   return (
@@ -46,7 +45,7 @@ export const LiveSalesTicker = memo(function LiveSalesTicker({ sales = [], forma
               </div>
               <div className="text-right">
                 <div className="text-sm font-black text-emerald-100">{formatCurrency(sale.amount || 0)}</div>
-                <div className="mt-1 text-[10px] font-bold text-zinc-500">{timeAgo(sale.timestamp, isArabic)}</div>
+                <div className="mt-1 text-[10px] font-bold text-zinc-500">{timeAgo(sale.timestamp, t)}</div>
               </div>
             </div>
           );

@@ -3,14 +3,12 @@ import { UserCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export const StaffActivityCard = memo(function StaffActivityCard({ metrics, posLive = {}, events = [] }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
-  const copy = {
-    title: isArabic ? "نشاط الموظفين" : "Staff Activity",
-    checkedIn: isArabic ? "الحاضرون" : "Checked in",
-    openShifts: isArabic ? "الورديات المفتوحة" : "Open shifts",
-    taskEvents: isArabic ? "أحداث المهام" : "Task events",
-    urgentTasks: isArabic ? "المهام العاجلة" : "Urgent tasks",
+  const { t } = useTranslation();  const copy = {
+    title: t("dashboard.realtime.staffActivity.title"),
+    checkedIn: t("dashboard.realtime.staffActivity.checkedIn"),
+    openShifts: t("dashboard.realtime.staffActivity.openShifts"),
+    taskEvents: t("dashboard.realtime.staffActivity.taskEvents"),
+    urgentTasks: t("dashboard.realtime.staffActivity.urgentTasks"),
   };
   const taskEvents = events.filter((event) => event.category === "staff_tasks");
   return (

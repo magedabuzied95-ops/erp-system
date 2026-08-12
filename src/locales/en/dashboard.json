@@ -35,5 +35,81 @@
     "orders": "Orders",
     "products": "Products",
     "activeUsers": "Active Users"
+  },
+  "realtime": {
+    "inventoryPulse": {
+      "title": "Inventory Pulse",
+      "pressure": "pressure",
+      "healthy": "Healthy",
+      "product": "Product",
+      "empty": "No critical stock pressure right now.",
+      "fastMovers": "Fast movers",
+      "pendingTransfers": "Pending transfers"
+    },
+    "topSellingNow": {
+      "title": "Top Selling Now",
+      "product": "Product",
+      "empty": "Top sellers will appear after sales activity."
+    },
+    "liveSalesTicker": {
+      "eyebrow": "Live Sales Ticker",
+      "title": "Recent revenue events",
+      "live": "LIVE",
+      "order": "Order",
+      "empty": "Recent order and payment events will appear here.",
+      "secondsAgo": "{{count}}s ago",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago"
+    },
+    "staffActivity": {
+      "title": "Staff Activity",
+      "checkedIn": "Checked in",
+      "openShifts": "Open shifts",
+      "taskEvents": "Task events",
+      "urgentTasks": "Urgent tasks"
+    },
+    "todayTargets": {
+      "title": "Today Targets",
+      "of": "of",
+      "noTarget": "No daily target configured",
+      "conversion": "Conversion",
+      "aov": "AOV"
+    },
+    "aiActivity": {
+      "title": "AI Activity",
+      "active": "active",
+      "escalations": "Escalations",
+      "signals": "Signals",
+      "fallback": "AI support activity",
+      "empty": "AI conversations will appear as customers interact."
+    },
+    "revenuePulse": {
+      "title": "Revenue Pulse",
+      "avgOrder": "Avg order",
+      "orders": "Orders",
+      "peakPeriod": "Peak period",
+      "bestBranch": "Best branch",
+      "singleBranch": "Single branch"
+    },
+    "alerts": {
+      "title": "Realtime Alerts",
+      "empty": "No critical operational alerts right now."
+    },
+    "branchStatus": {
+      "title": "Branch Status",
+      "orders": "orders",
+      "empty": "Single branch mode or no branch activity yet."
+    },
+    "kpi": {
+      "liveIncrease": "Live increase",
+      "liveMonitor": "Live monitor"
+    },
+    "activeVisitors": {
+      "title": "Storefront Live",
+      "visitorsOnline": "Visitors online",
+      "activeCarts": "Active carts",
+      "activeCheckouts": "Active checkouts",
+      "abandonedCarts": "Abandoned carts"
+    }
   }
 }

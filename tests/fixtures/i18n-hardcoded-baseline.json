@@ -1,9 +1,9 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 3069,
+    "arabic": 3020,
     "english": 2546,
-    "total": 5615,
+    "total": 5566,
     "mixedFiles": 58
   },
   "files": {
@@ -27,65 +27,10 @@
       "english": 0,
       "total": 1
     },
-    "src/components/dashboard/ActiveVisitorsCard.jsx": {
-      "arabic": 5,
-      "english": 0,
-      "total": 5
-    },
-    "src/components/dashboard/AIActivityCard.jsx": {
-      "arabic": 6,
-      "english": 0,
-      "total": 6
-    },
     "src/components/dashboard/CommandCenterDashboard.jsx": {
       "arabic": 0,
       "english": 11,
       "total": 11
-    },
-    "src/components/dashboard/InventoryPulseCard.jsx": {
-      "arabic": 7,
-      "english": 0,
-      "total": 7
-    },
-    "src/components/dashboard/LiveSalesTicker.jsx": {
-      "arabic": 5,
-      "english": 0,
-      "total": 5
-    },
-    "src/components/dashboard/RealtimeAlertsCard.jsx": {
-      "arabic": 2,
-      "english": 0,
-      "total": 2
-    },
-    "src/components/dashboard/RealtimeBranchStatusCard.jsx": {
-      "arabic": 3,
-      "english": 0,
-      "total": 3
-    },
-    "src/components/dashboard/RealtimeKPICard.jsx": {
-      "arabic": 2,
-      "english": 0,
-      "total": 2
-    },
-    "src/components/dashboard/RevenuePulseCard.jsx": {
-      "arabic": 6,
-      "english": 0,
-      "total": 6
-    },
-    "src/components/dashboard/StaffActivityCard.jsx": {
-      "arabic": 5,
-      "english": 0,
-      "total": 5
-    },
-    "src/components/dashboard/TodayTargetsCard.jsx": {
-      "arabic": 5,
-      "english": 0,
-      "total": 5
-    },
-    "src/components/dashboard/TopSellingNowCard.jsx": {
-      "arabic": 3,
-      "english": 0,
-      "total": 3
     },
     "src/components/ProductCard.jsx": {
       "arabic": 0,

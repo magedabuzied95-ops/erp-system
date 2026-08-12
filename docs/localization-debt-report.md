@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 231
-- Hardcoded Arabic UI strings: 3069
+- Files with debt: 220
+- Hardcoded Arabic UI strings: 3020
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 5615
+- Total hardcoded UI strings: 5566
 - Mixed-language files (both scripts hardcoded): 58
 
 ### By surface
@@ -21,7 +21,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 117 | 2049 | 1821 | 3870 | 37 |
-| shared | 81 | 238 | 440 | 678 | 11 |
+| shared | 70 | 189 | 440 | 629 | 11 |
 | employee-portal | 25 | 304 | 149 | 453 | 5 |
 | pos | 6 | 206 | 122 | 328 | 3 |
 | manager-portal | 2 | 272 | 14 | 286 | 2 |
@@ -3828,16 +3828,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 521 [jsx-text/en] 3. Check in/out
 - 788 [attribute/en] Branch map preview
 
-### src/components/dashboard/InventoryPulseCard.jsx (shared — ar:7 en:0)
-
-- 9 [inline-ternary/ar] isArabic ? "نبض المخزون" : "Inventory Pulse"
-- 10 [inline-ternary/ar] isArabic ? "حالات حرجة" : "pressure"
-- 11 [inline-ternary/ar] isArabic ? "سليم" : "Healthy"
-- 12 [inline-ternary/ar] isArabic ? "منتج" : "Product"
-- 13 [inline-ternary/ar] isArabic ? "لا توجد ضغوط حرجة على المخزون حاليًا." : "No critical stock pressure right now."
-- 14 [inline-ternary/ar] isArabic ? "الأصناف الأسرع حركة" : "Fast movers"
-- 15 [inline-ternary/ar] isArabic ? "التحويلات المعلقة" : "Pending transfers"
-
 ### src/modules/aiSupport/components/socialAutomation/automationEngine.js (shared — ar:0 en:7)
 
 - 10 [object-key/en] Product Comment Sales Flow
@@ -3928,24 +3918,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 647 [attribute/ar] لا توجد نتائج
 - 653 [attribute/ar] جاري التحميل...
 
-### src/components/dashboard/AIActivityCard.jsx (shared — ar:6 en:0)
-
-- 9 [inline-ternary/ar] isArabic ? "نشاط الذكاء الاصطناعي" : "AI Activity"
-- 10 [inline-ternary/ar] isArabic ? "نشط" : "active"
-- 11 [inline-ternary/ar] isArabic ? "التصعيدات" : "Escalations"
-- 12 [inline-ternary/ar] isArabic ? "الإشارات" : "Signals"
-- 13 [inline-ternary/ar] isArabic ? "نشاط دعم الذكاء الاصطناعي" : "AI support activity"
-- 14 [inline-ternary/ar] isArabic ? "ستظهر محادثات الذكاء الاصطناعي عند تفاعل العملاء." : "AI conversations will appear as customers interact."
-
-### src/components/dashboard/RevenuePulseCard.jsx (shared — ar:6 en:0)
-
-- 9 [inline-ternary/ar] isArabic ? "نبض الإيرادات" : "Revenue Pulse"
-- 10 [inline-ternary/ar] isArabic ? "متوسط الطلب" : "Avg order"
-- 11 [inline-ternary/ar] isArabic ? "الطلبات" : "Orders"
-- 12 [inline-ternary/ar] isArabic ? "فترة الذروة" : "Peak period"
-- 13 [inline-ternary/ar] isArabic ? "أفضل فرع" : "Best branch"
-- 14 [inline-ternary/ar] isArabic ? "فرع واحد" : "Single branch"
-
 ### src/modules/aiStudio/components/AiStudioNav.jsx (shared — ar:0 en:6)
 
 - 5 [object-key/en] Overview
@@ -3990,38 +3962,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 307 [attribute/ar] إغلاق الإشعارات
 - 338 [jsx-text/ar] تعذر تحميل الإشعارات
 - 375 [jsx-text/ar] لا توجد إشعارات
-
-### src/components/dashboard/ActiveVisitorsCard.jsx (shared — ar:5 en:0)
-
-- 9 [inline-ternary/ar] isArabic ? "الزوار المتصلون" : "Visitors online"
-- 10 [inline-ternary/ar] isArabic ? "السلات النشطة" : "Active carts"
-- 11 [inline-ternary/ar] isArabic ? "عمليات الدفع النشطة" : "Active checkouts"
-- 12 [inline-ternary/ar] isArabic ? "السلات المتروكة" : "Abandoned carts"
-- 14 [inline-ternary/ar] isArabic ? "المتجر المباشر" : "Storefront Live"
-
-### src/components/dashboard/LiveSalesTicker.jsx (shared — ar:5 en:0)
-
-- 19 [inline-ternary/ar] isArabic ? "شريط المبيعات المباشر" : "Live Sales Ticker"
-- 20 [inline-ternary/ar] isArabic ? "أحدث أحداث الإيراد" : "Recent revenue events"
-- 21 [inline-ternary/ar] isArabic ? "مباشر" : "LIVE"
-- 22 [inline-ternary/ar] isArabic ? "طلب" : "Order"
-- 23 [inline-ternary/ar] isArabic ? "ستظهر هنا أحدث الطلبات وحركات السداد." : "Recent order and payment events will appear here."
-
-### src/components/dashboard/StaffActivityCard.jsx (shared — ar:5 en:0)
-
-- 9 [inline-ternary/ar] isArabic ? "نشاط الموظفين" : "Staff Activity"
-- 10 [inline-ternary/ar] isArabic ? "الحاضرون" : "Checked in"
-- 11 [inline-ternary/ar] isArabic ? "الورديات المفتوحة" : "Open shifts"
-- 12 [inline-ternary/ar] isArabic ? "أحداث المهام" : "Task events"
-- 13 [inline-ternary/ar] isArabic ? "المهام العاجلة" : "Urgent tasks"
-
-### src/components/dashboard/TodayTargetsCard.jsx (shared — ar:5 en:0)
-
-- 9 [inline-ternary/ar] isArabic ? "أهداف اليوم" : "Today Targets"
-- 10 [inline-ternary/ar] isArabic ? "من" : "of"
-- 11 [inline-ternary/ar] isArabic ? "لا يوجد هدف يومي مُعدّ." : "No daily target configured"
-- 12 [inline-ternary/ar] isArabic ? "معدل التحويل" : "Conversion"
-- 13 [inline-ternary/ar] isArabic ? "متوسط الطلب" : "AOV"
 
 ### src/modules/aiStudio/components/editor/WorkflowNode.jsx (shared — ar:0 en:5)
 
@@ -4131,18 +4071,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 810 [notification/en] Sales settings saved
 - 824 [notification/en] Sales settings saved
 
-### src/components/dashboard/RealtimeBranchStatusCard.jsx (shared — ar:3 en:0)
-
-- 11 [inline-ternary/ar] isArabic ? "حالة الفروع" : "Branch Status"
-- 16 [inline-ternary/ar] isArabic ? "طلب" : "orders"
-- 18 [inline-ternary/ar] isArabic ? "وضع الفرع الواحد مفعل أو لا يوجد نشاط فروع بعد." : "Single branch mode or no branch activity yet."
-
-### src/components/dashboard/TopSellingNowCard.jsx (shared — ar:3 en:0)
-
-- 9 [inline-ternary/ar] isArabic ? "الأكثر مبيعًا الآن" : "Top Selling Now"
-- 10 [inline-ternary/ar] isArabic ? "منتج" : "Product"
-- 11 [inline-ternary/ar] isArabic ? "ستظهر المنتجات الأكثر مبيعًا بعد وجود نشاط مبيعات." : "Top sellers will appear after sales activity."
-
 ### src/modules/aiStudio/components/editor/nodeKit.js (shared — ar:0 en:3)
 
 - 32 [object-key/en] Read only
@@ -4224,16 +4152,6 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 74 [jsx-text/en] Live AI Logs
 - 75 [jsx-text/en] Operational event stream, kept in memory only.
-
-### src/components/dashboard/RealtimeAlertsCard.jsx (shared — ar:2 en:0)
-
-- 19 [inline-ternary/ar] isArabic ? "التنبيهات المباشرة" : "Realtime Alerts"
-- 26 [inline-ternary/ar] isArabic ? "لا توجد تنبيهات تشغيلية حرجة حاليًا." : "No critical operational alerts right now."
-
-### src/components/dashboard/RealtimeKPICard.jsx (shared — ar:2 en:0)
-
-- 54 [inline-ternary/ar] isArabic ? "ارتفاع مباشر" : "Live increase"
-- 54 [inline-ternary/ar] isArabic ? "مراقبة مباشرة" : "Live monitor"
 
 ### src/components/ProductCard.jsx (shared — ar:0 en:2)
 

@@ -3,12 +3,10 @@ import { Flame } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export const TopSellingNowCard = memo(function TopSellingNowCard({ products = [], inventory = {}, formatCurrency }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
-  const copy = {
-    title: isArabic ? "الأكثر مبيعًا الآن" : "Top Selling Now",
-    product: isArabic ? "منتج" : "Product",
-    empty: isArabic ? "ستظهر المنتجات الأكثر مبيعًا بعد وجود نشاط مبيعات." : "Top sellers will appear after sales activity.",
+  const { t } = useTranslation();  const copy = {
+    title: t("dashboard.realtime.topSellingNow.title"),
+    product: t("dashboard.realtime.topSellingNow.product"),
+    empty: t("dashboard.realtime.topSellingNow.empty"),
   };
   const rows = (products.length ? products : inventory.fastMovingProducts || []).slice(0, 5);
   return (

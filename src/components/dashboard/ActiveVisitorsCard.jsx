@@ -3,15 +3,14 @@ import { Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export const ActiveVisitorsCard = memo(function ActiveVisitorsCard({ metrics }) {
-  const { i18n } = useTranslation();
-  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const { t } = useTranslation();
   const rows = [
-    [isArabic ? "الزوار المتصلون" : "Visitors online", metrics.activeCustomers],
-    [isArabic ? "السلات النشطة" : "Active carts", metrics.activeCarts],
-    [isArabic ? "عمليات الدفع النشطة" : "Active checkouts", metrics.activeCheckouts],
-    [isArabic ? "السلات المتروكة" : "Abandoned carts", metrics.abandonedCarts],
+    [t("dashboard.realtime.activeVisitors.visitorsOnline"), metrics.activeCustomers],
+    [t("dashboard.realtime.activeVisitors.activeCarts"), metrics.activeCarts],
+    [t("dashboard.realtime.activeVisitors.activeCheckouts"), metrics.activeCheckouts],
+    [t("dashboard.realtime.activeVisitors.abandonedCarts"), metrics.abandonedCarts],
   ];
-  return <MiniCommandCard title={isArabic ? "المتجر المباشر" : "Storefront Live"} icon={Users} rows={rows} />;
+  return <MiniCommandCard title={t("dashboard.realtime.activeVisitors.title")} icon={Users} rows={rows} />;
 });
 
 function MiniCommandCard({ title, icon: Icon, rows }) {
