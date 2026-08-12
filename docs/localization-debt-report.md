@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 608
 - Files with debt: 219
-- Hardcoded Arabic UI strings: 2667
+- Hardcoded Arabic UI strings: 2545
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 5213
-- Mixed-language files (both scripts hardcoded): 54
+- Total hardcoded UI strings: 5091
+- Mixed-language files (both scripts hardcoded): 53
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 117 | 2049 | 1821 | 3870 | 37 |
+| main-erp | 117 | 1927 | 1821 | 3748 | 36 |
 | shared | 70 | 189 | 440 | 629 | 11 |
 | employee-portal | 24 | 223 | 149 | 372 | 3 |
 | pos | 6 | 206 | 122 | 328 | 3 |
@@ -37,7 +37,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/accounting/pages/FinancialReports.jsx | main-erp | 140 | 3 | 143 |
 | src/modules/inventory/pages/InventoryCount.jsx | main-erp | 122 | 7 | 129 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 56 | 70 | 126 |
-| src/modules/sales/pages/Customers.jsx | main-erp | 122 | 3 | 125 |
 | src/modules/orders/pages/OrderReturnsPage.jsx | main-erp | 94 | 4 | 98 |
 | src/modules/marketing/pages/AiMarketingCenter.jsx | main-erp | 36 | 57 | 93 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
@@ -394,50 +393,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1081 [object-key/en] New
 - 1082 [object-key/en] Contacted
 - ... 86 more
-
-### src/modules/sales/pages/Customers.jsx (main-erp — ar:122 en:3)
-
-- 72 [object-key/ar] كل الحركات
-- 73 [object-key/ar] دفع من المحفظة
-- 74 [object-key/ar] استرداد إلى المحفظة
-- 75 [object-key/ar] رصيد استبدال
-- 76 [object-key/ar] رصيد ولاء
-- 77 [object-key/ar] إضافة يدوية
-- 78 [object-key/ar] خصم يدوي
-- 82 [object-key/ar] الكل
-- 83 [object-key/ar] دفعات العملاء
-- 84 [object-key/ar] مبيعات عادية
-- 85 [object-key/ar] هدية (GIFT)
-- 86 [object-key/ar] سلفة موظف (EMPLOYEE_ADVANCE)
-- 87 [object-key/ar] استخدام شخصي (OWNER_USE)
-- 95 [object-key/ar] هدية
-- 98 [object-key/ar] سلفة موظف
-- 101 [object-key/ar] استخدام شخصي
-- 106 [object-key/ar] مسدد بالكامل
-- 109 [object-key/ar] مسدد جزئيًا
-- 111 [object-key/ar] آجل غير مسدد
-- 114 [object-key/ar] مبيعات عادية
-- 117 [object-key/ar] دفعة عميل
-- 120 [object-key/ar] استرداد
-- 123 [object-key/ar] رصيد استبدال
-- 243 [jsx-text/ar] كشف حساب عميل
-- 244 [jsx-text/ar] كشف حساب العميل
-- 246 [jsx-text/ar] العميل:
-- 247 [jsx-text/ar] الهاتف:
-- 248 [jsx-text/ar] الرصيد الحالي:
-- 249 [jsx-text/ar] نقاط الولاء:
-- 253 [jsx-text/ar] آخر تحديث
-- 256 [jsx-text/ar] الرصيد الافتتاحي
-- 257 [jsx-text/ar] الرصيد النهائي
-- 263 [jsx-text/ar] الحركات
-- 267 [jsx-text/ar] التاريخ
-- 268 [jsx-text/ar] البيان
-- 269 [jsx-text/ar] رقم الفاتورة/الطلب
-- 270 [jsx-text/ar] دفعة/تسوية
-- 271 [jsx-text/ar] مبلغ مستحق
-- 272 [jsx-text/ar] المتبقي
-- 292 [jsx-text/ar] لا توجد حركات مطابقة
-- ... 85 more
 
 ### src/modules/orders/pages/OrderReturnsPage.jsx (main-erp — ar:94 en:4)
 
@@ -3975,6 +3930,12 @@ of scope. The scanner is conservative and can still contain false positives.
 - 5 [object-key/ar] العلامة التجارية
 - 6 [object-key/ar] الفئة
 - 7 [object-key/ar] نوع المنتج
+
+### src/modules/sales/pages/Customers.jsx (main-erp — ar:0 en:3)
+
+- 1453 [attribute/en] Close
+- 1770 [jsx-text/en] InstaPay
+- 1771 [jsx-text/en] Vodafone Cash
 
 ### src/pages/Login.jsx (main-erp — ar:1 en:2)
 

@@ -10,6 +10,11 @@ import customerStatementArabicFontUrl from "../../../assets/fonts/customer-state
 import { escapeHtml, formatPrintDate, normalizePrintLanguage, openPrintHtml, PRINT_FONT_STACK, wrapPrintableHtml } from "../../../shared/utils/printLocalization";
 import "./Customers.m1.css";
 
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 const DEFAULT_CUSTOMERS_PAGE_SIZE = 25;
 const CUSTOMER_PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
@@ -68,23 +73,25 @@ const normalizeCustomersPagination = (response, fallbackLimit = DEFAULT_CUSTOMER
 const clampPage = (page, totalPages) =>
   Math.min(Math.max(1, page), Math.max(1, totalPages || 1));
 
+// Module-scope array: stores translation KEYS and resolves them at render.
 const walletTypeOptions = [
-  { value: "", label: "كل الحركات" },
-  { value: "order_payment", label: "دفع من المحفظة" },
-  { value: "refund", label: "استرداد إلى المحفظة" },
-  { value: "exchange_credit", label: "رصيد استبدال" },
-  { value: "loyalty_conversion", label: "رصيد ولاء" },
-  { value: "manual_add", label: "إضافة يدوية" },
-  { value: "manual_deduct", label: "خصم يدوي" },
+  { value: "", labelKey: "customers.filters.allMovements" },
+  { value: "order_payment", labelKey: "customers.wallet.payFromWallet" },
+  { value: "refund", labelKey: "customers.wallet.refundToWallet" },
+  { value: "exchange_credit", labelKey: "customers.statement.exchangeCredit" },
+  { value: "loyalty_conversion", labelKey: "customers.wallet.loyaltyCredit" },
+  { value: "manual_add", labelKey: "customers.statement.manualCredit" },
+  { value: "manual_deduct", labelKey: "customers.statement.manualDebit" },
 ];
 
+// Module-scope array: stores translation KEYS and resolves them at render.
 const statementFilterOptions = [
-  { value: "", label: "الكل", tone: "slate" },
-  { value: "customer_payment", label: "دفعات العملاء", tone: "sky" },
-  { value: "order_payment", label: "مبيعات عادية", tone: "emerald" },
-  { value: "personal_gift", label: "هدية (GIFT)", tone: "amber" },
-  { value: "personal_employee_advance", label: "سلفة موظف (EMPLOYEE_ADVANCE)", tone: "cyan" },
-  { value: "personal_owner_use", label: "استخدام شخصي (OWNER_USE)", tone: "violet" },
+  { value: "", labelKey: "customers.filters.all", tone: "slate" },
+  { value: "customer_payment", labelKey: "customers.filters.customerPayments", tone: "sky" },
+  { value: "order_payment", labelKey: "customers.statement.regularSales", tone: "emerald" },
+  { value: "personal_gift", labelKey: "customers.personalUse.giftEnum", tone: "amber" },
+  { value: "personal_employee_advance", labelKey: "customers.personalUse.employeeAdvanceEnum", tone: "cyan" },
+  { value: "personal_owner_use", labelKey: "customers.personalUse.ownerUseEnum", tone: "violet" },
 ];
 
 const getStatementMovementMeta = (row = {}) => {
@@ -92,35 +99,35 @@ const getStatementMovementMeta = (row = {}) => {
   const personalType = String(row.personal_operation_type || "").trim().toUpperCase();
 
   if (personalType === "GIFT" || transactionType === "personal_gift") {
-    return { label: "هدية", tone: "amber" };
+    return { label: tt("customers.personalUse.gift"), tone: "amber" };
   }
   if (personalType === "EMPLOYEE_ADVANCE" || transactionType === "personal_employee_advance") {
-    return { label: "سلفة موظف", tone: "cyan" };
+    return { label: tt("customers.personalUse.employeeAdvance"), tone: "cyan" };
   }
   if (personalType === "OWNER_USE" || transactionType === "personal_owner_use") {
-    return { label: "استخدام شخصي", tone: "violet" };
+    return { label: tt("customers.personalUse.ownerUse"), tone: "violet" };
   }
   if (String(row.payment_method || "").trim().toLowerCase() === "credit_sale") {
     const paymentStatus = String(row.payment_status || "").trim().toLowerCase();
     if (["paid", "completed", "settled"].includes(paymentStatus)) {
-      return { label: "مسدد بالكامل", tone: "emerald" };
+      return { label: tt("customers.paymentState.fullyPaid"), tone: "emerald" };
     }
     if (["partially_paid", "partial"].includes(paymentStatus)) {
-      return { label: "مسدد جزئيًا", tone: "sky" };
+      return { label: tt("customers.paymentState.partiallyPaid"), tone: "sky" };
     }
-    return { label: "آجل غير مسدد", tone: "amber" };
+    return { label: tt("customers.paymentState.unpaidCredit"), tone: "amber" };
   }
   if (transactionType === "order_payment") {
-    return { label: "مبيعات عادية", tone: "emerald" };
+    return { label: tt("customers.statement.regularSales"), tone: "emerald" };
   }
   if (transactionType === "customer_payment") {
-    return { label: "دفعة عميل", tone: "sky" };
+    return { label: tt("customers.statement.customerPayment"), tone: "sky" };
   }
   if (transactionType === "refund") {
-    return { label: "استرداد", tone: "rose" };
+    return { label: tt("customers.statement.refund"), tone: "rose" };
   }
   if (transactionType === "exchange_credit") {
-    return { label: "رصيد استبدال", tone: "sky" };
+    return { label: tt("customers.statement.exchangeCredit"), tone: "sky" };
   }
   return {
     label: row.transaction_type_label || row.transaction_type || "-",
@@ -240,36 +247,36 @@ const buildCustomerStatementPrintHtml = ({ statement, customer, language }) => {
     <main class="customer-statement-print" dir="rtl">
       <section class="statement-card statement-head">
         <div>
-          <div class="eyebrow">كشف حساب عميل</div>
-          <h1>كشف حساب العميل</h1>
+          <div class="eyebrow">{tt("customers.statement.printTitle")}</div>
+          <h1>{tt("customers.statement.title")}</h1>
           <div class="customer-meta">
-            <div><span>العميل:</span> ${escapeHtml(customerName || "-")}</div>
-            <div><span>الهاتف:</span> ${escapeHtml(customerPhone || "-")}</div>
-            <div><span>الرصيد الحالي:</span> ${escapeHtml(formatMoney(currentBalance))}</div>
-            <div><span>نقاط الولاء:</span> ${escapeHtml(Number(customer?.loyalty_points ?? statement?.customer?.loyalty_points ?? 0).toLocaleString("ar-EG-u-nu-latn"))}</div>
+            <div><span>{tt("customers.print.customerLabel")}</span> ${escapeHtml(customerName || "-")}</div>
+            <div><span>{tt("customers.print.phoneLabel")}</span> ${escapeHtml(customerPhone || "-")}</div>
+            <div><span>{tt("customers.print.currentBalanceLabel")}</span> ${escapeHtml(formatMoney(currentBalance))}</div>
+            <div><span>{tt("customers.print.loyaltyPointsLabel")}</span> ${escapeHtml(Number(customer?.loyalty_points ?? statement?.customer?.loyalty_points ?? 0).toLocaleString("ar-EG-u-nu-latn"))}</div>
           </div>
         </div>
         <div class="summary-block">
-          <div class="summary-label">آخر تحديث</div>
+          <div class="summary-label">{tt("customers.common.lastUpdated")}</div>
           <div class="summary-value">${escapeHtml(formatPrintDate(lastUpdated, normalizedLanguage, { dateStyle: "medium", timeStyle: "short" }))}</div>
           <div class="summary-mini">
-            <div><span>الرصيد الافتتاحي</span><strong>${escapeHtml(formatMoney(openingBalance))}</strong></div>
-            <div><span>الرصيد النهائي</span><strong>${escapeHtml(formatMoney(finalBalance))}</strong></div>
+            <div><span>{tt("customers.statement.openingBalance")}</span><strong>${escapeHtml(formatMoney(openingBalance))}</strong></div>
+            <div><span>{tt("customers.statement.closingBalance")}</span><strong>${escapeHtml(formatMoney(finalBalance))}</strong></div>
           </div>
         </div>
       </section>
 
       <section class="statement-card">
-        <div class="section-title">الحركات</div>
+        <div class="section-title">{tt("customers.statement.movements")}</div>
         <table class="statement-table">
           <thead>
             <tr>
-              <th>التاريخ</th>
-              <th>البيان</th>
-              <th>رقم الفاتورة/الطلب</th>
-              <th class="num">دفعة/تسوية</th>
-              <th class="num">مبلغ مستحق</th>
-              <th class="num">المتبقي</th>
+              <th>{tt("customers.statement.date")}</th>
+              <th>{tt("customers.statement.description")}</th>
+              <th>{tt("customers.statement.invoiceOrOrder")}</th>
+              <th class="num">{tt("customers.statement.paymentOrSettlement")}</th>
+              <th class="num">{tt("customers.statement.amountDue")}</th>
+              <th class="num">{tt("customers.statement.remaining")}</th>
             </tr>
           </thead>
           <tbody>
@@ -289,22 +296,22 @@ const buildCustomerStatementPrintHtml = ({ statement, customer, language }) => {
                 </tr>
               `;
             }).join("") : `
-              <tr><td colspan="6" class="empty">لا توجد حركات مطابقة</td></tr>
+              <tr><td colspan="6" class="empty">{tt("customers.statement.noMatches")}</td></tr>
             `}
           </tbody>
         </table>
       </section>
 
       <section class="statement-card totals-grid">
-        <div><span>إجمالي الدفعات والتسويات</span><strong>${escapeHtml(formatMoney(totals.debit))}</strong></div>
-        <div><span>إجمالي المبالغ المستحقة</span><strong>${escapeHtml(formatMoney(totals.credit))}</strong></div>
-        <div><span>المتبقي على العميل</span><strong>${escapeHtml(formatMoney(finalBalance))}</strong></div>
+        <div><span>{tt("customers.statement.totalPayments")}</span><strong>${escapeHtml(formatMoney(totals.debit))}</strong></div>
+        <div><span>{tt("customers.statement.totalDue")}</span><strong>${escapeHtml(formatMoney(totals.credit))}</strong></div>
+        <div><span>{tt("customers.statement.outstanding")}</span><strong>${escapeHtml(formatMoney(finalBalance))}</strong></div>
       </section>
     </main>
   `;
 
   const html = wrapPrintableHtml({
-    title: "كشف حساب العميل",
+    title: tt("customers.statement.title"),
     body,
     language: normalizedLanguage,
   });
@@ -605,7 +612,7 @@ function Customers() {
       console.error("[customers] failed to load customer statement:", error);
       setStatementData(null);
       setWalletAudit([]);
-      setStatementError(error?.message || "تعذر تحميل كشف الحساب");
+      setStatementError(error?.message || tt("customers.statement.loadFailed"));
       return null;
     } finally {
       setAuditLoading(false);
@@ -632,7 +639,7 @@ function Customers() {
     if (!selectedCustomer?.id) return;
     const notes = String(adjustment.notes || "").trim();
     if (!notes) {
-      window.alert("يجب إدخال سبب/ملاحظات للتعديل اليدوي.");
+      window.alert(tt("customers.wallet.reasonRequired"));
       return;
     }
     try {
@@ -645,7 +652,7 @@ function Customers() {
       await Promise.all([fetchCustomers(), fetchCustomerProfile(selectedCustomer), fetchCustomerStatement()]);
     } catch (error) {
       console.error("[customers] failed to adjust wallet:", error);
-      window.alert(error?.message || "تعذر تعديل المحفظة");
+      window.alert(error?.message || tt("customers.wallet.adjustFailed"));
     }
   };
 
@@ -654,7 +661,7 @@ function Customers() {
     if (!selectedCustomer?.id || paymentSaving) return false;
     const amount = Number(payment.amount || 0);
     if (!(amount > 0)) {
-      window.alert("أدخل مبلغ دفعة صحيح.");
+      window.alert(tt("customers.payment.invalidAmount"));
       return false;
     }
     const currentBalance = Number(statementData?.current_balance ?? selectedCustomer?.wallet_balance ?? selectedCustomer?.balance ?? 0);
@@ -677,7 +684,7 @@ function Customers() {
       return true;
     } catch (error) {
       console.error("[customers] failed to record customer payment:", error);
-      window.alert(error?.message || "تعذر تسجيل دفعة العميل");
+      window.alert(error?.message || tt("customers.payment.recordFailed"));
       return false;
     } finally {
       setPaymentSaving(false);
@@ -690,16 +697,16 @@ function Customers() {
     try {
       const statement = statementData?.rows ? statementData : await fetchCustomerStatement();
       if (!statement) {
-        throw new Error("تعذر تحميل كشف الحساب");
+        throw new Error(tt("customers.statement.loadFailed"));
       }
 
       const opened = printCustomerStatement(statement, profile?.customer || selectedCustomer, i18n.language);
       if (!opened) {
-        throw new Error("تعذر فتح نافذة الطباعة");
+        throw new Error(tt("customers.statement.printWindowFailed"));
       }
     } catch (error) {
       console.error("[customers] failed to export statement:", error);
-      window.alert(error?.message || "تعذر تصدير كشف الحساب");
+      window.alert(error?.message || tt("customers.statement.exportFailed"));
     }
   };
 
@@ -778,7 +785,7 @@ function Customers() {
   const previewImport = async () => {
     const formData = buildImportFormData();
     if (!formData) {
-      setImportError("اختر ملف Excel أو CSV أولاً.");
+      setImportError(tt("customers.import.chooseFileFirst"));
       return;
     }
     try {
@@ -788,7 +795,7 @@ function Customers() {
       const response = await api.post("/customers/import/preview", formData, { timeoutMs: 60000 });
       setImportPreview(response);
     } catch (error) {
-      setImportError(error?.message || "تعذر تجهيز معاينة الاستيراد.");
+      setImportError(error?.message || tt("customers.import.previewFailed"));
     } finally {
       setImportLoading(false);
     }
@@ -804,7 +811,7 @@ function Customers() {
       setImportResult(response);
       await fetchCustomers({ page: 1 });
     } catch (error) {
-      setImportError(error?.message || "تعذر تنفيذ الاستيراد.");
+      setImportError(error?.message || tt("customers.import.runFailed"));
     } finally {
       setImportLoading(false);
     }
@@ -916,7 +923,7 @@ function Customers() {
               className="inline-flex h-14 items-center justify-center gap-3 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-5 text-sm font-black text-primary shadow-2xl shadow-primary/20 transition hover:bg-primary/20"
             >
               <UploadCloud className="h-5 w-5" />
-              استيراد العملاء
+              {tt("customers.import.title")}
             </button>
             <div className="inline-flex items-center gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 shadow-2xl shadow-emerald-950/20">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400 text-slate-950">
@@ -1014,7 +1021,7 @@ function Customers() {
               onChange={(event) => setAllowPersonalTransactions(event.target.checked)}
               className="h-4 w-4 rounded border-emerald-300/40 bg-slate-950 text-emerald-400 focus:ring-emerald-300/40"
             />
-            <span>السماح بالعمليات الشخصية</span>
+            <span>{tt("customers.personalUse.allow")}</span>
           </label>
 
           <div className="mt-5 flex flex-wrap gap-3">
@@ -1059,8 +1066,8 @@ function Customers() {
                   <th className="px-6 py-5 text-center align-middle">{t("customers.table.phone")}</th>
                   <th className="px-6 py-5 text-center align-middle">{t("customers.table.email")}</th>
                   <th className="px-6 py-5 text-center align-middle">{t("customers.table.address")}</th>
-                  <th className="px-6 py-5 text-center align-middle">نقاط الولاء</th>
-                  <th className="px-6 py-5 text-center align-middle">رصيد المحفظة</th>
+                  <th className="px-6 py-5 text-center align-middle">{tt("customers.common.loyaltyPoints")}</th>
+                  <th className="px-6 py-5 text-center align-middle">{tt("customers.wallet.balance")}</th>
                   <th className="px-6 py-5 text-right align-middle">{t("customers.table.actions")}</th>
                 </tr>
               </thead>
@@ -1128,7 +1135,7 @@ function Customers() {
                             className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/20"
                           >
                             <FileText className="h-4 w-4" />
-                            كشف حساب العميل
+                            {tt("customers.statement.title")}
                           </button>
                           <button
                             type="button"
@@ -1240,10 +1247,10 @@ function CustomerImportModal({
         <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_38%),rgba(15,23,42,0.88)] p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-primary">استيراد من النظام القديم</div>
-              <h2 className="m1-section-title mt-2">استيراد العملاء ونقاط الولاء</h2>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-primary">{tt("customers.import.fromLegacy")}</div>
+              <h2 className="m1-section-title mt-2">{tt("customers.import.customersAndPoints")}</h2>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
-                ارفع ملف Excel أو CSV، راجع المعاينة أولاً، ثم نفذ الاستيراد النهائي بدون تكرار العملاء الموجودين.
+                {tt("customers.import.hint")}
               </p>
             </div>
             <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10">
@@ -1257,8 +1264,8 @@ function CustomerImportModal({
             <div className="rounded-3xl border border-primary/15 bg-primary/5 p-5">
               <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-primary/30 bg-slate-900/70 p-6 text-center transition hover:border-primary/60 hover:bg-primary/10">
                 <UploadCloud className="h-10 w-10 text-primary" />
-                <div className="mt-3 text-lg font-black">{file?.name || "اختيار ملف العملاء"}</div>
-                <div className="mt-2 text-sm font-semibold text-slate-400">CSV, XLS, XLSX حتى 8MB</div>
+                <div className="mt-3 text-lg font-black">{file?.name || tt("customers.import.chooseFile")}</div>
+                <div className="mt-2 text-sm font-semibold text-slate-400">{tt("customers.import.fileHint")}</div>
                 <input
                   type="file"
                   accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -1268,15 +1275,15 @@ function CustomerImportModal({
               </label>
 
               <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-300">
-                <div className="font-black text-white">الأعمدة المطلوبة أو المعروفة</div>
+                <div className="font-black text-white">{tt("customers.import.knownColumns")}</div>
                 <div className="mt-2 leading-7">
-                  customer name، phone، email اختياري، address اختياري، old loyalty points / balance
+                  {tt("customers.import.columnList")}
                 </div>
               </div>
 
               <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                 <label className="text-xs font-black uppercase tracking-[0.18em] text-primary" htmlFor="customer-import-points-mode">
-                  طريقة استيراد النقاط
+                  {tt("customers.import.pointsMode")}
                 </label>
                 <select
                   id="customer-import-points-mode"
@@ -1284,11 +1291,11 @@ function CustomerImportModal({
                   onChange={(event) => setPointsMode(event.target.value)}
                   className={`${inputClass} mt-3`}
                 >
-                  <option value="replace">استبدال النقاط القديمة</option>
-                  <option value="add">إضافة على النقاط الحالية</option>
+                  <option value="replace">{tt("customers.import.replacePoints")}</option>
+                  <option value="add">{tt("customers.import.addToPoints")}</option>
                 </select>
                 <p className="mt-2 text-xs font-semibold text-slate-500">
-                  الوضع الافتراضي يستبدل الرصيد القديم بالقيمة الموجودة في الملف لتجنب مضاعفة النقاط عند رفع نفس الملف مرة أخرى.
+                  {tt("customers.import.pointsModeHint")}
                 </p>
               </div>
 
@@ -1307,7 +1314,7 @@ function CustomerImportModal({
                   className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-slate-950 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FileText className="h-4 w-4" />
-                  {loading && !summary ? "جاري الفحص..." : "معاينة قبل الاستيراد"}
+                  {loading && !summary ? tt("customers.import.scanning") : tt("customers.import.preview")}
                 </button>
                 <button
                   type="button"
@@ -1315,7 +1322,7 @@ function CustomerImportModal({
                   className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-slate-950/70 px-5 text-sm font-black text-primary transition hover:bg-primary/10"
                 >
                   <Download className="h-4 w-4" />
-                  تحميل نموذج Excel
+                  {tt("customers.import.downloadTemplate")}
                 </button>
                 <button
                   type="button"
@@ -1324,7 +1331,7 @@ function CustomerImportModal({
                   className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Sparkles className="h-4 w-4" />
-                  {loading && summary ? "جاري الاستيراد..." : importDone ? "تم الاستيراد" : "تأكيد الاستيراد"}
+                  {loading && summary ? tt("customers.import.running") : importDone ? tt("customers.import.done") : tt("customers.import.confirm")}
                 </button>
                 <button
                   type="button"
@@ -1333,7 +1340,7 @@ function CustomerImportModal({
                   className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-5 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Download className="h-4 w-4" />
-                  تحميل تقرير الأخطاء
+                  {tt("customers.import.downloadErrors")}
                 </button>
               </div>
             </div>
@@ -1341,25 +1348,25 @@ function CustomerImportModal({
             <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">معاينة الاستيراد</div>
-                  <h3 className="m1-section-title mt-1">ملخص الملف</h3>
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{tt("customers.import.previewTitle")}</div>
+                  <h3 className="m1-section-title mt-1">{tt("customers.import.fileSummary")}</h3>
                 </div>
-                {importDone ? <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-black text-emerald-100">تم التنفيذ</span> : null}
+                {importDone ? <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-black text-emerald-100">{tt("customers.import.executed")}</span> : null}
               </div>
 
               {summary ? (
                 <div className="mt-5 grid grid-cols-2 gap-3">
-                  <ImportMetric label="وضع النقاط" value={pointsMode === "add" ? "إضافة" : "استبدال"} tone="cyan" />
-                  <ImportMetric label="إجمالي الصفوف" value={summary.total_rows} />
-                  <ImportMetric label="عملاء جدد" value={summary.new_customers ?? summary.created_count} tone="emerald" />
-                  <ImportMetric label="عملاء موجودين" value={summary.existing_customers_matched ?? summary.updated_count} tone="cyan" />
-                  <ImportMetric label="صفوف غير صالحة" value={summary.invalid_rows ?? summary.skipped_invalid_count} tone="rose" />
-                  <ImportMetric label="هواتف مكررة" value={summary.duplicate_phones} tone="amber" />
-                  <ImportMetric label="نقاط سيتم استيرادها" value={Number(summary.total_points_imported ?? summary.total_points_to_import ?? 0).toLocaleString("ar-EG-u-nu-latn")} tone="white" />
+                  <ImportMetric label={tt("customers.import.pointsModeLabel")} value={pointsMode === "add" ? tt("customers.import.add") : tt("customers.import.replace")} tone="cyan" />
+                  <ImportMetric label={tt("customers.import.totalRows")} value={summary.total_rows} />
+                  <ImportMetric label={tt("customers.import.newCustomers")} value={summary.new_customers ?? summary.created_count} tone="emerald" />
+                  <ImportMetric label={tt("customers.import.existingCustomers")} value={summary.existing_customers_matched ?? summary.updated_count} tone="cyan" />
+                  <ImportMetric label={tt("customers.import.invalidRows")} value={summary.invalid_rows ?? summary.skipped_invalid_count} tone="rose" />
+                  <ImportMetric label={tt("customers.import.duplicatePhones")} value={summary.duplicate_phones} tone="amber" />
+                  <ImportMetric label={tt("customers.import.pointsToImport")} value={Number(summary.total_points_imported ?? summary.total_points_to_import ?? 0).toLocaleString("ar-EG-u-nu-latn")} tone="white" />
                 </div>
               ) : (
                 <div className="mt-5 rounded-3xl border border-dashed border-white/10 bg-slate-950/60 p-8 text-center text-sm font-semibold text-slate-500">
-                  ارفع الملف واضغط "معاينة قبل الاستيراد" لعرض الأرقام قبل التنفيذ.
+                  {tt("customers.import.previewPrompt")}
                 </div>
               )}
 
@@ -1420,8 +1427,8 @@ function CustomerProfileDrawer({
       <aside className="h-full w-full max-w-5xl overflow-y-auto border-l border-white/10 bg-slate-950 p-5 text-white shadow-2xl shadow-black/40">
         <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">تدقيق محفظة العميل</div>
-            <h2 className="m1-section-title mt-2">{customer?.name || "عميل"}</h2>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{tt("customers.wallet.auditTitle")}</div>
+            <h2 className="m1-section-title mt-2">{customer?.name || tt("customers.statement.customer")}</h2>
             <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-300">
               <span className="inline-flex items-center gap-2"><Phone className="h-4 w-4 text-zinc-500" />{customer?.phone || "-"}</span>
               <span className="inline-flex items-center gap-2"><Wallet className="h-4 w-4 text-emerald-300" />{formatMoney(walletBalance)}</span>
@@ -1434,10 +1441,10 @@ function CustomerProfileDrawer({
               onClick={onExportStatement}
               disabled={!canExportStatement}
               className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-              title={canExportStatement ? "كشف حساب العميل" : "Only admin/manager can export"}
+              title={canExportStatement ? tt("customers.statement.title") : "Only admin/manager can export"}
             >
               <FileText className="h-4 w-4" />
-              كشف حساب العميل
+              {tt("customers.statement.title")}
             </button>
             <button
               type="button"
@@ -1453,11 +1460,11 @@ function CustomerProfileDrawer({
         <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <Filter className="h-4 w-4" />
-            فلاتر حركة المحفظة
+            {tt("customers.wallet.movementFilters")}
           </div>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <AuditInput label="من تاريخ" type="date" value={filters.date_from} onChange={(value) => updateFilter("date_from", value)} />
-            <AuditInput label="إلى تاريخ" type="date" value={filters.date_to} onChange={(value) => updateFilter("date_to", value)} />
+            <AuditInput label={tt("customers.filters.fromDate")} type="date" value={filters.date_from} onChange={(value) => updateFilter("date_from", value)} />
+            <AuditInput label={tt("customers.filters.toDate")} type="date" value={filters.date_to} onChange={(value) => updateFilter("date_to", value)} />
             
             <div className="md:col-span-3 xl:col-span-6">
               <div className="flex flex-wrap gap-2">
@@ -1470,43 +1477,43 @@ function CustomerProfileDrawer({
                       onClick={() => updateFilter("transaction_type", option.value)}
                       className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? getStatementBadgeClass(option.tone) : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
                     >
-                      <span>{option.label}</span>
+                      <span>{tt(option.labelKey)}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
-            <AuditInput label="رقم الفاتورة" value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
-            <AuditInput label="أقل مبلغ" type="number" value={filters.amount_min} onChange={(value) => updateFilter("amount_min", value)} />
-            <AuditInput label="أكبر مبلغ" type="number" value={filters.amount_max} onChange={(value) => updateFilter("amount_max", value)} />
+            <AuditInput label={tt("customers.filters.invoiceNumber")} value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
+            <AuditInput label={tt("customers.filters.minAmount")} type="number" value={filters.amount_min} onChange={(value) => updateFilter("amount_min", value)} />
+            <AuditInput label={tt("customers.filters.maxAmount")} type="number" value={filters.amount_max} onChange={(value) => updateFilter("amount_max", value)} />
           </div>
         </section>
 
         <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <PlusCircle className="h-4 w-4" />
-            تعديل يدوي للمحفظة
+            {tt("customers.wallet.manualAdjustment")}
           </div>
           <form onSubmit={onAdjust} className="grid gap-3 md:grid-cols-[180px_160px_minmax(0,1fr)_120px]">
             <select value={adjustment.type} onChange={(event) => setAdjustment((current) => ({ ...current, type: event.target.value }))} className={inputClass}>
-              <option value="manual_add">إضافة يدوية</option>
-              <option value="manual_deduct">خصم يدوي</option>
+              <option value="manual_add">{tt("customers.statement.manualCredit")}</option>
+              <option value="manual_deduct">{tt("customers.statement.manualDebit")}</option>
             </select>
-            <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" className={inputClass} />
-            <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder="سبب/ملاحظات التعديل" className={inputClass} />
-            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]">حفظ</button>
+            <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder={tt("customers.common.amount")} className={inputClass} />
+            <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder={tt("customers.wallet.adjustmentReason")} className={inputClass} />
+            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]">{tt("customers.common.save")}</button>
           </form>
         </section>
 
         <section className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
-          <div className="border-b border-white/10 px-4 py-3 text-sm font-black text-white">سجل تدقيق المحفظة</div>
+          <div className="border-b border-white/10 px-4 py-3 text-sm font-black text-white">{tt("customers.wallet.auditLog")}</div>
           <div className="divide-y divide-white/10">
             {auditLoading ? (
-              <div className="px-4 py-8 text-center text-sm font-bold text-emerald-300">جاري التحميل...</div>
+              <div className="px-4 py-8 text-center text-sm font-bold text-emerald-300">{tt("customers.common.loading")}</div>
             ) : walletAudit.length ? (
               walletAudit.map((item) => <TimelineItem key={item.id} item={item} />)
             ) : (
-              <div className="px-4 py-8 text-center text-sm text-zinc-500">لا توجد حركات مطابقة للفلاتر.</div>
+              <div className="px-4 py-8 text-center text-sm text-zinc-500">{tt("customers.wallet.noMatches")}</div>
             )}
           </div>
         </section>
@@ -1603,7 +1610,7 @@ function CustomerStatementDrawer({
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const statementRows = Array.isArray(statement?.rows) ? statement.rows : walletAudit;
   const totals = getStatementTotals({ rows: statementRows, totals: statement?.totals });
-  const customerName = customer?.name || statement?.customer?.name || "عميل";
+  const customerName = customer?.name || statement?.customer?.name || tt("customers.statement.customer");
   const customerPhone = customer?.phone || statement?.customer?.phone || "-";
   const currentBalance = Number(statement?.current_balance ?? customer?.wallet_balance ?? customer?.balance ?? 0);
   const loyaltyPoints = Number(customer?.loyalty_points ?? customer?.available_points ?? statement?.customer?.loyalty_points ?? 0);
@@ -1625,7 +1632,7 @@ function CustomerStatementDrawer({
       <main className="mx-auto w-full max-w-[1500px] rounded-[2rem] border border-white/10 bg-slate-950/80 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
         <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">كشف حساب العميل</div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{tt("customers.statement.title")}</div>
             <h2 className="m1-section-title mt-2">{customerName}</h2>
             <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2 xl:grid-cols-4">
               <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2">
@@ -1654,45 +1661,45 @@ function CustomerStatementDrawer({
               className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Wallet className="h-4 w-4" />
-              تسجيل دفعة
+              {tt("customers.payment.record")}
             </button>
             <button
               type="button"
               onClick={onExportStatement}
               disabled={!canExportStatement}
               className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-              title={canExportStatement ? "طباعة / تحميل PDF" : "Only admin/manager can export"}
+              title={canExportStatement ? tt("customers.statement.printOrPdf") : "Only admin/manager can export"}
             >
               <FileText className="h-4 w-4" />
-              طباعة / تحميل PDF
+              {tt("customers.statement.printOrPdf")}
             </button>
             <button
               type="button"
               onClick={onClose}
               className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-zinc-200 transition hover:bg-white/10"
-              aria-label="العودة للعملاء"
+              aria-label={tt("customers.statement.backToCustomers")}
             >
               <ArrowRight className="h-5 w-5" />
-              العودة للعملاء
+              {tt("customers.statement.backToCustomers")}
             </button>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الرصيد الافتتاحي</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{tt("customers.statement.openingBalance")}</div>
             <div className="mt-2 text-xl font-black text-white">{formatMoney(openingBalance)} ج.م</div>
           </div>
           <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.08] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200/70">إجمالي المبالغ المستحقة</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200/70">{tt("customers.statement.totalDue")}</div>
             <div className="mt-2 text-xl font-black text-amber-100">{formatMoney(totals.credit)} ج.م</div>
           </div>
           <div className="rounded-2xl border border-primary/20 bg-primary/[0.08] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/70">إجمالي الدفعات والتسويات</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/70">{tt("customers.statement.totalPayments")}</div>
             <div className="mt-2 text-xl font-black text-primary">{formatMoney(totals.debit)} ج.م</div>
           </div>
           <div className={`rounded-2xl border p-4 ${currentBalance > 0 ? "border-rose-300/25 bg-rose-400/[0.09]" : "border-emerald-300/20 bg-emerald-400/[0.08]"}`}>
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">المتبقي على العميل</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">{tt("customers.statement.outstanding")}</div>
             <div className={`mt-2 text-2xl font-black ${currentBalance > 0 ? "text-rose-100" : "text-emerald-100"}`}>{formatMoney(currentBalance)} ج.م</div>
           </div>
         </div>
@@ -1701,13 +1708,13 @@ function CustomerStatementDrawer({
           <section className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.06] p-4">
             <div className="flex items-center gap-2 text-sm font-black text-emerald-100">
               <Sparkles className="h-4 w-4" />
-              تفضيلات الشراء التلقائية
+              {tt("customers.preferences.title")}
             </div>
-            <p className="mt-1 text-xs font-semibold text-zinc-400">تتحدث من الطلبات الفعلية لتجهيز عروض مناسبة للعميل.</p>
+            <p className="mt-1 text-xs font-semibold text-zinc-400">{tt("customers.preferences.hint")}</p>
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
-              <PreferenceChips title="الأقسام" items={preferredDepartments} tone="emerald" />
-              <PreferenceChips title="التصنيفات" items={preferredCategories} tone="cyan" />
-              <PreferenceChips title="المقاسات" items={preferredSizes} tone="amber" ltr />
+              <PreferenceChips title={tt("customers.preferences.sections")} items={preferredDepartments} tone="emerald" />
+              <PreferenceChips title={tt("customers.preferences.categories")} items={preferredCategories} tone="cyan" />
+              <PreferenceChips title={tt("customers.preferences.sizes")} items={preferredSizes} tone="amber" ltr />
             </div>
           </section>
         ) : null}
@@ -1727,15 +1734,15 @@ function CustomerStatementDrawer({
                 <div>
                   <div id="customer-payment-dialog-title" className="flex items-center gap-2 text-lg font-black text-white">
                     <Wallet className="h-5 w-5 text-emerald-300" />
-                    تسجيل دفعة من العميل
+                    {tt("customers.payment.title")}
                   </div>
-                  <p className="mt-1 text-sm font-semibold text-zinc-400">تخفض المبلغ المستحق وتُسجل في الخزينة وكشف الحساب والقيود المحاسبية.</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-400">{tt("customers.payment.hint")}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setPaymentDialogOpen(false)}
                   className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
-                  aria-label="إغلاق نافذة تسجيل الدفعة"
+                  aria-label={tt("customers.payment.close")}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -1752,30 +1759,30 @@ function CustomerStatementDrawer({
                   required
                   value={payment.amount}
                   onChange={(event) => setPayment((current) => ({ ...current, amount: event.target.value }))}
-                  placeholder="مبلغ الدفعة"
+                  placeholder={tt("customers.payment.amount")}
                   className={inputClass}
                   autoFocus
                 />
                 <select value={payment.payment_method} onChange={(event) => setPayment((current) => ({ ...current, payment_method: event.target.value }))} className={inputClass}>
-                  <option value="cash">نقدي</option>
-                  <option value="card">بطاقة / فيزا</option>
-                  <option value="bank_transfer">تحويل بنكي</option>
+                  <option value="cash">{tt("customers.payment.cash")}</option>
+                  <option value="card">{tt("customers.payment.card")}</option>
+                  <option value="bank_transfer">{tt("customers.payment.bankTransfer")}</option>
                   <option value="instapay">InstaPay</option>
                   <option value="vodafone_cash">Vodafone Cash</option>
                 </select>
                 <input type="date" required value={payment.payment_date} onChange={(event) => setPayment((current) => ({ ...current, payment_date: event.target.value }))} className={inputClass} />
-                <input value={payment.reference} onChange={(event) => setPayment((current) => ({ ...current, reference: event.target.value }))} placeholder="رقم مرجع (اختياري)" className={inputClass} />
-                <input value={payment.notes} onChange={(event) => setPayment((current) => ({ ...current, notes: event.target.value }))} placeholder="ملاحظات الدفعة" className={`${inputClass} md:col-span-2`} />
+                <input value={payment.reference} onChange={(event) => setPayment((current) => ({ ...current, reference: event.target.value }))} placeholder={tt("customers.payment.reference")} className={inputClass} />
+                <input value={payment.notes} onChange={(event) => setPayment((current) => ({ ...current, notes: event.target.value }))} placeholder={tt("customers.payment.notes")} className={`${inputClass} md:col-span-2`} />
                 <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end md:col-span-2">
                   <button
                     type="button"
                     onClick={() => setPaymentDialogOpen(false)}
                     className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-5 text-sm font-black text-zinc-200 transition hover:bg-white/10"
                   >
-                    إلغاء
+                    {tt("customers.common.cancel")}
                   </button>
                   <button type="submit" disabled={paymentSaving || currentBalance <= 0} className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-6 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-40">
-                    {paymentSaving ? "جاري الحفظ..." : "تسجيل الدفعة"}
+                    {paymentSaving ? tt("customers.common.saving") : tt("customers.payment.submit")}
                   </button>
                 </div>
               </form>
@@ -1786,15 +1793,15 @@ function CustomerStatementDrawer({
         <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <Filter className="h-4 w-4" />
-            فلترة كشف الحساب
+            {tt("customers.statement.filter")}
           </div>
           <div className="grid gap-3">
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-              <AuditInput label="من تاريخ" type="date" value={filters.date_from} onChange={(value) => updateFilter("date_from", value)} />
-              <AuditInput label="إلى تاريخ" type="date" value={filters.date_to} onChange={(value) => updateFilter("date_to", value)} />
-              <AuditInput label="رقم الفاتورة" value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
-              <AuditInput label="أقل مبلغ" type="number" value={filters.amount_min} onChange={(value) => updateFilter("amount_min", value)} />
-              <AuditInput label="أكبر مبلغ" type="number" value={filters.amount_max} onChange={(value) => updateFilter("amount_max", value)} />
+              <AuditInput label={tt("customers.filters.fromDate")} type="date" value={filters.date_from} onChange={(value) => updateFilter("date_from", value)} />
+              <AuditInput label={tt("customers.filters.toDate")} type="date" value={filters.date_to} onChange={(value) => updateFilter("date_to", value)} />
+              <AuditInput label={tt("customers.filters.invoiceNumber")} value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
+              <AuditInput label={tt("customers.filters.minAmount")} type="number" value={filters.amount_min} onChange={(value) => updateFilter("amount_min", value)} />
+              <AuditInput label={tt("customers.filters.maxAmount")} type="number" value={filters.amount_max} onChange={(value) => updateFilter("amount_max", value)} />
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
               {statementFilterOptions.map((option) => {
@@ -1806,7 +1813,7 @@ function CustomerStatementDrawer({
                     onClick={() => updateFilter("transaction_type", option.value)}
                     className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? getStatementBadgeClass(option.tone) : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
                   >
-                    <span>{option.label}</span>
+                    <span>{tt(option.labelKey)}</span>
                   </button>
                 );
               })}
@@ -1817,33 +1824,33 @@ function CustomerStatementDrawer({
         <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <PlusCircle className="h-4 w-4" />
-            تسوية إدارية يدوية
+            {tt("customers.statement.manualSettlement")}
           </div>
           <form onSubmit={onAdjust} className="grid gap-3 md:grid-cols-[180px_160px_minmax(0,1fr)_120px]">
             <select value={adjustment.type} onChange={(event) => setAdjustment((current) => ({ ...current, type: event.target.value }))} className={inputClass}>
-              <option value="manual_add">إضافة يدوية</option>
-              <option value="manual_deduct">خصم يدوي</option>
+              <option value="manual_add">{tt("customers.statement.manualCredit")}</option>
+              <option value="manual_deduct">{tt("customers.statement.manualDebit")}</option>
             </select>
-            <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" className={inputClass} />
-            <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder="سبب/ملاحظات التعديل" className={inputClass} />
-            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]">حفظ</button>
+            <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder={tt("customers.common.amount")} className={inputClass} />
+            <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder={tt("customers.wallet.adjustmentReason")} className={inputClass} />
+            <button type="submit" className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]">{tt("customers.common.save")}</button>
           </form>
         </section>
 
         <section className="mt-5 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
           <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="text-lg font-black text-white">حركات كشف الحساب</div>
+              <div className="text-lg font-black text-white">{tt("customers.statement.tableTitle")}</div>
               <div className="mt-1 text-xs font-semibold text-zinc-500">{statementRows.length.toLocaleString("ar-EG-u-nu-latn")} حركة مسجلة</div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs font-black">
               <span className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-rose-100">
                 <span className="h-2 w-2 rounded-full bg-rose-400" />
-                مدين: مبالغ مستحقة على العميل
+                {tt("customers.statement.debitHint")}
               </span>
               <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                دائن: دفعات وتسويات العميل
+                {tt("customers.statement.creditHint")}
               </span>
             </div>
           </div>
@@ -1857,23 +1864,23 @@ function CustomerStatementDrawer({
               <thead className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-xl">
                 <tr className="border-b border-white/10 text-right text-xs font-black text-zinc-400">
                   <th className="w-[150px] border-b border-l border-white/10 px-5 py-4 text-center">
-                    <span className="text-emerald-200">دائن / سداد</span>
-                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">دفعة من العميل</span>
+                    <span className="text-emerald-200">{tt("customers.statement.creditColumn")}</span>
+                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">{tt("customers.statement.paymentFromCustomer")}</span>
                   </th>
                   <th className="w-[150px] border-b border-l border-white/10 px-5 py-4 text-center">
-                    <span className="text-rose-200">مدين / فاتورة</span>
-                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">مستحق على العميل</span>
+                    <span className="text-rose-200">{tt("customers.statement.debitColumn")}</span>
+                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">{tt("customers.statement.owedByCustomer")}</span>
                   </th>
-                  <th className="w-[160px] border-b border-l border-white/10 px-5 py-4 text-center">الرصيد</th>
-                  <th className="min-w-[330px] border-b border-l border-white/10 px-5 py-4">البيان</th>
-                  <th className="w-[150px] border-b border-l border-white/10 px-5 py-4">التاريخ</th>
-                  <th className="w-[210px] border-b border-white/10 px-5 py-4 text-center">تفاصيل</th>
+                  <th className="w-[160px] border-b border-l border-white/10 px-5 py-4 text-center">{tt("customers.statement.balance")}</th>
+                  <th className="min-w-[330px] border-b border-l border-white/10 px-5 py-4">{tt("customers.statement.description")}</th>
+                  <th className="w-[150px] border-b border-l border-white/10 px-5 py-4">{tt("customers.statement.date")}</th>
+                  <th className="w-[210px] border-b border-white/10 px-5 py-4 text-center">{tt("customers.common.details")}</th>
                 </tr>
               </thead>
               <tbody>
                 {auditLoading ? (
                   <tr>
-                    <td colSpan="7" className="px-3 py-10 text-center text-sm font-bold text-emerald-300">جاري تحميل كشف الحساب...</td>
+                    <td colSpan="7" className="px-3 py-10 text-center text-sm font-bold text-emerald-300">{tt("customers.statement.loading")}</td>
                   </tr>
                 ) : statementRows.length ? (
                   statementRows.map((row, index) => {
@@ -1935,7 +1942,7 @@ function CustomerStatementDrawer({
                                 className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 py-2 text-[11px] font-black text-primary transition hover:bg-primary/20"
                               >
                                 <FileText className="h-3.5 w-3.5" />
-                                عرض الفاتورة
+                                {tt("customers.statement.viewInvoice")}
                               </button>
                               <button
                                 type="button"
@@ -1943,10 +1950,10 @@ function CustomerStatementDrawer({
                                 className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/20"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
-                                تعديل الفاتورة
+                                {tt("customers.statement.editInvoice")}
                               </button>
                             </div>
-                          ) : <span className="block text-center text-xs font-semibold text-zinc-600">حركة بدون فاتورة</span>}
+                          ) : <span className="block text-center text-xs font-semibold text-zinc-600">{tt("customers.statement.movementWithoutInvoice")}</span>}
                           {row.personal_operation_type ? (
                             <div className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
                               {row.personal_operation_type_label || row.personal_operation_type}
@@ -1958,7 +1965,7 @@ function CustomerStatementDrawer({
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-3 py-10 text-center text-sm text-zinc-500">لا توجد حركات مطابقة للفلاتر الحالية.</td>
+                    <td colSpan="7" className="px-3 py-10 text-center text-sm text-zinc-500">{tt("customers.statement.noCurrentMatches")}</td>
                   </tr>
                 )}
               </tbody>
@@ -1968,15 +1975,15 @@ function CustomerStatementDrawer({
 
         <section className="mt-5 grid gap-3 md:grid-cols-3">
           <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200/70">إجمالي الدفعات والتسويات</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200/70">{tt("customers.statement.totalPayments")}</div>
             <div className="mt-2 text-2xl font-black text-emerald-100">{formatMoney(totals.debit)}</div>
           </div>
           <div className="rounded-2xl border border-rose-300/15 bg-rose-400/[0.06] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-200/70">إجمالي المبالغ المستحقة</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-200/70">{tt("customers.statement.totalDue")}</div>
             <div className="mt-2 text-2xl font-black text-rose-100">{formatMoney(totals.credit)}</div>
           </div>
           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">المتبقي على العميل</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{tt("customers.statement.outstanding")}</div>
             <div className="mt-2 text-2xl font-black text-primary">{formatMoney(finalBalance)}</div>
             <div className="mt-1 text-xs font-semibold text-zinc-500">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>
           </div>
