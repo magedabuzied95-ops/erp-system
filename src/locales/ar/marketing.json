@@ -957,5 +957,126 @@
     "cacheHits": "إصابات الذاكرة المؤقتة",
     "cacheMisses": "إخفاقات الذاكرة المؤقتة",
     "customer360": "ملف العميل 360"
+  },
+  "aiCenter": {
+    "toasts": {
+      "engineSettingsSaved": "تم حفظ إعدادات المحرك",
+      "queueItemMissingIdUpdated": "عنصر الطابور بدون معرّف. تم تحديث الطابور.",
+      "generatingStoryAsset": "جارٍ إنشاء أصل القصة تلقائيًا قبل النشر...",
+      "itemAlreadyRemoved": "تمت إزالة هذا العنصر أو تحديثه بالفعل. تم تحديث الطابور.",
+      "queueItemMissingId": "عنصر الطابور بدون معرّف.",
+      "storyAssetSaved": "تم إنشاء أصل القصة وحفظه.",
+      "selectContentFirst": "اختر المحتوى أولاً.",
+      "postingInsightsSynced": "تمت مزامنة رؤى النشر"
+    },
+    "headings": {
+      "cleanStoriesAndPosts": "قصص ومنشورات تبقى نظيفة"
+    },
+    "stats": {
+      "aiStatus": "حالة الذكاء الاصطناعي",
+      "storiesToday": "القصص المنشأة اليوم",
+      "postsToday": "المنشورات المنشأة اليوم",
+      "pendingApproval": "بانتظار الموافقة",
+      "eligibleProducts": "المنتجات المؤهلة",
+      "storyCreated": "تم إنشاء القصة",
+      "published": "منشور",
+      "remaining": "المتبقي"
+    },
+    "lanes": {
+      "title": "مسارات المحتوى",
+      "newArrivals": "الوصولات الجديدة",
+      "lastSizeOrPiece": "آخر مقاس / آخر قطعة",
+      "aiPosts": "منشورات الذكاء الاصطناعي",
+      "dailyVolume": "الحجم اليومي",
+      "stories": "القصص",
+      "posts": "المنشورات"
+    },
+    "cleanup": {
+      "title": "إدارة التنظيف",
+      "archiveAfterDays": "الأرشفة بعد أيام",
+      "deleteArchivedAfterDays": "حذف المؤرشف بعد أيام"
+    },
+    "insights": {
+      "bestPostingWindows": "أفضل أوقات النشر",
+      "lastSyncedAt": "آخر مزامنة",
+      "analyticsRows": "صفوف التحليلات:",
+      "metaApiError": "خطأ واجهة Meta:"
+    },
+    "queue": {
+      "archiveSelected": "أرشفة المحدد",
+      "deleteSelected": "حذف المحدد",
+      "publishSelected": "نشر المحدد",
+      "selectContent": "اختيار المحتوى",
+      "arabicTrend": "ترند عربي",
+      "preview": "معاينة",
+      "viewPost": "عرض المنشور",
+      "restore": "استعادة",
+      "approve": "موافقة",
+      "archive": "أرشفة",
+      "duplicate": "تكرار",
+      "retry": "إعادة المحاولة",
+      "delete": "حذف",
+      "storiesEmpty": "لا توجد عناصر قصة في الطابور.",
+      "postsEmpty": "لا توجد منشورات ذكاء اصطناعي في الطابور."
+    },
+    "channels": {
+      "facebook": "فيسبوك",
+      "instagram": "إنستجرام",
+      "facebookLabel": "فيسبوك:",
+      "instagramLabel": "إنستجرام:"
+    },
+    "story": {
+      "generatedAsset": "أصل القصة المنشأ",
+      "noGeneratedAsset": "لا يوجد أصل قصة منشأ",
+      "slides": "شرائح القصة",
+      "slide": "شريحة"
+    },
+    "recommendations": {
+      "title": "توصيات الذكاء الاصطناعي",
+      "performanceBrain": "عقل الأداء"
+    },
+    "modals": {
+      "deletePublishedTitle": "حذف المحتوى المنشور",
+      "cancel": "إلغاء",
+      "contentHistory": "سجل المحتوى",
+      "close": "إغلاق"
+    },
+    "preview": {
+      "aiPostPreview": "معاينة منشور الذكاء الاصطناعي",
+      "post": "منشور",
+      "viewPost": "عرض المنشور",
+      "technicalJson": "JSON تقني",
+      "storyAsset": "أصل القصة",
+      "rendered": "معروض",
+      "renderedStoryPreview": "معاينة القصة المعروضة",
+      "quickPreview": "معاينة سريعة",
+      "storyPreviewAria": "معاينة الاستوري",
+      "storyPreview": "معاينة القصة",
+      "contentType": "نوع المحتوى",
+      "layout": "التخطيط",
+      "sizes": "المقاسات",
+      "storyLink": "رابط القصة"
+    },
+    "debug": {
+      "storyPublishAsset": "تشخيص أصل نشر القصة",
+      "frontendSlidesCount": "عدد شرائح مصدر المعاينة",
+      "sourceImagesCount": "عدد صور المصدر",
+      "generatedAssetsCount": "عدد أصول القصة المنشأة",
+      "renderedSlidesLength": "طول الشرائح المعروضة",
+      "mediaUrlsLength": "طول media_urls",
+      "previewThumbsVisible": "المصغرات الظاهرة في المعاينة",
+      "adminDebug": "الإدارة / التشخيص",
+      "storedProductUrl": "رابط المنتج المخزن",
+      "publishedImageAssetUrls": "روابط أصول الصور المنشورة"
+    },
+    "filters": {
+      "all": "الكل",
+      "published": "منشور",
+      "pendingApproval": "بانتظار الموافقة",
+      "ready": "جاهز",
+      "queued": "في الطابور",
+      "failed": "فشل",
+      "archived": "مؤرشف"
+    }
   }
 }

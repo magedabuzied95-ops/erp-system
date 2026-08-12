@@ -49,6 +49,11 @@ import {
   mergeStoryAssetResponse,
   normalizeStoryAssetSnapshot,
 } from "../lib/storyAssetSnapshot";
+import i18n from "../../../i18n/i18n";
+import { useTranslation } from "react-i18next";
+
+/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
+const tt = (key, options) => i18n.t(key, options);
 
 const EMPTY_SETTINGS = {
   stories_per_day: 12,
@@ -64,13 +69,13 @@ const EMPTY_SETTINGS = {
 };
 
 const QUEUE_FILTERS = [
-  { value: "all", label: "All" },
-  { value: "published", label: "منشور" },
-  { value: "pending_approval", label: "بانتظار الموافقة" },
-  { value: "ready", label: "جاهز" },
-  { value: "queued", label: "في الطابور" },
-  { value: "failed", label: "فشل" },
-  { value: "archived", label: "مؤرشف" },
+  { value: "all", get label() { return tt("marketing.aiCenter.filters.all"); } },
+  { value: "published", get label() { return tt("marketing.aiCenter.filters.published"); } },
+  { value: "pending_approval", get label() { return tt("marketing.aiCenter.filters.pendingApproval"); } },
+  { value: "ready", get label() { return tt("marketing.aiCenter.filters.ready"); } },
+  { value: "queued", get label() { return tt("marketing.aiCenter.filters.queued"); } },
+  { value: "failed", get label() { return tt("marketing.aiCenter.filters.failed"); } },
+  { value: "archived", get label() { return tt("marketing.aiCenter.filters.archived"); } },
 ];
 
 const cardClass = "rounded-2xl border border-white/10 bg-white/[0.055] shadow-2xl shadow-black/20 backdrop-blur-xl";
@@ -365,6 +370,7 @@ const storyQueueCaption = (item = {}) => {
 };
 
 function AiMarketingCenter() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
   const [overview, setOverview] = useState({});
   const [queue, setQueue] = useState([]);
@@ -522,7 +528,7 @@ function AiMarketingCenter() {
         ],
       });
       setSettings({ ...EMPTY_SETTINGS, ...unwrapSettings(payload) });
-      toast.success("Engine settings saved");
+      toast.success(t("marketing.aiCenter.toasts.engineSettingsSaved"));
       await load();
     } catch (error) {
       toast.error(formatApiError(error, "Unable to save engine settings"));
@@ -562,14 +568,14 @@ function AiMarketingCenter() {
     });
     let reloaded = false;
     if (!id) {
-      toast.error("Queue item is missing an id. Queue updated.");
+      toast.error(t("marketing.aiCenter.toasts.queueItemMissingIdUpdated"));
       await load({ logQueueCount: true });
       return;
     }
     const targetFlags = getPreviewContentFlags(targetItem || {});
     if (action === "publish" && targetFlags.isStoryContent && !targetFlags.isFeedContent) {
       if (!hasValidStoryAssetSnapshot(targetItem || {})) {
-        toast("جارٍ إنشاء أصل القصة تلقائيًا قبل النشر...");
+        toast(t("marketing.aiCenter.toasts.generatingStoryAsset"));
         const preparedItem = await generateStoryAsset(targetItem || { id });
         if (!preparedItem || !hasValidStoryAssetSnapshot(preparedItem)) return;
         targetItem = preparedItem;
@@ -627,7 +633,7 @@ function AiMarketingCenter() {
         setPreview((current) => (current && String(current.id) === String(id) ? null : current));
         await load({ logQueueCount: true });
         reloaded = true;
-        toast.error("This item was already removed or refreshed. Queue updated.");
+        toast.error(t("marketing.aiCenter.toasts.itemAlreadyRemoved"));
       } else {
         toast.error(formatApiError(error, "Queue action failed"));
       }
@@ -647,7 +653,7 @@ function AiMarketingCenter() {
   const generateStoryAsset = (item) => {
     const id = item?.id;
     if (!id) {
-      toast.error("Queue item is missing an id.");
+      toast.error(t("marketing.aiCenter.toasts.queueItemMissingId"));
       return Promise.resolve(null);
     }
     const key = String(id);
@@ -675,7 +681,7 @@ function AiMarketingCenter() {
         if (normalizeStoryAssetSnapshot(updatedItem).storyId !== key) throw new Error("تم تجاهل استجابة أصل قصة لا تخص هذا الصف.");
         setQueue((current) => current.map((row) => (String(row.id) === key ? updatedItem : row)));
         setPreview((current) => (current && String(current.id) === key ? updatedItem : current));
-        toast.success("تم إنشاء أصل القصة وحفظه.");
+        toast.success(t("marketing.aiCenter.toasts.storyAssetSaved"));
         return updatedItem;
       } catch (error) {
         const message = formatApiError(error, "فشل إنشاء أصل القصة.");
@@ -737,7 +743,7 @@ function AiMarketingCenter() {
   const runBulkAction = async (action) => {
     const ids = Array.from(selectedIds);
     if (!ids.length) {
-      toast("Select content first.");
+      toast(t("marketing.aiCenter.toasts.selectContentFirst"));
       return;
     }
     if (action === "delete") {
@@ -808,7 +814,7 @@ function AiMarketingCenter() {
       logInsightsSyncDebug(response);
       const nextInsights = normalizeInsightResponse(response);
       setOverview((current) => ({ ...current, posting_insights: nextInsights }));
-      toast.success("Posting insights synced");
+      toast.success(t("marketing.aiCenter.toasts.postingInsightsSynced"));
       await load();
       setOverview((current) => ({ ...current, posting_insights: nextInsights }));
     } catch (error) {
@@ -827,7 +833,7 @@ function AiMarketingCenter() {
             <Bot className="h-4 w-4" />
             AI Marketing Engine
           </div>
-          <h1 className="m1-display mt-3">Stories and posts that stay clean</h1>
+          <h1 className="m1-display mt-3">{t("marketing.aiCenter.headings.cleanStoriesAndPosts")}</h1>
           <div className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-100">
             AI Queue
           </div>
@@ -858,10 +864,10 @@ function AiMarketingCenter() {
       ) : null}
 
       <section className="grid gap-3 md:grid-cols-4">
-        <Kpi label="حالة الذكاء الاصطناعي" value={overview.ai_status || (settings.active ? "نشط" : "متوقف مؤقتًا")} tone={settings.active ? "emerald" : "amber"} />
-        <Kpi label="Stories Generated Today" value={overview.stories_generated_today || 0} />
-        <Kpi label="Posts Generated Today" value={overview.posts_generated_today || 0} />
-        <Kpi label="بانتظار الموافقة" value={overview.pending_approval || 0} tone="amber" />
+        <Kpi label={t("marketing.aiCenter.stats.aiStatus")} value={overview.ai_status || (settings.active ? "نشط" : "متوقف مؤقتًا")} tone={settings.active ? "emerald" : "amber"} />
+        <Kpi label={t("marketing.aiCenter.stats.storiesToday")} value={overview.stories_generated_today || 0} />
+        <Kpi label={t("marketing.aiCenter.stats.postsToday")} value={overview.posts_generated_today || 0} />
+        <Kpi label={t("marketing.aiCenter.stats.pendingApproval")} value={overview.pending_approval || 0} tone="amber" />
       </section>
 
       {overview.catalog_coverage ? (
@@ -876,10 +882,10 @@ function AiMarketingCenter() {
             <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-400 transition-all" style={{ width: `${Math.min(100, overview.catalog_coverage.coverage_percent || 0)}%` }} />
           </div>
           <div className="mt-4 grid gap-3 text-center sm:grid-cols-4">
-            <Kpi label="Eligible products" value={overview.catalog_coverage.eligible_products || 0} />
-            <Kpi label="Story created" value={overview.catalog_coverage.generated_products || 0} />
-            <Kpi label="Published" value={overview.catalog_coverage.published_products || 0} tone="emerald" />
-            <Kpi label="Remaining" value={overview.catalog_coverage.remaining_products || 0} tone="amber" />
+            <Kpi label={t("marketing.aiCenter.stats.eligibleProducts")} value={overview.catalog_coverage.eligible_products || 0} />
+            <Kpi label={t("marketing.aiCenter.stats.storyCreated")} value={overview.catalog_coverage.generated_products || 0} />
+            <Kpi label={t("marketing.aiCenter.stats.published")} value={overview.catalog_coverage.published_products || 0} tone="emerald" />
+            <Kpi label={t("marketing.aiCenter.stats.remaining")} value={overview.catalog_coverage.remaining_products || 0} tone="amber" />
           </div>
           <div className="mt-3 text-sm font-bold text-slate-400">
             Next: {overview.catalog_coverage.next_product?.name || "A new cycle will start after full coverage"}
@@ -890,7 +896,7 @@ function AiMarketingCenter() {
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <section className={`${cardClass} p-5`}>
-            <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Content Lanes" />
+            <SectionTitle icon={<Sparkles className="h-4 w-4" />} title={t("marketing.aiCenter.lanes.title")} />
             <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-black/20 p-1">
               <button type="button" onClick={() => patchSettings({ story_selection_mode: "catalog_coverage" })} className={`${buttonClass} ${settings.story_selection_mode !== "newest_only" ? "bg-primary text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
                 Full catalog first
@@ -903,17 +909,17 @@ function AiMarketingCenter() {
               Full catalog publishes every eligible product once before repeating, balanced across departments.
             </p>
             <div className="mt-4 grid gap-3">
-              <StrategyCard title="New Arrivals" text="Newest active products with stock and usable images." checked={settings.active_strategies?.new_arrivals !== false} onChange={(value) => toggleStrategy("new_arrivals", value)} />
-              <StrategyCard title="آخر مقاس / آخر قطعة" text="يعرض فقط المتغيرات القابلة للبيع مع مخزون 1-2." checked={settings.active_strategies?.last_size !== false} onChange={(value) => toggleStrategy("last_size", value)} />
-              <StrategyCard title="AI Posts" text="Single product and carousel posts with captions and hashtags." checked={settings.active_strategies?.ai_posts !== false} onChange={(value) => toggleStrategy("ai_posts", value)} />
+              <StrategyCard title={t("marketing.aiCenter.lanes.newArrivals")} text="Newest active products with stock and usable images." checked={settings.active_strategies?.new_arrivals !== false} onChange={(value) => toggleStrategy("new_arrivals", value)} />
+              <StrategyCard title={t("marketing.aiCenter.lanes.lastSizeOrPiece")} text="يعرض فقط المتغيرات القابلة للبيع مع مخزون 1-2." checked={settings.active_strategies?.last_size !== false} onChange={(value) => toggleStrategy("last_size", value)} />
+              <StrategyCard title={t("marketing.aiCenter.lanes.aiPosts")} text="Single product and carousel posts with captions and hashtags." checked={settings.active_strategies?.ai_posts !== false} onChange={(value) => toggleStrategy("ai_posts", value)} />
             </div>
           </section>
 
           <section className={`${cardClass} p-5`}>
-            <SectionTitle icon={<Grid2X2 className="h-4 w-4" />} title="Daily Volume" />
+            <SectionTitle icon={<Grid2X2 className="h-4 w-4" />} title={t("marketing.aiCenter.lanes.dailyVolume")} />
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <NumberField label="Stories" value={settings.stories_per_day} onChange={(value) => patchSettings({ stories_per_day: value })} />
-              <NumberField label="Posts" value={settings.posts_per_day} onChange={(value) => patchSettings({ posts_per_day: value })} />
+              <NumberField label={t("marketing.aiCenter.lanes.stories")} value={settings.stories_per_day} onChange={(value) => patchSettings({ stories_per_day: value })} />
+              <NumberField label={t("marketing.aiCenter.lanes.posts")} value={settings.posts_per_day} onChange={(value) => patchSettings({ posts_per_day: value })} />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setAutomationActive(false)} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>
@@ -939,10 +945,10 @@ function AiMarketingCenter() {
           </section>
 
           <section className={`${cardClass} p-5`}>
-          <SectionTitle icon={<Archive className="h-4 w-4" />} title="إدارة التنظيف" />
+          <SectionTitle icon={<Archive className="h-4 w-4" />} title={t("marketing.aiCenter.cleanup.title")} />
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <NumberField label="الأرشفة بعد أيام" value={settings.auto_archive_published_after_days} onChange={(value) => patchSettings({ auto_archive_published_after_days: value })} />
-              <NumberField label="Delete archived after days" value={settings.auto_delete_archived_after_days} onChange={(value) => patchSettings({ auto_delete_archived_after_days: value })} />
+              <NumberField label={t("marketing.aiCenter.cleanup.archiveAfterDays")} value={settings.auto_archive_published_after_days} onChange={(value) => patchSettings({ auto_archive_published_after_days: value })} />
+              <NumberField label={t("marketing.aiCenter.cleanup.deleteArchivedAfterDays")} value={settings.auto_delete_archived_after_days} onChange={(value) => patchSettings({ auto_delete_archived_after_days: value })} />
             </div>
           </section>
 
@@ -951,8 +957,8 @@ function AiMarketingCenter() {
 
         <main className="space-y-4">
           <RecommendationsPanel overview={overview} />
-          <QueueSection title="القصص" icon={<Image className="h-4 w-4" />} items={stories} empty="لا توجد عناصر قصة في الطابور." statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onToggleAll={toggleAllSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
-          <QueueSection title="المنشورات" icon={<Send className="h-4 w-4" />} items={posts} empty="لا توجد منشورات ذكاء اصطناعي في الطابور." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onToggleAll={toggleAllSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
+          <QueueSection title={t("marketing.aiCenter.lanes.stories")} icon={<Image className="h-4 w-4" />} items={stories} empty={t("marketing.aiCenter.queue.storiesEmpty")} statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onToggleAll={toggleAllSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
+          <QueueSection title={t("marketing.aiCenter.lanes.posts")} icon={<Send className="h-4 w-4" />} items={posts} empty={t("marketing.aiCenter.queue.postsEmpty")} statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onToggleAll={toggleAllSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
         </main>
       </div>
 
@@ -1073,6 +1079,7 @@ const insightStateText = (insights, syncing) => {
 };
 
 function InsightCard({ insights, syncing = false, onSync }) {
+  const { t } = useTranslation();
   const normalizedInsights = normalizeInsightResponse(insights || {});
   const source = String(normalizedInsights?.source || "fallback");
   const usingFallback = source === "fallback";
@@ -1085,7 +1092,7 @@ function InsightCard({ insights, syncing = false, onSync }) {
   return (
     <section className={`${cardClass} p-5`}>
       <div className="flex items-center justify-between gap-3">
-        <SectionTitle icon={<Clock className="h-4 w-4" />} title="Best Posting Windows" />
+        <SectionTitle icon={<Clock className="h-4 w-4" />} title={t("marketing.aiCenter.insights.bestPostingWindows")} />
         <button type="button" onClick={onSync} disabled={syncing} className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20 disabled:opacity-60">
           <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
           Sync
@@ -1105,16 +1112,17 @@ function InsightCard({ insights, syncing = false, onSync }) {
       </div>
       <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
         <div>{stateText}</div>
-        {syncedAt ? <div>Last synced at {syncedAt}</div> : null}
+        {syncedAt ? <div>{t("marketing.aiCenter.insights.lastSyncedAt")} {syncedAt}</div> : null}
         <div className="capitalize">Source: {sourceLabel}</div>
-        {Number.isFinite(Number(diagnostics.analytics_rows_count)) ? <div>Analytics rows: {diagnostics.analytics_rows_count}</div> : null}
-        {diagnostics.meta_error ? <div>Meta API error: {diagnostics.meta_error}</div> : null}
+        {Number.isFinite(Number(diagnostics.analytics_rows_count)) ? <div>{t("marketing.aiCenter.insights.analyticsRows")} {diagnostics.analytics_rows_count}</div> : null}
+        {diagnostics.meta_error ? <div>{t("marketing.aiCenter.insights.metaApiError")} {diagnostics.meta_error}</div> : null}
       </div>
     </section>
   );
 }
 
 function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatusFilter, selectedIds, onToggleSelected, onToggleAll, onBulkAction, onPreview, onHistory, onAction, publishingIds, generatingStoryAssetIds, actionDisabled = false }) {
+  const { t } = useTranslation();
   const groups = groupedBySchedule(items);
   const queueType = title.toLowerCase();
   const selectedCount = items.filter((item) => selectedIds?.has(String(item.id))).length;
@@ -1135,9 +1143,9 @@ function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatu
         <button type="button" disabled={!items.length} onClick={() => onToggleAll?.(items)} className={`${buttonClass} border border-white/15 bg-white/[0.06] text-white`}>
           {allSelected ? "إلغاء تحديد الكل" : "تحديد الكل"}
         </button>
-        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("archive")} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة المحدد</button>
-        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("delete")} className={`${buttonClass} border border-rose-300/20 bg-rose-400/10 text-rose-100`}>Delete Selected</button>
-        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("publish")} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>نشر المحدد</button>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("archive")} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>{t("marketing.aiCenter.queue.archiveSelected")}</button>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("delete")} className={`${buttonClass} border border-rose-300/20 bg-rose-400/10 text-rose-100`}>{t("marketing.aiCenter.queue.deleteSelected")}</button>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("publish")} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{t("marketing.aiCenter.queue.publishSelected")}</button>
       </div>
       <div className="mt-4 grid gap-3">
         {groups.length ? groups.map((group) => (
@@ -1168,6 +1176,7 @@ function ScheduleBadge({ item }) {
 }
 
 function QueueItem({ item, queueType = "queue", selected = false, onToggleSelected, publishing, generatingStoryAsset = false, actionDisabled = false, onPreview, onHistory, onApprove, onPublish, onArchive, onRestore, onDuplicate, onDelete }) {
+  const { t } = useTranslation();
   const design = item.design_json || {};
   const isLastPiece = item.strategy_type === "last_size";
   const { isStoryContent, isFeedContent } = getPreviewContentFlags(item);
@@ -1201,7 +1210,7 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
   }, [displayStatus, item.id, item.publish_status, item.status, item.post_status, item.state, normalizedStatus, queueType, showApprove, showPublish, statusInfo]);
   return (
     <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 md:grid-cols-[auto_72px_minmax(0,1fr)_auto] md:items-center">
-      <input type="checkbox" checked={selected} onChange={onToggleSelected} className="h-4 w-4" aria-label="Select content" />
+      <input type="checkbox" checked={selected} onChange={onToggleSelected} className="h-4 w-4" aria-label={t("marketing.aiCenter.queue.selectContent")} />
       <Thumb item={item} />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -1212,17 +1221,17 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
           <Badge tone={normalizedStatus === "published" ? "emerald" : normalizedStatus === "archived" ? "amber" : ["failed", "publish_failed"].includes(normalizedStatus) ? "rose" : displayStatus === "Publishing" || normalizedStatus === "publishing" ? "amber" : "slate"}>{displayStatus === "Publishing" ? "جارٍ النشر" : displayStatus}</Badge>
           {sizesLabel ? <Badge tone={isLastPiece ? "amber" : "slate"}>{sizesLabel}</Badge> : null}
           {isLastPiece && design.stock ? <Badge tone="amber">stock {design.stock}</Badge> : null}
-          {design.audio ? <Badge tone="cyan"><Music2 className="h-3 w-3" /> Arabic Trend</Badge> : null}
+          {design.audio ? <Badge tone="cyan"><Music2 className="h-3 w-3" /> {t("marketing.aiCenter.queue.arabicTrend")}</Badge> : null}
           <Badge tone={performanceScore >= 70 ? "emerald" : performanceScore >= 40 ? "amber" : performanceScore > 0 ? "rose" : "slate"}>{performanceLabel}</Badge>
-          {hasFacebook ? <Badge tone="cyan">فيسبوك</Badge> : null}
-          {hasInstagram ? <Badge tone="cyan">إنستجرام</Badge> : null}
+          {hasFacebook ? <Badge tone="cyan">{t("marketing.aiCenter.channels.facebook")}</Badge> : null}
+          {hasInstagram ? <Badge tone="cyan">{t("marketing.aiCenter.channels.instagram")}</Badge> : null}
         </div>
         <div className="mt-2 truncate text-sm font-black text-white">{item.title || design.product_name || "محتوى في الطابور"}</div>
         <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400" dir="rtl">{isStoryContent && !isFeedContent ? storyQueueCaption(item) : item.caption}</div>
         {normalizedStatus === "published" || normalizedStatus === "publish_failed" ? (
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
-            <span className={hasFacebook ? "text-emerald-200" : "text-rose-200"}>فيسبوك: {hasFacebook ? "سليم" : "فشل"}</span>
-            <span className={hasInstagram ? "text-emerald-200" : "text-rose-200"}>إنستجرام: {hasInstagram ? "سليم" : "فشل"}</span>
+            <span className={hasFacebook ? "text-emerald-200" : "text-rose-200"}>{t("marketing.aiCenter.channels.facebookLabel")} {hasFacebook ? "سليم" : "فشل"}</span>
+            <span className={hasInstagram ? "text-emerald-200" : "text-rose-200"}>{t("marketing.aiCenter.channels.instagramLabel")} {hasInstagram ? "سليم" : "فشل"}</span>
             {item.platform_error_message || item.publish_error ? <span className="text-rose-200">{item.platform_error_message || item.publish_error}</span> : null}
           </div>
         ) : null}
@@ -1232,21 +1241,21 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
           <ScheduleBadge item={item} />
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
-          <button type="button" onClick={onPreview} disabled={isGenerating || generatingStoryAsset} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
+          <button type="button" onClick={onPreview} disabled={isGenerating || generatingStoryAsset} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>{t("marketing.aiCenter.queue.preview")}</button>
           <button type="button" onClick={onHistory} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
             <History className="h-4 w-4" />
             History
           </button>
-          {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
-          {isArchived ? <button type="button" onClick={onRestore} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>استعادة</button> : null}
-          {!isArchived && showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>موافقة</button> : null}
+          {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{t("marketing.aiCenter.queue.viewPost")}</a> : null}
+          {isArchived ? <button type="button" onClick={onRestore} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>{t("marketing.aiCenter.queue.restore")}</button> : null}
+          {!isArchived && showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>{t("marketing.aiCenter.queue.approve")}</button> : null}
           {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || generatingStoryAsset || actionDisabled} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{publishing ? "جارٍ النشر..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "إعادة محاولة النشر" : "نشر"}</button> : null}
-          {!isArchived ? <button type="button" onClick={onArchive} disabled={actionDisabled} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة</button> : null}
-          <button type="button" title="Duplicate" onClick={onDuplicate} disabled={actionDisabled} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 text-primary">
+          {!isArchived ? <button type="button" onClick={onArchive} disabled={actionDisabled} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>{t("marketing.aiCenter.queue.archive")}</button> : null}
+          <button type="button" title={t("marketing.aiCenter.queue.duplicate")} onClick={onDuplicate} disabled={actionDisabled} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 text-primary">
             <Copy className="h-4 w-4" />
           </button>
-          {normalizedStatus === "failed" ? <button type="button" onClick={onPreview} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Retry</button> : null}
-          <button type="button" title="Delete" onClick={onDelete} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-400/10 text-rose-100">
+          {normalizedStatus === "failed" ? <button type="button" onClick={onPreview} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>{t("marketing.aiCenter.queue.retry")}</button> : null}
+          <button type="button" title={t("marketing.aiCenter.queue.delete")} onClick={onDelete} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-400/10 text-rose-100">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -1283,24 +1292,25 @@ function DebugUrlRow({ label, value }) {
 }
 
 function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) {
+  const { t } = useTranslation();
   const selectedUrl = urls[selectedIndex] || urls[0] || "";
   return (
     <div className="grid gap-4 rounded-3xl border border-white/10 bg-black/30 p-4 md:grid-cols-[minmax(0,1fr)_150px]">
       <div>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">Generated story asset</h3>
+          <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">{t("marketing.aiCenter.story.generatedAsset")}</h3>
           <Badge tone="emerald">{urls.length} rendered</Badge>
         </div>
         <div className="mx-auto aspect-[9/16] max-h-[72vh] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl">
           {selectedUrl ? (
             <img src={selectedUrl} alt={`Generated story slide ${selectedIndex + 1}`} className="h-full w-full object-cover" />
           ) : (
-            <div className="grid h-full place-items-center p-6 text-center text-sm font-bold text-slate-400">No generated story asset</div>
+            <div className="grid h-full place-items-center p-6 text-center text-sm font-bold text-slate-400">{t("marketing.aiCenter.story.noGeneratedAsset")}</div>
           )}
         </div>
       </div>
       <div className="min-w-0">
-        <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-400">Story Slides</div>
+        <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-400">{t("marketing.aiCenter.story.slides")}</div>
         <div className="grid max-h-[72vh] gap-3 overflow-y-auto pr-1">
           {urls.map((url, index) => (
             <button
@@ -1312,7 +1322,7 @@ function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) 
               <div className="aspect-[9/16] w-full overflow-hidden bg-slate-900">
                 <img src={url} alt={`Generated thumbnail ${index + 1}`} className="h-full w-full object-cover" />
               </div>
-              <div className="truncate px-2 py-2 text-xs font-black text-white">Slide {index + 1}</div>
+              <div className="truncate px-2 py-2 text-xs font-black text-white">{t("marketing.aiCenter.story.slide")} {index + 1}</div>
             </button>
           ))}
         </div>
@@ -1322,14 +1332,15 @@ function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) 
 }
 
 function RecommendationsPanel({ overview = {} }) {
+  const { t } = useTranslation();
   const recommendations = Array.isArray(overview.performance_recommendations) ? overview.performance_recommendations : [];
   const brains = Array.isArray(overview.ai_operating_brains) ? overview.ai_operating_brains : [];
   const insufficient = overview.performance_insufficient_data || recommendations.length === 0;
   return (
     <section className={`${cardClass} p-5`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="AI Recommendations" />
-        <Badge tone="cyan">Performance Brain</Badge>
+        <SectionTitle icon={<Sparkles className="h-4 w-4" />} title={t("marketing.aiCenter.recommendations.title")} />
+        <Badge tone="cyan">{t("marketing.aiCenter.recommendations.performanceBrain")}</Badge>
       </div>
       {insufficient ? (
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm font-bold text-slate-300">
@@ -1355,10 +1366,11 @@ function RecommendationsPanel({ overview = {} }) {
 }
 
 function DeletePublishedContentModal({ target, onClose, onConfirm }) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4">
       <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl">
-        <h2 className="m1-section-title">حذف المحتوى المنشور</h2>
+        <h2 className="m1-section-title">{t("marketing.aiCenter.modals.deletePublishedTitle")}</h2>
         <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
           سيؤدي ذلك إلى حذف المحتوى المولّد من قاعدة بيانات مركز التسويق ومن التخزين الوسيط.
           لن يحذف المحتوى تلقائيًا من فيسبوك أو إنستجرام إلا إذا كانت عملية الحذف على المنصة مدعومة صراحةً.
@@ -1367,7 +1379,7 @@ function DeletePublishedContentModal({ target, onClose, onConfirm }) {
           {target?.title || target?.caption || (target?.bulk ? `${target.ids?.length || 0} selected items` : `Queue item ${target?.id || ""}`)}
         </div>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/10 text-white`}>Cancel</button>
+          <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/10 text-white`}>{t("marketing.aiCenter.modals.cancel")}</button>
           <button type="button" onClick={onConfirm} className={`${buttonClass} border border-rose-300/30 bg-rose-500 text-white hover:bg-rose-400`}>
             Delete Permanently
           </button>
@@ -1378,6 +1390,7 @@ function DeletePublishedContentModal({ target, onClose, onConfirm }) {
 }
 
 function ContentHistoryModal({ target, rows = [], onClose }) {
+  const { t } = useTranslation();
   const fallbackRows = rows.length ? rows : [
     { action: "created", status: target?.status || "", timestamp: target?.created_at, user: "System" },
   ];
@@ -1386,10 +1399,10 @@ function ContentHistoryModal({ target, rows = [], onClose }) {
       <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="m1-section-title">Content History</h2>
+            <h2 className="m1-section-title">{t("marketing.aiCenter.modals.contentHistory")}</h2>
             <p className="mt-1 text-sm font-semibold text-slate-400">{target?.title || "AI marketing content"}</p>
           </div>
-          <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/10 text-white`}>Close</button>
+          <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/10 text-white`}>{t("marketing.aiCenter.modals.close")}</button>
         </div>
         <div className="mt-5 grid max-h-[70vh] gap-3 overflow-y-auto pr-1">
           {fallbackRows.map((row, index) => (
@@ -1410,6 +1423,7 @@ function ContentHistoryModal({ target, rows = [], onClose }) {
 }
 
 function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsset, generatingStoryAsset = false }) {
+  const { t } = useTranslation();
   const design = item.design_json || {};
   const { isFeedContent } = getPreviewContentFlags(item);
   const statusInfo = getQueueStatusInfo(item, { source: "preview-modal", queueType: isFeedContent ? "posts" : "stories" });
@@ -1444,11 +1458,11 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         post={post}
         onClose={onClose}
         onPublish={showPublish && onPublish ? () => onPublish(item) : null}
-        title="AI post preview"
+        title={t("marketing.aiCenter.preview.aiPostPreview")}
         actionSlot={
           <div className="grid gap-3">
-            {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
-            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
+            {showPublished ? <Badge tone="emerald">{t("marketing.aiCenter.preview.post")}</Badge> : null}
+            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{t("marketing.aiCenter.preview.viewPost")}</a> : null}
             {showApprove ? (
               <button
                 type="button"
@@ -1460,7 +1474,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               </button>
             ) : null}
             <details className="rounded-2xl border border-white/10 bg-black/25 p-3">
-              <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">Technical JSON</summary>
+              <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">{t("marketing.aiCenter.preview.technicalJson")}</summary>
               <pre className="mt-3 max-h-56 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-slate-300">
                 {JSON.stringify(design, null, 2)}
               </pre>
@@ -1496,20 +1510,20 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         ) : renderedStoryAssetUrl ? (
           <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">أصل القصة</h3>
-              <Badge tone="emerald">Rendered</Badge>
+              <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">{t("marketing.aiCenter.preview.storyAsset")}</h3>
+              <Badge tone="emerald">{t("marketing.aiCenter.preview.rendered")}</Badge>
             </div>
             <div className="mx-auto aspect-[9/16] max-h-[72vh] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl">
-              <img src={renderedStoryAssetUrl} alt="Rendered story preview" className="h-full w-full object-cover" />
+              <img src={renderedStoryAssetUrl} alt={t("marketing.aiCenter.preview.renderedStoryPreview")} className="h-full w-full object-cover" />
             </div>
           </div>
         ) : (
           <div className="rounded-3xl border border-amber-300/20 bg-amber-300/[0.04] p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">معاينة سريعة</h3>
+              <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">{t("marketing.aiCenter.preview.quickPreview")}</h3>
               <Badge tone={generatingStoryAsset ? "amber" : "slate"}>{generatingStoryAsset ? "جارٍ تجهيز الملف النهائي" : "غير منشورة"}</Badge>
             </div>
-            <StoryCreativePreview slides={storySlides} title="معاينة الاستوري" />
+            <StoryCreativePreview slides={storySlides} title={t("marketing.aiCenter.preview.storyPreviewAria")} />
             <p className="mt-3 text-center text-xs font-bold leading-5 text-slate-400">
               هذه معاينة فورية. استخدم زر إنشاء أصل القصة لحفظ النسخة النهائية الجاهزة للنشر.
             </p>
@@ -1518,20 +1532,20 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="m1-section-title">معاينة القصة</h2>
+              <h2 className="m1-section-title">{t("marketing.aiCenter.preview.storyPreview")}</h2>
               <p className="mt-2 text-sm font-semibold text-slate-400">9:16 story creative. CTA is a visual sticker here; the product link stays stored for publishing.</p>
             </div>
-            <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Close</button>
+            <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>{t("marketing.aiCenter.modals.close")}</button>
           </div>
           <div className="mt-5 grid gap-3 text-sm md:grid-cols-2">
-            <Info label="Content type" value={item.content_type} />
-            <Info label="Layout" value={design.layout_type} />
-            <Info label="Sizes" value={sizesLabel || "n/a"} />
-            <Info label="رابط القصة" value={storyLink || "غير متاح"} />
+            <Info label={t("marketing.aiCenter.preview.contentType")} value={item.content_type} />
+            <Info label={t("marketing.aiCenter.preview.layout")} value={design.layout_type} />
+            <Info label={t("marketing.aiCenter.preview.sizes")} value={sizesLabel || "n/a"} />
+            <Info label={t("marketing.aiCenter.preview.storyLink")} value={storyLink || "غير متاح"} />
           </div>
           <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4">
             <div className="mb-3 grid gap-2">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">Story publish asset debug</div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">{t("marketing.aiCenter.debug.storyPublishAsset")}</div>
               <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
                 Renderer build: {renderedSnapshot.rendererBuild || "pending generation"}
               </div>
@@ -1546,12 +1560,12 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               </button>
             </div>
             <div className="grid gap-2">
-              <Info label="Frontend preview source slides count" value={storySlides.length} />
-              <Info label="Source images count" value={sourceImagesCount} />
-              <Info label="Generated story assets count" value={generatedAssetUrls.length || generatedStoryAssetsCount || 0} />
-              <Info label="Rendered slides length" value={renderedSlidesLength} />
-              <Info label="media_urls length" value={mediaUrlsLength} />
-              <Info label="Preview thumbnails visible" value={generatedAssetUrls.length} />
+              <Info label={t("marketing.aiCenter.debug.frontendSlidesCount")} value={storySlides.length} />
+              <Info label={t("marketing.aiCenter.debug.sourceImagesCount")} value={sourceImagesCount} />
+              <Info label={t("marketing.aiCenter.debug.generatedAssetsCount")} value={generatedAssetUrls.length || generatedStoryAssetsCount || 0} />
+              <Info label={t("marketing.aiCenter.debug.renderedSlidesLength")} value={renderedSlidesLength} />
+              <Info label={t("marketing.aiCenter.debug.mediaUrlsLength")} value={mediaUrlsLength} />
+              <Info label={t("marketing.aiCenter.debug.previewThumbsVisible")} value={generatedAssetUrls.length} />
               <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
               <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />
               <DebugUrlRow label="story_image_url" value={debugUrls.story_image_url} />
@@ -1572,8 +1586,8 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               <ScheduleBadge item={item} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
-              {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
+              {showPublished ? <Badge tone="emerald">{t("marketing.aiCenter.preview.post")}</Badge> : null}
+              {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{t("marketing.aiCenter.preview.viewPost")}</a> : null}
               {showApprove ? (
                 <button
                   type="button"
@@ -1611,7 +1625,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
           ) : null}
           <details className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-4">
-            <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">Admin / debug</summary>
+            <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">{t("marketing.aiCenter.debug.adminDebug")}</summary>
             <div className="mt-3 grid gap-3">
               <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
                 Generation: {renderedSnapshot.generationId || "pending"}
@@ -1619,7 +1633,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
                 Renderer build: {renderedSnapshot.rendererBuild || "pending generation"}
               </div>
-              <Info label="Stored product URL" value={storyLink || "n/a"} />
+              <Info label={t("marketing.aiCenter.debug.storedProductUrl")} value={storyLink || "n/a"} />
               {storyAssetError ? (
                 <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-xs font-bold leading-5 text-rose-100">
                   خطأ في أصل القصة: {storyAssetError}
@@ -1635,7 +1649,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                 {generatingStoryAsset ? "جارٍ إنشاء أصل القصة..." : "إنشاء أصل القصة"}
               </button>
               <div className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-3">
-                <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100">روابط أصول الصور المنشورة</div>
+                <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100">{t("marketing.aiCenter.debug.publishedImageAssetUrls")}</div>
                 <div className="grid gap-2">
                   <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
                   <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />
@@ -1647,7 +1661,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                 </div>
               </div>
               <details className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-500">Technical JSON</summary>
+                <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("marketing.aiCenter.preview.technicalJson")}</summary>
                 <pre className="mt-3 max-h-72 overflow-auto text-xs text-slate-300">
                   {JSON.stringify(design, null, 2)}
                 </pre>

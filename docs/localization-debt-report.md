@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 610
 - Files with debt: 168
-- Hardcoded Arabic UI strings: 1880
-- Hardcoded English UI strings: 2138
-- Total hardcoded UI strings: 4018
-- Mixed-language files (both scripts hardcoded): 49
+- Hardcoded Arabic UI strings: 1842
+- Hardcoded English UI strings: 2079
+- Total hardcoded UI strings: 3921
+- Mixed-language files (both scripts hardcoded): 48
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 91 | 1318 | 1602 | 2920 | 34 |
+| main-erp | 91 | 1280 | 1543 | 2823 | 33 |
 | shared | 61 | 196 | 453 | 649 | 10 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -33,7 +33,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
-| src/modules/marketing/pages/AiMarketingCenter.jsx | main-erp | 38 | 65 | 103 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/marketing/pages/MarketingSettings.jsx | main-erp | 63 | 23 | 86 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
@@ -300,50 +299,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 7338 [jsx-text/en] Cashier: $
 - 7339 [jsx-text/en] Variance: $
 - ... 69 more
-
-### src/modules/marketing/pages/AiMarketingCenter.jsx (main-erp — ar:38 en:65)
-
-- 67 [object-key/en] All
-- 68 [object-key/ar] منشور
-- 69 [object-key/ar] بانتظار الموافقة
-- 70 [object-key/ar] جاهز
-- 71 [object-key/ar] في الطابور
-- 72 [object-key/ar] فشل
-- 73 [object-key/ar] مؤرشف
-- 525 [notification/en] Engine settings saved
-- 565 [notification/en] Queue item is missing an id. Queue updated.
-- 572 [notification/ar] جارٍ إنشاء أصل القصة تلقائيًا قبل النشر...
-- 630 [notification/en] This item was already removed or refreshed. Queue updated.
-- 650 [notification/en] Queue item is missing an id.
-- 678 [notification/ar] تم إنشاء أصل القصة وحفظه.
-- 740 [notification/en] Select content first.
-- 811 [notification/en] Posting insights synced
-- 830 [jsx-text/en] Stories and posts that stay clean
-- 861 [attribute/ar] حالة الذكاء الاصطناعي
-- 862 [attribute/en] Stories Generated Today
-- 863 [attribute/en] Posts Generated Today
-- 864 [attribute/ar] بانتظار الموافقة
-- 879 [attribute/en] Eligible products
-- 880 [attribute/en] Story created
-- 881 [attribute/en] Published
-- 882 [attribute/en] Remaining
-- 893 [attribute/en] Content Lanes
-- 906 [attribute/en] New Arrivals
-- 907 [attribute/ar] آخر مقاس / آخر قطعة
-- 908 [attribute/en] AI Posts
-- 913 [attribute/en] Daily Volume
-- 915 [attribute/en] Stories
-- 916 [attribute/en] Posts
-- 942 [attribute/ar] إدارة التنظيف
-- 944 [attribute/ar] الأرشفة بعد أيام
-- 945 [attribute/en] Delete archived after days
-- 954 [attribute/ar] القصص
-- 954 [attribute/ar] لا توجد عناصر قصة في الطابور.
-- 955 [attribute/ar] المنشورات
-- 955 [attribute/ar] لا توجد منشورات ذكاء اصطناعي في الطابور.
-- 1088 [attribute/en] Best Posting Windows
-- 1108 [jsx-text/en] Last synced at
-- ... 63 more
 
 ### src/modules/orders/pages/OrderReturnsPage.jsx (main-erp — ar:96 en:0)
 
@@ -2687,9 +2642,9 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1883 [notification/en] Save the product first, then generate AI Thermal Artwork per color from Edit Product.
 - 2047 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
 - 2112 [notification/ar] تنبيه: يوجد أكثر من بلوك بنفس اسم اللون. سيُحفظ كل بلوك وصوره منفصلًا ولن يتم دمج الصور.
-- 3576 [attribute/ar] ترتيب اللون
-- 3586 [attribute/ar] تحريك لأعلى
-- 3599 [attribute/ar] تحريك لأسفل
+- 3581 [attribute/ar] ترتيب اللون
+- 3591 [attribute/ar] تحريك لأعلى
+- 3604 [attribute/ar] تحريك لأسفل
 
 ### src/config/activityFeedConfig.js (main-erp — ar:0 en:10)
 
@@ -2955,6 +2910,15 @@ of scope. The scanner is conservative and can still contain false positives.
 - 406 [object-key/en] Lead
 - 542 [jsx-text/en] Generated Public Reply
 - 546 [jsx-text/en] Generated Private Reply
+
+### src/modules/marketing/pages/AiMarketingCenter.jsx (main-erp — ar:0 en:6)
+
+- 1116 [jsx-text/en] Source:
+- 1575 [attribute/en] selectedPublishUrl_raw
+- 1621 [jsx-text/en] Mood:
+- 1622 [jsx-text/en] Platform:
+- 1623 [jsx-text/en] Search:
+- 1660 [attribute/en] selectedPublishUrl_raw
 
 ### src/pages/Branches.jsx (main-erp — ar:0 en:6)
 

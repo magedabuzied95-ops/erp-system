@@ -957,5 +957,126 @@
     "cacheHits": "Cache hits",
     "cacheMisses": "Cache misses",
     "customer360": "Customer 360"
+  },
+  "aiCenter": {
+    "toasts": {
+      "engineSettingsSaved": "Engine settings saved",
+      "queueItemMissingIdUpdated": "Queue item is missing an id. Queue updated.",
+      "generatingStoryAsset": "Generating the story asset automatically before publishing...",
+      "itemAlreadyRemoved": "This item was already removed or refreshed. Queue updated.",
+      "queueItemMissingId": "Queue item is missing an id.",
+      "storyAssetSaved": "The story asset was generated and saved.",
+      "selectContentFirst": "Select content first.",
+      "postingInsightsSynced": "Posting insights synced"
+    },
+    "headings": {
+      "cleanStoriesAndPosts": "Stories and posts that stay clean"
+    },
+    "stats": {
+      "aiStatus": "AI status",
+      "storiesToday": "Stories Generated Today",
+      "postsToday": "Posts Generated Today",
+      "pendingApproval": "Pending approval",
+      "eligibleProducts": "Eligible products",
+      "storyCreated": "Story created",
+      "published": "Published",
+      "remaining": "Remaining"
+    },
+    "lanes": {
+      "title": "Content Lanes",
+      "newArrivals": "New Arrivals",
+      "lastSizeOrPiece": "Last size / last piece",
+      "aiPosts": "AI Posts",
+      "dailyVolume": "Daily Volume",
+      "stories": "Stories",
+      "posts": "Posts"
+    },
+    "cleanup": {
+      "title": "Cleanup management",
+      "archiveAfterDays": "Archive after days",
+      "deleteArchivedAfterDays": "Delete archived after days"
+    },
+    "insights": {
+      "bestPostingWindows": "Best Posting Windows",
+      "lastSyncedAt": "Last synced at",
+      "analyticsRows": "Analytics rows:",
+      "metaApiError": "Meta API error:"
+    },
+    "queue": {
+      "archiveSelected": "Archive selected",
+      "deleteSelected": "Delete Selected",
+      "publishSelected": "Publish selected",
+      "selectContent": "Select content",
+      "arabicTrend": "Arabic Trend",
+      "preview": "Preview",
+      "viewPost": "View post",
+      "restore": "Restore",
+      "approve": "Approve",
+      "archive": "Archive",
+      "duplicate": "Duplicate",
+      "retry": "Retry",
+      "delete": "Delete",
+      "storiesEmpty": "No story items in the queue.",
+      "postsEmpty": "No AI posts in the queue."
+    },
+    "channels": {
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "facebookLabel": "Facebook:",
+      "instagramLabel": "Instagram:"
+    },
+    "story": {
+      "generatedAsset": "Generated story asset",
+      "noGeneratedAsset": "No generated story asset",
+      "slides": "Story Slides",
+      "slide": "Slide"
+    },
+    "recommendations": {
+      "title": "AI Recommendations",
+      "performanceBrain": "Performance Brain"
+    },
+    "modals": {
+      "deletePublishedTitle": "Delete published content",
+      "cancel": "Cancel",
+      "contentHistory": "Content History",
+      "close": "Close"
+    },
+    "preview": {
+      "aiPostPreview": "AI post preview",
+      "post": "Post",
+      "viewPost": "View post",
+      "technicalJson": "Technical JSON",
+      "storyAsset": "Story asset",
+      "rendered": "Rendered",
+      "renderedStoryPreview": "Rendered story preview",
+      "quickPreview": "Quick preview",
+      "storyPreviewAria": "Story preview",
+      "storyPreview": "Story preview",
+      "contentType": "Content type",
+      "layout": "Layout",
+      "sizes": "Sizes",
+      "storyLink": "Story link"
+    },
+    "debug": {
+      "storyPublishAsset": "Story publish asset debug",
+      "frontendSlidesCount": "Frontend preview source slides count",
+      "sourceImagesCount": "Source images count",
+      "generatedAssetsCount": "Generated story assets count",
+      "renderedSlidesLength": "Rendered slides length",
+      "mediaUrlsLength": "media_urls length",
+      "previewThumbsVisible": "Preview thumbnails visible",
+      "adminDebug": "Admin / debug",
+      "storedProductUrl": "Stored product URL",
+      "publishedImageAssetUrls": "Published image asset URLs"
+    },
+    "filters": {
+      "all": "All",
+      "published": "Published",
+      "pendingApproval": "Pending approval",
+      "ready": "Ready",
+      "queued": "Queued",
+      "failed": "Failed",
+      "archived": "Archived"
+    }
   }
 }
