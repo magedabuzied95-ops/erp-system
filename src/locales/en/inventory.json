@@ -507,5 +507,78 @@
   },
   "errors": {
     "loadProducts": "Unable to load the products"
+  },
+  "smartWarehouse": {
+    "title": "Smart Warehouse",
+    "subtitle": "Model QR counting, section organization, cycle count tasks, movement-ready adjustments, and AI-ready inventory analytics.",
+    "refresh": "Refresh",
+    "tabs": {
+      "count": "Quick Count",
+      "sections": "Sections",
+      "qr": "Master QR",
+      "cycle": "Cycle Count",
+      "reports": "Reports"
+    },
+    "toasts": {
+      "sectionLoaded": "Section loaded",
+      "modelLoaded": "Model loaded",
+      "selectWarehouseFirst": "Select warehouse and scan a model first",
+      "countSaved": "Count saved and movements created",
+      "sectionRequired": "Warehouse and section code are required",
+      "sectionSaved": "Section saved",
+      "qrReady": "Master QR ready",
+      "qrFailed": "Failed to generate master QR"
+    },
+    "fields": {
+      "branch": "Branch",
+      "warehouse": "Warehouse",
+      "section": "Section",
+      "code": "Code",
+      "name": "Name",
+      "color": "Color",
+      "notes": "Notes",
+      "productId": "Product ID",
+      "selectPlaceholder": "Select {{label}}",
+      "namePlaceholder": "Men Shoes Size 41",
+      "notesPlaceholder": "Aisle, shelf, or season notes",
+      "productIdPlaceholder": "Product database id"
+    },
+    "scan": {
+      "section": "Scan section QR",
+      "model": "Scan model QR"
+    },
+    "activeSection": "Active section",
+    "scanMasterTitle": "Scan a master model QR",
+    "scanMasterText": "The model QR opens the product, all colors, all sizes, warehouse locations, and a fast counting grid.",
+    "modelLevelCount": "Model-level count",
+    "grid": {
+      "color": "Color",
+      "size": "Size",
+      "expected": "Expected",
+      "actual": "Actual",
+      "diff": "Diff",
+      "decrease": "Decrease",
+      "increase": "Increase"
+    },
+    "qr": {
+      "emptyTitle": "No QR generated yet",
+      "emptyText": "Generate one model-level QR per product and place it on product cards, bins, or warehouse labels.",
+      "value": "Master QR value",
+      "note": "Model-level, not variant-level. Scanning this opens the full variant stock matrix."
+    },
+    "lists": {
+      "cycleTasks": "Smart Daily Cycle Tasks",
+      "recentCounts": "Recent Counts",
+      "discrepancies": "Discrepancies",
+      "deadStock": "Dead Stock",
+      "alerts": "Smart Alerts",
+      "transfers": "Transfer Recommendations",
+      "heatmap": "Warehouse Heatmap",
+      "emptyTitle": "No records",
+      "emptyText": "Data will appear here after inventory activity is recorded.",
+      "neverSold": "Never sold",
+      "sold30d": "sold {{count}}",
+      "stock": "stock {{count}}"
+    }
   }
 }

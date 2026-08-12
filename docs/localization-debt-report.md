@@ -12,15 +12,15 @@ of scope. The scanner is conservative and can still contain false positives.
 - Source files scanned: 611
 - Files with debt: 147
 - Hardcoded Arabic UI strings: 1704
-- Hardcoded English UI strings: 1356
-- Total hardcoded UI strings: 3060
+- Hardcoded English UI strings: 1300
+- Total hardcoded UI strings: 3004
 - Mixed-language files (both scripts hardcoded): 39
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 77 | 1148 | 959 | 2107 | 25 |
+| main-erp | 77 | 1148 | 903 | 2051 | 25 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -598,50 +598,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 31 [attribute/ar] مقاسات ثابتة وحالات واضحة للنماذج كثيفة البيانات.
 - 31 [attribute/en] SKU-000
 - ... 20 more
-
-### src/modules/smartWarehouse/pages/SmartWarehouse.jsx (main-erp — ar:0 en:59)
-
-- 24 [object-key/en] Quick Count
-- 25 [object-key/en] Sections
-- 26 [object-key/en] Master QR
-- 27 [object-key/en] Cycle Count
-- 28 [object-key/en] Reports
-- 113 [notification/en] Section loaded
-- 129 [notification/en] Model loaded
-- 144 [notification/en] Select warehouse and scan a model first
-- 163 [notification/en] Count saved and movements created
-- 176 [notification/en] Warehouse and section code are required
-- 187 [notification/en] Section saved
-- 198 [notification/en] Master QR ready
-- 206 [attribute/en] Smart Warehouse
-- 207 [attribute/en] Model QR counting, section organization, cycle count tasks, movement-ready adjustments, and AI-ready inventory analytics.
-- 219 [object-key/en] Inventory
-- 220 [object-key/en] Smart Warehouse
-- 221 [object-key/en] Movements
-- 222 [object-key/en] Transfers
-- 223 [object-key/en] Warehouses
-- 294 [attribute/en] Branch
-- 295 [attribute/en] Warehouse
-- 296 [attribute/en] Section
-- 299 [attribute/en] Scan section QR
-- 303 [attribute/en] MEN-SHOES-41
-- 306 [attribute/en] Scan model QR
-- 310 [attribute/en] MODEL-...
-- 315 [jsx-text/en] Active section
-- 324 [attribute/en] Scan a master model QR
-- 329 [jsx-text/en] Model-level count
-- 349 [jsx-text/en] Color
-- 350 [jsx-text/en] Size
-- 351 [jsx-text/en] Expected
-- 352 [jsx-text/en] Actual
-- 353 [jsx-text/en] Diff
-- 365 [attribute/en] Decrease
-- 367 [attribute/en] Increase
-- 386 [attribute/en] Branch
-- 388 [attribute/en] Warehouse
-- 390 [attribute/en] Code
-- 390 [attribute/en] MEN-SHOES-41
-- ... 19 more
 
 ### src/pages/DashboardPrototype.jsx (main-erp — ar:57 en:1)
 
@@ -2323,6 +2279,12 @@ of scope. The scanner is conservative and can still contain false positives.
 - 5 [object-key/ar] العلامة التجارية
 - 6 [object-key/ar] الفئة
 - 7 [object-key/ar] نوع المنتج
+
+### src/modules/smartWarehouse/pages/SmartWarehouse.jsx (main-erp — ar:0 en:3)
+
+- 309 [attribute/en] MEN-SHOES-41
+- 316 [attribute/en] MODEL-...
+- 396 [attribute/en] MEN-SHOES-41
 
 ### src/pages/Login.jsx (main-erp — ar:1 en:2)
 
