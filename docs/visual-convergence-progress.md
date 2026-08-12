@@ -13,6 +13,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 3 | Marketing remainder: analytics, templates, settings (4 files / 3 routes) | `pre-visual-convergence-cp3-20260812` -> `aec6497` | `2fa8eb3` | `2fa8eb3` verified Light + Dark | build green |
 | 3b | Residual dark gradient hero on `/marketing/settings` | -> `2fa8eb3` | `0278020` | `0278020` verified Light + Dark | build green |
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
+| 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | see below | see below | build green |
 
 ## Method
 
@@ -390,6 +391,63 @@ Dark/RTL only: the 20 session-3 routes listed above plus `reports/*`.
 LTR has not been run for any route yet. These are tracked for the dedicated
 completion sweep, not silently upgraded to PASS.
 
+## Session 4 — remaining pending queue (Light / Arabic RTL)
+
+Measured on Production at `d541bbc`.
+
+**0 offenders (PARTIAL_PASS, light/rtl):** `/products/barcode-labels`,
+`/products/barcode-print-queue`, `/products/barcodes`, `/products/print-list`,
+`/ai-studio/workflows`, `/ai-studio/executions`, `/ai-studio/approvals`,
+`/ai-studio/tools`, `/ai-studio/restock-recovery`, `/operations/shipping`,
+`/website/settings`, `/orders/returns`, `/pos`, `/warehouse/live-picks`,
+`/staff/tasks`, `/admin/tenants`, `/admin/ai-channels`, `/admin/ai-followups`,
+`/admin/ai-agent-settings`, `/admin/ai-agent-analytics`,
+`/admin/ai-support-console`, `/admin/ai-support-knowledge-base`.
+
+`/admin/ai-inbox` — **observe only, not modified**: 0 offenders, no visual debt
+to record.
+
+**Shell-less full-screen routes** (audited against `document.body`, not
+`.m1-shell-content`): `/pos` (body `rgb(234,231,224)` = `--bg`, 0 offenders) and
+`/warehouse/live-picks` (0 offenders).
+
+**Bounded audit — `/products/labels`:** this route renders **327,119 nodes**
+(~1MB of text; it materialises the whole label sheet). A full computed-style
+sweep is not feasible, so it was audited with a depth-limited walk (depth <= 8,
+3,743 nodes — large surfaces are structurally shallow) plus a 150-element sample
+of the repeated label items. Result: 0 offenders. **This route was NOT
+exhaustively swept** and is recorded as PARTIAL_PASS (bounded), not PASS.
+
+**Further aliases confirmed:** `/staff/qr-attendance` and `/attendance/kiosk`
+both resolve to `/employees/attendance`.
+
+**Still PENDING — require live record IDs:** `/orders/:id`, `/suppliers/:id`,
+`/purchases/:id`, `/customers/:customerId/statement`,
+`/suppliers/:supplierId/statement`, `/loyalty/customers/:customerId`,
+`/inventory/variant/:id/history`, `/inventory/count/:id`,
+`/ai-studio/workflows/:id/edit`, `/products/:id`.
+
+### 5. `/create-order` — invisible primary CTA (checkpoint 5)
+
+**Measured in Light:** `button.bg-black.text-white`, **1873 x 62 px**, computed
+background `rgb(0,0,0)`, luminance **0**. Its `text-white` is neutralised by
+shared M1 CSS to `rgb(27,25,21)` = `--text`, so the "Add To Cart" label rendered
+near-black on pure black — **an unreadable primary CTA**. The button is the full
+page width, so the measurement accounts for the whole visible defect.
+
+**Owner:** `src/modules/sales/pages/CreateOrder.jsx`, an unconverged legacy page
+still built on `dark:` variants and the raw grey palette: `bg-white
+dark:bg-gray-800` panels, `dark:bg-gray-900` inputs, `text-gray-800/500`,
+`rounded-3xl`, `shadow-xl`.
+
+**Fix:** converged onto the standard ladder; the CTA becomes `--primary` +
+`--primary-contrast`. Redundant `dark:` duplicates of now theme-aware tokens
+were dropped. Residual off-system chrome: **0**.
+
+**Brand fills protected:** `bg-red-500 text-white` (the destructive remove
+button) keeps `text-white`, which is the correct fixed contrast colour on a
+solid red fill — the same protection applied to `#1877f2` in checkpoint 3.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
@@ -446,18 +504,14 @@ an explicit ruling rather than an autonomous change. Observed spread:
 
 /products/variants was audited clean in Dark after checkpoint 4.
 
-**Next route to audit: `/products/barcode-labels`**, then
-`/products/barcode-print-queue`, `/products/print-list`, `/products/barcodes`,
-`/products/labels`, then `/ai-studio/*` (workflows, executions, approvals, tools,
-restock-recovery), `/admin/*` (8 routes, AI Inbox excluded — observe only),
-`/operations/shipping`, `/website/settings`, `/pos`, `/create-order`,
-`/orders/returns`, `/orders/:id`, `/suppliers/:id`, `/purchases/:id`,
-`/staff/tasks`, `/staff/qr-attendance`, `/warehouse/live-picks`,
-`/attendance/kiosk`, `/loyalty/customers/:customerId`,
-`/inventory/variant/:id/history`, `/customers/:customerId/statement`,
-`/suppliers/:supplierId/statement`.
+**The static pending route queue is EXHAUSTED.**
 
-The accounting and marketing modules are complete for Light **and** Dark in RTL.
+Next: the dedicated completion sweep, in this order — (1) approved 22px
+page-title convergence, (2) remaining PARTIAL_PASS routes, (3) missing
+Light/Dark verification, (4) RTL/LTR verification, (5) re-verification of any
+route touched by a shared-owner change. The only routes still un-audited are the
+ID-bound detail routes listed in the Session 4 section, which need live record
+IDs harvested from their list pages.
 The marketing fixes were verified in both themes, so those routes are
 `FIXED_VERIFIED` rather than partial.
 

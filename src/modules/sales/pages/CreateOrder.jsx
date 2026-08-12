@@ -306,13 +306,13 @@ function CreateOrder() {
 
       <div>
 
-        <h1 className="m1-display text-gray-800 dark:text-white">
+        <h1 className="m1-display text-[var(--text)]">
 
           Create Order 🛒
 
         </h1>
 
-        <p className="text-gray-500 mt-3 text-lg">
+        <p className="text-[var(--muted)] mt-3 text-lg">
 
           Enterprise order management
 
@@ -322,7 +322,7 @@ function CreateOrder() {
 
       {/* FORM */}
 
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl space-y-6">
+      <div className="bg-[var(--card)] p-8 rounded-[var(--radius-card)] shadow-xl space-y-6">
 
         <input
           type="text"
@@ -337,7 +337,7 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-[var(--radius-control)] dark:bg-gray-900 dark:text-white"
+          className="w-full border p-5 rounded-[var(--radius-control)]"
         />
 
         <select
@@ -349,7 +349,7 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-[var(--radius-control)] dark:bg-gray-900 dark:text-white"
+          className="w-full border p-5 rounded-[var(--radius-control)]"
         >
 
           <option value="">
@@ -390,13 +390,13 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-[var(--radius-control)] dark:bg-gray-900 dark:text-white"
+          className="w-full border p-5 rounded-[var(--radius-control)]"
         />
 
         <button
           onClick={addToCart}
 
-          className="bg-black text-white px-8 py-5 rounded-[var(--radius-control)] font-black w-full"
+          className="bg-[var(--primary)] text-[var(--primary-contrast)] px-8 py-5 rounded-[var(--radius-control)] font-black w-full"
         >
 
           Add To Cart
@@ -407,9 +407,9 @@ function CreateOrder() {
 
       {/* CART */}
 
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl">
+      <div className="bg-[var(--card)] p-8 rounded-[var(--radius-card)] shadow-xl">
 
-        <h2 className="m1-section-title dark:text-white">
+        <h2 className="m1-section-title">
 
           Cart Items
 
@@ -428,13 +428,13 @@ function CreateOrder() {
 
                   <div>
 
-                    <h3 className="m1-section-title dark:text-white">
+                    <h3 className="m1-section-title">
 
                       {item.name}
 
                     </h3>
 
-                    <p className="text-gray-500">
+                    <p className="text-[var(--muted)]">
 
                       {item.color}
                       {" / "}
@@ -479,7 +479,7 @@ function CreateOrder() {
 
             : (
 
-              <p className="text-center text-gray-500 py-10">
+              <p className="text-center text-[var(--muted)] py-10">
 
                 Cart Is Empty
 
@@ -492,7 +492,7 @@ function CreateOrder() {
 
         <div className="flex justify-between mt-10">
 
-          <h2 className="m1-section-title dark:text-white">
+          <h2 className="m1-section-title">
 
             Total
 
