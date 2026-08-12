@@ -20,7 +20,7 @@ const CUSTOMER_PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
 
 const inputClass =
-  "h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:bg-slate-950";
+  "h-12 w-full rounded-[var(--radius-card)] border border-border bg-surface px-4 text-sm font-semibold text-text outline-none transition placeholder:text-text-muted focus:border-emerald-400/50 focus:bg-surface";
 
 const normalizeCustomersPayload = (response) => {
   const rootPayload = response && typeof response === "object" ? response : {};
@@ -143,7 +143,7 @@ const getStatementBadgeClass = (tone = "slate") => {
     emerald: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
     rose: "border-rose-300/20 bg-rose-400/10 text-rose-100",
     sky: "border-sky-300/20 bg-sky-400/10 text-sky-100",
-    slate: "border-white/10 bg-white/5 text-zinc-100",
+    slate: "border-border bg-surface-soft text-text",
   };
   return classes[tone] || classes.slate;
 };
@@ -902,13 +902,13 @@ function Customers() {
   }
 
   return (
-    <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-6 py-6 text-white">
+    <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-6 py-6 text-text">
       <div className="w-full space-y-6">
-        <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-950/75 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("customers.eyebrow")}</div>
-            <h1 className="m1-display mt-2 text-white">{t("customers.title")}</h1>
-            <p className="mt-3 text-sm font-medium text-zinc-400">
+            <h1 className="m1-display mt-2 text-text">{t("customers.title")}</h1>
+            <p className="mt-3 text-sm font-medium text-text-muted">
               {t("customers.subtitle")}
             </p>
           </div>
@@ -925,21 +925,21 @@ function Customers() {
               <UploadCloud className="h-5 w-5" />
               {tt("customers.import.title")}
             </button>
-            <div className="inline-flex items-center gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 shadow-2xl shadow-emerald-950/20">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400 text-slate-950">
+            <div className="inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 shadow-2xl shadow-emerald-950/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] bg-emerald-400 text-text">
                 <UsersRound className="h-6 w-6" />
               </div>
               <div>
-                <div className="text-3xl font-black text-white">{totalCustomers.toLocaleString("ar-EG-u-nu-latn")}</div>
+                <div className="text-3xl font-black text-text">{totalCustomers.toLocaleString("ar-EG-u-nu-latn")}</div>
                 <div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">{t("customers.count")}</div>
               </div>
             </div>
           </div>
         </div>
 
-        <section className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/45 p-4 shadow-2xl shadow-black/20 backdrop-blur-xl sm:flex-row sm:items-end">
+        <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/20 backdrop-blur-xl sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1">
-            <label className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500" htmlFor="customer-search">
+            <label className="text-xs font-black uppercase tracking-[0.2em] text-text-muted" htmlFor="customer-search">
               {t("customers.search")}
             </label>
             <input
@@ -975,11 +975,11 @@ function Customers() {
         {customerFormOpen ? (
           <form
             onSubmit={handleSubmit}
-            className="rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
+            className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
           >
           <div className="mb-5 flex flex-col gap-1">
-            <h2 className="m1-section-title text-white">{editingId ? t("customers.form.titleUpdate") : t("customers.form.titleAdd")}</h2>
-            <p className="text-sm text-zinc-500">{t("customers.form.subtitle")}</p>
+            <h2 className="m1-section-title text-text">{editingId ? t("customers.form.titleUpdate") : t("customers.form.titleAdd")}</h2>
+            <p className="text-sm text-text-muted">{t("customers.form.subtitle")}</p>
           </div>
 
           <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1014,12 +1014,12 @@ function Customers() {
             />
           </div>
 
-          <label className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-50">
+          <label className="mt-5 flex items-center gap-3 rounded-[var(--radius-card)] border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-50">
             <input
               type="checkbox"
               checked={allowPersonalTransactions}
               onChange={(event) => setAllowPersonalTransactions(event.target.checked)}
-              className="h-4 w-4 rounded border-emerald-300/40 bg-slate-950 text-emerald-400 focus:ring-emerald-300/40"
+              className="h-4 w-4 rounded border-emerald-300/40 bg-surface text-emerald-400 focus:ring-emerald-300/40"
             />
             <span>{tt("customers.personalUse.allow")}</span>
           </label>
@@ -1035,7 +1035,7 @@ function Customers() {
               <button
                 type="button"
                 onClick={resetForm}
-                className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-slate-800/70 px-5 text-sm font-bold text-zinc-300 transition hover:bg-slate-700/80 hover:text-white"
+                className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-5 text-sm font-bold text-text-muted transition hover:bg-surface-hover hover:text-text"
               >
                 {t("customers.form.cancel")}
               </button>
@@ -1044,9 +1044,9 @@ function Customers() {
           </form>
         ) : null}
 
-        <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="border-b border-white/10 px-6 py-5">
-            <h2 className="m1-section-title text-white">{t("customers.table.title")}</h2>
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="border-b border-border px-6 py-5">
+            <h2 className="m1-section-title text-text">{t("customers.table.title")}</h2>
           </div>
 
           <div className="m1-table-container overflow-x-auto">
@@ -1060,7 +1060,7 @@ function Customers() {
                 <col style={{ width: "11%" }} />
                 <col style={{ width: "4%" }} />
               </colgroup>
-              <thead className="border-b border-white/10 bg-slate-900/80 text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
+              <thead className="border-b border-border bg-surface text-xs font-black uppercase tracking-[0.18em] text-text-muted">
                 <tr>
                   <th className="px-6 py-5 text-center align-middle">{t("customers.table.customer")}</th>
                   <th className="px-6 py-5 text-center align-middle">{t("customers.table.phone")}</th>
@@ -1083,46 +1083,46 @@ function Customers() {
                   safeCustomers.map((customer, index) => (
                     <tr
                       key={customer.id}
-                      className={`transition hover:bg-emerald-400/10 ${ index % 2 === 0 ? "bg-slate-900/35" : "bg-slate-950/30" }`}
+                      className={`transition hover:bg-emerald-400/10 ${ index % 2 === 0 ? "bg-surface" : "bg-surface" }`}
                     >
                       <td className="px-6 py-5 align-middle text-center">
                         <div className="grid w-full grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center justify-self-end rounded-2xl border border-emerald-300/20 bg-emerald-400/15 text-emerald-200 shadow-lg shadow-emerald-950/20">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center justify-self-end rounded-[var(--radius-card)] border border-emerald-300/20 bg-emerald-400/15 text-emerald-200 shadow-lg shadow-emerald-950/20">
                             <UserRound className="h-6 w-6" />
                           </div>
                           <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
-                            <h3 className="m1-section-title w-full text-white">{customer.name || t("customers.records.unnamed")}</h3>
-                            <p className="w-full text-xs font-medium leading-tight text-zinc-500">{t("customers.records.id")} {customer.id}</p>
+                            <h3 className="m1-section-title w-full text-text">{customer.name || t("customers.records.unnamed")}</h3>
+                            <p className="w-full text-xs font-medium leading-tight text-text-muted">{t("customers.records.id")} {customer.id}</p>
                           </div>
                           <div aria-hidden="true" />
                         </div>
                       </td>
-                      <td className="px-6 py-5 align-middle text-sm font-semibold text-zinc-200">
+                      <td className="px-6 py-5 align-middle text-sm font-semibold text-text">
                         <span className="table-cell-stack w-full">
-                          <Phone className="table-cell-stack__icon h-4 w-4 text-zinc-500" />
+                          <Phone className="table-cell-stack__icon h-4 w-4 text-text-muted" />
                           {customer.phone || t("customers.records.notSet")}
                         </span>
                       </td>
-                      <td className="px-6 py-5 align-middle text-sm font-semibold text-zinc-200">
+                      <td className="px-6 py-5 align-middle text-sm font-semibold text-text">
                         <span className="table-cell-stack w-full">
-                          <Mail className="table-cell-stack__icon h-4 w-4 text-zinc-500" />
+                          <Mail className="table-cell-stack__icon h-4 w-4 text-text-muted" />
                           {customer.email || t("customers.records.notSet")}
                         </span>
                       </td>
-                      <td className="px-6 py-5 align-middle text-sm font-semibold text-zinc-300">
+                      <td className="px-6 py-5 align-middle text-sm font-semibold text-text-muted">
                         <span className="table-cell-stack w-full">
-                          <MapPin className="table-cell-stack__icon h-4 w-4 text-zinc-500" />
+                          <MapPin className="table-cell-stack__icon h-4 w-4 text-text-muted" />
                           {customer.address || t("customers.records.notSet")}
                         </span>
                       </td>
                       <td className="px-6 py-5 text-sm font-black text-primary">
-                        <span className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2">
+                        <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-primary/20 bg-primary/10 px-3 py-2">
                           <Sparkles className="h-4 w-4 text-primary" />
                           {Number(customer.loyalty_points ?? customer.available_points ?? 0).toLocaleString("ar-EG-u-nu-latn")}
                         </span>
                       </td>
                       <td className="px-6 py-5 text-sm font-black text-emerald-100">
-                        <span className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
+                        <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
                           <Wallet className="h-4 w-4 text-emerald-300" />
                           {Number(customer.wallet_balance ?? customer.balance ?? 0).toLocaleString("ar-EG-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
@@ -1161,12 +1161,12 @@ function Customers() {
                   <tr>
                     <td colSpan="7" className="px-6 py-14 text-center">
                       <div className="flex flex-col items-center gap-3">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-slate-900/70 text-zinc-300">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface text-text-muted">
                           <UsersRound className="h-7 w-7" />
                         </div>
                         <div>
-                          <h3 className="m1-section-title text-white">{t("customers.empty.title")}</h3>
-                          <p className="mt-1 text-sm text-zinc-500">{t("customers.empty.description")}</p>
+                          <h3 className="m1-section-title text-text">{t("customers.empty.title")}</h3>
+                          <p className="mt-1 text-sm text-text-muted">{t("customers.empty.description")}</p>
                         </div>
                       </div>
                     </td>
@@ -1177,7 +1177,7 @@ function Customers() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl">
+        <section className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/20 backdrop-blur-xl">
           <Pagination
             page={currentPage}
             pages={totalPages}
@@ -1243,17 +1243,17 @@ function CustomerImportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" dir="rtl">
-      <section className="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 text-white shadow-2xl shadow-black/50">
-        <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_38%),rgba(15,23,42,0.88)] p-6">
+      <section className="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-border bg-surface text-text shadow-2xl shadow-black/50">
+        <div className="border-b border-border bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_38%),rgba(15,23,42,0.88)] p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.22em] text-primary">{tt("customers.import.fromLegacy")}</div>
               <h2 className="m1-section-title mt-2">{tt("customers.import.customersAndPoints")}</h2>
-              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-text-muted">
                 {tt("customers.import.hint")}
               </p>
             </div>
-            <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10">
+            <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:bg-surface-hover">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -1261,11 +1261,11 @@ function CustomerImportModal({
 
         <div className="max-h-[78vh] overflow-y-auto p-6">
           <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-            <div className="rounded-3xl border border-primary/15 bg-primary/5 p-5">
-              <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-primary/30 bg-slate-900/70 p-6 text-center transition hover:border-primary/60 hover:bg-primary/10">
+            <div className="rounded-[var(--radius-card)] border border-primary/15 bg-primary/5 p-5">
+              <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-[var(--radius-card)] border border-dashed border-primary/30 bg-surface p-6 text-center transition hover:border-primary/60 hover:bg-primary/10">
                 <UploadCloud className="h-10 w-10 text-primary" />
                 <div className="mt-3 text-lg font-black">{file?.name || tt("customers.import.chooseFile")}</div>
-                <div className="mt-2 text-sm font-semibold text-slate-400">{tt("customers.import.fileHint")}</div>
+                <div className="mt-2 text-sm font-semibold text-text-muted">{tt("customers.import.fileHint")}</div>
                 <input
                   type="file"
                   accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -1274,14 +1274,14 @@ function CustomerImportModal({
                 />
               </label>
 
-              <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-300">
-                <div className="font-black text-white">{tt("customers.import.knownColumns")}</div>
+              <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-sm text-text-muted">
+                <div className="font-black text-text">{tt("customers.import.knownColumns")}</div>
                 <div className="mt-2 leading-7">
                   {tt("customers.import.columnList")}
                 </div>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+              <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
                 <label className="text-xs font-black uppercase tracking-[0.18em] text-primary" htmlFor="customer-import-points-mode">
                   {tt("customers.import.pointsMode")}
                 </label>
@@ -1294,13 +1294,13 @@ function CustomerImportModal({
                   <option value="replace">{tt("customers.import.replacePoints")}</option>
                   <option value="add">{tt("customers.import.addToPoints")}</option>
                 </select>
-                <p className="mt-2 text-xs font-semibold text-slate-500">
+                <p className="mt-2 text-xs font-semibold text-text-muted">
                   {tt("customers.import.pointsModeHint")}
                 </p>
               </div>
 
               {error ? (
-                <div className="mt-4 flex gap-3 rounded-2xl border border-rose-300/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-100">
+                <div className="mt-4 flex gap-3 rounded-[var(--radius-card)] border border-rose-300/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-100">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
                   <span>{error}</span>
                 </div>
@@ -1311,7 +1311,7 @@ function CustomerImportModal({
                   type="button"
                   onClick={onPreview}
                   disabled={loading || !file}
-                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-slate-950 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FileText className="h-4 w-4" />
                   {loading && !summary ? tt("customers.import.scanning") : tt("customers.import.preview")}
@@ -1319,7 +1319,7 @@ function CustomerImportModal({
                 <button
                   type="button"
                   onClick={onDownloadTemplate}
-                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-slate-950/70 px-5 text-sm font-black text-primary transition hover:bg-primary/10"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-surface px-5 text-sm font-black text-primary transition hover:bg-primary/10"
                 >
                   <Download className="h-4 w-4" />
                   {tt("customers.import.downloadTemplate")}
@@ -1337,7 +1337,7 @@ function CustomerImportModal({
                   type="button"
                   onClick={onDownloadErrors}
                   disabled={!hasInvalidRows}
-                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-5 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-5 text-sm font-black text-text transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Download className="h-4 w-4" />
                   {tt("customers.import.downloadErrors")}
@@ -1345,7 +1345,7 @@ function CustomerImportModal({
               </div>
             </div>
 
-            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{tt("customers.import.previewTitle")}</div>
@@ -1365,17 +1365,17 @@ function CustomerImportModal({
                   <ImportMetric label={tt("customers.import.pointsToImport")} value={Number(summary.total_points_imported ?? summary.total_points_to_import ?? 0).toLocaleString("ar-EG-u-nu-latn")} tone="white" />
                 </div>
               ) : (
-                <div className="mt-5 rounded-3xl border border-dashed border-white/10 bg-slate-950/60 p-8 text-center text-sm font-semibold text-slate-500">
+                <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-border bg-surface p-8 text-center text-sm font-semibold text-text-muted">
                   {tt("customers.import.previewPrompt")}
                 </div>
               )}
 
               {(preview?.invalid_rows || result?.invalid_rows)?.length ? (
-                <div className="mt-5 max-h-48 overflow-y-auto rounded-2xl border border-rose-300/15 bg-rose-500/5">
+                <div className="mt-5 max-h-48 overflow-y-auto rounded-[var(--radius-card)] border border-rose-300/15 bg-rose-500/5">
                   {(result?.invalid_rows || preview?.invalid_rows || []).slice(0, 8).map((row) => (
-                    <div key={`${row.row_number}-${row.phone}`} className="border-b border-white/10 px-4 py-3 text-sm last:border-b-0">
+                    <div key={`${row.row_number}-${row.phone}`} className="border-b border-border px-4 py-3 text-sm last:border-b-0">
                       <div className="font-black text-rose-100">صف {row.row_number}: {row.reason}</div>
-                      <div className="mt-1 text-slate-400">{row.name || "-"} | {row.phone || "-"}</div>
+                      <div className="mt-1 text-text-muted">{row.name || "-"} | {row.phone || "-"}</div>
                     </div>
                   ))}
                 </div>
@@ -1394,11 +1394,11 @@ function ImportMetric({ label, value, tone = "slate" }) {
     cyan: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
     rose: "border-rose-300/20 bg-rose-400/10 text-rose-100",
     amber: "border-amber-300/20 bg-amber-400/10 text-amber-100",
-    white: "border-white/10 bg-slate-950/70 text-white",
-    slate: "border-white/10 bg-slate-900/70 text-slate-100",
+    white: "border-border bg-surface text-text",
+    slate: "border-border bg-surface text-text",
   };
   return (
-    <div className={`rounded-2xl border p-4 ${tones[tone] || tones.slate}`}>
+    <div className={`rounded-[var(--radius-card)] border p-4 ${tones[tone] || tones.slate}`}>
       <div className="text-[11px] font-black uppercase tracking-[0.16em] opacity-70">{label}</div>
       <div className="mt-2 text-2xl font-black tabular-nums">{value ?? 0}</div>
     </div>
@@ -1424,15 +1424,15 @@ function CustomerProfileDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
-      <aside className="h-full w-full max-w-5xl overflow-y-auto border-l border-white/10 bg-slate-950 p-5 text-white shadow-2xl shadow-black/40">
-        <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
+      <aside className="h-full w-full max-w-5xl overflow-y-auto border-l border-border bg-surface p-5 text-text shadow-2xl shadow-black/40">
+        <div className="flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{tt("customers.wallet.auditTitle")}</div>
             <h2 className="m1-section-title mt-2">{customer?.name || tt("customers.statement.customer")}</h2>
-            <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-300">
-              <span className="inline-flex items-center gap-2"><Phone className="h-4 w-4 text-zinc-500" />{customer?.phone || "-"}</span>
+            <div className="mt-2 flex flex-wrap gap-3 text-sm text-text-muted">
+              <span className="inline-flex items-center gap-2"><Phone className="h-4 w-4 text-text-muted" />{customer?.phone || "-"}</span>
               <span className="inline-flex items-center gap-2"><Wallet className="h-4 w-4 text-emerald-300" />{formatMoney(walletBalance)}</span>
-              <span className="inline-flex items-center gap-2"><CalendarDays className="h-4 w-4 text-zinc-500" />{formatDateTime(metrics?.lastVisit || customer?.created_at)}</span>
+              <span className="inline-flex items-center gap-2"><CalendarDays className="h-4 w-4 text-text-muted" />{formatDateTime(metrics?.lastVisit || customer?.created_at)}</span>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1449,7 +1449,7 @@ function CustomerProfileDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10"
+              className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:bg-surface-hover"
               aria-label="Close"
             >
               <X className="h-5 w-5" />
@@ -1457,7 +1457,7 @@ function CustomerProfileDrawer({
           </div>
         </div>
 
-        <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
+        <section className="mt-5 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <Filter className="h-4 w-4" />
             {tt("customers.wallet.movementFilters")}
@@ -1475,7 +1475,7 @@ function CustomerProfileDrawer({
                       key={option.value || "all"}
                       type="button"
                       onClick={() => updateFilter("transaction_type", option.value)}
-                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? getStatementBadgeClass(option.tone) : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? getStatementBadgeClass(option.tone) : "border-border bg-surface-soft text-text hover:bg-surface-hover"}`}
                     >
                       <span>{tt(option.labelKey)}</span>
                     </button>
@@ -1489,7 +1489,7 @@ function CustomerProfileDrawer({
           </div>
         </section>
 
-        <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
+        <section className="mt-5 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <PlusCircle className="h-4 w-4" />
             {tt("customers.wallet.manualAdjustment")}
@@ -1505,15 +1505,15 @@ function CustomerProfileDrawer({
           </form>
         </section>
 
-        <section className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
-          <div className="border-b border-white/10 px-4 py-3 text-sm font-black text-white">{tt("customers.wallet.auditLog")}</div>
-          <div className="divide-y divide-white/10">
+        <section className="mt-5 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+          <div className="border-b border-border px-4 py-3 text-sm font-black text-text">{tt("customers.wallet.auditLog")}</div>
+          <div className="divide-y divide-border">
             {auditLoading ? (
               <div className="px-4 py-8 text-center text-sm font-bold text-emerald-300">{tt("customers.common.loading")}</div>
             ) : walletAudit.length ? (
               walletAudit.map((item) => <TimelineItem key={item.id} item={item} />)
             ) : (
-              <div className="px-4 py-8 text-center text-sm text-zinc-500">{tt("customers.wallet.noMatches")}</div>
+              <div className="px-4 py-8 text-center text-sm text-text-muted">{tt("customers.wallet.noMatches")}</div>
             )}
           </div>
         </section>
@@ -1525,7 +1525,7 @@ function CustomerProfileDrawer({
 function AuditInput({ label, value, onChange, type = "text" }) {
   return (
     <label className="block">
-      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</span>
       <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-2`} />
     </label>
   );
@@ -1540,20 +1540,20 @@ function TimelineItem({ item }) {
         <div className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${positive ? "bg-emerald-400/10 text-emerald-200" : "bg-rose-400/10 text-rose-200"}`}>
           {item.transaction_type_label || item.transaction_type}
         </div>
-        <div className="mt-2 text-xs text-zinc-500">{formatDateTime(item.created_at)}</div>
+        <div className="mt-2 text-xs text-text-muted">{formatDateTime(item.created_at)}</div>
       </div>
       <div className="min-w-0">
         <div className={`text-lg font-black ${positive ? "text-emerald-200" : "text-rose-200"}`}>{positive ? "+" : ""}{formatMoney(amount)}</div>
-        <div className="mt-2 grid gap-2 text-xs text-zinc-300 sm:grid-cols-3">
+        <div className="mt-2 grid gap-2 text-xs text-text-muted sm:grid-cols-3">
           <span>قبل: {formatMoney(item.before_balance)}</span>
           <span>بعد: {formatMoney(item.after_balance)}</span>
           <span>المرجع: {item.invoice_number || item.return_number || item.reference_id || "-"}</span>
         </div>
-        {item.notes ? <div className="mt-2 text-sm text-zinc-400">{item.notes}</div> : null}
+        {item.notes ? <div className="mt-2 text-sm text-text-muted">{item.notes}</div> : null}
       </div>
-      <div className="text-sm text-zinc-400 lg:text-left">
+      <div className="text-sm text-text-muted lg:text-left">
         <div>بواسطة: {item.created_by_name || item.created_by || "-"}</div>
-        <div className="mt-1 text-xs text-zinc-500">{item.reference_type || "-"}</div>
+        <div className="mt-1 text-xs text-text-muted">{item.reference_type || "-"}</div>
       </div>
     </article>
   );
@@ -1568,7 +1568,7 @@ function PreferenceChips({ title, items = [], tone = "emerald", ltr = false }) {
   };
   return (
     <div>
-      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{title}</div>
+      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{title}</div>
       <div className="mt-2 flex flex-wrap gap-2" dir={ltr ? "ltr" : "rtl"}>
         {items.map((item) => (
           <span key={item.value} className={`rounded-full border px-3 py-1.5 text-xs font-black ${tones[tone] || tones.emerald}`}>
@@ -1628,27 +1628,27 @@ function CustomerStatementDrawer({
   const preferredSizes = Array.isArray(purchasePreferences.sizeBreakdown) ? purchasePreferences.sizeBreakdown : [];
 
   return (
-    <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-4 py-6 text-white sm:px-6" dir="rtl">
-      <main className="mx-auto w-full max-w-[1500px] rounded-[2rem] border border-white/10 bg-slate-950/80 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
-        <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
+    <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-4 py-6 text-text sm:px-6" dir="rtl">
+      <main className="mx-auto w-full max-w-[1500px] rounded-[2rem] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
+        <div className="flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{tt("customers.statement.title")}</div>
             <h2 className="m1-section-title mt-2">{customerName}</h2>
-            <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2 xl:grid-cols-4">
-              <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2">
-                <Phone className="h-4 w-4 text-zinc-500" />
+            <div className="mt-3 grid gap-2 text-sm text-text-muted sm:grid-cols-2 xl:grid-cols-4">
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2">
+                <Phone className="h-4 w-4 text-text-muted" />
                 {customerPhone}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2">
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-emerald-400/20 bg-emerald-400/10 px-3 py-2">
                 <Wallet className="h-4 w-4 text-emerald-300" />
                 {formatMoney(currentBalance)}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2">
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-primary/20 bg-primary/10 px-3 py-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 {loyaltyPoints.toLocaleString("ar-EG-u-nu-latn")}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2">
-                <CalendarDays className="h-4 w-4 text-zinc-500" />
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2">
+                <CalendarDays className="h-4 w-4 text-text-muted" />
                 {formatDateTime(lastUpdated)}
               </span>
             </div>
@@ -1658,7 +1658,7 @@ function CustomerStatementDrawer({
               type="button"
               onClick={() => setPaymentDialogOpen(true)}
               disabled={currentBalance <= 0}
-              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 text-sm font-black text-text transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Wallet className="h-4 w-4" />
               {tt("customers.payment.record")}
@@ -1676,7 +1676,7 @@ function CustomerStatementDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-zinc-200 transition hover:bg-white/10"
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm font-black text-text transition hover:bg-surface-hover"
               aria-label={tt("customers.statement.backToCustomers")}
             >
               <ArrowRight className="h-5 w-5" />
@@ -1686,31 +1686,31 @@ function CustomerStatementDrawer({
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{tt("customers.statement.openingBalance")}</div>
-            <div className="mt-2 text-xl font-black text-white">{formatMoney(openingBalance)} ج.م</div>
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{tt("customers.statement.openingBalance")}</div>
+            <div className="mt-2 text-xl font-black text-text">{formatMoney(openingBalance)} ج.م</div>
           </div>
-          <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.08] p-4">
+          <div className="rounded-[var(--radius-card)] border border-amber-300/20 bg-amber-400/[0.08] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200/70">{tt("customers.statement.totalDue")}</div>
             <div className="mt-2 text-xl font-black text-amber-100">{formatMoney(totals.credit)} ج.م</div>
           </div>
-          <div className="rounded-2xl border border-primary/20 bg-primary/[0.08] p-4">
+          <div className="rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.08] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/70">{tt("customers.statement.totalPayments")}</div>
             <div className="mt-2 text-xl font-black text-primary">{formatMoney(totals.debit)} ج.م</div>
           </div>
-          <div className={`rounded-2xl border p-4 ${currentBalance > 0 ? "border-rose-300/25 bg-rose-400/[0.09]" : "border-emerald-300/20 bg-emerald-400/[0.08]"}`}>
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">{tt("customers.statement.outstanding")}</div>
+          <div className={`rounded-[var(--radius-card)] border p-4 ${currentBalance > 0 ? "border-rose-300/25 bg-rose-400/[0.09]" : "border-emerald-300/20 bg-emerald-400/[0.08]"}`}>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{tt("customers.statement.outstanding")}</div>
             <div className={`mt-2 text-2xl font-black ${currentBalance > 0 ? "text-rose-100" : "text-emerald-100"}`}>{formatMoney(currentBalance)} ج.م</div>
           </div>
         </div>
 
         {(preferredDepartments.length || preferredCategories.length || preferredSizes.length) ? (
-          <section className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.06] p-4">
+          <section className="mt-5 rounded-[var(--radius-card)] border border-emerald-300/20 bg-emerald-400/[0.06] p-4">
             <div className="flex items-center gap-2 text-sm font-black text-emerald-100">
               <Sparkles className="h-4 w-4" />
               {tt("customers.preferences.title")}
             </div>
-            <p className="mt-1 text-xs font-semibold text-zinc-400">{tt("customers.preferences.hint")}</p>
+            <p className="mt-1 text-xs font-semibold text-text-muted">{tt("customers.preferences.hint")}</p>
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <PreferenceChips title={tt("customers.preferences.sections")} items={preferredDepartments} tone="emerald" />
               <PreferenceChips title={tt("customers.preferences.categories")} items={preferredCategories} tone="cyan" />
@@ -1729,25 +1729,25 @@ function CustomerStatementDrawer({
               if (event.target === event.currentTarget) setPaymentDialogOpen(false);
             }}
           >
-            <section className="w-full max-w-3xl overflow-hidden rounded-3xl border border-emerald-300/25 bg-slate-950 shadow-2xl shadow-black/50">
-              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+            <section className="w-full max-w-3xl overflow-hidden rounded-[var(--radius-card)] border border-emerald-300/25 bg-surface shadow-2xl shadow-black/50">
+              <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
                 <div>
-                  <div id="customer-payment-dialog-title" className="flex items-center gap-2 text-lg font-black text-white">
+                  <div id="customer-payment-dialog-title" className="flex items-center gap-2 text-lg font-black text-text">
                     <Wallet className="h-5 w-5 text-emerald-300" />
                     {tt("customers.payment.title")}
                   </div>
-                  <p className="mt-1 text-sm font-semibold text-zinc-400">{tt("customers.payment.hint")}</p>
+                  <p className="mt-1 text-sm font-semibold text-text-muted">{tt("customers.payment.hint")}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setPaymentDialogOpen(false)}
-                  className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                  className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:bg-surface-hover hover:text-text"
                   aria-label={tt("customers.payment.close")}
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="mx-5 mt-5 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100">
+              <div className="mx-5 mt-5 rounded-[var(--radius-card)] border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100">
                 المستحق الآن: {formatMoney(currentBalance)} ج.م
               </div>
               <form onSubmit={submitPayment} className="grid gap-3 p-5 md:grid-cols-2">
@@ -1777,7 +1777,7 @@ function CustomerStatementDrawer({
                   <button
                     type="button"
                     onClick={() => setPaymentDialogOpen(false)}
-                    className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-5 text-sm font-black text-zinc-200 transition hover:bg-white/10"
+                    className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-5 text-sm font-black text-text transition hover:bg-surface-hover"
                   >
                     {tt("customers.common.cancel")}
                   </button>
@@ -1790,7 +1790,7 @@ function CustomerStatementDrawer({
           </div>
         ) : null}
 
-        <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
+        <section className="mt-5 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <Filter className="h-4 w-4" />
             {tt("customers.statement.filter")}
@@ -1811,7 +1811,7 @@ function CustomerStatementDrawer({
                     key={option.value || "all"}
                     type="button"
                     onClick={() => updateFilter("transaction_type", option.value)}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? getStatementBadgeClass(option.tone) : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? getStatementBadgeClass(option.tone) : "border-border bg-surface-soft text-text hover:bg-surface-hover"}`}
                   >
                     <span>{tt(option.labelKey)}</span>
                   </button>
@@ -1821,7 +1821,7 @@ function CustomerStatementDrawer({
           </div>
         </section>
 
-        <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
+        <section className="mt-5 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <PlusCircle className="h-4 w-4" />
             {tt("customers.statement.manualSettlement")}
@@ -1837,11 +1837,11 @@ function CustomerStatementDrawer({
           </form>
         </section>
 
-        <section className="mt-5 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
-          <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <section className="mt-5 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
+          <div className="flex flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="text-lg font-black text-white">{tt("customers.statement.tableTitle")}</div>
-              <div className="mt-1 text-xs font-semibold text-zinc-500">{statementRows.length.toLocaleString("ar-EG-u-nu-latn")} حركة مسجلة</div>
+              <div className="text-lg font-black text-text">{tt("customers.statement.tableTitle")}</div>
+              <div className="mt-1 text-xs font-semibold text-text-muted">{statementRows.length.toLocaleString("ar-EG-u-nu-latn")} حركة مسجلة</div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs font-black">
               <span className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-rose-100">
@@ -1855,26 +1855,26 @@ function CustomerStatementDrawer({
             </div>
           </div>
           {statementError ? (
-            <div className="m-4 rounded-2xl border border-rose-300/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-100">
+            <div className="m-4 rounded-[var(--radius-card)] border border-rose-300/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-100">
               {statementError}
             </div>
           ) : null}
           <div className="m1-table-container overflow-x-auto">
             <table className="m1-table m1-table--compact w-full min-w-[1180px] text-sm">
-              <thead className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-xl">
-                <tr className="border-b border-white/10 text-right text-xs font-black text-zinc-400">
-                  <th className="w-[150px] border-b border-l border-white/10 px-5 py-4 text-center">
+              <thead className="sticky top-0 z-10 bg-surface backdrop-blur-xl">
+                <tr className="border-b border-border text-right text-xs font-black text-text-muted">
+                  <th className="w-[150px] border-b border-l border-border px-5 py-4 text-center">
                     <span className="text-emerald-200">{tt("customers.statement.creditColumn")}</span>
-                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">{tt("customers.statement.paymentFromCustomer")}</span>
+                    <span className="mt-1 block text-[10px] font-semibold text-text-muted">{tt("customers.statement.paymentFromCustomer")}</span>
                   </th>
-                  <th className="w-[150px] border-b border-l border-white/10 px-5 py-4 text-center">
+                  <th className="w-[150px] border-b border-l border-border px-5 py-4 text-center">
                     <span className="text-rose-200">{tt("customers.statement.debitColumn")}</span>
-                    <span className="mt-1 block text-[10px] font-semibold text-zinc-600">{tt("customers.statement.owedByCustomer")}</span>
+                    <span className="mt-1 block text-[10px] font-semibold text-text-muted">{tt("customers.statement.owedByCustomer")}</span>
                   </th>
-                  <th className="w-[160px] border-b border-l border-white/10 px-5 py-4 text-center">{tt("customers.statement.balance")}</th>
-                  <th className="min-w-[330px] border-b border-l border-white/10 px-5 py-4">{tt("customers.statement.description")}</th>
-                  <th className="w-[150px] border-b border-l border-white/10 px-5 py-4">{tt("customers.statement.date")}</th>
-                  <th className="w-[210px] border-b border-white/10 px-5 py-4 text-center">{tt("customers.common.details")}</th>
+                  <th className="w-[160px] border-b border-l border-border px-5 py-4 text-center">{tt("customers.statement.balance")}</th>
+                  <th className="min-w-[330px] border-b border-l border-border px-5 py-4">{tt("customers.statement.description")}</th>
+                  <th className="w-[150px] border-b border-l border-border px-5 py-4">{tt("customers.statement.date")}</th>
+                  <th className="w-[210px] border-b border-border px-5 py-4 text-center">{tt("customers.common.details")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1897,43 +1897,43 @@ function CustomerStatementDrawer({
                     ].filter(Boolean).join(" • ");
                     const showMovementBadge = String(rowMeta.label || "").trim() !== String(rowLabel || "").trim();
                     return (
-                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="align-middle text-zinc-200 transition odd:bg-white/[0.018] hover:bg-emerald-400/[0.045]">
-                        <td className="border-b border-l border-white/10 px-5 py-4 text-center">
+                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="align-middle text-text transition odd:bg-surface-soft hover:bg-emerald-400/[0.045]">
+                        <td className="border-b border-l border-border px-5 py-4 text-center">
                           {credit ? (
-                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 font-black tabular-nums text-emerald-100">
+                            <span className="inline-flex min-w-[105px] justify-center rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 font-black tabular-nums text-emerald-100">
                               {credit}
                             </span>
-                          ) : <span className="text-zinc-700">—</span>}
+                          ) : <span className="text-text-muted">—</span>}
                         </td>
-                        <td className="border-b border-l border-white/10 px-5 py-4 text-center">
+                        <td className="border-b border-l border-border px-5 py-4 text-center">
                           {debit ? (
-                            <span className="inline-flex min-w-[105px] justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 font-black tabular-nums text-rose-100">
+                            <span className="inline-flex min-w-[105px] justify-center rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-400/10 px-3 py-2 font-black tabular-nums text-rose-100">
                               {debit}
                             </span>
-                          ) : <span className="text-zinc-700">—</span>}
+                          ) : <span className="text-text-muted">—</span>}
                         </td>
-                        <td className="border-b border-l border-white/10 px-5 py-4 text-center">
-                          <span className="inline-flex min-w-[115px] justify-center rounded-xl border border-primary/15 bg-primary/[0.07] px-3 py-2 font-black tabular-nums text-primary">
+                        <td className="border-b border-l border-border px-5 py-4 text-center">
+                          <span className="inline-flex min-w-[115px] justify-center rounded-[var(--radius-control)] border border-primary/15 bg-primary/[0.07] px-3 py-2 font-black tabular-nums text-primary">
                             {formatMoney(row.after_balance)}
                           </span>
                         </td>
-                        <td className="border-b border-l border-white/10 px-5 py-4">
+                        <td className="border-b border-l border-border px-5 py-4">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="font-black text-white">{rowLabel}</div>
+                            <div className="font-black text-text">{rowLabel}</div>
                             {showMovementBadge ? (
                               <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${getStatementBadgeClass(rowMeta.tone)}`}>
                                 {rowMeta.label}
                               </div>
                             ) : null}
                           </div>
-                          <div className="mt-2 inline-flex rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 font-black text-zinc-200" dir="ltr">{reference}</div>
-                          {rowDetails ? <div className="mt-2 max-w-xl text-xs leading-5 text-zinc-400">{rowDetails}</div> : null}
+                          <div className="mt-2 inline-flex rounded-[var(--radius-control)] border border-border bg-black/20 px-2.5 py-1 font-black text-text" dir="ltr">{reference}</div>
+                          {rowDetails ? <div className="mt-2 max-w-xl text-xs leading-5 text-text-muted">{rowDetails}</div> : null}
                         </td>
-                        <td className="border-b border-l border-white/10 px-5 py-4">
-                          <div className="whitespace-nowrap text-xs font-black text-zinc-200">{formatDateTime(row.created_at)}</div>
-                          <div className="mt-1 text-[10px] font-bold text-zinc-600">حركة #{index + 1}</div>
+                        <td className="border-b border-l border-border px-5 py-4">
+                          <div className="whitespace-nowrap text-xs font-black text-text">{formatDateTime(row.created_at)}</div>
+                          <div className="mt-1 text-[10px] font-bold text-text-muted">حركة #{index + 1}</div>
                         </td>
-                        <td className="border-b border-white/10 px-5 py-4">
+                        <td className="border-b border-border px-5 py-4">
                           {row.order_id ? (
                             <div className="grid gap-2">
                               <button
@@ -1953,7 +1953,7 @@ function CustomerStatementDrawer({
                                 {tt("customers.statement.editInvoice")}
                               </button>
                             </div>
-                          ) : <span className="block text-center text-xs font-semibold text-zinc-600">{tt("customers.statement.movementWithoutInvoice")}</span>}
+                          ) : <span className="block text-center text-xs font-semibold text-text-muted">{tt("customers.statement.movementWithoutInvoice")}</span>}
                           {row.personal_operation_type ? (
                             <div className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
                               {row.personal_operation_type_label || row.personal_operation_type}
@@ -1965,7 +1965,7 @@ function CustomerStatementDrawer({
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-3 py-10 text-center text-sm text-zinc-500">{tt("customers.statement.noCurrentMatches")}</td>
+                    <td colSpan="7" className="px-3 py-10 text-center text-sm text-text-muted">{tt("customers.statement.noCurrentMatches")}</td>
                   </tr>
                 )}
               </tbody>
@@ -1974,18 +1974,18 @@ function CustomerStatementDrawer({
         </section>
 
         <section className="mt-5 grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
+          <div className="rounded-[var(--radius-card)] border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200/70">{tt("customers.statement.totalPayments")}</div>
             <div className="mt-2 text-2xl font-black text-emerald-100">{formatMoney(totals.debit)}</div>
           </div>
-          <div className="rounded-2xl border border-rose-300/15 bg-rose-400/[0.06] p-4">
+          <div className="rounded-[var(--radius-card)] border border-rose-300/15 bg-rose-400/[0.06] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-200/70">{tt("customers.statement.totalDue")}</div>
             <div className="mt-2 text-2xl font-black text-rose-100">{formatMoney(totals.credit)}</div>
           </div>
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{tt("customers.statement.outstanding")}</div>
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{tt("customers.statement.outstanding")}</div>
             <div className="mt-2 text-2xl font-black text-primary">{formatMoney(finalBalance)}</div>
-            <div className="mt-1 text-xs font-semibold text-zinc-500">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>
+            <div className="mt-1 text-xs font-semibold text-text-muted">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>
           </div>
         </section>
       </main>
