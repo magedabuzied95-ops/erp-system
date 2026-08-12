@@ -76,6 +76,9 @@ export const ensureCorrectionMemorySchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
+      // Phase 11.2 — intent/use-case key for normalized STYLE retrieval (backfilled from metadata.detected_intent).
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS intent TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_reply_corrections_intent ON ai_reply_corrections (tenant_id, intent, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_reply_corrections_tenant_id ON ai_reply_corrections (tenant_id)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_reply_corrections_conversation_id ON ai_reply_corrections (tenant_id, conversation_id, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_reply_corrections_product_id ON ai_reply_corrections (tenant_id, product_id, created_at DESC)`);
@@ -100,6 +103,7 @@ export const createCorrection = async ({
   productId = null,
   channel = "web_chat",
   createdBy = null,
+  intent = "",
   metadata = {},
 } = {}) => {
   await ensureCorrectionMemorySchema();
@@ -126,9 +130,9 @@ export const createCorrection = async ({
     `
     INSERT INTO ai_reply_corrections (
       tenant_id, conversation_id, message_id, customer_question, ai_wrong_answer,
-      employee_correct_answer, correction_type, product_id, channel, created_by, metadata, updated_at
+      employee_correct_answer, correction_type, product_id, channel, created_by, intent, metadata, updated_at
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb, NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb, NOW())
     RETURNING *
     `,
     [
@@ -142,6 +146,7 @@ export const createCorrection = async ({
       Number.isFinite(Number(productId)) ? Number(productId) : null,
       text(channel || "web_chat"),
       Number.isFinite(Number(createdBy)) ? Number(createdBy) : null,
+      String(intent || metadata?.detected_intent || "").toUpperCase(),
       json(metadata || {}),
     ]
   );
@@ -261,3 +266,107 @@ export const buildReplyCorrectionContextSource = (corrections = [], query = "") 
     });
 
 export const normalizeCorrectionTypeValue = normalizeCorrectionType;
+
+// ============================ Phase 11.2 — bounded TENANT STYLE PROFILE ============================
+// Derives a SMALL, inspectable set of safe PRESENTATION preferences (brevity / omit-stock / emoji) from
+// repeated approved employee edits, per intent. It NEVER stores stock/price/product/policy VALUES — only
+// "how to phrase", learned only after >= threshold consistent examples. Conflicting edits disable a signal.
+
+// Digit-fold (Arabic→ASCII) + Arabic letter normalization so "٤٥" and "45" match, and wording varies freely.
+export const normalizeStyleText = (value = "") =>
+  String(value ?? "")
+    .replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
+    .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
+    .toLowerCase()
+    .replace(/[أإآٱ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه")
+    .replace(/[ًٌٍَُِّْـ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+// Style-relevant intents; anything else never contributes to (or is contaminated by) availability style.
+export const STYLE_INTENTS = new Set(["PRODUCT_AVAILABILITY", "ORDER_STATUS", "RETURN_POLICY", "RESTOCK_REQUEST", "PRICE_INQUIRY"]);
+const STYLE_THRESHOLD = 5;
+
+const countEmoji = (s = "") => (String(s).match(/\p{Extended_Pictographic}/gu) || []).length;
+// A customer-facing exact stock count, e.g. "(3 قطع)" / "3 قطعة" / "متبقي 2".
+const hasStockCount = (s = "") => /\d+\s*(?:قطع|قطعة|pcs?|pieces?)/i.test(normalizeStyleText(s)) || /متبقي\s*\d+|متبقى\s*\d+/.test(normalizeStyleText(s));
+
+// Deterministic per-edit signal votes from (original AI text → final employee text). Presentation only.
+export const correctionStyleSignals = (correction = {}) => {
+  const orig = text(correction.ai_wrong_answer);
+  const final = text(correction.employee_correct_answer);
+  if (!orig || !final) return null;
+  const signals = {};
+  signals.brevity = final.length <= orig.length * 0.6 ? "concise" : "normal";
+  const origStock = hasStockCount(orig);
+  const finalStock = hasStockCount(final);
+  if (origStock && !finalStock) signals.exact_stock_count = "usually_omit";
+  else if (finalStock) signals.exact_stock_count = "usually_include";
+  const e = countEmoji(final);
+  signals.emoji = e === 0 ? "none" : e <= 1 ? "light" : "heavy";
+  return signals;
+};
+
+const correctionIntent = (c = {}) =>
+  String(c.intent || c.metadata?.detected_intent || c.metadata?.intent || "").toUpperCase();
+
+// Build the bounded profile: { INTENT: { signal: { value, status: learning|stable|conflicting, evidence, total, threshold } } }
+export const deriveTenantStyleProfile = (corrections = [], { threshold = STYLE_THRESHOLD } = {}) => {
+  const tally = {};
+  for (const c of asArray(corrections)) {
+    const intent = correctionIntent(c);
+    if (!STYLE_INTENTS.has(intent)) continue;
+    const sig = correctionStyleSignals(c);
+    if (!sig) continue;
+    tally[intent] = tally[intent] || {};
+    for (const [signal, val] of Object.entries(sig)) {
+      tally[intent][signal] = tally[intent][signal] || {};
+      tally[intent][signal][val] = (tally[intent][signal][val] || 0) + 1;
+    }
+  }
+  const profile = {};
+  for (const [intent, signals] of Object.entries(tally)) {
+    profile[intent] = {};
+    for (const [signal, votes] of Object.entries(signals)) {
+      const ranked = Object.entries(votes).sort((a, b) => b[1] - a[1]);
+      const [topVal, topN] = ranked[0];
+      const total = ranked.reduce((s, [, n]) => s + n, 0);
+      // A meaningful minority (>= half of the top) means employees disagree → do not guess.
+      const conflicting = ranked.length > 1 && ranked[1][1] >= Math.ceil(topN / 2);
+      let status = "learning";
+      let value = null;
+      if (conflicting) status = "conflicting";
+      else if (topN >= threshold) { status = "stable"; value = topVal; }
+      profile[intent][signal] = { value, status, evidence: topN, total, threshold };
+    }
+  }
+  return profile;
+};
+
+// Normalized style-example retrieval: match primarily by INTENT (+ optional channel), digit/text normalized —
+// NOT by near-identical customer wording, and never by customer identity. Bounded LIMIT, no embeddings.
+export const fetchStyleCorrectionsByIntent = async ({ tenantId, intent, channel = "", limit = 50, afterTs = null } = {}) => {
+  await ensureCorrectionMemorySchema();
+  const wantIntent = String(intent || "").toUpperCase();
+  if (!STYLE_INTENTS.has(wantIntent)) return [];
+  const rows = (await db.query(
+    `SELECT * FROM ai_reply_corrections
+      WHERE tenant_id = $1
+        AND UPPER(COALESCE(intent, metadata->>'detected_intent', '')) = $2
+        AND ($3 = '' OR channel = $3)
+        AND ($4::timestamptz IS NULL OR created_at > $4::timestamptz)
+      ORDER BY id DESC LIMIT $5`,
+    [tenantId, wantIntent, String(channel || ""), afterTs || null, Math.max(1, Math.min(500, Number(limit) || 50))]
+  ).catch(() => ({ rows: [] }))).rows;
+  return rows.map(normalizeCorrectionRow);
+};
+
+// Load + derive the current tenant style profile (for generation + the AI Studio inspector). `resetAt` (from
+// tenant settings) lets an admin CLEAR the learned profile without deleting audit rows: only edits after it count.
+export const getTenantStyleProfile = async ({ tenantId, intent = null, channel = "", resetAt = null } = {}) => {
+  await ensureCorrectionMemorySchema();
+  const intents = intent ? [String(intent).toUpperCase()] : [...STYLE_INTENTS];
+  const all = [];
+  for (const it of intents) all.push(...(await fetchStyleCorrectionsByIntent({ tenantId, intent: it, channel, afterTs: resetAt })));
+  return { profile: deriveTenantStyleProfile(all), evidence_count: all.length };
+};

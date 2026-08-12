@@ -5168,7 +5168,9 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
           productId: (Number(req.body?.product_id) || null) || aiReplyDraft.metadata?.product_id || null,
           channel,
           createdBy: req.user?.id || null,
+          intent: aiReplyDraft.detected_intent || (aiReplyDraft.metadata?.grounding ? "PRODUCT_AVAILABILITY" : ""), // Phase 11.2 style key
           metadata: {
+            detected_intent: aiReplyDraft.detected_intent || "",
             source: "edited_ai_suggestion",
             original_suggestion_id: aiReplyDraft.id || "",
             original_suggestion_status: aiReplyDraft.status || "not_sent",

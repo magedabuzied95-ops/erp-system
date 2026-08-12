@@ -28,7 +28,7 @@ import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
-import { buildReplyCorrectionContextSource, searchRelevantCorrections, ensureCorrectionMemorySchema } from "./aiCorrectionMemoryService.js";
+import { buildReplyCorrectionContextSource, searchRelevantCorrections, ensureCorrectionMemorySchema, getTenantStyleProfile } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { getPhoneSearchVariants, phoneSqlDigits } from "../utils/phoneSearch.js";
 import {
@@ -780,6 +780,7 @@ export const getAiAgentSettings = async ({ tenantId }) => {
     egyptian_tone_level: stored.egyptian_tone_level ?? stored.tone_intensity ?? DEFAULT_SETTINGS.egyptian_tone_level,
     ai_assistant_global_enabled: stored.ai_assistant_global_enabled ?? DEFAULT_SETTINGS.ai_assistant_global_enabled,
     style_learning_enabled: stored.style_learning_enabled === true, // opt-in: only a literal true enables it
+    style_reset_at: stored.style_reset_at || null, // Phase 11.2: clears the learned style profile without deleting corrections
   };
 };
 
@@ -5714,7 +5715,11 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   try {
     const { applyInboxGroundingGate } = await import("./aiInboxGroundingGate.js");
     const currentTurn = currentCustomerTurnTexts(conversation.messages);
-    groundingResult = await applyInboxGroundingGate({ tenantId, message: lastMessage, contextMessages: currentTurn, reply, intent });
+    // Phase 11.2 — bounded style profile (only when the tenant opted in); shapes WORDING only, never the fact.
+    const tenantStyleProfile = styleLearningEnabled
+      ? (await getTenantStyleProfile({ tenantId, channel: conversation.channel || conversation.source || "", resetAt: aiSettings?.style_reset_at || null }).catch(() => ({ profile: null }))).profile
+      : null;
+    groundingResult = await applyInboxGroundingGate({ tenantId, message: lastMessage, contextMessages: currentTurn, styleProfile: tenantStyleProfile, reply, intent });
     if (groundingResult?.requestedIntent) effectiveIntent = groundingResult.requestedIntent;
     if (groundingResult?.changed) {
       reply.answer = groundingResult.answer;

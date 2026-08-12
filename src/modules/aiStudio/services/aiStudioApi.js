@@ -51,6 +51,9 @@ export const setInboundAiMode = (mode, headers) => api.post(`${BASE}/inbound-ai/
 export const getInboundIntakeStats = (headers) => api.get(`${BASE}/inbound-ai/stats`, opts(headers));
 // Phase 11 — per-channel assisted rollout.
 export const getInboundAiChannels = (headers) => api.get(`${BASE}/inbound-ai/channels`, opts(headers));
+export const getStyleProfile = (headers) => api.get(`${BASE}/inbound-ai/style-profile`, opts(headers));
+export const setStyleLearning = (enabled, headers) => api.post(`${BASE}/inbound-ai/style-learning`, { enabled }, { headers });
+export const resetStyleLearning = (headers) => api.post(`${BASE}/inbound-ai/style-learning/reset`, {}, { headers });
 export const setInboundAiChannel = (channel, enabled, headers) => api.post(`${BASE}/inbound-ai/channels`, { channel, enabled }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const getAutomationTimezone = (headers) => api.get(`${BASE}/automation/timezone`, opts(headers));
 export const setAutomationTimezone = (timezone, headers) => api.post(`${BASE}/automation/timezone`, { timezone }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
