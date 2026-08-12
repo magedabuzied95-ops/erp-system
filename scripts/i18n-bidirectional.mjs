@@ -30,7 +30,7 @@ const rows = [
     sum(arabic.bilingual) + sum(english.bilingual),
     `${arabic.bilingual.length + english.bilingual.length} files - renders correctly in both`,
   ],
-  ["4. business/data", sum(arabic.data), `${arabic.data.length} files - catalogue/persisted values`],
+  ["4. business/data", sum(arabic.data) + sum(english.seedData), `${arabic.data.length + english.seedData.length} files - catalogue/persisted/seed values`],
   ["5. customer/AI content", sum(english.aiContent), `${english.aiContent.length} files - AI Inbox/Studio surfaces`],
   ["6. technical/brand", sum(english.identifiers), `${english.identifiers.length} files - lookup identifiers`],
   ["7. print/export", sum(arabic.excluded) + sum(english.print), `${arabic.excluded.length + english.print.length} files`],

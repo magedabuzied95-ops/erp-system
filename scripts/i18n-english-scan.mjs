@@ -384,6 +384,37 @@ const printDocumentRanges = (text) => {
   return ranges;
 };
 
+/**
+ * Line ranges of SEED DATA factories - `const seedExpenses = () => [ ... ]`.
+ *
+ * The strings inside are the `title`/`category` of sample RECORDS (id, title,
+ * category, amount) used as the local-storage default before real data exists.
+ * They are business data a user can edit, not application chrome, so
+ * translating them would rewrite records rather than labels.
+ *
+ * Scoped to the function, not the file: real chrome elsewhere in the same
+ * module is still reported.
+ */
+const seedDataRanges = (text) => {
+  const lines = text.split("\n");
+  const ranges = [];
+  const OPEN = /^\s*(?:export\s+)?(?:const|function)\s+seed[A-Z]\w*\s*(?:=\s*\([^)]*\)\s*=>\s*)?[[{(]/;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!OPEN.test(lines[i])) continue;
+    let depth = 0;
+    let end = i;
+    for (let j = i; j < lines.length; j += 1) {
+      for (const ch of lines[j]) {
+        if (ch === "[" || ch === "{") depth += 1;
+        else if (ch === "]" || ch === "}") depth -= 1;
+      }
+      if (depth <= 0) { end = j; break; }
+    }
+    ranges.push([i + 1, end + 1]);
+  }
+  return ranges;
+};
+
 const inRanges = (line, ranges) => ranges.some(([from, to]) => line >= from && line <= to);
 
 export function scanEnglish() {
@@ -396,6 +427,7 @@ export function scanEnglish() {
     technical: [],
     debug: [],
     bilingual: [],
+    seedData: [],
   };
 
   for (const file of walkSourceFiles()) {
@@ -409,17 +441,20 @@ export function scanEnglish() {
     const bilingualRanges = [...bilingualEnglishRanges(text), ...bilingualTernaryRanges(text)];
     const devRanges = devGatedRanges(text);
     const printRanges = printDocumentRanges(text);
-    if (bilingualRanges.length || devRanges.length || printRanges.length) {
+    const seedRanges = seedDataRanges(text);
+    if (bilingualRanges.length || devRanges.length || printRanges.length || seedRanges.length) {
       const take = (ranges, exclude) =>
         hits.filter((hit) => inRanges(hit.line, ranges) && !exclude.some((r) => inRanges(hit.line, r)));
       const bilingualHits = take(bilingualRanges, []);
       const devHits = take(devRanges, [bilingualRanges]);
       const printHits = take(printRanges, [bilingualRanges, devRanges]);
+      const seedHits = take(seedRanges, [bilingualRanges, devRanges, printRanges]);
       if (bilingualHits.length) buckets.bilingual.push({ file: relative, total: bilingualHits.length, hits: bilingualHits });
       if (devHits.length) buckets.debug.push({ file: relative, total: devHits.length, hits: devHits });
       if (printHits.length) buckets.print.push({ file: relative, total: printHits.length, hits: printHits });
+      if (seedHits.length) buckets.seedData.push({ file: relative, total: seedHits.length, hits: seedHits });
       hits = hits.filter(
-        (hit) => ![bilingualRanges, devRanges, printRanges].some((r) => inRanges(hit.line, r))
+        (hit) => ![bilingualRanges, devRanges, printRanges, seedRanges].some((r) => inRanges(hit.line, r))
       );
       if (!hits.length) continue;
     }
