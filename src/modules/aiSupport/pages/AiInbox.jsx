@@ -7070,6 +7070,19 @@ export default function AiInbox() {
     } catch (err) {
       const failedMessage = err?.responseBody?.failed_message || null;
       const stale = err?.responseBody?.code === "STALE_SUGGESTION";
+      // STALE/SUPERSEDED is NOT a provider failure: the server blocked the send because a newer customer message
+      // arrived and never called the provider — nothing reached the customer. Present it distinctly (not a red
+      // "failed" bubble): drop the optimistic bubble entirely and tell the operator the old suggestion was
+      // cancelled. The fresh current suggestion (tied to the newer inbound) is surfaced by the existing
+      // source_message_id reconciliation — we never touch it here.
+      if (stale) {
+        setToast({ tone: "amber", text: "لم يتم الإرسال — وصلت رسالة أحدث من العميل. تم إلغاء الاقتراح القديم." });
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          messages: asArray(conversation.messages).filter((item) => item.id !== optimistic.id),
+        }));
+        return { ok: false, stale: true, superseded: true };
+      }
       const friendlyError = err?.responseBody?.delivery_error || err?.responseBody?.message || err?.message || "فشل الإرسال";
       setToast({ tone: "rose", text: friendlyError });
       setError(friendlyError);
