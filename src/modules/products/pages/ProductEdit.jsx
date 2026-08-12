@@ -3565,12 +3565,6 @@ function ProductEdit() {
         </div>
       ) : (
         <div className="space-y-4 pb-28 lg:pb-24">
-          <ProductActionBar
-            mode="edit"
-            saving={saving}
-            hasUnsavedChanges={hasUnsavedChanges}
-            onSave={handleSave}
-          />
           <section className={`m1-product-section ${SECTION_CARD_CLASSES} p-5`}>
             <div className="flex min-w-0 items-start gap-3">
               <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-control)] border ${SECTION_ICON_CLASSES}`}>
@@ -4933,6 +4927,12 @@ function ProductEdit() {
               })}
             </div>
           </section>
+          <ProductActionBar
+            mode="edit"
+            saving={saving}
+            hasUnsavedChanges={hasUnsavedChanges}
+            onSave={handleSave}
+          />
         </div>
       )}
       {colorPickTarget ? (
