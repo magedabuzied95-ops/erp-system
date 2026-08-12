@@ -795,6 +795,7 @@
   },
   "expenses": {
     "noEmployeeFound": "No employee found",
-    "confirmAction": "This will {{action}} expense #{{id}}."
+    "confirmAction": "This will {{action}} expense #{{id}}.",
+    "confirmActionTitle": "Confirm action"
   }
 }

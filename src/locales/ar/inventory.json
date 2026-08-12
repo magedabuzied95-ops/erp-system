@@ -117,7 +117,7 @@
     "default": "افتراضي",
     "oneSize": "مقاس موحد",
     "notAvailable": "غير متاح",
-    "unspecified": "ط؛ظٹط± ظ…ط­ط¯ط¯",
+    "unspecified": "غير محدد",
     "product": "منتج",
     "branch": "الفرع",
     "other": "أخرى",
@@ -247,7 +247,7 @@
   "fallbackToast": "جارٍ استخدام بيانات مخزون بديلة",
   "count": {
     "toasts": {
-      "modelAdded": "طھظ… ط¥ط¶ط§ظپط© ط§ظ„ظ…ظˆط¯ظٹظ„ ط¨ظ†ط¬ط§ط­",
+      "modelAdded": "تم إضافة الموديل بنجاح",
       "sessionStarted": "تم بدء جلسة الجرد",
       "draftSaved": "تم حفظ المسودة",
       "sessionOpened": "تم فتح جلسة الجرد",
@@ -261,7 +261,8 @@
       "modelAddedToCount": "تمت إضافة الموديل للجرد",
       "matchedSystem": "تمت مطابقة السيستم",
       "colorZeroed": "تم تصفير اللون",
-      "colorRemoved": "تم حذف اللون من العرض"
+      "colorRemoved": "تم حذف اللون من العرض",
+      "pieceCounted": "تم عد قطعة من مقاس {{size}}"
     },
     "status": {
       "draft": "مسودة",

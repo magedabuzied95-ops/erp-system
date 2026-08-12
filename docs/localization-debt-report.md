@@ -9,18 +9,18 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Summary
 
-- Source files scanned: 609
+- Source files scanned: 610
 - Files with debt: 180
-- Hardcoded Arabic UI strings: 1924
+- Hardcoded Arabic UI strings: 1923
 - Hardcoded English UI strings: 2402
-- Total hardcoded UI strings: 4326
+- Total hardcoded UI strings: 4325
 - Mixed-language files (both scripts hardcoded): 49
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 98 | 1358 | 1856 | 3214 | 33 |
+| main-erp | 98 | 1357 | 1856 | 3213 | 33 |
 | shared | 66 | 200 | 463 | 663 | 11 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -55,8 +55,8 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
-| src/modules/accounting/pages/Expenses.jsx | main-erp | 23 | 2 | 25 |
 | src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 13 | 12 | 25 |
+| src/modules/accounting/pages/Expenses.jsx | main-erp | 22 | 2 | 24 |
 | src/modules/aiSupport/pages/AiChannels.jsx | main-erp | 1 | 22 | 23 |
 | src/modules/marketing/components/PostEditorModal.jsx | shared | 6 | 15 | 21 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
@@ -2017,34 +2017,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 259 [jsx-text/en] Preset roles
 - 270 [attribute/en] Select a role to view its summary.
 
-### src/modules/accounting/pages/Expenses.jsx (main-erp — ar:23 en:2)
-
-- 116 [object-key/en] Operational expenses, approvals, recurring liabilities, employee advances, and profit impact.
-- 139 [object-key/en] Title
-- 184 [object-key/ar] المصاريف التشغيلية والاعتمادات والمصاريف المتكررة وسلف الموظفين وتأثير الربح.
-- 207 [object-key/ar] العنوان
-- 604 [notification/ar] مطلوب عنوان المصروف والمبلغ
-- 608 [inline-ternary/ar] language === "ar" ? "اختر الموظف لسلفة الموظف" : "Select an employee for the employee advance"
-- 666 [notification/ar] تم تنفيذ الإجراء
-- 675 [notification/ar] اسم الفئة مطلوب
-- 678 [notification/ar] تم إنشاء الفئة
-- 683 [notification/ar] الموظف والمبلغ مطلوبان
-- 686 [notification/ar] تم إنشاء سلفة الموظف
-- 697 [notification/ar] عنوان المصروف المتكرر والمبلغ مطلوبان
-- 700 [notification/ar] تم إنشاء المصروف المتكرر
-- 722 [object-key/ar] درج النقدية
-- 723 [object-key/ar] الحسابات
-- 724 [object-key/ar] القيود اليومية
-- 799 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
-- 855 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
-- 871 [jsx-text/ar] إلغاء
-- 907 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
-- 1234 [attribute/ar] تعديل
-- 1269 [attribute/ar] الاتجاه الشهري للمصروفات
-- 1277 [jsx-text/ar] لا توجد بيانات للاتجاه
-- 1348 [jsx-text/ar] تأكيد الإجراء
-- 1353 [jsx-text/ar] إلغاء
-
 ### src/modules/aiSupport/components/TranscriptMessage.jsx (shared — ar:13 en:12)
 
 - 192 [attribute/en] Pinned messages
@@ -2100,6 +2072,33 @@ of scope. The scanner is conservative and can still contain false positives.
 - 203 [inline-ternary/ar] isArabic ? "رفض" : "Reject"
 - 215 [inline-ternary/ar] isArabic ? "جاري تحميل الطلبات..." : "Loading requests..."
 - 216 [inline-ternary/ar] isArabic ? "لا توجد طلبات في هذا القسم." : "No requests in this section."
+
+### src/modules/accounting/pages/Expenses.jsx (main-erp — ar:22 en:2)
+
+- 116 [object-key/en] Operational expenses, approvals, recurring liabilities, employee advances, and profit impact.
+- 139 [object-key/en] Title
+- 184 [object-key/ar] المصاريف التشغيلية والاعتمادات والمصاريف المتكررة وسلف الموظفين وتأثير الربح.
+- 207 [object-key/ar] العنوان
+- 604 [notification/ar] مطلوب عنوان المصروف والمبلغ
+- 608 [inline-ternary/ar] language === "ar" ? "اختر الموظف لسلفة الموظف" : "Select an employee for the employee advance"
+- 666 [notification/ar] تم تنفيذ الإجراء
+- 675 [notification/ar] اسم الفئة مطلوب
+- 678 [notification/ar] تم إنشاء الفئة
+- 683 [notification/ar] الموظف والمبلغ مطلوبان
+- 686 [notification/ar] تم إنشاء سلفة الموظف
+- 697 [notification/ar] عنوان المصروف المتكرر والمبلغ مطلوبان
+- 700 [notification/ar] تم إنشاء المصروف المتكرر
+- 722 [object-key/ar] درج النقدية
+- 723 [object-key/ar] الحسابات
+- 724 [object-key/ar] القيود اليومية
+- 799 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
+- 855 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
+- 871 [jsx-text/ar] إلغاء
+- 907 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
+- 1234 [attribute/ar] تعديل
+- 1269 [attribute/ar] الاتجاه الشهري للمصروفات
+- 1277 [jsx-text/ar] لا توجد بيانات للاتجاه
+- 1353 [jsx-text/ar] إلغاء
 
 ### src/modules/loyalty/pages/LoyaltyDashboard.jsx (main-erp — ar:0 en:24)
 
@@ -2517,22 +2516,22 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/products/pages/ProductEdit.jsx (main-erp — ar:3 en:13)
 
-- 1164 [notification/en] Select a color target before regenerating the AI cover.
-- 1219 [notification/en] AI cover regeneration queued.
-- 1260 [notification/en] OpenAI unavailable. Local description fallback applied.
-- 2274 [notification/ar] المقاسات موجودة بالفعل
-- 2317 [notification/en] All sizes already exist
-- 2324 [notification/en] All sizes already exist
-- 2491 [notification/en] Vision AI unavailable. Text generator suggestions are ready.
-- 2564 [notification/en] Save the product first to generate AI Thermal Artwork per color
-- 2575 [notification/en] This color already has AI Thermal Artwork
-- 2577 [notification/en] This color already has an active thermal job
-- 2579 [notification/en] AI Thermal Artwork requires a color image
-- 2608 [notification/en] No eligible colors were queued
-- 2772 [notification/ar] المقاس موجود بالفعل في هذا اللون
-- 3024 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
-- 3814 [attribute/en] Open Graph preview
-- 3940 [attribute/en] Product cover
+- 1166 [notification/en] Select a color target before regenerating the AI cover.
+- 1221 [notification/en] AI cover regeneration queued.
+- 1262 [notification/en] OpenAI unavailable. Local description fallback applied.
+- 2276 [notification/ar] المقاسات موجودة بالفعل
+- 2319 [notification/en] All sizes already exist
+- 2326 [notification/en] All sizes already exist
+- 2493 [notification/en] Vision AI unavailable. Text generator suggestions are ready.
+- 2566 [notification/en] Save the product first to generate AI Thermal Artwork per color
+- 2577 [notification/en] This color already has AI Thermal Artwork
+- 2579 [notification/en] This color already has an active thermal job
+- 2581 [notification/en] AI Thermal Artwork requires a color image
+- 2610 [notification/en] No eligible colors were queued
+- 2774 [notification/ar] المقاس موجود بالفعل في هذا اللون
+- 3026 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
+- 3818 [attribute/en] Open Graph preview
+- 3944 [attribute/en] Product cover
 
 ### src/shared/lib/categorySeo.js (shared — ar:16 en:0)
 
@@ -2865,17 +2864,17 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/products/pages/CreateProduct.jsx (main-erp — ar:7 en:4)
 
-- 1520 [notification/ar] المقاسات موجودة بالفعل
-- 1568 [notification/en] All sizes already exist
-- 1574 [notification/en] All sizes already exist
-- 1702 [notification/ar] المقاس موجود بالفعل في هذا اللون
-- 1837 [notification/en] Vision AI unavailable. Text generator suggestions are ready.
-- 1882 [notification/en] Save the product first, then generate AI Thermal Artwork per color from Edit Product.
-- 2046 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
-- 2111 [notification/ar] تنبيه: يوجد أكثر من بلوك بنفس اسم اللون. سيُحفظ كل بلوك وصوره منفصلًا ولن يتم دمج الصور.
-- 3575 [attribute/ar] ترتيب اللون
-- 3585 [attribute/ar] تحريك لأعلى
-- 3598 [attribute/ar] تحريك لأسفل
+- 1521 [notification/ar] المقاسات موجودة بالفعل
+- 1569 [notification/en] All sizes already exist
+- 1575 [notification/en] All sizes already exist
+- 1703 [notification/ar] المقاس موجود بالفعل في هذا اللون
+- 1838 [notification/en] Vision AI unavailable. Text generator suggestions are ready.
+- 1883 [notification/en] Save the product first, then generate AI Thermal Artwork per color from Edit Product.
+- 2047 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
+- 2112 [notification/ar] تنبيه: يوجد أكثر من بلوك بنفس اسم اللون. سيُحفظ كل بلوك وصوره منفصلًا ولن يتم دمج الصور.
+- 3576 [attribute/ar] ترتيب اللون
+- 3586 [attribute/ar] تحريك لأعلى
+- 3599 [attribute/ar] تحريك لأسفل
 
 ### src/config/activityFeedConfig.js (main-erp — ar:0 en:10)
 

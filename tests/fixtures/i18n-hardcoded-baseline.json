@@ -1,9 +1,9 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1924,
+    "arabic": 1923,
     "english": 2402,
-    "total": 4326,
+    "total": 4325,
     "mixedFiles": 49
   },
   "files": {
@@ -88,9 +88,9 @@
       "total": 13
     },
     "src/modules/accounting/pages/Expenses.jsx": {
-      "arabic": 23,
+      "arabic": 22,
       "english": 2,
-      "total": 25
+      "total": 24
     },
     "src/modules/accounting/pages/FinancialReports.jsx": {
       "arabic": 140,

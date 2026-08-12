@@ -1076,7 +1076,7 @@ function InventoryCountPage() {
             notes: existingBeforeScan?.notes || "",
           });
           await loadSession(routeSessionId);
-          toast.success(`طھظ… ط¹ط¯ ظ‚ط·ط¹ط© ظ…ظ† ظ…ظ‚ط§ط³ ${saved?.variant_size || scanExactVariant.size || tt("inventory.labels.unspecified")}`);
+          toast.success(tt("inventory.count.toasts.pieceCounted", { size: saved?.variant_size || scanExactVariant.size || tt("inventory.labels.unspecified") }));
         } else {
           toast.success(tt("inventory.count.toasts.modelAdded"));
         }
@@ -1098,7 +1098,7 @@ function InventoryCountPage() {
         });
         setLookupQuery("");
         setLookupResults([]);
-        toast.success(`تم عد قطعة من مقاس ${saved?.variant_size || exactVariant.size || tt("inventory.labels.unspecified")}`);
+        toast.success(tt("inventory.count.toasts.pieceCounted", { size: saved?.variant_size || exactVariant.size || tt("inventory.labels.unspecified") }));
       } else if (results.length === 0) {
         toast.error(tt("inventory.scanner.barcodeNotFound"));
       }

@@ -261,7 +261,8 @@
       "modelAddedToCount": "Model added to the stock count",
       "matchedSystem": "Matched to the system",
       "colorZeroed": "Colour zeroed out",
-      "colorRemoved": "Colour removed from the view"
+      "colorRemoved": "Colour removed from the view",
+      "pieceCounted": "Counted one piece of size {{size}}"
     },
     "status": {
       "draft": "Draft",

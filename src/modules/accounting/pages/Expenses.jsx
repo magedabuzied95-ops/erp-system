@@ -1345,7 +1345,7 @@ function ConfirmModal({ action, copy, t, language, onClose, onConfirm }) {
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-amber-300/20 bg-amber-400/10 text-amber-100"><AlertTriangle className="h-5 w-5" /></span>
           <div>
-            <h3 className="m1-section-title text-white">تأكيد الإجراء</h3>
+            <h3 className="m1-section-title text-white">{t("accounting.expenses.confirmActionTitle")}</h3>
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.expenses.confirmAction", { action: statusLabel(t, language, action.type === "paid" ? "paid" : action.type), id: action.id })}</p>
           </div>
         </div>

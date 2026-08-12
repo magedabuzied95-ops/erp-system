@@ -795,6 +795,7 @@
   },
   "expenses": {
     "noEmployeeFound": "لا يوجد موظف",
-    "confirmAction": "سيؤدي هذا إلى {{action}} المصروف رقم #{{id}}."
+    "confirmAction": "سيؤدي هذا إلى {{action}} المصروف رقم #{{id}}.",
+    "confirmActionTitle": "تأكيد الإجراء"
   }
 }
