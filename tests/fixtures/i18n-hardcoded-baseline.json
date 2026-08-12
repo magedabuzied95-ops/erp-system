@@ -2,8 +2,8 @@
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
     "arabic": 1748,
-    "english": 1736,
-    "total": 3484,
+    "english": 1658,
+    "total": 3406,
     "mixedFiles": 42
   },
   "files": {
@@ -99,33 +99,13 @@
     },
     "src/modules/aiStudio/components/editor/ExecutionDrawer.jsx": {
       "arabic": 0,
-      "english": 11,
-      "total": 11
-    },
-    "src/modules/aiStudio/components/editor/NodeConfigPanel.jsx": {
-      "arabic": 0,
-      "english": 47,
-      "total": 47
+      "english": 4,
+      "total": 4
     },
     "src/modules/aiStudio/components/editor/nodeKit.js": {
       "arabic": 0,
       "english": 3,
       "total": 3
-    },
-    "src/modules/aiStudio/components/editor/NodePalette.jsx": {
-      "arabic": 0,
-      "english": 2,
-      "total": 2
-    },
-    "src/modules/aiStudio/components/editor/WorkflowCanvas.jsx": {
-      "arabic": 0,
-      "english": 2,
-      "total": 2
-    },
-    "src/modules/aiStudio/components/editor/WorkflowNode.jsx": {
-      "arabic": 0,
-      "english": 5,
-      "total": 5
     },
     "src/modules/aiStudio/lib/workflowGraph.js": {
       "arabic": 0,
@@ -146,11 +126,6 @@
       "arabic": 0,
       "english": 9,
       "total": 9
-    },
-    "src/modules/aiStudio/pages/AiStudioWorkflowEditor.jsx": {
-      "arabic": 0,
-      "english": 15,
-      "total": 15
     },
     "src/modules/aiStudio/pages/AiStudioWorkflows.jsx": {
       "arabic": 0,

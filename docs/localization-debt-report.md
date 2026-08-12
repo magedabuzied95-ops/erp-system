@@ -9,19 +9,19 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Summary
 
-- Source files scanned: 610
-- Files with debt: 161
+- Source files scanned: 611
+- Files with debt: 156
 - Hardcoded Arabic UI strings: 1748
-- Hardcoded English UI strings: 1736
-- Total hardcoded UI strings: 3484
+- Hardcoded English UI strings: 1658
+- Total hardcoded UI strings: 3406
 - Mixed-language files (both scripts hardcoded): 42
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 87 | 1192 | 1276 | 2468 | 28 |
-| shared | 58 | 190 | 377 | 567 | 9 |
+| main-erp | 86 | 1192 | 1261 | 2453 | 28 |
+| shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
@@ -910,50 +910,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 638 [jsx-text/en] Cancel
 - ... 9 more
 
-### src/modules/aiStudio/components/editor/NodeConfigPanel.jsx (shared — ar:0 en:47)
-
-- 51 [jsx-text/en] Fixed value
-- 52 [jsx-text/en] From step
-- 61 [jsx-text/en] Custom path…
-- 64 [jsx-text/en] Uses the output of a previous step at run time.
-- 94 [jsx-text/en] or drag one in from the palette.
-- 94 [jsx-text/en] Select a node to configure it,
-- 120 [jsx-text/en] Configure this node
-- 122 [attribute/en] Delete node
-- 136 [attribute/en] Node
-- 139 [jsx-text/en] Display name
-- 142 [jsx-text/en] The run ends when this node is reached.
-- 147 [attribute/en] Inputs
-- 152 [jsx-text/en] This action takes no inputs.
-- 158 [attribute/en] Condition
-- 161 [attribute/en] value to check, e.g. steps.search.output.products.length
-- 166 [attribute/en] compared to…
-- 169 [jsx-text/en] Then
-- 170 [jsx-text/en] True → green handle
-- 171 [jsx-text/en] False → red handle
-- 184 [attribute/en] Behavior
-- 185 [jsx-text/en] Trigger type
-- 195 [jsx-text/en] Automation is off — this trigger won’t fire until an admin enables workflow automation.
-- 218 [attribute/en] Behavior
-- 219 [jsx-text/en] Mode
-- 232 [jsx-text/en] Prompt (optional)
-- 240 [attribute/en] Behavior
-- 242 [jsx-text/en] Approval label
-- 243 [attribute/en] Human approval
-- 246 [jsx-text/en] pauses here
-- 246 [jsx-text/en] until an authorized user decides.
-- 247 [jsx-text/en] Approve → continue
-- 248 [jsx-text/en] Reject → stop
-- 249 [jsx-text/en] AI Studio → Approvals
-- 256 [attribute/en] Security / Risk
-- 271 [jsx-text/en] Read only — automatic runs allowed.
-- 277 [jsx-text/en] Automation permission
-- 282 [jsx-text/en] Revoke automatic permission
-- 284 [jsx-text/en] Grant automatic permission
-- 290 [jsx-text/en] Cannot be delegated — always routes to human approval.
-- 293 [jsx-text/en] Requires permission:
-- ... 7 more
-
 ### src/modules/analytics/lib/analyticsExport.js (main-erp — ar:0 en:47)
 
 - 222 [jsx-text/en] Selected filters
@@ -1172,39 +1128,39 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiStudio/lib/workflowGraph.js (main-erp — ar:0 en:33)
 
-- 15 [object-key/en] not equals
-- 16 [object-key/en] greater than
-- 17 [object-key/en] less than
-- 18 [object-key/en] greater or equal
-- 19 [object-key/en] less or equal
-- 22 [object-key/en] does not exist
-- 23 [object-key/en] is truthy
-- 24 [object-key/en] is falsy
-- 30 [object-key/en] Read-only analysis
-- 31 [object-key/en] LLM grounded
-- 33 [object-key/en] Manual
-- 37 [object-key/en] Trigger
-- 38 [object-key/en] Agent
-- 39 [object-key/en] Condition
-- 40 [object-key/en] Tool
-- 41 [object-key/en] Action
-- 42 [object-key/en] Approval
-- 43 [object-key/en] End
-- 74 [object-key/en] Human approval
-- 114 [object-key/en] Agent
-- 114 [object-key/en] Reuse the existing AI (read-only summary by default).
-- 118 [object-key/en] Condition
-- 119 [object-key/en] End
-- 119 [object-key/en] Terminate this path.
-- 122 [object-key/en] READ — safe, may auto-run
-- 125 [object-key/en] WRITE / SENSITIVE — side effects
-- 131 [object-key/en] Approval gate
-- 131 [object-key/en] Explicit human approval before continuing.
-- 244 [object-key/en] Version must be a positive integer.
-- 250 [object-key/en] A node is missing an id.
-- 261 [object-key/en] SENSITIVE tools always require approval.
-- 267 [object-key/en] Condition needs a left path and operator.
-- 269 [object-key/en] Condition source path is required.
+- 17 [object-key/en] not equals
+- 18 [object-key/en] greater than
+- 19 [object-key/en] less than
+- 20 [object-key/en] greater or equal
+- 21 [object-key/en] less or equal
+- 24 [object-key/en] does not exist
+- 25 [object-key/en] is truthy
+- 26 [object-key/en] is falsy
+- 32 [object-key/en] Read-only analysis
+- 33 [object-key/en] LLM grounded
+- 35 [object-key/en] Manual
+- 41 [object-key/en] Trigger
+- 42 [object-key/en] Agent
+- 43 [object-key/en] Condition
+- 44 [object-key/en] Tool
+- 45 [object-key/en] Action
+- 46 [object-key/en] Approval
+- 47 [object-key/en] End
+- 78 [object-key/en] Human approval
+- 121 [object-key/en] Agent
+- 121 [object-key/en] Reuse the existing AI (read-only summary by default).
+- 126 [object-key/en] Condition
+- 127 [object-key/en] End
+- 127 [object-key/en] Terminate this path.
+- 130 [object-key/en] READ — safe, may auto-run
+- 134 [object-key/en] WRITE / SENSITIVE — side effects
+- 140 [object-key/en] Approval gate
+- 140 [object-key/en] Explicit human approval before continuing.
+- 253 [object-key/en] Version must be a positive integer.
+- 259 [object-key/en] A node is missing an id.
+- 270 [object-key/en] SENSITIVE tools always require approval.
+- 276 [object-key/en] Condition needs a left path and operator.
+- 278 [object-key/en] Condition source path is required.
 
 ### src/pages/ThemeFoundation.jsx (main-erp — ar:19 en:14)
 
@@ -2015,24 +1971,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 63 [object-key/ar] أحذية رجالي مقاسات كبيرة 47 إلى 50 في مصر | M1 Store
 - 65 [object-key/ar] تسوق أحذية رجالي بمقاسات كبيرة من 47 إلى 50 والمتاحة فعليًا في مخزون M1 Store داخل مصر.
 
-### src/modules/aiStudio/pages/AiStudioWorkflowEditor.jsx (main-erp — ar:0 en:15)
-
-- 155 [object-key/en] Trigger input
-- 368 [dialog/en] You have unsaved changes. Leave the editor and discard them?
-- 418 [attribute/en] Workflow name
-- 436 [jsx-text/en] Errors (block save)
-- 442 [jsx-text/en] Warnings (advisory)
-- 459 [attribute/en] Enable/disable this workflow
-- 464 [attribute/en] Undo (Ctrl+Z)
-- 465 [attribute/en] Redo (Ctrl+Y)
-- 483 [jsx-text/en] Read-only — you need the settings.edit permission to change or run workflows.
-- 490 [attribute/en] Hide palette
-- 493 [attribute/en] Show palette
-- 525 [attribute/en] Hide config
-- 528 [attribute/en] Show config
-- 549 [jsx-text/en] Run panel
-- 552 [jsx-text/en] No issues.
-
 ### src/modules/employees/components/EmployeePortalAccessCard.jsx (employee-portal — ar:15 en:0)
 
 - 42 [inline-ternary/ar] isArabic ? "تم تحديث رابط البوابة." : "Employee portal link regenerated."
@@ -2238,20 +2176,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 47 [object-key/en] Avg Order Value
 - 55 [jsx-text/en] Command Center
 - 56 [jsx-text/en] Live operations cockpit
-
-### src/modules/aiStudio/components/editor/ExecutionDrawer.jsx (shared — ar:0 en:11)
-
-- 15 [jsx-text/en] Run / Test
-- 21 [jsx-text/en] Trigger input (JSON)
-- 26 [jsx-text/en] Runs on the server using real ERP data. Nothing executes in the browser.
-- 32 [jsx-text/en] Run #
-- 36 [jsx-text/en] Trigger:
-- 37 [jsx-text/en] Started:
-- 38 [jsx-text/en] Steps:
-- 39 [jsx-text/en] Total:
-- 55 [jsx-text/en] Steps
-- 69 [jsx-text/en] Input
-- 71 [jsx-text/en] Output
 
 ### src/modules/aiStudio/pages/AiStudioExecutions.jsx (main-erp — ar:0 en:11)
 
@@ -2609,14 +2533,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 98 [jsx-text/ar] المحادثة دي محتاجة تدخل بشري. اقتراحات الذكاء الاصطناعي للمراجعة فقط.
 - 99 [jsx-text/en] Keyword:
 
-### src/modules/aiStudio/components/editor/WorkflowNode.jsx (shared — ar:0 en:5)
-
-- 59 [jsx-text/en] Runs
-- 67 [jsx-text/en] Ends this path
-- 70 [jsx-text/en] No tool selected
-- 115 [jsx-text/en] True
-- 116 [jsx-text/en] False
-
 ### src/modules/aiSupport/components/AIInboxAnalysisPanel.jsx (shared — ar:0 en:5)
 
 - 22 [attribute/en] AI conversation intelligence
@@ -2680,6 +2596,13 @@ of scope. The scanner is conservative and can still contain false positives.
 - 106 [object-key/en] Delivery fee income
 - 115 [object-key/en] Consulting fee
 
+### src/modules/aiStudio/components/editor/ExecutionDrawer.jsx (shared — ar:0 en:4)
+
+- 38 [jsx-text/en] Trigger:
+- 39 [jsx-text/en] Started:
+- 40 [jsx-text/en] Steps:
+- 41 [jsx-text/en] Total:
+
 ### src/modules/aiSupport/components/socialAutomation/AutomationMessageTemplates.jsx (shared — ar:2 en:2)
 
 - 4 [jsx-text/en] Message Templates
@@ -2716,9 +2639,9 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiStudio/components/editor/nodeKit.js (shared — ar:0 en:3)
 
-- 32 [object-key/en] Read only
-- 33 [object-key/en] Writes data
-- 34 [object-key/en] Human approval required
+- 34 [object-key/en] Read only
+- 35 [object-key/en] Writes data
+- 36 [object-key/en] Human approval required
 
 ### src/modules/products/lib/barcodeLabels.js (main-erp — ar:2 en:1)
 
@@ -2774,16 +2697,6 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 34 [object-key/en] Softer premium feedback with calmer movement.
 - 44 [object-key/en] Reduced sound and compact visual feedback.
-
-### src/modules/aiStudio/components/editor/NodePalette.jsx (shared — ar:0 en:2)
-
-- 34 [attribute/en] Search nodes & tools…
-- 77 [jsx-text/en] No nodes match “
-
-### src/modules/aiStudio/components/editor/WorkflowCanvas.jsx (shared — ar:0 en:2)
-
-- 138 [jsx-text/en] Start with a Trigger
-- 139 [jsx-text/en] Every workflow begins with a trigger. Drag one from the left, or add a manual trigger to begin.
 
 ### src/modules/aiSupport/components/socialAutomation/AutomationTemplatePicker.jsx (shared — ar:0 en:2)
 

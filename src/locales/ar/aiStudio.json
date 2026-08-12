@@ -323,5 +323,225 @@
       "sent": "تم الإرسال",
       "rejected": "مرفوض"
     }
+  },
+  "workflow": {
+    "nodes": {
+      "trigger": "مُشغِّل",
+      "agent": "وكيل",
+      "condition": "شرط",
+      "tool": "أداة",
+      "action": "إجراء",
+      "approval": "موافقة",
+      "end": "نهاية"
+    },
+    "ops": {
+      "eq": "يساوي",
+      "neq": "لا يساوي",
+      "gt": "أكبر من",
+      "lt": "أصغر من",
+      "gte": "أكبر من أو يساوي",
+      "lte": "أصغر من أو يساوي",
+      "contains": "يحتوي على",
+      "exists": "موجود",
+      "not_exists": "غير موجود",
+      "truthy": "قيمته صحيحة",
+      "falsy": "قيمته خاطئة"
+    },
+    "agentModes": {
+      "read_only_analysis": "تحليل للقراءة فقط",
+      "llm_grounded": "نموذج لغوي مُقيَّد بالبيانات"
+    },
+    "triggerTypes": {
+      "manual": "يدوي"
+    },
+    "palette": {
+      "groups": {
+        "TRIGGERS": "المُشغِّلات",
+        "AGENTS": "الوكلاء",
+        "LOGIC": "المنطق",
+        "TOOLS": "الأدوات",
+        "ACTIONS": "الإجراءات",
+        "APPROVAL": "الموافقة"
+      },
+      "subtitles": {
+        "TOOLS": "قراءة — آمنة، قد تعمل تلقائيًا",
+        "ACTIONS": "كتابة / حسّاسة — لها آثار جانبية"
+      },
+      "items": {
+        "agent": {
+          "label": "وكيل",
+          "description": "أعد استخدام الذكاء الاصطناعي الحالي (ملخص للقراءة فقط افتراضيًا)."
+        },
+        "condition": {
+          "label": "شرط",
+          "description": "تفرّع بناءً على قيمة من خطوة سابقة (صح/خطأ)."
+        },
+        "end": {
+          "label": "نهاية",
+          "description": "إنهاء هذا المسار."
+        },
+        "approval": {
+          "label": "بوابة موافقة",
+          "description": "موافقة بشرية صريحة قبل المتابعة."
+        }
+      },
+      "disabledReason": "موصوفة فقط في هذه المرحلة — لا يمكن إضافتها كعقدة قابلة للتنفيذ.",
+      "search": "ابحث في العقد والأدوات…",
+      "noMatch": "لا توجد عقد مطابقة لـ “{{query}}”."
+    },
+    "validation": {
+      "versionPositive": "يجب أن يكون الإصدار عددًا صحيحًا موجبًا.",
+      "nodeMissingId": "إحدى العقد بدون معرّف.",
+      "duplicateNodeId": "معرّف عقدة مكرر: {{id}}",
+      "unknownNodeType": "نوع عقدة غير معروف \"{{type}}\".",
+      "selectTool": "اختر أداة لهذه العقدة.",
+      "unknownTool": "أداة غير معروفة \"{{tool}}\".",
+      "sensitiveNeedsApproval": "الأدوات الحسّاسة تتطلب موافقة دائمًا.",
+      "describedOnly": "\"{{tool}}\" موصوفة فقط ولا يمكن تنفيذها.",
+      "conditionNeedsLeftOp": "الشرط يحتاج مسارًا ومُعامِلًا.",
+      "conditionLeftRequired": "مسار مصدر الشرط مطلوب.",
+      "operatorUnsupported": "المُعامِل \"{{op}}\" غير مدعوم.",
+      "agentModeUnsupported": "وضع الوكيل \"{{mode}}\" غير مدعوم.",
+      "exactlyOneTrigger": "مسار العمل يحتاج مُشغِّلًا واحدًا بالضبط (وُجد {{count}}).",
+      "edgeFromUnknown": "يبدأ اتصال من عقدة غير معروفة \"{{from}}\".",
+      "edgeToUnknown": "يشير اتصال إلى عقدة غير معروفة \"{{to}}\".",
+      "branchLabel": "تسمية الفرع يجب أن تكون true/false.",
+      "notConnected": "“{{name}}” غير متصلة بالمُشغِّل ولن تعمل.",
+      "missingField": "“{{name}}” ينقصها {{field}}.",
+      "noTrueBranch": "“{{name}}” ليس لها فرع صح متصل.",
+      "noFalseBranch": "“{{name}}” ليس لها فرع خطأ متصل."
+    },
+    "risk": {
+      "READ": {
+        "label": "قراءة فقط",
+        "line": "لا تغييرات على النظام."
+      },
+      "WRITE": {
+        "label": "تكتب بيانات",
+        "line": "تغيّر بيانات النظام؛ قد تحتاج صلاحية."
+      },
+      "SENSITIVE": {
+        "label": "تتطلب موافقة بشرية",
+        "line": "إجراء حسّاس — لا يعمل أبدًا بدون موافقة."
+      },
+      "approvalRequiredShort": "تتطلب موافقة"
+    },
+    "config": {
+      "emptyState": "اختر عقدة لضبطها،",
+      "emptyStateHint": "أو اسحب واحدة من اللوحة.",
+      "subtitle": "اضبط هذه العقدة",
+      "deleteNode": "حذف العقدة",
+      "errors": "أخطاء",
+      "warnings": "تحذيرات",
+      "sections": {
+        "node": "العقدة",
+        "inputs": "المدخلات",
+        "condition": "الشرط",
+        "behavior": "السلوك",
+        "security": "الأمان / المخاطر",
+        "advanced": "متقدم"
+      },
+      "displayName": "الاسم المعروض",
+      "endNote": "ينتهي التشغيل عند الوصول لهذه العقدة.",
+      "noInputs": "هذا الإجراء لا يأخذ مدخلات.",
+      "fixedValue": "قيمة ثابتة",
+      "fromStep": "من خطوة",
+      "customPath": "مسار مخصص…",
+      "fullContextPath": "مسار السياق الكامل",
+      "fieldOptional": "حقل (اختياري)، مثل products.length",
+      "fromStepHint": "يستخدم مخرجات خطوة سابقة أثناء التشغيل.",
+      "enterValue": "أدخل قيمة",
+      "if": "إذا",
+      "leftPlaceholder": "القيمة المطلوب فحصها، مثل steps.search.output.products.length",
+      "comparedTo": "مقارنةً بـ…",
+      "then": "عندئذٍ",
+      "trueHandle": "صح ← المقبض الأخضر",
+      "falseHandle": "خطأ ← المقبض الأحمر",
+      "triggerType": "نوع المُشغِّل",
+      "comingLater": " — قريبًا",
+      "automationOffSuffix": " — الأتمتة متوقفة",
+      "automationOffNote": "الأتمتة متوقفة — لن يعمل هذا المُشغِّل حتى يفعّل المسؤول أتمتة مسارات العمل.",
+      "anyBlank": "أي قيمة (اتركه فارغًا)",
+      "mode": "الوضع",
+      "unavailableSuffix": " — غير متاح",
+      "readOnlyModeNote": "يحلّل سياق مسار العمل دون تغيير بيانات النظام.",
+      "unavailableOnServer": "غير متاح على هذا الخادم.",
+      "groundedModeNote": "يستخدم الذكاء الاصطناعي الحالي لإنتاج إجابة مبنية على البيانات.",
+      "promptOptional": "التوجيه (اختياري)",
+      "promptPlaceholder": "يعود لاستعلام المُشغِّل إذا تُرك فارغًا.",
+      "approvalLabel": "تسمية الموافقة",
+      "pausesBefore": "مسار العمل",
+      "pausesHere": "يتوقف هنا",
+      "pausesAfter": "حتى يقرر مستخدم مخوَّل.",
+      "approveContinue": "موافقة ← متابعة",
+      "rejectStop": "رفض ← إيقاف",
+      "decideInBefore": "اتخذ القرار من",
+      "decideInPlace": "استوديو الذكاء الاصطناعي ← الموافقات",
+      "decideInAfter": ". تُعاد مراجعة الصلاحيات عند الموافقة.",
+      "sensitiveBadge": "تتطلب موافقة بشرية — لا يمكن تفويضها",
+      "autoAllowed": "قراءة فقط — التشغيل التلقائي مسموح.",
+      "automationPermission": "صلاحية الأتمتة",
+      "granted": "ممنوحة — قد ينشئ التشغيل التلقائي متابعات داخلية. بدون مراسلة عملاء أو تعديل طلبات.",
+      "notGranted": "غير ممنوحة — لا يمكن للتشغيل التلقائي تنفيذ هذه الكتابة حتى يمنحها المسؤول.",
+      "revoke": "سحب صلاحية الأتمتة",
+      "grant": "منح صلاحية الأتمتة",
+      "cannotDelegate": "لا يمكن تفويضها — تُوجَّه دائمًا لموافقة بشرية.",
+      "requiresPermission": "تتطلب صلاحية:",
+      "hideTechnical": "إخفاء التفاصيل التقنية",
+      "showTechnical": "عرض التفاصيل التقنية",
+      "nodeId": "معرّف العقدة:",
+      "toolId": "معرّف الأداة:",
+      "editRawJson": "تحرير إعدادات JSON الخام",
+      "jsonMustBeObject": "يجب أن تكون الإعدادات كائن JSON.",
+      "invalidJson": "JSON غير صالح",
+      "cancel": "إلغاء",
+      "apply": "تطبيق",
+      "rawConfigNote": "إعدادات خام فقط — وليس كودًا. يتم التحقق قبل التطبيق، ويعيد الخادم التحقق عند الحفظ."
+    },
+    "node": {
+      "runs": "يعمل",
+      "manually": "يدويًا",
+      "llmGrounded": "نموذج لغوي مُقيَّد بالبيانات",
+      "readOnlyAnalysis": "تحليل للقراءة فقط",
+      "pausesForApproval": "يتوقف انتظارًا لموافقة بشرية",
+      "endsPath": "ينهي هذا المسار",
+      "noToolSelected": "لم يتم اختيار أداة",
+      "true": "صح",
+      "false": "خطأ"
+    },
+    "canvas": {
+      "emptyTitle": "ابدأ بمُشغِّل",
+      "emptyHint": "كل مسار عمل يبدأ بمُشغِّل. اسحب واحدًا من اليسار، أو أضف مُشغِّلًا يدويًا للبدء.",
+      "addManualTrigger": "إضافة مُشغِّل يدوي"
+    },
+    "drawer": {
+      "title": "تشغيل / اختبار",
+      "triggerInput": "مدخل المُشغِّل (JSON)",
+      "running": "جارٍ التشغيل…",
+      "runTest": "تشغيل اختبار",
+      "serverNote": "يعمل على الخادم باستخدام بيانات النظام الحقيقية. لا شيء يُنفَّذ في المتصفح.",
+      "run": "تشغيل رقم {{id}}",
+      "steps": "الخطوات",
+      "input": "المدخل",
+      "output": "المخرج"
+    },
+    "editor": {
+      "triggerInputOption": "مدخل المُشغِّل",
+      "stepOutput": "{{name}} ← المخرج",
+      "discardConfirm": "لديك تغييرات غير محفوظة. هل تغادر المحرر وتتجاهلها؟",
+      "workflowName": "اسم مسار العمل",
+      "errorsBlockSave": "أخطاء (تمنع الحفظ)",
+      "warningsAdvisory": "تحذيرات (إرشادية)",
+      "toggleEnabled": "تفعيل/تعطيل مسار العمل",
+      "undo": "تراجع (Ctrl+Z)",
+      "redo": "إعادة (Ctrl+Y)",
+      "readOnly": "للقراءة فقط — تحتاج صلاحية settings.edit لتعديل أو تشغيل مسارات العمل.",
+      "hidePalette": "إخفاء اللوحة",
+      "showPalette": "عرض اللوحة",
+      "hideConfig": "إخفاء الإعدادات",
+      "showConfig": "عرض الإعدادات",
+      "runPanel": "لوحة التشغيل",
+      "noIssues": "لا توجد مشكلات."
+    }
   }
 }

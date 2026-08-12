@@ -526,7 +526,18 @@ export function scanEnglish() {
        * lookup, so it is not chrome.
        */
       const line = sourceLines[hit.line - 1] || "";
-      if (hit.type === "object-key" && /\blabelKey\s*:/.test(line)) return false;
+      /*
+       * Generalized from `labelKey` to any sibling `<field>Key`. The Workflow
+       * Editor uses the same pairing for messageKey / subtitleKey /
+       * descriptionKey / disabledReasonKey / lineKey: workflowGraph.js is
+       * framework-free and cannot translate, so it emits the raw English AND
+       * the key, and the React layer resolves the key with the raw string as
+       * i18next's defaultValue. The literal is a fallback, not debt.
+       *
+       * Deliberately narrow: it requires a camelCase `somethingKey:` on the
+       * SAME line, so a bare `key:` or a lone literal is still reported.
+       */
+      if (hit.type === "object-key" && /\b[a-z]\w*Key\s*:/.test(line)) return false;
       return true;
     });
     if (!hits.length) continue;

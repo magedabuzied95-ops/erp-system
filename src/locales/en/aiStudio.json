@@ -323,5 +323,225 @@
       "sent": "Sent",
       "rejected": "Rejected"
     }
+  },
+  "workflow": {
+    "nodes": {
+      "trigger": "Trigger",
+      "agent": "Agent",
+      "condition": "Condition",
+      "tool": "Tool",
+      "action": "Action",
+      "approval": "Approval",
+      "end": "End"
+    },
+    "ops": {
+      "eq": "equals",
+      "neq": "not equals",
+      "gt": "greater than",
+      "lt": "less than",
+      "gte": "greater or equal",
+      "lte": "less or equal",
+      "contains": "contains",
+      "exists": "exists",
+      "not_exists": "does not exist",
+      "truthy": "is truthy",
+      "falsy": "is falsy"
+    },
+    "agentModes": {
+      "read_only_analysis": "Read-only analysis",
+      "llm_grounded": "LLM grounded"
+    },
+    "triggerTypes": {
+      "manual": "Manual"
+    },
+    "palette": {
+      "groups": {
+        "TRIGGERS": "TRIGGERS",
+        "AGENTS": "AGENTS",
+        "LOGIC": "LOGIC",
+        "TOOLS": "TOOLS",
+        "ACTIONS": "ACTIONS",
+        "APPROVAL": "APPROVAL"
+      },
+      "subtitles": {
+        "TOOLS": "READ — safe, may auto-run",
+        "ACTIONS": "WRITE / SENSITIVE — side effects"
+      },
+      "items": {
+        "agent": {
+          "label": "Agent",
+          "description": "Reuse the existing AI (read-only summary by default)."
+        },
+        "condition": {
+          "label": "Condition",
+          "description": "Branch on a value from earlier steps (true/false)."
+        },
+        "end": {
+          "label": "End",
+          "description": "Terminate this path."
+        },
+        "approval": {
+          "label": "Approval gate",
+          "description": "Explicit human approval before continuing."
+        }
+      },
+      "disabledReason": "Described-only in this phase — cannot be added as an executable node.",
+      "search": "Search nodes & tools…",
+      "noMatch": "No nodes match “{{query}}”."
+    },
+    "validation": {
+      "versionPositive": "Version must be a positive integer.",
+      "nodeMissingId": "A node is missing an id.",
+      "duplicateNodeId": "Duplicate node id: {{id}}",
+      "unknownNodeType": "Unknown node type \"{{type}}\".",
+      "selectTool": "Select a tool for this node.",
+      "unknownTool": "Unknown tool \"{{tool}}\".",
+      "sensitiveNeedsApproval": "SENSITIVE tools always require approval.",
+      "describedOnly": "\"{{tool}}\" is described-only and cannot be executed.",
+      "conditionNeedsLeftOp": "Condition needs a left path and operator.",
+      "conditionLeftRequired": "Condition source path is required.",
+      "operatorUnsupported": "Operator \"{{op}}\" is not supported.",
+      "agentModeUnsupported": "Agent mode \"{{mode}}\" is not supported.",
+      "exactlyOneTrigger": "A workflow needs exactly one trigger (found {{count}}).",
+      "edgeFromUnknown": "An edge starts from an unknown node \"{{from}}\".",
+      "edgeToUnknown": "An edge points to an unknown node \"{{to}}\".",
+      "branchLabel": "Branch label must be true/false.",
+      "notConnected": "“{{name}}” is not connected to the Trigger and will not run.",
+      "missingField": "“{{name}}” is missing {{field}}.",
+      "noTrueBranch": "“{{name}}” has no True branch connected.",
+      "noFalseBranch": "“{{name}}” has no False branch connected."
+    },
+    "risk": {
+      "READ": {
+        "label": "Read only",
+        "line": "No ERP changes."
+      },
+      "WRITE": {
+        "label": "Writes data",
+        "line": "Changes ERP data; may need permission."
+      },
+      "SENSITIVE": {
+        "label": "Human approval required",
+        "line": "Sensitive action — never runs without approval."
+      },
+      "approvalRequiredShort": "Approval required"
+    },
+    "config": {
+      "emptyState": "Select a node to configure it,",
+      "emptyStateHint": "or drag one in from the palette.",
+      "subtitle": "Configure this node",
+      "deleteNode": "Delete node",
+      "errors": "Errors",
+      "warnings": "Warnings",
+      "sections": {
+        "node": "Node",
+        "inputs": "Inputs",
+        "condition": "Condition",
+        "behavior": "Behavior",
+        "security": "Security / Risk",
+        "advanced": "Advanced"
+      },
+      "displayName": "Display name",
+      "endNote": "The run ends when this node is reached.",
+      "noInputs": "This action takes no inputs.",
+      "fixedValue": "Fixed value",
+      "fromStep": "From step",
+      "customPath": "Custom path…",
+      "fullContextPath": "full context path",
+      "fieldOptional": "field (optional), e.g. products.length",
+      "fromStepHint": "Uses the output of a previous step at run time.",
+      "enterValue": "Enter a value",
+      "if": "If",
+      "leftPlaceholder": "value to check, e.g. steps.search.output.products.length",
+      "comparedTo": "compared to…",
+      "then": "Then",
+      "trueHandle": "True → green handle",
+      "falseHandle": "False → red handle",
+      "triggerType": "Trigger type",
+      "comingLater": " — coming later",
+      "automationOffSuffix": " — automation off",
+      "automationOffNote": "Automation is off — this trigger won’t fire until an admin enables workflow automation.",
+      "anyBlank": "Any (leave blank)",
+      "mode": "Mode",
+      "unavailableSuffix": " — unavailable",
+      "readOnlyModeNote": "Analyzes workflow context without changing ERP data.",
+      "unavailableOnServer": "Unavailable on this server.",
+      "groundedModeNote": "Uses the existing AI to produce a grounded answer.",
+      "promptOptional": "Prompt (optional)",
+      "promptPlaceholder": "Falls back to the trigger query if empty.",
+      "approvalLabel": "Approval label",
+      "pausesBefore": "The workflow",
+      "pausesHere": "pauses here",
+      "pausesAfter": "until an authorized user decides.",
+      "approveContinue": "Approve → continue",
+      "rejectStop": "Reject → stop",
+      "decideInBefore": "Decide it in",
+      "decideInPlace": "AI Studio → Approvals",
+      "decideInAfter": ". RBAC is re-checked on approval.",
+      "sensitiveBadge": "Human approval required — cannot be delegated",
+      "autoAllowed": "Read only — automatic runs allowed.",
+      "automationPermission": "Automation permission",
+      "granted": "Granted — automatic runs may create internal follow-ups. No customer messaging or order changes.",
+      "notGranted": "Not granted — automatic runs cannot execute this write until an admin grants it.",
+      "revoke": "Revoke automatic permission",
+      "grant": "Grant automatic permission",
+      "cannotDelegate": "Cannot be delegated — always routes to human approval.",
+      "requiresPermission": "Requires permission:",
+      "hideTechnical": "Hide technical details",
+      "showTechnical": "Show technical details",
+      "nodeId": "Node ID:",
+      "toolId": "Tool ID:",
+      "editRawJson": "Edit raw config JSON",
+      "jsonMustBeObject": "Config must be a JSON object.",
+      "invalidJson": "Invalid JSON",
+      "cancel": "Cancel",
+      "apply": "Apply",
+      "rawConfigNote": "Raw config only — never code. Validated before applying; the server re-validates on save."
+    },
+    "node": {
+      "runs": "Runs",
+      "manually": "manually",
+      "llmGrounded": "LLM grounded",
+      "readOnlyAnalysis": "Read-only analysis",
+      "pausesForApproval": "Pauses for human approval",
+      "endsPath": "Ends this path",
+      "noToolSelected": "No tool selected",
+      "true": "True",
+      "false": "False"
+    },
+    "canvas": {
+      "emptyTitle": "Start with a Trigger",
+      "emptyHint": "Every workflow begins with a trigger. Drag one from the left, or add a manual trigger to begin.",
+      "addManualTrigger": "Add Manual Trigger"
+    },
+    "drawer": {
+      "title": "Run / Test",
+      "triggerInput": "Trigger input (JSON)",
+      "running": "Running…",
+      "runTest": "Run test",
+      "serverNote": "Runs on the server using real ERP data. Nothing executes in the browser.",
+      "run": "Run #{{id}}",
+      "steps": "Steps",
+      "input": "Input",
+      "output": "Output"
+    },
+    "editor": {
+      "triggerInputOption": "Trigger input",
+      "stepOutput": "{{name}} → output",
+      "discardConfirm": "You have unsaved changes. Leave the editor and discard them?",
+      "workflowName": "Workflow name",
+      "errorsBlockSave": "Errors (block save)",
+      "warningsAdvisory": "Warnings (advisory)",
+      "toggleEnabled": "Enable/disable this workflow",
+      "undo": "Undo (Ctrl+Z)",
+      "redo": "Redo (Ctrl+Y)",
+      "readOnly": "Read-only — you need the settings.edit permission to change or run workflows.",
+      "hidePalette": "Hide palette",
+      "showPalette": "Show palette",
+      "hideConfig": "Hide config",
+      "showConfig": "Show config",
+      "runPanel": "Run panel",
+      "noIssues": "No issues."
+    }
   }
 }
