@@ -2037,25 +2037,25 @@ of scope. The scanner is conservative and can still contain false positives.
 - 561 [object-key/ar] تم إنشاء الشحنة
 - 564 [object-key/ar] تم التسليم
 - 577 [object-key/ar] ألغاه العميل
-- 1090 [jsx-text/ar] البحث
-- 1101 [attribute/ar] حالة الطلب
-- 1102 [attribute/ar] حالة الدفع
-- 1103 [attribute/ar] المصدر
-- 1105 [jsx-text/ar] التاريخ
-- 1140 [inline-ternary/en] language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone"
-- 1141 [inline-ternary/en] language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items"
-- 1142 [inline-ternary/en] language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status"
-- 1144 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid"
-- 1145 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u0633\u062a\u062d\u0642" : "Due"
-- 1146 [inline-ternary/en] language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller"
-- 1428 [attribute/ar] البائع
-- 1429 [attribute/ar] الدفع
-- 1431 [attribute/ar] الشحن
-- 1433 [attribute/ar] دفع تعديل الفاتورة
-- 1524 [attribute/ar] البائع
-- 1525 [attribute/ar] الدفع
-- 1528 [attribute/ar] دفع تعديل الفاتورة
-- 1593 [inline-ternary/en] locale = isArabicLanguage(language) ? "ar-EG" : "en-US"
+- 1092 [jsx-text/ar] البحث
+- 1103 [attribute/ar] حالة الطلب
+- 1104 [attribute/ar] حالة الدفع
+- 1105 [attribute/ar] المصدر
+- 1107 [jsx-text/ar] التاريخ
+- 1142 [inline-ternary/en] language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone"
+- 1143 [inline-ternary/en] language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items"
+- 1144 [inline-ternary/en] language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status"
+- 1146 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid"
+- 1147 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u0633\u062a\u062d\u0642" : "Due"
+- 1148 [inline-ternary/en] language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller"
+- 1430 [attribute/ar] البائع
+- 1431 [attribute/ar] الدفع
+- 1433 [attribute/ar] الشحن
+- 1435 [attribute/ar] دفع تعديل الفاتورة
+- 1526 [attribute/ar] البائع
+- 1527 [attribute/ar] الدفع
+- 1530 [attribute/ar] دفع تعديل الفاتورة
+- 1595 [inline-ternary/en] locale = isArabicLanguage(language) ? "ar-EG" : "en-US"
 
 ### src/modules/aiStudio/lib/workflowGraph.js (main-erp — ar:0 en:33)
 

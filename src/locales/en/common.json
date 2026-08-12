@@ -769,7 +769,17 @@
     },
     "executiveOverview": "Executive Overview",
     "salesIntelligence": "Sales & Profit Intelligence",
-    "inventoryIntelligence": "Inventory Intelligence"
+    "inventoryIntelligence": "Inventory Intelligence",
+    "pos": "POS",
+    "posExpenses": "POS Expenses",
+    "moneyAccounts": "Money Accounts",
+    "moneyTransactions": "Money Transactions",
+    "moneyTransfers": "Money Transfers",
+    "treasuryDashboard": "Treasury Dashboard",
+    "employeeAdvances": "Employee Advances",
+    "attendance": "Attendance",
+    "staffTasks": "Staff Tasks",
+    "aiStudio": "AI Studio"
   },
   "language": {
     "label": "Language",

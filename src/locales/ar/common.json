@@ -769,7 +769,17 @@
     "searchModules": "بحث في الوحدات...",
     "executiveOverview": "النظرة التنفيذية",
     "salesIntelligence": "تحليل المبيعات والأرباح",
-    "inventoryIntelligence": "ذكاء المخزون"
+    "inventoryIntelligence": "ذكاء المخزون",
+    "pos": "نقطة البيع",
+    "posExpenses": "مصاريف نقطة البيع",
+    "moneyAccounts": "حسابات الأموال",
+    "moneyTransactions": "حركات الأموال",
+    "moneyTransfers": "تحويلات الأموال",
+    "treasuryDashboard": "لوحة الخزينة",
+    "employeeAdvances": "سلف الموظفين",
+    "attendance": "الحضور",
+    "staffTasks": "مهام الموظفين",
+    "aiStudio": "استوديو الذكاء الاصطناعي"
   },
   "language": {
     "label": "اللغة",
