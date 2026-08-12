@@ -4548,11 +4548,14 @@
   .dashboard-premium .recharts-cartesian-axis-tick-line { stroke: var(--border); }
   .dashboard-premium .recharts-text { fill: var(--muted); }
 
-  /* Shape, not colour: the pill control silhouette the Dashboard already had
-     and which the user asked to keep. !important is pre-existing and is what
-     lets a component-layer rule beat a utility-layer radius. */
-  .dashboard-premium button,
-  .dashboard-premium a[class*="inline-flex"] { border-radius: 9999px !important; }
+  /* The blanket pill rule is retired.
+     It was `.dashboard-premium button, .dashboard-premium a[class*="inline-flex"]
+     { border-radius: 9999px !important }` — every button and inline-flex link on
+     the Dashboard, generic or not, forced to a full pill, and the last visual
+     !important on this screen. The radius contract now comes from the canonical
+     tokens at the call site: --radius-card for panels, --radius-control for
+     controls. Pills survive only where the component is semantically a pill
+     (status badges, counters, tags), which those call sites express themselves. */
 
   [dir="rtl"].dashboard-premium .recharts-wrapper,
   [dir="rtl"].dashboard-premium .recharts-surface { direction: ltr; }

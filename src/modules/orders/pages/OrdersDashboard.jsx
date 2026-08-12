@@ -907,7 +907,7 @@ function OrdersDashboard() {
     <OrdersShell header={null}>
       <div className="m1-orders-page">
       {error ? (
-        <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+        <div className="rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
           {error}
         </div>
@@ -924,7 +924,7 @@ function OrdersDashboard() {
       <WorkspaceTabs t={t} value={workspace} onChange={(value) => { setWorkspace(value); setPage(1); }} counts={{ table: orders.length, verification: verificationOrders.length, fulfillment: fulfillmentOrders.length, returns: returnsOrders.length }} />
 
       <div className={`grid min-w-0 gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : ""}`}>
-        <main className="min-w-0 rounded-2xl border border-border bg-surface p-3 shadow-2xl shadow-black/10">
+        <main className="min-w-0 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-2xl shadow-black/10">
           <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <BulkActions
               t={t}
@@ -1066,7 +1066,11 @@ function BulkActions({ t, selectedCount, onConfirm, onShip, onPrint, onExport, o
 }
 
 function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) {
-  const toneClass = tone === "rose" ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-border bg-surface-soft text-text";
+  // The danger tone was a fixed rose-200 tint: a dark-theme value measuring 1.41
+  // against a light card, so the label was effectively invisible. Same semantic,
+  // expressed through the danger token so it resolves per theme and reaches 4.57
+  // (AA) in light. The status palette itself is unchanged.
+  const toneClass = tone === "rose" ? "border-danger/30 bg-surface text-danger" : "border-border bg-surface-soft text-text";
   return (
     <button
       type="button"
@@ -1133,7 +1137,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
     <div className="mt-3 w-full min-w-0 overflow-x-auto overflow-y-visible pb-2">
       <div className="min-w-[1480px] overflow-visible">
         <div
-          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] rounded-xl border border-border bg-surface px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-text-muted shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-text-muted shadow-lg shadow-black/20 backdrop-blur-xl"
           dir={tableDir}
         >
           <div className="flex items-center justify-center py-1 text-center">{t("orders.table.actions")}</div>
@@ -1244,7 +1248,7 @@ function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, pe
         <>
           <div
             ref={menuRef}
-            className="fixed z-[9999] w-64 rounded-2xl border border-border bg-surface p-2 text-text shadow-2xl shadow-black/40 backdrop-blur-xl"
+            className="fixed z-[9999] w-64 rounded-[var(--radius-card)] border border-border bg-surface p-2 text-text shadow-2xl shadow-black/40 backdrop-blur-xl"
             style={{ top: menuPosition.top, left: menuPosition.left }}
           >
             <MenuButton icon={<Eye className="h-4 w-4" />} label={t("orders.actionsMenu.viewDetails")} onClick={() => runAction(() => openOrder(order))} />
@@ -1307,7 +1311,7 @@ function VerificationQueue({ t, orders, updateShippingPayment, openOrder }) {
         const proofUrl = resolveShippingProofImageUrl(rawProof);
         const proofInvalid = Boolean(rawProof) && isInvalidShippingProofUrl(rawProof);
         return (
-          <div key={order.id} className="grid gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-3 shadow-xl shadow-amber-950/10 md:grid-cols-[7rem_minmax(0,1fr)]">
+          <div key={order.id} className="grid gap-3 rounded-[var(--radius-card)] border border-amber-400/25 bg-amber-400/10 p-3 shadow-xl shadow-amber-950/10 md:grid-cols-[7rem_minmax(0,1fr)]">
             <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
               {proofInvalid ? <div className="grid h-28 place-items-center px-3 text-center text-xs font-semibold text-rose-200">{t("orders.payment.invalidProof")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="h-28 w-full object-cover" /> : <div className="grid h-28 place-items-center text-xs font-semibold text-text-muted">{t("orders.payment.noProof")}</div>}
             </div>
@@ -1363,7 +1367,7 @@ function FulfillmentBoard({ t, orders, openOrder }) {
           </div>
           <div className="mt-3 space-y-2">
             {column.orders.map((order) => <CompactOrderCard key={order.id} t={t} order={order} onClick={() => openOrder(order)} />)}
-            {!column.orders.length ? <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs font-semibold text-text-muted">{t("orders.empty.empty")}</div> : null}
+            {!column.orders.length ? <div className="rounded-[var(--radius-control)] border border-dashed border-border p-4 text-center text-xs font-semibold text-text-muted">{t("orders.empty.empty")}</div> : null}
           </div>
         </div>
       ))}
@@ -1445,7 +1449,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
             {previewItems.length ? previewItems.map((item) => (
               <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                 {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-10 w-10 shrink-0 rounded-lg border border-border object-cover" />
+                  <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-10 w-10 shrink-0 rounded-[var(--radius-control)] border border-border object-cover" />
                 ) : null}
                 <div className="min-w-0">
                   <div className="truncate text-sm font-black">{item.product_name || item.name || t("orders.fallback.item")}</div>
@@ -1460,7 +1464,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
           </Section>
 
           <Section title={t("orders.payment.proof")}>
-            {proofInvalid ? <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100">{t("orders.payment.invalidProofUrl")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="max-h-64 w-full rounded-xl border border-border object-cover" /> : <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm text-text-muted">{t("orders.payment.noProofUploaded")}</div>}
+            {proofInvalid ? <div className="rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100">{t("orders.payment.invalidProofUrl")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="max-h-64 w-full rounded-[var(--radius-control)] border border-border object-cover" /> : <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm text-text-muted">{t("orders.payment.noProofUploaded")}</div>}
           </Section>
 
           <Section title={t("orders.drawer.notes")}>
@@ -1505,7 +1509,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
   };
 
   return (
-    <section className="sticky top-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-surface text-text shadow-2xl shadow-black/20">
+    <section className="sticky top-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface text-text shadow-2xl shadow-black/20">
       <header className="flex items-start justify-between gap-3 border-b border-border p-3">
         <div className="min-w-0">
           <OrderCode order={order} />
@@ -1536,7 +1540,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
           {previewItems.length ? previewItems.map((item) => (
             <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-2.5">
               {item.imageUrl ? (
-                <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover" />
+                <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-9 w-9 shrink-0 rounded-[var(--radius-control)] border border-border object-cover" />
               ) : null}
               <div className="min-w-0">
                 <div className="truncate text-sm font-black">{item.product_name || item.name || t("orders.fallback.item")}</div>
@@ -1841,7 +1845,7 @@ function EmptyState({ icon: Icon, title, text: body, compact = false }) {
 
 function QuickFilterButton({ active, onClick, label }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${active ? "border-primary/30 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"}`}>
+    <button type="button" onClick={onClick} className={`rounded-[var(--radius-control)] border px-2.5 py-1 text-xs font-bold transition ${active ? "border-primary/30 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"}`}>
       {label}
     </button>
   );
@@ -1941,7 +1945,7 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={t("orders.edit.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-      <form onSubmit={submit} className="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-surface text-text shadow-2xl">
+      <form onSubmit={submit} className="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface text-text shadow-2xl">
         <header className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{t("orders.edit.title")}</div>
@@ -2039,9 +2043,9 @@ function CancelOrderModal({ t, order, cancelling, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={t("orders.cancel.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/25 bg-surface p-5 text-text shadow-2xl">
+      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-[var(--radius-card)] border border-rose-400/25 bg-surface p-5 text-text shadow-2xl">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><RotateCcw className="h-5 w-5" /></div>
+          <div className="rounded-[var(--radius-control)] bg-rose-500/15 p-2 text-rose-200"><RotateCcw className="h-5 w-5" /></div>
           <div className="min-w-0">
             <h2 className="m1-section-title">{t("orders.cancel.title")}</h2>
             <p className="mt-2 text-sm leading-6 text-text-muted">{t("orders.cancel.description")}</p>
@@ -2074,9 +2078,9 @@ function ArchiveOrderModal({ t, order, archiving, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={t("orders.archive.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute left-1/2 top-1/2 w-[min(30rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-surface p-5 text-text shadow-2xl">
+      <section className="absolute left-1/2 top-1/2 w-[min(30rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-text shadow-2xl">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-surface-soft p-2 text-text"><Trash2 className="h-5 w-5" /></div>
+          <div className="rounded-[var(--radius-control)] bg-surface-soft p-2 text-text"><Trash2 className="h-5 w-5" /></div>
           <div className="min-w-0">
             <h2 className="m1-section-title">{t("orders.archive.title")}</h2>
             <p className="mt-2 text-sm leading-6 text-text-muted">{t("orders.archive.description", { order: orderCode(order) })}</p>
@@ -2097,9 +2101,9 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={tt(t, "orders.permanentDelete.closeModal", "إغلاق نافذة الحذف النهائي")} className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/35 bg-surface p-5 text-text shadow-2xl shadow-rose-950/20">
+      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-[var(--radius-card)] border border-rose-400/35 bg-surface p-5 text-text shadow-2xl shadow-rose-950/20">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
+          <div className="rounded-[var(--radius-control)] bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
           <div className="min-w-0">
             <h2 className="m1-section-title">{tt(t, "orders.permanentDelete.title", "حذف نهائي")}</h2>
             <p className="mt-2 text-sm leading-6 text-rose-100">

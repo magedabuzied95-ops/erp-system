@@ -539,7 +539,7 @@ function Dashboard() {
   const activeSecondary = secondarySections.find((section) => section.id === activeSection) || secondarySections[0];
 
   return (
-    <div dir={isArabic ? "rtl" : "ltr"} className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[20px] px-3 pb-8 pt-3 text-text sm:px-5">
+    <div dir={isArabic ? "rtl" : "ltr"} className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[var(--radius-card)] px-3 pb-8 pt-3 text-text sm:px-5">
       <div className="dashboard-commandbar sticky top-0 z-20 -mx-3 border-b border-border bg-surface px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5">
         <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.8fr)] xl:items-center">
           <div>
@@ -550,7 +550,7 @@ function Dashboard() {
             <div className="m1-page-meta">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
           </div>
           <div className="dashboard-toolbar flex flex-wrap items-center gap-2 text-xs font-bold text-text-muted xl:justify-end">
-            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-border bg-surface p-1">
+            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface p-1">
               {quickActions.map((action) => (
                 <QuickAction key={action.to} {...action} />
               ))}
@@ -613,7 +613,7 @@ function Dashboard() {
       <AttentionCenter overview={overview} inventory={data.inventory} liveActivity={data.liveActivity} isArabic={isArabic} />
 
       {data.saleMode?.sale_mode_enabled ? (
-        <section className="relative z-10 mt-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
+        <section className="relative z-10 mt-4 rounded-[var(--radius-card)] border border-amber-400/20 bg-amber-500/10 p-4">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">{isArabic ? "أسعار التخفيض مفعّلة" : "Sale prices active"}</div>
           <div className="mt-1 text-base font-black text-text">{data.saleMode.sale_mode_label || (isArabic ? "أسعار التخفيض المحفوظة مفعّلة" : "Saved sale prices are live")}</div>
         </section>
@@ -639,7 +639,7 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
   };
   const deltaColors = { emerald: "text-emerald-300", rose: "text-red-300", slate: "text-text-muted" };
   const body = (
-    <article className={`flex h-full min-h-[172px] flex-col rounded-2xl border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-border-strong" : ""}`}>
+    <article className={`flex h-full min-h-[172px] flex-col rounded-[var(--radius-card)] border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-border-strong" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="line-clamp-2 min-h-8 text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</div>
@@ -647,7 +647,7 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
             {loading ? <SkeletonLine className="h-8 w-20" /> : value}
           </div>
         </div>
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${iconTones[tone] || iconTones.slate}`}>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-control)] ${iconTones[tone] || iconTones.slate}`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -656,11 +656,11 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
       </div>
     </article>
   );
-  return to ? <Link to={to} className="block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">{body}</Link> : body;
+  return to ? <Link to={to} className="block h-full rounded-[var(--radius-card)] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">{body}</Link> : body;
 }
 
 // ---- Redesigned dashboard sections (dark theme, RTL, real ERP data) --------
-const DASH_CARD = "rounded-2xl border border-border bg-surface p-4 shadow-sm";
+const DASH_CARD = "rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm";
 const DASH_CARD_HEAD = "flex items-center justify-between gap-2";
 const DASH_CARD_TITLE = "text-sm font-black text-text";
 const DASH_TIP_STYLE = { background: "var(--card)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: "var(--radius-card)", fontSize: 12, boxShadow: "var(--shadow-overlay)" };
@@ -690,7 +690,7 @@ function HourlySalesCard({ hourlySales = [], loading, isArabic }) {
         {hasData && peak.hour != null ? <span className="text-[11px] font-bold text-emerald-300">{isArabic ? `الذروة ${String(peak.hour).padStart(2, "0")}:00` : `Peak ${String(peak.hour).padStart(2, "0")}:00`}</span> : null}
       </div>
       <div className="mt-3 h-[260px]">
-        {loading ? <SkeletonLine className="h-full w-full rounded-xl" /> : hasData ? (
+        {loading ? <SkeletonLine className="h-full w-full rounded-[var(--radius-control)]" /> : hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={rows} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
@@ -713,7 +713,7 @@ function PaymentMixCard({ payments = [], loading, isArabic }) {
   return (
     <div className={DASH_CARD}>
       <h3 className={DASH_CARD_TITLE}>{isArabic ? "طرق الدفع اليوم" : "Payment methods today"}</h3>
-      {loading ? <SkeletonLine className="mt-3 h-[150px] w-full rounded-xl" /> : rows.length ? (
+      {loading ? <SkeletonLine className="mt-3 h-[150px] w-full rounded-[var(--radius-control)]" /> : rows.length ? (
         <div className="mt-2 flex items-center gap-3">
           <div className="h-[130px] w-[130px] shrink-0">
             <ResponsiveContainer width="100%" height="100%">
@@ -773,7 +773,7 @@ function RecentSalesCard({ invoices = [], loading, isArabic }) {
       {loading ? <SkeletonLine className="mt-3 h-28 w-full" /> : rows.length ? (
         <div className="mt-2 divide-y divide-border">
           {rows.map((inv) => (
-            <Link key={inv.id} to={`/orders/${inv.id}`} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs transition hover:bg-surface-hover">
+            <Link key={inv.id} to={`/orders/${inv.id}`} className="-mx-2 flex items-center justify-between gap-2 rounded-[var(--radius-control)] px-2 py-2 text-xs transition hover:bg-surface-hover">
               <div className="min-w-0">
                 <div className="truncate font-bold text-text">{inv.invoice_number || `#${inv.id}`}</div>
                 <div className="truncate text-[11px] text-text-muted">{shortTime(inv.created_at)}{inv.customer_name ? ` · ${inv.customer_name}` : ""}</div>
@@ -821,7 +821,7 @@ function StockAttentionCard({ lowStock = [], loading, isArabic }) {
             const remaining = Number(it.stock ?? it.total_stock ?? 0);
             const critical = String(it.alert_level || "") === "critical" || remaining <= 1;
             return (
-              <Link key={it.id || it.product_id} to={it.product_id ? `/products/${it.product_id}` : "/inventory"} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs transition hover:bg-surface-hover">
+              <Link key={it.id || it.product_id} to={it.product_id ? `/products/${it.product_id}` : "/inventory"} className="-mx-2 flex items-center justify-between gap-2 rounded-[var(--radius-control)] px-2 py-2 text-xs transition hover:bg-surface-hover">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className={`h-2 w-2 shrink-0 rounded-full ${critical ? "bg-red-400" : "bg-amber-400"}`} />
                   <div className="min-w-0"><div className="truncate font-bold text-text">{it.product_name || it.name}</div>{(it.color || it.size) ? <div className="truncate text-[10px] text-text-muted">{[it.color, it.size].filter(Boolean).join(" · ")}</div> : null}</div>
@@ -852,7 +852,7 @@ function AttentionCenter({ overview, inventory, liveActivity = [], isArabic }) {
         <h3 className={DASH_CARD_TITLE}>{isArabic ? "يحتاج تدخلك" : "Needs your attention"}</h3>
         <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
           {items.map((it) => (
-            <Link key={it.label} to={it.to} className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition ${it.tone === "rose" ? "border-red-500/25 bg-red-500/10 hover:border-red-400/50" : it.tone === "amber" ? "border-amber-500/25 bg-amber-500/10 hover:border-amber-400/50" : "border-border bg-surface hover:border-border-strong"}`}>
+            <Link key={it.label} to={it.to} className={`flex items-center justify-between gap-2 rounded-[var(--radius-control)] border px-3 py-2.5 transition ${it.tone === "rose" ? "border-red-500/25 bg-red-500/10 hover:border-red-400/50" : it.tone === "amber" ? "border-amber-500/25 bg-amber-500/10 hover:border-amber-400/50" : "border-border bg-surface hover:border-border-strong"}`}>
               <span className="text-xs font-bold text-text">{it.label}</span>
               <span className={`text-lg font-black ${it.tone === "rose" ? "text-red-300" : it.tone === "amber" ? "text-amber-300" : "text-text"}`}>{number(it.n)}</span>
             </Link>
@@ -865,7 +865,7 @@ function AttentionCenter({ overview, inventory, liveActivity = [], isArabic }) {
 
 function ExecutiveSection({ sections, activeId, onSelect, children }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface p-4 shadow-2xl shadow-black/20 md:p-5">
+    <section className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/20 md:p-5">
       <div className="mb-5 flex flex-wrap gap-2">
         {sections.map(({ id, label, icon: Icon }) => (
           <button
@@ -907,7 +907,7 @@ function StatusPill({ label, value, tone = "emerald", pulse = false }) {
     slate: "border-border bg-surface text-text-muted",
   };
   return (
-    <span className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 ${tones[tone] || tones.slate}`}>
+    <span className={`inline-flex h-10 items-center gap-2 rounded-[var(--radius-control)] border px-3 ${tones[tone] || tones.slate}`}>
       <LivePulse active={pulse} tone={tone} />
       {label}: <strong>{value}</strong>
     </span>
@@ -957,7 +957,7 @@ function GettingStarted() {
     { to: "/purchases/create", label: copy.createPurchaseInvoice, icon: ReceiptText },
   ];
   return (
-    <section className="m1-dashboard-onboarding mt-4 rounded-2xl border border-emerald-300/25 bg-surface-soft p-4 shadow-sm">
+    <section className="m1-dashboard-onboarding mt-4 rounded-[var(--radius-card)] border border-emerald-300/25 bg-surface-soft p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{copy.gettingStartedToday}</div>
@@ -1001,14 +1001,14 @@ const KpiCard = memo(function KpiCard({ label, value, growth, icon: Icon, tone, 
   }[tone] || { icon: "from-emerald-300/30 to-emerald-500/5 text-emerald-100", stroke: "#34d399" };
   const path = sparkPath(sparkline);
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border bg-surface-raised p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-border-strong">
+    <div className="group relative overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-raised p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-border-strong">
       <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-emerald-300/10 blur-3xl transition group-hover:bg-emerald-300/20" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">{label}</div>
           <div className="mt-1.5 truncate text-2xl font-black tracking-tight text-text">{loading ? <SkeletonLine className="h-7 w-24" /> : value}</div>
         </div>
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-lg ${palette.icon}`}><Icon className="h-4 w-4" /></div>
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-gradient-to-br shadow-lg ${palette.icon}`}><Icon className="h-4 w-4" /></div>
       </div>
       <div className="mt-3 flex items-end justify-between gap-3">
         <div className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black ${positive ? "bg-emerald-400/10 text-emerald-200" : "bg-rose-400/10 text-rose-200"}`}>
@@ -1022,7 +1022,7 @@ const KpiCard = memo(function KpiCard({ label, value, growth, icon: Icon, tone, 
 });
 
 function MiniSparkline({ path, stroke }) {
-  if (!path) return <div className="h-[34px] w-28 rounded-lg bg-surface-soft" />;
+  if (!path) return <div className="h-[34px] w-28 rounded-[var(--radius-control)] bg-surface-soft" />;
   return (
     <svg viewBox="0 0 112 34" className="h-[34px] w-28 overflow-visible" role="img" aria-label="Trend sparkline">
       <path d={`${path} L 112 34 L 0 34 Z`} fill={stroke} opacity="0.1" />
@@ -1068,7 +1068,7 @@ function WidgetShell({ widget, children, onToggleSize, onDropWidget }) {
       onDragStart={(event) => event.dataTransfer.setData("text/widget-id", widget.id)}
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => onDropWidget(widget.id, event.dataTransfer.getData("text/widget-id"))}
-      className={`min-w-0 rounded-2xl border border-border bg-surface p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-hover ${widget.size === "wide" ? "2xl:col-span-2" : ""}`}
+      className={`min-w-0 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-hover ${widget.size === "wide" ? "2xl:col-span-2" : ""}`}
     >
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
@@ -1089,8 +1089,8 @@ function WidgetSkeleton() {
     <div className="space-y-3">
       <SkeletonLine className="h-7 w-1/3" />
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="h-44 animate-pulse rounded-xl bg-surface-soft" />
-        <div className="h-44 animate-pulse rounded-xl bg-surface-soft" />
+        <div className="h-44 animate-pulse rounded-[var(--radius-control)] bg-surface-soft" />
+        <div className="h-44 animate-pulse rounded-[var(--radius-control)] bg-surface-soft" />
       </div>
       <SkeletonLine className="h-4 w-2/3" />
     </div>
@@ -1135,13 +1135,13 @@ function SalesAnalytics({ salesTrend, hourlySales }) {
 }
 
 function ChartCard({ title, children }) {
-  return <div className="min-w-0 rounded-2xl border border-border bg-surface p-4"><div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-text-muted">{title}</div>{children}</div>;
+  return <div className="min-w-0 rounded-[var(--radius-card)] border border-border bg-surface p-4"><div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-text-muted">{title}</div>{children}</div>;
 }
 
 function EmptyChart({ title, message }) {
   return (
-    <div className="flex h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-surface px-6 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-surface text-text-muted">
+    <div className="flex h-[220px] flex-col items-center justify-center rounded-[var(--radius-card)] border border-dashed border-border bg-surface px-6 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface text-text-muted">
         <LineChartIcon className="h-6 w-6" />
       </div>
       <div className="mt-3 text-sm font-black text-text">{title}</div>
@@ -1159,7 +1159,7 @@ function LegacyDashboardActivityFeed({ rows }) {
   return (
     <div className="max-h-[420px] overflow-auto pr-1">
       {(rows || []).slice(0, 24).map((row, index) => (
-        <div key={`${row.type}-${row.created_at}-${index}`} className="mb-2 grid grid-cols-[24px_minmax(0,1fr)_auto] gap-3 rounded-xl bg-surface-soft px-3 py-2.5 transition hover:bg-surface-hover">
+        <div key={`${row.type}-${row.created_at}-${index}`} className="mb-2 grid grid-cols-[24px_minmax(0,1fr)_auto] gap-3 rounded-[var(--radius-control)] bg-surface-soft px-3 py-2.5 transition hover:bg-surface-hover">
           <div className="relative flex justify-center">
             <span className="absolute top-7 h-full w-px bg-surface-soft" />
             <span className="relative mt-1 flex h-3 w-3 rounded-full bg-emerald-300 shadow-[0_0_20px_rgba(52,211,153,0.6)]" />
@@ -1226,7 +1226,7 @@ function AiInsights({ insights }) {
   return (
     <div className="grid gap-3">
       {(insights || []).length ? insights.map((item, index) => (
-        <div key={`${item.title}-${index}`} className="rounded-xl border border-emerald-300/12 bg-emerald-400/[0.06] p-3 shadow-lg shadow-emerald-950/10">
+        <div key={`${item.title}-${index}`} className="rounded-[var(--radius-control)] border border-emerald-300/12 bg-emerald-400/[0.06] p-3 shadow-lg shadow-emerald-950/10">
           <div className="flex items-center gap-2 text-sm font-black text-emerald-100"><Brain className="h-4 w-4" />{item.title}</div>
           <p className="mt-2 text-sm leading-6 text-text-muted">{item.body}</p>
         </div>
@@ -1289,7 +1289,7 @@ function MiniList({ title, rows, getLabel, getValue, icon: Icon }) {
       <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-text-muted"><Icon className="h-4 w-4" />{title}</div>
       <div className="space-y-2">
         {(rows || []).slice(0, 6).map((row, index) => (
-          <div key={`${getLabel(row)}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-surface-soft px-3 py-2 text-sm transition hover:bg-surface-hover">
+          <div key={`${getLabel(row)}-${index}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-control)] bg-surface-soft px-3 py-2 text-sm transition hover:bg-surface-hover">
             <span className="min-w-0 truncate font-semibold text-text">{getLabel(row)}</span>
             <span className="shrink-0 font-black text-emerald-200">{getValue(row)}</span>
           </div>
@@ -1333,7 +1333,7 @@ function RightSidebar({ lowStock, recentInvoices, activity }) {
 
 function SidePanel({ title, icon: Icon, children }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface p-4 shadow-2xl shadow-black/18">
+    <section className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/18">
       <div className="mb-4 flex items-center gap-2 text-sm font-black text-text"><Icon className="h-4 w-4 text-cyan-200" />{title}</div>
       <div className="space-y-2">{children}</div>
     </section>
@@ -1343,7 +1343,7 @@ function SidePanel({ title, icon: Icon, children }) {
 function NotificationLine({ label, value, tone = "emerald", pulse = false }) {
   const tones = { emerald: "bg-emerald-400", amber: "bg-amber-400", rose: "bg-red-400", slate: "bg-border-strong" };
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-3 py-2.5 text-xs transition hover:bg-surface-hover">
+    <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] bg-surface px-3 py-2.5 text-xs transition hover:bg-surface-hover">
       <div className="flex min-w-0 items-center gap-2"><span className={`h-2 w-2 shrink-0 rounded-full ${tones[tone]} ${pulse ? "dashboard-pulse" : ""}`} /><span className="truncate font-bold text-text-muted">{label}</span></div>
       <span className="shrink-0 font-black text-text">{value}</span>
     </div>
@@ -1352,7 +1352,7 @@ function NotificationLine({ label, value, tone = "emerald", pulse = false }) {
 
 function PremiumEmpty({ icon: Icon, title, message, compact = false }) {
   return (
-    <div className={`rounded-xl border border-dashed border-border bg-surface-soft text-center ${compact ? "px-3 py-4" : "px-5 py-8"}`}>
+    <div className={`rounded-[var(--radius-control)] border border-dashed border-border bg-surface-soft text-center ${compact ? "px-3 py-4" : "px-5 py-8"}`}>
       <div className={`mx-auto flex items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted shadow-lg shadow-emerald-950/10 ${compact ? "h-9 w-9" : "h-12 w-12"}`}>
         <Icon className={compact ? "h-4 w-4" : "h-6 w-6"} />
       </div>
@@ -1365,7 +1365,7 @@ function PremiumEmpty({ icon: Icon, title, message, compact = false }) {
 function DashboardTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="dashboard-tooltip rounded-xl border border-border bg-surface px-3 py-2 text-xs shadow-2xl shadow-black/40 backdrop-blur-xl">
+    <div className="dashboard-tooltip rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-xs shadow-2xl shadow-black/40 backdrop-blur-xl">
       <div className="mb-1 font-black text-text">{label}</div>
       {payload.map((item) => (
         <div key={item.dataKey} className="flex min-w-[140px] items-center justify-between gap-4 text-text-muted">

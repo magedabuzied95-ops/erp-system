@@ -495,4 +495,64 @@
     background: var(--surface-soft);
     box-shadow: var(--shadow-card);
   }
+
+  /* ==========================================================================
+     12. FINAL POLISH — THE RADIUS CONTRACT
+
+     Approved contract, expressed only in the canonical tokens:
+
+       panels / cards / nested groups   --radius-card     14px
+       inputs / selects / search        --radius-control  10px
+       buttons / chips / tiles          --radius-control  10px
+       semantic pills only              9999px
+
+     The Dashboard used to force `border-radius: 9999px !important` onto every
+     button and inline-flex link, generic or not. That rule is retired — it was
+     the last visual !important on these screens — and the call sites now carry
+     the tokens instead. Pills survive only where the component IS a pill:
+     status dots, badges, counters, tags, progress tracks.
+     ====================================================================== */
+
+  /* --- Orders filter area: panel -> nested group -> controls -------------- */
+  /* The results panel is the large surface. The filter block sits inside it,
+     so it reads as recessed rather than as a second competing card: a soft
+     fill instead of the card fill, and the same 14px corner as its parent so
+     the nesting looks deliberate rather than approximate. */
+  .m1-orders-page .m1-orders-filters {
+    border-radius: var(--radius-card);
+    background: var(--surface-soft);
+    box-shadow: none;
+    padding: var(--space-4);
+    align-items: end;
+  }
+
+  /* Every control in the group lines up on one baseline and one height, so the
+     row scans as Search / Status / Payment / Source / Date rather than as a
+     continuous strip. */
+  .m1-orders-page .m1-orders-filters > label {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+
+  .m1-orders-page .m1-orders-filters :where(input, select) {
+    width: 100%;
+  }
+
+  /* --- One shape contract for the small Orders actions ------------------- */
+  .m1-orders-page .m1-orders-actions :where(button, a) {
+    border-radius: var(--radius-control);
+  }
+
+  /* --- Table surround keeps the card corner ------------------------------ */
+  .m1-orders-page .m1-table-container,
+  .m1-orders-page .m1-table-scroll {
+    border-radius: var(--radius-card);
+  }
+
+  /* Row-level controls take the control corner, never a pill. */
+  .m1-orders-page .m1-table :where(button, select, input):not([class*="rounded-full"]) {
+    border-radius: var(--radius-control);
+  }
 }

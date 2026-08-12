@@ -77,7 +77,11 @@ export const THEMES = [
       card: "#ffffff",
       text: "#1b1915",
       muted: "#6a665e",
-      border: "#d5cfc2",
+      // Softened one step from #d5cfc2. The old value carried enough beige that
+      // a dense screen read as a grid of lines rather than a grid of cards. This
+      // still separates a white card from the warm canvas, and --border-strong
+      // is unchanged, so anything that needs to assert itself still can.
+      border: "#ded8cb",
       "border-strong": "#b5ae9e",
       "primary-soft": "#faf0d6",
       "success-soft": "#e9f7ef",
