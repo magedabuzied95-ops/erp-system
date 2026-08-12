@@ -58,5 +58,38 @@
     "posPlaceholder": "Receipt footer / POS note",
     "logo": "Company logo placeholder",
     "uploadLogo": "Upload logo placeholder"
+  },
+  "shell": {
+    "eyebrow": "SaaS Multi-Tenant"
+  },
+  "register": {
+    "required": "Company name, email and password are required",
+    "created": "The company workspace was created",
+    "title": "Register company",
+    "subtitle": "Create a company workspace, an owner account, and the start of a subscription. If the server cannot be reached, the workspace is saved locally and signed into.",
+    "login": "Log in",
+    "tabs": {
+      "register": "Register"
+    },
+    "companyData": "Company details",
+    "fields": {
+      "companyName": "Company name",
+      "ownerName": "Owner name",
+      "ownerNamePlaceholder": "Full owner name",
+      "ownerEmail": "Owner email",
+      "workspaceId": "Workspace ID",
+      "password": "Password",
+      "passwordPlaceholder": "Owner password",
+      "companyNamePlaceholder": "Acme Retail"
+    },
+    "accounts": {
+      "title": "Owner and staff accounts",
+      "owner": "Owner account",
+      "ownerText": "Full tenant access, billing ownership, subscription upgrades, and admin operations.",
+      "staff": "Staff accounts",
+      "staffText": "Assignable later through the users module and permission matrix.",
+      "persistence": "Workspace persistence",
+      "persistenceText": "Tenant metadata is stored locally and attached to the authenticated user for session continuity."
+    }
   }
 }

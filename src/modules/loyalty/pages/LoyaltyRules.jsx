@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Save, Settings2, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
@@ -23,6 +24,7 @@ const defaultForm = {
 };
 
 function LoyaltyRules() {
+  const { t } = useTranslation();
   const [rules, setRules] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [form, setForm] = useState(defaultForm);
@@ -46,7 +48,7 @@ function LoyaltyRules() {
         setRules(loyaltyMockData.rules);
         setSelectedId(loyaltyMockData.rules[0]?.id || null);
         setForm(loyaltyMockData.rules[0] || defaultForm);
-        toast.error("Using loyalty rules fallback");
+        toast.error(t("loyalty.rules.fallbackToast"));
       } finally {
         if (active) setLoading(false);
       }
@@ -83,11 +85,11 @@ function LoyaltyRules() {
       if (selectedRule?.id) {
         const response = await updateLoyaltyRule(selectedRule.id, payload);
         nextRule = response.rule;
-        toast.success("Loyalty rule updated");
+        toast.success(t("loyalty.rules.updated"));
       } else {
         const response = await createLoyaltyRule(payload);
         nextRule = response.rule;
-        toast.success("Loyalty rule created");
+        toast.success(t("loyalty.rules.created"));
       }
 
       setRules((current) => {
@@ -107,10 +109,10 @@ function LoyaltyRules() {
   return (
     <div className="space-y-6 text-[var(--text)]">
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Loyalty Rules</p>
-        <h1 className="m1-page-title mt-2">Reward policy and tier management</h1>
+        <p className="text-xs uppercase tracking-[0.3em] text-primary/80">{t("loyalty.rules.eyebrow")}</p>
+        <h1 className="m1-page-title mt-2">{t("loyalty.rules.title")}</h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
-          Control points earning, redemption value, and tier thresholds from a single rules screen.
+          {t("loyalty.rules.subtitle")}
         </p>
       </div>
 
@@ -118,7 +120,7 @@ function LoyaltyRules() {
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            <h2 className="m1-section-title">Existing rules</h2>
+            <h2 className="m1-section-title">{t("loyalty.rules.existing")}</h2>
           </div>
           <div className="mt-4 space-y-3">
             {(loading ? [] : rules).map((rule) => (
@@ -137,26 +139,26 @@ function LoyaltyRules() {
                 </p>
               </button>
             ))}
-            {!loading && rules.length === 0 ? <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">No rules found.</div> : null}
+            {!loading && rules.length === 0 ? <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">{t("loyalty.rules.none")}</div> : null}
           </div>
         </div>
 
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
-            <h2 className="m1-section-title">Rule editor</h2>
+            <h2 className="m1-section-title">{t("loyalty.rules.editor")}</h2>
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             {[
-              ["name", "Rule name", "text"],
-              ["points_per_currency_amount", "Points per currency amount", "number"],
-              ["minimum_order_amount", "Minimum order amount", "number"],
-              ["redeem_value", "Redeem value per point", "number"],
-              ["bronze_threshold", "Bronze threshold", "number"],
-              ["silver_threshold", "Silver threshold", "number"],
-              ["gold_threshold", "Gold threshold", "number"],
-              ["platinum_threshold", "Platinum threshold", "number"],
+              ["name", t("loyalty.rules.fields.name"), "text"],
+              ["points_per_currency_amount", t("loyalty.rules.fields.pointsPerCurrency"), "number"],
+              ["minimum_order_amount", t("loyalty.rules.fields.minimumOrder"), "number"],
+              ["redeem_value", t("loyalty.rules.fields.redeemValue"), "number"],
+              ["bronze_threshold", t("loyalty.rules.fields.bronze"), "number"],
+              ["silver_threshold", t("loyalty.rules.fields.silver"), "number"],
+              ["gold_threshold", t("loyalty.rules.fields.gold"), "number"],
+              ["platinum_threshold", t("loyalty.rules.fields.platinum"), "number"],
             ].map(([field, label, type]) => (
               <label key={field} className="space-y-2 text-sm text-[var(--muted)]">
                 <span className="block text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</span>
@@ -172,8 +174,8 @@ function LoyaltyRules() {
 
           <div className="mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
             <div>
-              <p className="font-semibold text-[var(--text)]">Active</p>
-              <p className="text-xs text-[var(--muted)]">Inactive rules do not apply to new orders</p>
+              <p className="font-semibold text-[var(--text)]">{t("loyalty.rules.active")}</p>
+              <p className="text-xs text-[var(--muted)]">{t("loyalty.rules.inactiveHint")}</p>
             </div>
             <button
               type="button"
@@ -191,7 +193,7 @@ function LoyaltyRules() {
             className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
           >
             <Save className="h-4 w-4" />
-            {saving ? "Saving..." : selectedRule?.id ? "Update rule" : "Create rule"}
+            {saving ? t("loyalty.rules.saving") : selectedRule?.id ? t("loyalty.rules.update") : t("loyalty.rules.create")}
           </button>
         </div>
       </div>

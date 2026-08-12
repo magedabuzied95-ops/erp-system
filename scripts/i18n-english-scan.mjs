@@ -456,7 +456,13 @@ export const contentCatalogueRanges = (text) => {
 export const seedDataRanges = (text) => {
   const lines = text.split("\n");
   const ranges = [];
-  const OPEN = /^\s*(?:export\s+)?(?:const|function)\s+seed[A-Z]\w*\s*(?:=\s*\([^)]*\)\s*=>\s*)?[[{(]/;
+  /*
+   * `seedX` and `xMockData` are the same thing: a fixture that models API rows.
+   * loyaltyMockData holds mock customer names, tiers, point totals and
+   * transaction `description` values side by side — translating the
+   * descriptions would be translating a data column, not chrome.
+   */
+  const OPEN = /^\s*(?:export\s+)?(?:const|function)\s+(?:seed[A-Z]\w*|\w*[Mm]ockData)\s*(?:=\s*)?(?:\([^)]*\)\s*=>\s*)?[[{(]/;
   for (let i = 0; i < lines.length; i += 1) {
     if (!OPEN.test(lines[i])) continue;
     let depth = 0;

@@ -34,5 +34,46 @@
       "silver": "Silver: {{value}}",
       "platinum": "Platinum: {{value}}"
     }
+  },
+  "profile": {
+    "eyebrow": "Customer loyalty profile",
+    "loading": "Loading...",
+    "fallbackToast": "Using the loyalty data fallback",
+    "invalidPoints": "Enter a valid number of points",
+    "redeemed": "Points redeemed",
+    "history": "Transaction history",
+    "type": "Type",
+    "points": "Points",
+    "value": "Value",
+    "date": "Date",
+    "redeemTitle": "Redeem points",
+    "redeemHint": "Convert points into value when the customer completes a purchase.",
+    "pointsToRedeem": "Points to redeem"
+  },
+  "rules": {
+    "eyebrow": "Loyalty Rules",
+    "title": "Reward policy and tier management",
+    "subtitle": "Control points earning, redemption value, and tier thresholds from a single rules screen.",
+    "fallbackToast": "Using the loyalty rules fallback",
+    "updated": "Loyalty rule updated",
+    "created": "Loyalty rule created",
+    "existing": "Existing rules",
+    "none": "No rules found.",
+    "editor": "Rule editor",
+    "active": "Active",
+    "inactiveHint": "Inactive rules do not apply to new orders",
+    "saving": "Saving...",
+    "update": "Update rule",
+    "create": "Create rule",
+    "fields": {
+      "name": "Rule name",
+      "pointsPerCurrency": "Points per currency amount",
+      "minimumOrder": "Minimum order amount",
+      "redeemValue": "Redeem value per point",
+      "bronze": "Bronze threshold",
+      "silver": "Silver threshold",
+      "gold": "Gold threshold",
+      "platinum": "Platinum threshold"
+    }
   }
 }

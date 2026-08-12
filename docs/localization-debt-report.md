@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 142
-- Hardcoded Arabic UI strings: 1704
-- Hardcoded English UI strings: 1163
-- Total hardcoded UI strings: 2867
-- Mixed-language files (both scripts hardcoded): 39
+- Files with debt: 138
+- Hardcoded Arabic UI strings: 1677
+- Hardcoded English UI strings: 1148
+- Total hardcoded UI strings: 2825
+- Mixed-language files (both scripts hardcoded): 38
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 72 | 1148 | 766 | 1914 | 25 |
-| shared | 54 | 190 | 314 | 504 | 9 |
+| main-erp | 69 | 1121 | 752 | 1873 | 24 |
+| shared | 53 | 190 | 313 | 503 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
@@ -50,7 +50,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 22 | 2 | 24 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
-| src/modules/saas/pages/RegisterCompany.jsx | main-erp | 15 | 5 | 20 |
 | src/modules/marketing/components/storyTemplateEngine.js | shared | 5 | 12 | 17 |
 | src/modules/products/pages/ProductPrintList.jsx | main-erp | 15 | 2 | 17 |
 | src/modules/products/pages/ProductEdit.jsx | main-erp | 3 | 13 | 16 |
@@ -1324,29 +1323,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 214 [inline-ternary/ar] isArabic ? "المخزون" : "Stock"
 - 215 [inline-ternary/ar] isArabic ? "المفضلة" : "Favorites"
 
-### src/modules/saas/pages/RegisterCompany.jsx (main-erp — ar:15 en:5)
-
-- 24 [notification/ar] اسم الشركة والبريد الإلكتروني وكلمة المرور مطلوبة
-- 79 [notification/ar] تم إنشاء مساحة العمل للشركة
-- 87 [attribute/ar] تسجيل شركة
-- 88 [attribute/ar] أنشئ مساحة عمل للشركة وحساب المالك وبداية الاشتراك. إذا تعذر الاتصال بالخادم، سيتم حفظ المساحة محليًا وتسجيل الدخول عليها.
-- 95 [object-key/ar] تسجيل
-- 96 [object-key/ar] مساحة العمل
-- 97 [object-key/ar] الفوترة
-- 102 [jsx-text/ar] بيانات الشركة
-- 104 [attribute/ar] اسم الشركة
-- 104 [attribute/en] Acme Retail
-- 105 [attribute/ar] اسم المالك
-- 105 [attribute/ar] الاسم الكامل للمالك
-- 106 [attribute/ar] بريد المالك
-- 107 [attribute/ar] معرّف مساحة العمل
-- 110 [jsx-text/ar] كلمة المرور
-- 116 [attribute/ar] كلمة مرور المالك
-- 147 [jsx-text/en] Owner and staff accounts
-- 149 [attribute/en] Owner account
-- 150 [attribute/en] Staff accounts
-- 151 [attribute/en] Workspace persistence
-
 ### src/modules/employees/components/ManagerPortalAccessCard.jsx (employee-portal — ar:19 en:0)
 
 - 46 [inline-ternary/ar] isArabic ? "تجديد الرابط" : "Regenerate Link"
@@ -1371,24 +1347,24 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/products/pages/ProductsList.jsx (main-erp — ar:18 en:0)
 
-- 258 [inline-ternary/ar] isArabic ? "غير محدد" : "Not specified"
-- 1225 [jsx-text/ar] الحالي:
-- 1253 [jsx-text/ar] الحالي:
-- 1582 [attribute/ar] سعر الشراء الجماعي
-- 1603 [attribute/ar] سعر الشراء
-- 1617 [jsx-text/ar] اللون
-- 1618 [jsx-text/ar] سعر الشراء
-- 1619 [jsx-text/ar] سعر البيع
-- 1620 [jsx-text/ar] سعر السيل
-- 1635 [attribute/ar] سعر الشراء
-- 1646 [jsx-text/ar] سعر الشراء
-- 1656 [attribute/ar] سعر الشراء
-- 2291 [notification/ar] تمت إضافة المنتج إلى قائمة الطباعة
-- 2392 [object-key/ar] إضافة إلى قائمة الطباعة
-- 2910 [jsx-text/ar] الكل
-- 2911 [jsx-text/ar] الصور مكتملة
-- 2912 [jsx-text/ar] صور ناقصة
-- 2913 [jsx-text/ar] بدون صور
+- 359 [inline-ternary/ar] isArabic ? "غير محدد" : "Not specified"
+- 1326 [jsx-text/ar] الحالي:
+- 1354 [jsx-text/ar] الحالي:
+- 1683 [attribute/ar] سعر الشراء الجماعي
+- 1704 [attribute/ar] سعر الشراء
+- 1718 [jsx-text/ar] اللون
+- 1719 [jsx-text/ar] سعر الشراء
+- 1720 [jsx-text/ar] سعر البيع
+- 1721 [jsx-text/ar] سعر السيل
+- 1736 [attribute/ar] سعر الشراء
+- 1747 [jsx-text/ar] سعر الشراء
+- 1757 [attribute/ar] سعر الشراء
+- 2392 [notification/ar] تمت إضافة المنتج إلى قائمة الطباعة
+- 2493 [object-key/ar] إضافة إلى قائمة الطباعة
+- 3007 [jsx-text/ar] الكل
+- 3008 [jsx-text/ar] الصور مكتملة
+- 3009 [jsx-text/ar] صور ناقصة
+- 3010 [jsx-text/ar] بدون صور
 
 ### src/modules/aiSupport/components/socialAutomation/SocialAutomationDrawer.jsx (shared — ar:0 en:17)
 
@@ -1634,21 +1610,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 448 [jsx-text/ar] سيتم إرسال ملف A4 جاهز للطباعة كمرفق.
 - 453 [jsx-text/ar] البريد الإلكتروني
 
-### src/modules/loyalty/pages/CustomerLoyaltyProfile.jsx (main-erp — ar:12 en:0)
-
-- 45 [notification/ar] استخدام بيانات الولاء البديلة
-- 63 [notification/ar] أدخل نقاطًا صحيحة
-- 78 [notification/ar] تم استبدال النقاط
-- 95 [jsx-text/ar] ملف الولاء للعميل
-- 136 [jsx-text/ar] سجل المعاملات
-- 143 [jsx-text/ar] النوع
-- 144 [jsx-text/ar] النقاط
-- 145 [jsx-text/ar] القيمة
-- 146 [jsx-text/ar] التاريخ
-- 164 [jsx-text/ar] استبدال النقاط
-- 165 [jsx-text/ar] حوّل النقاط إلى قيمة عند إتمام شراء العميل.
-- 168 [jsx-text/ar] النقاط المطلوب استبدالها
-
 ### src/modules/reports/pages/Reports.jsx (main-erp — ar:9 en:3)
 
 - 358 [jsx-text/en] Analytics & Reports
@@ -1763,16 +1724,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/products/components/ProductForm.jsx (shared — ar:10 en:0)
 
-- 11 [object-key/ar] رجال
-- 12 [object-key/ar] نساء
-- 13 [object-key/ar] أطفال
-- 83 [jsx-text/ar] 01 · بيانات البيع
-- 84 [jsx-text/ar] العلامة والوحدة
-- 188 [jsx-text/ar] 02 · التصنيف الذكي
-- 216 [attribute/ar] مقاس الشنطة المدرسية *
-- 220 [attribute/ar] اختر المقاس من 12 إلى 22 بوصة
-- 253 [jsx-text/ar] 03 · التسعير التسويقي
-- 417 [jsx-text/ar] قيمة غير متاحة:
+- 12 [object-key/ar] رجال
+- 13 [object-key/ar] نساء
+- 14 [object-key/ar] أطفال
+- 84 [jsx-text/ar] 01 · بيانات البيع
+- 85 [jsx-text/ar] العلامة والوحدة
+- 189 [jsx-text/ar] 02 · التصنيف الذكي
+- 217 [attribute/ar] مقاس الشنطة المدرسية *
+- 221 [attribute/ar] اختر المقاس من 12 إلى 22 بوصة
+- 254 [jsx-text/ar] 03 · التسعير التسويقي
+- 418 [jsx-text/ar] قيمة غير متاحة:
 
 ### src/modules/sales/pages/Customers.jsx (main-erp — ar:7 en:3)
 
@@ -1786,18 +1747,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1771 [jsx-text/en] Vodafone Cash
 - 1934 [jsx-text/ar] حركة #
 - 1988 [jsx-text/ar] الرصيد الافتتاحي:
-
-### src/modules/loyalty/pages/LoyaltyRules.jsx (main-erp — ar:0 en:9)
-
-- 49 [notification/en] Using loyalty rules fallback
-- 86 [notification/en] Loyalty rule updated
-- 90 [notification/en] Loyalty rule created
-- 110 [jsx-text/en] Loyalty Rules
-- 111 [jsx-text/en] Reward policy and tier management
-- 121 [jsx-text/en] Existing rules
-- 140 [jsx-text/en] No rules found.
-- 147 [jsx-text/en] Rule editor
-- 175 [jsx-text/en] Active
 
 ### src/modules/sales/pages/CreateOrder.jsx (main-erp — ar:0 en:9)
 
@@ -2287,10 +2236,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/reports/lib/metricFormat.js (main-erp — ar:1 en:0)
 
 - 47 [inline-ternary/ar] language).startsWith("ar") ? (millions ? " م" : " ألف"
-
-### src/modules/saas/components/SaaSShell.jsx (shared — ar:0 en:1)
-
-- 8 [jsx-text/en] SaaS Multi-Tenant
 
 ### src/pages/ActivityLogs.jsx (main-erp — ar:0 en:1)
 
