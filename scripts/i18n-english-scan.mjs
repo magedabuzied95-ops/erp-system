@@ -73,6 +73,125 @@ const looksLikeProse = (value) => {
   return clean.includes(" ") || /^[A-Z][a-z]{2,}$/.test(clean);
 };
 
+/** 1-indexed line number of a character offset. */
+const lineAt = (text, index) => text.slice(0, index).split("\n").length;
+
+/**
+ * Line ranges of the `en:` half of a WORKING BILINGUAL sibling table:
+ *
+ *   const labels = { ar: { title: "..." }, en: { title: "..." } };
+ *
+ * English inside such a block is not a leak - it is the English half of a
+ * structure that already renders correctly in both languages.
+ *
+ * The test is structural and deliberately narrow: an `en:` (or `english:`) key
+ * opening an object, which has a SIBLING `ar:` key at the SAME indentation
+ * inside the SAME enclosing block. A file that merely happens to contain Arabic
+ * somewhere is not excluded.
+ */
+const bilingualEnglishRanges = (text) => {
+  const lines = text.split("\n");
+  const ranges = [];
+  const KEY = /^(\s*)(?:"|')?(en|english)(?:"|')?\s*:\s*\{/;
+  const SIBLING = /^(\s*)(?:"|')?(ar|arabic)(?:"|')?\s*:\s*\{/;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const open = KEY.exec(lines[i]);
+    if (!open) continue;
+    const indent = open[1].length;
+
+    // Look for the `ar:` sibling at identical indentation, without leaving the
+    // enclosing block (a line indented less than `indent` ends it).
+    let hasSibling = false;
+    for (const step of [-1, 1]) {
+      for (let j = i + step; j >= 0 && j < lines.length; j += step) {
+        const line = lines[j];
+        if (!line.trim()) continue;
+        const lead = line.length - line.trimStart().length;
+        if (lead < indent) break;
+        if (lead !== indent) continue;
+        const sib = SIBLING.exec(line);
+        if (sib && sib[1].length === indent) { hasSibling = true; break; }
+      }
+      if (hasSibling) break;
+    }
+    if (!hasSibling) continue;
+
+    // Brace-match the en: block to find where it ends.
+    let depth = 0;
+    let end = i;
+    for (let j = i; j < lines.length; j += 1) {
+      for (const ch of lines[j]) {
+        if (ch === "{") depth += 1;
+        else if (ch === "}") depth -= 1;
+      }
+      if (depth <= 0) { end = j; break; }
+    }
+    ranges.push([i + 1, end + 1]);
+  }
+
+  // Second shape: the halves are extended by separate statements rather than
+  // nested keys - `Object.assign(labels.ar, {...})` / `Object.assign(labels.en, {...})`.
+  // Requires the SAME base object to be extended for both languages.
+  const ASSIGN = /^\s*Object\s*\.\s*assign\s*\(\s*([A-Za-z_$][\w$]*)\s*\.\s*(ar|arabic|en|english)\s*,\s*\{/;
+  const bases = new Map();
+  lines.forEach((line, i) => {
+    const m = ASSIGN.exec(line);
+    if (!m) return;
+    const lang = /^(ar|arabic)$/.test(m[2]) ? "ar" : "en";
+    if (!bases.has(m[1])) bases.set(m[1], { ar: [], en: [] });
+    bases.get(m[1])[lang].push(i);
+  });
+  for (const { ar, en } of bases.values()) {
+    if (!ar.length || !en.length) continue; // only a genuine pair counts
+    for (const start of en) {
+      let depth = 0;
+      let end = start;
+      for (let j = start; j < lines.length; j += 1) {
+        for (const ch of lines[j]) {
+          if (ch === "{") depth += 1;
+          else if (ch === "}") depth -= 1;
+        }
+        if (depth <= 0) { end = j; break; }
+      }
+      ranges.push([start + 1, end + 1]);
+    }
+  }
+  return ranges;
+};
+
+/**
+ * Line ranges of UI behind a proven development-only gate.
+ *
+ * Only these gates count. Production feature flags, permission and role checks
+ * and ordinary conditional rendering are NOT dev gates and stay in scope.
+ */
+const DEV_GATE = /\bisDevBuild\b|\bimport\s*\.\s*meta\s*\.\s*env\s*\.\s*DEV\b|process\s*\.\s*env\s*\.\s*NODE_ENV\s*!==\s*["']production["']/;
+
+const devGatedRanges = (text) => {
+  const lines = text.split("\n");
+  const ranges = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!DEV_GATE.test(lines[i])) continue;
+    // Only a gate that OPENS a JSX branch encloses anything: `{isDevBuild ? (`
+    // or `{isDevBuild && (`. A bare reference guards nothing renderable.
+    if (!/[?&]{1,2}\s*\($/.test(lines[i].trimEnd())) continue;
+    let depth = 0;
+    let end = i;
+    for (let j = i; j < lines.length; j += 1) {
+      for (const ch of lines[j]) {
+        if (ch === "(") depth += 1;
+        else if (ch === ")") depth -= 1;
+      }
+      if (depth <= 0) { end = j; break; }
+    }
+    ranges.push([i + 1, end + 1]);
+  }
+  return ranges;
+};
+
+const inRanges = (line, ranges) => ranges.some(([from, to]) => line >= from && line <= to);
+
 export function scanEnglish() {
   const buckets = {
     brokenEnglish: [],
@@ -82,12 +201,27 @@ export function scanEnglish() {
     identifiers: [],
     technical: [],
     debug: [],
+    bilingual: [],
   };
 
   for (const file of walkSourceFiles()) {
     const relative = path.relative(REPO_ROOT, file).split(path.sep).join("/");
-    const hits = scanFile(file).filter((hit) => hit.script === "en" && looksLikeProse(hit.value));
+    let hits = scanFile(file).filter((hit) => hit.script === "en" && looksLikeProse(hit.value));
     if (!hits.length) continue;
+
+    // Reclassify per HIT before the file-level bucketing below: a file can hold
+    // a working bilingual table, a dev-only panel AND genuine broken chrome.
+    const text = fs.readFileSync(file, "utf8");
+    const bilingualRanges = bilingualEnglishRanges(text);
+    const devRanges = devGatedRanges(text);
+    if (bilingualRanges.length || devRanges.length) {
+      const bilingualHits = hits.filter((hit) => inRanges(hit.line, bilingualRanges));
+      const devHits = hits.filter((hit) => !inRanges(hit.line, bilingualRanges) && inRanges(hit.line, devRanges));
+      if (bilingualHits.length) buckets.bilingual.push({ file: relative, total: bilingualHits.length, hits: bilingualHits });
+      if (devHits.length) buckets.debug.push({ file: relative, total: devHits.length, hits: devHits });
+      hits = hits.filter((hit) => !inRanges(hit.line, bilingualRanges) && !inRanges(hit.line, devRanges));
+      if (!hits.length) continue;
+    }
 
     const target =
       IDENTIFIER_FILES.has(relative) ? "identifiers"

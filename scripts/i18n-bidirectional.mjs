@@ -25,7 +25,11 @@ const enLeak = sum(english.brokenEnglish);
 const rows = [
   ["1. broken AR->EN leak", arLeak, `${arabic.broken.length} files`],
   ["2. broken EN->AR leak", enLeak, `${english.brokenEnglish.length} files`],
-  ["3. working bilingual", sum(arabic.bilingual), `${arabic.bilingual.length} files - renders correctly in both`],
+  [
+    "3. working bilingual",
+    sum(arabic.bilingual) + sum(english.bilingual),
+    `${arabic.bilingual.length + english.bilingual.length} files - renders correctly in both`,
+  ],
   ["4. business/data", sum(arabic.data), `${arabic.data.length} files - catalogue/persisted values`],
   ["5. customer/AI content", sum(english.aiContent), `${english.aiContent.length} files - AI Inbox/Studio surfaces`],
   ["6. technical/brand", sum(english.identifiers), `${english.identifiers.length} files - lookup identifiers`],
