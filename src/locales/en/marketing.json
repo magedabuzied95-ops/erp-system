@@ -406,7 +406,75 @@
     "scheduleFailed": "Failed to schedule post",
     "noHistory": "No posts yet.",
     "status": "Status",
-    "draft": "Draft"
+    "draft": "Draft",
+    "header": {
+      "eyebrow": "Marketing Studio",
+      "title": "Campaign Studio",
+      "description": "Build your marketing campaigns, review the content, then publish or schedule it from one place."
+    },
+    "postStatus": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "published": "Published",
+      "publishedCheck": "Published ✓",
+      "partialSuccess": "Partial success",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "unknownReason": "Unknown reason"
+    },
+    "toasts": {
+      "selectProductFirst": "Select a product first",
+      "firstCommentSaved": "First comment saved to draft.",
+      "copied": "Copied successfully.",
+      "copyFailed": "Copy failed.",
+      "connectFacebookFirst": "Connect Facebook first",
+      "connectInstagramFirst": "Connect Instagram first",
+      "draftDuplicated": "Draft duplicated.",
+      "postRemoved": "Post removed from view."
+    },
+    "confirm": {
+      "deleteFromHistory": "Delete this post from the current history view?"
+    },
+    "previewCard": {
+      "mediaPlaceholder": "Media preview will show here",
+      "mediaAlt": "{{platform}} preview media",
+      "noFacebookPage": "No Facebook page selected",
+      "noInstagramAccount": "No Instagram account selected",
+      "sampleLikes": "1.2K likes",
+      "sampleComments": "84 comments",
+      "sampleShares": "21 shares",
+      "page": "Page: {{value}}",
+      "platforms": "Platforms: {{value}}",
+      "notSelected": "Not selected",
+      "none": "none"
+    },
+    "createFrom": {
+      "title": "Create Post From",
+      "hint": "Choose how you want to start this post.",
+      "device": "Upload From Device",
+      "deviceHint": "Active now",
+      "catalog": "Product Catalog",
+      "catalogHint": "Select from ERP products",
+      "aiMarketing": "AI Marketing",
+      "comingSoon": "Coming Soon"
+    },
+    "options": {
+      "includeLocation": "Add location",
+      "includeShipping": "Add shipping"
+    },
+    "catalog": {
+      "selectedProduct": "Selected product",
+      "productName": "Product name",
+      "currentPrice": "Current price",
+      "priceUnavailable": "Price not available",
+      "stock": "Stock",
+      "inStock": "{{count}} in stock",
+      "outOfStock": "Out of stock",
+      "sizeCount": "Size count",
+      "colorCount": "Colour count",
+      "discountRate": "Discount rate",
+      "availableColorImages": "Available colour images"
+    }
   },
   "templates": {
     "eyebrow": "Templates",

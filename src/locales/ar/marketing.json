@@ -406,7 +406,75 @@
     "scheduleFailed": "تعذر جدولة المنشور",
     "noHistory": "لا توجد منشورات بعد.",
     "status": "الحالة",
-    "draft": "مسودة"
+    "draft": "مسودة",
+    "header": {
+      "eyebrow": "استوديو التسويق",
+      "title": "استوديو الحملات",
+      "description": "أنشئ حملاتك التسويقية، راجع المحتوى، ثم انشر أو جدوله من مكان واحد."
+    },
+    "postStatus": {
+      "draft": "مسودة",
+      "scheduled": "مجدول",
+      "published": "منشور",
+      "publishedCheck": "تم النشر ✓",
+      "partialSuccess": "نجاح جزئي",
+      "failed": "فشل",
+      "skipped": "تم التخطي",
+      "unknownReason": "سبب غير معروف"
+    },
+    "toasts": {
+      "selectProductFirst": "اختر منتجًا أولًا",
+      "firstCommentSaved": "تم حفظ التعليق الأول في المسودة.",
+      "copied": "تم النسخ بنجاح.",
+      "copyFailed": "فشل النسخ.",
+      "connectFacebookFirst": "اربط Facebook أولًا",
+      "connectInstagramFirst": "اربط Instagram أولًا",
+      "draftDuplicated": "تم تكرار المسودة.",
+      "postRemoved": "تمت إزالة المنشور من العرض."
+    },
+    "confirm": {
+      "deleteFromHistory": "هل تريد حذف هذا المنشور من عرض السجل الحالي؟"
+    },
+    "previewCard": {
+      "mediaPlaceholder": "ستظهر معاينة الوسائط هنا",
+      "mediaAlt": "وسائط معاينة {{platform}}",
+      "noFacebookPage": "لم يتم اختيار صفحة Facebook",
+      "noInstagramAccount": "لم يتم اختيار حساب Instagram",
+      "sampleLikes": "١٫٢ ألف إعجاب",
+      "sampleComments": "٨٤ تعليقًا",
+      "sampleShares": "٢١ مشاركة",
+      "page": "الصفحة: {{value}}",
+      "platforms": "المنصات: {{value}}",
+      "notSelected": "لم يتم الاختيار",
+      "none": "لا شيء"
+    },
+    "createFrom": {
+      "title": "أنشئ المنشور من",
+      "hint": "اختر طريقة بدء هذا المنشور.",
+      "device": "الرفع من الجهاز",
+      "deviceHint": "متاح الآن",
+      "catalog": "كتالوج المنتجات",
+      "catalogHint": "اختر من منتجات النظام",
+      "aiMarketing": "التسويق بالذكاء الاصطناعي",
+      "comingSoon": "قريبًا"
+    },
+    "options": {
+      "includeLocation": "إضافة الموقع",
+      "includeShipping": "إضافة الشحن"
+    },
+    "catalog": {
+      "selectedProduct": "المنتج المحدد",
+      "productName": "اسم المنتج",
+      "currentPrice": "السعر الحالي",
+      "priceUnavailable": "السعر غير متاح",
+      "stock": "المخزون",
+      "inStock": "{{count}} في المخزون",
+      "outOfStock": "غير متوفر",
+      "sizeCount": "عدد المقاسات",
+      "colorCount": "عدد الألوان",
+      "discountRate": "نسبة الخصم",
+      "availableColorImages": "صور الألوان المتاحة"
+    }
   },
   "templates": {
     "eyebrow": "القوالب",
