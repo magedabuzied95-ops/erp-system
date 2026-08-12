@@ -7,7 +7,7 @@ function OrdersShell({ title, subtitle, actions, header, children }) {
   const { t } = useTranslation();
   const embeddedWorkspace = header === null;
   return (
-    <div className={`${embeddedWorkspace ? "min-h-0" : "min-h-screen"} bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_12%,transparent),transparent_34%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-[var(--text)]`}>
+    <div className={`${embeddedWorkspace ? "min-h-0" : "min-h-screen"} bg-background text-[var(--text)]`}>
       <div className={`mx-auto flex w-full flex-col ${embeddedWorkspace ? "max-w-none gap-3 p-0" : "max-w-[1800px] gap-4 px-4 py-4 lg:px-6"}`}>
         {header !== undefined ? header : (
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
@@ -41,7 +41,7 @@ function NavButton({ to, label }) {
       end={to === "/orders"}
       className={({ isActive }) =>
         `rounded-2xl px-4 py-2 text-sm font-semibold transition ${
-          isActive ? "bg-[var(--primary)] text-white" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--surface)]"
+          isActive ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--surface)]"
         }`
       }
     >

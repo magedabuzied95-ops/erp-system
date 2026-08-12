@@ -501,12 +501,12 @@ const isCriticalOrder = (order = {}) => {
 const priorityFor = (order = {}) => {
   if (isCriticalOrder(order)) return { label: "حرج", className: "border-rose-400/35 bg-rose-400/10 shadow-rose-950/20" };
   if (statusOf(order) === "edit_requested") return { label: "تعديل مطلوب", className: "border-orange-400/35 bg-orange-400/10 shadow-orange-950/20" };
-  if (isClosedOrder(order)) return { label: "مرتجع/ملغى", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  if (isAwaitingVerification(order)) return { label: "مراجعة", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  if (isDelayedPending(order)) return { label: "متأخر", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  if (isHighValue(order)) return { label: "قيمة مرتفعة", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  if (paymentStatusOf(order) === "cod") return { label: "COD", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  return { label: "عادي", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (isClosedOrder(order)) return { label: "مرتجع/ملغى", className: "border-border bg-surface shadow-black/10" };
+  if (isAwaitingVerification(order)) return { label: "مراجعة", className: "border-border bg-surface shadow-black/10" };
+  if (isDelayedPending(order)) return { label: "متأخر", className: "border-border bg-surface shadow-black/10" };
+  if (isHighValue(order)) return { label: "قيمة مرتفعة", className: "border-border bg-surface shadow-black/10" };
+  if (paymentStatusOf(order) === "cod") return { label: "COD", className: "border-border bg-surface shadow-black/10" };
+  return { label: "عادي", className: "border-border bg-surface shadow-black/10" };
 };
 
 const CUSTOMER_CONFIRMATION_TIMELINE_META = {
@@ -913,18 +913,19 @@ function OrdersDashboard() {
         </div>
       ) : null}
 
+      <header className="m1-orders-header">
+        <div className="m1-page-eyebrow">
+          <ActiveWorkspaceIcon className="h-3.5 w-3.5" />
+          {t(activeWorkspace.labelKey)}
+        </div>
+        <h1 className="m1-page-title">{t("orders.dashboard.operationsWorkspace")}</h1>
+      </header>
+
       <WorkspaceTabs t={t} value={workspace} onChange={(value) => { setWorkspace(value); setPage(1); }} counts={{ table: orders.length, verification: verificationOrders.length, fulfillment: fulfillmentOrders.length, returns: returnsOrders.length }} />
 
       <div className={`grid min-w-0 gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : ""}`}>
-        <main className="min-w-0 rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
+        <main className="min-w-0 rounded-2xl border border-border bg-surface p-3 shadow-2xl shadow-black/10">
           <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                <ActiveWorkspaceIcon className="h-3.5 w-3.5" />
-                {t(activeWorkspace.labelKey)}
-              </div>
-              <h2 className="m1-section-title mt-1 text-white">{t("orders.dashboard.operationsWorkspace")}</h2>
-            </div>
             <BulkActions
               t={t}
               selectedCount={selectedCount}
@@ -1037,13 +1038,13 @@ function WorkspaceTabs({ t, value, onChange, counts }) {
           key={key}
           type="button"
           onClick={() => onChange(key)}
-          className={`flex items-center justify-between gap-3 rounded-[var(--radius-control)] border px-3 py-2.5 text-left transition ${value === key ? "border-primary/30 bg-white/10 text-white shadow-[0_0_20px_rgba(34,211,238,0.15)]" : "border-transparent text-zinc-300 hover:bg-white/5 hover:text-white"}`}
+          className={`flex items-center justify-between gap-3 rounded-[var(--radius-control)] border px-3 py-2.5 text-left transition ${value === key ? "border-primary/30 bg-surface-soft text-text shadow-[0_0_20px_rgba(34,211,238,0.15)]" : "border-transparent text-text-muted hover:bg-surface-hover hover:text-text"}`}
         >
           <span className="flex min-w-0 items-center gap-2">
             <Icon className="h-4 w-4 shrink-0" />
             <span className="truncate text-sm font-black">{t(labelKey)}</span>
           </span>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-black ${value === key ? "bg-primary/15 text-primary" : "bg-white/10 text-white"}`}>{counts[key] || 0}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-black ${value === key ? "bg-primary/15 text-primary" : "bg-surface-soft text-text"}`}>{counts[key] || 0}</span>
         </button>
       ))}
     </div>
@@ -1053,7 +1054,7 @@ function WorkspaceTabs({ t, value, onChange, counts }) {
 function BulkActions({ t, selectedCount, onConfirm, onShip, onPrint, onExport, onWhatsapp }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black text-zinc-200">{t("orders.bulk.selectedCount", { count: selectedCount })}</span>
+      <span className="rounded-full border border-border bg-surface-soft px-3 py-1.5 text-xs font-black text-text">{t("orders.bulk.selectedCount", { count: selectedCount })}</span>
       <ActionButton disabled={!selectedCount} onClick={onConfirm} icon={<CheckCircle2 className="h-3.5 w-3.5" />} label={t("orders.bulk.confirm")} />
       <ActionButton disabled={!selectedCount} onClick={onShip} icon={<Truck className="h-3.5 w-3.5" />} label={t("orders.bulk.ship")} />
       <ActionButton disabled={!selectedCount} onClick={onPrint} icon={<Printer className="h-3.5 w-3.5" />} label={t("orders.bulk.print")} />
@@ -1065,14 +1066,14 @@ function BulkActions({ t, selectedCount, onConfirm, onShip, onPrint, onExport, o
 }
 
 function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) {
-  const toneClass = tone === "rose" ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-white/10 bg-white/5 text-white";
+  const toneClass = tone === "rose" ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-border bg-surface-soft text-text";
   return (
     <button
       type="button"
       disabled={disabled}
       title={disabled ? title || "" : title}
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 py-1.5 text-xs font-bold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
+      className={`inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 py-1.5 text-xs font-bold transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
     >
       {icon}
       {label}
@@ -1087,16 +1088,16 @@ function Filters(props) {
 
   return (
     <>
-      <div className="grid gap-3 xl:grid-cols-[minmax(20rem,2.3fr)_repeat(4,minmax(9rem,1fr))]">
+      <div className="m1-orders-filters grid gap-3 xl:grid-cols-[minmax(20rem,2.3fr)_repeat(4,minmax(9rem,1fr))]">
         <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">البحث</div>
+          <div className="mb-1.5 text-[11px] font-bold text-text-muted">البحث</div>
           <div className="relative">
-            <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("orders.searchPlaceholder")}
-              className="w-full rounded-[var(--radius-control)] border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-2.5 pe-3 ps-10 text-sm font-medium text-text outline-none placeholder:text-text-muted focus:border-primary/40"
             />
           </div>
         </label>
@@ -1104,8 +1105,8 @@ function Filters(props) {
         <Select value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label="حالة الدفع" allLabel="الكل" labels={PAYMENT_FILTER_LABELS} />
         <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label="المصدر" allLabel="الكل" labels={SOURCE_LABELS} t={t} />
         <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">التاريخ</div>
-          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" />
+          <div className="mb-1.5 text-[11px] font-bold text-text-muted">التاريخ</div>
+          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2.5 text-sm text-text outline-none" />
         </label>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
@@ -1132,7 +1133,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
     <div className="mt-3 w-full min-w-0 overflow-x-auto overflow-y-visible pb-2">
       <div className="min-w-[1480px] overflow-visible">
         <div
-          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] rounded-xl border border-border bg-surface px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-text-muted shadow-lg shadow-black/20 backdrop-blur-xl"
           dir={tableDir}
         >
           <div className="flex items-center justify-center py-1 text-center">{t("orders.table.actions")}</div>
@@ -1162,7 +1163,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") openOrder(order);
                 }}
-                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-[var(--radius-card)] border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
+                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-[var(--radius-card)] border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-surface-hover hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
                 dir={tableDir}
               >
                 <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
@@ -1179,8 +1180,8 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 <PaidAmountCell order={order} />
                 <DueAmountCell order={order} />
                 <SellerCell order={order} />
-                <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-zinc-300"><span className="truncate">{order.branch || "-"}</span></div>
-                <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-zinc-300"><span className="truncate">{getPosDisplay(order) || "-"}</span></div>
+                <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-text-muted"><span className="truncate">{order.branch || "-"}</span></div>
+                <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-text-muted"><span className="truncate">{getPosDisplay(order) || "-"}</span></div>
               </div>
             );
           })}
@@ -1243,7 +1244,7 @@ function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, pe
         <>
           <div
             ref={menuRef}
-            className="fixed z-[9999] w-64 rounded-2xl border border-white/10 bg-zinc-950/95 p-2 text-white shadow-2xl shadow-black/40 backdrop-blur-xl"
+            className="fixed z-[9999] w-64 rounded-2xl border border-border bg-surface p-2 text-text shadow-2xl shadow-black/40 backdrop-blur-xl"
             style={{ top: menuPosition.top, left: menuPosition.left }}
           >
             <MenuButton icon={<Eye className="h-4 w-4" />} label={t("orders.actionsMenu.viewDetails")} onClick={() => runAction(() => openOrder(order))} />
@@ -1263,7 +1264,7 @@ function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, pe
                 .then(() => toast.success(t("orders.actionsMenu.invoiceLinkCopied", "\u062a\u0645 \u0646\u0633\u062e \u0631\u0627\u0628\u0637 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629")))
                 .catch(() => toast.error(t("orders.actionsMenu.invoiceLinkCopyFailed", "\u062a\u0639\u0630\u0631 \u0646\u0633\u062e \u0631\u0627\u0628\u0637 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629")));
             })} />
-            <div className="my-1 border-t border-white/10" />
+            <div className="my-1 border-t border-border" />
             <MenuButton
               icon={<Trash2 className="h-4 w-4" />}
               label={tt(t, "orders.actionsMenu.permanentDelete", "\u062d\u0630\u0641 \u0646\u0647\u0627\u0626\u064a")}
@@ -1288,7 +1289,7 @@ function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, pe
           if (ORDERS_DEBUG) console.log("[orders-dashboard] action trigger clicked", { rowId: order.id, nextOpen: !isOpen });
           setOpenMenuId(isOpen ? null : order.id);
         }}
-        className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-white/90 shadow-lg shadow-black/10 ring-1 ring-white/[0.03] transition-all duration-200 ease-out hover:border-primary/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/35"
+        className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text shadow-lg shadow-black/10 ring-1 ring-border transition-all duration-200 ease-out hover:border-primary/40 hover:bg-surface-hover hover:text-text focus:outline-none focus:ring-2 focus:ring-primary/35"
       >
         <MoreVertical className="h-4 w-4 opacity-95" />
       </button>
@@ -1307,22 +1308,22 @@ function VerificationQueue({ t, orders, updateShippingPayment, openOrder }) {
         const proofInvalid = Boolean(rawProof) && isInvalidShippingProofUrl(rawProof);
         return (
           <div key={order.id} className="grid gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-3 shadow-xl shadow-amber-950/10 md:grid-cols-[7rem_minmax(0,1fr)]">
-            <div className="overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5">
-              {proofInvalid ? <div className="grid h-28 place-items-center px-3 text-center text-xs font-semibold text-rose-200">{t("orders.payment.invalidProof")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="h-28 w-full object-cover" /> : <div className="grid h-28 place-items-center text-xs font-semibold text-zinc-500">{t("orders.payment.noProof")}</div>}
+            <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
+              {proofInvalid ? <div className="grid h-28 place-items-center px-3 text-center text-xs font-semibold text-rose-200">{t("orders.payment.invalidProof")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="h-28 w-full object-cover" /> : <div className="grid h-28 place-items-center text-xs font-semibold text-text-muted">{t("orders.payment.noProof")}</div>}
             </div>
             <div className="min-w-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <OrderCode order={order} />
-                  <div className="mt-2 truncate text-sm font-semibold text-white">{order.customer_name || t("orders.fallback.customer")}</div>
-                  <div className="mt-1 text-xs text-zinc-400">{formatShippingPaymentMethodLabel(order.shipping_payment_method || order.payment_method)} · {formatCurrency(order.shipping_fee || order.delivery_fee || 0)}</div>
+                  <div className="mt-2 truncate text-sm font-semibold text-text">{order.customer_name || t("orders.fallback.customer")}</div>
+                  <div className="mt-1 text-xs text-text-muted">{formatShippingPaymentMethodLabel(order.shipping_payment_method || order.payment_method)} · {formatCurrency(order.shipping_fee || order.delivery_fee || 0)}</div>
                 </div>
                 <StatusBadge value={paymentBadgeValue(order)} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-primary px-3 py-1.5 text-xs font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.confirm")}</button>
-                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.reject")}</button>
-                <button type="button" onClick={() => openOrder(order)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white">{t("orders.actionsMenu.view")}</button>
+                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-1.5 text-xs font-black text-text disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.reject")}</button>
+                <button type="button" onClick={() => openOrder(order)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-1.5 text-xs font-semibold text-text">{t("orders.actionsMenu.view")}</button>
               </div>
             </div>
           </div>
@@ -1355,14 +1356,14 @@ function FulfillmentBoard({ t, orders, openOrder }) {
   return (
     <div className="mt-3 grid gap-3 xl:grid-cols-4">
       {grouped.map((column) => (
-        <div key={column.key} className="min-h-48 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
+        <div key={column.key} className="min-h-48 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="m1-section-title text-white">{column.label}</h3>
-            <span className="rounded-full bg-black/20 px-2 py-0.5 text-xs font-black text-zinc-200">{column.orders.length}</span>
+            <h3 className="m1-section-title text-text">{column.label}</h3>
+            <span className="rounded-full bg-black/20 px-2 py-0.5 text-xs font-black text-text">{column.orders.length}</span>
           </div>
           <div className="mt-3 space-y-2">
             {column.orders.map((order) => <CompactOrderCard key={order.id} t={t} order={order} onClick={() => openOrder(order)} />)}
-            {!column.orders.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs font-semibold text-zinc-500">{t("orders.empty.empty")}</div> : null}
+            {!column.orders.length ? <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs font-semibold text-text-muted">{t("orders.empty.empty")}</div> : null}
           </div>
         </div>
       ))}
@@ -1379,15 +1380,15 @@ function ReturnsView({ t, orders, openOrder }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <OrderCode order={order} />
-              <div className="mt-2 truncate text-sm font-semibold text-white">{order.customer_name || t("orders.fallback.customer")}</div>
-              <div className="mt-1 text-xs text-zinc-400">{order.cancel_reason || order.notes || t("orders.returns.noReturnNote")}</div>
+              <div className="mt-2 truncate text-sm font-semibold text-text">{order.customer_name || t("orders.fallback.customer")}</div>
+              <div className="mt-1 text-xs text-text-muted">{order.cancel_reason || order.notes || t("orders.returns.noReturnNote")}</div>
             </div>
             <StatusBadge value={order.status} />
           </div>
-          <div className="mt-3 grid gap-2 text-xs text-zinc-300 sm:grid-cols-3">
-            <span>{t("orders.table.payment")}: <b className="text-white">{paymentBadgeValue(order)}</b></span>
-            <span>{t("orders.returns.stock")}: <b className="text-white">{order.stock_reverted_at || order.inventory_rollback_done ? t("orders.returns.returned") : t("orders.returns.notMarked")}</b></span>
-            <span>{t("orders.table.total")}: <b className="text-white">{formatCurrency(totalValue(order))}</b></span>
+          <div className="mt-3 grid gap-2 text-xs text-text-muted sm:grid-cols-3">
+            <span>{t("orders.table.payment")}: <b className="text-text">{paymentBadgeValue(order)}</b></span>
+            <span>{t("orders.returns.stock")}: <b className="text-text">{order.stock_reverted_at || order.inventory_rollback_done ? t("orders.returns.returned") : t("orders.returns.notMarked")}</b></span>
+            <span>{t("orders.table.total")}: <b className="text-text">{formatCurrency(totalValue(order))}</b></span>
           </div>
         </button>
       ))}
@@ -1407,8 +1408,8 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
   return (
     <div className={`fixed inset-0 z-50 ${inlinePreview ? "xl:hidden" : ""}`}>
       <button type="button" aria-label={t("orders.drawer.closeBackdrop")} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col overflow-hidden border-l border-white/10 bg-zinc-950 text-white shadow-2xl md:w-[42rem]">
-        <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+      <section className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col overflow-hidden border-l border-border bg-surface text-text shadow-2xl md:w-[42rem]">
+        <header className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div className="min-w-0">
             <OrderCode order={order} />
             <h2 className="m1-section-title mt-2 truncate">{getCustomerDisplayName(order, t("orders.fallback.customer"))}</h2>
@@ -1419,7 +1420,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
               {order.shipping_status ? <StatusBadge value={order.shipping_status} /> : null}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-2 text-text hover:bg-surface-hover">
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -1442,33 +1443,33 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
 
           <Section title={t("orders.drawer.items")}>
             {previewItems.length ? previewItems.map((item) => (
-              <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
+              <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                 {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-10 w-10 shrink-0 rounded-lg border border-white/10 object-cover" />
+                  <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-10 w-10 shrink-0 rounded-lg border border-border object-cover" />
                 ) : null}
                 <div className="min-w-0">
                   <div className="truncate text-sm font-black">{item.product_name || item.name || t("orders.fallback.item")}</div>
-                  <div className="mt-1 text-xs text-zinc-400">{[item.color, item.size].filter(Boolean).join(" / ") || item.sku || "Variant"} · Qty {item.quantity || 0}</div>
+                  <div className="mt-1 text-xs text-text-muted">{[item.color, item.size].filter(Boolean).join(" / ") || item.sku || "Variant"} · Qty {item.quantity || 0}</div>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-sm font-black">{formatCurrency(item.subtotal)}</div>
-                  <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{formatCurrency(item.unitPrice)}</div>
+                  <div className="mt-0.5 text-[11px] font-semibold text-text-muted">{formatCurrency(item.unitPrice)}</div>
                 </div>
               </div>
             )) : <EmptyState icon={PackageOpen} title={t("orders.drawer.noItemData")} text={t("orders.drawer.noItemDataText")} compact />}
           </Section>
 
           <Section title={t("orders.payment.proof")}>
-            {proofInvalid ? <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100">{t("orders.payment.invalidProofUrl")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="max-h-64 w-full rounded-xl border border-white/10 object-cover" /> : <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm text-zinc-400">{t("orders.payment.noProofUploaded")}</div>}
+            {proofInvalid ? <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100">{t("orders.payment.invalidProofUrl")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="max-h-64 w-full rounded-xl border border-border object-cover" /> : <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm text-text-muted">{t("orders.payment.noProofUploaded")}</div>}
           </Section>
 
           <Section title={t("orders.drawer.notes")}>
-            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm leading-6 text-text-muted">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
           </Section>
         </div>
-        <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-3">
-          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.actionsMenu.openDetailsPage")}</button>
-          <button type="button" onClick={() => editOrder?.(order)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.actionsMenu.editOrder")}</button>
+        <footer className="grid gap-2 border-t border-border p-4 sm:grid-cols-3">
+          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">{t("orders.actionsMenu.openDetailsPage")}</button>
+          <button type="button" onClick={() => editOrder?.(order)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">{t("orders.actionsMenu.editOrder")}</button>
           <button type="button" onClick={() => {
             if (!order.customer_phone) {
               toast.error(t("orders.bulk.selectPhoneFirst"));
@@ -1476,10 +1477,10 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
             }
             const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "قيد المراجعة" }));
             window.open(`https://wa.me/${String(order.customer_phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
-          }} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">WhatsApp</button>
+          }} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">WhatsApp</button>
           <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-primary px-3 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
-          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
-          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-sm font-black text-text disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
+          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">{t("orders.bulk.print")}</button>
         </footer>
       </section>
     </div>
@@ -1504,8 +1505,8 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
   };
 
   return (
-    <section className="sticky top-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 text-white shadow-2xl shadow-black/20">
-      <header className="flex items-start justify-between gap-3 border-b border-white/10 p-3">
+    <section className="sticky top-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-surface text-text shadow-2xl shadow-black/20">
+      <header className="flex items-start justify-between gap-3 border-b border-border p-3">
         <div className="min-w-0">
           <OrderCode order={order} />
           <h2 className="m1-section-title mt-2 truncate">{customerName}</h2>
@@ -1515,7 +1516,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
             {isExchangeOrder(order) ? <ExchangeBadge order={order} compact /> : null}
           </div>
         </div>
-        <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+        <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-2 text-text hover:bg-surface-hover">
           <X className="h-4 w-4" />
         </button>
       </header>
@@ -1533,17 +1534,17 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
 
         <Section title={t("orders.drawer.items")}>
           {previewItems.length ? previewItems.map((item) => (
-            <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2.5">
+            <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-2.5">
               {item.imageUrl ? (
-                <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-9 w-9 shrink-0 rounded-lg border border-white/10 object-cover" />
+                <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover" />
               ) : null}
               <div className="min-w-0">
                 <div className="truncate text-sm font-black">{item.product_name || item.name || t("orders.fallback.item")}</div>
-                <div className="mt-1 text-xs text-zinc-400">{[item.color, item.size].filter(Boolean).join(" / ") || item.sku || "Variant"} / Qty {item.quantity || 0}</div>
+                <div className="mt-1 text-xs text-text-muted">{[item.color, item.size].filter(Boolean).join(" / ") || item.sku || "Variant"} / Qty {item.quantity || 0}</div>
               </div>
               <div className="shrink-0 text-right">
                 <div className="text-sm font-black">{formatCurrency(item.subtotal)}</div>
-                <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{formatCurrency(item.unitPrice)}</div>
+                <div className="mt-0.5 text-[11px] font-semibold text-text-muted">{formatCurrency(item.unitPrice)}</div>
               </div>
             </div>
           )) : <EmptyState icon={PackageOpen} title={t("orders.drawer.noItemData")} text={t("orders.drawer.noItemDataText")} compact />}
@@ -1554,19 +1555,19 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
         </Section>
 
         <Section title={t("orders.drawer.notes")}>
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm leading-6 text-text-muted">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
         </Section>
       </div>
-      <footer className="grid gap-2 border-t border-white/10 p-3">
+      <footer className="grid gap-2 border-t border-border p-3">
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.actionsMenu.openDetailsPage")}</button>
-          <button type="button" onClick={() => editOrder?.(order)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.actionsMenu.editOrder")}</button>
-          <button type="button" onClick={openWhatsapp} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">WhatsApp</button>
-          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
+          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">{t("orders.actionsMenu.openDetailsPage")}</button>
+          <button type="button" onClick={() => editOrder?.(order)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">{t("orders.actionsMenu.editOrder")}</button>
+          <button type="button" onClick={openWhatsapp} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">WhatsApp</button>
+          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">{t("orders.bulk.print")}</button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
-          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-xs font-black text-text disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
         </div>
       </footer>
     </section>
@@ -1576,20 +1577,20 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
 function OrderCode({ order }) {
   return (
     <div className="min-w-0 text-center">
-      <div className="inline-flex max-w-full items-center truncate rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black tracking-wide text-white">
+      <div className="inline-flex max-w-full items-center truncate rounded-full border border-border bg-surface-soft px-2 py-0.5 text-[11px] font-black tracking-wide text-text">
         {orderCode(order)}
       </div>
-      <div className="mt-0.5 truncate text-[10px] font-semibold text-zinc-500">#{order.id}</div>
+      <div className="mt-0.5 truncate text-[10px] font-semibold text-text-muted">#{order.id}</div>
       <div className="mt-1 flex justify-center"><AiInboxOrderLink order={order} compact /></div>
     </div>
   );
 }
 
 function OrderDateTimeCell({ value, language }) {
-  if (!value) return <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-bold text-zinc-500">-</div>;
+  if (!value) return <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-bold text-text-muted">-</div>;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-bold text-zinc-300" title={String(value)}>{String(value)}</div>;
+    return <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-bold text-text-muted" title={String(value)}>{String(value)}</div>;
   }
 
   const locale = isArabicLanguage(language) ? "ar-EG" : "en-US";
@@ -1601,8 +1602,8 @@ function OrderDateTimeCell({ value, language }) {
 
   return (
     <div className="table-cell-stack px-2 leading-tight" dir="auto" title={formatDateTime(value)}>
-      <div className="truncate text-xs font-black text-zinc-100">{dateLabel}</div>
-      <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-500">{timeLabel}</div>
+      <div className="truncate text-xs font-black text-text">{dateLabel}</div>
+      <div className="mt-0.5 truncate text-[11px] font-semibold text-text-muted">{timeLabel}</div>
     </div>
   );
 }
@@ -1611,7 +1612,7 @@ function CustomerCell({ t, order }) {
   const attribution = getAttributionLabel(order);
   return (
     <div className="table-cell-stack px-2">
-      <div className="truncate text-sm font-semibold text-white" title={getCustomerPhone(order)}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
+      <div className="truncate text-sm font-semibold text-text" title={getCustomerPhone(order)}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
       <div className="mt-1 flex max-w-full flex-wrap items-center justify-center gap-1">
         {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{attribution}</div> : null}
       </div>
@@ -1621,7 +1622,7 @@ function CustomerCell({ t, order }) {
 
 function PhoneCell({ t, order }) {
   const phone = getCustomerPhone(order);
-  if (!phone) return <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-bold text-zinc-500">-</div>;
+  if (!phone) return <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-bold text-text-muted">-</div>;
 
   const copyOnDesktop = async (event) => {
     event.stopPropagation();
@@ -1657,8 +1658,8 @@ function PaymentStatusCell({ order, language }) {
   const toneClass = {
     paid: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
     partially_paid: "border-amber-400/25 bg-amber-400/10 text-amber-100",
-    deferred: "border-slate-400/20 bg-slate-400/10 text-slate-100",
-  }[summary.statusKey] || "border-white/10 bg-white/5 text-zinc-100";
+    deferred: "border-border bg-border-strong text-text",
+  }[summary.statusKey] || "border-border bg-surface-soft text-text";
 
   return (
     <div className="table-cell-stack px-2">
@@ -1673,7 +1674,7 @@ function PaymentStatusCell({ order, language }) {
 function ItemsCountCell({ order }) {
   return (
     <div className="table-cell-stack px-2">
-      <div className="inline-flex h-7 min-w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 text-xs font-black text-white">
+      <div className="inline-flex h-7 min-w-8 items-center justify-center rounded-full border border-border bg-surface-soft px-2 text-xs font-black text-text">
         {getItemsCount(order)}
       </div>
     </div>
@@ -1687,7 +1688,7 @@ function PaidAmountCell({ order }) {
   if (isEditedPaymentOrder(order)) {
     return (
       <div className="table-cell-stack px-2">
-        <div className="truncate text-[10px] font-bold text-zinc-300">
+        <div className="truncate text-[10px] font-bold text-text-muted">
           المدفوع الأصلي: <CurrencyText value={formatCurrency(editOriginalPaidOf(order))} />
         </div>
         <div className="truncate text-[10px] font-bold text-emerald-200">
@@ -1718,7 +1719,7 @@ function PaidAmountCell({ order }) {
   }
   return (
     <div className="table-cell-stack px-2">
-      <div className={`truncate text-sm font-bold ${isPartial ? "text-amber-200" : paid > 0 ? "text-emerald-200" : "text-zinc-400"}`}>
+      <div className={`truncate text-sm font-bold ${isPartial ? "text-amber-200" : paid > 0 ? "text-emerald-200" : "text-text-muted"}`}>
         <CurrencyText value={formatCurrency(paid)} />
       </div>
     </div>
@@ -1729,7 +1730,7 @@ function SellerCell({ order }) {
   const seller = getSellerName(order);
   return (
     <div className="table-cell-stack px-2">
-      <div className="truncate text-xs font-semibold text-zinc-200" title={seller || "-"}>
+      <div className="truncate text-xs font-semibold text-text" title={seller || "-"}>
         {seller || "-"}
       </div>
     </div>
@@ -1739,7 +1740,7 @@ function SellerCell({ order }) {
 function TotalCell({ t, order }) {
   return (
     <div className="table-cell-stack px-2">
-      <div className="truncate text-sm font-bold text-white"><CurrencyText value={formatCurrency(totalValue(order))} /></div>
+      <div className="truncate text-sm font-bold text-text"><CurrencyText value={formatCurrency(totalValue(order))} /></div>
       {isExchangeOrder(order) ? (
         <div className="mt-0.5 truncate text-[10px] font-black text-amber-100">
           Total: <CurrencyText value={formatCurrency(totalValue(order))} />
@@ -1754,7 +1755,7 @@ function DueAmountCell({ order }) {
   const hasDue = due > 0;
   return (
     <div className="table-cell-stack px-2">
-      <div className={`truncate text-sm font-bold ${hasDue ? "text-amber-200" : "text-zinc-500"}`}>
+      <div className={`truncate text-sm font-bold ${hasDue ? "text-amber-200" : "text-text-muted"}`}>
         <CurrencyText value={formatCurrency(due)} />
       </div>
     </div>
@@ -1775,17 +1776,17 @@ function ExchangeBadge({ order, compact = false }) {
 
 function CompactOrderCard({ t, order, onClick }) {
   return (
-    <button type="button" onClick={onClick} className={`w-full rounded-[var(--radius-control)] border p-3 text-left transition hover:bg-white/10 ${priorityFor(order).className}`}>
+    <button type="button" onClick={onClick} className={`w-full rounded-[var(--radius-control)] border p-3 text-left transition hover:bg-surface-hover ${priorityFor(order).className}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <OrderCode order={order} />
-          <div className="mt-2 truncate text-sm font-semibold text-white">{order.customer_name || t("orders.fallback.customer")}</div>
+          <div className="mt-2 truncate text-sm font-semibold text-text">{order.customer_name || t("orders.fallback.customer")}</div>
         </div>
         <StatusBadge value={order.status} />
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-400">
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-text-muted">
         <span>{formatDateTime(order.created_at)}</span>
-        <b className="text-white">{formatCurrency(totalValue(order))}</b>
+        <b className="text-text">{formatCurrency(totalValue(order))}</b>
       </div>
     </button>
   );
@@ -1798,8 +1799,8 @@ function Timeline({ items }) {
         <div key={item.key} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
           <div className={`mt-1 h-3 w-3 rounded-full ${timelineDot(item.tone)}`} />
           <div>
-            <div className="text-sm font-black text-white">{item.label}</div>
-            <div className="mt-0.5 text-xs text-zinc-500">{item.at ? formatDateTime(item.at) : "No timestamp available"}</div>
+            <div className="text-sm font-black text-text">{item.label}</div>
+            <div className="mt-0.5 text-xs text-text-muted">{item.at ? formatDateTime(item.at) : "No timestamp available"}</div>
           </div>
         </div>
       ))}
@@ -1809,12 +1810,12 @@ function Timeline({ items }) {
 
 function InfoTile({ icon: Icon, label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
-      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-zinc-500">
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-text-muted">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className="mt-2 break-words text-sm font-bold text-white"><CurrencyText value={value || "غير متاح"} /></div>
+      <div className="mt-2 break-words text-sm font-bold text-text"><CurrencyText value={value || "غير متاح"} /></div>
     </div>
   );
 }
@@ -1822,7 +1823,7 @@ function InfoTile({ icon: Icon, label, value }) {
 function Section({ title, children }) {
   return (
     <section className="mt-5">
-      <h3 className="m1-section-title mb-2 text-white">{title}</h3>
+      <h3 className="m1-section-title mb-2 text-text">{title}</h3>
       <div className="space-y-2">{children}</div>
     </section>
   );
@@ -1830,17 +1831,17 @@ function Section({ title, children }) {
 
 function EmptyState({ icon: Icon, title, text: body, compact = false }) {
   return (
-    <div className={`rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 text-center ${compact ? "p-4" : "mt-3 p-10"}`}>
-      <Icon className="mx-auto h-10 w-10 text-zinc-500" />
-      <h3 className="m1-section-title mt-3 text-white">{title}</h3>
-      <p className="mt-1 text-sm text-zinc-400">{body}</p>
+    <div className={`rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft text-center ${compact ? "p-4" : "mt-3 p-10"}`}>
+      <Icon className="mx-auto h-10 w-10 text-text-muted" />
+      <h3 className="m1-section-title mt-3 text-text">{title}</h3>
+      <p className="mt-1 text-sm text-text-muted">{body}</p>
     </div>
   );
 }
 
 function QuickFilterButton({ active, onClick, label }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${active ? "border-primary/30 bg-primary/15 text-primary" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}>
+    <button type="button" onClick={onClick} className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${active ? "border-primary/30 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"}`}>
       {label}
     </button>
   );
@@ -1849,11 +1850,11 @@ function QuickFilterButton({ active, onClick, label }) {
 function Select({ value, onChange, options, label, allLabel = "All", labels = {}, t }) {
   return (
     <label className="block">
-      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none">
+      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-text-muted">{label}</div>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm text-text outline-none">
         {options.map((option) => {
           const display = labels[option] && t ? t(labels[option]) : labels[option] || option;
-          return <option key={String(option)} value={option} className="bg-zinc-950 text-white">{option === "all" ? allLabel : display}</option>;
+          return <option key={String(option)} value={option} className="bg-surface text-text">{option === "all" ? allLabel : display}</option>;
         })}
       </select>
     </label>
@@ -1861,7 +1862,7 @@ function Select({ value, onChange, options, label, allLabel = "All", labels = {}
 }
 
 function MenuButton({ icon, label, onClick, tone = "zinc", disabled = false, title = "" }) {
-  const toneClass = tone === "rose" ? "text-rose-200 hover:bg-rose-500/10" : "text-zinc-200 hover:bg-white/5";
+  const toneClass = tone === "rose" ? "text-rose-200 hover:bg-rose-500/10" : "text-text hover:bg-surface-hover";
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={title} className={`flex w-full items-center gap-2 rounded-[var(--radius-control)] px-3 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}>
       {icon}
@@ -1940,13 +1941,13 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={t("orders.edit.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-      <form onSubmit={submit} className="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
-        <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+      <form onSubmit={submit} className="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-surface text-text shadow-2xl">
+        <header className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.edit.title")}</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{t("orders.edit.title")}</div>
             <h2 className="m1-section-title mt-1">{orderCode(order)}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 hover:bg-white/10"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-2 hover:bg-surface-hover"><X className="h-5 w-5" /></button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="grid gap-3 md:grid-cols-3">
@@ -1995,10 +1996,10 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
             {form.items.length ? (
               <div className="space-y-2">
                 {form.items.map((item, index) => (
-                  <div key={item.id || `${item.product_id}-${item.variant_id}-${index}`} className="grid gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 md:grid-cols-[minmax(0,1fr)_6rem_7rem]">
+                  <div key={item.id || `${item.product_id}-${item.variant_id}-${index}`} className="grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 md:grid-cols-[minmax(0,1fr)_6rem_7rem]">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black">{item.product_name || t("orders.fallback.item")}</div>
-                      <div className="mt-1 truncate text-xs text-zinc-400">{[item.color, item.size, item.sku].filter(Boolean).join(" / ") || item.variant_name || t("orders.fallback.variant")}</div>
+                      <div className="mt-1 truncate text-xs text-text-muted">{[item.color, item.size, item.sku].filter(Boolean).join(" / ") || item.variant_name || t("orders.fallback.variant")}</div>
                     </div>
                     <EditField type="number" min="0" label={t("orders.drawer.qty")} value={item.quantity} onChange={(value) => updateItem(index, "quantity", value)} />
                     <EditField type="number" min="0" step="0.01" label={t("orders.edit.price")} value={item.price} onChange={(value) => updateItem(index, "price", value)} />
@@ -2008,8 +2009,8 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
             ) : <EmptyState icon={PackageOpen} title={t("orders.drawer.noItemData")} text={t("orders.edit.noItemDataText")} compact />}
           </Section>
         </div>
-        <footer className="flex flex-col-reverse gap-2 border-t border-white/10 p-4 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10">{t("common.cancel")}</button>
+        <footer className="flex flex-col-reverse gap-2 border-t border-border p-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-bold hover:bg-surface-hover">{t("common.cancel")}</button>
           <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-60">{saving ? t("orders.edit.saving") : t("orders.edit.saveOrder")}</button>
         </footer>
       </form>
@@ -2038,12 +2039,12 @@ function CancelOrderModal({ t, order, cancelling, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={t("orders.cancel.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/25 bg-zinc-950 p-5 text-white shadow-2xl">
+      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/25 bg-surface p-5 text-text shadow-2xl">
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><RotateCcw className="h-5 w-5" /></div>
           <div className="min-w-0">
             <h2 className="m1-section-title">{t("orders.cancel.title")}</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">{t("orders.cancel.description")}</p>
+            <p className="mt-2 text-sm leading-6 text-text-muted">{t("orders.cancel.description")}</p>
           </div>
         </div>
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
@@ -2053,12 +2054,12 @@ function CancelOrderModal({ t, order, cancelling, onClose, onConfirm }) {
           <ConfirmMetric label={t("orders.cancel.itemsUnits")} value={t("orders.cancel.itemsUnitsValue", { items: itemCount, units: totalUnits })} />
         </div>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={cancelLoading} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
+          <button type="button" onClick={onClose} disabled={cancelLoading} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-bold hover:bg-surface-hover disabled:opacity-60">{t("common.close")}</button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={!canSubmitCancelRestore}
-            className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canSubmitCancelRestore ? "bg-rose-500 shadow-lg shadow-rose-950/25 hover:bg-rose-400 hover:shadow-rose-500/20" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
+            className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black text-text transition-all duration-200 ${canSubmitCancelRestore ? "bg-rose-500 shadow-lg shadow-rose-950/25 hover:bg-rose-400 hover:shadow-rose-500/20" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
           >
             {cancelLoading ? t("orders.cancel.cancelling") : t("orders.cancel.confirm")}
           </button>
@@ -2073,17 +2074,17 @@ function ArchiveOrderModal({ t, order, archiving, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={t("orders.archive.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute left-1/2 top-1/2 w-[min(30rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl">
+      <section className="absolute left-1/2 top-1/2 w-[min(30rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-surface p-5 text-text shadow-2xl">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-white/10 p-2 text-zinc-200"><Trash2 className="h-5 w-5" /></div>
+          <div className="rounded-xl bg-surface-soft p-2 text-text"><Trash2 className="h-5 w-5" /></div>
           <div className="min-w-0">
             <h2 className="m1-section-title">{t("orders.archive.title")}</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">{t("orders.archive.description", { order: orderCode(order) })}</p>
+            <p className="mt-2 text-sm leading-6 text-text-muted">{t("orders.archive.description", { order: orderCode(order) })}</p>
           </div>
         </div>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={archiving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
-          <button type="button" onClick={onConfirm} disabled={archiving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60">{archiving ? t("orders.archive.archiving") : t("orders.archive.title")}</button>
+          <button type="button" onClick={onClose} disabled={archiving} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-bold hover:bg-surface-hover disabled:opacity-60">{t("common.close")}</button>
+          <button type="button" onClick={onConfirm} disabled={archiving} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-black text-text transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60">{archiving ? t("orders.archive.archiving") : t("orders.archive.title")}</button>
         </div>
       </section>
     </div>
@@ -2096,7 +2097,7 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={tt(t, "orders.permanentDelete.closeModal", "إغلاق نافذة الحذف النهائي")} className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/35 bg-zinc-950 p-5 text-white shadow-2xl shadow-rose-950/20">
+      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/35 bg-surface p-5 text-text shadow-2xl shadow-rose-950/20">
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
           <div className="min-w-0">
@@ -2104,7 +2105,7 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
             <p className="mt-2 text-sm leading-6 text-rose-100">
               {tt(t, "orders.permanentDelete.description", "سيتم حذف الفاتورة نهائياً ولا يمكن التراجع عن ذلك.")}
             </p>
-            <p className="mt-1 text-sm leading-6 text-zinc-300">
+            <p className="mt-1 text-sm leading-6 text-text-muted">
               {tt(t, "orders.permanentDelete.stockNote", "ستُزال السجلات المرتبطة وسيُعاد المخزون إذا لم تتم استعادته مسبقاً.")}
             </p>
           </div>
@@ -2119,17 +2120,17 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
             value={value}
             onChange={(event) => onChange(event.target.value)}
             autoFocus
-            className="w-full rounded-[var(--radius-control)] border border-rose-400/30 bg-black/35 px-3 py-2.5 text-sm font-black text-white outline-none placeholder:text-zinc-600 focus:border-rose-300"
+            className="w-full rounded-[var(--radius-control)] border border-rose-400/30 bg-black/35 px-3 py-2.5 text-sm font-black text-text outline-none placeholder:text-text-muted focus:border-rose-300"
             placeholder="DELETE"
           />
         </label>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={deleting} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
+          <button type="button" onClick={onClose} disabled={deleting} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-bold hover:bg-surface-hover disabled:opacity-60">{t("common.close")}</button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={!canConfirm || deleting}
-            className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canConfirm && !deleting ? "bg-rose-600 shadow-lg shadow-rose-950/25 hover:bg-rose-500" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
+            className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black text-text transition-all duration-200 ${canConfirm && !deleting ? "bg-rose-600 shadow-lg shadow-rose-950/25 hover:bg-rose-500" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
           >
             {deleting ? tt(t, "orders.permanentDelete.deleting", "جاري الحذف...") : tt(t, "orders.permanentDelete.confirm", "حذف نهائي")}
           </button>
@@ -2141,9 +2142,9 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
 
 function ConfirmMetric({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
-      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className="mt-1 break-words text-sm font-black text-white"><CurrencyText value={value} /></div>
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">{label}</div>
+      <div className="mt-1 break-words text-sm font-black text-text"><CurrencyText value={value} /></div>
     </div>
   );
 }
@@ -2151,8 +2152,8 @@ function ConfirmMetric({ label, value }) {
 function EditField({ label, value, onChange, type = "text", ...props }) {
   return (
     <label className="block">
-      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <input {...props} type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" />
+      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-text-muted">{label}</div>
+      <input {...props} type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2.5 text-sm text-text outline-none" />
     </label>
   );
 }
@@ -2160,9 +2161,9 @@ function EditField({ label, value, onChange, type = "text", ...props }) {
 function EditSelect({ label, value, onChange, options, labels = {}, t }) {
   return (
     <label className="block">
-      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <select value={value || ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
-        {options.map((option) => <option key={option} value={option} className="bg-zinc-950 text-white">{labels[option] && t ? t(labels[option]) : labels[option] || option}</option>)}
+      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-text-muted">{label}</div>
+      <select value={value || ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2.5 text-sm text-text outline-none">
+        {options.map((option) => <option key={option} value={option} className="bg-surface text-text">{labels[option] && t ? t(labels[option]) : labels[option] || option}</option>)}
       </select>
     </label>
   );
@@ -2171,7 +2172,7 @@ function EditSelect({ label, value, onChange, options, labels = {}, t }) {
 function TableSkeleton() {
   return (
     <div className="mt-3 space-y-2">
-      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />)}
+      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-[var(--radius-card)] border border-border bg-surface-soft" />)}
     </div>
   );
 }
@@ -2183,7 +2184,7 @@ const timelineDot = (tone) => ({
   rose: "bg-rose-300 shadow-[0_0_0_4px_rgba(251,113,133,0.12)]",
   blue: "bg-blue-300 shadow-[0_0_0_4px_rgba(96,165,250,0.12)]",
   cyan: "bg-cyan-300 shadow-[0_0_0_4px_rgba(34,211,238,0.12)]",
-}[tone] || "bg-zinc-400");
+}[tone] || "bg-border-strong");
 
 export default OrdersDashboard;
 

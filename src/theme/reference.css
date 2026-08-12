@@ -218,19 +218,15 @@
     gap: var(--space-3);
   }
 
-  /* label */
-  .dashboard-kpi-grid article :where(p, span, div):first-child {
-    color: var(--text-tertiary);
-    font-size: var(--font-label);
-    font-weight: 700;
-    letter-spacing: 0.04em;
-  }
-
-  /* value — the hero */
+  /* value — the hero.
+     clamp() rather than a flat --font-display: this grid runs up to seven
+     columns at 2xl, and a fixed display size overflows a narrow column with a
+     long currency figure. The size utilities were removed from the JSX so this
+     rule is the only owner — no !important needed to win against them. */
   .dashboard-kpi-grid article strong,
   .dashboard-kpi-grid article .m1-kpi-value {
     color: var(--text);
-    font-size: var(--font-display);
+    font-size: clamp(var(--font-section-title), 2.1vw, var(--font-display));
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: -0.01em;
@@ -412,5 +408,91 @@
     .dashboard-premium section { padding: var(--space-4); }
     .m1-orders-page .m1-orders-filters { gap: var(--space-3); padding: var(--space-3); }
     .m1-orders-page .m1-orders-views { width: 100%; overflow-x: auto; }
+  }
+
+  /* ==========================================================================
+     11. REVISION 1 — ONE SURFACE LANGUAGE ACROSS BOTH SCREENS
+
+     Review found Dashboard and Orders reading as two different applications.
+     The cause was ownership, not styling: both pages are authored with dark
+     Tailwind classes, and only the Dashboard carried a layer that force-
+     lightened them (--dashboard-cream / -ink / -line, plus
+     background-color:#ffffff !important on anything matching bg-zinc-950).
+     Under one active theme, one page came out light and the other dark.
+
+     Both of those layers are retired and both page bodies now consume the
+     semantic scale, so the theme owns colour on both screens. What is left
+     here is rhythm and hierarchy.
+     ====================================================================== */
+
+  /* --- Orders: separate the four bands ---------------------------------- */
+  /* The top of the page was one compressed run of header, views, filters and
+     table. Spacing them on the canonical step makes the page scannable while
+     keeping it business-dense. */
+  .m1-orders-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .m1-orders-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-block-end: var(--space-1);
+  }
+
+  .m1-orders-header .m1-page-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-tertiary);
+    font-size: var(--font-caption);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* The workspace name used to be an h2 inside the results panel, below the
+     view switcher, which is why it read as a caption rather than the page.
+     It is an h1 in a page header now; this is the canonical page-title step,
+     not a new scale. */
+  .m1-orders-header .m1-page-title {
+    margin: 0;
+    color: var(--text);
+    font-size: var(--font-page-title);
+    font-weight: 800;
+    line-height: var(--font-page-title-lh);
+    letter-spacing: 0;
+  }
+
+  /* --- Orders: filters read as groups, not one dense strip --------------- */
+  .m1-orders-page .m1-orders-filters > label > div:first-child {
+    color: var(--text-tertiary);
+    font-size: var(--font-caption);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* --- Dashboard: header rhythm ----------------------------------------- */
+  /* Refinement only — the header direction was accepted. It gets a little more
+     room beneath it so the eyebrow/title/meta stack reads as one block that
+     the KPI row then answers, rather than three lines floating above a grid. */
+  .dashboard-premium .dashboard-commandbar {
+    padding-block-end: var(--space-3);
+  }
+
+  .dashboard-premium .dashboard-kpi-grid {
+    margin-block-start: var(--space-4);
+  }
+
+  /* --- Dashboard: the operational strip ---------------------------------- */
+  /* Was a heavy dark gradient panel that fought a light page. It is a normal
+     grouped surface now; the green stays on the eyebrow and the icons, where
+     it actually carries the "getting started / operational" meaning. */
+  .m1-dashboard-onboarding {
+    background: var(--surface-soft);
+    box-shadow: var(--shadow-card);
   }
 }

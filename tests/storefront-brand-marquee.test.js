@@ -15,7 +15,23 @@ test("brand cards share the home surface and filter products by brand name", () 
   assert.match(storefrontSource, /max-w-\[1400px\][\s\S]*?rounded-\[2rem\][\s\S]*?background: themeTokens\.surface/);
   assert.match(storefrontSource, /to=\{`\/products\?brand=\$\{encodeURIComponent\(brand\.name\)\}`\}/);
   assert.doesNotMatch(storefrontSource, /to=\{`\/\?brand=\$\{encodeURIComponent\(brand\.id/);
-  assert.match(stylesheetSource, /\.sf-brand-marquee__item[\s\S]*?border: 1px solid[\s\S]*?background: color-mix/);
+  // This assertion used to be:
+  //   /\.sf-brand-marquee__item[\s\S]*?border: 1px solid[\s\S]*?background: color-mix/
+  // and it was vacuous. `[\s\S]*?` is unanchored, so it matched a 141,971-char
+  // span running from the marquee rule down into the ERP dashboard block, and
+  // was satisfied by an unrelated `.dashboard-premium > .sticky` declaration.
+  // It passed regardless of what the brand card looked like, then broke the
+  // moment that dashboard rule was retired — for reasons with nothing to do
+  // with the storefront.
+  //
+  // The brand card is logo-only (see the first test in this file): the item
+  // carries no chrome of its own and the logo frame carries the surface. Pin
+  // that contract locally, so this guard fails only if the storefront changes.
+  const itemStart = stylesheetSource.indexOf(".sf-brand-marquee__item {");
+  const marqueeItemRule = stylesheetSource.slice(itemStart, stylesheetSource.indexOf("}", itemStart));
+  assert.match(marqueeItemRule, /border: 0;/);
+  assert.match(marqueeItemRule, /background: transparent;/);
+  assert.match(stylesheetSource, /\.sf-brand-marquee__logo-frame \{[\s\S]*?background: #fff;/);
 });
 
 test("brand carousel advances exactly one logo every four seconds and loops", () => {

@@ -4364,10 +4364,12 @@
     font-weight: 600;
   }
 
+  /* The page canvas is the theme's canvas. This was a fixed navy gradient
+     (#06101f -> #081426 -> #050b16). It was only ever invisible because a later
+     rule painted --dashboard-cream over it; with that override retired, the
+     gradient would have taken ownership of the page instead. */
   .dashboard-premium {
-    background:
-      radial-gradient(circle at 18% 0%, rgba(103, 232, 249, 0.07), transparent 32rem),
-      linear-gradient(180deg, #06101f 0%, #081426 48%, #050b16 100%);
+    background: var(--bg);
   }
 
   .dashboard-premium::before {
@@ -4485,79 +4487,46 @@
     animation: tooltipIn 140ms ease-out;
   }
 
-  /* Shopify-inspired transactional dashboard: dense, calm and operational. */
+  /* Dashboard shell — STRUCTURE ONLY.
+     This was the "Shopify-inspired transactional dashboard" layer: it declared
+     --dashboard-cream/-ink/-line/-gold and then painted them over every
+     surface with !important, including background-color:#ffffff on anything
+     matching [class*="bg-zinc-950"].
+
+     That is why the Dashboard rendered light while Orders rendered dark under
+     the SAME active theme: both pages are authored with dark Tailwind classes,
+     but only the Dashboard had a layer force-lightening them. It also ran a
+     second brand gold (#b8860b) alongside the canonical --primary.
+
+     Every colour declaration is retired — the theme owns colour now, and the
+     page bodies consume semantic utilities instead of fixed dark ones. What
+     survives below is layout and shape the Dashboard genuinely depends on. */
   .dashboard-premium {
-    --dashboard-gold: #b8860b;
-    --dashboard-gold-dark: #8a6508;
-    --dashboard-ink: #111111;
-    --dashboard-muted: #71717a;
-    --dashboard-line: #e4e4e7;
-    --dashboard-cream: #fbfbf5;
-    background: var(--dashboard-cream);
-    color: var(--dashboard-ink);
     font-family: var(--app-font);
     font-feature-settings: "ss03";
   }
 
   .dashboard-premium::before { display: none; }
 
-  .dashboard-premium > .sticky {
-    background: color-mix(in srgb, var(--dashboard-cream) 94%, transparent) !important;
-    border-color: var(--dashboard-line) !important;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
-  }
-
+  /* The h1 keeps the canonical family; its colour and weight now come from the
+     canonical page-title scale rather than being pinned to #111 / 500. */
   .dashboard-premium h1 {
-    color: var(--dashboard-ink) !important;
-    /* Was a Latin-only stack with no Arabic fallback, so an Arabic <h1> here
-       dropped to a generic sans while every other heading in the product used
-       the canonical family. --app-font already resolves to Cairo under
-       dir=rtl and Inter under dir=ltr. */
     font-family: var(--app-font);
-    font-weight: 500 !important;
     letter-spacing: 0.01em;
-  }
-
-  .dashboard-premium :where(.text-white, .text-slate-100, .text-slate-200, .text-zinc-100, .text-zinc-200, .text-zinc-300) { color: var(--dashboard-ink) !important; }
-  .dashboard-premium :where(.text-slate-300, .text-slate-400, .text-slate-500, .text-zinc-400, .text-zinc-500) { color: var(--dashboard-muted) !important; }
-
-  .dashboard-premium :where([class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-slate-950"], [class*="bg-white/["], [class*="bg-zinc-950"]) {
-    background-color: #ffffff !important;
-    background-image: none !important;
-  }
-
-  .dashboard-premium :where([class*="border-slate-7"], [class*="border-white/["], [class*="border-cyan-"]) { border-color: var(--dashboard-line) !important; }
-
-  .dashboard-premium :where(article, section.rounded-3xl, aside > section) {
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.035) !important;
   }
 
   .dashboard-premium article {
     min-height: 132px;
-    border-radius: 12px !important;
-    background-color: #ffffff !important;
   }
 
   .dashboard-commandbar {
-    border-radius: 14px 14px 0 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
   }
 
   .dashboard-toolbar > :first-child {
     order: 10;
     flex-basis: 100%;
     justify-content: flex-end;
-  }
-
-  .dashboard-kpi-grid article:first-child {
-    border-color: rgba(184, 134, 11, 0.28) !important;
-    box-shadow: inset 0 3px 0 var(--dashboard-gold), 0 8px 24px rgba(0, 0, 0, 0.035) !important;
-  }
-
-  .dashboard-workspace > main > section,
-  .dashboard-operations-grid > section {
-    border-radius: 12px !important;
-    border-color: var(--dashboard-line) !important;
-    background: #ffffff !important;
   }
 
   .dashboard-operations-grid > section {
@@ -4570,44 +4539,27 @@
     padding-inline-end: 3px;
   }
 
-  .dashboard-premium .recharts-cartesian-grid line {
-    stroke: #ecece7;
-  }
+  /* Chart chrome follows the theme. Recharts passes these as presentation
+     attributes, which CSS outranks, so the hardcoded slate greys in the JSX
+     never reach the screen. Data series colours stay in the JSX: those are
+     meaning, not chrome. */
+  .dashboard-premium .recharts-cartesian-grid line { stroke: var(--border); }
+  .dashboard-premium .recharts-cartesian-axis-line,
+  .dashboard-premium .recharts-cartesian-axis-tick-line { stroke: var(--border); }
+  .dashboard-premium .recharts-text { fill: var(--muted); }
 
-  .dashboard-premium .recharts-text {
-    fill: #71717a;
-  }
-
+  /* Shape, not colour: the pill control silhouette the Dashboard already had
+     and which the user asked to keep. !important is pre-existing and is what
+     lets a component-layer rule beat a utility-layer radius. */
   .dashboard-premium button,
   .dashboard-premium a[class*="inline-flex"] { border-radius: 9999px !important; }
-
-  .dashboard-premium select,
-  .dashboard-premium input {
-    border-color: #d4d4d8 !important;
-    border-radius: 8px !important;
-    background: #ffffff !important;
-    color: var(--dashboard-ink) !important;
-  }
-
-  .dashboard-premium select:focus,
-  .dashboard-premium input:focus {
-    border-color: var(--dashboard-gold) !important;
-    box-shadow: 0 0 0 3px rgba(184, 134, 11, 0.12);
-  }
-
-  .dashboard-premium [class*="bg-cyan"],
-  .dashboard-premium [class*="text-cyan"] { background-color: #fff8df !important; color: var(--dashboard-gold-dark) !important; }
-  .dashboard-premium [class*="shadow-black"] { box-shadow: none !important; }
-
-  .dashboard-premium .dashboard-tooltip { border-color: #d4d4d8 !important; background: #111111 !important; }
-  .dashboard-premium .dashboard-tooltip * { color: #ffffff !important; }
 
   [dir="rtl"].dashboard-premium .recharts-wrapper,
   [dir="rtl"].dashboard-premium .recharts-surface { direction: ltr; }
 
   [dir="rtl"].dashboard-premium,
   [dir="rtl"].dashboard-premium :where(button,input,select,a) { font-family: var(--font-ar) !important; }
-  [dir="rtl"].dashboard-premium h1 { font-family: var(--font-ar) !important; font-weight:700!important; letter-spacing:0!important; line-height:1.35; }
+  [dir="rtl"].dashboard-premium h1 { font-family: var(--font-ar) !important; letter-spacing: 0; line-height: 1.35; }
 
   @media (max-width: 767px) {
     .dashboard-premium { border-radius: 0 !important; }
@@ -4630,7 +4582,6 @@
       flex-basis: auto;
     }
   }
-
   /* Dashboard route — STRUCTURE ONLY.
      This was the "Shopify Admin route treatment": 33 rules and 38 !important
      that redefined --bg/--surface/--card/--border/--primary and painted a

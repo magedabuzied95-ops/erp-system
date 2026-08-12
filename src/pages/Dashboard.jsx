@@ -539,8 +539,8 @@ function Dashboard() {
   const activeSecondary = secondarySections.find((section) => section.id === activeSection) || secondarySections[0];
 
   return (
-    <div dir={isArabic ? "rtl" : "ltr"} className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[20px] px-3 pb-8 pt-3 text-zinc-950 sm:px-5">
-      <div className="dashboard-commandbar sticky top-0 z-20 -mx-3 border-b border-slate-700/45 bg-[#07111f]/88 px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5">
+    <div dir={isArabic ? "rtl" : "ltr"} className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[20px] px-3 pb-8 pt-3 text-text sm:px-5">
+      <div className="dashboard-commandbar sticky top-0 z-20 -mx-3 border-b border-border bg-surface px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5">
         <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.8fr)] xl:items-center">
           <div>
             <div className="m1-page-eyebrow">{copy.executiveControlCenter}</div>
@@ -549,13 +549,13 @@ function Dashboard() {
             </h1>
             <div className="m1-page-meta">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
           </div>
-          <div className="dashboard-toolbar flex flex-wrap items-center gap-2 text-xs font-bold text-slate-300 xl:justify-end">
-            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-slate-700/50 bg-slate-900/55 p-1">
+          <div className="dashboard-toolbar flex flex-wrap items-center gap-2 text-xs font-bold text-text-muted xl:justify-end">
+            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-border bg-surface p-1">
               {quickActions.map((action) => (
                 <QuickAction key={action.to} {...action} />
               ))}
             </div>
-            <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none transition hover:border-slate-500">
+            <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none transition hover:border-border-strong">
               <option value="today">{copy.today}</option>
               <option value="yesterday">{copy.yesterday}</option>
               <option value="7d">{copy.last7Days}</option>
@@ -564,19 +564,19 @@ function Dashboard() {
             </select>
             {filters.range === "custom" ? (
               <>
-                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/70 px-3 text-xs text-white outline-none" />
-                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/70 px-3 text-xs text-white outline-none" />
+                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none" />
+                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none" />
               </>
             ) : null}
             {branches.length > 1 ? (
-              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none">
+              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none">
                 <option value="all">{copy.allBranches}</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
             ) : null}
             <StatusPill label={copy.socket} value={socketStatus.value} tone={socketStatus.tone} pulse={socketStatus.pulse} />
             <StatusPill label={copy.pos} value={posStatus.value} tone={posStatus.tone} pulse={posStatus.pulse} />
-            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-700 bg-slate-900/70 px-3 text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/75">
+            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-text transition hover:border-border-strong hover:bg-surface-hover">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {copy.refresh}
             </button>
@@ -585,7 +585,7 @@ function Dashboard() {
       </div>
 
       {/* ROW 1 — primary KPIs */}
-      <section className="relative z-10 mt-5 grid gap-3 grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
+      <section className="dashboard-kpi-grid relative z-10 mt-5 grid gap-3 grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
         {executiveCards.map((card) => <ExecutiveCard key={card.label} {...card} loading={loading} />)}
       </section>
 
@@ -615,7 +615,7 @@ function Dashboard() {
       {data.saleMode?.sale_mode_enabled ? (
         <section className="relative z-10 mt-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">{isArabic ? "أسعار التخفيض مفعّلة" : "Sale prices active"}</div>
-          <div className="mt-1 text-base font-black text-white">{data.saleMode.sale_mode_label || (isArabic ? "أسعار التخفيض المحفوظة مفعّلة" : "Saved sale prices are live")}</div>
+          <div className="mt-1 text-base font-black text-text">{data.saleMode.sale_mode_label || (isArabic ? "أسعار التخفيض المحفوظة مفعّلة" : "Saved sale prices are live")}</div>
         </section>
       ) : null}
     </div>
@@ -624,26 +624,26 @@ function Dashboard() {
 
 function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loading = false, textValue = false, to = null, deltaTone = null }) {
   const tones = {
-    gold: "border-amber-600/25 bg-white text-zinc-950",
+    gold: "border-amber-600/25 bg-surface text-text",
     emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
     amber: "border-amber-400/24 bg-amber-500/10 text-amber-100",
     rose: "border-red-400/24 bg-red-500/10 text-red-100",
-    slate: "border-slate-700/70 bg-slate-900/62 text-slate-100",
+    slate: "border-border bg-surface text-text",
   };
   const iconTones = {
     gold: "bg-amber-100 text-amber-800",
     emerald: "bg-emerald-400/12 text-emerald-200",
     amber: "bg-amber-400/12 text-amber-200",
     rose: "bg-red-400/12 text-red-200",
-    slate: "bg-slate-700/55 text-slate-300",
+    slate: "bg-surface-soft text-text-muted",
   };
-  const deltaColors = { emerald: "text-emerald-300", rose: "text-red-300", slate: "text-slate-400" };
+  const deltaColors = { emerald: "text-emerald-300", rose: "text-red-300", slate: "text-text-muted" };
   const body = (
-    <article className={`flex h-full min-h-[172px] flex-col rounded-2xl border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-slate-500/80" : ""}`}>
+    <article className={`flex h-full min-h-[172px] flex-col rounded-2xl border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-border-strong" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="line-clamp-2 min-h-8 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
-          <div className={`mt-2 font-black tracking-normal text-white ${textValue ? "line-clamp-2 text-base leading-6" : "whitespace-nowrap text-xl 2xl:text-2xl"}`}>
+          <div className="line-clamp-2 min-h-8 text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</div>
+          <div className={`m1-kpi-value mt-2 font-black tracking-normal text-text ${textValue ? "line-clamp-2 text-base leading-6" : "whitespace-nowrap"}`}>
             {loading ? <SkeletonLine className="h-8 w-20" /> : value}
           </div>
         </div>
@@ -651,7 +651,7 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <div className={`mt-auto border-t border-slate-700/45 pt-2.5 text-xs font-semibold ${deltaTone ? deltaColors[deltaTone] : "text-slate-400"}`}>
+      <div className={`mt-auto border-t border-border pt-2.5 text-xs font-semibold ${deltaTone ? deltaColors[deltaTone] : "text-text-muted"}`}>
         {loading ? <SkeletonLine className="h-4 w-24" /> : detail}
       </div>
     </article>
@@ -660,18 +660,18 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
 }
 
 // ---- Redesigned dashboard sections (dark theme, RTL, real ERP data) --------
-const DASH_CARD = "rounded-2xl border border-slate-700/60 bg-slate-900/55 p-4 shadow-lg shadow-black/20";
+const DASH_CARD = "rounded-2xl border border-border bg-surface p-4 shadow-sm";
 const DASH_CARD_HEAD = "flex items-center justify-between gap-2";
-const DASH_CARD_TITLE = "text-sm font-black text-slate-100";
-const DASH_TIP_STYLE = { background: "#0b1220", border: "1px solid #334155", borderRadius: 12, fontSize: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.4)" };
+const DASH_CARD_TITLE = "text-sm font-black text-text";
+const DASH_TIP_STYLE = { background: "var(--card)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: "var(--radius-card)", fontSize: 12, boxShadow: "var(--shadow-overlay)" };
 const PAYMENT_LABELS = { cash: ["نقدي", "Cash"], instapay: ["إنستاباي", "Instapay"], vodafone_cash: ["فودافون كاش", "Vodafone Cash"], vodafone: ["فودافون كاش", "Vodafone Cash"], card: ["بطاقة", "Card"], bank: ["تحويل بنكي", "Bank"], visa: ["فيزا", "Visa"], wallet: ["محفظة", "Wallet"], unknown: ["أخرى", "Other"] };
 const PAY_COLORS = ["#10b981", "#f59e0b", "#38bdf8", "#a78bfa", "#f472b6", "#94a3b8"];
 
 function DashEmpty({ text }) {
-  return <div className="grid min-h-[120px] place-items-center px-3 text-center text-xs font-semibold text-slate-500">{text}</div>;
+  return <div className="grid min-h-[120px] place-items-center px-3 text-center text-xs font-semibold text-text-muted">{text}</div>;
 }
 function DashRow({ label, value }) {
-  return <div className="flex items-center justify-between gap-2"><span className="text-slate-400">{label}</span><span className="max-w-[60%] truncate text-left font-bold text-slate-100">{value}</span></div>;
+  return <div className="flex items-center justify-between gap-2"><span className="text-text-muted">{label}</span><span className="max-w-[60%] truncate text-left font-bold text-text">{value}</span></div>;
 }
 
 function HourlySalesCard({ hourlySales = [], loading, isArabic }) {
@@ -696,7 +696,7 @@ function HourlySalesCard({ hourlySales = [], loading, isArabic }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: 700 }} tickLine={false} axisLine={{ stroke: "#334155" }} interval={1} reversed={isArabic} />
               <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} tickLine={false} axisLine={false} width={46} tickFormatter={(v) => compactNumber(v)} orientation={isArabic ? "right" : "left"} />
-              <Tooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} contentStyle={DASH_TIP_STYLE} labelStyle={{ color: "#94a3b8", fontWeight: 700 }} itemStyle={{ color: "#e2e8f0" }} formatter={(v) => [formatCurrency(v), isArabic ? "مبيعات" : "Sales"]} labelFormatter={(l) => `${l}:00`} />
+              <Tooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} contentStyle={DASH_TIP_STYLE} labelStyle={{ color: "var(--muted)", fontWeight: 700 }} itemStyle={{ color: "var(--text)" }} formatter={(v) => [formatCurrency(v), isArabic ? "مبيعات" : "Sales"]} labelFormatter={(l) => `${l}:00`} />
               <Bar dataKey="sales" fill="#10b981" radius={[6, 6, 2, 2]} maxBarSize={30} />
             </BarChart>
           </ResponsiveContainer>
@@ -721,15 +721,15 @@ function PaymentMixCard({ payments = [], loading, isArabic }) {
                 <Pie data={rows} dataKey="amount" nameKey="method" innerRadius={40} outerRadius={62} paddingAngle={3} stroke="none">
                   {rows.map((r, i) => <Cell key={r.method} fill={PAY_COLORS[i % PAY_COLORS.length]} />)}
                 </Pie>
-                <Tooltip contentStyle={DASH_TIP_STYLE} itemStyle={{ color: "#e2e8f0" }} formatter={(v, n) => [formatCurrency(v), lbl(n)]} />
+                <Tooltip contentStyle={DASH_TIP_STYLE} itemStyle={{ color: "var(--text)" }} formatter={(v, n) => [formatCurrency(v), lbl(n)]} />
               </PieChart>
             </ResponsiveContainer>
           </div>
           <div className="min-w-0 flex-1 space-y-1.5">
             {rows.slice(0, 5).map((r, i) => (
               <div key={r.method} className="flex items-center justify-between gap-2 text-xs">
-                <span className="flex min-w-0 items-center gap-1.5 font-bold text-slate-200"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: PAY_COLORS[i % PAY_COLORS.length] }} /><span className="truncate">{lbl(r.method)}</span></span>
-                <span className="shrink-0 font-semibold text-slate-400">{total ? Math.round((r.amount / total) * 100) : 0}%</span>
+                <span className="flex min-w-0 items-center gap-1.5 font-bold text-text"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: PAY_COLORS[i % PAY_COLORS.length] }} /><span className="truncate">{lbl(r.method)}</span></span>
+                <span className="shrink-0 font-semibold text-text-muted">{total ? Math.round((r.amount / total) * 100) : 0}%</span>
               </div>
             ))}
           </div>
@@ -748,8 +748,8 @@ function ShiftStatusCard({ posLive, loading, isArabic }) {
     <div className={DASH_CARD}>
       <div className={DASH_CARD_HEAD}>
         <h3 className={DASH_CARD_TITLE}>{isArabic ? "حالة الوردية" : "Shift status"}</h3>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${open ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700/40 text-slate-400"}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${open ? "bg-emerald-400" : "bg-slate-500"}`} />{open ? (isArabic ? "مفتوحة" : "Open") : (isArabic ? "مغلقة" : "Closed")}
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${open ? "bg-emerald-500/15 text-emerald-300" : "bg-surface-soft text-text-muted"}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${open ? "bg-emerald-400" : "bg-border-strong"}`} />{open ? (isArabic ? "مفتوحة" : "Open") : (isArabic ? "مغلقة" : "Closed")}
         </span>
       </div>
       {loading ? <SkeletonLine className="mt-3 h-16 w-full" /> : (
@@ -758,7 +758,7 @@ function ShiftStatusCard({ posLive, loading, isArabic }) {
           {shifts[0] ? <DashRow label={isArabic ? "الكاشير" : "Cashier"} value={shifts[0].cashier || shifts[0].name || "-"} /> : null}
           {shifts[0]?.opened_at ? <DashRow label={isArabic ? "فتحت" : "Opened"} value={shortTime(shifts[0].opened_at)} /> : null}
           {last ? <DashRow label={isArabic ? "آخر فاتورة" : "Last invoice"} value={`${last.invoice_number || `#${last.id}`} · ${formatCurrency(last.total || 0)}`} /> : null}
-          {!open ? <div className="pt-1 text-slate-500">{isArabic ? "لا توجد وردية مفتوحة حاليًا" : "No open shift right now"}</div> : null}
+          {!open ? <div className="pt-1 text-text-muted">{isArabic ? "لا توجد وردية مفتوحة حاليًا" : "No open shift right now"}</div> : null}
         </div>
       )}
     </div>
@@ -771,14 +771,14 @@ function RecentSalesCard({ invoices = [], loading, isArabic }) {
     <div className={DASH_CARD}>
       <div className={DASH_CARD_HEAD}><h3 className={DASH_CARD_TITLE}>{isArabic ? "أحدث الفواتير" : "Recent invoices"}</h3><Link to="/orders" className="text-[11px] font-bold text-emerald-300 hover:underline">{isArabic ? "عرض الكل" : "View all"}</Link></div>
       {loading ? <SkeletonLine className="mt-3 h-28 w-full" /> : rows.length ? (
-        <div className="mt-2 divide-y divide-slate-700/40">
+        <div className="mt-2 divide-y divide-border">
           {rows.map((inv) => (
-            <Link key={inv.id} to={`/orders/${inv.id}`} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs transition hover:bg-slate-800/40">
+            <Link key={inv.id} to={`/orders/${inv.id}`} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs transition hover:bg-surface-hover">
               <div className="min-w-0">
-                <div className="truncate font-bold text-slate-100">{inv.invoice_number || `#${inv.id}`}</div>
-                <div className="truncate text-[11px] text-slate-500">{shortTime(inv.created_at)}{inv.customer_name ? ` · ${inv.customer_name}` : ""}</div>
+                <div className="truncate font-bold text-text">{inv.invoice_number || `#${inv.id}`}</div>
+                <div className="truncate text-[11px] text-text-muted">{shortTime(inv.created_at)}{inv.customer_name ? ` · ${inv.customer_name}` : ""}</div>
               </div>
-              <div className="shrink-0 text-left"><div className="font-black text-slate-100">{formatCurrency(inv.total || 0)}</div>{inv.payment_status ? <div className="text-[10px] text-slate-500">{inv.payment_status}</div> : null}</div>
+              <div className="shrink-0 text-left"><div className="font-black text-text">{formatCurrency(inv.total || 0)}</div>{inv.payment_status ? <div className="text-[10px] text-text-muted">{inv.payment_status}</div> : null}</div>
             </Link>
           ))}
         </div>
@@ -798,10 +798,10 @@ function TopSellersCard({ products = [], loading, isArabic }) {
           {rows.map((p, i) => (
             <div key={`${p.name}-${i}`} className="text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-bold text-slate-100">{i + 1}. {p.name}</span>
-                <span className="shrink-0 font-black text-slate-300">{number(p.quantity)} {isArabic ? "قطعة" : "pcs"}</span>
+                <span className="truncate font-bold text-text">{i + 1}. {p.name}</span>
+                <span className="shrink-0 font-black text-text-muted">{number(p.quantity)} {isArabic ? "قطعة" : "pcs"}</span>
               </div>
-              <div className="mt-1 h-1.5 rounded-full bg-slate-700/40"><div className="h-full rounded-full bg-emerald-500/70" style={{ width: `${Math.round((Number(p.quantity || 0) / max) * 100)}%` }} /></div>
+              <div className="mt-1 h-1.5 rounded-full bg-surface-soft"><div className="h-full rounded-full bg-emerald-500/70" style={{ width: `${Math.round((Number(p.quantity || 0) / max) * 100)}%` }} /></div>
             </div>
           ))}
         </div>
@@ -816,15 +816,15 @@ function StockAttentionCard({ lowStock = [], loading, isArabic }) {
     <div className={DASH_CARD}>
       <div className={DASH_CARD_HEAD}><h3 className={DASH_CARD_TITLE}>{isArabic ? "المخزون يحتاج انتباه" : "Stock needs attention"}</h3><Link to="/inventory" className="text-[11px] font-bold text-emerald-300 hover:underline">{isArabic ? "المخزون" : "Inventory"}</Link></div>
       {loading ? <SkeletonLine className="mt-3 h-28 w-full" /> : rows.length ? (
-        <div className="mt-2 divide-y divide-slate-700/40">
+        <div className="mt-2 divide-y divide-border">
           {rows.map((it) => {
             const remaining = Number(it.stock ?? it.total_stock ?? 0);
             const critical = String(it.alert_level || "") === "critical" || remaining <= 1;
             return (
-              <Link key={it.id || it.product_id} to={it.product_id ? `/products/${it.product_id}` : "/inventory"} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs transition hover:bg-slate-800/40">
+              <Link key={it.id || it.product_id} to={it.product_id ? `/products/${it.product_id}` : "/inventory"} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs transition hover:bg-surface-hover">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className={`h-2 w-2 shrink-0 rounded-full ${critical ? "bg-red-400" : "bg-amber-400"}`} />
-                  <div className="min-w-0"><div className="truncate font-bold text-slate-100">{it.product_name || it.name}</div>{(it.color || it.size) ? <div className="truncate text-[10px] text-slate-500">{[it.color, it.size].filter(Boolean).join(" · ")}</div> : null}</div>
+                  <div className="min-w-0"><div className="truncate font-bold text-text">{it.product_name || it.name}</div>{(it.color || it.size) ? <div className="truncate text-[10px] text-text-muted">{[it.color, it.size].filter(Boolean).join(" · ")}</div> : null}</div>
                 </div>
                 <span className={`shrink-0 font-black ${critical ? "text-red-300" : "text-amber-300"}`}>{number(remaining)}{it.threshold ? ` / ${number(it.threshold)}` : ""}</span>
               </Link>
@@ -852,9 +852,9 @@ function AttentionCenter({ overview, inventory, liveActivity = [], isArabic }) {
         <h3 className={DASH_CARD_TITLE}>{isArabic ? "يحتاج تدخلك" : "Needs your attention"}</h3>
         <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
           {items.map((it) => (
-            <Link key={it.label} to={it.to} className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition ${it.tone === "rose" ? "border-red-500/25 bg-red-500/10 hover:border-red-400/50" : it.tone === "amber" ? "border-amber-500/25 bg-amber-500/10 hover:border-amber-400/50" : "border-slate-700/60 bg-slate-800/40 hover:border-slate-500"}`}>
-              <span className="text-xs font-bold text-slate-200">{it.label}</span>
-              <span className={`text-lg font-black ${it.tone === "rose" ? "text-red-300" : it.tone === "amber" ? "text-amber-300" : "text-slate-200"}`}>{number(it.n)}</span>
+            <Link key={it.label} to={it.to} className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition ${it.tone === "rose" ? "border-red-500/25 bg-red-500/10 hover:border-red-400/50" : it.tone === "amber" ? "border-amber-500/25 bg-amber-500/10 hover:border-amber-400/50" : "border-border bg-surface hover:border-border-strong"}`}>
+              <span className="text-xs font-bold text-text">{it.label}</span>
+              <span className={`text-lg font-black ${it.tone === "rose" ? "text-red-300" : it.tone === "amber" ? "text-amber-300" : "text-text"}`}>{number(it.n)}</span>
             </Link>
           ))}
         </div>
@@ -865,14 +865,14 @@ function AttentionCenter({ overview, inventory, liveActivity = [], isArabic }) {
 
 function ExecutiveSection({ sections, activeId, onSelect, children }) {
   return (
-    <section className="rounded-3xl border border-slate-700/60 bg-slate-900/52 p-4 shadow-2xl shadow-black/20 md:p-5">
+    <section className="rounded-3xl border border-border bg-surface p-4 shadow-2xl shadow-black/20 md:p-5">
       <div className="mb-5 flex flex-wrap gap-2">
         {sections.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
             onClick={() => onSelect(id)}
-            className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border px-4 text-sm font-black transition ${ activeId === id ? "border-amber-600/35 bg-amber-50 text-amber-900" : "border-slate-700 bg-slate-950/45 text-slate-400 hover:border-slate-500 hover:text-slate-100" }`}
+            className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border px-4 text-sm font-black transition ${ activeId === id ? "border-amber-600/35 bg-amber-50 text-amber-900" : "border-border bg-surface text-text-muted hover:border-border-strong hover:text-text" }`}
           >
             <Icon className="h-4 w-4" />
             {label}
@@ -904,7 +904,7 @@ function StatusPill({ label, value, tone = "emerald", pulse = false }) {
     emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
     amber: "border-amber-400/20 bg-amber-500/10 text-amber-100",
     rose: "border-red-400/20 bg-red-500/10 text-red-100",
-    slate: "border-slate-700 bg-slate-900/70 text-slate-300",
+    slate: "border-border bg-surface text-text-muted",
   };
   return (
     <span className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 ${tones[tone] || tones.slate}`}>
@@ -915,7 +915,7 @@ function StatusPill({ label, value, tone = "emerald", pulse = false }) {
 }
 
 function LivePulse({ active = true, tone = "emerald" }) {
-  const tones = { emerald: "bg-emerald-300", amber: "bg-amber-300", rose: "bg-red-300", slate: "bg-slate-400" };
+  const tones = { emerald: "bg-emerald-300", amber: "bg-amber-300", rose: "bg-red-300", slate: "bg-border-strong" };
   return <span className={`dashboard-pulse h-2 w-2 shrink-0 rounded-full ${tones[tone] || tones.emerald} ${active ? "" : "opacity-40"}`} />;
 }
 
@@ -928,7 +928,7 @@ function SessionTimer() {
   const minutes = Math.floor(seconds / 60);
   const remainder = seconds % 60;
   return (
-    <span className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-card)] border border-white/[0.08] bg-white/[0.055] px-3 text-zinc-200 shadow-lg shadow-black/10 backdrop-blur-xl">
+    <span className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 text-text shadow-lg shadow-black/10 backdrop-blur-xl">
       <TimerReset className="h-3.5 w-3.5 text-emerald-200" />
       {String(minutes).padStart(2, "0")}:{String(remainder).padStart(2, "0")}
     </span>
@@ -939,9 +939,9 @@ function QuickAction({ to, icon: Icon, label, primary = false }) {
   return (
     <Link
       to={to}
-      className={`group inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-card)] border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${ primary ? "border-amber-700 bg-amber-700 text-white hover:border-amber-800 hover:bg-amber-800" : "border-white/[0.07] bg-white/[0.045] text-zinc-300 hover:border-white/15 hover:bg-white/[0.075] hover:text-white" }`}
+      className={`group inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-card)] border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${ primary ? "border-amber-700 bg-amber-700 text-text hover:border-amber-800 hover:bg-amber-800" : "border-border bg-surface-soft text-text-muted hover:border-border-strong hover:bg-surface-hover hover:text-text" }`}
     >
-      <Icon className={`h-3.5 w-3.5 ${primary ? "text-white" : "text-zinc-500 transition group-hover:text-amber-700"}`} />
+      <Icon className={`h-3.5 w-3.5 ${primary ? "text-text" : "text-text-muted transition group-hover:text-amber-700"}`} />
       <span className="whitespace-nowrap">{label}</span>
     </Link>
   );
@@ -957,15 +957,15 @@ function GettingStarted() {
     { to: "/purchases/create", label: copy.createPurchaseInvoice, icon: ReceiptText },
   ];
   return (
-    <section className="mt-4 rounded-2xl border border-emerald-300/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.035] to-sky-400/5 p-4 shadow-2xl shadow-black/15">
+    <section className="m1-dashboard-onboarding mt-4 rounded-2xl border border-emerald-300/25 bg-surface-soft p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{copy.gettingStartedToday}</div>
-          <p className="mt-1 text-sm text-zinc-400">{copy.noSalesForFilter}</p>
+          <p className="mt-1 text-sm text-text-muted">{copy.noSalesForFilter}</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {items.map(({ to, label, icon: Icon }) => (
-            <Link key={label} to={to} className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/70 px-3 text-xs font-black text-zinc-100 transition hover:bg-white/10">
+            <Link key={label} to={to} className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-3 text-xs font-black text-text transition hover:bg-surface-hover">
               <Icon className="h-4 w-4 text-emerald-300" />
               {label}
             </Link>
@@ -978,12 +978,12 @@ function GettingStarted() {
 
 function TodayCard({ label, value, pulse = false }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.035] px-3.5 py-2.5 shadow-lg shadow-black/10 backdrop-blur-xl">
-      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3.5 py-2.5 shadow-lg shadow-black/10 backdrop-blur-xl">
+      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">
         {pulse ? <LivePulse tone="emerald" /> : null}
         {label}
       </div>
-      <div className="mt-1 truncate text-base font-black text-white">{value}</div>
+      <div className="mt-1 truncate text-base font-black text-text">{value}</div>
     </div>
   );
 }
@@ -1001,12 +1001,12 @@ const KpiCard = memo(function KpiCard({ label, value, growth, icon: Icon, tone, 
   }[tone] || { icon: "from-emerald-300/30 to-emerald-500/5 text-emerald-100", stroke: "#34d399" };
   const path = sparkPath(sparkline);
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[linear-gradient(145deg,rgba(255,255,255,0.085),rgba(255,255,255,0.025)_42%,rgba(9,9,11,0.78))] p-4 shadow-2xl shadow-black/20 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-white/15 hover:shadow-emerald-950/25">
+    <div className="group relative overflow-hidden rounded-2xl border border-border bg-surface-raised p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-border-strong">
       <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-emerald-300/10 blur-3xl transition group-hover:bg-emerald-300/20" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-          <div className="mt-1.5 truncate text-2xl font-black tracking-tight text-white">{loading ? <SkeletonLine className="h-7 w-24" /> : value}</div>
+          <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">{label}</div>
+          <div className="mt-1.5 truncate text-2xl font-black tracking-tight text-text">{loading ? <SkeletonLine className="h-7 w-24" /> : value}</div>
         </div>
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-lg ${palette.icon}`}><Icon className="h-4 w-4" /></div>
       </div>
@@ -1022,7 +1022,7 @@ const KpiCard = memo(function KpiCard({ label, value, growth, icon: Icon, tone, 
 });
 
 function MiniSparkline({ path, stroke }) {
-  if (!path) return <div className="h-[34px] w-28 rounded-lg bg-white/[0.025]" />;
+  if (!path) return <div className="h-[34px] w-28 rounded-lg bg-surface-soft" />;
   return (
     <svg viewBox="0 0 112 34" className="h-[34px] w-28 overflow-visible" role="img" aria-label="Trend sparkline">
       <path d={`${path} L 112 34 L 0 34 Z`} fill={stroke} opacity="0.1" />
@@ -1032,15 +1032,15 @@ function MiniSparkline({ path, stroke }) {
 }
 
 function SkeletonLine({ className = "h-4 w-full" }) {
-  return <span className={`block animate-pulse rounded-full bg-white/10 ${className}`} />;
+  return <span className={`block animate-pulse rounded-full bg-surface-soft ${className}`} />;
 }
 
 function WidgetManager({ widgets, hidden, onToggle }) {
   const { i18n } = useTranslation();
   const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.035] p-2 shadow-xl shadow-black/10 backdrop-blur-xl">
-      <span className="inline-flex h-9 items-center gap-2 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft p-2 shadow-xl shadow-black/10 backdrop-blur-xl">
+      <span className="inline-flex h-9 items-center gap-2 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">
         <LayoutGrid className="h-3.5 w-3.5" />
         {copy.widgets}
       </span>
@@ -1049,7 +1049,7 @@ function WidgetManager({ widgets, hidden, onToggle }) {
           key={widget.id}
           type="button"
           onClick={() => onToggle(widget.id)}
-          className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] px-3 text-xs font-black transition hover:-translate-y-0.5 ${hidden.includes(widget.id) ? "bg-white/[0.035] text-zinc-500" : "bg-emerald-400/[0.08] text-emerald-100 shadow-lg shadow-emerald-950/10"}`}
+          className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] px-3 text-xs font-black transition hover:-translate-y-0.5 ${hidden.includes(widget.id) ? "bg-surface-soft text-text-muted" : "bg-emerald-400/[0.08] text-emerald-100 shadow-lg shadow-emerald-950/10"}`}
         >
           {hidden.includes(widget.id) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
           {widget.title}
@@ -1068,14 +1068,14 @@ function WidgetShell({ widget, children, onToggleSize, onDropWidget }) {
       onDragStart={(event) => event.dataTransfer.setData("text/widget-id", widget.id)}
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => onDropWidget(widget.id, event.dataTransfer.getData("text/widget-id"))}
-      className={`min-w-0 rounded-2xl border border-white/[0.07] bg-zinc-950/58 p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:border-white/14 hover:bg-zinc-950/68 ${widget.size === "wide" ? "2xl:col-span-2" : ""}`}
+      className={`min-w-0 rounded-2xl border border-border bg-surface p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-hover ${widget.size === "wide" ? "2xl:col-span-2" : ""}`}
     >
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-zinc-600" />
-          <h2 className="m1-section-title truncate text-white">{widget.title}</h2>
+          <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-text-muted" />
+          <h2 className="m1-section-title truncate text-text">{widget.title}</h2>
         </div>
-        <button type="button" onClick={() => onToggleSize(widget.id)} className="rounded-[var(--radius-control)] border border-white/[0.07] bg-white/[0.045] px-2 py-1 text-[11px] font-bold text-zinc-300 transition hover:bg-white/[0.08]">
+        <button type="button" onClick={() => onToggleSize(widget.id)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-2 py-1 text-[11px] font-bold text-text-muted transition hover:bg-surface-hover">
           {widget.size === "wide" ? copy.compact : copy.wide}
         </button>
       </div>
@@ -1089,8 +1089,8 @@ function WidgetSkeleton() {
     <div className="space-y-3">
       <SkeletonLine className="h-7 w-1/3" />
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="h-44 animate-pulse rounded-xl bg-white/[0.045]" />
-        <div className="h-44 animate-pulse rounded-xl bg-white/[0.045]" />
+        <div className="h-44 animate-pulse rounded-xl bg-surface-soft" />
+        <div className="h-44 animate-pulse rounded-xl bg-surface-soft" />
       </div>
       <SkeletonLine className="h-4 w-2/3" />
     </div>
@@ -1135,17 +1135,17 @@ function SalesAnalytics({ salesTrend, hourlySales }) {
 }
 
 function ChartCard({ title, children }) {
-  return <div className="min-w-0 rounded-2xl border border-slate-700/55 bg-slate-950/35 p-4"><div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{title}</div>{children}</div>;
+  return <div className="min-w-0 rounded-2xl border border-border bg-surface p-4"><div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-text-muted">{title}</div>{children}</div>;
 }
 
 function EmptyChart({ title, message }) {
   return (
-    <div className="flex h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/30 px-6 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-700 bg-slate-800/55 text-slate-300">
+    <div className="flex h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-surface px-6 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-surface text-text-muted">
         <LineChartIcon className="h-6 w-6" />
       </div>
-      <div className="mt-3 text-sm font-black text-white">{title}</div>
-      <p className="mt-1 max-w-xs text-xs leading-5 text-zinc-500">{message}</p>
+      <div className="mt-3 text-sm font-black text-text">{title}</div>
+      <p className="mt-1 max-w-xs text-xs leading-5 text-text-muted">{message}</p>
     </div>
   );
 }
@@ -1159,16 +1159,16 @@ function LegacyDashboardActivityFeed({ rows }) {
   return (
     <div className="max-h-[420px] overflow-auto pr-1">
       {(rows || []).slice(0, 24).map((row, index) => (
-        <div key={`${row.type}-${row.created_at}-${index}`} className="mb-2 grid grid-cols-[24px_minmax(0,1fr)_auto] gap-3 rounded-xl bg-white/[0.025] px-3 py-2.5 transition hover:bg-white/[0.055]">
+        <div key={`${row.type}-${row.created_at}-${index}`} className="mb-2 grid grid-cols-[24px_minmax(0,1fr)_auto] gap-3 rounded-xl bg-surface-soft px-3 py-2.5 transition hover:bg-surface-hover">
           <div className="relative flex justify-center">
-            <span className="absolute top-7 h-full w-px bg-white/[0.06]" />
+            <span className="absolute top-7 h-full w-px bg-surface-soft" />
             <span className="relative mt-1 flex h-3 w-3 rounded-full bg-emerald-300 shadow-[0_0_20px_rgba(52,211,153,0.6)]" />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-black text-white">{row.title || row.type}</div>
-            <div className="mt-1 text-xs text-zinc-500">{row.type} · {row.status || "posted"}</div>
+            <div className="truncate text-sm font-black text-text">{row.title || row.type}</div>
+            <div className="mt-1 text-xs text-text-muted">{row.type} · {row.status || "posted"}</div>
           </div>
-          <div className="text-right text-xs font-bold text-zinc-400">
+          <div className="text-right text-xs font-bold text-text-muted">
             <div>{Number(row.amount || 0) ? formatCurrency(row.amount) : ""}</div>
             <div className="mt-1">{shortTime(row.created_at)}</div>
           </div>
@@ -1204,8 +1204,8 @@ function PosLiveMonitor({ posLive }) {
         <MetricTile label={copy.currentCartCounts} value={number(posLive?.currentCartCounts)} icon={ShoppingCart} />
         <MetricTile label={copy.averageCheckout} value={`${number(posLive?.averageCheckoutTimeSeconds)}s`} icon={LineChartIcon} />
       </div>
-      <div className="rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.035] p-3 shadow-inner shadow-white/[0.02]">
-        <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{copy.paymentMethods}</div>
+      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-inner shadow-white/[0.02]">
+        <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-text-muted">{copy.paymentMethods}</div>
         {rows.length ? <ResponsiveContainer width="100%" height={220}>
           <PieChart>
             <Pie data={rows} dataKey="amount" nameKey="method" innerRadius={54} outerRadius={86} paddingAngle={4}>
@@ -1214,7 +1214,7 @@ function PosLiveMonitor({ posLive }) {
             <Tooltip content={<DashboardTooltip />} />
           </PieChart>
         </ResponsiveContainer> : <PremiumEmpty icon={CreditCard} title={copy.noPaymentsYet} message={copy.paymentDistributionAppears} compact />}
-        <div className="text-xs text-zinc-400">{copy.lastInvoice}: {posLive?.lastInvoice?.invoice_number || "-"}</div>
+        <div className="text-xs text-text-muted">{copy.lastInvoice}: {posLive?.lastInvoice?.invoice_number || "-"}</div>
       </div>
     </div>
   );
@@ -1228,7 +1228,7 @@ function AiInsights({ insights }) {
       {(insights || []).length ? insights.map((item, index) => (
         <div key={`${item.title}-${index}`} className="rounded-xl border border-emerald-300/12 bg-emerald-400/[0.06] p-3 shadow-lg shadow-emerald-950/10">
           <div className="flex items-center gap-2 text-sm font-black text-emerald-100"><Brain className="h-4 w-4" />{item.title}</div>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">{item.body}</p>
+          <p className="mt-2 text-sm leading-6 text-text-muted">{item.body}</p>
         </div>
       )) : <PremiumEmpty icon={Brain} title={copy.insightsAppear} message={copy.insightsNeedData} />}
     </div>
@@ -1285,12 +1285,12 @@ function MiniList({ title, rows, getLabel, getValue, icon: Icon }) {
   const { i18n } = useTranslation();
   const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.03] p-3 shadow-inner shadow-white/[0.02]">
-      <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-500"><Icon className="h-4 w-4" />{title}</div>
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-inner shadow-white/[0.02]">
+      <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-text-muted"><Icon className="h-4 w-4" />{title}</div>
       <div className="space-y-2">
         {(rows || []).slice(0, 6).map((row, index) => (
-          <div key={`${getLabel(row)}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.025] px-3 py-2 text-sm transition hover:bg-white/[0.055]">
-            <span className="min-w-0 truncate font-semibold text-zinc-200">{getLabel(row)}</span>
+          <div key={`${getLabel(row)}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-surface-soft px-3 py-2 text-sm transition hover:bg-surface-hover">
+            <span className="min-w-0 truncate font-semibold text-text">{getLabel(row)}</span>
             <span className="shrink-0 font-black text-emerald-200">{getValue(row)}</span>
           </div>
         ))}
@@ -1302,9 +1302,9 @@ function MiniList({ title, rows, getLabel, getValue, icon: Icon }) {
 
 function MetricTile({ label, value, icon: Icon }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.03] p-3 shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-white/[0.05]">
-      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500"><Icon className="h-4 w-4" />{label}</div>
-      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-surface-hover">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted"><Icon className="h-4 w-4" />{label}</div>
+      <div className="mt-2 text-2xl font-black text-text">{value}</div>
     </div>
   );
 }
@@ -1333,31 +1333,31 @@ function RightSidebar({ lowStock, recentInvoices, activity }) {
 
 function SidePanel({ title, icon: Icon, children }) {
   return (
-    <section className="rounded-3xl border border-slate-700/60 bg-slate-900/55 p-4 shadow-2xl shadow-black/18">
-      <div className="mb-4 flex items-center gap-2 text-sm font-black text-white"><Icon className="h-4 w-4 text-cyan-200" />{title}</div>
+    <section className="rounded-3xl border border-border bg-surface p-4 shadow-2xl shadow-black/18">
+      <div className="mb-4 flex items-center gap-2 text-sm font-black text-text"><Icon className="h-4 w-4 text-cyan-200" />{title}</div>
       <div className="space-y-2">{children}</div>
     </section>
   );
 }
 
 function NotificationLine({ label, value, tone = "emerald", pulse = false }) {
-  const tones = { emerald: "bg-emerald-400", amber: "bg-amber-400", rose: "bg-red-400", slate: "bg-slate-500" };
+  const tones = { emerald: "bg-emerald-400", amber: "bg-amber-400", rose: "bg-red-400", slate: "bg-border-strong" };
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-950/42 px-3 py-2.5 text-xs transition hover:bg-slate-800/55">
-      <div className="flex min-w-0 items-center gap-2"><span className={`h-2 w-2 shrink-0 rounded-full ${tones[tone]} ${pulse ? "dashboard-pulse" : ""}`} /><span className="truncate font-bold text-zinc-300">{label}</span></div>
-      <span className="shrink-0 font-black text-white">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-3 py-2.5 text-xs transition hover:bg-surface-hover">
+      <div className="flex min-w-0 items-center gap-2"><span className={`h-2 w-2 shrink-0 rounded-full ${tones[tone]} ${pulse ? "dashboard-pulse" : ""}`} /><span className="truncate font-bold text-text-muted">{label}</span></div>
+      <span className="shrink-0 font-black text-text">{value}</span>
     </div>
   );
 }
 
 function PremiumEmpty({ icon: Icon, title, message, compact = false }) {
   return (
-    <div className={`rounded-xl border border-dashed border-white/[0.08] bg-[radial-gradient(circle_at_center,rgba(52,211,153,0.08),rgba(255,255,255,0.02)_48%,transparent)] text-center ${compact ? "px-3 py-4" : "px-5 py-8"}`}>
-      <div className={`mx-auto flex items-center justify-center rounded-[var(--radius-card)] border border-white/[0.08] bg-white/[0.04] text-zinc-400 shadow-lg shadow-emerald-950/10 ${compact ? "h-9 w-9" : "h-12 w-12"}`}>
+    <div className={`rounded-xl border border-dashed border-border bg-surface-soft text-center ${compact ? "px-3 py-4" : "px-5 py-8"}`}>
+      <div className={`mx-auto flex items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted shadow-lg shadow-emerald-950/10 ${compact ? "h-9 w-9" : "h-12 w-12"}`}>
         <Icon className={compact ? "h-4 w-4" : "h-6 w-6"} />
       </div>
-      <div className="mt-3 text-sm font-black text-white">{title}</div>
-      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-zinc-500">{message}</p>
+      <div className="mt-3 text-sm font-black text-text">{title}</div>
+      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-text-muted">{message}</p>
     </div>
   );
 }
@@ -1365,12 +1365,12 @@ function PremiumEmpty({ icon: Icon, title, message, compact = false }) {
 function DashboardTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="dashboard-tooltip rounded-xl border border-white/[0.08] bg-zinc-950/90 px-3 py-2 text-xs shadow-2xl shadow-black/40 backdrop-blur-xl">
-      <div className="mb-1 font-black text-white">{label}</div>
+    <div className="dashboard-tooltip rounded-xl border border-border bg-surface px-3 py-2 text-xs shadow-2xl shadow-black/40 backdrop-blur-xl">
+      <div className="mb-1 font-black text-text">{label}</div>
       {payload.map((item) => (
-        <div key={item.dataKey} className="flex min-w-[140px] items-center justify-between gap-4 text-zinc-300">
+        <div key={item.dataKey} className="flex min-w-[140px] items-center justify-between gap-4 text-text-muted">
           <span>{item.name || item.dataKey}</span>
-          <span className="font-black text-white">{typeof item.value === "number" && item.value > 99 ? number(item.value) : item.value}</span>
+          <span className="font-black text-text">{typeof item.value === "number" && item.value > 99 ? number(item.value) : item.value}</span>
         </div>
       ))}
     </div>
