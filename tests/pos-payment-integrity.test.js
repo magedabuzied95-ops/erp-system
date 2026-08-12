@@ -34,6 +34,11 @@ test("POS supports a deposit with the remaining balance saved as customer credit
   assert.match(ordersControllerSource, /!isCreditSaleTransaction \|\| receivedAmount > 0\.009/);
 });
 
+test("a one-method deposit entered in the split sheet remains a split payment", () => {
+  assert.match(cartSource, /options\.forceSplit \? "split"/);
+  assert.match(cartSource, /setMethodAmount\(method, value, \{ manual: true, forceSplit: true \}\)/);
+});
+
 test("POS persists the remaining balance and the actual collected method", () => {
   assert.match(ordersControllerSource, /remaining_amount = \$3/);
   assert.match(ordersControllerSource, /remainingOrderAmount/);
