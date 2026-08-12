@@ -34,6 +34,75 @@
   html[dir="rtl"], html[data-language="ar"] { --app-font: var(--font-ar); }
   html[dir="ltr"], html[data-language="en"] { --app-font: var(--font-en); }
 
+  /* GLOBAL_DROPDOWN_TYPOGRAPHY
+     Native popup chrome is partly owned by Chromium/Windows, but the DOM
+     option text still has an application-owned inheritance boundary. Keep the
+     closed control's existing size/weight contract and make its options inherit
+     that exact typography. This is deliberately scoped to authenticated M1
+     surfaces; storefront controls keep their independent typography system. */
+  :where(.m1-shell-root, .m1-page, .m1-pos-pro, .employee-portal-shell, .manager-portal-mobile-dark)
+    select {
+    font-family: var(--app-font);
+  }
+
+  :where(.m1-shell-root, .m1-page, .m1-pos-pro, .employee-portal-shell, .manager-portal-mobile-dark)
+    select :where(option, optgroup) {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+    text-transform: none;
+    direction: inherit;
+    text-align: start;
+  }
+
+  /* Canonical custom/listbox typography. Consumers retain their values,
+     selection state and positioning; these classes only own presentation. */
+  :where(.m1-dropdown-trigger, .m1-dropdown-menu, .m1-dropdown-option, .m1-react-select__menu-portal) {
+    font-family: var(--app-font);
+    font-size: var(--font-body);
+    line-height: var(--font-body-lh);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .m1-dropdown-trigger { font-weight: 600; }
+
+  .m1-dropdown-menu {
+    color: var(--text);
+    background: var(--card);
+    border-color: var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .m1-dropdown-option {
+    min-height: var(--control-height-md);
+    font-weight: 600;
+  }
+
+  .m1-dropdown-option--compact {
+    min-height: var(--control-height-sm);
+    font-size: var(--font-caption);
+    line-height: var(--font-caption-lh);
+  }
+
+  .m1-dropdown-option[aria-selected="true"],
+  .m1-dropdown-option[aria-checked="true"] {
+    font-weight: 700;
+  }
+
+  html[dir="rtl"] :where(.m1-dropdown-trigger, .m1-dropdown-menu, .m1-dropdown-option, .m1-react-select__menu-portal) {
+    direction: rtl;
+    text-align: right;
+  }
+
+  html[dir="ltr"] :where(.m1-dropdown-trigger, .m1-dropdown-menu, .m1-dropdown-option, .m1-react-select__menu-portal) {
+    direction: ltr;
+    text-align: left;
+  }
+
   :where(button, input, select, textarea, a):focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;

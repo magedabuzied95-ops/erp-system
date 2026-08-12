@@ -1,4 +1,7 @@
 import Select from "react-select";
+import { useTranslation } from "react-i18next";
+
+import { createM1SelectTypographyStyles } from "../../../shared/ui/selectTypography";
 
 const getManufacturerId = (manufacturer = {}) =>
   String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "").trim();
@@ -13,6 +16,9 @@ const getManufacturerName = (manufacturer = {}) =>
   ).trim();
 
 export default function ManufacturerSelect({ manufacturers = [], value = "", onChange, placeholder, isMulti = false }) {
+  const { i18n } = useTranslation();
+  const isRtl = String(i18n.resolvedLanguage || i18n.language || "").toLowerCase().startsWith("ar");
+  const typographyStyles = createM1SelectTypographyStyles({ isRtl });
   const options = manufacturers
     .map((manufacturer) => ({
       value: getManufacturerId(manufacturer),
@@ -37,7 +43,8 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
       noOptionsMessage={() => "لا توجد مصانع متاحة"}
       isClearable
       isMulti={isMulti}
-      isRtl
+      isRtl={isRtl}
+      classNamePrefix="m1-react-select"
       menuPosition="fixed"
       menuPortalTarget={typeof document !== "undefined" ? document.body : null}
       className="text-sm"
@@ -48,8 +55,9 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
          token now, so
          this control follows the theme like the native ones beside it. */
       styles={{
+        ...typographyStyles,
         control: (base, state) => ({
-          ...base,
+          ...typographyStyles.control(base, state),
           minHeight: "var(--control-height-md, 40px)",
           height: isMulti ? "auto" : "var(--control-height-md, 40px)",
           borderRadius: "var(--radius-control)",
@@ -60,7 +68,7 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
           ":hover": { borderColor: "var(--border-strong)" },
         }),
         valueContainer: (base) => ({ ...base, padding: "0 12px" }),
-        singleValue: (base) => ({ ...base, color: "var(--text)", fontWeight: 700 }),
+        singleValue: (base) => ({ ...typographyStyles.singleValue(base), color: "var(--text)", fontWeight: 700 }),
         multiValue: (base) => ({ ...base, borderRadius: 8, backgroundColor: "var(--primary-soft)" }),
         multiValueLabel: (base) => ({ ...base, color: "var(--primary)", fontWeight: 700 }),
         multiValueRemove: (base) => ({
@@ -68,15 +76,15 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
           color: "var(--muted)",
           ":hover": { color: "var(--primary-contrast)", backgroundColor: "var(--primary)" },
         }),
-        placeholder: (base) => ({ ...base, color: "var(--muted)", fontWeight: 700 }),
-        input: (base) => ({ ...base, color: "var(--text)" }),
+        placeholder: (base) => ({ ...typographyStyles.placeholder(base), color: "var(--muted)", fontWeight: 700 }),
+        input: (base) => ({ ...typographyStyles.input(base), color: "var(--text)" }),
         indicatorsContainer: (base) => ({ ...base, minHeight: 38, height: isMulti ? "auto" : 38 }),
         indicatorSeparator: () => ({ display: "none" }),
         dropdownIndicator: (base) => ({ ...base, color: "var(--muted)", padding: 8 }),
         clearIndicator: (base) => ({ ...base, color: "var(--muted)", padding: 6 }),
-        menuPortal: (base) => ({ ...base, zIndex: 10000 }),
+        menuPortal: (base) => ({ ...typographyStyles.menuPortal(base), zIndex: 10000 }),
         menu: (base) => ({
-          ...base,
+          ...typographyStyles.menu(base),
           overflow: "hidden",
           marginTop: 6,
           border: "1px solid var(--border)",
@@ -86,7 +94,7 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
         }),
         menuList: (base) => ({ ...base, padding: 6, backgroundColor: "var(--card)" }),
         option: (base, state) => ({
-          ...base,
+          ...typographyStyles.option(base),
           borderRadius: 8,
           backgroundColor: state.isSelected
             ? "var(--primary)"
@@ -98,7 +106,7 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
           cursor: "pointer",
           ":active": { backgroundColor: "var(--primary-hover)" },
         }),
-        noOptionsMessage: (base) => ({ ...base, color: "var(--muted)" }),
+        noOptionsMessage: (base) => ({ ...typographyStyles.noOptionsMessage(base), color: "var(--muted)" }),
       }}
     />
   );

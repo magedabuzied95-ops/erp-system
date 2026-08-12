@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Link, useNavigate } from "react-router-dom";
@@ -118,6 +118,8 @@ const PRODUCT_AUDIENCE_OPTIONS = [
 function BrandFilterCombobox({ value = "all", options = [], onChange, allLabel, searchPlaceholder }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listboxId = useId();
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
   const searchRef = useRef(null);
@@ -129,6 +131,7 @@ function BrandFilterCombobox({ value = "all", options = [], onChange, allLabel, 
     () => brands.filter((brand) => keyboardLayoutIncludes(brand, query)),
     [brands, query]
   );
+  const visibleOptions = useMemo(() => ["all", ...filteredBrands], [filteredBrands]);
 
   useDismissableLayer({
     enabled: open,
@@ -141,6 +144,10 @@ function BrandFilterCombobox({ value = "all", options = [], onChange, allLabel, 
     const frame = window.requestAnimationFrame(() => searchRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [open]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query]);
 
   const selectBrand = (brand) => {
     onChange?.(brand);
@@ -155,50 +162,83 @@ function BrandFilterCombobox({ value = "all", options = [], onChange, allLabel, 
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          setQuery("");
+          setActiveIndex(event.key === "ArrowUp" ? Math.max(0, brands.length) : 0);
+          setOpen(true);
+        }}
         onClick={() => {
           setQuery("");
+          setActiveIndex(0);
           setOpen((current) => !current);
         }}
-        className="flex h-full min-h-[46px] w-full min-w-0 items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none transition hover:border-border-strong"
+        className="m1-dropdown-trigger flex h-full min-h-[46px] w-full min-w-0 items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none transition hover:border-border-strong"
       >
         <span className="truncate">{value === "all" ? allLabel : value}</span>
         <ChevronDown size={16} className={`shrink-0 transition ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open ? (
-        <div className="absolute inset-x-0 top-full z-[90] mt-2 min-w-[16rem] overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/40">
+        <div className="m1-dropdown-menu absolute inset-x-0 top-full z-[90] mt-2 min-w-[16rem] overflow-hidden border bg-surface">
           <div className="flex items-center gap-2 border-b border-border px-3 py-2">
             <Search size={16} className="shrink-0 text-text-muted" />
             <input
               ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="true"
+              aria-controls={listboxId}
+              aria-activedescendant={`${listboxId}-option-${activeIndex}`}
               onKeyDown={(event) => {
-                if (event.key === "Escape") setOpen(false);
-                if (event.key === "Enter" && filteredBrands.length) selectBrand(filteredBrands[0]);
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  const delta = event.key === "ArrowDown" ? 1 : -1;
+                  setActiveIndex((current) => (current + delta + visibleOptions.length) % visibleOptions.length);
+                }
+                if (event.key === "Enter" && visibleOptions.length) {
+                  event.preventDefault();
+                  selectBrand(visibleOptions[activeIndex] || "all");
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setOpen(false);
+                  triggerRef.current?.focus();
+                }
+                if (event.key === "Tab") setOpen(false);
               }}
               placeholder={searchPlaceholder}
               className="w-full min-w-0 bg-transparent py-1.5 text-sm text-text outline-none placeholder:text-text-muted"
             />
           </div>
-          <div role="listbox" className="max-h-72 overflow-y-auto p-1">
+          <div id={listboxId} role="listbox" className="max-h-72 overflow-y-auto p-1">
             <button
+              id={`${listboxId}-option-0`}
               type="button"
               role="option"
               aria-selected={value === "all"}
+              tabIndex={-1}
+              onMouseEnter={() => setActiveIndex(0)}
               onClick={() => selectBrand("all")}
-              className={`flex w-full rounded-[var(--radius-control)] px-3 py-2 text-start text-sm transition hover:bg-surface-hover ${value === "all" ? "bg-primary/15 text-primary" : "text-text"}`}
+              className={`m1-dropdown-option flex w-full rounded-[var(--radius-control)] px-3 py-2 text-start transition hover:bg-surface-hover ${value === "all" ? "bg-primary/15 text-primary" : activeIndex === 0 ? "bg-surface-hover text-text" : "text-text"}`}
             >
               {allLabel}
             </button>
-            {filteredBrands.map((brand) => (
+            {filteredBrands.map((brand, index) => (
               <button
                 key={brand}
+                id={`${listboxId}-option-${index + 1}`}
                 type="button"
                 role="option"
                 aria-selected={value === brand}
+                tabIndex={-1}
+                onMouseEnter={() => setActiveIndex(index + 1)}
                 onClick={() => selectBrand(brand)}
-                className={`flex w-full rounded-[var(--radius-control)] px-3 py-2 text-start text-sm transition hover:bg-surface-hover ${value === brand ? "bg-primary/15 text-primary" : "text-text"}`}
+                className={`m1-dropdown-option flex w-full rounded-[var(--radius-control)] px-3 py-2 text-start transition hover:bg-surface-hover ${value === brand ? "bg-primary/15 text-primary" : activeIndex === index + 1 ? "bg-surface-hover text-text" : "text-text"}`}
               >
                 {brand}
               </button>
