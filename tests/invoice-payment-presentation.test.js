@@ -7,6 +7,8 @@ const invoiceNormalizer = read("../src/shared/utils/orderInvoice.js");
 const invoiceCard = read("../src/shared/components/invoices/OrderInvoiceCard.jsx");
 const pos = read("../src/modules/pos/pages/POSPro.jsx");
 const controller = read("../server/controllers/ordersController.js");
+const receipt = read("../src/modules/pos/components/CartSidebar.jsx");
+const invoicePdf = read("../src/shared/utils/invoicePdf.js");
 
 test("public invoices expose and render paid and remaining balances", () => {
   assert.match(controller, /AS remaining_amount/);
@@ -40,4 +42,15 @@ test("zero discounts stay hidden on public and printed invoices", () => {
 
 test("thermal receipts fall back to persisted remaining amount", () => {
   assert.match(pos, /order\.remaining_amount \?\? order\.remainingAmount/);
+});
+
+test("split payment amounts appear on thermal, public, and printable invoices", () => {
+  assert.match(invoiceNormalizer, /normalizeInvoicePaymentBreakdown/);
+  assert.match(invoiceNormalizer, /paymentBreakdown,/);
+  assert.match(invoiceCard, /paymentBreakdown\.length > 1/);
+  assert.match(invoiceCard, /copy\.paymentBreakdown/);
+  assert.match(pos, /paymentBreakdown: parsePaymentBreakdownRows/);
+  assert.match(receipt, /paymentBreakdown\.map/);
+  assert.match(invoicePdf, /paymentBreakdownRows/);
+  assert.match(controller, /visiblePaymentBreakdown\.forEach/);
 });

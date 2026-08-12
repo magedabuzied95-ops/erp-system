@@ -48,6 +48,7 @@ const AR_INVOICE_COPY = {
   remainingCredit: "الرصيد المتبقي للعميل",
   paidAmount: "المدفوع",
   remainingAmount: "المتبقي",
+  paymentBreakdown: "تفاصيل الدفع",
   deferredRemainder: "والباقي آجل",
 };
 
@@ -90,6 +91,7 @@ const EN_INVOICE_COPY = {
   remainingCredit: "Remaining customer credit",
   paidAmount: "Paid",
   remainingAmount: "Remaining",
+  paymentBreakdown: "Payment breakdown",
   deferredRemainder: "remainder deferred",
 };
 
@@ -155,6 +157,7 @@ const getPaymentMethodLabel = (value = "", copy = EN_INVOICE_COPY) => {
     card: copy.card,
     visa: copy.card,
     wallet: copy.wallet,
+    customer_wallet: copy === AR_INVOICE_COPY ? "محفظة العميل" : "Customer wallet",
     split: copy.split,
     transfer: copy.transfer,
     bank_transfer: copy.bankTransfer,
@@ -230,6 +233,9 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
   const invoiceItems = Array.isArray(data?.items) ? data.items.filter(Boolean) : [];
   const totals = data?.totals || {};
   const paymentMethod = String(data?.paymentMethod || "").toLowerCase();
+  const paymentBreakdown = Array.isArray(data?.paymentBreakdown)
+    ? data.paymentBreakdown.filter((payment) => Number(payment?.amount || 0) > 0)
+    : [];
   const publicNumber = displayPublicOrderNumber(invoice || order || data) || data?.invoiceNumber || "-";
   const unavailable = safeLabel(t("storefront.invoice.unavailable", { defaultValue: copy.notSpecified }), copy.notSpecified);
   const shippingLabel = copy.shipping;
@@ -383,6 +389,19 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
             <span>{copy.grandTotal}</span>
             <span className={`${luxury ? "text-xl text-emerald-700" : "text-emerald-700"}`}>{formatCurrency(totals?.grandTotal)}</span>
           </div>
+          {paymentBreakdown.length > 1 ? (
+            <div className={`my-2 border-y py-2 ${luxury ? "border-slate-200" : "border-stone-200"}`}>
+              <div className={`mb-1 text-xs font-black ${luxury ? "text-slate-500" : "text-stone-500"}`}>{copy.paymentBreakdown}</div>
+              {paymentBreakdown.map((payment) => (
+                <Summary
+                  key={payment.method}
+                  luxury={luxury}
+                  label={getPaymentMethodLabel(payment.method, copy)}
+                  value={formatCurrency(payment.amount)}
+                />
+              ))}
+            </div>
+          ) : null}
           <Summary luxury={luxury} label={copy.paidAmount} value={formatCurrency(totals?.paidAmount)} />
           <Summary luxury={luxury} label={copy.remainingAmount} value={formatCurrency(outstandingAmount)} />
           {publicView ? (

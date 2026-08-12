@@ -3,6 +3,9 @@ import { resolveInvoiceItemImageValue } from "../lib/invoiceItemImages";
 import { formatCurrency } from "../lib/currency";
 import { getCurrentTenant } from "../auth/authStorage";
 import { resolveBrandImageUrl } from "../lib/imageUrls";
+import { normalizeInvoicePaymentBreakdown } from "./invoicePaymentBreakdown";
+
+export { normalizeInvoicePaymentBreakdown } from "./invoicePaymentBreakdown";
 
 const M1_STORE_NAME = "M1 Store";
 const M1_STORE_WEBSITE_TEXT = "Www.m1store-egy.com";
@@ -89,26 +92,10 @@ const resolveOrderTotal = (order = {}) =>
 const resolveShippingFee = (order = {}) =>
   toNumber(order.shipping_fee ?? order.delivery_fee ?? order.totals?.shipping, 0);
 
-const parsePaymentBreakdown = (value) => {
-  if (Array.isArray(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const normalizePaymentMethod = (value = "") =>
-  String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-
 const resolveCollectedPaymentMethod = (order = {}) => {
-  const rows = parsePaymentBreakdown(order.payment_breakdown ?? order.paymentBreakdown ?? order.payments);
-  const methods = Array.from(new Set(rows
-    .filter((payment) => Number(payment?.amount ?? payment?.paid_amount ?? payment?.value ?? 0) > 0)
-    .map((payment) => normalizePaymentMethod(payment?.method || payment?.payment_method))
-    .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit"].includes(method))));
+  const methods = normalizeInvoicePaymentBreakdown(
+    order.payment_breakdown ?? order.paymentBreakdown ?? order.payments
+  ).map((payment) => payment.method);
   if (methods.length > 1) return "split";
   return methods[0] || firstText(order.collected_payment_method, order.actual_payment_method, order.totals?.collected_payment_method, order.payment_method, order.totals?.payment_method);
 };
@@ -190,6 +177,9 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
     Math.max(0, grandTotal - paidAmount)
   ));
   const exchangeMode = Boolean(order.exchange_mode || order.exchangeMode || exchangeCredit > 0);
+  const paymentBreakdown = normalizeInvoicePaymentBreakdown(
+    order.payment_breakdown ?? order.paymentBreakdown ?? order.payments ?? order.totals?.payment_breakdown
+  );
 
   return {
     store: {
@@ -226,6 +216,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
     },
     status: firstText(order.status, order.order_status, "pending"),
     paymentMethod: firstText(resolveCollectedPaymentMethod(order), options.paymentMethod, "cod"),
+    paymentBreakdown,
     paymentStatus: firstText(order.payment_status, order.paymentStatus, "pending"),
     createdAt: firstText(order.created_at, order.order_date, order.date, new Date().toISOString()),
     items,
