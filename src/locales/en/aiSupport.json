@@ -315,5 +315,70 @@
       "loading": "Loading history...",
       "empty": "No AI support test history yet."
     }
+  },
+  "knowledgeBase": {
+    "title": "AI Support Knowledge Base",
+    "toasts": {
+      "checkPhone": "Check the phone or WhatsApp format",
+      "saved": "The AI support knowledge base was saved",
+      "saveFailed": "Could not save the settings",
+      "reset": "The knowledge base was cleared",
+      "resetFailed": "Could not clear the settings"
+    },
+    "confirmReset": "Reset the AI support knowledge base for this tenant?",
+    "validation": {
+      "title": "Validation",
+      "phone": "Phone:",
+      "whatsapp": "WhatsApp:",
+      "state": "State:",
+      "valid": "Valid",
+      "invalid": "Invalid",
+      "unsaved": "Unsaved changes",
+      "savedState": "Saved"
+    },
+    "fields": {
+      "store_name": {
+        "label": "Display store name",
+        "placeholder": "Example: Demo Store"
+      },
+      "phone": {
+        "label": "Public phone number"
+      },
+      "whatsapp": {
+        "label": "WhatsApp number"
+      },
+      "branch_working_hours": {
+        "label": "Branch working hours",
+        "placeholder": "Example: Saturday - Thursday, 12pm to 11pm"
+      },
+      "payment_methods": {
+        "label": "Payment methods",
+        "placeholder": "Cash on delivery, Vodafone Cash, InstaPay…"
+      },
+      "shipping_policy": {
+        "label": "Shipping policy",
+        "placeholder": "Shipping areas, expected duration, cost…"
+      },
+      "return_exchange_policy": {
+        "label": "Exchange and return policy",
+        "placeholder": "Exchange conditions, window, product condition…"
+      },
+      "delivery_notes": {
+        "label": "Delivery notes",
+        "placeholder": "Any general instructions for the customer before delivery"
+      },
+      "warranty_notes": {
+        "label": "Warranty notes",
+        "placeholder": "Warranty policy, or that there is none"
+      },
+      "human_support_message": {
+        "label": "Human handoff message",
+        "placeholder": "Example: message us on WhatsApp and we will reply shortly"
+      },
+      "brand_tone_instructions": {
+        "label": "Brand tone in replies",
+        "placeholder": "Example: friendly Arabic replies, concise, no uncertain promises"
+      }
+    }
   }
 }

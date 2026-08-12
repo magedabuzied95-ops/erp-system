@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 150
-- Hardcoded Arabic UI strings: 1733
+- Files with debt: 149
+- Hardcoded Arabic UI strings: 1704
 - Hardcoded English UI strings: 1414
-- Total hardcoded UI strings: 3147
+- Total hardcoded UI strings: 3118
 - Mixed-language files (both scripts hardcoded): 40
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 80 | 1177 | 1017 | 2194 | 26 |
+| main-erp | 79 | 1148 | 1017 | 2165 | 26 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -1120,38 +1120,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1531 [attribute/ar] البائع
 - 1532 [attribute/ar] الدفع
 - 1535 [attribute/ar] دفع تعديل الفاتورة
-
-### src/modules/aiSupport/pages/AiSupportKnowledgeBase.jsx (main-erp — ar:29 en:0)
-
-- 23 [object-key/ar] اسم المتجر الظاهر
-- 23 [object-key/ar] مثال: المتجر التجريبي
-- 24 [object-key/ar] رقم الهاتف العام
-- 25 [object-key/ar] رقم واتساب
-- 26 [object-key/ar] مثال: السبت - الخميس من 12 ظهرًا إلى 11 مساءً
-- 26 [object-key/ar] مواعيد عمل الفروع
-- 27 [object-key/ar] طرق الدفع
-- 27 [object-key/ar] كاش عند الاستلام، فودافون كاش، إنستاباي...
-- 28 [object-key/ar] سياسة الشحن
-- 28 [object-key/ar] مناطق الشحن، المدة المتوقعة، التكلفة...
-- 29 [object-key/ar] سياسة الاستبدال والاسترجاع
-- 29 [object-key/ar] شروط الاستبدال، المدة، حالة المنتج...
-- 30 [object-key/ar] أي تعليمات عامة للعميل قبل التوصيل
-- 30 [object-key/ar] ملاحظات التوصيل
-- 31 [object-key/ar] سياسة الضمان أو عدم وجود ضمان
-- 31 [object-key/ar] ملاحظات الضمان
-- 32 [object-key/ar] رسالة التحويل للدعم البشري
-- 32 [object-key/ar] مثال: ابعتلنا على واتساب وسنرد عليك في أقرب وقت
-- 33 [object-key/ar] مثال: ردود عربية ودودة، مختصرة، بدون وعود غير مؤكدة
-- 33 [object-key/ar] نبرة البراند في الردود
-- 96 [notification/ar] راجع صيغة الهاتف أو واتساب
-- 110 [notification/ar] تم حفظ قاعدة معرفة الدعم الذكي
-- 120 [dialog/ar] هل تريد إعادة ضبط قاعدة معرفة الدعم الذكي لهذا المستأجر؟
-- 130 [notification/ar] تم تصفير قاعدة المعرفة
-- 148 [jsx-text/ar] قاعدة معرفة الدعم الذكي
-- 223 [jsx-text/ar] التحقق
-- 225 [jsx-text/ar] الهاتف:
-- 226 [jsx-text/ar] واتساب:
-- 227 [jsx-text/ar] الحالة:
 
 ### src/modules/purchases/pages/SupplierStatement.jsx (main-erp — ar:29 en:0)
 
