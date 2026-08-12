@@ -204,7 +204,11 @@ test("CreateProduct keeps exactly the white fills that are NOT surfaces", () => 
 test("CreateProduct's toggle off-track stays visible under the plain-white knob", () => {
   // bg-surface-soft here would leave a white knob on a near-white track in the
   // light theme. border-strong reads in both.
-  assert.match(createProduct, /"bg-emerald-400" : "bg-\[var\(--border-strong\)\]"/);
+  //
+  // The ON track used to be bg-emerald-400, from the pre-gold brand. The frozen
+  // M1 contract puts active states on the brand accent, so it is bg-primary now.
+  // What this test actually protects — the OFF track — is unchanged.
+  assert.match(createProduct, /"bg-primary" : "bg-\[var\(--border-strong\)\]"/);
 });
 
 test("CreateProduct's elevation is token-driven, not tuned for a black page", () => {

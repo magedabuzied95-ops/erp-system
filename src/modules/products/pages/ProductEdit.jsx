@@ -4541,7 +4541,7 @@ function ProductEdit() {
                                 <button
                                   type="button"
                                   onClick={() => moveColorImage(group.id, image.id, "up")}
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-black/65 text-text shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
                                   disabled={imageIndex === 0}
                                   aria-label={t("products.images.moveUp", "Move image up")}
                                 >
@@ -4550,7 +4550,7 @@ function ProductEdit() {
                                 <button
                                   type="button"
                                   onClick={() => moveColorImage(group.id, image.id, "down")}
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-black/65 text-text shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
                                   disabled={imageIndex === normalizeColorImages(group.images).length - 1}
                                   aria-label={t("products.images.moveDown", "Move image down")}
                                 >
