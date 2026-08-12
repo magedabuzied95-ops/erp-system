@@ -163,5 +163,165 @@
       "label": "AI Marketing Videos",
       "description": "Autonomous video generation queue."
     }
+  },
+  "restock": {
+    "eyebrow": "AI Studio",
+    "title": "Restock Recovery",
+    "introBefore": "When a product comes back in stock, find customers who asked to be notified and create",
+    "introInternal": "internal",
+    "introAfter": "sales follow-ups. No customer message is ever sent automatically — employees do the outreach.",
+    "createFromTemplate": "Create from template",
+    "openWorkflow": "Open workflow",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "failed": "Failed",
+    "messageSent": "Message sent.",
+    "alreadySent": "Already sent.",
+    "sendFailed": "Send failed",
+    "viewExecutions": "View workflow executions",
+    "automation": {
+      "label": "Automatic recovery:",
+      "active": "Active",
+      "inactive": "Inactive",
+      "activeNote": "Restock events will create internal recovery follow-ups for waiting customers.",
+      "internalBefore": "Recovery follow-ups are internal only — creating one does",
+      "not": "not",
+      "internalAfter": "mark the customer as notified.",
+      "reasons": {
+        "globalOff": "Global automation is OFF.",
+        "tenantOff": "Tenant automation is OFF.",
+        "noWorkflow": "No Restock Recovery workflow configured.",
+        "disabled": "The Restock Recovery workflow is disabled.",
+        "notGranted": "restock.recover is not granted (automatic follow-ups blocked)."
+      }
+    },
+    "views": {
+      "intents": "Waiting Requests",
+      "notifications": "Notifications",
+      "recoveries": "Recoveries"
+    },
+    "messaging": {
+      "label": "Messaging",
+      "off": "Off",
+      "previewOnly": "Preview only",
+      "approvalSend": "Approval + Send",
+      "titleApprovalSend": "Approving a draft sends a real message",
+      "titlePreviewOnly": "Drafts + approval only; sending disabled",
+      "titleOff": "No drafts, no sends"
+    },
+    "confirm": {
+      "enableApprovalSend": "Enable APPROVAL_SEND? Approving a draft will send a real message to the customer through the connected channel. Drafting and approval still require a human; nothing is autonomous.",
+      "reject": "Reject this draft? No message will be sent.",
+      "approveSend": "Approve & Send this message to the customer now? This contacts the customer through the connected channel.",
+      "cancelIntent": "Cancel this restock request? A future restock will not recover it."
+    },
+    "banner": {
+      "humanApproved": "Human-approved customer messaging.",
+      "verifiedFacts": "Drafts are generated from verified facts only.",
+      "noSendUntil": "No message is sent until a human clicks Approve & Send",
+      "andOnlyWhen": "and only when messaging mode is",
+      "sendingDisabled": "Sending is currently disabled ({{mode}}).",
+      "approvalSendOn": "Approval + Send is ON — approving a draft contacts the customer."
+    },
+    "notifCounts": {
+      "pendingApproval": "Pending approval",
+      "sent": "Sent",
+      "rejected": "Rejected",
+      "failed": "Failed"
+    },
+    "delivery": {
+      "delivered": "Delivered",
+      "read": "Read",
+      "deliveryFailed": "Delivery failed",
+      "sent": "Sent",
+      "failedSuffix": "needs review (no automatic retry)"
+    },
+    "notif": {
+      "title": "Restock notification",
+      "facts": "Facts",
+      "customer": "Customer:",
+      "product": "Product:",
+      "variant": "Variant:",
+      "size": "Size {{value}}",
+      "inStockNow": "In stock now:",
+      "channel": "Channel:",
+      "explicitIntent": "explicit restock intent",
+      "draftSent": "Draft (sent)",
+      "draftNotSent": "Draft — not sent yet",
+      "cancel": "Cancel",
+      "saveDraft": "Save draft",
+      "edit": "Edit",
+      "reject": "Reject",
+      "approveSend": "Approve & Send",
+      "sendDisabledTitle": "Enable Approval + Send mode to send",
+      "sendTitle": "Sends a real message to the customer",
+      "rejectedNote": "Rejected — no message was sent.",
+      "advanced": "Advanced",
+      "providerMessageId": "Provider message id:",
+      "deliveryState": "Delivery state:",
+      "lastProviderEvent": "last provider event {{at}}",
+      "notifiedAccepted": "Notified (provider accepted):"
+    },
+    "intentCounts": {
+      "waiting": "Waiting",
+      "exactVariant": "Exact variant",
+      "recoveryCreated": "Recovery created",
+      "customerNotified": "Customer notified",
+      "cancelled": "Cancelled"
+    },
+    "intents": {
+      "empty": "No restock requests yet. Customers create these from the storefront (\"{{button}}\") on an out-of-stock variant.",
+      "storefrontButton": "Notify me when available",
+      "columns": {
+        "customer": "Customer",
+        "product": "Product",
+        "variant": "Variant / Size",
+        "match": "Match",
+        "source": "Source",
+        "requested": "Requested",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "guest": "guest",
+      "productNumber": "Product #{{id}}",
+      "productLevel": "product-level",
+      "exactVariant": "Exact variant",
+      "productOnly": "Product only — size unknown",
+      "fulfil": "Fulfil",
+      "cancel": "Cancel",
+      "consentBefore": "A restock request records the customer's explicit consent to be contacted. Creating an internal follow-up does",
+      "consentAfter": "notify the customer — that stays a human action."
+    },
+    "recoveryCounts": {
+      "total": "Total",
+      "followupsCreated": "Follow-ups created",
+      "skippedDuplicate": "Skipped (dupe)",
+      "skippedNoStock": "Skipped (no stock)",
+      "failed": "Failed"
+    },
+    "recoveries": {
+      "empty": "No recovery records yet. When a restocked product has waiting customers and the workflow is active, recovery follow-ups appear here.",
+      "columns": {
+        "customer": "Customer",
+        "product": "Product",
+        "priority": "Priority",
+        "status": "Status",
+        "followup": "Follow-up",
+        "when": "When",
+        "reason": "Reason"
+      },
+      "task": "Task #{{id}}"
+    },
+    "status": {
+      "followupCreated": "Follow-up created",
+      "skippedDuplicate": "Skipped (duplicate)",
+      "skippedNoStock": "Skipped (no stock)",
+      "skippedInactive": "Skipped (inactive)",
+      "failed": "Failed",
+      "candidate": "Candidate",
+      "pendingApproval": "Pending approval",
+      "sent": "Sent",
+      "rejected": "Rejected"
+    }
   }
 }

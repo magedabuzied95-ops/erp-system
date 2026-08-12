@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 610
-- Files with debt: 162
-- Hardcoded Arabic UI strings: 1749
-- Hardcoded English UI strings: 1805
-- Total hardcoded UI strings: 3554
-- Mixed-language files (both scripts hardcoded): 43
+- Files with debt: 161
+- Hardcoded Arabic UI strings: 1748
+- Hardcoded English UI strings: 1736
+- Total hardcoded UI strings: 3484
+- Mixed-language files (both scripts hardcoded): 42
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 88 | 1193 | 1345 | 2538 | 29 |
+| main-erp | 87 | 1192 | 1276 | 2468 | 28 |
 | shared | 58 | 190 | 377 | 567 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -35,7 +35,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
-| src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx | main-erp | 1 | 69 | 70 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 62 | 2 | 64 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
@@ -470,50 +469,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 3617 [jsx-text/en] Automation Status
 - 3618 [jsx-text/en] Config and runtime summary
 - ... 41 more
-
-### src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx (main-erp — ar:1 en:69)
-
-- 53 [dialog/en] Enable APPROVAL_SEND? Approving a draft will send a real message to the customer through the connected channel. Drafting and approval still require a human; nothing is autonomous.
-- 62 [dialog/en] Reject this draft? No message will be sent.
-- 65 [dialog/en] Approve & Send this message to the customer now? This contacts the customer through the connected channel.
-- 77 [dialog/en] Cancel this restock request? A future restock will not recover it.
-- 109 [jsx-text/en] AI Studio
-- 110 [jsx-text/en] Restock Recovery
-- 111 [jsx-text/en] sales follow-ups. No customer message is ever sent automatically — employees do the outreach.
-- 111 [jsx-text/en] When a product comes back in stock, find customers who asked to be notified and create
-- 119 [jsx-text/en] Open workflow
-- 121 [jsx-text/en] Refresh
-- 133 [jsx-text/en] Automatic recovery:
-- 137 [jsx-text/en] mark the customer as notified.
-- 137 [jsx-text/en] Recovery follow-ups are internal only — creating one does
-- 148 [jsx-text/en] Messaging
-- 161 [jsx-text/en] Approval + Send
-- 161 [jsx-text/en] Approval + Send is ON — approving a draft contacts the customer.
-- 161 [jsx-text/en] Drafts are generated from verified facts only.
-- 161 [jsx-text/en] Human-approved customer messaging.
-- 161 [jsx-text/en] No message is sent until a human clicks Approve &amp; Send
-- 161 [jsx-text/en] Sending is currently disabled (
-- 175 [jsx-text/en] Loading…
-- 183 [jsx-text/en] Restock notification
-- 188 [jsx-text/en] Facts
-- 190 [jsx-text/en] Customer:
-- 191 [jsx-text/en] Product:
-- 192 [jsx-text/en] Variant:
-- 193 [jsx-text/en] In stock now:
-- 194 [jsx-text/en] Channel:
-- 194 [jsx-text/en] explicit restock intent
-- 198 [jsx-text/en] Draft
-- 210 [jsx-text/en] Cancel
-- 211 [jsx-text/en] Save draft
-- 214 [jsx-text/en] Edit
-- 216 [jsx-text/en] Reject
-- 223 [object-key/en] Sent
-- 224 [object-key/en] Delivered
-- 225 [object-key/en] Read
-- 231 [jsx-text/en] Delivery failed
-- 233 [jsx-text/en] Advanced
-- 235 [jsx-text/en] Provider message id:
-- ... 30 more
 
 ### src/modules/attendance/components/AttendanceCenter.jsx (employee-portal — ar:64 en:4)
 
