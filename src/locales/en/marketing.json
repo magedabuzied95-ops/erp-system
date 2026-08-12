@@ -1343,5 +1343,87 @@
       "aria": "Campaign post details",
       "title": "View"
     }
+  },
+  "leadCenter": {
+    "brand": "AI Lead Center",
+    "title": "Social leads in one command view",
+    "subtitle": "Monitor new leads from Facebook, Instagram, Messenger, and Web Chat without changing the existing AI or order flow.",
+    "refresh": "Refresh",
+    "openInbox": "Open AI Inbox",
+    "loadFailed": "Failed to load AI leads",
+    "platforms": {
+      "all": "All",
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "messenger": "Messenger",
+      "web_chat": "Web Chat"
+    },
+    "stages": {
+      "all": "All stages",
+      "new_lead": "New Lead",
+      "waiting_reply": "Waiting Reply",
+      "ai_handling": "AI Handling",
+      "human_takeover": "Human Takeover",
+      "order_created": "Order Created",
+      "shipped": "Shipped",
+      "review_pending": "Review Pending",
+      "upsell_opportunity": "Upsell Opportunity"
+    },
+    "assigned": {
+      "label": "Assigned: {{value}}",
+      "all": "All",
+      "ai": "AI",
+      "human": "Human",
+      "humanTakeover": "Human Takeover"
+    },
+    "time": {
+      "all": "All",
+      "today": "Today",
+      "week": "This Week"
+    },
+    "filters": {
+      "title": "Filters"
+    },
+    "list": {
+      "loading": "Loading AI leads...",
+      "emptyTitle": "No leads match the current filters.",
+      "emptyHint": "Try another platform, stage, or time range."
+    },
+    "fields": {
+      "customer": "Customer",
+      "platform": "Platform",
+      "sourcePost": "Source Post",
+      "interestedProduct": "Interested Product",
+      "currentStage": "Current Stage",
+      "assignedAi": "Assigned AI",
+      "confidence": "Confidence",
+      "unread": "Unread {{count}}"
+    },
+    "fallback": {
+      "customer": "Lead",
+      "sourcePost": "Source unavailable",
+      "interestedProduct": "Not identified",
+      "summary": "Lead summary will appear here when conversation data exists."
+    },
+    "detail": {
+      "title": "Lead Detail",
+      "subtitle": "Selected lead with stage timeline",
+      "timeline": "Timeline",
+      "events": "{{count}} events",
+      "empty": "Select a lead to inspect the activity timeline.",
+      "customer360": "Customer 360"
+    },
+    "timeline": {
+      "comment": "Comment",
+      "ai_reply": "AI Reply",
+      "messenger": "Messenger",
+      "order": "Order",
+      "payment": "Payment",
+      "shipping": "Shipping",
+      "delivered": "Delivered",
+      "review": "Review",
+      "captured": "Captured from existing conversation data",
+      "pending": "Pending"
+    }
   }
 }

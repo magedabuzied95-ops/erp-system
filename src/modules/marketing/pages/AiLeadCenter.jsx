@@ -1,30 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Clock3, Filter, Loader2, RefreshCw, Sparkles, Users2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
 import Customer360Drawer from "../../aiSupport/components/Customer360Drawer.jsx";
 
+/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
+const tt = (key, options) => i18n.t(key, options);
+
 const PLATFORM_OPTIONS = [
-  { key: "all", label: "All", tone: "zinc" },
-  { key: "facebook", label: "Facebook", tone: "cyan" },
-  { key: "instagram", label: "Instagram", tone: "rose" },
-  { key: "messenger", label: "Messenger", tone: "emerald" },
-  { key: "web_chat", label: "Web Chat", tone: "amber" },
+  { key: "all", get label() { return tt("marketing.leadCenter.platforms.all"); }, tone: "zinc" },
+  { key: "facebook", get label() { return tt("marketing.leadCenter.platforms.facebook"); }, tone: "cyan" },
+  { key: "instagram", get label() { return tt("marketing.leadCenter.platforms.instagram"); }, tone: "rose" },
+  { key: "messenger", get label() { return tt("marketing.leadCenter.platforms.messenger"); }, tone: "emerald" },
+  { key: "web_chat", get label() { return tt("marketing.leadCenter.platforms.web_chat"); }, tone: "amber" },
 ];
 
 const STAGE_OPTIONS = [
-  { key: "all", label: "All stages", tone: "zinc" },
-  { key: "new_lead", label: "New Lead", tone: "cyan" },
-  { key: "waiting_reply", label: "Waiting Reply", tone: "amber" },
-  { key: "ai_handling", label: "AI Handling", tone: "emerald" },
-  { key: "human_takeover", label: "Human Takeover", tone: "rose" },
-  { key: "order_created", label: "Order Created", tone: "sky" },
-  { key: "shipped", label: "Shipped", tone: "violet" },
-  { key: "review_pending", label: "Review Pending", tone: "fuchsia" },
-  { key: "upsell_opportunity", label: "Upsell Opportunity", tone: "lime" },
+  { key: "all", get label() { return tt("marketing.leadCenter.stages.all"); }, tone: "zinc" },
+  { key: "new_lead", get label() { return tt("marketing.leadCenter.stages.new_lead"); }, tone: "cyan" },
+  { key: "waiting_reply", get label() { return tt("marketing.leadCenter.stages.waiting_reply"); }, tone: "amber" },
+  { key: "ai_handling", get label() { return tt("marketing.leadCenter.stages.ai_handling"); }, tone: "emerald" },
+  { key: "human_takeover", get label() { return tt("marketing.leadCenter.stages.human_takeover"); }, tone: "rose" },
+  { key: "order_created", get label() { return tt("marketing.leadCenter.stages.order_created"); }, tone: "sky" },
+  { key: "shipped", get label() { return tt("marketing.leadCenter.stages.shipped"); }, tone: "violet" },
+  { key: "review_pending", get label() { return tt("marketing.leadCenter.stages.review_pending"); }, tone: "fuchsia" },
+  { key: "upsell_opportunity", get label() { return tt("marketing.leadCenter.stages.upsell_opportunity"); }, tone: "lime" },
 ];
 
 const statusToneClass = {
@@ -65,15 +71,8 @@ const isWithinThisWeek = (value = "") => {
   return date >= start;
 };
 
-const platformLabel = (value = "") => {
-  const normalized = clean(value).toLowerCase();
-  if (normalized.includes("facebook") && normalized.includes("messenger")) return "Messenger";
-  if (normalized.includes("facebook")) return "Facebook";
-  if (normalized.includes("instagram")) return "Instagram";
-  if (normalized.includes("web")) return "Web Chat";
-  if (normalized.includes("messenger")) return "Messenger";
-  return "Web Chat";
-};
+const platformLabel = (platformKey = "") =>
+  tt(`marketing.leadCenter.platforms.${PLATFORM_OPTIONS.some((entry) => entry.key === platformKey) && platformKey !== "all" ? platformKey : "web_chat"}`);
 
 const platformKeyFrom = (value = "") => {
   const normalized = clean(value).toLowerCase();
@@ -131,7 +130,7 @@ const deriveLeadStage = (conversation = {}) => {
   return "new_lead";
 };
 
-const leadStageLabel = (stageKey = "") => STAGE_OPTIONS.find((entry) => entry.key === stageKey)?.label || "New Lead";
+const leadStageLabel = (stageKey = "") => STAGE_OPTIONS.find((entry) => entry.key === stageKey)?.label || tt("marketing.leadCenter.stages.new_lead");
 
 const getDisplayName = (conversation = {}) => {
   const profile = conversation.customer_profile || {};
@@ -144,7 +143,7 @@ const getDisplayName = (conversation = {}) => {
       conversation.sender_name ||
       conversation.external_customer_id ||
       conversation.phone ||
-      "Lead"
+      ""
   );
 };
 
@@ -159,7 +158,7 @@ const getSourcePost = (conversation = {}) =>
       conversation.comment_id ||
       conversation.external_message_id ||
       ""
-  ) || "Source unavailable";
+  );
 
 const getInterestedProduct = (conversation = {}) => {
   const firstCard = safeArray(conversation.product_cards)[0] || {};
@@ -172,18 +171,23 @@ const getInterestedProduct = (conversation = {}) => {
       conversation.channel_metadata?.product_name ||
       conversation.metadata?.product_name ||
       conversation.metadata?.interested_product ||
-      "Not identified"
+      ""
   );
 };
 
-const getAssignedAi = (conversation = {}) => {
-  if (conversation.assigned_user?.name || conversation.assigned_user_name) {
-    return clean(conversation.assigned_user?.name || conversation.assigned_user_name);
+const getAssignment = (conversation = {}) => {
+  const named = clean(conversation.assigned_user?.name || conversation.assigned_user_name);
+  // A named assignee is user data and is never translated.
+  if (named) return { key: "human", name: named, labelKey: "" };
+  if (conversation.human_takeover === true || conversation.conversation_status === "human_takeover") {
+    return { key: "human", name: "", labelKey: "assigned.humanTakeover" };
   }
-  if (conversation.human_takeover === true || conversation.conversation_status === "human_takeover") return "Human Takeover";
-  if (conversation.ai_enabled === false) return "Human";
-  return "AI";
+  if (conversation.ai_enabled === false) return { key: "human", name: "", labelKey: "assigned.human" };
+  return { key: "ai", name: "", labelKey: "assigned.ai" };
 };
+
+/** Display side of getAssignment(); resolved at render, never stored. */
+const assignmentLabel = (assignment = {}) => assignment.name || tt(`marketing.leadCenter.${assignment.labelKey || "assigned.ai"}`);
 
 const formatDateTime = (value = "") => {
   if (!value) return "-";
@@ -195,14 +199,14 @@ const formatDateTime = (value = "") => {
 const buildTimeline = (conversation = {}) => {
   const sourceEvents = safeArray(conversation.system_events);
   const timeline = [
-    { key: "comment", label: "Comment", icon: "💬", time: conversation.created_at || conversation.last_message_at || conversation.updated_at, active: true },
-    { key: "ai_reply", label: "AI Reply", icon: "🤖", time: conversation.last_ai_reply_at || conversation.ai_reply_at || conversation.updated_at, active: Boolean(conversation.last_ai_reply_at || conversation.ai_reply_at || conversation.ai_answer) },
-    { key: "messenger", label: "Messenger", icon: "✉️", time: conversation.last_message_at || conversation.updated_at, active: true },
-    { key: "order", label: "Order", icon: "🧾", time: conversation.order_created_at || conversation.ai_order?.created_at || conversation.order?.created_at, active: Boolean(conversation.order_created_at || conversation.ai_order?.created_at || conversation.order?.created_at) },
-    { key: "payment", label: "Payment", icon: "💳", time: conversation.payment_received_at || conversation.order?.paid_at, active: Boolean(conversation.payment_received_at || conversation.order?.paid_at) },
-    { key: "shipping", label: "Shipping", icon: "🚚", time: conversation.shipped_at || conversation.order?.shipped_at, active: Boolean(conversation.shipped_at || conversation.order?.shipped_at) },
-    { key: "delivered", label: "Delivered", icon: "📦", time: conversation.delivered_at || conversation.order?.delivered_at, active: Boolean(conversation.delivered_at || conversation.order?.delivered_at) },
-    { key: "review", label: "Review", icon: "⭐", time: conversation.review_pending_at || conversation.review_at, active: Boolean(conversation.review_pending === true || conversation.review_status === "pending" || conversation.review_pending_at || conversation.review_at) },
+    { key: "comment", labelKey: "timeline.comment", icon: "💬", time: conversation.created_at || conversation.last_message_at || conversation.updated_at, active: true },
+    { key: "ai_reply", labelKey: "timeline.ai_reply", icon: "🤖", time: conversation.last_ai_reply_at || conversation.ai_reply_at || conversation.updated_at, active: Boolean(conversation.last_ai_reply_at || conversation.ai_reply_at || conversation.ai_answer) },
+    { key: "messenger", labelKey: "timeline.messenger", icon: "✉️", time: conversation.last_message_at || conversation.updated_at, active: true },
+    { key: "order", labelKey: "timeline.order", icon: "🧾", time: conversation.order_created_at || conversation.ai_order?.created_at || conversation.order?.created_at, active: Boolean(conversation.order_created_at || conversation.ai_order?.created_at || conversation.order?.created_at) },
+    { key: "payment", labelKey: "timeline.payment", icon: "💳", time: conversation.payment_received_at || conversation.order?.paid_at, active: Boolean(conversation.payment_received_at || conversation.order?.paid_at) },
+    { key: "shipping", labelKey: "timeline.shipping", icon: "🚚", time: conversation.shipped_at || conversation.order?.shipped_at, active: Boolean(conversation.shipped_at || conversation.order?.shipped_at) },
+    { key: "delivered", labelKey: "timeline.delivered", icon: "📦", time: conversation.delivered_at || conversation.order?.delivered_at, active: Boolean(conversation.delivered_at || conversation.order?.delivered_at) },
+    { key: "review", labelKey: "timeline.review", icon: "⭐", time: conversation.review_pending_at || conversation.review_at, active: Boolean(conversation.review_pending === true || conversation.review_status === "pending" || conversation.review_pending_at || conversation.review_at) },
   ];
   if (sourceEvents.length) {
     sourceEvents.forEach((event) => {
@@ -242,6 +246,7 @@ export default function AiLeadCenter() {
   const [leads, setLeads] = useState([]);
   const [platformFilter, setPlatformFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
+  const { t } = useTranslation();
   const [assignedFilter, setAssignedFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
   const [selectedLeadId, setSelectedLeadId] = useState("");
@@ -302,13 +307,11 @@ export default function AiLeadCenter() {
           id: conversation.conversation_key || conversation.session_id || conversation.id,
           customer: getDisplayName(conversation),
           platform,
-          platformLabel: platformLabel(platform),
           sourcePost: getSourcePost(conversation),
           interestedProduct: getInterestedProduct(conversation),
           currentStage: stage,
-          stageLabel: leadStageLabel(stage),
           stageTone: leadStageTone(stage),
-          assignedAi: getAssignedAi(conversation),
+          assignment: getAssignment(conversation),
           confidence: confidencePercent(conversation),
           updatedAt: conversation.last_message_at || conversation.updated_at || conversation.created_at || "",
           unreadCount: Number(conversation.unread_count || conversation.unread || 0),
@@ -324,7 +327,7 @@ export default function AiLeadCenter() {
       }
       return normalized;
     } catch (loadError) {
-      setError(loadError?.message || "Failed to load AI leads");
+      setError(loadError?.message || tt("marketing.leadCenter.loadFailed"));
       setLeads([]);
       return [];
     } finally {
@@ -341,9 +344,8 @@ export default function AiLeadCenter() {
       if (platformFilter !== "all" && lead.platform !== platformFilter) return false;
       if (stageFilter !== "all" && lead.currentStage !== stageFilter) return false;
       if (assignedFilter !== "all") {
-        const assigned = clean(lead.assignedAi).toLowerCase();
-        if (assignedFilter === "ai" && assigned !== "ai") return false;
-        if (assignedFilter === "human" && assigned === "ai") return false;
+        // Filters on the RAW assignment key, never on the display label.
+        if (assignedFilter !== lead.assignment.key) return false;
       }
       if (timeFilter === "today" && !isWithinToday(lead.updatedAt)) return false;
       if (timeFilter === "week" && !isWithinThisWeek(lead.updatedAt)) return false;
@@ -387,15 +389,15 @@ export default function AiLeadCenter() {
   };
 
   const summaryCards = [
-    { key: "new_lead", label: "New Lead", value: counts.new_lead, tone: "cyan" },
-    { key: "waiting_reply", label: "Waiting Reply", value: counts.waiting_reply, tone: "amber" },
-    { key: "ai_handling", label: "AI Handling", value: counts.ai_handling, tone: "emerald" },
-    { key: "human_takeover", label: "Human Takeover", value: counts.human_takeover, tone: "rose" },
-    { key: "order_created", label: "Order Created", value: counts.order_created, tone: "sky" },
-    { key: "shipped", label: "Shipped", value: counts.shipped, tone: "violet" },
-    { key: "review_pending", label: "Review Pending", value: counts.review_pending, tone: "fuchsia" },
-    { key: "upsell_opportunity", label: "Upsell Opportunity", value: counts.upsell_opportunity, tone: "lime" },
-  ];
+    { key: "new_lead", value: counts.new_lead, tone: "cyan" },
+    { key: "waiting_reply", value: counts.waiting_reply, tone: "amber" },
+    { key: "ai_handling", value: counts.ai_handling, tone: "emerald" },
+    { key: "human_takeover", value: counts.human_takeover, tone: "rose" },
+    { key: "order_created", value: counts.order_created, tone: "sky" },
+    { key: "shipped", value: counts.shipped, tone: "violet" },
+    { key: "review_pending", value: counts.review_pending, tone: "fuchsia" },
+    { key: "upsell_opportunity", value: counts.upsell_opportunity, tone: "lime" },
+  ].map((card) => ({ ...card, label: t(`marketing.leadCenter.stages.${card.key}`) }));
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.15),_transparent_32%),linear-gradient(180deg,#07111f_0%,#050816_100%)] px-4 py-4 text-white md:px-6 lg:px-8">
@@ -407,11 +409,11 @@ export default function AiLeadCenter() {
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-primary">
                 <Bot className="h-4 w-4" />
-                AI Lead Center
+                {t("marketing.leadCenter.brand")}
               </div>
-              <h1 className="m1-display mt-3">Social leads in one command view</h1>
+              <h1 className="m1-display mt-3">{t("marketing.leadCenter.title")}</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Monitor new leads from Facebook, Instagram, Messenger, and Web Chat without changing the existing AI or order flow.
+                {t("marketing.leadCenter.subtitle")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -422,7 +424,7 @@ export default function AiLeadCenter() {
                 className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.08] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Refresh
+                {t("marketing.leadCenter.refresh")}
               </button>
               <button
                 type="button"
@@ -430,7 +432,7 @@ export default function AiLeadCenter() {
                 className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-primary"
               >
                 <Users2 className="h-4 w-4" />
-                Open AI Inbox
+                {t("marketing.leadCenter.openInbox")}
               </button>
             </div>
           </div>
@@ -448,7 +450,7 @@ export default function AiLeadCenter() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex flex-1 flex-wrap items-center gap-2">
               <Filter className="h-4 w-4 text-primary" />
-              <span className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Filters</span>
+              <span className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">{t("marketing.leadCenter.filters.title")}</span>
               <div className="h-6 w-px bg-white/10" />
               <div className="flex flex-wrap gap-2">
                 {PLATFORM_OPTIONS.map((option) => (
@@ -484,21 +486,21 @@ export default function AiLeadCenter() {
               onClick={() => setAssignedFilter("all")}
               className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${assignedFilter === "all" ? statusToneClass.zinc : "border-white/10 bg-white/[0.04] text-slate-300"}`}
             >
-              Assigned: All
+              {t("marketing.leadCenter.assigned.label", { value: t("marketing.leadCenter.assigned.all") })}
             </button>
             <button
               type="button"
               onClick={() => setAssignedFilter("ai")}
               className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${assignedFilter === "ai" ? statusToneClass.emerald : "border-white/10 bg-white/[0.04] text-slate-300"}`}
             >
-              Assigned: AI
+              {t("marketing.leadCenter.assigned.label", { value: t("marketing.leadCenter.assigned.ai") })}
             </button>
             <button
               type="button"
               onClick={() => setAssignedFilter("human")}
               className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${assignedFilter === "human" ? statusToneClass.rose : "border-white/10 bg-white/[0.04] text-slate-300"}`}
             >
-              Assigned: Human
+              {t("marketing.leadCenter.assigned.label", { value: t("marketing.leadCenter.assigned.human") })}
             </button>
             <div className="mx-1 hidden h-5 w-px bg-white/10 md:block" />
             <button
@@ -506,21 +508,21 @@ export default function AiLeadCenter() {
               onClick={() => setTimeFilter("all")}
               className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${timeFilter === "all" ? statusToneClass.zinc : "border-white/10 bg-white/[0.04] text-slate-300"}`}
             >
-              All
+              {t("marketing.leadCenter.time.all")}
             </button>
             <button
               type="button"
               onClick={() => setTimeFilter("today")}
               className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${timeFilter === "today" ? statusToneClass.cyan : "border-white/10 bg-white/[0.04] text-slate-300"}`}
             >
-              Today
+              {t("marketing.leadCenter.time.today")}
             </button>
             <button
               type="button"
               onClick={() => setTimeFilter("week")}
               className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${timeFilter === "week" ? statusToneClass.cyan : "border-white/10 bg-white/[0.04] text-slate-300"}`}
             >
-              This Week
+              {t("marketing.leadCenter.time.week")}
             </button>
           </div>
         </section>
@@ -528,14 +530,14 @@ export default function AiLeadCenter() {
         <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.72fr)]">
           <section className="min-w-0 space-y-3">
             {loading ? (
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center text-sm text-slate-400">Loading AI leads...</div>
+              <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center text-sm text-slate-400">{t("marketing.leadCenter.list.loading")}</div>
             ) : filteredLeads.length === 0 ? (
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] text-slate-300">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <div className="text-lg font-black text-white">No leads match the current filters.</div>
-                <div className="mt-1 text-sm text-slate-400">Try another platform, stage, or time range.</div>
+                <div className="text-lg font-black text-white">{t("marketing.leadCenter.list.emptyTitle")}</div>
+                <div className="mt-1 text-sm text-slate-400">{t("marketing.leadCenter.list.emptyHint")}</div>
               </div>
             ) : (
               filteredLeads.map((lead) => {
@@ -552,51 +554,51 @@ export default function AiLeadCenter() {
                       <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:items-start">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-lg font-black text-white">{lead.customer}</div>
-                            <Pill tone={lead.stageTone}>{lead.stageLabel}</Pill>
-                            <Pill tone={lead.platform === "instagram" ? "rose" : lead.platform === "facebook" ? "cyan" : lead.platform === "messenger" ? "emerald" : "amber"}>{lead.platformLabel}</Pill>
+                            <div className="text-lg font-black text-white">{lead.customer || t("marketing.leadCenter.fallback.customer")}</div>
+                            <Pill tone={lead.stageTone}>{leadStageLabel(lead.currentStage)}</Pill>
+                            <Pill tone={lead.platform === "instagram" ? "rose" : lead.platform === "facebook" ? "cyan" : lead.platform === "messenger" ? "emerald" : "amber"}>{platformLabel(lead.platform)}</Pill>
                           </div>
                           <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Customer</div>
-                              <div className="mt-1 truncate text-sm font-semibold text-white">{lead.customer}</div>
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.customer")}</div>
+                              <div className="mt-1 truncate text-sm font-semibold text-white">{lead.customer || t("marketing.leadCenter.fallback.customer")}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Platform</div>
-                              <div className="mt-1 truncate text-sm font-semibold text-white">{lead.platformLabel}</div>
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.platform")}</div>
+                              <div className="mt-1 truncate text-sm font-semibold text-white">{platformLabel(lead.platform)}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Source Post</div>
-                              <div dir="auto" className="mt-1 line-clamp-2 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{lead.sourcePost}</div>
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.sourcePost")}</div>
+                              <div dir="auto" className="mt-1 line-clamp-2 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{lead.sourcePost || t("marketing.leadCenter.fallback.sourcePost")}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Interested Product</div>
-                              <div dir="auto" className="mt-1 line-clamp-2 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{lead.interestedProduct}</div>
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.interestedProduct")}</div>
+                              <div dir="auto" className="mt-1 line-clamp-2 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{lead.interestedProduct || t("marketing.leadCenter.fallback.interestedProduct")}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Current Stage</div>
-                              <div className="mt-1 text-sm font-semibold text-white">{lead.stageLabel}</div>
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.currentStage")}</div>
+                              <div className="mt-1 text-sm font-semibold text-white">{leadStageLabel(lead.currentStage)}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Assigned AI</div>
-                              <div className="mt-1 text-sm font-semibold text-white">{lead.assignedAi}</div>
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.assignedAi")}</div>
+                              <div className="mt-1 text-sm font-semibold text-white">{assignmentLabel(lead.assignment)}</div>
                             </div>
                           </div>
                         </div>
                         <div className="flex w-full min-w-0 max-w-full flex-col gap-3 overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-3 2xl:w-72 2xl:shrink-0">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Confidence</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.confidence")}</div>
                             <div className="text-sm font-black text-white">{Math.round(lead.confidence)}%</div>
                           </div>
                           <div className="h-2 overflow-hidden rounded-full bg-white/10">
                             <div className="h-full rounded-full bg-gradient-to-r from-primary via-emerald-400 to-lime-400" style={{ width: `${Math.max(0, Math.min(100, lead.confidence))}%` }} />
                           </div>
                           <div dir="auto" className="min-w-0 break-words text-xs leading-5 text-slate-400 [overflow-wrap:anywhere]">
-                            {lead.summary || "Lead summary will appear here when conversation data exists."}
+                            {lead.summary || t("marketing.leadCenter.fallback.summary")}
                           </div>
                           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
                             <span className="inline-flex min-w-0 items-center gap-1"><Clock3 className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{formatDateTime(lead.updatedAt)}</span></span>
-                            {lead.unreadCount ? <span className="rounded-full border border-rose-300/20 bg-rose-400/10 px-2 py-1 font-black text-rose-100">Unread {lead.unreadCount}</span> : null}
+                            {lead.unreadCount ? <span className="rounded-full border border-rose-300/20 bg-rose-400/10 px-2 py-1 font-black text-rose-100">{t("marketing.leadCenter.fields.unread", { count: lead.unreadCount })}</span> : null}
                           </div>
                         </div>
                       </div>
@@ -611,35 +613,35 @@ export default function AiLeadCenter() {
             <section className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 shadow-2xl shadow-black/15">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <div className="text-sm font-black uppercase tracking-[0.18em] text-primary">Lead Detail</div>
-                  <div className="text-xs text-slate-400">Selected lead with stage timeline</div>
+                  <div className="text-sm font-black uppercase tracking-[0.18em] text-primary">{t("marketing.leadCenter.detail.title")}</div>
+                  <div className="text-xs text-slate-400">{t("marketing.leadCenter.detail.subtitle")}</div>
                 </div>
-                {selectedLead ? <Pill tone={selectedLead.stageTone}>{selectedLead.stageLabel}</Pill> : null}
+                {selectedLead ? <Pill tone={selectedLead.stageTone}>{leadStageLabel(selectedLead.currentStage)}</Pill> : null}
               </div>
 
               {selectedLead ? (
                 <div className="mt-4 space-y-3">
                   <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
                     <button type="button" onClick={() => openCustomerDrawer(selectedLead)} className="text-left text-lg font-black text-white hover:underline">
-                      {selectedLead.customer}
+                      {selectedLead.customer || t("marketing.leadCenter.fallback.customer")}
                     </button>
-                    <div className="mt-1 text-sm text-slate-400">{selectedLead.platformLabel} · {selectedLead.assignedAi}</div>
+                    <div className="mt-1 text-sm text-slate-400">{platformLabel(selectedLead.platform)} · {assignmentLabel(selectedLead.assignment)}</div>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Source Post</div>
-                      <div dir="auto" className="mt-1 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{selectedLead.sourcePost}</div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.sourcePost")}</div>
+                      <div dir="auto" className="mt-1 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{selectedLead.sourcePost || t("marketing.leadCenter.fallback.sourcePost")}</div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Interested Product</div>
-                      <div dir="auto" className="mt-1 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{selectedLead.interestedProduct}</div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.interestedProduct")}</div>
+                      <div dir="auto" className="mt-1 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{selectedLead.interestedProduct || t("marketing.leadCenter.fallback.interestedProduct")}</div>
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Timeline</div>
-                      <div className="text-[10px] text-slate-500">{selectedLead.timeline.length} events</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.detail.timeline")}</div>
+                      <div className="text-[10px] text-slate-500">{t("marketing.leadCenter.detail.events", { count: selectedLead.timeline.length })}</div>
                     </div>
                     <div className="mt-3 space-y-2">
                       {selectedLead.timeline.map((item) => (
@@ -649,10 +651,10 @@ export default function AiLeadCenter() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
-                              <div className="text-sm font-bold text-white">{item.label}</div>
+                              <div className="text-sm font-bold text-white">{item.labelKey ? t(`marketing.leadCenter.${item.labelKey}`) : item.label}</div>
                               <div className="text-[11px] text-slate-500">{formatDateTime(item.time)}</div>
                             </div>
-                            <div className="text-xs text-slate-400">{item.active ? "Captured from existing conversation data" : "Pending"}</div>
+                            <div className="text-xs text-slate-400">{item.active ? t("marketing.leadCenter.timeline.captured") : t("marketing.leadCenter.timeline.pending")}</div>
                           </div>
                         </div>
                       ))}
@@ -661,7 +663,7 @@ export default function AiLeadCenter() {
                 </div>
               ) : (
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-6 text-sm text-slate-400">
-                  Select a lead to inspect the activity timeline.
+                  {t("marketing.leadCenter.detail.empty")}
                 </div>
               )}
             </section>
@@ -673,7 +675,7 @@ export default function AiLeadCenter() {
           customer={customerDrawer.customer}
           customerId={customerDrawer.customerId}
           context={customerDrawer.context}
-          title="Customer 360"
+          title={t("marketing.leadCenter.detail.customer360")}
         />
       </div>
     </div>
