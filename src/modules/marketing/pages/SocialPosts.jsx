@@ -4,6 +4,10 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
 import { getSocialPublisherPosts } from "../services/marketingApi";
+import i18n from "../../../i18n/i18n";
+
+/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
+const tt = (key, options) => i18n.t(key, options);
 
 const formatDateTime = (value) => {
   if (!value) return null;
@@ -78,9 +82,9 @@ const Badge = ({ children, tone = "slate", className = "" }) => {
 
 const TIKTOK_PUBLISHING_NOT_CONNECTED_MESSAGE = "TikTok publishing is not connected yet.";
 const PUBLISHER_PLATFORMS = [
-  { id: "facebook", label: "Facebook", subtitle: "Ready", disabled: false },
-  { id: "instagram", label: "Instagram", subtitle: "Ready", disabled: false },
-  { id: "tiktok", label: "TikTok", subtitle: "Coming Soon", disabled: true, helper: "Connect TikTok لاحقًا" },
+  { id: "facebook", label: "Facebook", get subtitle() { return tt("marketing.publisher.ready"); }, disabled: false },
+  { id: "instagram", label: "Instagram", get subtitle() { return tt("marketing.publisher.ready"); }, disabled: false },
+  { id: "tiktok", label: "TikTok", get subtitle() { return tt("marketing.publisher.comingSoon"); }, disabled: true, helper: "Connect TikTok لاحقًا" },
 ];
 
 function PublisherPlatformCard({ platform }) {

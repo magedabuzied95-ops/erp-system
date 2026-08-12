@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1884,
-    "english": 2167,
-    "total": 4051,
-    "mixedFiles": 50
+    "arabic": 1880,
+    "english": 2138,
+    "total": 4018,
+    "mixedFiles": 49
   },
   "files": {
     "src/App.jsx": {
@@ -427,11 +427,6 @@
       "english": 54,
       "total": 54
     },
-    "src/modules/marketing/components/MarketingStudioHeader.jsx": {
-      "arabic": 4,
-      "english": 2,
-      "total": 6
-    },
     "src/modules/marketing/components/PostEditorModal.jsx": {
       "arabic": 6,
       "english": 15,
@@ -467,25 +462,10 @@
       "english": 23,
       "total": 86
     },
-    "src/modules/marketing/pages/PostTemplates.jsx": {
-      "arabic": 0,
-      "english": 6,
-      "total": 6
-    },
-    "src/modules/marketing/pages/SocialCommentsCenter.jsx": {
-      "arabic": 0,
-      "english": 18,
-      "total": 18
-    },
     "src/modules/marketing/pages/SocialMediaPublisher.jsx": {
       "arabic": 10,
       "english": 30,
       "total": 40
-    },
-    "src/modules/marketing/pages/SocialPosts.jsx": {
-      "arabic": 0,
-      "english": 3,
-      "total": 3
     },
     "src/modules/marketing/services/marketingApi.js": {
       "arabic": 0,

@@ -173,8 +173,8 @@ export default function PostTemplates() {
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">Template Library</div>
-              <h2 className="m1-section-title mt-2 text-white">Curated cards</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">{t("marketing.templates.library")}</div>
+              <h2 className="m1-section-title mt-2 text-white">{t("marketing.templates.curatedCards")}</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
                 Six organized template cards for common marketing flows. These are presentation-only cards and do not change the AI prompt.
               </p>
@@ -204,8 +204,8 @@ export default function PostTemplates() {
                       <p className="mt-2 max-w-[22rem] text-sm leading-6 text-slate-300">{template.note}</p>
                     </div>
                     <div className="mt-auto flex items-center gap-2 pt-6 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Card</span>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Library</span>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{t("marketing.templates.card")}</span>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{t("marketing.templates.libraryTag")}</span>
                     </div>
                   </div>
                 </article>
@@ -219,8 +219,8 @@ export default function PostTemplates() {
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Saved templates</div>
-              <h2 className="m1-section-title mt-2 text-white">Custom templates</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t("marketing.templates.savedTemplates")}</div>
+              <h2 className="m1-section-title mt-2 text-white">{t("marketing.templates.customTemplates")}</h2>
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

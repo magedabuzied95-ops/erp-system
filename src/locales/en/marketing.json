@@ -430,7 +430,13 @@
       "channel": "Channel",
       "titleTemplate": "Title template",
       "captionTemplate": "Caption template"
-    }
+    },
+    "library": "Template Library",
+    "curatedCards": "Curated cards",
+    "card": "Card",
+    "libraryTag": "Library",
+    "savedTemplates": "Saved templates",
+    "customTemplates": "Custom templates"
   },
   "social": {
     "platform": "Platform",
@@ -916,5 +922,40 @@
     "description": "Generate, review, schedule, and publish marketing content from one studio.",
     "eyebrow": "Marketing studio",
     "title": "Marketing Studio"
+  },
+  "studioHeader": {
+    "eyebrow": "Marketing Studio",
+    "title": "Marketing Suite",
+    "description": "Navigate the marketing workspace from one shared header.",
+    "tabs": {
+      "publisher": "Publisher",
+      "calendar": "Calendar",
+      "analytics": "Analytics",
+      "templates": "Templates"
+    }
+  },
+  "publisher": {
+    "ready": "Ready",
+    "comingSoon": "Coming Soon"
+  },
+  "comments": {
+    "breadcrumb": "Marketing / Social Comments",
+    "title": "Social Comments Center",
+    "subtitle": "Open the post and the exact comment target from AI Inbox, with reply and moderation tools in one place.",
+    "performance": "Social Performance",
+    "adminDebugSummary": "Admin debug summary",
+    "fastListAvgMs": "Fast list avg ms",
+    "fastListP95Ms": "Fast list p95 ms",
+    "cacheHitRate": "Cache hit rate",
+    "slowFastList": "Slow fast-list",
+    "queueLength": "Queue length",
+    "activeJobs": "Active jobs",
+    "jobAvgMs": "Job avg ms",
+    "socketEmits": "Socket emits",
+    "renderedRows": "Rendered rows",
+    "socketPatches": "Socket patches",
+    "cacheHits": "Cache hits",
+    "cacheMisses": "Cache misses",
+    "customer360": "Customer 360"
   }
 }

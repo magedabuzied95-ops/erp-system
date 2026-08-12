@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 610
-- Files with debt: 172
-- Hardcoded Arabic UI strings: 1884
-- Hardcoded English UI strings: 2167
-- Total hardcoded UI strings: 4051
-- Mixed-language files (both scripts hardcoded): 50
+- Files with debt: 168
+- Hardcoded Arabic UI strings: 1880
+- Hardcoded English UI strings: 2138
+- Total hardcoded UI strings: 4018
+- Mixed-language files (both scripts hardcoded): 49
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 94 | 1318 | 1629 | 2947 | 34 |
-| shared | 62 | 200 | 455 | 655 | 11 |
+| main-erp | 91 | 1318 | 1602 | 2920 | 34 |
+| shared | 61 | 196 | 453 | 649 | 10 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
@@ -71,7 +71,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/sales/pages/Customers.jsx | main-erp | 7 | 3 | 10 |
 | src/modules/notifications/pages/NotificationsCenter.jsx | main-erp | 7 | 1 | 8 |
 | src/modules/sales/pages/InvoicesLegacy.jsx | main-erp | 6 | 1 | 7 |
-| src/modules/marketing/components/MarketingStudioHeader.jsx | shared | 4 | 2 | 6 |
 | src/components/ai/AISuggestedReplies.jsx | shared | 1 | 4 | 5 |
 | src/modules/products/lib/productClassifications.js | main-erp | 1 | 4 | 5 |
 | src/modules/products/pages/ProductDetails.jsx | main-erp | 4 | 1 | 5 |
@@ -2279,27 +2278,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 194 [attribute/en] Archive
 - 197 [jsx-text/en] Restore
 
-### src/modules/marketing/pages/SocialCommentsCenter.jsx (main-erp — ar:0 en:18)
-
-- 781 [jsx-text/en] Marketing / Social Comments
-- 782 [jsx-text/en] Social Comments Center
-- 783 [jsx-text/en] Open the post and the exact comment target from AI Inbox, with reply and moderation tools in one place.
-- 813 [jsx-text/en] Social Performance
-- 814 [jsx-text/en] Admin debug summary
-- 829 [jsx-text/en] Fast list avg ms
-- 833 [jsx-text/en] Fast list p95 ms
-- 837 [jsx-text/en] Cache hit rate
-- 841 [jsx-text/en] Slow fast-list
-- 845 [jsx-text/en] Queue length
-- 849 [jsx-text/en] Active jobs
-- 853 [jsx-text/en] Job avg ms
-- 857 [jsx-text/en] Socket emits
-- 861 [jsx-text/en] Rendered rows
-- 865 [jsx-text/en] Socket patches
-- 869 [jsx-text/en] Cache hits
-- 873 [jsx-text/en] Cache misses
-- 922 [attribute/en] Customer 360
-
 ### src/modules/products/pages/ProductsList.jsx (main-erp — ar:18 en:0)
 
 - 258 [inline-ternary/ar] isArabic ? "غير محدد" : "Not specified"
@@ -2978,24 +2956,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 542 [jsx-text/en] Generated Public Reply
 - 546 [jsx-text/en] Generated Private Reply
 
-### src/modules/marketing/components/MarketingStudioHeader.jsx (shared — ar:4 en:2)
-
-- 8 [object-key/ar] الناشر
-- 9 [object-key/ar] التقويم
-- 10 [object-key/ar] التحليلات
-- 11 [object-key/ar] القوالب
-- 25 [attribute/en] Marketing Suite
-- 26 [attribute/en] Navigate the marketing workspace from one shared header.
-
-### src/modules/marketing/pages/PostTemplates.jsx (main-erp — ar:0 en:6)
-
-- 176 [jsx-text/en] Template Library
-- 177 [jsx-text/en] Curated cards
-- 207 [jsx-text/en] Card
-- 208 [jsx-text/en] Library
-- 222 [jsx-text/en] Saved templates
-- 223 [jsx-text/en] Custom templates
-
 ### src/pages/Branches.jsx (main-erp — ar:0 en:6)
 
 - 514 [jsx-text/en] Branch attendance
@@ -3134,12 +3094,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 32 [object-key/en] Read only
 - 33 [object-key/en] Writes data
 - 34 [object-key/en] Human approval required
-
-### src/modules/marketing/pages/SocialPosts.jsx (main-erp — ar:0 en:3)
-
-- 81 [object-key/en] Ready
-- 82 [object-key/en] Ready
-- 83 [object-key/en] Coming Soon
 
 ### src/modules/products/lib/barcodeLabels.js (main-erp — ar:2 en:1)
 
