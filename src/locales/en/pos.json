@@ -100,6 +100,75 @@
     "price": "Price",
     "favorite": "Favorite"
   },
+  "posPro": {
+    "toasts": {
+      "cartItemsRemoved": "Some cart items are no longer available and were removed.",
+      "cartQuantitiesAdjusted": "Cart quantities were adjusted to live stock.",
+      "customerIdMissing": "This customer cannot be selected because its ID is missing.",
+      "invoiceItemsLoadFailed": "Invoice items could not be loaded into the cart.",
+      "invalidExpenseAmount": "Enter a valid expense amount",
+      "invoiceAmountRequired": "Invoice amount is required",
+      "paymentExceedsDue": "Payment total cannot exceed amount due now",
+      "invoicePdfFailed": "Unable to download invoice PDF",
+      "noInvoiceLink": "No invoice link available",
+      "invoiceLinkCopied": "Invoice link copied",
+      "invoiceLinkCopyFailed": "Unable to copy invoice link",
+      "cartCleared": "Cart cleared"
+    },
+    "terminal": {
+      "unconfirmed": "Payment was sent to the terminal, but ERP did not receive confirmation. If the terminal shows Approved, click Confirm terminal payment.",
+      "orderFailed": "Failed to create order after terminal payment success.",
+      "paymentCompleted": "Payment completed successfully.",
+      "noTransaction": "No Paymob transaction is available to confirm.",
+      "sending": "Sending payment to Paymob terminal...",
+      "requestSent": "Payment request sent to terminal. Complete payment on the machine.",
+      "amount": "Amount",
+      "terminalId": "Terminal ID",
+      "status": "Status",
+      "confirmation": "Confirmation"
+    },
+    "shift": {
+      "restoring": "Restoring shift session",
+      "restoringHint": "Checking the cached active shift before showing the open shift screen.",
+      "openingCash": "Opening cash",
+      "duration": "Shift duration"
+    },
+    "shiftClose": {
+      "expected": "Expected",
+      "actual": "Actual",
+      "variance": "Variance",
+      "tomorrowOpener": "Tomorrow opener",
+      "varianceResult": "Variance result",
+      "recountIssue": "Cash drawer recount issue",
+      "terminalPending": "Terminal pending settlement",
+      "topProducts": "Top products",
+      "noProducts": "No products",
+      "auditTimeline": "Audit timeline",
+      "noEvents": "No events"
+    },
+    "quickCustomer": {
+      "title": "Quick customer creation",
+      "name": "Customer name",
+      "namePlaceholder": "Enter customer name",
+      "phone": "Phone number",
+      "phonePlaceholder": "Enter phone number",
+      "selectSource": "Select source"
+    },
+    "sources": {
+      "story": "Story",
+      "other": "Other"
+    },
+    "misc": {
+      "salePrices": "Sale Prices",
+      "fullscreen": "Fullscreen",
+      "posScanner": "POS scanner",
+      "posExpense": "POS expense",
+      "type": "Type",
+      "amount": "Amount",
+      "notes": "Notes",
+      "status": "Status"
+    }
+  },
   "cart": {
     "invoiceTab": "Invoice {{index}}",
     "newInvoice": "Invoice",

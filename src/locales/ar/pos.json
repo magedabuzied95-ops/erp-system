@@ -100,6 +100,75 @@
     "price": "السعر",
     "favorite": "مفضّل"
   },
+  "posPro": {
+    "toasts": {
+      "cartItemsRemoved": "بعض منتجات السلة لم تعد متاحة وتمت إزالتها.",
+      "cartQuantitiesAdjusted": "تم تعديل كميات السلة حسب المخزون الفعلي.",
+      "customerIdMissing": "لا يمكن اختيار هذا العميل لأن رقم التعريف غير موجود.",
+      "invoiceItemsLoadFailed": "تعذر تحميل عناصر الفاتورة إلى السلة.",
+      "invalidExpenseAmount": "أدخل مبلغ مصروف صحيح",
+      "invoiceAmountRequired": "مبلغ الفاتورة مطلوب",
+      "paymentExceedsDue": "إجمالي الدفع لا يمكن أن يتجاوز المبلغ المستحق الآن",
+      "invoicePdfFailed": "تعذر تنزيل ملف الفاتورة PDF",
+      "noInvoiceLink": "لا يوجد رابط فاتورة متاح",
+      "invoiceLinkCopied": "تم نسخ رابط الفاتورة",
+      "invoiceLinkCopyFailed": "تعذر نسخ رابط الفاتورة",
+      "cartCleared": "تم تفريغ السلة"
+    },
+    "terminal": {
+      "unconfirmed": "تم إرسال الدفع إلى الجهاز، لكن لم يستلم النظام تأكيدًا. لو ظهر Approved على الجهاز اضغط تأكيد الدفع.",
+      "orderFailed": "تعذر إنشاء الطلب بعد نجاح الدفع على الجهاز.",
+      "paymentCompleted": "تم إتمام الدفع بنجاح.",
+      "noTransaction": "لا توجد عملية Paymob متاحة للتأكيد.",
+      "sending": "جارٍ إرسال الدفع إلى جهاز Paymob...",
+      "requestSent": "تم إرسال طلب الدفع إلى الجهاز. أكمل الدفع على الماكينة.",
+      "amount": "المبلغ",
+      "terminalId": "معرّف الجهاز",
+      "status": "الحالة",
+      "confirmation": "التأكيد"
+    },
+    "shift": {
+      "restoring": "جارٍ استعادة جلسة الشيفت",
+      "restoringHint": "يتم التحقق من الشيفت النشط المحفوظ قبل عرض شاشة فتح الشيفت.",
+      "openingCash": "النقدية الافتتاحية",
+      "duration": "مدة الشيفت"
+    },
+    "shiftClose": {
+      "expected": "المتوقع",
+      "actual": "الفعلي",
+      "variance": "الفرق",
+      "tomorrowOpener": "افتتاحية الغد",
+      "varianceResult": "نتيجة الفرق",
+      "recountIssue": "مشكلة في إعادة عد درج النقدية",
+      "terminalPending": "تسوية معلقة على الجهاز",
+      "topProducts": "أفضل المنتجات",
+      "noProducts": "لا توجد منتجات",
+      "auditTimeline": "سجل المراجعة",
+      "noEvents": "لا توجد أحداث"
+    },
+    "quickCustomer": {
+      "title": "إنشاء عميل سريع",
+      "name": "اسم العميل",
+      "namePlaceholder": "أدخل اسم العميل",
+      "phone": "رقم الموبايل",
+      "phonePlaceholder": "أدخل رقم الموبايل",
+      "selectSource": "اختر المصدر"
+    },
+    "sources": {
+      "story": "ستوري",
+      "other": "أخرى"
+    },
+    "misc": {
+      "salePrices": "أسعار البيع",
+      "fullscreen": "ملء الشاشة",
+      "posScanner": "ماسح نقطة البيع",
+      "posExpense": "مصروف نقطة البيع",
+      "type": "النوع",
+      "amount": "المبلغ",
+      "notes": "ملاحظات",
+      "status": "الحالة"
+    }
+  },
   "cart": {
     "invoiceTab": "فاتورة {{index}}",
     "newInvoice": "فاتورة",

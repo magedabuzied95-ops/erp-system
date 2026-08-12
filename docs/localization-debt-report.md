@@ -12,8 +12,8 @@ of scope. The scanner is conservative and can still contain false positives.
 - Source files scanned: 608
 - Files with debt: 191
 - Hardcoded Arabic UI strings: 1993
-- Hardcoded English UI strings: 2568
-- Total hardcoded UI strings: 4561
+- Hardcoded English UI strings: 2492
+- Total hardcoded UI strings: 4485
 - Mixed-language files (both scripts hardcoded): 52
 
 ### By surface
@@ -22,18 +22,18 @@ of scope. The scanner is conservative and can still contain false positives.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 106 | 1428 | 1876 | 3304 | 36 |
 | shared | 66 | 199 | 463 | 662 | 11 |
-| pos | 5 | 182 | 128 | 310 | 3 |
 | employee-portal | 14 | 184 | 101 | 285 | 2 |
+| pos | 5 | 182 | 52 | 234 | 3 |
 
 ## Mixed-language files (ranked by density)
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
 | src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 157 | 260 | 417 |
-| src/modules/pos/pages/POSPro.jsx | pos | 73 | 112 | 185 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 58 | 106 | 164 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
+| src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
 | src/modules/marketing/pages/AiMarketingCenter.jsx | main-erp | 38 | 65 | 103 |
 | src/modules/orders/pages/OrderReturnsPage.jsx | main-erp | 96 | 4 | 100 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
@@ -127,50 +127,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2232 [jsx-text/en] Current labels (
 - 2240 [jsx-text/ar] لا توجد Labels مختارة
 - ... 377 more
-
-### src/modules/pos/pages/POSPro.jsx (pos — ar:73 en:112)
-
-- 202 [object-key/ar] سلفة موظف / Employee Advance
-- 204 [object-key/ar] توصيل / Delivery
-- 205 [object-key/ar] سناكس / Snacks
-- 206 [object-key/ar] تنظيف / Cleaning
-- 207 [object-key/ar] مشتريات بسيطة
-- 208 [object-key/ar] مياه / Water
-- 209 [object-key/ar] كهرباء / Electricity
-- 210 [object-key/ar] شحن / Shipping
-- 211 [object-key/ar] صيانة / Maintenance
-- 212 [object-key/ar] أخرى / Other
-- 661 [object-key/en] Story
-- 664 [object-key/en] Other
-- 2122 [notification/ar] تم استرجاع جلسة البيع المحفوظة
-- 2770 [notification/en] Some cart items are no longer available and were removed.
-- 2772 [notification/en] Cart quantities were adjusted to live stock.
-- 3039 [notification/ar] لا تملك صلاحية البيع باسم مستخدم آخر
-- 3054 [notification/en] This customer cannot be selected because its ID is missing.
-- 3871 [notification/ar] الحد الأقصى 5 فواتير مفتوحة
-- 3885 [dialog/ar] الفاتورة تحتوي على منتجات. هل تريد إغلاقها؟
-- 4071 [object-key/ar] الجنس
-- 4072 [object-key/ar] نوع المنتج
-- 4073 [object-key/ar] الفئة
-- 4776 [notification/ar] Variant not found / لم يتم العثور على المقاس أو اللون
-- 4782 [notification/ar] Out of stock / غير متوفر بالمخزون
-- 4991 [notification/en] Invoice items could not be loaded into the cart.
-- 5116 [notification/en] Invoice items could not be loaded into the cart.
-- 5365 [notification/ar] لا يمكن فتح شفت جديد بدون اتصال
-- 5400 [notification/ar] لا توجد نردية مفتوحة
-- 5404 [notification/ar] لا يمكن إغلاق الشفت بدون اتصال
-- 5459 [notification/ar] اكتب سبب تجاوز اختيار فاتح الفرع قبل قفل الشيفت.
-- 5524 [notification/en] Enter a valid expense amount
-- 5597 [notification/ar] يجب فتح نردية قبل البيع
-- 5627 [notification/ar] لا تملك صلاحية البيع باسم مستخدم آخر
-- 5632 [notification/ar] يجب تحديد البائع قبل إتمام الفاتورة
-- 5637 [notification/en] Invoice amount is required
-- 5643 [notification/ar] يجب اختيار طريقة الدفع لهذه الفاتورة
-- 5655 [notification/ar] اختر عميلًا أولًا قبل العملية الشخصية.
-- 5659 [notification/ar] هذا العميل غير مسموح له بالعمليات الشخصية.
-- 5663 [notification/ar] اختر نوع العملية الشخصية قبل حفظ الفاتورة.
-- 5668 [notification/ar] اختر عميلًا أولًا قبل البيع الآجل.
-- ... 145 more
 
 ### src/modules/settings/pages/SettingsCenter.jsx (main-erp — ar:58 en:106)
 
@@ -347,6 +303,50 @@ of scope. The scanner is conservative and can still contain false positives.
 - 883 [object-key/en] All Messages
 - 887 [object-key/en] Web
 - ... 89 more
+
+### src/modules/pos/pages/POSPro.jsx (pos — ar:73 en:36)
+
+- 202 [object-key/ar] سلفة موظف / Employee Advance
+- 204 [object-key/ar] توصيل / Delivery
+- 205 [object-key/ar] سناكس / Snacks
+- 206 [object-key/ar] تنظيف / Cleaning
+- 207 [object-key/ar] مشتريات بسيطة
+- 208 [object-key/ar] مياه / Water
+- 209 [object-key/ar] كهرباء / Electricity
+- 210 [object-key/ar] شحن / Shipping
+- 211 [object-key/ar] صيانة / Maintenance
+- 212 [object-key/ar] أخرى / Other
+- 2113 [notification/ar] تم استرجاع جلسة البيع المحفوظة
+- 3030 [notification/ar] لا تملك صلاحية البيع باسم مستخدم آخر
+- 3862 [notification/ar] الحد الأقصى 5 فواتير مفتوحة
+- 3876 [dialog/ar] الفاتورة تحتوي على منتجات. هل تريد إغلاقها؟
+- 4062 [object-key/ar] الجنس
+- 4063 [object-key/ar] نوع المنتج
+- 4064 [object-key/ar] الفئة
+- 4767 [notification/ar] Variant not found / لم يتم العثور على المقاس أو اللون
+- 4773 [notification/ar] Out of stock / غير متوفر بالمخزون
+- 5356 [notification/ar] لا يمكن فتح شفت جديد بدون اتصال
+- 5391 [notification/ar] لا توجد نردية مفتوحة
+- 5395 [notification/ar] لا يمكن إغلاق الشفت بدون اتصال
+- 5450 [notification/ar] اكتب سبب تجاوز اختيار فاتح الفرع قبل قفل الشيفت.
+- 5588 [notification/ar] يجب فتح نردية قبل البيع
+- 5618 [notification/ar] لا تملك صلاحية البيع باسم مستخدم آخر
+- 5623 [notification/ar] يجب تحديد البائع قبل إتمام الفاتورة
+- 5634 [notification/ar] يجب اختيار طريقة الدفع لهذه الفاتورة
+- 5646 [notification/ar] اختر عميلًا أولًا قبل العملية الشخصية.
+- 5650 [notification/ar] هذا العميل غير مسموح له بالعمليات الشخصية.
+- 5654 [notification/ar] اختر نوع العملية الشخصية قبل حفظ الفاتورة.
+- 5659 [notification/ar] اختر عميلًا أولًا قبل البيع الآجل.
+- 5664 [notification/ar] رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.
+- 5688 [notification/ar] أدخل عربونًا أقل من إجمالي الفاتورة، وسيُسجل الباقي آجلًا.
+- 5692 [notification/ar] العملية الشخصية لا تدعم الدفع عبر التيرمنال.
+- 6672 [notification/ar] تعذر إنشاء رابط الفاتورة
+- 7310 [jsx-text/en] Shift report
+- 7326 [jsx-text/en] Print
+- 7328 [jsx-text/en] End of Shift Report #$
+- 7329 [jsx-text/en] Cashier: $
+- 7330 [jsx-text/en] Variance: $
+- ... 69 more
 
 ### src/modules/marketing/pages/AiMarketingCenter.jsx (main-erp — ar:38 en:65)
 
