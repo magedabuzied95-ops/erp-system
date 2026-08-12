@@ -15,7 +15,8 @@ Started from `origin/main` @ `3ca9c07`.
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 | 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
 | 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | `cfdbb72` | `cfdbb72` verified (see note) | build green |
-| 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | **REVERTED** in `8304aed` — see INCIDENT | build green |
+| 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | REVERTED in `8304aed` (automation-session failure, not a real outage) | build green |
+| 7b | Re-apply of cp7 after the incident was cleared | `pre-visual-convergence-cp7b-20260813` -> `21ba628` | see below | see below | build green |
 
 ## Method
 
@@ -635,7 +636,24 @@ reference. This is a systemic decision affecting ~90 call sites and is left for
 an explicit ruling rather than an autonomous change. Observed spread:
 22px on 7 settings routes, 30px on accounting, marketing and 3 settings routes.
 
-## INCIDENT — app stopped mounting during checkpoint 7 (UNRESOLVED)
+### INCIDENT CLEARED — automation session failure, not a Production outage
+
+The user opened the ERP in their own browser and confirmed it **renders and
+works normally**. The empty `#root` was confined to this automated browser
+session. Nothing in the SPA bootstrap, `runtime-config.json`, auth or backend was
+at fault, and none of it was modified.
+
+Recovery procedure that worked: close the stale tab group, create a fresh tab,
+reload. `/dashboard` then mounted normally (`#root` 2 children, shell present,
+2110 chars) and the auditor re-validated against the frozen `/products`
+reference at **0 offenders**.
+
+**Standing rule for future sessions:** if the automation browser shows an empty
+`#root` while Production is healthy, treat it as an **automation session
+failure** — re-establish the browser session. Do **not** roll back healthy
+Production code, as was mistakenly done in `8304aed`.
+
+## INCIDENT (RESOLVED) — app stopped mounting during checkpoint 7
 
 **Status: cp7 source change has been REVERTED on main (`8304aed`). The app was
 still not mounting after the revert, so cp7 was not the cause.**

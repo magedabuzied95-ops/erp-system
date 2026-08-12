@@ -36,7 +36,7 @@ export default function MarketingStudioHeader({
             <MessageCircleMore className="h-3.5 w-3.5" />
             {t("marketing.studio.eyebrow", eyebrow)}
           </div>
-          <h1 className={`m1-display ${size === "large" ? "mt-3 xl:text-[2.75rem]" : "mt-2 sm:text-[2rem] xl:text-[2.35rem]"} text-white`}>
+          <h1 className={`m1-page-title ${size === "large" ? "mt-3" : "mt-2"} text-[var(--text)]`}>
             {t("marketing.studio.title", title)}
           </h1>
           <p className={`${size === "large" ? "mt-2 max-w-3xl text-base leading-7" : "mt-2 max-w-2xl text-base leading-7"} text-slate-300`}>{t("marketing.studio.description", description)}</p>
