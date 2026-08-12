@@ -49,5 +49,8 @@ export const getRestockUnmatchedDeliveryEvents = (headers) => api.get(`${BASE}/r
 export const getInboundAiMode = (headers) => api.get(`${BASE}/inbound-ai/mode`, opts(headers));
 export const setInboundAiMode = (mode, headers) => api.post(`${BASE}/inbound-ai/mode`, { mode }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const getInboundIntakeStats = (headers) => api.get(`${BASE}/inbound-ai/stats`, opts(headers));
+// Phase 11 — per-channel assisted rollout.
+export const getInboundAiChannels = (headers) => api.get(`${BASE}/inbound-ai/channels`, opts(headers));
+export const setInboundAiChannel = (channel, enabled, headers) => api.post(`${BASE}/inbound-ai/channels`, { channel, enabled }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const getAutomationTimezone = (headers) => api.get(`${BASE}/automation/timezone`, opts(headers));
 export const setAutomationTimezone = (timezone, headers) => api.post(`${BASE}/automation/timezone`, { timezone }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });

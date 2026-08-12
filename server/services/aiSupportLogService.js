@@ -2266,6 +2266,27 @@ export const completeAiInboxReplyLock = async ({
   return lock;
 };
 
+// Phase 11 stale protection: is there a customer message newer than a given draft's source message?
+// Prefer the precise message-id boundary; fall back to a timestamp when no source id was captured.
+export const hasNewerCustomerMessage = async ({ tenantId, sessionId, afterMessageId = 0, afterTime = null } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  if (!safeTenantId || !safeSessionId) return false;
+  await ensureAiSupportLogSchema();
+  const params = [safeTenantId, safeSessionId];
+  let boundary = "";
+  if (Number(afterMessageId) > 0) { params.push(Number(afterMessageId)); boundary = `AND id > $${params.length}`; }
+  else if (afterTime) { params.push(afterTime); boundary = `AND created_at > $${params.length}::timestamptz`; }
+  else return false; // cannot determine freshness → do not block
+  const result = await db.query(
+    `SELECT 1 FROM ai_support_messages
+      WHERE tenant_id = $1 AND session_id = $2 AND COALESCE(sender_type, '') = 'customer' ${boundary}
+      LIMIT 1`,
+    params
+  ).catch(() => ({ rows: [] }));
+  return Boolean(result.rows[0]);
+};
+
 export const updateAiSupportMessageDeliveryStatus = async ({
   tenantId,
   sessionId = "",

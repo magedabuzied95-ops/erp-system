@@ -5256,7 +5256,7 @@ const buildAutoReplyShadowDecision = ({
   };
 };
 
-export const generateAiInboxReply = async ({ tenantId, conversationId, persist = false } = {}) => {
+export const generateAiInboxReply = async ({ tenantId, conversationId, persist = false, sourceMessageId = null } = {}) => {
   const pipelineStartedAt = Date.now();
   const pipelineWarnings = [];
   const stageTimings = {
@@ -5284,6 +5284,9 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     throw Object.assign(new Error("AI is paused for this conversation"), { status: 409 });
   }
   const lastMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
+  // Phase 11: capture the inbound source message id so the draft can be checked for staleness before send.
+  const latestCustomerRow = [...asArray(conversation.messages)].reverse().find((message) => text(message.customer_message));
+  const resolvedSourceMessageId = sourceMessageId || latestCustomerRow?.id || null;
   let replyHarness = null;
   const intent = resolveIntent(lastMessage);
   const detectedSize = extractShoeSize(lastMessage);
@@ -5669,6 +5672,8 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       confidence_engine: confidenceEngine,
       grounding: groundingResult?.grounding || null,
       grounding_action: groundingResult?.changed ? groundingResult.action : null,
+      source_message_id: resolvedSourceMessageId,      // Phase 11 stale-linkage
+      source_message_at: new Date().toISOString(),
     },
   });
   stageTimings.draft_storage_ms = Date.now() - draftStorageStartedAt;

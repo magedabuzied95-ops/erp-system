@@ -26,25 +26,31 @@ import { useTenant } from "../../saas/context/TenantContext";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiStudioNav from "../components/AiStudioNav";
 import { useStudioHeaders } from "../lib/studioRequest";
-import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats } from "../services/aiStudioApi";
+import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats, getInboundAiChannels, setInboundAiChannel } from "../services/aiStudioApi";
 
-// Phase 10 — Inbound Assisted Replies control (default OFF). AI drafts a grounded reply SUGGESTION for
+// Phase 10/11 — Inbound Assisted Replies control (default OFF). AI drafts a grounded reply SUGGESTION for
 // inbound WhatsApp/Messenger/Instagram text; a human approves/edits/sends from the existing AI Inbox.
-// There is NO autonomous reply. The suggestion appears in the AI Inbox; this card only sets the mode.
+// There is NO autonomous reply. Phase 11 adds per-channel staged rollout + real operational metrics.
 function InboundAssistedRepliesCard() {
   const { headers } = useStudioHeaders();
   const [mode, setMode] = useState("off");
   const [capable, setCapable] = useState(false);
   const [stats, setStats] = useState(null);
+  const [channels, setChannels] = useState({});
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
-    const [m, s] = await Promise.all([getInboundAiMode(headers).catch(() => null), getInboundIntakeStats(headers).catch(() => null)]);
+    const [m, s, ch] = await Promise.all([getInboundAiMode(headers).catch(() => null), getInboundIntakeStats(headers).catch(() => null), getInboundAiChannels(headers).catch(() => null)]);
     if (m) { setMode(m.mode || "off"); setCapable(Boolean(m.capabilityEnabled)); }
-    if (s?.counts) setStats(s.counts);
+    if (s) setStats(s);
+    if (ch?.channels) setChannels(ch.channels);
   }, [headers]);
   useEffect(() => { load(); }, [load]);
   const change = async (next) => { setBusy(true); try { const r = await setInboundAiMode(next, headers); if (r?.mode) setMode(r.mode); } finally { setBusy(false); } };
+  const toggleChannel = async (ch, enabled) => { setBusy(true); try { const r = await setInboundAiChannel(ch, enabled, headers); if (r?.channels) setChannels(r.channels); } finally { setBusy(false); } };
   const MODES = [["off", "Off"], ["suggest_only", "Suggest only"], ["approval_reply", "Approval + Send"]];
+  const CHANNELS = [["facebook_messenger", "Messenger"], ["instagram", "Instagram"], ["whatsapp", "WhatsApp"]];
+  const w = stats?.last7d || {};
+  const d = stats?.last24h || {};
   return (
     <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -53,12 +59,27 @@ function InboundAssistedRepliesCard() {
       </div>
       <p className="mt-1.5 text-[12px] text-slate-400">On an inbound customer text, AI drafts a <b className="text-slate-200">grounded reply suggestion</b> that a human approves, edits, or rejects in the AI Inbox. <b className="text-slate-200">It never sends autonomously.</b>{!capable ? " The server capability flag is off, so no suggestions are generated yet." : ""}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Mode</span>
         {MODES.map(([val, label]) => (
           <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black ${mode === val ? "border-cyan-300/50 bg-cyan-300/15 text-cyan-50" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
         ))}
-        {stats ? <span className="ml-1 text-[11px] text-slate-400">Last 30d — suggested {stats.suggested || 0} · skipped {stats.skipped || 0} · errors {stats.errored || 0}</span> : null}
+        {mode !== "off" ? <button type="button" disabled={busy} onClick={() => change("off")} className="inline-flex h-8 items-center rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 text-[11px] font-black text-rose-100">⏸ Pause all (kill switch)</button> : null}
       </div>
-      {mode !== "off" ? <div className="mt-2 text-[11px] text-amber-200">Suggestions are generated on inbound text. Review and send them from the AI Inbox — nothing is sent without a human.</div> : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Channels (staged)</span>
+        {CHANNELS.map(([val, label]) => (
+          <button key={val} type="button" disabled={busy} onClick={() => toggleChannel(val, !channels[val])} className={`inline-flex h-8 items-center gap-1 rounded-lg border px-3 text-[11px] font-black ${channels[val] ? "border-emerald-300/50 bg-emerald-300/15 text-emerald-50" : "border-white/10 bg-white/[0.04] text-slate-400"}`}>{channels[val] ? "● " : "○ "}{label}</button>
+        ))}
+      </div>
+      {stats ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
+          {[["Generated", w.generated], ["Approved", w.approved], ["Edited", w.approved_edited], ["Stale", w.stale], ["Skipped", w.skipped], ["Errors", w.errored]].map(([label, val]) => (
+            <div key={label} className="rounded-xl border border-white/10 bg-white/[0.02] px-2.5 py-2"><div className="text-[9px] font-black uppercase tracking-wide text-slate-500">{label} 7d</div><div className="mt-0.5 text-lg font-black text-slate-100">{Number(val || 0)}</div></div>
+          ))}
+        </div>
+      ) : null}
+      {mode !== "off" ? <div className="mt-2 text-[11px] text-amber-200">Suggestions are generated on enabled channels. Review and send from the AI Inbox — nothing is sent without a human. A newer customer message blocks approving a stale suggestion (server-enforced).</div> : null}
+      <div className="mt-1 text-[10px] text-slate-500">Last 24h — generated {Number(d.generated || 0)} · approved {Number(d.approved || 0)} · stale {Number(d.stale || 0)}</div>
     </section>
   );
 }
