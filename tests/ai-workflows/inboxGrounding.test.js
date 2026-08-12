@@ -204,6 +204,54 @@ test("10.8 UNKNOWN brand/model resolves to NOTHING → clarify (no hallucinated 
   assert.equal(r.suggested_products.length, 0);
 });
 
+// ---- Phase 11.1 — conversation-context aggregation (fragmented multi-message turn) ----
+
+test("11.1 mergeTurnEntities: fragmented turn merges to one composite (latest wins, missing dims backfilled)", () => {
+  const turn = ["عندكم جوردن فور", "احمر", "مقاس ٤١"].map((m) => G.extractRequestedEntities(m));
+  const merged = G.mergeTurnEntities(turn);
+  assert.equal(merged.brandModelTerm, "جوردن فور"); // product backfilled from the first fragment
+  assert.equal(merged.color, "red");                // color backfilled from the middle fragment
+  assert.equal(merged.size, "41");                  // size from the latest fragment
+  assert.equal(merged.wantsAvailability, true);     // OR'd across the turn ("عندكم" was in fragment 1)
+});
+
+test("11.1 mergeTurnEntities: size correction — product backfilled, newest size wins", () => {
+  const turn = ["عندكم كروكس مقاس 44", "مقاس 43"].map((m) => G.extractRequestedEntities(m));
+  const merged = G.mergeTurnEntities(turn);
+  assert.equal(merged.productType, "crocs"); // backfilled from the first fragment
+  assert.equal(merged.size, "43");           // newest fragment's size wins over the older 44
+});
+
+test("11.1 single-message input is unchanged (backward-compatible)", () => {
+  const one = G.extractRequestedEntities("عندكم كروكس اسود مقاس 44؟");
+  const merged = G.mergeTurnEntities([one]);
+  assert.deepEqual(merged, one);
+});
+
+test("11.1 END-TO-END: fragmented Jordan turn grounds correctly (was Jordan+bags leak)", async () => {
+  const deps = {
+    resolveByBrandModel: async () => ([{ id: 39, name: "Air Jordan 4  Sneakers for Men", product_type: "sneakers" }]),
+    inventoryFacts: async () => ({ variant_stock: [
+      { variant_id: 1414, size: "41", color: "red", stock: 2 },
+      { variant_id: 1415, size: "41", color: "black", stock: 0 },
+    ] }),
+  };
+  const r = await G.applyInboxGroundingGate({
+    tenantId: 1,
+    message: "مقاس ٤١", // the trailing fragment alone has no product — must be reconstructed from the turn
+    contextMessages: ["عندكم جوردن فور", "احمر", "مقاس ٤١"],
+    deps,
+  });
+  assert.equal(r.changed, true);
+  assert.equal(r.requestedIntent, "PRODUCT_AVAILABILITY");
+  assert.equal(r.action, "available"); // red/41 exists (stock 2)
+  assert.equal(r.grounding.resolved.productId, 39);
+  assert.equal(r.grounding.requested.color, "red");
+  assert.equal(r.grounding.requested.size, "41");
+  for (const c of r.suggested_products) assert.equal(c.product_type, "sneakers"); // no bags leak
+  assert.doesNotMatch(r.answer, /bag|شنط|حقيب/i);
+});
+
 test("SAFETY: gate never throws, never sends, never writes stock/orders/restock intents", async () => {
   const bad = await G.applyInboxGroundingGate({ tenantId: 1, message: LIVE, reply: {}, deps: { queryProducts: async () => { throw new Error("boom"); } } });
   assert.equal(bad.changed, false); // failure-isolated
