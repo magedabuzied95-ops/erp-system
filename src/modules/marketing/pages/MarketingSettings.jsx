@@ -178,10 +178,10 @@ const resolveMetaSetupCompletion = ({ status = {}, health = {}, capabilities = {
 
 function SkeletonBlock() {
   return (
-    <div className="animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-      <div className="h-4 w-32 rounded bg-white/10" />
-      <div className="mt-3 h-3 w-full rounded bg-white/10" />
-      <div className="mt-2 h-3 w-2/3 rounded bg-white/10" />
+    <div className="animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="h-4 w-32 rounded bg-[var(--surface)]" />
+      <div className="mt-3 h-3 w-full rounded bg-[var(--surface)]" />
+      <div className="mt-2 h-3 w-2/3 rounded bg-[var(--surface)]" />
     </div>
   );
 }
@@ -196,7 +196,7 @@ function CopyButton({ value, label = "" }) {
         navigator.clipboard?.writeText(String(value || ""));
         toast.success(t("marketing.metaSettings.toasts.copiedLabel", { label: copyLabel }));
       }}
-      className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-100 transition hover:bg-white/10"
+      className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-black text-[var(--text)] transition hover:bg-[var(--surface)]"
     >
       <Copy className="h-3.5 w-3.5" />
       {copyLabel}
@@ -210,15 +210,15 @@ function CapabilityPill({ connected, connectedLabel = "Connected", disconnectedL
 
 function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks = [], details, connectedLabel, disconnectedLabel, emptyLabel, onTest }) {
   return (
-    <div className="rounded-2xl border border-white/[0.12] bg-[#101310] p-5 shadow-lg shadow-black/10">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-400/10 text-amber-200">
             <Icon className="h-5 w-5" />
           </span>
           <div>
-            <div className="font-black text-white">{title}</div>
-            {subtitle ? <div className="mt-1 text-sm leading-6 text-slate-400">{subtitle}</div> : null}
+            <div className="font-black text-[var(--text)]">{title}</div>
+            {subtitle ? <div className="mt-1 text-sm leading-6 text-[var(--muted)]">{subtitle}</div> : null}
           </div>
         </div>
         {status ? <StatusBadge status={status} /> : <CapabilityPill connected={connected} connectedLabel={connectedLabel} disconnectedLabel={disconnectedLabel} />}
@@ -226,7 +226,7 @@ function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks
       {checks.length ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {checks.map((check) => (
-            <div key={check.label} className="flex min-h-10 items-center gap-2.5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-slate-300">
+            <div key={check.label} className="flex min-h-10 items-center gap-2.5 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--muted)]">
               <CheckCircle2 className={`h-4 w-4 shrink-0 ${check.ok ? "text-emerald-300" : "text-amber-300"}`} />
               <span>{check.label}</span>
             </div>
@@ -234,11 +234,11 @@ function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks
         </div>
       ) : null}
       {details?.length ? (
-        <div className="mt-4 grid gap-2.5 text-sm text-slate-400">
+        <div className="mt-4 grid gap-2.5 text-sm text-[var(--muted)]">
           {details.map(([label, value]) => (
             <div key={label} className="flex justify-between gap-3">
               <span>{label}</span>
-              <span className="text-right font-bold text-slate-200">{value || emptyLabel || "Not available"}</span>
+              <span className="text-right font-bold text-[var(--text)]">{value || emptyLabel || "Not available"}</span>
             </div>
           ))}
         </div>
@@ -999,19 +999,19 @@ export default function MarketingSettings() {
   ];
 
   return (
-    <div dir="rtl" className="min-h-full bg-[#0b0d0c] text-white">
+    <div dir="rtl" className="min-h-full bg-[var(--card)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 md:px-6 lg:px-8">
         <MarketingStudioHeader />
-        <section className="rounded-3xl border border-amber-400/15 bg-gradient-to-br from-[#1d1b12] via-[#171915] to-[#111411] p-5 shadow-2xl shadow-black/30 md:p-6">
+        <section className="rounded-[var(--radius-card)] border border-amber-400/15 bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="space-y-2">
             <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
               <Settings2 className="h-4 w-4" />
               {t("marketing.settings.eyebrow")}
             </div>
             <h1 className="m1-display">{t("marketing.settings.title")}</h1>
-            <p className="max-w-3xl text-base leading-7 text-slate-300">{t("marketing.settings.subtitle")}</p>
+            <p className="max-w-3xl text-base leading-7 text-[var(--muted)]">{t("marketing.settings.subtitle")}</p>
           </div>
-          <div className="sticky top-3 z-20 mt-5 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-[#111411]/95 p-2.5 shadow-xl shadow-black/20 backdrop-blur">
+          <div className="sticky top-3 z-20 mt-5 flex flex-wrap gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)]/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur">
             {[
               ["facebook", "الربط والحسابات"],
               ["messaging", "الرسائل"],
@@ -1019,7 +1019,7 @@ export default function MarketingSettings() {
               ["webhook", "Webhook"],
               ["automation", "الردود الآلية"],
             ].map(([section, label]) => (
-              <a key={section} href={`#marketing-settings-${section}`} className="inline-flex min-h-10 items-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-200 transition hover:border-amber-400/25 hover:bg-amber-400/10 hover:text-amber-100">
+              <a key={section} href={`#marketing-settings-${section}`} className="inline-flex min-h-10 items-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-black text-[var(--text)] transition hover:border-amber-400/25 hover:bg-amber-400/10 hover:text-amber-100">
                 {label}
               </a>
             ))}
@@ -1032,24 +1032,24 @@ export default function MarketingSettings() {
 
         <section aria-label={t("marketing.metaSettings.summary.metaStatusAria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {overviewCards.map(({ label, value, hint, ok, icon: Icon }) => (
-            <div key={label} className="rounded-2xl border border-white/[0.12] bg-[#171a18] p-5 shadow-lg shadow-black/10">
+            <div key={label} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-semibold text-slate-400">{label}</div>
-                  <div className="mt-2 text-xl font-black text-white">{value}</div>
+                  <div className="text-sm font-semibold text-[var(--muted)]">{label}</div>
+                  <div className="mt-2 text-xl font-black text-[var(--text)]">{value}</div>
                 </div>
                 <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${ok ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-amber-400/25 bg-amber-400/10 text-amber-300"}`}>
                   <Icon className="h-5 w-5" />
                 </span>
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-400">{hint}</p>
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{hint}</p>
             </div>
           ))}
         </section>
 
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
-        <details className="group rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+        <details className="group rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <summary className="flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
@@ -1057,18 +1057,18 @@ export default function MarketingSettings() {
                 الإعدادات التقنية المتقدمة
               </div>
               <h2 className="m1-section-title mt-3">{t("marketing.metaSettings.summary.title")}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">{t("marketing.metaSettings.summary.subtitle")}</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{t("marketing.metaSettings.summary.subtitle")}</p>
             </div>
             <div className="flex items-center gap-3">
               <StatusBadge status={setupCheck?.env_ready ? "connected" : "missing_permissions"} />
-              <span className="text-2xl text-slate-400 transition group-open:rotate-180">⌄</span>
+              <span className="text-2xl text-[var(--muted)] transition group-open:rotate-180">⌄</span>
             </div>
           </summary>
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.runtimeEnvironment")}</div>
-              <div className="mt-2 text-base font-black text-white">{setupCheck?.env_ready ? "جاهز" : "غير جاهز"}</div>
-              <div dir="ltr" className="mt-3 space-y-2 text-sm text-slate-300">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+              <div className="text-sm font-semibold text-[var(--muted)]">{t("marketing.metaSettings.summary.runtimeEnvironment")}</div>
+              <div className="mt-2 text-base font-black text-[var(--text)]">{setupCheck?.env_ready ? "جاهز" : "غير جاهز"}</div>
+              <div dir="ltr" className="mt-3 space-y-2 text-sm text-[var(--muted)]">
                 {["META_APP_ID", "META_APP_SECRET", "META_REDIRECT_URI", "META_VERIFY_TOKEN"].map((key) => (
                   <div key={key} className="flex items-center justify-between gap-3">
                     <span>{key}</span>
@@ -1077,16 +1077,16 @@ export default function MarketingSettings() {
                 ))}
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.oauthRedirectUrl")}</div>
-              <code dir="ltr" className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-sm text-slate-200">{setupCheck?.redirect_uri || "غير مهيأ"}</code>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+              <div className="text-sm font-semibold text-[var(--muted)]">{t("marketing.metaSettings.summary.oauthRedirectUrl")}</div>
+              <code dir="ltr" className="mt-2 block break-all rounded-xl bg-[var(--surface)] p-3 text-sm text-[var(--text)]">{setupCheck?.redirect_uri || "غير مهيأ"}</code>
               <div className="mt-3">
                 <CopyButton value={setupCheck?.redirect_uri || ""} label={t("marketing.metaSettings.summary.copyRedirectUrl")} />
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.webhookCallbackUrl")}</div>
-              <code dir="ltr" className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-sm text-amber-100">{setupCheck?.webhook_url || "غير مهيأ"}</code>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+              <div className="text-sm font-semibold text-[var(--muted)]">{t("marketing.metaSettings.summary.webhookCallbackUrl")}</div>
+              <code dir="ltr" className="mt-2 block break-all rounded-xl bg-[var(--surface)] p-3 text-sm text-amber-100">{setupCheck?.webhook_url || "غير مهيأ"}</code>
               <div className="mt-3 flex flex-wrap gap-2">
                 <CopyButton value={setupCheck?.webhook_url || ""} label={t("marketing.metaSettings.summary.copyWebhookUrl")} />
                 <CopyButton value={setupCheck?.verify_token_status === "configured" ? "configured" : ""} label={t("marketing.metaSettings.summary.copyVerifyToken")} />
@@ -1099,20 +1099,20 @@ export default function MarketingSettings() {
             </div>
           ) : null}
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
-            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.requiredPermissions")}</div>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+              <div className="text-sm font-semibold text-[var(--muted)]">{t("marketing.metaSettings.summary.requiredPermissions")}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(setupCheck?.required_permissions || []).map((permission) => (
-                  <span dir="ltr" key={permission} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-bold text-slate-200">{permission}</span>
+                  <span dir="ltr" key={permission} className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm font-bold text-[var(--text)]">{permission}</span>
                 ))}
               </div>
-              <p className="mt-4 text-sm text-slate-400">App review reminder: production messaging and publishing require Meta review approval for the requested permissions.</p>
+              <p className="mt-4 text-sm text-[var(--muted)]">App review reminder: production messaging and publishing require Meta review approval for the requested permissions.</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-              <div className="text-sm font-semibold text-slate-400">{t("marketing.metaSettings.summary.setupSteps")}</div>
-              <div className="mt-3 space-y-2 text-sm text-slate-300">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+              <div className="text-sm font-semibold text-[var(--muted)]">{t("marketing.metaSettings.summary.setupSteps")}</div>
+              <div className="mt-3 space-y-2 text-sm text-[var(--muted)]">
                 {(setupCheck?.setup_steps || []).map((step) => (
-                  <div key={step} className="flex gap-2 rounded-xl bg-white/[0.03] px-3 py-2">
+                  <div key={step} className="flex gap-2 rounded-xl bg-[var(--surface)] px-3 py-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
                     <span>{step}</span>
                   </div>
@@ -1123,37 +1123,37 @@ export default function MarketingSettings() {
         </details>
 
         {oauthResult ? (
-          <section className={`rounded-3xl border p-5 shadow-2xl shadow-black/20 ${oauthResult.status === "partially_connected" ? "border-amber-400/20 bg-amber-400/10" : "border-emerald-400/20 bg-emerald-400/10"}`}>
+          <section className={`rounded-[var(--radius-card)] border p-5 shadow-[var(--shadow-card)] ${oauthResult.status === "partially_connected" ? "border-amber-400/20 bg-amber-400/10" : "border-emerald-400/20 bg-emerald-400/10"}`}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className={`text-xs font-black uppercase tracking-[0.18em] ${oauthResult.status === "partially_connected" ? "text-amber-200" : "text-emerald-200"}`}>{t("marketing.metaSettings.oauth.result")}</div>
-                <h2 className="m1-section-title mt-2 text-white">{oauthResult.message}</h2>
+                <h2 className="m1-section-title mt-2 text-[var(--text)]">{oauthResult.message}</h2>
               </div>
               <StatusBadge status={oauthResult.status || "connected"} />
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">{t("marketing.metaSettings.oauth.connectedPage")}</div>
-                <div className="mt-1 font-black text-white">{oauthResult.page || pageLabel || "Not available"}</div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-xs text-[var(--muted)]">{t("marketing.metaSettings.oauth.connectedPage")}</div>
+                <div className="mt-1 font-black text-[var(--text)]">{oauthResult.page || pageLabel || "Not available"}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">{t("marketing.metaSettings.oauth.connectedInstagram")}</div>
-                <div className="mt-1 font-black text-white">{oauthResult.instagram || instagramLabel || "Not linked"}</div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-xs text-[var(--muted)]">{t("marketing.metaSettings.oauth.connectedInstagram")}</div>
+                <div className="mt-1 font-black text-[var(--text)]">{oauthResult.instagram || instagramLabel || "Not linked"}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">{t("marketing.metaSettings.oauth.missingPermissions")}</div>
-                <div className="mt-1 text-sm font-black text-white">{missingPermissions.length ? missingPermissions.join(", ") : "لا يوجد"}</div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-xs text-[var(--muted)]">{t("marketing.metaSettings.oauth.missingPermissions")}</div>
+                <div className="mt-1 text-sm font-black text-[var(--text)]">{missingPermissions.length ? missingPermissions.join(", ") : "لا يوجد"}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">{t("marketing.metaSettings.oauth.nextAction")}</div>
-                <div className="mt-1 text-sm font-black text-white">{setupCompletion.complete ? "اكتمل الإعداد." : missingPermissions.length ? "اطلب الصلاحيات المفقودة في مراجعة تطبيق ميتا." : liveWebhook.webhook_verified ? "شغّل اختبارات الرسائل الحية والنشر." : "تحقق من اشتراك Webhook في Meta Developer."}</div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-xs text-[var(--muted)]">{t("marketing.metaSettings.oauth.nextAction")}</div>
+                <div className="mt-1 text-sm font-black text-[var(--text)]">{setupCompletion.complete ? "اكتمل الإعداد." : missingPermissions.length ? "اطلب الصلاحيات المفقودة في مراجعة تطبيق ميتا." : liveWebhook.webhook_verified ? "شغّل اختبارات الرسائل الحية والنشر." : "تحقق من اشتراك Webhook في Meta Developer."}</div>
               </div>
             </div>
           </section>
         ) : null}
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+          <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
@@ -1161,7 +1161,7 @@ export default function MarketingSettings() {
                   مركز ربط Meta
                 </div>
                 <h2 className="m1-section-title mt-3">{t("marketing.metaSettings.connect.title")}</h2>
-                <p className="mt-2 max-w-2xl text-base leading-7 text-slate-300">
+                <p className="mt-2 max-w-2xl text-base leading-7 text-[var(--muted)]">
                   يستخدم الإعداد الموجّه تسجيل الدخول عبر فيسبوك واختيار الصفحة واكتشاف حساب إنستجرام والتحقق من الصلاحيات وفحوصات Webhook. وتبقى المعرّفات اليدوية متاحة في الوضع المتقدم.
                 </p>
               </div>
@@ -1172,19 +1172,19 @@ export default function MarketingSettings() {
                 <button
                   key={label}
                   onClick={() => setWizardStep(index)}
-                  className={`min-h-16 rounded-[var(--radius-control)] border px-4 py-3 text-right text-sm transition ${wizardStep === index ? "border-amber-400/35 bg-amber-400/10 text-amber-100" : "border-white/10 bg-[#101310] text-slate-300 hover:bg-white/5"}`}
+                  className={`min-h-16 rounded-[var(--radius-control)] border px-4 py-3 text-right text-sm transition ${wizardStep === index ? "border-amber-400/35 bg-amber-400/10 text-amber-100" : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:bg-[var(--surface)]"}`}
                 >
-                  <div className="text-sm font-black text-slate-400">{t("marketing.metaSettings.connect.step")} {index + 1}</div>
+                  <div className="text-sm font-black text-[var(--muted)]">{t("marketing.metaSettings.connect.step")} {index + 1}</div>
                   <div className="mt-1 font-black">{label}</div>
                 </button>
               ))}
             </div>
-            <div className="mt-5 rounded-2xl border border-white/10 bg-[#101310] p-5">
+            <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
               {wizardStep === 0 ? (
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="font-black text-white">{t("marketing.metaSettings.connect.facebookLogin")}</div>
-                    <p className="mt-1 text-sm text-slate-400">{t("marketing.metaSettings.connect.facebookLoginHint")}</p>
+                    <div className="font-black text-[var(--text)]">{t("marketing.metaSettings.connect.facebookLogin")}</div>
+                    <p className="mt-1 text-sm text-[var(--muted)]">{t("marketing.metaSettings.connect.facebookLoginHint")}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={connectMetaOAuth} disabled={oauthLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[#1877f2] px-4 py-3 text-sm font-black text-white disabled:opacity-60">
@@ -1199,23 +1199,23 @@ export default function MarketingSettings() {
                       <CheckCircle2 className="h-4 w-4" />
                       {completeSetupLoading ? "Completing..." : "Complete setup"}
                     </button>
-                    <button onClick={() => setAdvancedMode((value) => !value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white">
+                    <button onClick={() => setAdvancedMode((value) => !value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-black text-[var(--text)]">
                       {advancedMode ? "Hide advanced mode" : "Advanced mode"}
                     </button>
                   </div>
                 </div>
               ) : wizardStep === 1 ? (
                 <div>
-                  <div className="font-black text-white">{t("marketing.metaSettings.connect.selectPageAndAccount")}</div>
-                  <p className="mt-1 text-sm text-slate-400">{t("marketing.metaSettings.connect.selectPageHint")} {pageLabel || "لا توجد صفحة"} / {instagramLabel || "لا يوجد حساب إنستجرام"}.</p>
+                  <div className="font-black text-[var(--text)]">{t("marketing.metaSettings.connect.selectPageAndAccount")}</div>
+                  <p className="mt-1 text-sm text-[var(--muted)]">{t("marketing.metaSettings.connect.selectPageHint")} {pageLabel || "لا توجد صفحة"} / {instagramLabel || "لا يوجد حساب إنستجرام"}.</p>
                   {oauthPages.length ? (
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {oauthPages.map((page) => (
-                        <button key={page.page_id} onClick={() => chooseOAuthPage(page)} disabled={oauthLoading} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.07] disabled:opacity-60">
-                          <div className="font-black text-white">{page.page_name || page.page_id}</div>
-                          <div className="mt-1 text-xs text-slate-400">{t("marketing.metaSettings.connect.pageId")} {page.page_id}</div>
+                        <button key={page.page_id} onClick={() => chooseOAuthPage(page)} disabled={oauthLoading} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition hover:bg-[var(--surface-hover)] disabled:opacity-60">
+                          <div className="font-black text-[var(--text)]">{page.page_name || page.page_id}</div>
+                          <div className="mt-1 text-xs text-[var(--muted)]">{t("marketing.metaSettings.connect.pageId")} {page.page_id}</div>
                           <div className="mt-2 text-xs text-primary">{t("marketing.metaSettings.connect.instagram")} {page.instagram_username || page.instagram_business_account_id || "لا يوجد حساب أعمال مرتبط"}</div>
-                          <div className="mt-2 text-xs text-slate-500">Token: {page.page_access_token_masked || "configured"}</div>
+                          <div className="mt-2 text-xs text-[var(--muted)]">Token: {page.page_access_token_masked || "configured"}</div>
                         </button>
                       ))}
                     </div>
@@ -1224,15 +1224,15 @@ export default function MarketingSettings() {
               ) : (
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="font-black text-white">{t("marketing.metaSettings.connect.verifyWebhook")}</div>
-                    <p className="mt-1 text-sm text-slate-400">{t("marketing.metaSettings.connect.verifyWebhookHint")}</p>
+                    <div className="font-black text-[var(--text)]">{t("marketing.metaSettings.connect.verifyWebhook")}</div>
+                    <p className="mt-1 text-sm text-[var(--muted)]">{t("marketing.metaSettings.connect.verifyWebhookHint")}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-60">
                       <PlayCircle className="h-3.5 w-3.5" />
                       {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
                     </button>
-                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white disabled:opacity-60">
+                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-black text-[var(--text)] disabled:opacity-60">
                       <RefreshCw className={`h-3.5 w-3.5 ${completeSetupLoading ? "animate-spin" : ""}`} />
                       {completeSetupLoading ? "Completing..." : "Complete setup"}
                     </button>
@@ -1242,11 +1242,11 @@ export default function MarketingSettings() {
             </div>
           </section>
 
-          <aside className="rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+          <aside className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-black text-slate-400">{t("marketing.metaSettings.stages.title")}</div>
-                <div className="mt-1 text-2xl font-black text-white">{completedSteps}/{setupSteps.length}</div>
+                <div className="text-sm font-black text-[var(--muted)]">{t("marketing.metaSettings.stages.title")}</div>
+                <div className="mt-1 text-2xl font-black text-[var(--text)]">{completedSteps}/{setupSteps.length}</div>
               </div>
               <StatusBadge status={setupStatus} />
             </div>
@@ -1257,8 +1257,8 @@ export default function MarketingSettings() {
             ) : null}
             <div className="mt-4 space-y-2">
               {setupSteps.map((step) => (
-                <div key={step.label} className="flex min-h-10 items-center gap-2.5 rounded-xl border border-white/10 bg-[#101310] px-3 py-2.5 text-sm text-slate-300">
-                  <CheckCircle2 className={`h-4 w-4 ${step.done ? "text-emerald-300" : "text-slate-600"}`} />
+                <div key={step.label} className="flex min-h-10 items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--muted)]">
+                  <CheckCircle2 className={`h-4 w-4 ${step.done ? "text-emerald-300" : "text-[var(--muted)]"}`} />
                   <span>{step.label}</span>
                 </div>
               ))}
@@ -1274,44 +1274,44 @@ export default function MarketingSettings() {
           </div>
         ) : null}
 
-        <section id="marketing-settings-facebook" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+        <section id="marketing-settings-facebook" className="scroll-mt-6 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{t("marketing.metaSettings.stages.connection")}</div>
-              <h2 className="m1-section-title mt-1 text-white">{t("marketing.metaSettings.stages.pageAndAccount")}</h2>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.metaSettings.stages.connection")}</div>
+              <h2 className="m1-section-title mt-1 text-[var(--text)]">{t("marketing.metaSettings.stages.pageAndAccount")}</h2>
             </div>
-            <button onClick={() => setAdvancedMode((value) => !value)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">
+            <button onClick={() => setAdvancedMode((value) => !value)} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-black text-[var(--text)]">
               {advancedMode ? "Guided mode" : "Advanced mode"}
             </button>
           </div>
           {advancedMode ? <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.settings.fields.provider")}</span>
-              <input value={form.provider} onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.settings.fields.provider")}</span>
+              <input value={form.provider} onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
             </label>
             <label id="marketing-settings-instagram" className="scroll-mt-6 space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.settings.fields.facebookPageId")}</span>
-              <input value={form.page_id} onChange={(event) => setForm((current) => ({ ...current, page_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.settings.fields.facebookPageId")}</span>
+              <input value={form.page_id} onChange={(event) => setForm((current) => ({ ...current, page_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.settings.fields.instagramAccountId")}</span>
-              <input value={form.instagram_account_id} onChange={(event) => setForm((current) => ({ ...current, instagram_account_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.settings.fields.instagramAccountId")}</span>
+              <input value={form.instagram_account_id} onChange={(event) => setForm((current) => ({ ...current, instagram_account_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.settings.fields.shortLivedToken")}</span>
-              <input type="password" value={form.access_token_encrypted} onChange={(event) => setForm((current) => ({ ...current, access_token_encrypted: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.settings.fields.shortLivedToken")}</span>
+              <input type="password" value={form.access_token_encrypted} onChange={(event) => setForm((current) => ({ ...current, access_token_encrypted: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
             </label>
           </div> : (
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("marketing.metaSettings.fields.facebookPage")}</div>
-                <div className="mt-2 font-black text-white">{pageLabel || "Not selected"}</div>
-                <p className="mt-1 text-xs text-slate-400">{t("marketing.metaSettings.fields.pageIdManaged")}</p>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.metaSettings.fields.facebookPage")}</div>
+                <div className="mt-2 font-black text-[var(--text)]">{pageLabel || "Not selected"}</div>
+                <p className="mt-1 text-xs text-[var(--muted)]">{t("marketing.metaSettings.fields.pageIdManaged")}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("marketing.metaSettings.fields.instagramBusinessAccount")}</div>
-                <div className="mt-2 font-black text-white">{instagramLabel || "Not selected"}</div>
-                <p className="mt-1 text-xs text-slate-400">{t("marketing.metaSettings.fields.manualAccountHidden")}</p>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.metaSettings.fields.instagramBusinessAccount")}</div>
+                <div className="mt-2 font-black text-[var(--text)]">{instagramLabel || "Not selected"}</div>
+                <p className="mt-1 text-xs text-[var(--muted)]">{t("marketing.metaSettings.fields.manualAccountHidden")}</p>
               </div>
             </div>
           )}
@@ -1319,16 +1319,16 @@ export default function MarketingSettings() {
           <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-2xl">
-                <div className="flex items-center gap-2 font-black text-white">
+                <div className="flex items-center gap-2 font-black text-[var(--text)]">
                   <KeyRound className="h-4 w-4 text-amber-300" />
                   رمز Instagram Business Login المستقل
                 </div>
-                <p className="mt-1 text-sm leading-6 text-slate-400">
+                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
                   يُشفّر داخل الخادم ويُستخدم لرسائل Instagram فقط. لن يستبدل رمز صفحة Facebook ولن يظهر مرة أخرى بعد الحفظ.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black text-slate-300">
-                <ShieldCheck className={`h-4 w-4 ${metaConfig.instagram_access_token_configured ? "text-emerald-300" : "text-slate-500"}`} />
+              <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-black text-[var(--muted)]">
+                <ShieldCheck className={`h-4 w-4 ${metaConfig.instagram_access_token_configured ? "text-emerald-300" : "text-[var(--muted)]"}`} />
                 {metaConfig.instagram_access_token_configured ? "محفوظ ومشفّر" : "غير محفوظ"}
               </div>
             </div>
@@ -1339,7 +1339,7 @@ export default function MarketingSettings() {
                 value={instagramAccessToken}
                 onChange={(event) => setInstagramAccessToken(event.target.value)}
                 placeholder={t("marketing.metaSettings.fields.pasteInstagramToken")}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-400/40"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none focus:border-amber-400/40"
               />
               <button
                 type="button"
@@ -1360,7 +1360,7 @@ export default function MarketingSettings() {
                 </button>
               ) : null}
             </div>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
               <span>{t("marketing.metaSettings.fields.status")} {metaConfig.instagram_token_status || "missing"}</span>
               <span>•</span>
               <span>{metaConfig.instagram_webhook_subscribed ? "Webhook مشترك" : "Webhook يحتاج تحقق"}</span>
@@ -1370,16 +1370,16 @@ export default function MarketingSettings() {
           <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-2xl">
-                <div className="flex items-center gap-2 font-black text-white">
+                <div className="flex items-center gap-2 font-black text-[var(--text)]">
                   <ShieldCheck className="h-4 w-4 text-emerald-300" />
                   Instagram App Secret لتوقيع الرسائل
                 </div>
-                <p className="mt-1 text-sm leading-6 text-slate-400">
+                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
                   انسخ Instagram App Secret من إعداد Instagram API. سيُحفظ مشفّرًا ويُستخدم للتحقق من Webhook الخاص بإنستجرام فقط، ولن يظهر مرة أخرى بعد الحفظ.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black text-slate-300">
-                <ShieldCheck className={`h-4 w-4 ${metaConfig.instagram_app_secret_configured ? "text-emerald-300" : "text-slate-500"}`} />
+              <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-black text-[var(--muted)]">
+                <ShieldCheck className={`h-4 w-4 ${metaConfig.instagram_app_secret_configured ? "text-emerald-300" : "text-[var(--muted)]"}`} />
                 {metaConfig.instagram_app_secret_configured ? "محفوظ ومشفّر" : "غير محفوظ"}
               </div>
             </div>
@@ -1390,7 +1390,7 @@ export default function MarketingSettings() {
                 value={instagramAppSecret}
                 onChange={(event) => setInstagramAppSecret(event.target.value)}
                 placeholder={t("marketing.metaSettings.fields.pasteAppSecret")}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none focus:border-emerald-400/40"
               />
               <button
                 type="button"
@@ -1414,38 +1414,38 @@ export default function MarketingSettings() {
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
+            <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)]">
               <input type="checkbox" checked={Boolean(form.is_connected)} onChange={(event) => setForm((current) => ({ ...current, is_connected: event.target.checked }))} />
               {t("marketing.settings.status.connected")}
             </label>
-            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
               <ShieldCheck className="h-4 w-4 text-emerald-300" />
               {form.page_access_token_set ? t("marketing.settings.status.pageTokenSaved") : form.access_token_set ? t("marketing.settings.status.legacyTokenSaved") : t("marketing.settings.status.noTokenSaved")}
             </div>
-            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
               <KeyRound className="h-4 w-4 text-primary" />
               {loading ? t("marketing.common.loading") : form.is_connected ? t("marketing.settings.status.connected") : t("marketing.settings.status.disconnected")}
             </div>
-            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
               <Clock className="h-4 w-4 text-amber-300" />
               {t("marketing.settings.status.expires", { value: formatDateTime(form.token_expires_at) })}
             </div>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-slate-300">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("marketing.settings.tokenStatus")}</div>
-              <div className="mt-2 font-semibold text-white">{form.token_health_status || form.token_status || t("marketing.settings.status.missing")}</div>
-              <div className="mt-1 text-xs text-slate-400">{t("marketing.settings.lastChecked", { value: formatDateTime(form.token_last_validated_at) })}</div>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 text-sm text-[var(--muted)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.settings.tokenStatus")}</div>
+              <div className="mt-2 font-semibold text-[var(--text)]">{form.token_health_status || form.token_status || t("marketing.settings.status.missing")}</div>
+              <div className="mt-1 text-xs text-[var(--muted)]">{t("marketing.settings.lastChecked", { value: formatDateTime(form.token_last_validated_at) })}</div>
             </div>
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-slate-200">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-[var(--text)]">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{t("marketing.settings.autoRefresh")}</div>
-              <div className="mt-2 flex items-center gap-2 font-semibold text-white">
+              <div className="mt-2 flex items-center gap-2 font-semibold text-[var(--text)]">
                 <Sparkles className="h-4 w-4 text-primary" />
                 {form.auto_refresh_enabled ? t("marketing.settings.autoRefreshEnabled") : t("marketing.settings.autoRefreshDisabled")}
               </div>
-              <div className="mt-1 text-xs text-slate-400">{t("marketing.settings.lastAutoRefresh", { value: formatDateTime(form.last_auto_refresh_at) })}</div>
-              <div className="mt-1 text-xs text-slate-400">{t("marketing.settings.nextRefreshCheck", { value: formatDateTime(form.next_refresh_check_at) })}</div>
+              <div className="mt-1 text-xs text-[var(--muted)]">{t("marketing.settings.lastAutoRefresh", { value: formatDateTime(form.last_auto_refresh_at) })}</div>
+              <div className="mt-1 text-xs text-[var(--muted)]">{t("marketing.settings.nextRefreshCheck", { value: formatDateTime(form.next_refresh_check_at) })}</div>
             </div>
             {form.token_error_message ? (
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
@@ -1466,14 +1466,14 @@ export default function MarketingSettings() {
               <RefreshCw className={`h-4 w-4 ${reconnecting ? "animate-spin" : ""}`} />
               {t("marketing.settings.reconnect")}
             </button>
-            <button onClick={testAutoRefresh} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+            <button onClick={testAutoRefresh} disabled={reconnecting || saving} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] disabled:opacity-60">
               <Sparkles className="h-4 w-4 text-primary" />
               {t("marketing.settings.testAutoRefresh")}
             </button>
           </div>
         </section>
 
-        <section id="marketing-settings-messaging" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+        <section id="marketing-settings-messaging" className="scroll-mt-6 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
@@ -1482,7 +1482,7 @@ export default function MarketingSettings() {
               </div>
             <h2 className="m1-section-title mt-3">{t("marketing.settings.capabilities.messagingTitle", "Meta messaging capabilities")}</h2>
             </div>
-            <div className="text-sm text-slate-400">{t("marketing.settings.capabilities.webhook", "Webhook")}: {metaConfig.webhook_enabled ? t("marketing.settings.status.enabled", "Enabled") : t("marketing.settings.status.disabled", "Disabled")}</div>
+            <div className="text-sm text-[var(--muted)]">{t("marketing.settings.capabilities.webhook", "Webhook")}: {metaConfig.webhook_enabled ? t("marketing.settings.status.enabled", "Enabled") : t("marketing.settings.status.disabled", "Disabled")}</div>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <CapabilityCard
@@ -1539,7 +1539,7 @@ export default function MarketingSettings() {
           </div>
         </section>
 
-        <section id="marketing-settings-publishing" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+        <section id="marketing-settings-publishing" className="scroll-mt-6 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
             <FileText className="h-4 w-4" />
             {t("marketing.settings.capabilities.publishing", "النشر")}
@@ -1593,7 +1593,7 @@ export default function MarketingSettings() {
           </div>
         </section>
 
-        <section id="marketing-settings-webhook" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+        <section id="marketing-settings-webhook" className="scroll-mt-6 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
@@ -1609,7 +1609,7 @@ export default function MarketingSettings() {
               <PlayCircle className="h-3.5 w-3.5" />
               {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
             </button>
-            <code className="break-all rounded-xl bg-black/30 px-3 py-2 text-xs text-primary">{webhookSelfTest?.expected_public_url || liveWebhook.webhook_url || metaStatus?.webhook_url || setupCheck?.webhook_url || "/api/meta/webhook"}</code>
+            <code className="break-all rounded-xl bg-[var(--surface)] px-3 py-2 text-xs text-primary">{webhookSelfTest?.expected_public_url || liveWebhook.webhook_url || metaStatus?.webhook_url || setupCheck?.webhook_url || "/api/meta/webhook"}</code>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
@@ -1629,15 +1629,15 @@ export default function MarketingSettings() {
               ["Event throughput 24h", liveWebhook.event_throughput_24h ?? 0],
               ["Expected public URL", webhookSelfTest?.expected_public_url || liveWebhook.webhook_url || metaStatus?.webhook_url || "/api/meta/webhook"],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-                <div className="text-sm font-semibold text-slate-400">{label}</div>
-                <div className="mt-2 break-words text-sm font-black text-white">{value}</div>
+              <div key={label} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+                <div className="text-sm font-semibold text-[var(--muted)]">{label}</div>
+                <div className="mt-2 break-words text-sm font-black text-[var(--text)]">{value}</div>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
             <KeyRound className="h-4 w-4" />
             حالة رمز الوصول
@@ -1650,15 +1650,15 @@ export default function MarketingSettings() {
               ["Last refresh status", tokenIntelligence.last_refresh_status || "not_run"],
               ["Auto-refresh success", `${tokenIntelligence.auto_refresh_success_rate ?? 0}%`],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-[#101310] p-5">
-                <div className="text-sm font-semibold text-slate-400">{label}</div>
-                <div className="mt-2 text-sm font-black text-white">{value}</div>
+              <div key={label} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+                <div className="text-sm font-semibold text-[var(--muted)]">{label}</div>
+                <div className="mt-2 text-sm font-black text-[var(--text)]">{value}</div>
               </div>
             ))}
           </div>
         </section>
 
-        <section id="marketing-settings-automation" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+        <section id="marketing-settings-automation" className="scroll-mt-6 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
@@ -1666,17 +1666,17 @@ export default function MarketingSettings() {
                 {t("marketing.automation.commentDm.eyebrow")}
               </div>
               <h2 className="m1-section-title mt-3">{t("marketing.automation.commentDm.title")}</h2>
-              <p className="mt-2 text-base leading-7 text-slate-400">{t("marketing.settings.capabilities.automationHelp", "قواعد التعليق إلى الرسالة والردود التلقائية وسجلات الأتمتة.")} {t("marketing.settings.capabilities.activeRules", "القواعد النشطة")}: {activeRulesCount}</p>
+              <p className="mt-2 text-base leading-7 text-[var(--muted)]">{t("marketing.settings.capabilities.automationHelp", "قواعد التعليق إلى الرسالة والردود التلقائية وسجلات الأتمتة.")} {t("marketing.settings.capabilities.activeRules", "القواعد النشطة")}: {activeRulesCount}</p>
             </div>
-            <button onClick={() => { setEditingRuleId(null); setRuleForm(blankRule); }} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
+            <button onClick={() => { setEditingRuleId(null); setRuleForm(blankRule); }} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)]">
               <Plus className="h-4 w-4" />
               {t("marketing.automation.newRule")}
             </button>
           </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="flex items-center gap-2 text-sm font-black text-white">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="flex items-center gap-2 text-sm font-black text-[var(--text)]">
                 <Bot className="h-4 w-4 text-primary" />
                 AI automation controls
               </div>
@@ -1687,24 +1687,24 @@ export default function MarketingSettings() {
                   ["humanEscalation", "قواعد التصعيد البشري"],
                   ["smartLeadDetection", "اكتشاف العملاء المحتملين الذكي"],
                 ].map(([key, label]) => (
-                  <label key={key} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-200">
+                  <label key={key} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--text)]">
                     <span>{label}</span>
                     <input type="checkbox" checked={Boolean(aiSettings[key])} onChange={(event) => setAiSettings((current) => ({ ...current, [key]: event.target.checked }))} />
                   </label>
                 ))}
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-sm font-black text-white">{t("marketing.metaSettings.events.commentToMessagePerformance")}</div>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="text-sm font-black text-[var(--text)]">{t("marketing.metaSettings.events.commentToMessagePerformance")}</div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {[
                   ["القواعد النشطة", activeRulesCount],
                   ["Sent replies", successfulRuleCount],
                   ["الردود الفاشلة", failedRuleCount],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                    <div className="text-[11px] text-slate-500">{label}</div>
-                    <div className="mt-1 text-lg font-black text-white">{value}</div>
+                  <div key={label} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
+                    <div className="text-[11px] text-[var(--muted)]">{label}</div>
+                    <div className="mt-1 text-lg font-black text-[var(--text)]">{value}</div>
                   </div>
                 ))}
               </div>
@@ -1712,62 +1712,62 @@ export default function MarketingSettings() {
           </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+            <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.ruleName")}</span>
-                  <input value={ruleForm.name} onChange={(event) => setRuleForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.automation.fields.ruleName")}</span>
+                  <input value={ruleForm.name} onChange={(event) => setRuleForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.platform")}</span>
-                  <select value={ruleForm.platform} onChange={(event) => setRuleForm((current) => ({ ...current, platform: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.social.platform")}</span>
+                  <select value={ruleForm.platform} onChange={(event) => setRuleForm((current) => ({ ...current, platform: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none">
                     <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
                     <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
                   </select>
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.matchMode")}</span>
-                  <select value={ruleForm.match_mode} onChange={(event) => setRuleForm((current) => ({ ...current, match_mode: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.automation.fields.matchMode")}</span>
+                  <select value={ruleForm.match_mode} onChange={(event) => setRuleForm((current) => ({ ...current, match_mode: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none">
                     <option value="any">{t("marketing.automation.matchModes.any")}</option>
                     <option value="all">{t("marketing.automation.matchModes.all")}</option>
                     <option value="exact">{t("marketing.automation.matchModes.exact")}</option>
                   </select>
                 </label>
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.triggerKeywords")}</span>
-                  <input value={ruleForm.trigger_keywords} onChange={(event) => setRuleForm((current) => ({ ...current, trigger_keywords: event.target.value }))} placeholder={t("marketing.automation.placeholders.triggerKeywords")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.automation.fields.triggerKeywords")}</span>
+                  <input value={ruleForm.trigger_keywords} onChange={(event) => setRuleForm((current) => ({ ...current, trigger_keywords: event.target.value }))} placeholder={t("marketing.automation.placeholders.triggerKeywords")} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
                 </label>
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.excludedKeywords")}</span>
-                  <input value={ruleForm.excluded_keywords} onChange={(event) => setRuleForm((current) => ({ ...current, excluded_keywords: event.target.value }))} placeholder={t("marketing.automation.placeholders.excludedKeywords")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.automation.fields.excludedKeywords")}</span>
+                  <input value={ruleForm.excluded_keywords} onChange={(event) => setRuleForm((current) => ({ ...current, excluded_keywords: event.target.value }))} placeholder={t("marketing.automation.placeholders.excludedKeywords")} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.erpPostId")}</span>
-                  <input value={ruleForm.post_id} onChange={(event) => setRuleForm((current) => ({ ...current, post_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.automation.fields.erpPostId")}</span>
+                  <input value={ruleForm.post_id} onChange={(event) => setRuleForm((current) => ({ ...current, post_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.platformPostId")}</span>
-                  <input value={ruleForm.platform_post_id} onChange={(event) => setRuleForm((current) => ({ ...current, platform_post_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.automation.fields.platformPostId")}</span>
+                  <input value={ruleForm.platform_post_id} onChange={(event) => setRuleForm((current) => ({ ...current, platform_post_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
                 </label>
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.fields.dmMessage")}</span>
-                  <textarea value={ruleForm.response_message} onChange={(event) => setRuleForm((current) => ({ ...current, response_message: event.target.value }))} rows={4} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.automation.fields.dmMessage")}</span>
+                  <textarea value={ruleForm.response_message} onChange={(event) => setRuleForm((current) => ({ ...current, response_message: event.target.value }))} rows={4} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.metaSettings.preview.template")}</span>
-                  <input value={ruleForm.template_name || ""} onChange={(event) => setRuleForm((current) => ({ ...current, template_name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.metaSettings.preview.template")}</span>
+                  <input value={ruleForm.template_name || ""} onChange={(event) => setRuleForm((current) => ({ ...current, template_name: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
                 </label>
-                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-200">
+                <label className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)]">
                   <input type="checkbox" checked={Boolean(ruleForm.ai_generated_replies)} onChange={(event) => setRuleForm((current) => ({ ...current, ai_generated_replies: event.target.checked }))} />
                   الردود المُولدة بالذكاء الاصطناعي
                 </label>
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.metaSettings.preview.fallbackReply")}</span>
-                  <textarea value={ruleForm.fallback_reply || ""} onChange={(event) => setRuleForm((current) => ({ ...current, fallback_reply: event.target.value }))} rows={2} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.metaSettings.preview.fallbackReply")}</span>
+                  <textarea value={ruleForm.fallback_reply || ""} onChange={(event) => setRuleForm((current) => ({ ...current, fallback_reply: event.target.value }))} rows={2} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none" />
                 </label>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <label className="flex items-center gap-3 text-sm text-slate-200">
+                <label className="flex items-center gap-3 text-sm text-[var(--text)]">
                   <input type="checkbox" checked={Boolean(ruleForm.is_active)} onChange={(event) => setRuleForm((current) => ({ ...current, is_active: event.target.checked }))} />
                   {t("marketing.campaigns.status.active")}
                 </label>
@@ -1779,25 +1779,25 @@ export default function MarketingSettings() {
 
             <div className="space-y-3">
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                <div className="text-sm font-black text-white">{t("marketing.metaSettings.preview.simulator")}</div>
+                <div className="text-sm font-black text-[var(--text)]">{t("marketing.metaSettings.preview.simulator")}</div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <input value={simulator.commenter_name} onChange={(event) => setSimulator((current) => ({ ...current, commenter_name: event.target.value }))} className="rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
-                  <input value={simulator.comment_text} onChange={(event) => setSimulator((current) => ({ ...current, comment_text: event.target.value }))} className="rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
+                  <input value={simulator.commenter_name} onChange={(event) => setSimulator((current) => ({ ...current, commenter_name: event.target.value }))} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none" />
+                  <input value={simulator.comment_text} onChange={(event) => setSimulator((current) => ({ ...current, comment_text: event.target.value }))} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none" />
                 </div>
-                <div className="mt-3 rounded-xl bg-slate-950/70 p-3 text-sm leading-6 text-slate-200">
+                <div className="mt-3 rounded-xl bg-[var(--surface)] p-3 text-sm leading-6 text-[var(--text)]">
                   {(ruleForm.response_message || ruleForm.fallback_reply || "").replace(/\{\{\s*commenter_name\s*\}\}/g, simulator.commenter_name || "Customer")}
                 </div>
               </div>
               {rules.length ? rules.map((rule) => (
-                <div key={rule.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                <div key={rule.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="font-semibold text-white">{rule.name}</div>
-                      <div className="mt-1 text-xs text-slate-400">{rule.platform} / {rule.match_mode} / {rule.is_active ? t("marketing.campaigns.status.active") : t("marketing.campaigns.status.paused")}</div>
-                      <div className="mt-2 text-sm text-slate-300">{listToInput(rule.trigger_keywords) || t("marketing.automation.allComments")}</div>
+                      <div className="font-semibold text-[var(--text)]">{rule.name}</div>
+                      <div className="mt-1 text-xs text-[var(--muted)]">{rule.platform} / {rule.match_mode} / {rule.is_active ? t("marketing.campaigns.status.active") : t("marketing.campaigns.status.paused")}</div>
+                      <div className="mt-2 text-sm text-[var(--muted)]">{listToInput(rule.trigger_keywords) || t("marketing.automation.allComments")}</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={() => applyRuleToForm(rule)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">{t("marketing.common.edit")}</button>
+                      <button onClick={() => applyRuleToForm(rule)} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--text)]">{t("marketing.common.edit")}</button>
                       <button onClick={() => runRuleTest(rule)} className="rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">{t("marketing.automation.test")}</button>
                       <button onClick={() => removeRule(rule.id)} className="rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1806,19 +1806,19 @@ export default function MarketingSettings() {
                   </div>
                 </div>
               )) : (
-                <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">{t("marketing.automation.commentDm.empty")}</div>
+                <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">{t("marketing.automation.commentDm.empty")}</div>
               )}
 
-              <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.automation.recentLogs")}</div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.automation.recentLogs")}</div>
                 <div className="mt-3 space-y-2">
                   {logs.slice(0, 5).map((log) => (
-                    <div key={log.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/5 px-3 py-2 text-xs text-slate-300">
+                    <div key={log.id} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface)] px-3 py-2 text-xs text-[var(--muted)]">
                       <span className="truncate">{log.comment_text}</span>
                       <span className={log.status === "sent" ? "text-emerald-300" : "text-rose-300"}>{log.status}</span>
                     </div>
                   ))}
-                  {!logs.length ? <div className="text-sm text-slate-500">{t("marketing.automation.noLogs")}</div> : null}
+                  {!logs.length ? <div className="text-sm text-[var(--muted)]">{t("marketing.automation.noLogs")}</div> : null}
                 </div>
               </div>
             </div>

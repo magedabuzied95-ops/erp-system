@@ -2778,14 +2778,31 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
-function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, removed = false, deliveryFormat = "", instagramDelivery = false, onRemove, onChange, onChoose }) {
+function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, colorChoices = [], colorRequired = false, removed = false, deliveryFormat = "", instagramDelivery = false, onRemove, onChange, onChoose }) {
   const hasCard = Boolean(card && (card.product_id || card.id));
   const showChoices = ambiguous && !hasCard && !removed && Array.isArray(choices) && choices.length > 0;
+  // Phase 12.2 — requested size available in >1 colour, none picked yet → require a colour before a card is definitive.
+  const showColorChoices = colorRequired && !hasCard && !removed && Array.isArray(colorChoices) && colorChoices.length > 0;
   if (removed) {
     return (
       <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/40 p-2 text-[11px] font-bold text-slate-300">
         تم حذف كارت المنتج — هيتبعت الرد بس.
         <button type="button" onClick={onChange} className="mr-2 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-black text-cyan-100">➕ إضافة منتج</button>
+      </div>
+    );
+  }
+  if (showColorChoices) {
+    return (
+      <div className="mt-2 rounded-xl border border-amber-300/25 bg-amber-400/10 p-2">
+        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100">المقاس متاح بأكتر من لون — اختار اللون</div>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {colorChoices.map((c) => (
+            <button key={c.variant_id || `${c.product_id}:${c.color}`} type="button" onClick={() => onChoose?.(c)} className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-slate-100 hover:bg-white/[0.1]">
+              {(c.image_url || c.image) ? <img src={c.image_url || c.image} alt={clean(c.color)} className="h-6 w-6 rounded border border-white/10 object-cover" /> : null}
+              {clean(c.color) || "لون"}{c.display_price ? ` — ${c.display_price} جنيه` : ""}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
@@ -2848,6 +2865,8 @@ function AiSuggestionCard({
   productCard = null,
   productChoices = [],
   productAmbiguous = false,
+  colorChoices = [],
+  colorRequired = false,
   productRemoved = false,
   deliveryFormat = "",
   channelName = "",
@@ -2930,6 +2949,8 @@ function AiSuggestionCard({
         card={productCard}
         choices={productChoices}
         ambiguous={productAmbiguous}
+        colorChoices={colorChoices}
+        colorRequired={colorRequired}
         removed={productRemoved}
         deliveryFormat={deliveryFormat}
         instagramDelivery={instagramDelivery}
@@ -2986,6 +3007,8 @@ function ManualReplyComposer({
   aiSuggestionProductCard = null,
   aiSuggestionProductChoices = [],
   aiSuggestionProductAmbiguous = false,
+  aiSuggestionColorChoices = [],
+  aiSuggestionColorRequired = false,
   aiSuggestionProductRemoved = false,
   aiSuggestionDeliveryFormat = "",
   aiSuggestionEditText = "",
@@ -3075,6 +3098,8 @@ function ManualReplyComposer({
           facts={aiSuggestionFacts}
           productCard={aiSuggestionProductCard}
           productChoices={aiSuggestionProductChoices}
+          colorChoices={aiSuggestionColorChoices}
+          colorRequired={aiSuggestionColorRequired}
           productAmbiguous={aiSuggestionProductAmbiguous}
           productRemoved={aiSuggestionProductRemoved}
           deliveryFormat={aiSuggestionDeliveryFormat}
@@ -7161,6 +7186,11 @@ export default function AiInbox() {
       setToast({ tone: "amber", text: "فيه أكتر من منتج مطابق — اختر المنتج المطلوب أو احذفه قبل الإرسال" });
       return;
     }
+    // Phase 12.2 — the requested size is available in multiple colours: require a colour pick before sending.
+    if (suggestionSendPackage?.color_choice_required && !suggestionChosenCard && !suggestionProductRemoved) {
+      setToast({ tone: "amber", text: "المقاس متاح بأكتر من لون — اختار اللون المطلوب قبل الإرسال" });
+      return;
+    }
     const card = effectiveSuggestionCard;
     const disposition = suggestionProductRemoved ? "removed" : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none"));
     // Send the INLINE-edited text when the employee edited the suggestion; otherwise the unchanged suggestion.
@@ -8631,6 +8661,8 @@ export default function AiInbox() {
                         aiSuggestionProductCard={effectiveSuggestionCard}
                         aiSuggestionProductChoices={suggestionSendPackage?.card_choices || []}
                         aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
+                        aiSuggestionColorChoices={suggestionSendPackage?.color_choices || []}
+                        aiSuggestionColorRequired={Boolean(suggestionSendPackage?.color_choice_required)}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
                         aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
                         aiSuggestionEditText={aiSuggestionEditText}
@@ -9490,6 +9522,8 @@ export default function AiInbox() {
                         aiSuggestionProductCard={effectiveSuggestionCard}
                         aiSuggestionProductChoices={suggestionSendPackage?.card_choices || []}
                         aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
+                        aiSuggestionColorChoices={suggestionSendPackage?.color_choices || []}
+                        aiSuggestionColorRequired={Boolean(suggestionSendPackage?.color_choice_required)}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
                         aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
                         aiSuggestionEditText={aiSuggestionEditText}

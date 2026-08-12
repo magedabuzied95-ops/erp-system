@@ -61,9 +61,9 @@ export default function MarketingDashboard() {
   ].filter((action) => hasPermission(action.permission));
 
   return (
-    <div className="min-h-full w-full overflow-x-hidden bg-[#060816] text-white">
+    <div className="min-h-full w-full overflow-x-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
@@ -71,7 +71,7 @@ export default function MarketingDashboard() {
                 {t("marketing.dashboard.eyebrow")}
               </div>
               <h1 className="m1-display">{t("marketing.dashboard.title")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.dashboard.subtitle")}</p>
+              <p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">{t("marketing.dashboard.subtitle")}</p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {quickActions.map(({ label, to, icon: Icon }) => (
@@ -79,7 +79,7 @@ export default function MarketingDashboard() {
                   key={label}
                   type="button"
                   onClick={() => navigate(to)}
-                  className="inline-flex min-w-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex min-w-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface-hover)]"
                 >
                   <Icon className="h-4 w-4" />
                   <span className="truncate">{label}</span>
@@ -89,7 +89,7 @@ export default function MarketingDashboard() {
           </div>
         </section>
 
-        {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
+        {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-600">{error}</div> : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           <MarketingMetricCard label={t("marketing.dashboard.metrics.totalPosts")} value={loading ? "-" : metrics.total_posts ?? 0} tone="violet" icon={<Megaphone className="h-5 w-5" />} />
@@ -100,44 +100,44 @@ export default function MarketingDashboard() {
           <MarketingMetricCard label={t("marketing.dashboard.metrics.drafts")} value={loading ? "-" : metrics.draft_posts ?? 0} tone="slate" icon={<Pencil className="h-5 w-5" />} />
         </section>
 
-        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="m1-section-title text-white">{t("marketing.dashboard.recent.title")}</h2>
-              <p className="text-sm text-slate-400">{t("marketing.dashboard.recent.subtitle")}</p>
+              <h2 className="m1-section-title text-[var(--text)]">{t("marketing.dashboard.recent.title")}</h2>
+              <p className="text-sm text-[var(--muted)]">{t("marketing.dashboard.recent.subtitle")}</p>
             </div>
           </div>
           <div className="m1-table-container overflow-x-auto">
             <table className="m1-table m1-table--compact min-w-full">
               <thead>
-                <tr className="text-start text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.dashboard.recent.titleHeader")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.channel")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.status")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.dashboard.recent.campaign")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.scheduled")}</th>
+                <tr className="text-start text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                  <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.dashboard.recent.titleHeader")}</th>
+                  <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.posts.headers.channel")}</th>
+                  <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.posts.headers.status")}</th>
+                  <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.dashboard.recent.campaign")}</th>
+                  <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.posts.headers.scheduled")}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.dashboard.recent.loading")}</td>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-[var(--muted)]">{t("marketing.dashboard.recent.loading")}</td>
                   </tr>
                 ) : recentPosts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.dashboard.recent.empty")}</td>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-[var(--muted)]">{t("marketing.dashboard.recent.empty")}</td>
                   </tr>
                 ) : (
                   recentPosts.map((post) => (
                     <tr key={String(post.id)} className="align-top">
-                      <td className="border-b border-white/5 px-3 py-4">
-                        <div className="font-semibold text-white">{post.title || t("marketing.posts.untitled")}</div>
-                        <div className="text-xs text-slate-400">{post.product_name || post.template_name || "-"}</div>
+                      <td className="border-b border-[var(--border)] px-3 py-4">
+                        <div className="font-semibold text-[var(--text)]">{post.title || t("marketing.posts.untitled")}</div>
+                        <div className="text-xs text-[var(--muted)]">{post.product_name || post.template_name || "-"}</div>
                       </td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{post.channel || "-"}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{post.status || "-"}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{post.campaign_name || "-"}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatDateTime(post.scheduled_at)}</td>
+                      <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{post.channel || "-"}</td>
+                      <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{post.status || "-"}</td>
+                      <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{post.campaign_name || "-"}</td>
+                      <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{formatDateTime(post.scheduled_at)}</td>
                     </tr>
                   ))
                 )}

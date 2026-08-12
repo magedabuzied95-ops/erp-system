@@ -109,10 +109,10 @@ export default function MarketingAnalytics() {
   const syncWarnings = Array.isArray(analytics?.sync?.warnings) ? analytics.sync.warnings : [];
 
   return (
-    <div className="min-h-full w-full overflow-x-hidden bg-[#0c0d0c] text-white">
+    <div className="min-h-full w-full overflow-x-hidden bg-[var(--card)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-7 px-4 py-6 md:px-6 lg:px-8 2xl:px-10 2xl:py-8">
         <MarketingStudioHeader size="large" />
-        <section className="rounded-[2rem] border border-amber-300/25 bg-[#171815] p-6 shadow-2xl shadow-black/30 md:p-7 2xl:p-8">
+        <section className="rounded-[2rem] border border-amber-300/25 bg-[var(--card)] p-6 shadow-[var(--shadow-card)] md:p-7 2xl:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
@@ -120,7 +120,7 @@ export default function MarketingAnalytics() {
                 {t("marketing.analytics.eyebrow")}
               </div>
               <h1 className="m1-display">{t("marketing.analytics.title")}</h1>
-              <p className="max-w-4xl text-base leading-7 text-slate-300">{t("marketing.analytics.subtitle")}</p>
+              <p className="max-w-4xl text-base leading-7 text-[var(--muted)]">{t("marketing.analytics.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -136,7 +136,7 @@ export default function MarketingAnalytics() {
                 type="button"
                 onClick={load}
                 disabled={loading}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-white/15 bg-white/[0.07] px-5 py-3 text-base font-bold text-white transition hover:bg-white/10 disabled:opacity-60"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-5 py-3 text-base font-bold text-[var(--text)] transition hover:bg-[var(--surface)] disabled:opacity-60"
               >
                 <Sparkles className="h-4 w-4 text-amber-300" />
                 {t("marketing.common.refreshView")}
@@ -171,14 +171,14 @@ export default function MarketingAnalytics() {
           <MarketingMetricCard size="large" label={t("marketing.analytics.metrics.engagementRate")} value={loading ? "-" : formatPercent(summary.engagement_rate)} tone="amber" icon={<CalendarDays className="h-6 w-6" />} />
         </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-[#191a18] p-6 shadow-2xl shadow-black/25 md:p-7">
+        <section className="rounded-[2rem] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-card)] md:p-7">
           <div className="grid gap-4 md:grid-cols-3">
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.platform")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.social.platform")}</span>
               <select
                 value={filters.platform}
                 onChange={(event) => setFilters((current) => ({ ...current, platform: event.target.value }))}
-                className="min-h-13 w-full rounded-[var(--radius-control)] border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
+                className="min-h-13 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-base text-[var(--text)] outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
               >
                 <option value="all">{t("marketing.social.allPlatforms")}</option>
                 <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
@@ -186,30 +186,30 @@ export default function MarketingAnalytics() {
               </select>
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.common.from")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.common.from")}</span>
               <input
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
-                className="min-h-13 w-full rounded-[var(--radius-control)] border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
+                className="min-h-13 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-base text-[var(--text)] outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
               />
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.common.to")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.common.to")}</span>
               <input
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
-                className="min-h-13 w-full rounded-[var(--radius-control)] border border-white/15 bg-[#10110f] px-4 py-3 text-base text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
+                className="min-h-13 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-base text-[var(--text)] outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/10"
               />
             </label>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-400">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
               <Filter className="h-3.5 w-3.5" />
               {t("marketing.analytics.filteredView", { platform: activePlatform === "all" ? t("marketing.social.allPlatforms") : activePlatform })}
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
               {t("marketing.analytics.lastSynced", { value: formatDateTime(summary.last_synced_at) })}
             </span>
           </div>

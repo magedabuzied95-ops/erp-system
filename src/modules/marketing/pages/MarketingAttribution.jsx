@@ -115,9 +115,9 @@ export default function MarketingAttribution() {
   const topRows = useMemo(() => topPosts.slice(0, 12), [topPosts]);
 
   return (
-    <div className="min-h-full w-full overflow-x-hidden bg-[#060816] text-white">
+    <div className="min-h-full w-full overflow-x-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
@@ -125,7 +125,7 @@ export default function MarketingAttribution() {
                 {t("marketing.analytics.attribution.eyebrow")}
               </div>
               <h1 className="m1-display">{t("marketing.analytics.attribution.title")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.analytics.attribution.subtitle")}</p>
+              <p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">{t("marketing.analytics.attribution.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -141,7 +141,7 @@ export default function MarketingAttribution() {
                 type="button"
                 onClick={load}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)] disabled:opacity-60"
               >
                 <BarChart3 className="h-4 w-4 text-primary" />
                 {t("marketing.common.refreshView")}
@@ -160,14 +160,14 @@ export default function MarketingAttribution() {
           <MarketingMetricCard label={t("marketing.analytics.attribution.metrics.conversionRate")} value={loading ? "-" : formatPercent(summary.conversion_rate)} tone="rose" icon={<RefreshCw className="h-5 w-5" />} />
         </section>
 
-        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
           <div className="grid gap-4 md:grid-cols-3">
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.platform")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.social.platform")}</span>
               <select
                 value={filters.platform}
                 onChange={(event) => setFilters((current) => ({ ...current, platform: event.target.value }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               >
                 <option value="all">{t("marketing.social.allPlatforms")}</option>
                 <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
@@ -178,38 +178,38 @@ export default function MarketingAttribution() {
               </select>
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.common.from")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.common.from")}</span>
               <input
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               />
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.common.to")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.common.to")}</span>
               <input
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               />
             </label>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-400">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
               <Filter className="h-3.5 w-3.5" />
               {t("marketing.analytics.filteredView", { platform: payload?.filters?.platform || filters.platform })}
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
               {t("marketing.analytics.lastSynced", { value: formatDateTime(summary.last_synced_at) })}
             </span>
           </div>
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="m1-section-title text-white">{t("marketing.analytics.funnel.title")}</h2>
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+            <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.funnel.title")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={funnelData}>
@@ -225,8 +225,8 @@ export default function MarketingAttribution() {
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="m1-section-title text-white">{t("marketing.analytics.salesOverTime")}</h2>
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+            <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.salesOverTime")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={salesOverTime}>
@@ -242,8 +242,8 @@ export default function MarketingAttribution() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="m1-section-title text-white">{t("marketing.analytics.platformComparison")}</h2>
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+            <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.platformComparison")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -258,8 +258,8 @@ export default function MarketingAttribution() {
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="m1-section-title text-white">{t("marketing.analytics.storyVsPost")}</h2>
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+            <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.storyVsPost")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={storyVsPost}>
@@ -275,44 +275,44 @@ export default function MarketingAttribution() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
             <div className="mb-4">
-              <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
-              <p className="text-sm text-slate-400">{t("marketing.analytics.attribution.bestPerformers")}</p>
+              <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
+              <p className="text-sm text-[var(--muted)]">{t("marketing.analytics.attribution.bestPerformers")}</p>
             </div>
             <div className="m1-table-container overflow-x-auto">
               <table className="m1-table m1-table--compact min-w-full">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.post")}</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.social.platform")}</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.funnel.orders")}</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.revenue")}</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.funnel.clicks")}</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.engagement")}</th>
+                  <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                    <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.analytics.table.post")}</th>
+                    <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.social.platform")}</th>
+                    <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.analytics.funnel.orders")}</th>
+                    <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.analytics.table.revenue")}</th>
+                    <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.analytics.funnel.clicks")}</th>
+                    <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.analytics.table.engagement")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.analytics.attribution.loading")}</td>
+                      <td colSpan={6} className="px-3 py-10 text-center text-sm text-[var(--muted)]">{t("marketing.analytics.attribution.loading")}</td>
                     </tr>
                   ) : topRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.analytics.attribution.empty")}</td>
+                      <td colSpan={6} className="px-3 py-10 text-center text-sm text-[var(--muted)]">{t("marketing.analytics.attribution.empty")}</td>
                     </tr>
                   ) : (
                     topRows.map((row) => (
                       <tr key={`${row.platform}-${row.post_id}`} className="align-top">
-                        <td className="border-b border-white/5 px-3 py-4">
-                          <div className="font-semibold text-white">{row.title || t("marketing.analytics.table.postNumber", { id: row.post_id })}</div>
-                          <div className="text-xs text-slate-400">{row.tracking_kind || "post"} • {row.last_event_at ? formatDateTime(row.last_event_at) : "-"}</div>
+                        <td className="border-b border-[var(--border)] px-3 py-4">
+                          <div className="font-semibold text-[var(--text)]">{row.title || t("marketing.analytics.table.postNumber", { id: row.post_id })}</div>
+                          <div className="text-xs text-[var(--muted)]">{row.tracking_kind || "post"} • {row.last_event_at ? formatDateTime(row.last_event_at) : "-"}</div>
                         </td>
-                        <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.platform || "-"}</td>
-                        <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatNumber(row.orders)}</td>
-                        <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatNumber(row.revenue)}</td>
-                        <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatNumber(row.clicks)}</td>
-                        <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatPercent(row.engagement_rate)}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{row.platform || "-"}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{formatNumber(row.orders)}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{formatNumber(row.revenue)}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{formatNumber(row.clicks)}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{formatPercent(row.engagement_rate)}</td>
                       </tr>
                     ))
                   )}
@@ -322,19 +322,19 @@ export default function MarketingAttribution() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-              <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.topCampaigns")}</h2>
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+              <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.attribution.topCampaigns")}</h2>
               <div className="mt-4 space-y-3">
                 {topCampaigns.length === 0 ? (
-                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.attribution.noCampaigns")}</div>
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">{t("marketing.analytics.attribution.noCampaigns")}</div>
                 ) : (
                   topCampaigns.slice(0, 6).map((campaign) => (
-                    <div key={`${campaign.platform}-${campaign.campaign}`} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                      <div className="font-semibold text-white">{campaign.campaign || t("marketing.analytics.attribution.unassigned")}</div>
-                      <div className="mt-1 text-sm text-slate-400">{campaign.platform || t("marketing.social.platforms.other")}</div>
-                      <div className="mt-3 flex items-center justify-between text-sm text-slate-300">
+                    <div key={`${campaign.platform}-${campaign.campaign}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                      <div className="font-semibold text-[var(--text)]">{campaign.campaign || t("marketing.analytics.attribution.unassigned")}</div>
+                      <div className="mt-1 text-sm text-[var(--muted)]">{campaign.platform || t("marketing.social.platforms.other")}</div>
+                      <div className="mt-3 flex items-center justify-between text-sm text-[var(--muted)]">
                         <span>{t("marketing.analytics.attribution.orderCount", { count: formatNumber(campaign.orders) })}</span>
-                        <span className="font-semibold text-white">{t("marketing.analytics.attribution.revenueValue", { value: formatNumber(campaign.revenue) })}</span>
+                        <span className="font-semibold text-[var(--text)]">{t("marketing.analytics.attribution.revenueValue", { value: formatNumber(campaign.revenue) })}</span>
                       </div>
                     </div>
                   ))
@@ -342,22 +342,22 @@ export default function MarketingAttribution() {
               </div>
             </div>
 
-            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-              <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.revenuePerPlatform")}</h2>
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+              <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.attribution.revenuePerPlatform")}</h2>
               <div className="mt-4 space-y-3">
                 {platformComparison.length === 0 ? (
-                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.noPlatformComparison")}</div>
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">{t("marketing.analytics.noPlatformComparison")}</div>
                 ) : (
                   platformComparison.map((row, index) => (
-                    <div key={row.platform || index} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
+                    <div key={row.platform || index} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <div className="font-semibold text-white">{row.platform || "-"}</div>
-                          <div className="text-xs text-slate-400">{t("marketing.analytics.attribution.orderCount", { count: formatNumber(row.orders) })}</div>
+                          <div className="font-semibold text-[var(--text)]">{row.platform || "-"}</div>
+                          <div className="text-xs text-[var(--muted)]">{t("marketing.analytics.attribution.orderCount", { count: formatNumber(row.orders) })}</div>
                         </div>
                         <div className="text-right">
-                          <div className="font-semibold text-white">{formatNumber(row.revenue)}</div>
-                          <div className="text-xs text-slate-400">{formatPercent(row.conversion_rate)}</div>
+                          <div className="font-semibold text-[var(--text)]">{formatNumber(row.revenue)}</div>
+                          <div className="text-xs text-[var(--muted)]">{formatPercent(row.conversion_rate)}</div>
                         </div>
                       </div>
                     </div>

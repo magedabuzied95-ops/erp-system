@@ -78,8 +78,8 @@ function PostMediaPreview({ post, className = "" }) {
 
   if (!mediaUrl || failed) {
     return (
-      <div className={`flex flex-col items-center justify-center gap-2 bg-[#181916] text-center text-slate-500 ${className}`}>
-        <span className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
+      <div className={`flex flex-col items-center justify-center gap-2 bg-[var(--card)] text-center text-[var(--muted)] ${className}`}>
+        <span className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]">
           <ImageIcon className="h-6 w-6" />
         </span>
         <span className="px-3 text-xs font-semibold">{t("marketing.campaignAnalytics.media.noImage")}</span>
@@ -91,14 +91,14 @@ function PostMediaPreview({ post, className = "" }) {
     return (
       <div className={`relative overflow-hidden bg-black ${className}`}>
         <video src={mediaUrl} muted playsInline preload="metadata" onError={() => setFailed(true)} className="h-full w-full object-cover" />
-        <span className="absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-black/55 text-white backdrop-blur">
+        <span className="absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] backdrop-blur">
           <Play className="h-5 w-5 fill-current" />
         </span>
       </div>
     );
   }
 
-  return <img src={mediaUrl} alt={deriveTemplateLabel(post)} loading="lazy" onError={() => setFailed(true)} className={`bg-[#181916] object-cover ${className}`} />;
+  return <img src={mediaUrl} alt={deriveTemplateLabel(post)} loading="lazy" onError={() => setFailed(true)} className={`bg-[var(--card)] object-cover ${className}`} />;
 }
 
 const getHistoryStatusDetails = (status, errorMessage = "") => {
@@ -254,21 +254,21 @@ export default function MarketingCampaignAnalyticsPanel({
   };
 
   return (
-    <section className="space-y-6 rounded-[2rem] border border-white/10 bg-[#191a18] p-5 shadow-2xl shadow-black/25 md:p-6 2xl:p-7">
+    <section className="space-y-6 rounded-[2rem] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6 2xl:p-7">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-2 text-amber-200">
             <BarChart3 className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="m1-section-title text-white">{t("marketing.campaignAnalytics.title")}</h2>
-            <p className="text-base text-slate-300">{t("marketing.campaignAnalytics.subtitle")}</p>
+            <h2 className="m1-section-title text-[var(--text)]">{t("marketing.campaignAnalytics.title")}</h2>
+            <p className="text-base text-[var(--muted)]">{t("marketing.campaignAnalytics.subtitle")}</p>
           </div>
         </div>
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-white/15 bg-white/[0.07] px-4 py-2 text-base font-semibold text-white transition hover:bg-white/[0.11]"
+          className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-base font-semibold text-[var(--text)] transition hover:bg-[var(--surface-hover)]"
         >
           <RefreshCcw className="h-4 w-4" />
           {t("marketing.campaignAnalytics.refresh")}
@@ -278,22 +278,22 @@ export default function MarketingCampaignAnalyticsPanel({
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[1.5rem] border border-emerald-400/25 bg-emerald-400/12 p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">{t("marketing.campaignAnalytics.kpi.published")}</div>
-          <div className="mt-3 text-4xl font-black text-white">{loading ? "-" : summary.published ?? analyticsCounts.published}</div>
+          <div className="mt-3 text-4xl font-black text-[var(--text)]">{loading ? "-" : summary.published ?? analyticsCounts.published}</div>
           <div className="mt-1 text-xs text-emerald-100/80">{t("marketing.campaignAnalytics.kpi.publishedHint")}</div>
         </div>
         <div className="rounded-[1.5rem] border border-amber-400/25 bg-amber-400/12 p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-100">{t("marketing.campaignAnalytics.kpi.scheduled")}</div>
-          <div className="mt-3 text-4xl font-black text-white">{loading ? "-" : summary.scheduled ?? analyticsCounts.scheduled}</div>
+          <div className="mt-3 text-4xl font-black text-[var(--text)]">{loading ? "-" : summary.scheduled ?? analyticsCounts.scheduled}</div>
           <div className="mt-1 text-xs text-amber-100/80">{t("marketing.campaignAnalytics.kpi.scheduledHint")}</div>
         </div>
-        <div className="rounded-[1.5rem] border border-white/15 bg-white/[0.055] p-5">
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{t("marketing.campaignAnalytics.kpi.drafts")}</div>
-          <div className="mt-3 text-4xl font-black text-white">{loading ? "-" : summary.drafts ?? analyticsCounts.drafts}</div>
-          <div className="mt-1 text-xs text-slate-400">{t("marketing.campaignAnalytics.kpi.draftsHint")}</div>
+        <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface)] p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.campaignAnalytics.kpi.drafts")}</div>
+          <div className="mt-3 text-4xl font-black text-[var(--text)]">{loading ? "-" : summary.drafts ?? analyticsCounts.drafts}</div>
+          <div className="mt-1 text-xs text-[var(--muted)]">{t("marketing.campaignAnalytics.kpi.draftsHint")}</div>
         </div>
-        <div className="rounded-[1.5rem] border border-white/10 bg-[#20211e] p-5">
+        <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-200">{t("marketing.campaignAnalytics.kpi.firstComments")}</div>
-          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-white">
+          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[var(--text)]">
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-2 py-2">
               <div className="text-lg font-black">{loading ? "-" : summary.firstCommentPublished ?? analyticsCounts.firstCommentPublished}</div>
               <div className="text-[10px] uppercase tracking-[0.12em] text-emerald-100">{t("marketing.campaignAnalytics.kpi.firstCommentPublished")}</div>
@@ -304,20 +304,20 @@ export default function MarketingCampaignAnalyticsPanel({
             </div>
             <div className="rounded-2xl border border-slate-400/20 bg-slate-400/10 px-2 py-2">
               <div className="text-lg font-black">{loading ? "-" : summary.firstCommentSkipped ?? analyticsCounts.firstCommentSkipped}</div>
-              <div className="text-[10px] uppercase tracking-[0.12em] text-slate-200">{t("marketing.campaignAnalytics.kpi.firstCommentSkipped")}</div>
+              <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text)]">{t("marketing.campaignAnalytics.kpi.firstCommentSkipped")}</div>
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.85fr)]">
-        <div className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5">
+        <div className="rounded-[1.75rem] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">{t("marketing.campaignAnalytics.charts.title")}</div>
-              <div className="text-xs text-slate-500">{t("marketing.campaignAnalytics.charts.last30Days")}</div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.campaignAnalytics.charts.title")}</div>
+              <div className="text-xs text-[var(--muted)]">{t("marketing.campaignAnalytics.charts.last30Days")}</div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
+            <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
               <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
               {t("marketing.campaignAnalytics.charts.total")}
             </div>
@@ -328,15 +328,15 @@ export default function MarketingCampaignAnalyticsPanel({
                 const height = Math.max(8, Math.round((day.total / maxPostsPerDay) * 112));
                 return (
                   <div key={day.key} className="flex min-w-0 flex-col items-center gap-2">
-                    <div className="flex h-[112px] w-full items-end justify-center rounded-2xl border border-white/5 bg-black/10 px-1 py-2">
+                    <div className="flex h-[112px] w-full items-end justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-1 py-2">
                       <div
                         className="w-full rounded-t-2xl bg-gradient-to-t from-amber-600 via-amber-400 to-yellow-200 shadow-lg shadow-amber-500/15"
                         style={{ height: `${height}px` }}
                         title={`${day.label}: ${day.total}`}
                       />
                     </div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">{day.label}</div>
-                    <div className="text-[10px] text-slate-500">{day.total}</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">{day.label}</div>
+                    <div className="text-[10px] text-[var(--muted)]">{day.total}</div>
                   </div>
                 );
               })}
@@ -344,23 +344,23 @@ export default function MarketingCampaignAnalyticsPanel({
           </div>
         </div>
 
-        <div className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5">
+        <div className="rounded-[1.75rem] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-amber-300" />
             <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">{t("marketing.campaignAnalytics.timeline.title")}</div>
-              <div className="text-xs text-slate-500">{t("marketing.campaignAnalytics.timeline.subtitle")}</div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.campaignAnalytics.timeline.title")}</div>
+              <div className="text-xs text-[var(--muted)]">{t("marketing.campaignAnalytics.timeline.subtitle")}</div>
             </div>
           </div>
           <div className="mt-4 space-y-3">
             {timelineItems.length ? (
               timelineItems.map((item) => (
-                <div key={item.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
+                <div key={item.id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
                       {item.dayLabel} · {item.time}
                     </div>
-                    <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-200">
+                    <div className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text)]">
                       {item.platform}
                     </div>
                   </div>
@@ -379,7 +379,7 @@ export default function MarketingCampaignAnalyticsPanel({
                               : t("marketing.campaignAnalytics.timeline.firstCommentWith", { status: item.firstCommentStatusLabel })}
                       </span>
                     ) : (
-                      <span className="rounded-full border border-slate-400/20 bg-slate-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200">
+                      <span className="rounded-full border border-slate-400/20 bg-slate-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text)]">
                         {t("marketing.campaignAnalytics.timeline.firstCommentSkipped")}
                       </span>
                     )}
@@ -387,27 +387,27 @@ export default function MarketingCampaignAnalyticsPanel({
                 </div>
               ))
             ) : (
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">{t("marketing.campaignAnalytics.timeline.empty")}</div>
+              <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 text-sm text-[var(--muted)]">{t("marketing.campaignAnalytics.timeline.empty")}</div>
             )}
           </div>
         </div>
       </div>
 
-      <section className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5 md:p-6">
+      <section className="rounded-[1.75rem] border border-[var(--border)] bg-[var(--card)] p-5 md:p-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-200">
               <ImageIcon className="h-3.5 w-3.5" />
               {t("marketing.campaignAnalytics.history.badge")}
             </div>
-            <h3 className="m1-section-title text-white">{t("marketing.campaignAnalytics.history.title")}</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-400">{t("marketing.campaignAnalytics.history.subtitle")}</p>
+            <h3 className="m1-section-title text-[var(--text)]">{t("marketing.campaignAnalytics.history.title")}</h3>
+            <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("marketing.campaignAnalytics.history.subtitle")}</p>
           </div>
-          <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-300">{t("marketing.campaignAnalytics.history.postCount", { count: visiblePosts.length })}</div>
+          <div className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)]">{t("marketing.campaignAnalytics.history.postCount", { count: visiblePosts.length })}</div>
         </div>
 
         {visiblePosts.length === 0 ? (
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">{t("marketing.campaignAnalytics.history.empty")}</div>
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm text-[var(--muted)]">{t("marketing.campaignAnalytics.history.empty")}</div>
         ) : (
           <>
             <div className="space-y-3 md:hidden">
@@ -419,35 +419,35 @@ export default function MarketingCampaignAnalyticsPanel({
                 );
                 const publishedAtLabel = post.published_at ? formatDateTime(post.published_at) : post.scheduled_at ? formatDateTime(post.scheduled_at) : "-";
                 return (
-                  <article key={post.id} className="rounded-[1.5rem] border border-white/10 bg-[#1a1b18] p-4 shadow-xl shadow-black/15">
+                  <article key={post.id} className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)]">
                     <PostMediaPreview post={post} className="mb-4 h-56 w-full rounded-2xl" />
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-white">{getPrimaryPlatformLabel(post)}</div>
-                        <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-500">{deriveTemplateLabel(post)}</div>
+                        <div className="truncate text-sm font-semibold text-[var(--text)]">{getPrimaryPlatformLabel(post)}</div>
+                        <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">{deriveTemplateLabel(post)}</div>
                       </div>
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${statusDetails.toneClass}`}>
                         {statusDetails.label}
                       </span>
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.campaignAnalytics.history.captionPreview")}</div>
-                        <div className="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-100">{post.caption || t("marketing.campaignAnalytics.history.noCaption")}</div>
+                      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{t("marketing.campaignAnalytics.history.captionPreview")}</div>
+                        <div className="mt-2 line-clamp-3 break-words text-sm leading-6 text-[var(--text)]">{post.caption || t("marketing.campaignAnalytics.history.noCaption")}</div>
                       </div>
-                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.campaignAnalytics.history.commentPreview")}</div>
-                        <div className="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-100">{String(post.first_comment || "").trim() || "-"}</div>
+                      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{t("marketing.campaignAnalytics.history.commentPreview")}</div>
+                        <div className="mt-2 line-clamp-3 break-words text-sm leading-6 text-[var(--text)]">{String(post.first_comment || "").trim() || "-"}</div>
                         <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${firstCommentStatus.toneClass}`}>
                           {String(post.first_comment || "").trim() && firstCommentStatus.key === "published" ? t("marketing.campaignAnalytics.history.firstCommentDone") : firstCommentStatus.label}
                         </div>
                       </div>
-                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.campaignAnalytics.history.publishedAt")}</div>
-                        <div className="mt-2 text-sm font-semibold text-white">{publishedAtLabel}</div>
+                      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{t("marketing.campaignAnalytics.history.publishedAt")}</div>
+                        <div className="mt-2 text-sm font-semibold text-[var(--text)]">{publishedAtLabel}</div>
                       </div>
-                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.campaignAnalytics.history.actions")}</div>
+                      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{t("marketing.campaignAnalytics.history.actions")}</div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <HistoryActionButton onClick={() => setSelectedPost(post)}>
                             <Eye className="h-3.5 w-3.5" />
@@ -476,7 +476,7 @@ export default function MarketingCampaignAnalyticsPanel({
             <div className="m1-table-container hidden overflow-x-auto md:block">
               <table className="m1-table m1-table--compact m1-table--separate min-w-[1280px] table-fixed border-separate">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                  <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
                     <th className="w-[14%] px-3">{t("marketing.campaignAnalytics.columns.creative")}</th>
                     <th className="w-[11%] px-3">{t("marketing.campaignAnalytics.columns.platform")}</th>
                     <th className="w-[14%] px-3">{t("marketing.campaignAnalytics.columns.template")}</th>
@@ -498,28 +498,28 @@ export default function MarketingCampaignAnalyticsPanel({
                     return (
                       <tr key={post.id} className="align-top">
                         <td className="px-3">
-                          <div className="overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#1a1b18] p-1.5 shadow-lg shadow-black/15">
+                          <div className="overflow-hidden rounded-[1.35rem] border border-[var(--border)] bg-[var(--card)] p-1.5 shadow-[var(--shadow-card)]">
                             <PostMediaPreview post={post} className="h-32 w-full rounded-2xl" />
                           </div>
                         </td>
                         <td className="px-3">
-                          <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
-                            <div className="truncate text-sm font-semibold text-white" title={getPrimaryPlatformLabel(post)}>
+                          <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface)] p-3">
+                            <div className="truncate text-sm font-semibold text-[var(--text)]" title={getPrimaryPlatformLabel(post)}>
                               {getPrimaryPlatformLabel(post)}
                             </div>
-                            <div className="mt-2 text-xs text-slate-500">{post.media_type || "image"}</div>
+                            <div className="mt-2 text-xs text-[var(--muted)]">{post.media_type || "image"}</div>
                           </div>
                         </td>
                         <td className="px-3">
-                          <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
-                            <div className="truncate text-sm font-semibold text-white" title={deriveTemplateLabel(post)}>
+                          <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface)] p-3">
+                            <div className="truncate text-sm font-semibold text-[var(--text)]" title={deriveTemplateLabel(post)}>
                               {deriveTemplateLabel(post)}
                             </div>
-                            <div className="mt-1 text-xs text-slate-500">{t("marketing.campaignAnalytics.history.templateSnapshot")}</div>
+                            <div className="mt-1 text-xs text-[var(--muted)]">{t("marketing.campaignAnalytics.history.templateSnapshot")}</div>
                           </div>
                         </td>
                         <td className="px-3">
-                          <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
+                          <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface)] p-3">
                             <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${statusDetails.toneClass}`}>
                               {statusDetails.label}
                             </span>
@@ -527,15 +527,15 @@ export default function MarketingCampaignAnalyticsPanel({
                           </div>
                         </td>
                         <td className="px-3">
-                          <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
-                            <div className="line-clamp-3 break-words text-sm leading-6 text-slate-100" title={post.caption || ""}>
+                          <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface)] p-3">
+                            <div className="line-clamp-3 break-words text-sm leading-6 text-[var(--text)]" title={post.caption || ""}>
                               {post.caption || t("marketing.campaignAnalytics.history.noCaption")}
                             </div>
                           </div>
                         </td>
                         <td className="px-3">
-                          <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
-                            <div className="line-clamp-3 break-words text-sm leading-6 text-slate-100" title={String(post.first_comment || "").trim()}>
+                          <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface)] p-3">
+                            <div className="line-clamp-3 break-words text-sm leading-6 text-[var(--text)]" title={String(post.first_comment || "").trim()}>
                               {String(post.first_comment || "").trim() || "-"}
                             </div>
                             <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${firstCommentStatus.toneClass}`}>
@@ -544,14 +544,14 @@ export default function MarketingCampaignAnalyticsPanel({
                           </div>
                         </td>
                         <td className="px-3">
-                          <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3 text-sm text-white">
+                          <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface)] p-3 text-sm text-[var(--text)]">
                             <div className="truncate" title={publishedAtLabel}>
                               {publishedAtLabel}
                             </div>
                           </div>
                         </td>
                         <td className="px-3">
-                          <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
+                          <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface)] p-3">
                             <div className="flex flex-wrap gap-2">
                               <HistoryActionButton onClick={() => setSelectedPost(post)}>
                                 <Eye className="h-3.5 w-3.5" />
@@ -582,56 +582,56 @@ export default function MarketingCampaignAnalyticsPanel({
         )}
       </section>
 
-      <section className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5 md:p-6">
+      <section className="rounded-[1.75rem] border border-[var(--border)] bg-[var(--card)] p-5 md:p-6">
         <div className="mb-4 flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-300" />
           <div>
-            <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">{t("marketing.campaignAnalytics.top.title")}</div>
-            <div className="text-xs text-slate-500">{t("marketing.campaignAnalytics.top.subtitle")}</div>
+            <div className="text-sm font-black uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.campaignAnalytics.top.title")}</div>
+            <div className="text-xs text-[var(--muted)]">{t("marketing.campaignAnalytics.top.subtitle")}</div>
           </div>
         </div>
         <div className="m1-table-container overflow-x-auto">
           <table className="m1-table m1-table--compact min-w-full">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.post")}</th>
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.platform")}</th>
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.likes")}</th>
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.comments")}</th>
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.shares")}</th>
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.reach")}</th>
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.impressions")}</th>
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.engagement")}</th>
-                <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.synced")}</th>
+              <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.post")}</th>
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.platform")}</th>
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.likes")}</th>
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.comments")}</th>
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.shares")}</th>
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.reach")}</th>
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.impressions")}</th>
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.engagement")}</th>
+                <th className="border-b border-[var(--border)] px-3 py-3 font-semibold">{t("marketing.campaignAnalytics.top.synced")}</th>
               </tr>
             </thead>
             <tbody>
               {topRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={9} className="px-3 py-10 text-center text-sm text-[var(--muted)]">
                     {t("marketing.campaignAnalytics.top.empty")}
                   </td>
                 </tr>
               ) : (
                 topRows.map((row) => (
                   <tr key={`${row.platform}-${row.id}`} className="align-top">
-                    <td className="border-b border-white/5 px-3 py-4">
-                      <div className="max-w-[320px] truncate font-semibold text-white" title={row.title || t("marketing.campaignAnalytics.media.postNumber", { id: row.post_id })}>
+                    <td className="border-b border-[var(--border)] px-3 py-4">
+                      <div className="max-w-[320px] truncate font-semibold text-[var(--text)]" title={row.title || t("marketing.campaignAnalytics.media.postNumber", { id: row.post_id })}>
                         {row.title || t("marketing.campaignAnalytics.media.postNumber", { id: row.post_id })}
                       </div>
-                      <div className="text-xs text-slate-400">{row.platform_post_id || "-"}</div>
+                      <div className="text-xs text-[var(--muted)]">{row.platform_post_id || "-"}</div>
                     </td>
-                    <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.platform || "-"}</td>
-                    <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.likes ?? 0}</td>
-                    <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.comments ?? 0}</td>
-                    <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.shares ?? 0}</td>
-                    <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.reach ?? "-"}</td>
-                    <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.impressions ?? "-"}</td>
-                    <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">
-                      <div className="font-semibold text-white">{row.engagement}</div>
-                      <div className="text-xs text-slate-400">{row.engagement_rate ? `${Number(row.engagement_rate).toFixed(1)}%` : "-"}</div>
+                    <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{row.platform || "-"}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{row.likes ?? 0}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{row.comments ?? 0}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{row.shares ?? 0}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{row.reach ?? "-"}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{row.impressions ?? "-"}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">
+                      <div className="font-semibold text-[var(--text)]">{row.engagement}</div>
+                      <div className="text-xs text-[var(--muted)]">{row.engagement_rate ? `${Number(row.engagement_rate).toFixed(1)}%` : "-"}</div>
                     </td>
-                    <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatDateTime(row.synced_at)}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">{formatDateTime(row.synced_at)}</td>
                   </tr>
                 ))
               )}
@@ -641,41 +641,41 @@ export default function MarketingCampaignAnalyticsPanel({
       </section>
 
       {selectedPost ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" role="presentation" onClick={() => setSelectedPost(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--surface)] p-4 backdrop-blur-sm" role="presentation" onClick={() => setSelectedPost(null)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-label={t("marketing.campaignAnalytics.modal.aria")}
-            className="flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#171815] text-white shadow-2xl shadow-black/60"
+            className="flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-[var(--shadow-card)]"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-4 md:px-6">
               <div className="min-w-0">
                 <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-100">{t("marketing.campaignAnalytics.modal.title")}</div>
-                <div className="text-xs text-slate-400">{deriveTemplateLabel(selectedPost)}</div>
+                <div className="text-xs text-[var(--muted)]">{deriveTemplateLabel(selectedPost)}</div>
               </div>
-              <button type="button" onClick={() => setSelectedPost(null)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]">
+              <button type="button" onClick={() => setSelectedPost(null)} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface-hover)]">
                 {t("marketing.campaignAnalytics.actions.close")}
               </button>
             </div>
             <div className="max-h-[78vh] overflow-y-auto p-4 md:p-6">
-              <PostMediaPreview post={selectedPost} className="mb-4 h-72 w-full rounded-3xl md:h-96" />
+              <PostMediaPreview post={selectedPost} className="mb-4 h-72 w-full rounded-[var(--radius-card)] md:h-96" />
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.campaignAnalytics.columns.platform")}</div>
-                  <div className="mt-2 text-sm font-semibold text-white">{getPrimaryPlatformLabel(selectedPost)}</div>
+                <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{t("marketing.campaignAnalytics.columns.platform")}</div>
+                  <div className="mt-2 text-sm font-semibold text-[var(--text)]">{getPrimaryPlatformLabel(selectedPost)}</div>
                 </div>
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.campaignAnalytics.columns.status")}</div>
-                  <div className="mt-2 text-sm font-semibold text-white">{getHistoryStatusDetails(selectedPost.status).label}</div>
+                <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{t("marketing.campaignAnalytics.columns.status")}</div>
+                  <div className="mt-2 text-sm font-semibold text-[var(--text)]">{getHistoryStatusDetails(selectedPost.status).label}</div>
                 </div>
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.campaignAnalytics.columns.caption")}</div>
-                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white">{selectedPost.caption || t("marketing.campaignAnalytics.history.noCaption")}</div>
+                <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 md:col-span-2">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{t("marketing.campaignAnalytics.columns.caption")}</div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--text)]">{selectedPost.caption || t("marketing.campaignAnalytics.history.noCaption")}</div>
                 </div>
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.campaignAnalytics.columns.firstComment")}</div>
-                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white">{String(selectedPost.first_comment || "").trim() || "-"}</div>
+                <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 md:col-span-2">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{t("marketing.campaignAnalytics.columns.firstComment")}</div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--text)]">{String(selectedPost.first_comment || "").trim() || "-"}</div>
                 </div>
               </div>
             </div>

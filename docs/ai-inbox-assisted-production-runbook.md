@@ -233,6 +233,15 @@ Explicit new product always wins; ambiguous/expired → clarify. The operator se
 **"المنتج من سياق المحادثة"** chip. Full detail:
 [ai-inbox-durable-product-context.md](ai-inbox-durable-product-context.md).
 
+## 9b. Multi-colour size + Arabic stock wording (Phase 12.2)
+
+A grounded product + a size with **>1 in-stock colour** and no colour requested no longer silently
+picks the highest-stock colour — it returns **`color_choice_required`** and the operator must pick a
+colour (grounded choices, fresh ERP) before Approve & Send. One in-stock colour still auto-grounds;
+explicit colour still wins; unavailable colour never substitutes. Customer-facing stock counts use one
+helper (`1 → قطعة واحدة`, `2 → قطعتين`, `N → N قطع`) — presentation only, fact unchanged. Detail in
+[ai-inbox-durable-product-context.md](ai-inbox-durable-product-context.md) §13.
+
 ## 10. Change log
 
 - Stage A (Messenger, human-approved) declared GO. WA remains OFF.
