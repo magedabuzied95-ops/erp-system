@@ -3919,7 +3919,7 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return undefined;
-    navigator.serviceWorker.register("/inbox-sw.js?v=7", { scope: "/inbox" }).catch(() => null);
+    navigator.serviceWorker.register("/inbox-sw.js?v=8", { scope: "/inbox" }).catch(() => null);
     return undefined;
   }, []);
 

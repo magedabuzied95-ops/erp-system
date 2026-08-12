@@ -6992,7 +6992,7 @@ export default function AiInbox() {
     setReplySending(true);
     setError("");
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval }, { headers, perfComponent: "AiInbox.sendManualReply" });
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval, product_id: correctionMetadata?.product_id || null, product_disposition: correctionMetadata?.product_disposition || null }, { headers, perfComponent: "AiInbox.sendManualReply" });
       if (payload.message) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
@@ -7112,7 +7112,7 @@ export default function AiInbox() {
     let cardOk = true;
     if (card) {
       try {
-        await sendProductCards([card]);
+        await sendProductCards([card], { assistedApproval: true });
       } catch {
         cardOk = false;
         setToast({ tone: "amber", text: "الرد اتبعت، لكن كارت المنتج فشل — ابعته من زرار المنتج" });
@@ -7273,7 +7273,7 @@ export default function AiInbox() {
     }
   };
 
-  const sendProductCards = useCallback(async (productCards = []) => {
+  const sendProductCards = useCallback(async (productCards = [], options = {}) => {
     const cards = asArray(productCards)
       .map((card) => ({
         id: card.product_id ?? card.id ?? null,
@@ -7333,6 +7333,7 @@ export default function AiInbox() {
           product_cards: cards,
           client_request_id: clientRequestId,
           message_identity_key: messageIdentityKey,
+          assisted_approval: options.assistedApproval === true,
         },
         { headers, perfComponent: "AiInbox.sendProductCards" }
       );
