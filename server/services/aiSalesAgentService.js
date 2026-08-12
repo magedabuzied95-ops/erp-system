@@ -2530,6 +2530,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         last_message_at: conversation.last_message_at || conversation.updated_at,
         updated_at: conversation.updated_at,
         last_activity_at: conversation.last_message_at || conversation.updated_at,
+        // Phase 11 UI fix: surface the persisted AI reply draft on the inbox LIST (the passive path an operator
+        // opens) so a background-generated inbound-intake draft renders as the reviewable suggestion card
+        // (Edit/Reject/Approve&Send). Empty drafts normalize to blank text and stay hidden by the FE gate.
+        ai_reply_draft: normalizeAiReplyDraft(conversation.last_ai_reply_draft || {}),
+        last_ai_reply_draft_updated_at: conversation.last_ai_reply_draft_updated_at || null,
         unread_count: unreadCount,
         unread: unreadCount > 0,
         waiting: false,
