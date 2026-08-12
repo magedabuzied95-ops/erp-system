@@ -102,7 +102,28 @@ disposition, and style-learning evidence are all unchanged. Style profile shapes
 **no** role in selecting the subject. Human takeover still blocks suggestion generation; on Return to
 AI, context is reused only if still inside the recency window.
 
-## 13. Known limitations
+## 13. Multi-colour size disambiguation (Phase 12.2)
+
+For a recalled (or explicit) product + a requested size with **no colour**:
+- **0** in-stock colours → unavailable.
+- **1** in-stock colour → auto-ground that exact variant (the proven Adistar-Navy behaviour).
+- **>1** in-stock colours → **`color_choice_required`**: confirm the size is available and surface grounded
+  colour choices `[{ color, variant_id, stock, product_id, size }]` (deduped by normalised colour,
+  best-stock representative per colour) — **never** silently pick the highest-stock colour. No card is
+  definitive until a colour is picked; the employee must choose (or Remove) before Approve & Send.
+
+**Explicit colour always wins**: "مقاس 43 الأسود؟" resolves the black variant directly (no choices); if black
+is unavailable it reports that per existing policy — never substitutes another colour. All colour facts come
+from **current** ERP variant stock (never previous-turn stock/colours). After a colour is picked, the send-ready
+card/link represents that grounded variant via the existing channel capability (Messenger rich card / Instagram
+concise text+link — the Instagram formatter is unchanged).
+
+### Arabic stock wording
+One deterministic helper `formatArabicPieces(n)` — `1 → قطعة واحدة`, `2 → قطعتين`, else `N قطع` — used wherever a
+customer-facing count is shown. Presentation only; never changes the stock number, availability, or variant.
+The style profile can still omit the exact count as before.
+
+## 14. Known limitations
 
 - 30-minute window is deliberately conservative; long gaps clarify (safe).
 - A bare price "بكام؟" recalls the subject but the concrete variant may still need a size to be exact.

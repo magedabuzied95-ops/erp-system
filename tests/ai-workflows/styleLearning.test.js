@@ -99,7 +99,7 @@ test("SAFETY: price/stock/product are NOT learnable as style (profile has only p
 test("learning disabled (no profile) → neutral renderer keeps full facts", () => {
   const rendered = renderGroundedAvailability({ typeLabel: "Air Jordan 4", sizeTxt: " مقاس 41", stock: 2, styleProfile: null });
   assert.match(rendered, /متوفر حاليًا/);
-  assert.match(rendered, /2 قطع/); // neutral keeps the exact stock
+  assert.match(rendered, /قطعتين/); // Phase 12.2 — grammatical Arabic count (2 → قطعتين), stock fact unchanged
 });
 
 test("reset profile → deriving from no corrections yields an empty profile (audit rows unaffected)", () => {
