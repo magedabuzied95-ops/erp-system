@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 3020,
+    "arabic": 2667,
     "english": 2546,
-    "total": 5566,
-    "mixedFiles": 58
+    "total": 5213,
+    "mixedFiles": 54
   },
   "files": {
     "src/App.jsx": {
@@ -502,20 +502,15 @@
       "english": 8,
       "total": 42
     },
-    "src/modules/employees/pages/EmployeePortal.jsx": {
-      "arabic": 13,
-      "english": 0,
-      "total": 13
-    },
     "src/modules/employees/pages/EmployeePortalInventory.jsx": {
-      "arabic": 52,
+      "arabic": 0,
       "english": 7,
-      "total": 59
+      "total": 7
     },
     "src/modules/employees/pages/EmployeePortalProducts.jsx": {
-      "arabic": 16,
+      "arabic": 0,
       "english": 15,
-      "total": 31
+      "total": 15
     },
     "src/modules/employees/pages/StaffTasks.jsx": {
       "arabic": 7,
@@ -578,14 +573,14 @@
       "total": 9
     },
     "src/modules/managerPortal/pages/InventoryApprovals.jsx": {
-      "arabic": 42,
+      "arabic": 0,
       "english": 2,
-      "total": 44
+      "total": 2
     },
     "src/modules/managerPortal/pages/ManagerPortal.jsx": {
-      "arabic": 230,
+      "arabic": 0,
       "english": 12,
-      "total": 242
+      "total": 12
     },
     "src/modules/marketing/components/MarketingCampaignAnalyticsPanel.jsx": {
       "arabic": 0,

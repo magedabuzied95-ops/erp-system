@@ -51,6 +51,13 @@ import {
   upsertEmployeePortalInventoryItem,
 } from "../services/employeePortalInventoryApi";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 // Map the server identity block (snake_case) to the draft store's camelCase
 // identity used to build the token-free namespace key.
 const toDraftIdentity = (identity = {}) => ({
@@ -201,22 +208,21 @@ const normalizeColorKey = (value = "") => {
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[إأآا]/g, "ا")
-    .replace(/ى/g, "ي")
-    .replace(/ة/g, "ه")
+    .replace(/[إأآا]/g, tt("employeePortal.initials.alef"))
+    .replace(/ى/g, tt("employeePortal.initials.ya"))
+    .replace(/ة/g, tt("employeePortal.initials.ha"))
     .replace(/\s+/g, "")
     .replace(/[^\p{L}\p{N}]+/gu, "");
   return aliases[normalized] || normalized;
 };
 
 const sessionStatusLabels = {
-  draft: "مسودة",
-  in_progress: "قيد التنفيذ",
-  pending_review: "قيد المراجعة",
-  rejected: "مرفوضة",
-  completed: "مكتملة",
-  cancelled: "ملغاة",
-};
+  get draft() { return tt("employeePortal.status.draft"); },
+  get in_progress() { return tt("employeePortal.status.inProgress"); },
+  get pending_review() { return tt("employeePortal.status.underReview"); },
+  get rejected() { return tt("employeePortal.status.rejected"); },
+  get completed() { return tt("employeePortal.status.completed"); },
+  get cancelled() { return tt("employeePortal.status.cancelled"); },};
 
 const sessionStatusTone = {
   draft: "border-slate-200 bg-slate-50 text-slate-700",
@@ -227,14 +233,16 @@ const sessionStatusTone = {
   cancelled: "border-zinc-200 bg-zinc-100 text-zinc-600",
 };
 
+// Module-scope array: stores translation KEYS and resolves them at render, so the
+// labels follow a language change instead of freezing at import time.
 const sessionFilters = [
-  { value: "active", label: "النشطة", statuses: ["draft", "in_progress", "pending_review", "rejected"] },
-  { value: "draft", label: "مسودة", statuses: ["draft"] },
-  { value: "in_progress", label: "قيد التنفيذ", statuses: ["in_progress"] },
-  { value: "pending_review", label: "قيد المراجعة", statuses: ["pending_review"] },
-  { value: "rejected", label: "مرفوضة", statuses: ["rejected"] },
-  { value: "completed", label: "مكتملة", statuses: ["completed"] },
-  { value: "all", label: "الكل", statuses: null },
+  { value: "active", labelKey: "employeePortal.products.active", statuses: ["draft", "in_progress", "pending_review", "rejected"] },
+  { value: "draft", labelKey: "employeePortal.status.draft", statuses: ["draft"] },
+  { value: "in_progress", labelKey: "employeePortal.status.inProgress", statuses: ["in_progress"] },
+  { value: "pending_review", labelKey: "employeePortal.status.underReview", statuses: ["pending_review"] },
+  { value: "rejected", labelKey: "employeePortal.status.rejected", statuses: ["rejected"] },
+  { value: "completed", labelKey: "employeePortal.status.completed", statuses: ["completed"] },
+  { value: "all", labelKey: "employeePortal.common.all", statuses: null },
 ];
 
 const buildCatalogParams = () => ({
@@ -433,13 +441,13 @@ function ScannerModal({ onClose, onScan }) {
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="ماسح الباركود"
+        aria-label={tt("employeePortal.scanner.title")}
         dir="rtl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 text-white">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Inventory</div>
-            <h3 className="m1-section-title mt-1">امسح الباركود</h3>
+            <h3 className="m1-section-title mt-1">{tt("employeePortal.scanner.scanNow")}</h3>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-300">
             <X className="h-4 w-4" />
@@ -450,16 +458,16 @@ function ScannerModal({ onClose, onScan }) {
             <BarcodeScanner
               onScan={submitScan}
               onPermissionDenied={(message) => {
-                setScannerMessage(message || "تم رفض إذن الكاميرا");
-                toast.error(message || "تم رفض إذن الكاميرا");
+                setScannerMessage(message || tt("employeePortal.scanner.permissionDenied"));
+                toast.error(message || tt("employeePortal.scanner.permissionDenied"));
               }}
               onUnsupported={(message) => {
-                setScannerMessage(message || "الكاميرا أو المتصفح لا يدعم الماسح");
-                toast.error(message || "الكاميرا أو المتصفح لا يدعم الماسح");
+                setScannerMessage(message || tt("employeePortal.scanner.unsupported"));
+                toast.error(message || tt("employeePortal.scanner.unsupported"));
               }}
               onError={(message) => {
-                setScannerMessage(message || "تعذر تشغيل ماسح الكاميرا");
-                toast.error(message || "تعذر تشغيل ماسح الكاميرا");
+                setScannerMessage(message || tt("employeePortal.scanner.startFailed"));
+                toast.error(message || tt("employeePortal.scanner.startFailed"));
               }}
               className="overflow-hidden rounded-[1.35rem] bg-black"
               scannerClassName="min-h-[320px] w-full"
@@ -474,9 +482,9 @@ function ScannerModal({ onClose, onScan }) {
                 advanced: [{ focusMode: "continuous" }, { exposureMode: "continuous" }],
               }}
               logPrefix="INVENTORY_CAMERA"
-              frameHint="قرّب الباركود داخل المستطيل فقط"
-              statusPrimary="جاري القراءة..."
-              statusSecondary="استخدم إدخال يدوي لو القراءة تأخرت"
+              frameHint={tt("employeePortal.scanner.alignHint")}
+              statusPrimary={tt("employeePortal.scanner.reading")}
+              statusSecondary={tt("employeePortal.scanner.fallbackHint")}
               overlayFrameWidthPercent={85}
               overlayFrameHeight={140}
             />
@@ -487,9 +495,9 @@ function ScannerModal({ onClose, onScan }) {
               onClick={() => manualInputRef.current?.focus()}
               className="text-xs font-black text-emerald-200"
             >
-              اكتب الباركود يدويًا
+              {tt("employeePortal.scanner.typeManually")}
             </button>
-            <div className="mt-1 text-[11px] font-semibold text-zinc-400">أدخل الباركود يدويًا ثم اضغط بحث أو Enter</div>
+            <div className="mt-1 text-[11px] font-semibold text-zinc-400">{tt("employeePortal.scanner.manualHint")}</div>
             <div className="mt-2 flex gap-2">
               <input
                 ref={manualInputRef}
@@ -501,7 +509,7 @@ function ScannerModal({ onClose, onScan }) {
                     submitScan(manualValue);
                   }
                 }}
-                placeholder="أدخل الباركود يدويًا"
+                placeholder={tt("employeePortal.scanner.manualEntry")}
                 className="h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-white/10 bg-black/40 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
               <button
@@ -510,7 +518,7 @@ function ScannerModal({ onClose, onScan }) {
                 disabled={!clean(manualValue) || submitting}
                 className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50"
               >
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "بحث"}
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tt("employeePortal.common.search")}
               </button>
             </div>
             {scannerMessage ? <div className="mt-2 text-xs font-semibold text-amber-200">{scannerMessage}</div> : null}
@@ -523,6 +531,8 @@ function ScannerModal({ onClose, onScan }) {
 }
 
 export default function EmployeePortalInventory() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   const { token, sessionId: routeSessionId } = useParams();
   const [searchParams] = useSearchParams();
   usePageTitle(routeSessionId ? "Inventory Count Session" : "Employee Inventory Count");
@@ -626,7 +636,7 @@ export default function EmployeePortalInventory() {
       const rows = Array.isArray(response?.sessions) ? response.sessions : [];
       setSessions(rows);
     } catch (error) {
-      setSessionsError(error?.responseBody?.message || error?.message || "تعذر تحميل الجردات");
+      setSessionsError(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.loadListFailed"));
     } finally {
       setSessionsLoading(false);
     }
@@ -682,12 +692,12 @@ export default function EmployeePortalInventory() {
         // on the next successful load.
         setItems(draftRows);
         setSelectedSessionId(String(sessionId));
-        toast("وضع دون اتصال — تم استرجاع مسودة الجرد المحفوظة محليًا", { icon: "📴" });
+        toast(tt("employeePortal.stockCount.offlineDraft"), { icon: "📴" });
       } else {
-        toast.error("تعذر تحميل الجرد");
+        toast.error(tt("employeePortal.stockCount.loadFailed"));
       }
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر تحميل الجرد");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.loadFailed"));
     } finally {
       setSessionLoading(false);
     }
@@ -772,7 +782,7 @@ export default function EmployeePortalInventory() {
         })
         .catch((error) => {
           if (sessionState !== "pending_review" && sessionState !== "completed") {
-            toast.error(error?.responseBody?.message || error?.message || "تعذر البحث");
+            toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.searchFailed"));
           }
         })
         .finally(() => setLookupLoading(false));
@@ -968,7 +978,7 @@ export default function EmployeePortalInventory() {
     try {
       setSessionSaving(true);
       const response = await createEmployeePortalInventorySession(token, {
-        title: "جرد جديد",
+        title: tt("employeePortal.stockCount.new"),
         notes: "",
       });
       const created = response?.session || null;
@@ -976,10 +986,10 @@ export default function EmployeePortalInventory() {
         await loadSessions();
         navigate(`/employee-portal/${encodeURIComponent(token)}/inventory/${encodeURIComponent(created.id)}`);
         await loadSession(created.id);
-        toast.success("تم إنشاء الجرد");
+        toast.success(tt("employeePortal.stockCount.created"));
       }
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر إنشاء الجرد");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.createFailed"));
     } finally {
       setSessionSaving(false);
     }
@@ -1010,7 +1020,7 @@ export default function EmployeePortalInventory() {
         const portalBase = window.location.pathname.startsWith("/employee-app/") ? "/employee-app" : "/employee-portal";
         navigate(`${portalBase}/${encodeURIComponent(token)}/inventory/${encodeURIComponent(created.id)}?${params.toString()}`, { replace: true });
       } catch (error) {
-        if (!cancelled) toast.error(error?.responseBody?.message || error?.message || "تعذر فتح جرد المهمة");
+        if (!cancelled) toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.openTaskFailed"));
       } finally {
         if (!cancelled) setSessionSaving(false);
       }
@@ -1031,9 +1041,9 @@ export default function EmployeePortalInventory() {
         setSession(response.session);
       }
       await loadSessions();
-      toast.success("تم حفظ الجرد");
+      toast.success(tt("employeePortal.stockCount.saved"));
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر حفظ الجرد");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.saveFailed"));
     } finally {
       setSessionSaving(false);
     }
@@ -1046,9 +1056,9 @@ export default function EmployeePortalInventory() {
       const response = await openEmployeePortalInventorySession(token, session.id);
       if (response?.session) setSession(response.session);
       await refreshCurrentSession();
-      toast.success("تم بدء الجرد");
+      toast.success(tt("employeePortal.stockCount.started"));
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر بدء الجرد");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.startFailed"));
     } finally {
       setSessionOpening(false);
     }
@@ -1061,9 +1071,9 @@ export default function EmployeePortalInventory() {
       const response = await submitEmployeePortalInventorySession(token, session.id);
       if (response?.session) setSession(response.session);
       await refreshCurrentSession();
-      toast.success("تم إرسال الجرد للمراجعة");
+      toast.success(tt("employeePortal.stockCount.submitted"));
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر إرسال الجرد للمراجعة");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.submitFailed"));
     } finally {
       setSessionSubmitting(false);
     }
@@ -1076,9 +1086,9 @@ export default function EmployeePortalInventory() {
       const response = await reopenEmployeePortalInventorySession(token, session.id);
       if (response?.session) setSession(response.session);
       await refreshCurrentSession();
-      toast.success("تم إعادة فتح الجرد للتعديل");
+      toast.success(tt("employeePortal.stockCount.reopened"));
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر إعادة فتح الجرد");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.reopenFailed"));
     } finally {
       setSessionReopening(false);
     }
@@ -1134,7 +1144,7 @@ export default function EmployeePortalInventory() {
       }
       if (response?.session) setSession(response.session);
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر حفظ القطعة");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.saveItemFailed"));
     } finally {
       if (options.busy !== false) setItemSavingId("");
     }
@@ -1165,7 +1175,7 @@ export default function EmployeePortalInventory() {
         await saveItem(currentVariant, patchToSave);
         logDevDuration("save item", startedAt, { variantId });
       } catch (error) {
-        toast.error(error?.responseBody?.message || error?.message || "تعذر حفظ القطعة");
+        toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.saveItemFailed"));
       } finally {
         setItemSavingId("");
       }
@@ -1212,9 +1222,9 @@ export default function EmployeePortalInventory() {
       }));
       await refreshCurrentSession();
       logDevDuration("add color group", startedAt, { groupKey: group.key, variantCount: completeGroup.variants.length });
-      toast.success("تمت إضافة اللون للجرد");
+      toast.success(tt("employeePortal.stockCount.colorAdded"));
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر إضافة اللون");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.addColorFailed"));
     } finally {
       setItemSavingId("");
     }
@@ -1237,7 +1247,7 @@ export default function EmployeePortalInventory() {
         await addColorGroup(group);
       }
       setLookupQuery("");
-      toast.success("تمت إضافة ألوان ومقاسات الموديل إلى الجرد");
+      toast.success(tt("employeePortal.stockCount.modelAdded"));
     };
     void addTaskModel();
   }, [addColorGroup, isEditable, lookupGroups, lookupLoading, searchParams, session?.id]);
@@ -1267,10 +1277,10 @@ export default function EmployeePortalInventory() {
         }
         return true;
       }
-      toast.error("لم يتم العثور على منتج مطابق لهذا الباركود");
+      toast.error(tt("employeePortal.scanner.noMatchingProduct"));
       return false;
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر قراءة الباركود");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.scanner.readFailed"));
       return false;
     } finally {
       setLookupLoading(false);
@@ -1317,10 +1327,10 @@ export default function EmployeePortalInventory() {
     const productId = group?.product_id ?? group?.variants?.[0]?.product_id ?? null;
     const color = clean(group?.color || "");
     if (!productId || !color) {
-      toast.error("تعذر تحديد اللون للحذف");
+      toast.error(tt("employeePortal.stockCount.colorNotResolved"));
       return;
     }
-    const confirmed = window.confirm("هل تريد حذف هذا اللون من الجرد؟");
+    const confirmed = window.confirm(tt("employeePortal.stockCount.confirmDeleteColor"));
     if (!confirmed) return;
     try {
       setItemSavingId(String(group.key || productId));
@@ -1335,9 +1345,9 @@ export default function EmployeePortalInventory() {
         setItems(response.items);
       }
       await refreshCurrentSession();
-      toast.success("تم حذف اللون من الجرد");
+      toast.success(tt("employeePortal.stockCount.colorDeleted"));
     } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || "تعذر حذف اللون");
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.deleteColorFailed"));
     } finally {
       setItemSavingId("");
     }
@@ -1354,7 +1364,7 @@ export default function EmployeePortalInventory() {
   }, [branchDrawerOpen]);
 
   const currentBalance = differenceTotal === 0
-    ? "متوازن"
+    ? tt("employeePortal.status.balanced")
     : differenceTotal > 0
       ? `زيادة: ${Math.abs(differenceTotal)}`
       : `عجز: ${Math.abs(differenceTotal)}`;
@@ -1437,11 +1447,11 @@ export default function EmployeePortalInventory() {
             <div>
               <div className="hidden items-center gap-2 text-emerald-700 sm:flex">
                 <Warehouse className="h-5 w-5" />
-                <span className="text-xs font-black uppercase tracking-[0.18em]">بوابة الموظف</span>
+                <span className="text-xs font-black uppercase tracking-[0.18em]">{tt("employeePortal.shell.title")}</span>
               </div>
-              <h1 className="m1-page-title text-slate-950 sm:mt-2">الجرد</h1>
+              <h1 className="m1-page-title text-slate-950 sm:mt-2">{tt("employeePortal.nav.stockCount")}</h1>
               <div className="mt-2 hidden max-w-3xl rounded-2xl border border-primary/30 bg-primary-subtle px-3 py-2 text-xs font-bold leading-5 text-primary sm:inline-flex sm:text-sm">
-                تُرسل كميات الجرد للمراجعة قبل الاعتماد النهائي.
+                {tt("employeePortal.stockCount.reviewHint")}
               </div>
             </div>
             <div className="inventory-actions flex min-w-0 gap-2">
@@ -1449,10 +1459,10 @@ export default function EmployeePortalInventory() {
                 type="button"
                 onClick={() => setBranchDrawerOpen(true)}
                 className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:hidden"
-                aria-label="جردات الفرع"
+                aria-label={tt("employeePortal.stockCount.branchCounts")}
               >
                 <Menu className="h-4 w-4" />
-                جردات الفرع
+                {tt("employeePortal.stockCount.branchCounts")}
               </button>
               <button
                 type="button"
@@ -1460,7 +1470,7 @@ export default function EmployeePortalInventory() {
                 className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:inline-flex"
               >
                 <RefreshCw className="h-4 w-4" />
-                تحديث
+                {tt("employeePortal.common.refresh")}
               </button>
               <button
                 type="button"
@@ -1482,7 +1492,7 @@ export default function EmployeePortalInventory() {
                 onClick={() => setStatusFilter(filter.value)}
                 className={`rounded-full border px-4 py-2 text-sm font-black transition ${ statusFilter === filter.value ? "border-emerald-500 bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-white text-slate-600" }`}
               >
-                {filter.label}
+                {tt(filter.labelKey)}
               </button>
             ))}
           </div>
@@ -1492,27 +1502,27 @@ export default function EmployeePortalInventory() {
           <aside className="inventory-wrap hidden rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur lg:block">
             <div className="flex min-w-0 items-center justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="m1-section-title text-slate-950">جردات الفرع</h2>
-                <p className="text-xs font-semibold text-slate-500">المسودة، قيد التنفيذ، المراجعة والمرفوضة.</p>
+                <h2 className="m1-section-title text-slate-950">{tt("employeePortal.stockCount.branchCounts")}</h2>
+                <p className="text-xs font-semibold text-slate-500">{tt("employeePortal.stockCount.filterHint")}</p>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{visibleSessions.length}</span>
             </div>
             <label className="inventory-wrap mt-3 block rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
               <div className="flex items-center gap-2 text-xs font-black text-slate-400">
                 <Search className="h-4 w-4" />
-                بحث
+                {tt("employeePortal.common.search")}
               </div>
               <input
                 value={sessionSearch}
                 onChange={(event) => setSessionSearch(event.target.value)}
-                placeholder="ابحث باسم الجرد أو الفرع"
+                placeholder={tt("employeePortal.stockCount.searchPlaceholder")}
                 className="mt-1 w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400"
               />
             </label>
 
             <div className="mt-4 space-y-2">
               {sessionsLoading ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">جاري التحميل...</div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">{tt("employeePortal.common.loading")}</div>
               ) : sessionsError ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold leading-6 text-rose-700">{sessionsError}</div>
               ) : visibleSessions.length ? (
@@ -1528,9 +1538,9 @@ export default function EmployeePortalInventory() {
                     >
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
-                          <div className="truncate text-sm font-black text-slate-950">{row.title || "جرد جديد"}</div>
+                          <div className="truncate text-sm font-black text-slate-950">{row.title || tt("employeePortal.stockCount.new")}</div>
                           <div className="mt-1 text-xs font-semibold text-slate-500">
-                            {row.branch_name || "الفرع"}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
+                            {row.branch_name || tt("employeePortal.common.branch")}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
                           </div>
                         </div>
                         <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
@@ -1542,7 +1552,7 @@ export default function EmployeePortalInventory() {
                 })
               ) : (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-500">
-                  لا توجد جردات مطابقة لهذا الفلتر.
+                  {tt("employeePortal.stockCount.noMatch")}
                 </div>
               )}
             </div>
@@ -1552,14 +1562,14 @@ export default function EmployeePortalInventory() {
             {!session && sessionLoading ? (
               <div className="flex min-h-[420px] items-center justify-center gap-2 text-sm font-black text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                جاري تحميل الجرد...
+                {tt("employeePortal.stockCount.loading")}
               </div>
             ) : !session ? (
               <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 text-center">
                 <ClipboardList className="h-12 w-12 text-slate-300" />
-                <h2 className="m1-section-title mt-4 text-slate-950">اختر جردًا أو أنشئ جردًا جديدًا</h2>
+                <h2 className="m1-section-title mt-4 text-slate-950">{tt("employeePortal.stockCount.pickOrCreate")}</h2>
                 <p className="mt-2 max-w-lg text-sm font-semibold leading-6 text-slate-500">
-                  الجردات هنا تخص فرعك فقط، والجرد المكتمل لا يظهر إلا عند اختيار فلتر المكتملة.
+                  {tt("employeePortal.stockCount.scopeHint")}
                 </p>
               </div>
             ) : (
@@ -1567,13 +1577,13 @@ export default function EmployeePortalInventory() {
                 <div className="inventory-wrap flex min-w-0 flex-col gap-2 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-2.5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <h2 className="m1-section-title text-slate-950">{titleDraft || session.title || "جرد جديد"}</h2>
+                      <h2 className="m1-section-title text-slate-950">{titleDraft || session.title || tt("employeePortal.stockCount.new")}</h2>
                       <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[session.status] || sessionStatusTone.draft}`}>
                         {sessionStatusLabels[session.status] || session.status}
                       </span>
                     </div>
                     <div className="mt-0.5 text-xs font-semibold text-slate-500 sm:mt-1 sm:text-sm">
-                      {session.branch_name || "الفرع"}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
+                      {session.branch_name || tt("employeePortal.common.branch")}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
                     </div>
                   </div>
                   <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
@@ -1596,7 +1606,7 @@ export default function EmployeePortalInventory() {
                         className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 disabled:opacity-60"
                       >
                         <Save className="h-4 w-4" />
-                        حفظ
+                        {tt("employeePortal.common.save")}
                       </button>
                       <button
                         type="button"
@@ -1613,14 +1623,14 @@ export default function EmployeePortalInventory() {
 
                 {isPendingReview ? (
                   <div className="rounded-2xl border border-primary/30 bg-primary-subtle px-4 py-3 text-sm font-black text-primary">
-                    تم إرسال الجرد للمراجعة
+                    {tt("employeePortal.stockCount.submitted")}
                   </div>
                 ) : null}
 
                 {isRejected ? (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold leading-6 text-rose-800">
-                    <div className="font-black">سبب الرفض</div>
-                    <div className="mt-1">{clean(session.rejection_reason || session.rejectionReason || "") || "لم يتم ذكر سبب."}</div>
+                    <div className="font-black">{tt("employeePortal.stockCount.rejectionReason")}</div>
+                    <div className="mt-1">{clean(session.rejection_reason || session.rejectionReason || "") || tt("employeePortal.stockCount.noReasonGiven")}</div>
                     <button
                       type="button"
                       onClick={handleReopenSession}
@@ -1653,7 +1663,7 @@ export default function EmployeePortalInventory() {
 
                 <div className="grid min-w-0 gap-2 lg:grid-cols-[1fr_1fr]">
                   <label className="inventory-wrap block rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
-                    <div className="text-xs font-black text-slate-400">اسم الجرد</div>
+                    <div className="text-xs font-black text-slate-400">{tt("employeePortal.stockCount.name")}</div>
                     <input
                       value={titleDraft}
                       onChange={(event) => setTitleDraft(event.target.value)}
@@ -1662,7 +1672,7 @@ export default function EmployeePortalInventory() {
                     />
                   </label>
                   <label className="inventory-wrap block rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
-                    <div className="text-xs font-black text-slate-400">ملاحظات</div>
+                    <div className="text-xs font-black text-slate-400">{tt("employeePortal.common.notes")}</div>
                     <input
                       value={notesDraft}
                       onChange={(event) => setNotesDraft(event.target.value)}
@@ -1679,8 +1689,8 @@ export default function EmployeePortalInventory() {
                       onClick={() => setFiltersOpen(true)}
                       aria-expanded={filtersOpen}
                       className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-violet-400/40 bg-violet-500/10 text-violet-700 shadow-[0_0_18px_rgba(124,58,237,0.12)]" : "border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700" }`}
-                      aria-label="الفلاتر"
-                      title="الفلاتر"
+                      aria-label={tt("employeePortal.common.filters")}
+                      title={tt("employeePortal.common.filters")}
                     >
                       <span className="relative inline-flex">
                         <Filter className="h-4 w-4" />
@@ -1698,7 +1708,7 @@ export default function EmployeePortalInventory() {
                         value={lookupQuery}
                         onChange={(event) => setLookupQuery(event.target.value)}
                         disabled={!isEditable}
-                        placeholder="ابحث بالاسم أو الباركود أو الأرتكل"
+                        placeholder={tt("employeePortal.stockCount.searchItems")}
                         className="w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400 disabled:opacity-70"
                       />
                     </label>
@@ -1707,8 +1717,8 @@ export default function EmployeePortalInventory() {
                       onClick={() => setScannerOpen(true)}
                       disabled={!isEditable}
                       className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-60"
-                      aria-label="مسح الباركود"
-                      title="مسح الباركود"
+                      aria-label={tt("employeePortal.scanner.scan")}
+                      title={tt("employeePortal.scanner.scan")}
                     >
                       <Camera className="h-4 w-4" />
                     </button>
@@ -1717,7 +1727,7 @@ export default function EmployeePortalInventory() {
                     {lookupLoading ? (
                       <div className="inline-flex items-center gap-2 text-sm font-black text-slate-500">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        جاري البحث...
+                        {tt("employeePortal.scanner.searching")}
                       </div>
                     ) : null}                  </div>
                   {lookupGroups.length ? (
@@ -1726,12 +1736,12 @@ export default function EmployeePortalInventory() {
                         <div key={group.key} className="inventory-wrap rounded-[var(--radius-card)] border border-slate-200 bg-white p-3">
                           <div className="flex min-w-0 items-start gap-3">
                             <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                              <InventoryImage src={resolveCardImage(group)} alt={group.product_name || "منتج"} />
+                              <InventoryImage src={resolveCardImage(group)} alt={group.product_name || tt("employeePortal.common.product")} />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="truncate text-sm font-black text-slate-950">{group.product_name || "منتج"}</div>
+                              <div className="truncate text-sm font-black text-slate-950">{group.product_name || tt("employeePortal.common.product")}</div>
                               <div className="mt-1 text-xs font-semibold text-slate-500">
-                                {group.color || "لون غير محدد"} • {group.variants.length} قطع
+                                {group.color || tt("employeePortal.stockCount.unknownColor")} • {group.variants.length} قطع
                               </div>
                               {(group.article_code || group.category) ? (
                                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-black text-slate-600">
@@ -1754,7 +1764,7 @@ export default function EmployeePortalInventory() {
                                 className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-60"
                               >
                                 <Plus className="h-4 w-4" />
-                                إضافة اللون
+                                {tt("employeePortal.stockCount.addColor")}
                               </button>
                             </div>
                           </div>
@@ -1767,7 +1777,7 @@ export default function EmployeePortalInventory() {
                 <section className="inventory-wrap rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="inventory-title">
-                      <h3 className="m1-section-title text-slate-950">عناصر الجرد</h3>
+                      <h3 className="m1-section-title text-slate-950">{tt("employeePortal.stockCount.items")}</h3>
                       <p className="text-xs font-semibold text-slate-500">
                         المتوقع: {expectedTotal} • الفعلي: {countedTotal} • الفرق: {currentBalance}
                       </p>
@@ -1782,34 +1792,34 @@ export default function EmployeePortalInventory() {
                       <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-slate-50 p-3">
                         <div className="flex min-w-0 items-start gap-3">
                           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                            <InventoryImage src={resolveCardImage(group)} alt={group.product_name || "منتج"} />
+                            <InventoryImage src={resolveCardImage(group)} alt={group.product_name || tt("employeePortal.common.product")} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 items-start justify-between gap-2">
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-sm font-black text-slate-950">{group.product_name || "منتج"}</div>
+                                <div className="truncate text-sm font-black text-slate-950">{group.product_name || tt("employeePortal.common.product")}</div>
                                 <div className="mt-1 text-xs font-semibold text-slate-500">
                                   المتوقع {group.system_total} • الفعلي {group.counted_total}
                                 </div>
                               </div>
                               <div className="flex shrink-0 items-center gap-2">
                                 <span className="inline-flex max-w-[110px] items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-600">
-                                  <span className="truncate">{group.color || "لون غير محدد"}</span>
+                                  <span className="truncate">{group.color || tt("employeePortal.stockCount.unknownColor")}</span>
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteColorGroup(group)}
                                   disabled={!isEditable || itemSavingId === group.key}
                                   className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 text-[11px] font-black text-rose-700 disabled:opacity-60"
-                                  aria-label="حذف اللون"
+                                  aria-label={tt("employeePortal.stockCount.deleteColor")}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
-                                  <span className="hidden sm:inline">حذف اللون</span>
+                                  <span className="hidden sm:inline">{tt("employeePortal.stockCount.deleteColor")}</span>
                                 </button>
                               </div>
                             </div>
                             <div className="mt-2 text-xs font-black text-slate-500">
-                              {group.difference_total === 0 ? "متوازن" : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
+                              {group.difference_total === 0 ? tt("employeePortal.status.balanced") : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
                             </div>
                           </div>
                         </div>
@@ -1821,17 +1831,17 @@ export default function EmployeePortalInventory() {
                               <div key={variantId} className="inventory-item min-w-0 rounded-[var(--radius-card)] border border-white/80 bg-white p-3">
                                 <div className="flex min-w-0 items-start gap-3">
                                   <div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                                    <InventoryImage src={resolveCardImage(variant)} alt={`${group.product_name || "منتج"} ${variant.color || ""}`} />
+                                    <InventoryImage src={resolveCardImage(variant)} alt={`${group.product_name || tt("employeePortal.common.product")} ${variant.color || ""}`} />
                                   </div>
                                   <div className="inventory-item-main min-w-0 flex-1">
-                                    <div className="truncate text-sm font-black text-slate-950">{variant.size || variant.sku || "مقاس غير محدد"}</div>
+                                    <div className="truncate text-sm font-black text-slate-950">{variant.size || variant.sku || tt("employeePortal.stockCount.unknownSize")}</div>
                                     <div className="mt-1 text-xs font-semibold text-slate-500">
-                                      {variant.sku ? `SKU: ${variant.sku}` : variant.barcode ? `Barcode: ${variant.barcode}` : "بدون SKU"}
+                                      {variant.sku ? `SKU: ${variant.sku}` : variant.barcode ? `Barcode: ${variant.barcode}` : tt("employeePortal.stockCount.noSku")}
                                     </div>
                                   </div>
                                   <div className="text-left text-xs font-black">
                                     <span className={variant.difference_quantity === 0 ? "text-emerald-700" : variant.difference_quantity > 0 ? "text-amber-700" : "text-rose-700"}>
-                                      {variant.difference_quantity === 0 ? "متوازن" : variant.difference_quantity > 0 ? `زيادة ${variant.difference_quantity}` : `عجز ${Math.abs(variant.difference_quantity)}`}
+                                      {variant.difference_quantity === 0 ? tt("employeePortal.status.balanced") : variant.difference_quantity > 0 ? `زيادة ${variant.difference_quantity}` : `عجز ${Math.abs(variant.difference_quantity)}`}
                                     </span>
                                   </div>
                                 </div>
@@ -1841,7 +1851,7 @@ export default function EmployeePortalInventory() {
                                     onClick={() => adjustVariantCount(variant, -1)}
                                     disabled={!isEditable || saving}
                                     className="inline-flex h-14 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-2xl font-black text-slate-700 transition-colors disabled:opacity-50"
-                                    aria-label="إنقاص الكمية"
+                                    aria-label={tt("employeePortal.stockCount.decrement")}
                                   >
                                     -
                                   </button>
@@ -1857,7 +1867,7 @@ export default function EmployeePortalInventory() {
                                     onClick={() => adjustVariantCount(variant, 1)}
                                     disabled={!isEditable || saving}
                                     className="inline-flex h-14 items-center justify-center rounded-[var(--radius-control)] bg-primary text-2xl font-black text-[var(--primary-contrast)] transition-colors disabled:opacity-50"
-                                    aria-label="زيادة الكمية"
+                                    aria-label={tt("employeePortal.stockCount.increment")}
                                   >
                                     +
                                   </button>
@@ -1869,7 +1879,7 @@ export default function EmployeePortalInventory() {
                       </div>
                     )) : (
                       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm font-bold leading-6 text-slate-500">
-                        لا توجد عناصر بعد. ابحث عن منتج أو امسح الباركود لبدء الجرد.
+                        {tt("employeePortal.stockCount.noItemsYet")}
                       </div>
                     )}
                   </div>
@@ -1965,14 +1975,14 @@ function BranchInventoryDrawer({
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">بوابة الموظف</div>
-            <h2 id="branch-inventory-drawer-title" className="m1-section-title mt-1 text-slate-950">جردات الفرع</h2>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">{tt("employeePortal.shell.title")}</div>
+            <h2 id="branch-inventory-drawer-title" className="m1-section-title mt-1 text-slate-950">{tt("employeePortal.stockCount.branchCounts")}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-700 shadow-sm"
-            aria-label="إغلاق"
+            aria-label={tt("employeePortal.common.close")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -1987,7 +1997,7 @@ function BranchInventoryDrawer({
                 onClick={() => setStatusFilter(filter.value)}
                 className={`rounded-full border px-3 py-2 text-xs font-black transition ${ statusFilter === filter.value ? "border-emerald-500 bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-white text-slate-600" }`}
               >
-                {filter.label}
+                {tt(filter.labelKey)}
               </button>
             ))}
           </div>
@@ -2005,24 +2015,24 @@ function BranchInventoryDrawer({
           <label className="mt-4 block rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-black text-slate-400">
               <Search className="h-4 w-4" />
-              بحث
+              {tt("employeePortal.common.search")}
             </div>
             <input
               value={sessionSearch}
               onChange={(event) => setSessionSearch(event.target.value)}
-              placeholder="ابحث باسم الجرد أو الفرع"
+              placeholder={tt("employeePortal.stockCount.searchPlaceholder")}
               className="mt-1 w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400"
             />
           </label>
 
           <div className="mt-4 flex items-center justify-between gap-3">
-            <div className="text-sm font-black text-slate-950">القائمة</div>
+            <div className="text-sm font-black text-slate-950">{tt("employeePortal.nav.menu")}</div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{visibleSessions.length}</span>
           </div>
 
           <div className="mt-3 space-y-2">
             {sessionsLoading ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">جارِ التحميل...</div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">{tt("employeePortal.common.loadingAlt")}</div>
             ) : sessionsError ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold leading-6 text-rose-700">{sessionsError}</div>
             ) : visibleSessions.length ? (
@@ -2038,9 +2048,9 @@ function BranchInventoryDrawer({
                   >
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-slate-950">{row.title || "جرد جديد"}</div>
+                        <div className="truncate text-sm font-black text-slate-950">{row.title || tt("employeePortal.stockCount.new")}</div>
                         <div className="mt-1 text-xs font-semibold text-slate-500">
-                          {row.branch_name || "الفرع"}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
+                          {row.branch_name || tt("employeePortal.common.branch")}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
                         </div>
                       </div>
                       <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
@@ -2052,7 +2062,7 @@ function BranchInventoryDrawer({
               })
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-500">
-                لا توجد جردات مطابقة لهذا الفلتر.
+                {tt("employeePortal.stockCount.noMatch")}
               </div>
             )}
           </div>

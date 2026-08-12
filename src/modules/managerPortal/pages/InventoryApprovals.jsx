@@ -25,6 +25,14 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { Pagination } from "../../../shared/ui";
 import "./ManagerPortal.m1.css";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
+
 const resolveStoredToken = () => {
   if (typeof window === "undefined") return "";
   const directToken = new URLSearchParams(window.location.search).get("token") || "";
@@ -76,6 +84,8 @@ const statusTone = (status = "") => {
 };
 
 export default function InventoryApprovalsPage() {
+  // Subscribes the page to language changes; strings resolve through tt().
+  useTranslation();
   const navigate = useNavigate();
   const { token: routeToken = "" } = useParams();
   const [searchParams] = useSearchParams();
@@ -157,7 +167,7 @@ export default function InventoryApprovalsPage() {
         setSelectedApproval(null);
       }
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر تحميل اعتمادات الجرد");
+      setError(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.errors.loadApprovals"));
     } finally {
       setLoading(false);
     }
@@ -170,7 +180,7 @@ export default function InventoryApprovalsPage() {
       const response = await managerPortalApi.inventoryApproval(token, sessionId);
       setSelectedApproval(response?.approval || null);
     } catch (err) {
-      toast.error(err?.responseBody?.message || err?.message || "تعذر تحميل تفاصيل الجرد");
+      toast.error(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.errors.loadDetails"));
     } finally {
       setSelectedLoading(false);
     }
@@ -205,13 +215,13 @@ export default function InventoryApprovalsPage() {
     try {
       setApproving(true);
       await managerPortalApi.approveInventoryApproval(token, selectedSessionId);
-      toast.success("تم اعتماد الجرد");
+      toast.success(tt("managerPortal.stockCount.toasts.approved"));
       setSelectedSessionId("");
       setSelectedApproval(null);
       await loadApprovals();
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      toast.error(err?.responseBody?.message || err?.message || "تعذر اعتماد الجرد");
+      toast.error(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.errors.approve"));
     } finally {
       setApproving(false);
     }
@@ -224,13 +234,13 @@ export default function InventoryApprovalsPage() {
 
   const handleReject = async () => {
     if (!token || !selectedSessionId || !rejectReason.trim()) {
-      toast.error("سبب الرفض مطلوب");
+      toast.error(tt("managerPortal.stockCount.errors.reasonRequired"));
       return;
     }
     try {
       setRejecting(true);
       await managerPortalApi.rejectInventoryApproval(token, selectedSessionId, { rejectionReason: rejectReason.trim() });
-      toast.success("تم رفض الجرد");
+      toast.success(tt("managerPortal.stockCount.toasts.rejected"));
       setRejectOpen(false);
       setRejectReason("");
       setSelectedSessionId("");
@@ -238,7 +248,7 @@ export default function InventoryApprovalsPage() {
       await loadApprovals();
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      toast.error(err?.responseBody?.message || err?.message || "تعذر رفض الجرد");
+      toast.error(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.errors.reject"));
     } finally {
       setRejecting(false);
     }
@@ -251,8 +261,8 @@ export default function InventoryApprovalsPage() {
           <div className="flex items-center gap-3">
             <ClipboardList className="h-8 w-8 text-amber-300" />
             <div>
-              <h1 className="m1-page-title">اعتمادات الجرد</h1>
-              <p className="mt-1 text-sm text-slate-300">لا يوجد رمز بوابة صالح. افتح بوابة المدير ثم أعد المحاولة.</p>
+              <h1 className="m1-page-title">{tt("managerPortal.stockCount.title")}</h1>
+              <p className="mt-1 text-sm text-slate-300">{tt("managerPortal.stockCount.noToken")}</p>
             </div>
           </div>
           <button
@@ -261,7 +271,7 @@ export default function InventoryApprovalsPage() {
             className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300"
           >
             <ArrowLeft className="h-4 w-4" />
-            العودة للبوابة
+            {tt("managerPortal.stockCount.backToPortal")}
           </button>
         </div>
       </main>
@@ -274,10 +284,10 @@ export default function InventoryApprovalsPage() {
         <header className="manager-inventory-panel rounded-[1.5rem] border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur sm:rounded-[2rem] sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="hidden text-xs font-black uppercase tracking-[0.22em] text-slate-400 sm:block">مركز اعتماد الجرد</div>
-              <h1 className="m1-page-title sm:mt-2">اعتمادات الجرد</h1>
+              <div className="hidden text-xs font-black uppercase tracking-[0.22em] text-slate-400 sm:block">{tt("managerPortal.stockCount.centerTitle")}</div>
+              <h1 className="m1-page-title sm:mt-2">{tt("managerPortal.stockCount.title")}</h1>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-300 sm:mt-2 sm:text-sm sm:leading-6">
-                راجع الجلسات قيد المراجعة، وافق على الفروقات أو ارفضها مع سبب واضح قبل تعديل المخزون.
+                {tt("managerPortal.stockCount.centerSubtitle")}
               </p>
             </div>
             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
@@ -287,7 +297,7 @@ export default function InventoryApprovalsPage() {
                 className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                تحديث
+                {tt("managerPortal.actions.refresh")}
               </button>
               <button
                 type="button"
@@ -295,28 +305,28 @@ export default function InventoryApprovalsPage() {
                 className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
               >
                 <ArrowLeft className="h-4 w-4" />
-                العودة للبوابة
+                {tt("managerPortal.stockCount.backToPortal")}
               </button>
             </div>
           </div>
         </header>
 
         <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-          <StatCard title="جردات بانتظار المراجعة" value={summary.pending_review_count || 0} icon={ClipboardList} tone="amber" />
-          <StatCard title="جردات مرفوضة" value={summary.rejected_count || 0} icon={X} tone="rose" />
-          <StatCard title="جردات مكتملة اليوم" value={summary.completed_today_count || 0} icon={CheckCircle2} tone="emerald" />
-          <StatCard title="إجمالي فروقات اليوم" value={summary.today_difference_total || 0} icon={Package} tone="sky" />
+          <StatCard title={tt("managerPortal.stockCount.stats.pending")} value={summary.pending_review_count || 0} icon={ClipboardList} tone="amber" />
+          <StatCard title={tt("managerPortal.stockCount.stats.rejected")} value={summary.rejected_count || 0} icon={X} tone="rose" />
+          <StatCard title={tt("managerPortal.stockCount.stats.completedToday")} value={summary.completed_today_count || 0} icon={CheckCircle2} tone="emerald" />
+          <StatCard title={tt("managerPortal.stockCount.stats.varianceToday")} value={summary.today_difference_total || 0} icon={Package} tone="sky" />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <div className="manager-inventory-panel rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
             <form onSubmit={handleSearch} className="mb-4">
-              <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">بحث</label>
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">{tt("managerPortal.actions.search")}</label>
               <div className="flex gap-2">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="ابحث باسم الجرد أو الفرع أو المخزن"
+                  placeholder={tt("managerPortal.stockCount.searchPlaceholder")}
                   className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
                 />
                 <button type="submit" className="inline-flex items-center justify-center rounded-[var(--radius-control)] bg-amber-400 px-4 text-sm font-black text-black">
@@ -326,7 +336,7 @@ export default function InventoryApprovalsPage() {
             </form>
 
             <div className="flex items-center justify-between text-xs font-bold text-slate-400">
-              <span>الجلسات المعروضة</span>
+              <span>{tt("managerPortal.stockCount.shownSessions")}</span>
               <span>{formatNumber(pagination.total || sessions.length || 0)}</span>
             </div>
 
@@ -334,7 +344,7 @@ export default function InventoryApprovalsPage() {
               {loading ? (
                 <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                  <div className="mt-2">جاري تحميل الجردات...</div>
+                  <div className="mt-2">{tt("managerPortal.stockCount.loadingList")}</div>
                 </div>
               ) : sessions.length ? (
                 sessions.map((session) => (
@@ -346,18 +356,18 @@ export default function InventoryApprovalsPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-base font-black text-white">{text(session.title, "جرد")}</div>
+                        <div className="truncate text-base font-black text-white">{text(session.title, tt("managerPortal.stockCount.sessionLabel"))}</div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-300">
-                          <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {text(session.branch_name, "الفرع غير محدد")}</span>
-                          <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" /> {text(session.warehouse_name, "المخزن غير محدد")}</span>
+                          <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {text(session.branch_name, tt("managerPortal.stockCount.unknownBranch"))}</span>
+                          <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" /> {text(session.warehouse_name, tt("managerPortal.stockCount.unknownWarehouse"))}</span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-400">
-                          <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {text(session.created_by_name, "غير معروف")}</span>
+                          <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {text(session.created_by_name, tt("managerPortal.common.unknown"))}</span>
                           <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDateTime(session.created_at)}</span>
                         </div>
                       </div>
                       <span className={`manager-portal-status-pill rounded-full border px-2.5 py-1 text-[11px] font-black ${statusTone(session.status)}`}>
-                        {session.status === "pending_review" ? "قيد المراجعة" : session.status === "rejected" ? "مرفوض" : session.status === "completed" ? "مكتمل" : session.status}
+                        {session.status === "pending_review" ? tt("managerPortal.stockCount.status.underReview") : session.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : session.status === "completed" ? tt("managerPortal.stockCount.status.completed") : session.status}
                       </span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-300">
@@ -369,8 +379,8 @@ export default function InventoryApprovalsPage() {
               ) : (
                 <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-slate-300">
                   <ClipboardList className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-3 font-bold">لا توجد جلسات قيد المراجعة الآن</div>
-                  <div className="mt-1 text-xs text-slate-400">ستظهر هنا الجردات التي أرسلها أمين المخزن للمراجعة.</div>
+                  <div className="mt-3 font-bold">{tt("managerPortal.stockCount.emptyList")}</div>
+                  <div className="mt-1 text-xs text-slate-400">{tt("managerPortal.stockCount.emptyListHint")}</div>
                 </div>
               )}
             </div>
@@ -391,38 +401,38 @@ export default function InventoryApprovalsPage() {
             {selectedLoading ? (
               <div className="flex min-h-[28rem] items-center justify-center text-slate-300">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span className="mr-2">جاري تحميل تفاصيل الجرد...</span>
+                <span className="mr-2">{tt("managerPortal.stockCount.loadingDetails")}</span>
               </div>
             ) : selectedSession ? (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">تفاصيل الجلسة</div>
-                    <h2 className="m1-section-title mt-1 text-white">{text(selectedSession.title, "جرد")}</h2>
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{tt("managerPortal.stockCount.sessionDetails")}</div>
+                    <h2 className="m1-section-title mt-1 text-white">{text(selectedSession.title, tt("managerPortal.stockCount.sessionLabel"))}</h2>
                     <div className="mt-2 flex flex-wrap gap-2 text-sm text-slate-300">
-                      <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {text(selectedSession.branch_name, "الفرع غير محدد")}</span>
-                      <span className="inline-flex items-center gap-1"><Store className="h-4 w-4" /> {text(selectedSession.warehouse_name, "المخزن غير محدد")}</span>
-                      <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {text(selectedSession.created_by_name, "غير معروف")}</span>
+                      <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {text(selectedSession.branch_name, tt("managerPortal.stockCount.unknownBranch"))}</span>
+                      <span className="inline-flex items-center gap-1"><Store className="h-4 w-4" /> {text(selectedSession.warehouse_name, tt("managerPortal.stockCount.unknownWarehouse"))}</span>
+                      <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {text(selectedSession.created_by_name, tt("managerPortal.common.unknown"))}</span>
                       <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {formatDateTime(selectedSession.created_at)}</span>
                     </div>
                   </div>
                   <span className={`manager-portal-status-pill rounded-full border px-3 py-1 text-xs font-black ${statusTone(selectedSession.status)}`}>
-                    {selectedSession.status === "pending_review" ? "في انتظار موافقة المدير" : selectedSession.status === "rejected" ? "مرفوض" : selectedSession.status === "completed" ? "مكتمل" : selectedSession.status}
+                    {selectedSession.status === "pending_review" ? tt("managerPortal.stockCount.awaitingManager") : selectedSession.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : selectedSession.status === "completed" ? tt("managerPortal.stockCount.status.completed") : selectedSession.status}
                   </span>
                 </div>
 
                 {selectedSession.status === "rejected" && selectedSession.rejection_reason ? (
                   <div className="mt-4 rounded-3xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-50">
-                    <div className="font-black">سبب الرفض</div>
+                    <div className="font-black">{tt("managerPortal.stockCount.rejectionReason")}</div>
                     <div className="mt-1 leading-6">{selectedSession.rejection_reason}</div>
                   </div>
                 ) : null}
 
                 <section className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-                  <InfoStat title="عدد الأصناف" value={sessionSummary.items || 0} icon={Package} tone="sky" />
-                  <InfoStat title="إجمالي الزيادة" value={sessionSummary.increase || 0} icon={TrendingUp} tone="emerald" />
-                  <InfoStat title="إجمالي العجز" value={sessionSummary.shortage || 0} icon={TrendingDown} tone="rose" />
-                  <InfoStat title="إجمالي الفروقات" value={sessionSummary.total || 0} icon={ClipboardList} tone="amber" />
+                  <InfoStat title={tt("managerPortal.stockCount.itemCount")} value={sessionSummary.items || 0} icon={Package} tone="sky" />
+                  <InfoStat title={tt("managerPortal.stockCount.totalSurplus")} value={sessionSummary.increase || 0} icon={TrendingUp} tone="emerald" />
+                  <InfoStat title={tt("managerPortal.stockCount.totalShortage")} value={sessionSummary.shortage || 0} icon={TrendingDown} tone="rose" />
+                  <InfoStat title={tt("managerPortal.stockCount.totalVariance")} value={sessionSummary.total || 0} icon={ClipboardList} tone="amber" />
                 </section>
 
                 <div className="mt-4 space-y-2 md:hidden">
@@ -441,7 +451,7 @@ export default function InventoryApprovalsPage() {
                               {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Package className="h-5 w-5 text-slate-500" />}
                             </div>
                             <div className="min-w-0">
-                              <h3 className="m1-section-title text-white">{text(item.product_name, "منتج")}</h3>
+                              <h3 className="m1-section-title text-white">{text(item.product_name, tt("managerPortal.common.product"))}</h3>
                               {(color || size) ? <p className="mt-1 text-xs text-slate-400">{[color, size].filter(Boolean).join(" • ")}</p> : null}
                               {item.variant_sku || item.variant_barcode ? <p className="mt-1 truncate text-[10px] text-slate-500">{item.variant_sku || item.variant_barcode}</p> : null}
                             </div>
@@ -451,13 +461,13 @@ export default function InventoryApprovalsPage() {
                           </span>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                          <div className="rounded-xl bg-white/5 p-2"><span className="text-slate-400">السيستم</span><strong className="mr-2 text-white">{formatNumber(system)}</strong></div>
-                          <div className="rounded-xl bg-white/5 p-2"><span className="text-slate-400">الفعلي</span><strong className="mr-2 text-white">{formatNumber(counted)}</strong></div>
+                          <div className="rounded-xl bg-white/5 p-2"><span className="text-slate-400">{tt("managerPortal.stockCount.system")}</span><strong className="mr-2 text-white">{formatNumber(system)}</strong></div>
+                          <div className="rounded-xl bg-white/5 p-2"><span className="text-slate-400">{tt("managerPortal.stockCount.actual")}</span><strong className="mr-2 text-white">{formatNumber(counted)}</strong></div>
                         </div>
                         {item.reason || item.notes ? <p className="mt-2 text-xs leading-5 text-slate-300">{[item.reason, item.notes].map((value) => text(value, "")).filter(Boolean).join(" — ")}</p> : null}
                       </article>
                     );
-                  }) : <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-400">لا توجد أصناف داخل الجرد.</div>}
+                  }) : <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-400">{tt("managerPortal.stockCount.noItems")}</div>}
                 </div>
 
                 <div className="mt-4 hidden overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/45 md:block">
@@ -465,14 +475,14 @@ export default function InventoryApprovalsPage() {
                     <table className="m1-table m1-table--compact min-w-full text-right text-sm">
                       <thead className="bg-white/5 text-xs uppercase tracking-[0.18em] text-slate-300">
                         <tr>
-                          <th className="px-4 py-3">المنتج</th>
-                          <th className="px-4 py-3">اللون</th>
-                          <th className="px-4 py-3">المقاس</th>
-                          <th className="px-4 py-3">كمية السيستم</th>
-                          <th className="px-4 py-3">الكمية الفعلية</th>
-                          <th className="px-4 py-3">الفرق</th>
-                          <th className="px-4 py-3">السبب</th>
-                          <th className="px-4 py-3">الملاحظات</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.product")}</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.color")}</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.size")}</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.systemQty")}</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.actualQty")}</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.variance")}</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.reason")}</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.notes")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -483,7 +493,7 @@ export default function InventoryApprovalsPage() {
                           const imageUrl = itemImage(item);
                           return (
                             <tr key={item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`} className="border-t border-white/5">
-                              <td className="px-4 py-3 font-semibold text-white"><div className="flex items-center gap-2">{imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 rounded-lg object-cover" loading="lazy" /> : null}<span>{text(item.product_name, "منتج")}</span></div></td>
+                              <td className="px-4 py-3 font-semibold text-white"><div className="flex items-center gap-2">{imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 rounded-lg object-cover" loading="lazy" /> : null}<span>{text(item.product_name, tt("managerPortal.common.product"))}</span></div></td>
                               <td className="px-4 py-3 text-slate-300">{text(item.variant_color || item.color, "-")}</td>
                               <td className="px-4 py-3 text-slate-300">{text(item.variant_size || item.size, "-")}</td>
                               <td className="px-4 py-3 font-semibold text-slate-200">{formatNumber(system)}</td>
@@ -495,7 +505,7 @@ export default function InventoryApprovalsPage() {
                           );
                         }) : (
                           <tr>
-                            <td colSpan={8} className="px-4 py-10 text-center text-slate-400">لا توجد أصناف داخل الجرد.</td>
+                            <td colSpan={8} className="px-4 py-10 text-center text-slate-400">{tt("managerPortal.stockCount.noItems")}</td>
                           </tr>
                         )}
                       </tbody>
@@ -512,7 +522,7 @@ export default function InventoryApprovalsPage() {
                       className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500 px-3 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
                     >
                       <X className="h-4 w-4" />
-                      رفض
+                      {tt("managerPortal.actions.reject")}
                     </button>
                     <button
                       type="button"
@@ -530,8 +540,8 @@ export default function InventoryApprovalsPage() {
               <div className="flex min-h-[28rem] items-center justify-center rounded-[1.75rem] border border-dashed border-white/10 bg-white/5 text-center text-slate-300">
                 <div>
                   <ClipboardList className="mx-auto h-10 w-10 text-slate-500" />
-                  <div className="mt-3 text-lg font-black">اختر جلسة من القائمة</div>
-                  <div className="mt-1 text-sm">سيظهر ملخص الأصناف والفروقات هنا.</div>
+                  <div className="mt-3 text-lg font-black">{tt("managerPortal.stockCount.pickSession")}</div>
+                  <div className="mt-1 text-sm">{tt("managerPortal.stockCount.pickSessionHint")}</div>
                 </div>
               </div>
             )}
@@ -544,9 +554,9 @@ export default function InventoryApprovalsPage() {
           <div className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-slate-950 p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">رفض الجرد</div>
-                <h3 className="m1-section-title mt-1">أدخل سبب الرفض</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-300">السبب إلزامي وسيصل إلى أمين المخزن مع إشعار الرفض.</p>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{tt("managerPortal.stockCount.rejectTitle")}</div>
+                <h3 className="m1-section-title mt-1">{tt("managerPortal.stockCount.enterReason")}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{tt("managerPortal.stockCount.reasonHint")}</p>
               </div>
               <button type="button" onClick={() => setRejectOpen(false)} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5">
                 <X className="h-4 w-4" />
@@ -555,13 +565,13 @@ export default function InventoryApprovalsPage() {
             <textarea
               value={rejectReason}
               onChange={(event) => setRejectReason(event.target.value)}
-              placeholder="مثال: توجد فروقات غير مبررة أو تحتاج مراجعة ميدانية"
+              placeholder={tt("managerPortal.stockCount.reasonPlaceholder")}
               rows={5}
               className="mt-4 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
             />
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => setRejectOpen(false)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white">
-                إلغاء
+                {tt("managerPortal.common.cancel")}
               </button>
               <button
                 type="button"

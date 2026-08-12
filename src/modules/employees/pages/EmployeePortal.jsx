@@ -5,27 +5,32 @@ import { toast } from "react-hot-toast";
 
 import { staffTasksApi } from "../services/staffTasksApi";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 const openStatuses = new Set(["pending", "in_progress", "overdue"]);
 const portalCachePrefix = "employee.portal.cache.";
 const portalQueuePrefix = "employee.portal.queue.";
 const installDismissedKey = "employee.portal.install.dismissed";
 
 const statusLabel = {
-  pending: "قيد التنفيذ",
-  in_progress: "قيد التنفيذ",
-  manager_review: "معلقة",
-  overdue: "معلقة",
-  reassigned: "معلقة",
-  completed: "مكتملة",
-  cancelled: "ملغاة",
-};
+  get pending() { return tt("employeePortal.status.inProgress"); },
+  get in_progress() { return tt("employeePortal.status.inProgress"); },
+  get manager_review() { return tt("employeePortal.status.pending"); },
+  get overdue() { return tt("employeePortal.status.pending"); },
+  get reassigned() { return tt("employeePortal.status.pending"); },
+  get completed() { return tt("employeePortal.status.completed"); },
+  get cancelled() { return tt("employeePortal.status.cancelled"); },};
 
 const priorityLabel = {
-  low: "منخفضة",
-  medium: "متوسطة",
-  high: "عالية",
-  critical: "عالية جدا",
-};
+  get low() { return tt("employeePortal.priority.low"); },
+  get medium() { return tt("employeePortal.priority.medium"); },
+  get high() { return tt("employeePortal.priority.high"); },
+  get critical() { return tt("employeePortal.priority.veryHigh"); },};
 
 const priorityClass = {
   low: "border-border bg-surface-soft text-text",
@@ -35,9 +40,9 @@ const priorityClass = {
 };
 
 const formatTime = (value) => {
-  if (!value) return "غير محدد";
+  if (!value) return tt("employeePortal.common.unspecified");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "غير محدد";
+  if (Number.isNaN(date.getTime())) return tt("employeePortal.common.unspecified");
   return new Intl.DateTimeFormat("ar-EG", { hour: "2-digit", minute: "2-digit" }).format(date);
 };
 
@@ -106,11 +111,11 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
   return (
     <section className="mt-4 rounded-3xl border border-white/10 bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
       <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/10 p-4 backdrop-blur">
-        <h2 className="m1-section-title">ثبّت بوابة الموظف على الموبايل</h2>
-        <p className="mt-2 text-sm font-semibold leading-6 text-white/70">افتح التاسكات بسرعة واستقبل التنبيهات أثناء الشيفت.</p>
+        <h2 className="m1-section-title">{tt("employeePortal.install.title")}</h2>
+        <p className="mt-2 text-sm font-semibold leading-6 text-white/70">{tt("employeePortal.install.hint")}</p>
         {ios && !canInstall ? (
           <p className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white">
-            على iPhone: اضغط مشاركة ثم Add to Home Screen
+            {tt("employeePortal.install.iosShort")}
           </p>
         ) : null}
         <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
@@ -120,10 +125,10 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
             onClick={onInstall}
             className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-text disabled:opacity-50"
           >
-            تثبيت التطبيق
+            {tt("employeePortal.install.action")}
           </button>
           <button type="button" onClick={onDismiss} className="rounded-[var(--radius-control)] border border-white/15 px-4 py-3 text-sm font-black text-white">
-            لاحقًا
+            {tt("employeePortal.install.later")}
           </button>
         </div>
       </div>
@@ -133,13 +138,13 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
 
 function OfflineNotice({ syncState }) {
   const label = syncState === "synced"
-    ? "تمت المزامنة"
+    ? tt("employeePortal.sync.done")
     : syncState === "syncing"
-      ? "جاري المزامنة"
-      : "في انتظار المزامنة";
+      ? tt("employeePortal.sync.inProgress")
+      : tt("employeePortal.sync.pending");
   return (
     <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-900">
-      أنت غير متصل بالإنترنت، سيتم حفظ التغييرات مؤقتًا.
+      {tt("employeePortal.sync.offline")}
       <div className="mt-1 text-xs font-black">{label}</div>
     </div>
   );
@@ -147,19 +152,19 @@ function OfflineNotice({ syncState }) {
 
 function NotificationCard({ state, hint, onEnable }) {
   const message = hint || (state === "granted"
-    ? "تنبيهات التاسكات مفعلة على هذا الجهاز"
+    ? tt("employeePortal.notifications.taskAlertsOn")
     : state === "denied"
-      ? "تم رفض التنبيهات من إعدادات المتصفح"
+      ? tt("employeePortal.notifications.blockedByBrowser")
       : state === "unsupported"
-        ? "المتصفح لا يدعم تنبيهات التاسكات."
-        : "استقبل تنبيه عند تحديث مهام الشيفت.");
+        ? tt("employeePortal.notifications.taskAlertsUnsupported")
+        : tt("employeePortal.notifications.taskAlertsHint"));
   return (
     <section className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-right shadow-sm">
-      <div className="text-sm font-black text-text">تفعيل تنبيهات التاسكات</div>
+      <div className="text-sm font-black text-text">{tt("employeePortal.notifications.enableTaskAlerts")}</div>
       <p className="mt-1 text-sm font-semibold leading-6 text-text-muted">{message}</p>
       {state !== "granted" && state !== "unsupported" ? (
         <button type="button" onClick={onEnable} className="mt-3 w-full rounded-[var(--radius-control)] bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-3 text-sm font-black">
-          تفعيل تنبيهات التاسكات
+          {tt("employeePortal.notifications.enableTaskAlerts")}
         </button>
       ) : null}
     </section>
@@ -187,7 +192,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${isCompleted ? "bg-emerald-50 text-emerald-700" : isOverdue ? "bg-orange-100 text-orange-800" : "bg-surface-soft text-text"}`}>
               {task.status_label_ar || statusLabel[task.status] || statusLabel.pending}
             </span>
-            {isOverdue ? <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white">تصعيد</span> : null}
+            {isOverdue ? <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white">{tt("employeePortal.tasks.escalate")}</span> : null}
           </div>
           <h3 className="m1-section-title mt-2 text-text">{title}</h3>
         </div>
@@ -201,7 +206,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
           <Clock3 className="h-4 w-4 text-text-muted" />
           <span>الموعد: {formatTime(task.due_at)}</span>
         </div>
-        <div className="text-sm font-semibold leading-6 text-text-muted">ملاحظات: {notes || "لا توجد ملاحظات"}</div>
+        <div className="text-sm font-semibold leading-6 text-text-muted">ملاحظات: {notes || tt("employeePortal.tasks.noNotes")}</div>
       </div>
 
       {isOpen ? (
@@ -231,6 +236,8 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
 }
 
 export default function EmployeePortal() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   const { token } = useParams();
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -290,7 +297,7 @@ export default function EmployeePortal() {
         setSyncState("offline");
       } else {
         setPortal(null);
-        setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "تعذر تحميل بوابة الموظف.");
+        setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || tt("employeePortal.shell.loadFailed"));
       }
     } finally {
       if (!silent) setLoading(false);
@@ -376,7 +383,7 @@ export default function EmployeePortal() {
       await loadPortal({ silent: true });
     } catch (err) {
       setSyncState("queued");
-      toast.error(err?.responseBody?.message_ar || err?.message || "لم تتم مزامنة التغييرات بعد.");
+      toast.error(err?.responseBody?.message_ar || err?.message || tt("employeePortal.sync.notSyncedYet"));
     }
   };
 
@@ -407,7 +414,7 @@ export default function EmployeePortal() {
       await loadPortal({ silent: true });
     } catch (err) {
       setPortal(previous);
-      toast.error(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "لا يمكن تعديل المهمة الآن.");
+      toast.error(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || tt("employeePortal.tasks.notEditable"));
     } finally {
       setSavingTaskId(null);
     }
@@ -443,7 +450,7 @@ export default function EmployeePortal() {
       const keyResponse = await staffTasksApi.employeePortalPushKey(token);
       const publicKey = keyResponse?.publicKey || "";
       if (!publicKey) {
-        if (import.meta.env.DEV) setNotificationHint("التنبيهات جاهزة لكن مفاتيح الإرسال غير مفعلة بعد.");
+        if (import.meta.env.DEV) setNotificationHint(tt("employeePortal.notifications.keysMissing"));
         return;
       }
       const existing = await registration.pushManager.getSubscription();
@@ -455,7 +462,7 @@ export default function EmployeePortal() {
         ...subscription.toJSON(),
         portal_url: window.location.href,
       });
-      setNotificationHint("تنبيهات التاسكات مفعلة على هذا الجهاز");
+      setNotificationHint(tt("employeePortal.notifications.taskAlertsOn"));
     } catch (err) {
       console.warn("[employee-portal] push subscription skipped", err);
     }
@@ -474,11 +481,11 @@ export default function EmployeePortal() {
       <main dir="rtl" className="min-h-[100dvh] bg-background px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-text">
         <section className="mx-auto max-w-md rounded-[var(--radius-card)] border border-amber-200 bg-surface p-5 text-right shadow-sm">
           <AlertTriangle className="h-8 w-8 text-amber-600" />
-          <h1 className="m1-page-title mt-4">بوابة الموظف غير متاحة</h1>
+          <h1 className="m1-page-title mt-4">{tt("employeePortal.shell.unavailable")}</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-text-muted">{error}</p>
           <button type="button" onClick={() => loadPortal()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-4 text-sm font-black">
             <RefreshCw className="h-4 w-4" />
-            إعادة المحاولة
+            {tt("employeePortal.common.retry")}
           </button>
         </section>
       </main>
@@ -489,21 +496,21 @@ export default function EmployeePortal() {
     <main dir="rtl" className="min-h-[100dvh] bg-background px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-text">
       <div className="mx-auto max-w-md">
         <header className="rounded-3xl bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
-          <div className="text-xs font-black text-white/70">بوابة الموظف</div>
-          <h1 className="m1-page-title mt-2">{portal?.employee?.name || "مهامي"}</h1>
+          <div className="text-xs font-black text-white/70">{tt("employeePortal.shell.title")}</div>
+          <h1 className="m1-page-title mt-2">{portal?.employee?.name || tt("employeePortal.nav.myTasks")}</h1>
           <div className="mt-1 text-sm font-semibold leading-6 text-white/70">{portal?.employee?.branch_name || portal?.employee?.employee_code}</div>
           <div className="mt-4 grid grid-cols-3 gap-2">
             <div className="rounded-2xl bg-white/10 p-3 text-center">
               <div className="text-2xl font-black">{summary.today}</div>
-              <div className="text-[11px] font-bold text-white/70">مهام اليوم</div>
+              <div className="text-[11px] font-bold text-white/70">{tt("employeePortal.tasks.today")}</div>
             </div>
             <div className="rounded-2xl bg-white/10 p-3 text-center">
               <div className="text-2xl font-black">{summary.pending}</div>
-              <div className="text-[11px] font-bold text-white/70">قيد التنفيذ</div>
+              <div className="text-[11px] font-bold text-white/70">{tt("employeePortal.status.inProgress")}</div>
             </div>
             <div className="rounded-2xl bg-white/10 p-3 text-center">
               <div className="text-2xl font-black">{summary.completed}</div>
-              <div className="text-[11px] font-bold text-white/70">مكتملة</div>
+              <div className="text-[11px] font-bold text-white/70">{tt("employeePortal.status.completed")}</div>
             </div>
           </div>
         </header>
@@ -511,7 +518,7 @@ export default function EmployeePortal() {
         {portal?.read_only ? (
           <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-900">
             <Lock className="mt-0.5 h-4 w-4 flex-none" />
-            تم تسجيل الخروج، لا يمكنك تعديل المهام الآن.
+            {tt("employeePortal.tasks.loggedOut")}
           </div>
         ) : null}
 
@@ -531,25 +538,25 @@ export default function EmployeePortal() {
         <NotificationCard state={notificationState} hint={notificationHint} onEnable={enableNotifications} />
 
         <section className="mt-5">
-          <h2 className="m1-section-title text-text-muted">المهام المطلوبة</h2>
+          <h2 className="m1-section-title text-text-muted">{tt("employeePortal.tasks.required")}</h2>
           <div className="mt-3 grid gap-3">
             {grouped.pending.length ? (
               grouped.pending.map((task) => (
                 <TaskCard key={task.id} task={task} readOnly={portal?.read_only} saving={savingTaskId === task.id || queuedTaskIds.has(String(task.id))} onStatus={updateStatus} />
               ))
             ) : (
-              <EmptyState>لا توجد مهام مطلوبة الآن.</EmptyState>
+              <EmptyState>{tt("employeePortal.tasks.noneRequired")}</EmptyState>
             )}
           </div>
         </section>
 
         <section className="mt-6">
-          <h2 className="m1-section-title text-text-muted">المهام المكتملة</h2>
+          <h2 className="m1-section-title text-text-muted">{tt("employeePortal.tasks.completed")}</h2>
           <div className="mt-3 grid gap-3">
             {grouped.completed.length ? (
               grouped.completed.map((task) => <TaskCard key={task.id} task={task} readOnly saving={false} onStatus={updateStatus} />)
             ) : (
-              <EmptyState>لم يتم إكمال أي مهمة بعد.</EmptyState>
+              <EmptyState>{tt("employeePortal.tasks.noneCompleted")}</EmptyState>
             )}
           </div>
         </section>

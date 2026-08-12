@@ -21,6 +21,13 @@ import {
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 const text = (value = "") => String(value || "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const uniqueValues = (values = []) => [...new Set(values.map((value) => text(value)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
@@ -663,7 +670,7 @@ function ProductPickerSheet({
             className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"
           >
             <ArrowRight className="h-4 w-4" />
-            <span>رجوع</span>
+            <span>{tt("employeePortal.common.back")}</span>
           </button>
         </div>
 
@@ -773,14 +780,14 @@ function EmployeePortalCameraScannerModal({
   if (typeof document === "undefined") return null;
 
   const scannerStatusMessage = resolvingScan
-    ? "جاري البحث..."
+    ? tt("employeePortal.scanner.searching")
     : scanDebug?.resolverResult === "found"
-      ? "تم العثور على المنتج"
+      ? tt("employeePortal.scanner.productFound")
       : scanDebug?.resolverResult === "not found"
-        ? "لم يتم العثور على المنتج"
+        ? tt("employeePortal.scanner.productNotFound")
         : scanDebug?.resolverResult === "error"
-          ? "لم نتمكن من قراءة الباركود، جرّب الإدخال اليدوي"
-          : "وجّه الباركود داخل الإطار";
+          ? tt("employeePortal.scanner.readFailedHint")
+          : tt("employeePortal.scanner.frameHint");
 
   return createPortal(
     <div
@@ -800,17 +807,17 @@ function EmployeePortalCameraScannerModal({
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">EMPLOYEE SCANNER</div>
-            <h3 id="employee-portal-camera-scanner-title" className="m1-section-title mt-1 text-white">امسح الباركود أو QR بالكاميرا</h3>
-            <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الباركود داخل الإطار.</p>
+            <h3 id="employee-portal-camera-scanner-title" className="m1-section-title mt-1 text-white">{tt("employeePortal.scanner.scanBarcodeOrQr")}</h3>
+            <p className="mt-1 text-xs font-semibold text-zinc-500">{tt("employeePortal.scanner.frameHintDot")}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex min-h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-zinc-100 transition hover:bg-white/[0.08]"
-            aria-label="إغلاق ماسح الكاميرا"
+            aria-label={tt("employeePortal.scanner.close")}
           >
             <ArrowRight className="h-4 w-4" />
-            <span>رجوع</span>
+            <span>{tt("employeePortal.common.back")}</span>
           </button>
         </div>
 
@@ -828,7 +835,7 @@ function EmployeePortalCameraScannerModal({
             />
           </div>
           <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">
-            قرّب الكاميرا وخلي الكيو آر داخل الإطار
+            {tt("employeePortal.scanner.qrHint")}
           </div>
           {isDevBuild ? (
             <div className="mt-3 grid gap-3 rounded-3xl border border-primary/20 bg-primary/10 p-3 text-left">
@@ -861,7 +868,7 @@ function EmployeePortalCameraScannerModal({
             </div>
           ) : null}
           <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">الإدخال اليدوي</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{tt("employeePortal.scanner.manualTitle")}</div>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
                 value={manualBarcodeValue}
@@ -872,7 +879,7 @@ function EmployeePortalCameraScannerModal({
                     onManualBarcodeSubmit?.();
                   }
                 }}
-                placeholder="أدخل الباركود يدويًا"
+                placeholder={tt("employeePortal.scanner.manualEntry")}
                 className="min-h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
               <button
@@ -880,12 +887,12 @@ function EmployeePortalCameraScannerModal({
                 onClick={onManualBarcodeSubmit}
                 className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"
               >
-                بحث
+                {tt("employeePortal.common.search")}
               </button>
             </div>
           </div>
           <div className="mt-3 text-center text-xs font-semibold text-zinc-500">
-            يدعم باركود المنتجات وأكواد QR للبحث السريع داخل الكتالوج.
+            {tt("employeePortal.scanner.supportHint")}
           </div>
         </div>
       </section>
@@ -895,6 +902,8 @@ function EmployeePortalCameraScannerModal({
 }
 
 export default function EmployeePortalProducts() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   usePageTitle("Employee Product Catalog");
   const { token } = useParams();
   const navigate = useNavigate();
@@ -937,7 +946,7 @@ export default function EmployeePortalProducts() {
   const [productsPage, setProductsPage] = useState(1);
   const [hasMoreProducts, setHasMoreProducts] = useState(false);
   const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
-  // Newest-query-wins guard shared by page 1 and "تحميل المزيد".
+  // Newest-query-wins guard shared by page 1 and tt("employeePortal.common.loadMore").
   const productsRequestIdRef = useRef(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -1009,7 +1018,7 @@ export default function EmployeePortalProducts() {
         setEmployee(response?.employee || null);
       } catch (err) {
         if (cancelled || err?.name === "AbortError" || err?.name === "CanceledError") return;
-        setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "تعذر تحميل المنتجات");
+        setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || tt("employeePortal.products.loadFailed"));
         setProducts([]);
         setHasMoreProducts(false);
       } finally {
@@ -1037,7 +1046,7 @@ export default function EmployeePortalProducts() {
     };
   }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.manufacturer, filters.gender, filters.inStockOnly, filters.color, selectedFilterSize]);
 
-  // "تحميل المزيد": fetch the NEXT page of matches with the exact same filters and
+  // tt("employeePortal.common.loadMore"): fetch the NEXT page of matches with the exact same filters and
   // append. Products are deduped by stable identity so a double click or an
   // overlapping request cannot repeat rows, and the sequence guard drops a page
   // that arrives after the filters changed.
@@ -1061,7 +1070,7 @@ export default function EmployeePortalProducts() {
       setHasMoreProducts(Boolean(response?.has_more));
     } catch (err) {
       if (err?.name === "AbortError" || err?.name === "CanceledError") return;
-      toast.error(err?.responseBody?.message_ar || err?.message || "تعذر تحميل المزيد من المنتجات");
+      toast.error(err?.responseBody?.message_ar || err?.message || tt("employeePortal.products.loadMoreFailed"));
     } finally {
       setLoadingMoreProducts(false);
     }
@@ -1509,7 +1518,7 @@ export default function EmployeePortalProducts() {
         size: activeVariant.size || selectedSize || "",
         quantity: 1,
       });
-      toast.success("تم إرسال الطلب للمخزن");
+      toast.success(tt("employeePortal.warehouse.requestSent"));
       // Authoritative success only: drop the local working draft.
       clearWarehouseDraft(warehouseIdentity);
       draftRestoredRef.current = true;
@@ -1518,7 +1527,7 @@ export default function EmployeePortalProducts() {
       setSelectedProduct(null);
     } catch (err) {
       // Keep the draft on failure — a network error must never erase the work.
-      toast.error(err?.message || "تعذر إرسال الطلب للمخزن");
+      toast.error(err?.message || tt("employeePortal.warehouse.requestFailed"));
     } finally {
       setLoadingSubmit(false);
     }
@@ -1559,7 +1568,7 @@ export default function EmployeePortalProducts() {
       const product = normalizedProducts.find((p) => String(p.id ?? p.product_id) === String(draft.productId));
       if (!product) {
         // Referenced product not in the current view — surface, keep the draft.
-        toast("لم يتم فتح المسودة تلقائيًا — العنصر غير ظاهر حاليًا", { icon: "⚠️" });
+        toast(tt("employeePortal.warehouse.draftNotOpened"), { icon: "⚠️" });
         return;
       }
       openProduct({ ...product, employee_card_color: draft.color, employee_card_size: draft.size });
@@ -1833,8 +1842,8 @@ export default function EmployeePortalProducts() {
               }}
               disabled={resolvingScan}
               className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="فتح ماسح الكاميرا"
-              title="فتح ماسح الكاميرا"
+              aria-label={tt("employeePortal.scanner.open")}
+              title={tt("employeePortal.scanner.open")}
             >
               {resolvingScan ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             </button>
@@ -1844,7 +1853,7 @@ export default function EmployeePortalProducts() {
                 ref={searchInputRef}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="ابحث بالاسم أو الموديل أو الباركود أو الكود"
+                placeholder={tt("employeePortal.products.searchPlaceholder")}
                 className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
             </label>
@@ -1853,8 +1862,8 @@ export default function EmployeePortalProducts() {
               onClick={() => setFiltersOpen(true)}
               aria-expanded={filtersOpen}
               className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
-              aria-label="الفلاتر"
-              title="الفلاتر"
+              aria-label={tt("employeePortal.common.filters")}
+              title={tt("employeePortal.common.filters")}
             >
               <span className="relative inline-flex">
                 <Filter className="h-4 w-4" />
@@ -1864,14 +1873,14 @@ export default function EmployeePortalProducts() {
                   </span>
                 ) : null}
               </span>
-              <span className="sr-only">الفلاتر</span>
+              <span className="sr-only">{tt("employeePortal.common.filters")}</span>
             </button>
           </div>
         </section>
 
         <section className="mt-4">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="m1-section-title text-zinc-300">النتائج</h2>
+            <h2 className="m1-section-title text-zinc-300">{tt("employeePortal.products.results")}</h2>
             <div className="text-xs font-semibold text-zinc-500">{visibleProducts.length.toLocaleString("ar-EG")} منتج</div>
           </div>
           <ProductGrid
@@ -1890,7 +1899,7 @@ export default function EmployeePortalProducts() {
               disabled={loadingMoreProducts}
               className="mt-3 flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/30 bg-emerald-500/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
             >
-              {loadingMoreProducts ? "جاري التحميل..." : "تحميل المزيد"}
+              {loadingMoreProducts ? tt("employeePortal.common.loading") : tt("employeePortal.common.loadMore")}
             </button>
           ) : null}
         </section>

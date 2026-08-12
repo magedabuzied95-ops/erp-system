@@ -15,7 +15,12 @@ test("employee inventory lookup searches variant and color-level article codes",
 });
 
 test("employee inventory search communicates article support", () => {
-  assert.match(portalSource, /placeholder="ابحث بالاسم أو الباركود أو الأرتكل"/);
+  // The placeholder is localized now, so the promise lives in the dictionaries.
+  assert.match(portalSource, /placeholder=\{tt\("employeePortal\.stockCount\.searchItems"\)\}/);
+  const ar = JSON.parse(readFileSync(new URL("../src/locales/ar/employeePortal.json", import.meta.url), "utf8"));
+  const en = JSON.parse(readFileSync(new URL("../src/locales/en/employeePortal.json", import.meta.url), "utf8"));
+  assert.match(ar.stockCount.searchItems, /الأرتكل/);
+  assert.match(en.stockCount.searchItems, /article/i);
 });
 
 test("adding a color reloads and counts every registered size including zero stock", () => {

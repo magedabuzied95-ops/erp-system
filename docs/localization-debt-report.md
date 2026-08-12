@@ -10,11 +10,11 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 220
-- Hardcoded Arabic UI strings: 3020
+- Files with debt: 219
+- Hardcoded Arabic UI strings: 2667
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 5566
-- Mixed-language files (both scripts hardcoded): 58
+- Total hardcoded UI strings: 5213
+- Mixed-language files (both scripts hardcoded): 54
 
 ### By surface
 
@@ -22,16 +22,15 @@ of scope. The scanner is conservative and can still contain false positives.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 117 | 2049 | 1821 | 3870 | 37 |
 | shared | 70 | 189 | 440 | 629 | 11 |
-| employee-portal | 25 | 304 | 149 | 453 | 5 |
+| employee-portal | 24 | 223 | 149 | 372 | 3 |
 | pos | 6 | 206 | 122 | 328 | 3 |
-| manager-portal | 2 | 272 | 14 | 286 | 2 |
+| manager-portal | 2 | 0 | 14 | 14 | 0 |
 
 ## Mixed-language files (ranked by density)
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
 | src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 139 | 253 | 392 |
-| src/modules/managerPortal/pages/ManagerPortal.jsx | manager-portal | 230 | 12 | 242 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 106 | 179 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 58 | 100 | 158 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 13 | 153 |
@@ -48,7 +47,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 60 | 2 | 62 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx | main-erp | 1 | 58 | 59 |
-| src/modules/employees/pages/EmployeePortalInventory.jsx | employee-portal | 52 | 7 | 59 |
 | src/modules/marketing/pages/AiMarketingVideos.jsx | main-erp | 14 | 45 | 59 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 46 | 13 | 59 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
@@ -56,14 +54,12 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 44 | 4 | 48 |
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 42 | 47 |
 | src/modules/aiSupport/pages/AiSupportConsole.jsx | main-erp | 10 | 35 | 45 |
-| src/modules/managerPortal/pages/InventoryApprovals.jsx | manager-portal | 42 | 2 | 44 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 34 | 8 | 42 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
 | src/modules/marketing/pages/SocialMediaPublisher.jsx | main-erp | 10 | 28 | 38 |
 | src/modules/orders/pages/OrdersDashboard.jsx | main-erp | 30 | 8 | 38 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 23 | 9 | 32 |
-| src/modules/employees/pages/EmployeePortalProducts.jsx | employee-portal | 16 | 15 | 31 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 23 | 3 | 26 |
 | src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 13 | 12 | 25 |
@@ -134,50 +130,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2245 [attribute/en] Label name
 - 2251 [jsx-text/en] Cancel
 - ... 352 more
-
-### src/modules/managerPortal/pages/ManagerPortal.jsx (manager-portal — ar:230 en:12)
-
-- 215 [object-key/ar] الكل
-- 216 [object-key/ar] رسائل الموظفين
-- 217 [object-key/ar] مهام مكتملة
-- 218 [object-key/ar] مهام متأخرة
-- 219 [object-key/ar] الحضور
-- 220 [object-key/ar] المبيعات
-- 221 [object-key/ar] المخزون
-- 222 [object-key/ar] العملاء الساخنون
-- 264 [object-key/ar] مكتملة
-- 265 [object-key/ar] متأخرة
-- 266 [object-key/ar] تحتاج مراجعة
-- 267 [object-key/ar] قيد التنفيذ
-- 268 [object-key/ar] قيد الانتظار
-- 313 [jsx-text/ar] الأكثر مبيعاً:
-- 318 [jsx-text/ar] مطلوب إعادة طلب:
-- 322 [jsx-text/ar] هو الأعلى مبيعاً.
-- 326 [jsx-text/ar] أكثر ساعة مبيعاً حالياً:
-- 424 [attribute/ar] القيمة
-- 439 [jsx-text/ar] أعلى قيمة:
-- 440 [jsx-text/ar] متوسط يومي:
-- 751 [jsx-text/ar] الربح اليومي
-- 753 [jsx-text/ar] الربح مخفي حسب الصلاحيات
-- 766 [jsx-text/ar] الربح اليومي
-- 768 [jsx-text/ar] إخفاء
-- 772 [jsx-text/ar] صافي ربح اليوم
-- 776 [jsx-text/ar] هامش الربح
-- 794 [jsx-text/ar] الربح اليومي
-- 795 [jsx-text/ar] اضغط لعرض التفاصيل
-- 803 [jsx-text/ar] أدخل كلمة مرور الربح
-- 807 [jsx-text/ar] إلغاء
-- 1149 [object-key/ar] مبيعات اليوم
-- 1150 [object-key/ar] الفواتير اليوم
-- 1151 [object-key/ar] الحضور الآن
-- 1152 [object-key/ar] اعتمادات معلقة
-- 1538 [notification/ar] تعذر النسخ
-- 1554 [notification/ar] تم حفظ الإعدادات
-- 1570 [notification/ar] تم تفعيل الصوت
-- 1576 [notification/ar] تم تفعيل إشعارات المتصفح
-- 1577 [notification/ar] لم يتم تفعيل إشعارات المتصفح
-- 1612 [object-key/ar] هذا المتصفح لا يدعم إشعارات الويب الفورية.
-- ... 202 more
 
 ### src/modules/pos/pages/POSPro.jsx (pos — ar:73 en:106)
 
@@ -1103,50 +1055,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 269 [jsx-text/en] Requested
 - ... 19 more
 
-### src/modules/employees/pages/EmployeePortalInventory.jsx (employee-portal — ar:52 en:7)
-
-- 231 [object-key/ar] النشطة
-- 232 [object-key/ar] مسودة
-- 233 [object-key/ar] قيد التنفيذ
-- 234 [object-key/ar] قيد المراجعة
-- 235 [object-key/ar] مرفوضة
-- 236 [object-key/ar] مكتملة
-- 237 [object-key/ar] الكل
-- 436 [attribute/ar] ماسح الباركود
-- 441 [jsx-text/en] Inventory
-- 442 [jsx-text/ar] امسح الباركود
-- 492 [jsx-text/ar] أدخل الباركود يدويًا ثم اضغط بحث أو Enter
-- 504 [attribute/ar] أدخل الباركود يدويًا
-- 685 [notification/ar] وضع دون اتصال — تم استرجاع مسودة الجرد المحفوظة محليًا
-- 687 [notification/ar] تعذر تحميل الجرد
-- 871 [object-key/en] Gender
-- 872 [object-key/en] Product type
-- 873 [object-key/en] Grade
-- 874 [object-key/en] Size
-- 875 [object-key/en] Brand
-- 876 [object-key/en] Manufacturer
-- 971 [object-key/ar] جرد جديد
-- 979 [notification/ar] تم إنشاء الجرد
-- 1034 [notification/ar] تم حفظ الجرد
-- 1049 [notification/ar] تم بدء الجرد
-- 1064 [notification/ar] تم إرسال الجرد للمراجعة
-- 1079 [notification/ar] تم إعادة فتح الجرد للتعديل
-- 1215 [notification/ar] تمت إضافة اللون للجرد
-- 1240 [notification/ar] تمت إضافة ألوان ومقاسات الموديل إلى الجرد
-- 1270 [notification/ar] لم يتم العثور على منتج مطابق لهذا الباركود
-- 1320 [notification/ar] تعذر تحديد اللون للحذف
-- 1323 [dialog/ar] هل تريد حذف هذا اللون من الجرد؟
-- 1338 [notification/ar] تم حذف اللون من الجرد
-- 1440 [jsx-text/ar] بوابة الموظف
-- 1442 [jsx-text/ar] الجرد
-- 1452 [attribute/ar] جردات الفرع
-- 1495 [jsx-text/ar] جردات الفرع
-- 1496 [jsx-text/ar] المسودة، قيد التنفيذ، المراجعة والمرفوضة.
-- 1508 [attribute/ar] ابحث باسم الجرد أو الفرع
-- 1515 [jsx-text/ar] جاري التحميل...
-- 1560 [jsx-text/ar] اختر جردًا أو أنشئ جردًا جديدًا
-- ... 19 more
-
 ### src/modules/marketing/pages/AiMarketingVideos.jsx (main-erp — ar:14 en:45)
 
 - 104 [object-key/en] Hook / Stop Scroll
@@ -1939,50 +1847,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 371 [attribute/ar] المرجع
 - ... 5 more
 
-### src/modules/managerPortal/pages/InventoryApprovals.jsx (manager-portal — ar:42 en:2)
-
-- 208 [notification/ar] تم اعتماد الجرد
-- 227 [notification/ar] سبب الرفض مطلوب
-- 233 [notification/ar] تم رفض الجرد
-- 254 [jsx-text/ar] اعتمادات الجرد
-- 255 [jsx-text/ar] لا يوجد رمز بوابة صالح. افتح بوابة المدير ثم أعد المحاولة.
-- 277 [jsx-text/ar] مركز اعتماد الجرد
-- 278 [jsx-text/ar] اعتمادات الجرد
-- 305 [attribute/ar] جردات بانتظار المراجعة
-- 306 [attribute/ar] جردات مرفوضة
-- 307 [attribute/ar] جردات مكتملة اليوم
-- 308 [attribute/ar] إجمالي فروقات اليوم
-- 314 [jsx-text/ar] بحث
-- 319 [attribute/ar] ابحث باسم الجرد أو الفرع أو المخزن
-- 329 [jsx-text/ar] الجلسات المعروضة
-- 337 [jsx-text/ar] جاري تحميل الجردات...
-- 372 [jsx-text/ar] لا توجد جلسات قيد المراجعة الآن
-- 373 [jsx-text/ar] ستظهر هنا الجردات التي أرسلها أمين المخزن للمراجعة.
-- 394 [jsx-text/ar] جاري تحميل تفاصيل الجرد...
-- 400 [jsx-text/ar] تفاصيل الجلسة
-- 416 [jsx-text/ar] سبب الرفض
-- 422 [attribute/ar] عدد الأصناف
-- 423 [attribute/ar] إجمالي الزيادة
-- 424 [attribute/ar] إجمالي العجز
-- 425 [attribute/ar] إجمالي الفروقات
-- 449 [jsx-text/en] 0 ? "bg-emerald-500/15 text-emerald-300" : diff
-- 454 [jsx-text/ar] السيستم
-- 455 [jsx-text/ar] الفعلي
-- 460 [jsx-text/ar] لا توجد أصناف داخل الجرد.
-- 468 [jsx-text/ar] المنتج
-- 469 [jsx-text/ar] اللون
-- 470 [jsx-text/ar] المقاس
-- 471 [jsx-text/ar] كمية السيستم
-- 472 [jsx-text/ar] الكمية الفعلية
-- 473 [jsx-text/ar] الفرق
-- 474 [jsx-text/ar] السبب
-- 475 [jsx-text/ar] الملاحظات
-- 491 [jsx-text/en] 0 ? "text-emerald-300" : diff
-- 498 [jsx-text/ar] لا توجد أصناف داخل الجرد.
-- 533 [jsx-text/ar] اختر جلسة من القائمة
-- 534 [jsx-text/ar] سيظهر ملخص الأصناف والفروقات هنا.
-- ... 4 more
-
 ### src/modules/marketing/pages/AiLeadCenter.jsx (main-erp — ar:0 en:44)
 
 - 11 [object-key/en] All
@@ -2344,40 +2208,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1555 [jsx-text/ar] المقاس
 - 1556 [jsx-text/ar] المقاسات المتاحة فقط
 - 1576 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
-
-### src/modules/employees/pages/EmployeePortalProducts.jsx (employee-portal — ar:16 en:15)
-
-- 585 [jsx-text/en] Stock
-- 615 [jsx-text/en] No sizes
-- 653 [jsx-text/en] Variant selection
-- 666 [jsx-text/ar] رجوع
-- 692 [jsx-text/en] Colors
-- 711 [jsx-text/en] No colors
-- 718 [jsx-text/en] Sizes
-- 719 [jsx-text/en] Only available sizes appear
-- 802 [jsx-text/en] EMPLOYEE SCANNER
-- 803 [jsx-text/ar] امسح الباركود أو QR بالكاميرا
-- 804 [jsx-text/ar] وجّه الباركود داخل الإطار.
-- 810 [attribute/ar] إغلاق ماسح الكاميرا
-- 813 [jsx-text/ar] رجوع
-- 836 [jsx-text/en] Scanner Debug
-- 841 [jsx-text/en] Last raw value
-- 845 [jsx-text/en] Detected format
-- 849 [jsx-text/en] Resolver called
-- 853 [jsx-text/en] Resolver result
-- 857 [jsx-text/en] Source
-- 864 [jsx-text/ar] الإدخال اليدوي
-- 875 [attribute/ar] أدخل الباركود يدويًا
-- 1512 [notification/ar] تم إرسال الطلب للمخزن
-- 1562 [notification/ar] لم يتم فتح المسودة تلقائيًا — العنصر غير ظاهر حاليًا
-- 1812 [jsx-text/en] Employee Portal Products
-- 1836 [attribute/ar] فتح ماسح الكاميرا
-- 1837 [attribute/ar] فتح ماسح الكاميرا
-- 1847 [attribute/ar] ابحث بالاسم أو الموديل أو الباركود أو الكود
-- 1856 [attribute/ar] الفلاتر
-- 1857 [attribute/ar] الفلاتر
-- 1867 [jsx-text/ar] الفلاتر
-- 1874 [jsx-text/ar] النتائج
 
 ### src/modules/shipping/pages/ShippingCenter.jsx (main-erp — ar:0 en:31)
 
@@ -3332,6 +3162,24 @@ of scope. The scanner is conservative and can still contain false positives.
 - 140 [inline-ternary/ar] isArabic ? "تنزيل QR" : "Download QR"
 - 144 [inline-ternary/ar] isArabic ? "إعادة إنشاء الرابط" : "Regenerate Link"
 
+### src/modules/employees/pages/EmployeePortalProducts.jsx (employee-portal — ar:0 en:15)
+
+- 592 [jsx-text/en] Stock
+- 622 [jsx-text/en] No sizes
+- 660 [jsx-text/en] Variant selection
+- 699 [jsx-text/en] Colors
+- 718 [jsx-text/en] No colors
+- 725 [jsx-text/en] Sizes
+- 726 [jsx-text/en] Only available sizes appear
+- 809 [jsx-text/en] EMPLOYEE SCANNER
+- 843 [jsx-text/en] Scanner Debug
+- 848 [jsx-text/en] Last raw value
+- 852 [jsx-text/en] Detected format
+- 856 [jsx-text/en] Resolver called
+- 860 [jsx-text/en] Resolver result
+- 864 [jsx-text/en] Source
+- 1821 [jsx-text/en] Employee Portal Products
+
 ### src/modules/inventory/pages/WarehousesDashboard.jsx (main-erp — ar:15 en:0)
 
 - 102 [notification/ar] تم حذف المخزن
@@ -3433,22 +3281,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 91 [inline-ternary/ar] isArabic ? "التحليلات المحاسبية المتقدمة" : "Advanced accounting analytics"
 - 103 [inline-ternary/ar] isArabic ? "التقارير الأساسية جاهزة الآن" : "Core reports are ready now"
 - 115 [inline-ternary/ar] isArabic ? "فتح التقارير المحاسبية" : "Open accounting reports"
-
-### src/modules/employees/pages/EmployeePortal.jsx (employee-portal — ar:13 en:0)
-
-- 109 [jsx-text/ar] ثبّت بوابة الموظف على الموبايل
-- 110 [jsx-text/ar] افتح التاسكات بسرعة واستقبل التنبيهات أثناء الشيفت.
-- 158 [jsx-text/ar] تفعيل تنبيهات التاسكات
-- 190 [jsx-text/ar] تصعيد
-- 477 [jsx-text/ar] بوابة الموظف غير متاحة
-- 492 [jsx-text/ar] بوابة الموظف
-- 498 [jsx-text/ar] مهام اليوم
-- 502 [jsx-text/ar] قيد التنفيذ
-- 506 [jsx-text/ar] مكتملة
-- 534 [jsx-text/ar] المهام المطلوبة
-- 541 [jsx-text/ar] لا توجد مهام مطلوبة الآن.
-- 547 [jsx-text/ar] المهام المكتملة
-- 552 [jsx-text/ar] لم يتم إكمال أي مهمة بعد.
 
 ### src/modules/saas/pages/AdminTenants.jsx (main-erp — ar:0 en:13)
 
@@ -3557,6 +3389,21 @@ of scope. The scanner is conservative and can still contain false positives.
 - 164 [jsx-text/ar] استبدال النقاط
 - 165 [jsx-text/ar] حوّل النقاط إلى قيمة عند إتمام شراء العميل.
 - 168 [jsx-text/ar] النقاط المطلوب استبدالها
+
+### src/modules/managerPortal/pages/ManagerPortal.jsx (manager-portal — ar:0 en:12)
+
+- 2113 [attribute/en] Open notifications
+- 2163 [attribute/en] Close notifications
+- 2549 [attribute/en] Create task
+- 2764 [attribute/en] No seller data
+- 2917 [attribute/en] Conversion indicators
+- 2917 [attribute/en] Shown only when data exists
+- 2921 [jsx-text/en] Customer-linked orders
+- 2926 [jsx-text/en] Online orders
+- 2931 [jsx-text/en] AI chat conversions
+- 2939 [attribute/en] No conversion data
+- 2943 [attribute/en] Top products
+- 2951 [attribute/en] Hourly trend
 
 ### src/components/dashboard/CommandCenterDashboard.jsx (shared — ar:0 en:11)
 
@@ -3867,6 +3714,16 @@ of scope. The scanner is conservative and can still contain false positives.
 - 176 [inline-ternary/ar] isRtl ? "ليس لديك صلاحية عرض إدارة المهام." : "You do not have permission to view task management."
 - 252 [inline-ternary/ar] isRtl ? "طلبات الموارد البشرية" : "HR Requests"
 - 253 [inline-ternary/ar] isRtl ? "طلبات الإجازات والسلف وملاحظات الموارد البشرية المرتبطة بكل موظف." : "Vacation requests, advance requests, and 
+
+### src/modules/employees/pages/EmployeePortalInventory.jsx (employee-portal — ar:0 en:7)
+
+- 449 [jsx-text/en] Inventory
+- 881 [object-key/en] Gender
+- 882 [object-key/en] Product type
+- 883 [object-key/en] Grade
+- 884 [object-key/en] Size
+- 885 [object-key/en] Brand
+- 886 [object-key/en] Manufacturer
 
 ### src/modules/pos/components/QuickPosFilters.jsx (pos — ar:7 en:0)
 
@@ -4197,6 +4054,11 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 73 [attribute/en] Delete recording
 - 108 [attribute/en] Send recording
+
+### src/modules/managerPortal/pages/InventoryApprovals.jsx (manager-portal — ar:0 en:2)
+
+- 459 [jsx-text/en] 0 ? "bg-emerald-500/15 text-emerald-300" : diff
+- 501 [jsx-text/en] 0 ? "text-emerald-300" : diff
 
 ### src/shared/components/Table.jsx (shared — ar:0 en:2)
 

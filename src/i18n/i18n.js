@@ -23,6 +23,8 @@ import branchesAr from "../locales/ar/branches.json";
 import warehousesAr from "../locales/ar/warehouses.json";
 import transfersAr from "../locales/ar/transfers.json";
 import settingsAr from "../locales/ar/settings.json";
+import managerPortalAr from "../locales/ar/managerPortal.json";
+import employeePortalAr from "../locales/ar/employeePortal.json";
 import authAr from "../locales/ar/auth.json";
 import marketingAr from "../locales/ar/marketing.json";
 import storefrontAr from "../locales/ar/storefront.json";
@@ -49,6 +51,8 @@ import branchesEn from "../locales/en/branches.json";
 import warehousesEn from "../locales/en/warehouses.json";
 import transfersEn from "../locales/en/transfers.json";
 import settingsEn from "../locales/en/settings.json";
+import managerPortalEn from "../locales/en/managerPortal.json";
+import employeePortalEn from "../locales/en/employeePortal.json";
 import authEn from "../locales/en/auth.json";
 import marketingEn from "../locales/en/marketing.json";
 import storefrontEn from "../locales/en/storefront.json";
@@ -155,6 +159,8 @@ const resources = buildResources({
     warehouses: warehousesAr,
     transfers: transfersAr,
     settings: settingsAr,
+    managerPortal: managerPortalAr,
+    employeePortal: employeePortalAr,
     auth: authAr,
     marketing: marketingAr,
     storefront: storefrontAr,
@@ -182,6 +188,8 @@ const resources = buildResources({
     warehouses: warehousesEn,
     transfers: transfersEn,
     settings: settingsEn,
+    managerPortal: managerPortalEn,
+    employeePortal: employeePortalEn,
     auth: authEn,
     marketing: marketingEn,
     storefront: storefrontEn,
