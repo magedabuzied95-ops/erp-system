@@ -647,6 +647,44 @@ the 500-level tints, matching checkpoints 3 and 4.
 `rgb(234,231,224)`. Dark — 0 offenders, hero `rgb(35,34,32)` = `--card`, shell
 `rgb(19,18,17)`. State **FIXED_VERIFIED (light + dark, RTL)**.
 
+### Phase 3 — Light pass COMPLETE for all session-3 (Dark-only) routes
+
+Measured on Production at `51efbef`, Light / Arabic RTL. Every route below was
+previously Dark-only; running the missing Light state upgrades it to **PASS
+(both themes)**. All 0 offenders, 0 dark gradients, no horizontal overflow.
+
+`/branches` · `/employees` · `/employees/analytics` · `/employees/attendance` ·
+`/employees/employees` · `/employees/reports` · `/inventory/adjustments` ·
+`/inventory/history` · `/inventory/movements` · `/inventory/count` ·
+`/products/variants` · `/products/brands` · `/products/categories` ·
+`/products/manufacturers` · `/products/units` · `/reports` ·
+`/reports/overview` · `/reports/sales` · `/reports/inventory` · `/ai-studio` ·
+`/notifications` · `/users`
+
+`/analytics` was the only defect found in this pass -> checkpoint 8 (above).
+
+`/inventory/movements` initially reported `NOSET` (never settled). Per protocol
+it was **not** recorded as a pass on that reading; it was re-measured after a
+longer settle window (2326 nodes, stable) and only then recorded clean.
+
+### PENDING route closed — `/inventory/count/:id`
+
+The count list page renders session identifiers directly in its cards
+(`#6`, `#5`, 6 sessions total). Harvested **read-only from rendered text** — no
+record created or mutated. **`/inventory/count/6` audited: 0 offenders, title
+22px, no overflow (Light).** State: PARTIAL_PASS (light/rtl); Dark outstanding.
+
+`/inventory/variant/:id/history` remains **PENDING_NO_READONLY_ID** — no variant
+id is exposed in the DOM and `/api/products/:id`, `/api/product-variants` and
+`/api/variants` all return 404.
+
+### Phase 3 — Dark pass for the accounting block (started)
+
+| Route | Dark result |
+|---|---|
+| `/accounting` | 0 offenders, title 30px — **PASS (both themes)** |
+| `/accounting/journal-entries` | 0 offenders — **PASS (both themes)** |
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
@@ -761,32 +799,37 @@ healthy API and no thrown error) before any further visual work.
 
 ## RESUME MARKER
 
-**Phase 2 is COMPLETE** — typography debt cleared, all five header consumers
-verified at 22px in Light + Dark, frozen references unchanged.
+**Phase 3 Light pass: COMPLETE** for all session-3 routes (22 routes upgraded to
+PASS). **Phase 3 Dark pass: IN PROGRESS.**
 
-**Phase 3 is IN PROGRESS.** Continue the Light pass for the remaining Dark-only
-routes, in this order:
+**NEXT ROUTE/STATE: `/accounting/treasury`, DARK.**
 
-`/branches`, `/employees`, `/employees/analytics`, `/employees/attendance`,
-`/employees/employees`, `/employees/reports`, `/inventory/adjustments`,
-`/inventory/history`, `/inventory/movements`, `/inventory/count`,
-`/ai-studio` + its 5 subroutes, `/products/brands`, `/products/categories`,
-`/products/manufacturers`, `/products/units`, `/products/variants`,
-`/reports`, `/reports/overview`, `/reports/sales`, `/reports/inventory`,
-and the session-4 routes (barcode pages, `/operations/shipping`,
-`/website/settings`, `/orders/returns`, `/pos`, `/staff/tasks`, `/admin/*`).
+Then the rest of the accounting Dark pass: `general-ledger`, `trial-balance`,
+`profit-loss`, `cashbox`, `reports`, `accounts`, `income`, `cost-fix`,
+`audit-trail`, `financial-accounts`, `payment-method-mappings`.
 
-Then the Dark pass for the 13 accounting routes and the session-1 routes, which
-are Light-only. Then Phase 4 (`/products/labels` -> PASS_BOUNDED) and Phase 5
-(frozen-reference sweep).
+Then the Dark pass for the session-1 routes (`/workspace`, `/suppliers`,
+`/warehouses`, `/stock-transfers`, `/smart-warehouse`, `/expenses`, `/billing`,
+`/roles`, `/purchases`, `/purchases/reorder-suggestions`) and the session-4
+routes, which were measured in Light only (barcode pages, `/operations/shipping`,
+`/website/settings`, `/orders/returns`, `/pos`, `/staff/tasks`, `/admin/*`,
+`/ai-studio` subroutes, and the ID-bound detail routes incl.
+`/inventory/count/6`).
 
-**Treat every single-theme row as genuinely unverified.** Two Light-specific
-defects (loyalty, `/analytics`) have now been caught this way, both invisible to
-a Dark-only sweep.
+Then Phase 4 (`/products/labels` -> PASS_BOUNDED) and Phase 5 (frozen-reference
+sweep).
 
-Unchanged records: `/ai-studio/workflows/:id/edit` BLOCKED_FUNCTIONAL;
-`/inventory/count/:id` and `/inventory/variant/:id/history`
-PENDING_NO_READONLY_ID; `/products/labels` bounded verification.
+**Treat every single-theme row as genuinely unverified** — two Light-specific
+defects (loyalty, `/analytics`) were caught exactly this way.
+
+Standing records: `/ai-studio/workflows/:id/edit` BLOCKED_FUNCTIONAL;
+`/inventory/variant/:id/history` PENDING_NO_READONLY_ID; `/products/labels`
+PASS_BOUNDED (327k nodes, bounded verification only).
+
+**Automation-session rule (permanent):** an empty `#root` in the automation
+browser while Production is healthy is an AUTOMATION SESSION FAILURE — close the
+tab group, re-establish the session, re-validate the auditor against `/products`.
+Never roll back healthy Production code for it.
 
 ### Remaining queue (PENDING)
 
