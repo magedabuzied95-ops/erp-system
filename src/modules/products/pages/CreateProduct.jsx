@@ -2648,7 +2648,7 @@ function CreateProduct() {
               the jump links so the description is not announced as navigation.
               Both actions are carried over verbatim, so the submit contract
               (three native submits, each guarded while saving) is intact. */}
-          <div className="sticky top-[58px] z-30 -mx-1 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-2 backdrop-blur md:top-[64px]">
+          <div className="-mx-1 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-2">
             <p className="truncate px-1 pb-1.5 text-[11px] leading-4 text-text-muted">
               {t("products.editor.createWorkflowDescription")}
             </p>
