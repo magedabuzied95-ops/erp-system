@@ -390,7 +390,41 @@ Dark/RTL only: the 20 session-3 routes listed above plus `reports/*`.
 LTR has not been run for any route yet. These are tracked for the dedicated
 completion sweep, not silently upgraded to PASS.
 
-## Open design decision — page-title scale (NOT auto-converged)
+## Typography ruling — page-title scale (DECIDED)
+
+**Canonical operational ERP page title = 22px**, i.e. the existing
+`.m1-page-title` / `--font-page-title` vocabulary. This is the approved target
+for ordinary ERP page titles.
+
+The 30px `.m1-display` treatment is **not** the default page-title scale. It is
+reserved for genuinely intentional display/hero contexts only.
+
+Scope control (explicit): this ruling is **not** propagated globally yet, and
+frozen reference pages are **not** modified now. It is recorded as the approved
+target so the dedicated completion sweep can converge against it later.
+
+Superseded: the earlier "open design decision" entry below. The frozen
+references still disagree with each other (Dashboard/Orders 22px, Customers
+30px); that disagreement is now resolved in favour of 22px, but resolving it in
+the frozen files themselves is deferred to a final shared typography
+convergence.
+
+### Known convergence debt — approved target 22px
+
+| Route | Measured page title | Approved target | State |
+|---|---|---|---|
+| `/marketing/automation` | 22px/800 | 22px | CONVERGED (already canonical) |
+| `/marketing/social-calendar` | 37px/800 | 22px | TYPOGRAPHY_DEBT |
+| `/marketing/social-media-publisher` | 37px/800 | 22px | TYPOGRAPHY_DEBT |
+| `/marketing/analytics` | 44px/800 | 22px | TYPOGRAPHY_DEBT |
+
+Note: `/marketing/automation` measured 22px, which **is** the canonical value, so
+it is not debt — it was previously mis-recorded as drift against a 30px
+assumption. The remaining accounting/marketing routes that render 30px via
+`.m1-display` are also debt against this ruling, but are deliberately left for
+the completion sweep rather than converged mid-audit.
+
+## Superseded — original open design decision (kept for the measurement record)
 
 Typography audit found two competing canonical page-title classes:
 
