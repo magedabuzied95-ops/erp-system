@@ -2828,9 +2828,14 @@ function AiSuggestionCard({
   onRemoveProduct,
   onChangeProduct,
   onChooseProduct,
+  editText = "",
+  onEditTextChange,
+  onCancelEdit,
 }) {
   const value = clean(text);
   if (!value) return null;
+  // The text that Approve & Send will actually send: the inline edit while editing, else the AI suggestion.
+  const finalText = editing ? editText : value;
 
   const grounding = facts?.grounding || null;
   const resolved = grounding?.resolved || null;
@@ -2851,10 +2856,23 @@ function AiSuggestionCard({
     <div className={`mb-2 rounded-2xl border p-3 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">اقتراح الذكاء الاصطناعي</div>
-          <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/10 bg-slate-950/75 p-3 text-sm leading-7 text-slate-100">
-            {value}
-          </div>
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{editing ? "تعديل اقتراح الذكاء الاصطناعي" : "اقتراح الذكاء الاصطناعي"}</div>
+          {editing ? (
+            <textarea
+              value={editText}
+              onChange={(e) => onEditTextChange?.(e.target.value)}
+              rows={4}
+              dir="auto"
+              autoFocus
+              className="mt-2 w-full resize-y rounded-xl border border-violet-300/40 bg-slate-950/80 p-3 text-sm leading-7 text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-400/30"
+              placeholder="عدّل رد الذكاء الاصطناعي هنا..."
+            />
+          ) : (
+            <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/10 bg-slate-950/75 p-3 text-sm leading-7 text-slate-100">
+              {value}
+            </div>
+          )}
+          <div className="mt-1 text-[10px] font-bold text-slate-400">النص اللي هيتبعت للعميل: <span className="text-slate-100">{clean(finalText) || "—"}</span></div>
           {grounding || factProducts.length ? (
             <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/50 p-2">
               <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200/80">
@@ -2887,10 +2905,10 @@ function AiSuggestionCard({
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={onEdit}
+          onClick={editing ? onCancelEdit : onEdit}
           className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 transition hover:bg-violet-400/15"
         >
-          ✏️ تعديل الرد
+          {editing ? "↩️ إلغاء التعديل" : "✏️ تعديل الرد"}
         </button>
         <button
           type="button"
@@ -2935,6 +2953,9 @@ function ManualReplyComposer({
   aiSuggestionProductAmbiguous = false,
   aiSuggestionProductRemoved = false,
   aiSuggestionDeliveryFormat = "",
+  aiSuggestionEditText = "",
+  onAiSuggestionEditTextChange,
+  onCancelEditAiSuggestion,
   onRemoveSuggestionProduct,
   onChangeSuggestionProduct,
   onChooseSuggestionProduct,
@@ -3025,6 +3046,9 @@ function ManualReplyComposer({
           onRemoveProduct={onRemoveSuggestionProduct}
           onChangeProduct={onChangeSuggestionProduct}
           onChooseProduct={onChooseSuggestionProduct}
+          editText={aiSuggestionEditText}
+          onEditTextChange={onAiSuggestionEditTextChange}
+          onCancelEdit={onCancelEditAiSuggestion}
           onEdit={onEditAiSuggestion}
           onApprove={onApproveAiSuggestion}
           onDismiss={onDismissAiSuggestion}
@@ -4597,6 +4621,8 @@ export default function AiInbox() {
   // Phase 11.2 — employee control over the grounded product attachment on the suggestion.
   const [suggestionProductRemoved, setSuggestionProductRemoved] = useState(false);
   const [suggestionChosenCard, setSuggestionChosenCard] = useState(null);
+  // Phase 11.2 — inline edit buffer for the AI suggestion (separate from the manual composer).
+  const [aiSuggestionEditText, setAiSuggestionEditText] = useState("");
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
   const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false, selectMode: false });
   const [productCardSending, setProductCardSending] = useState(false);
@@ -6085,10 +6111,12 @@ export default function AiInbox() {
     if (ch.includes("instagram")) return { label: "لينك المنتج", kind: "text_link" };
     return { label: "لينك المنتج", kind: "text_link" };
   }, [selectedConversation?.channel, selectedConversation?.source]);
-  // Reset employee product edits whenever a fresh suggestion appears.
+  // Reset employee product + text edits whenever a fresh suggestion appears (never mid-edit of the same one).
   useEffect(() => {
     setSuggestionProductRemoved(false);
     setSuggestionChosenCard(null);
+    setEditingAiDraft(false);
+    setAiSuggestionEditText("");
   }, [activeAiSuggestionKey]);
   const activeAiReplyValidation = useMemo(
     () => normalizeValidationSummary(
@@ -6908,10 +6936,10 @@ export default function AiInbox() {
     const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
     const correctionMetadata = options.correctionMetadata || {};
     const sendFlow = options.flow || (allowSameTextCorrection ? "edit" : "normal");
-    // Phase 11.2 A/B — an AI-assisted approval keeps the conversation assisted (ai_active); a manual composer
-    // reply takes over. Assisted = the card's Approve (flow:"approve") OR sending while editing an AI draft.
-    // The server re-validates this flag against a real current draft, so a stale/forged flag can't take effect.
-    const assistedApproval = options.assistedApproval === true || sendFlow === "approve" || editingAiDraft === true;
+    // Phase 11.2 A/B — assisted approval comes ONLY from the AI card's Approve (flow:"approve" / explicit flag).
+    // The manual composer is always a separate manual-reply path (→ human_takeover), even while the card is in
+    // inline-edit mode. The server re-validates this flag against a real current draft.
+    const assistedApproval = options.assistedApproval === true || sendFlow === "approve";
     // Atomic in-flight guard: a rapid double-click can fire twice before the
     // disabled state renders. Placed after the (synchronous) confirm prompt and
     // before the optimistic bubble, so a blocked second click neither sends a
@@ -7023,12 +7051,18 @@ export default function AiInbox() {
     return sendManualReply(overrideText, options);
   };
 
+  // Phase 11.2 — inline edit INSIDE the card (does NOT touch the manual composer). The composer stays a
+  // separate manual-reply path. Approve & Send uses the inline edited text.
   const handleEditAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionText) return;
     setEditingAiDraft(true);
     setDismissedAiSuggestionKey("");
-    setReplyText(activeAiSuggestionText);
+    setAiSuggestionEditText(activeAiSuggestionText);
   }, [activeAiSuggestionText]);
+  const handleCancelEditAiSuggestion = useCallback(() => {
+    setEditingAiDraft(false);
+    setAiSuggestionEditText("");
+  }, []);
 
   // Phase 11.2 — PACKAGE Approve & Send: send the (approved/edited) TEXT first (stale-guarded), then the approved
   // grounded PRODUCT CARD via the canonical product-card sender. One employee action. If the text send is stale
@@ -7042,8 +7076,8 @@ export default function AiInbox() {
     }
     const card = effectiveSuggestionCard;
     const disposition = suggestionProductRemoved ? "removed" : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none"));
-    // Send the EDITED text when the employee edited the draft; otherwise the unchanged suggestion.
-    const textToSend = editingAiDraft && clean(replyText) ? clean(replyText) : activeAiSuggestionText;
+    // Send the INLINE-edited text when the employee edited the suggestion; otherwise the unchanged suggestion.
+    const textToSend = editingAiDraft && clean(aiSuggestionEditText) ? clean(aiSuggestionEditText) : activeAiSuggestionText;
     const result = await sendCurrentReply(textToSend, {
       allowSameTextCorrection: true,
       flow: "approve",
@@ -8497,6 +8531,9 @@ export default function AiInbox() {
                         aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
                         aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
+                        aiSuggestionEditText={aiSuggestionEditText}
+                        onAiSuggestionEditTextChange={setAiSuggestionEditText}
+                        onCancelEditAiSuggestion={handleCancelEditAiSuggestion}
                         onRemoveSuggestionProduct={handleRemoveSuggestionProduct}
                         onChangeSuggestionProduct={handleChangeSuggestionProduct}
                         onChooseSuggestionProduct={handleChooseSuggestionProduct}
@@ -9351,6 +9388,9 @@ export default function AiInbox() {
                         aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
                         aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
+                        aiSuggestionEditText={aiSuggestionEditText}
+                        onAiSuggestionEditTextChange={setAiSuggestionEditText}
+                        onCancelEditAiSuggestion={handleCancelEditAiSuggestion}
                         onRemoveSuggestionProduct={handleRemoveSuggestionProduct}
                         onChangeSuggestionProduct={handleChangeSuggestionProduct}
                         onChooseSuggestionProduct={handleChooseSuggestionProduct}

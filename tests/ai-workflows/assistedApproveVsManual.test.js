@@ -44,17 +44,30 @@ test("server: Take Over + Return to AI canonical endpoints exist", () => {
   assert.match(routeSrc, /router\.post\("\/conversations\/:conversationId\/return-to-ai"/);
 });
 
-test("frontend: assisted flag is sent to /send and derived from approve/editing (not arbitrary)", () => {
+test("frontend: assisted flag is sent to /send and comes ONLY from the AI card approve (composer stays manual)", () => {
   assert.match(inboxSrc, /assisted_approval: assistedApproval/); // sent in the /send body
-  assert.match(inboxSrc, /const assistedApproval = options\.assistedApproval === true \|\| sendFlow === "approve" \|\| editingAiDraft === true/);
+  assert.match(inboxSrc, /const assistedApproval = options\.assistedApproval === true \|\| sendFlow === "approve";/);
+});
+
+test("frontend: AI suggestion has INLINE editing inside the card, separate from the manual composer", () => {
+  // inline textarea bound to the edit buffer, not the composer
+  assert.match(inboxSrc, /onChange=\{\(e\) => onEditTextChange\?\.\(e\.target\.value\)\}/);
+  // Edit initializes the inline buffer and does NOT copy into the composer (setReplyText)
+  assert.match(inboxSrc, /const handleEditAiSuggestion = useCallback\(\(\) => \{[\s\S]*?setAiSuggestionEditText\(activeAiSuggestionText\)[\s\S]*?\}, \[activeAiSuggestionText\]\)/);
+  assert.doesNotMatch(inboxSrc, /handleEditAiSuggestion = useCallback\(\(\) => \{[\s\S]*?setReplyText\(activeAiSuggestionText\)[\s\S]*?\}, \[activeAiSuggestionText\]\)/);
+  // Approve sends the inline-edited text; Cancel restores
+  assert.match(inboxSrc, /const textToSend = editingAiDraft && clean\(aiSuggestionEditText\) \? clean\(aiSuggestionEditText\) : activeAiSuggestionText/);
+  assert.match(inboxSrc, /const handleCancelEditAiSuggestion = useCallback\(\(\) => \{\s*setEditingAiDraft\(false\);\s*setAiSuggestionEditText\(""\);/);
+  // card shows the FINAL text that will be sent
+  assert.match(inboxSrc, /النص اللي هيتبعت للعميل/);
 });
 
 test("frontend: assisted approval does NOT optimistically take over; manual reply does", () => {
   assert.match(inboxSrc, /conversation_status: assistedApproval \? \(conversation\.conversation_status \|\| "ai_active"\) : "human_takeover"/);
 });
 
-test("frontend: card Approve sends EDITED text when editing, and flags assisted", () => {
-  assert.match(inboxSrc, /const textToSend = editingAiDraft && clean\(replyText\) \? clean\(replyText\) : activeAiSuggestionText/);
+test("frontend: card Approve sends the INLINE-edited text and flags assisted", () => {
+  assert.match(inboxSrc, /const textToSend = editingAiDraft && clean\(aiSuggestionEditText\) \? clean\(aiSuggestionEditText\) : activeAiSuggestionText/);
   assert.match(inboxSrc, /assistedApproval: true/);
 });
 
