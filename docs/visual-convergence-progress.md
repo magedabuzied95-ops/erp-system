@@ -13,7 +13,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 3 | Marketing remainder: analytics, templates, settings (4 files / 3 routes) | `pre-visual-convergence-cp3-20260812` -> `aec6497` | `2fa8eb3` | `2fa8eb3` verified Light + Dark | build green |
 | 3b | Residual dark gradient hero on `/marketing/settings` | -> `2fa8eb3` | `0278020` | `0278020` verified Light + Dark | build green |
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
-| 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | see below | see below | build green |
+| 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
 
 ## Method
 
@@ -447,6 +447,16 @@ were dropped. Residual off-system chrome: **0**.
 **Brand fills protected:** `bg-red-500 text-white` (the destructive remove
 button) keeps `text-white`, which is the correct fixed contrast colour on a
 solid red fill — the same protection applied to `#1877f2` in checkpoint 3.
+
+**Checkpoint 5 production verification (Production `c8210ec`):**
+
+| Theme | Shell | Offenders | "Add To Cart" CTA |
+|---|---|---|---|
+| Light | `rgb(234,231,224)` = `--bg` | 0 | `rgb(164,122,18)` = `--primary`, text `rgb(13,10,2)` = `--primary-contrast`, width unchanged at 1873px |
+| Dark | `rgb(19,18,17)` = `--bg` | 0 | `rgb(220,176,58)` = `--primary`, text `rgb(13,10,2)` |
+
+State: **FIXED_VERIFIED (light + dark, RTL)**. Change confined to one page file;
+no shared component or CSS touched, so frozen references are unaffected.
 
 ## Typography ruling — page-title scale (DECIDED)
 
