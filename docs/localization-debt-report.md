@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 608
 - Files with debt: 219
-- Hardcoded Arabic UI strings: 2545
+- Hardcoded Arabic UI strings: 2546
 - Hardcoded English UI strings: 2546
-- Total hardcoded UI strings: 5091
+- Total hardcoded UI strings: 5092
 - Mixed-language files (both scripts hardcoded): 53
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 117 | 1927 | 1821 | 3748 | 36 |
+| main-erp | 117 | 1928 | 1821 | 3749 | 36 |
 | shared | 70 | 189 | 440 | 629 | 11 |
 | employee-portal | 24 | 223 | 149 | 372 | 3 |
 | pos | 6 | 206 | 122 | 328 | 3 |
@@ -30,7 +30,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 139 | 253 | 392 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 140 | 253 | 393 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 106 | 179 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 58 | 100 | 158 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 13 | 153 |
@@ -86,7 +86,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:139 en:253)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:140 en:253)
 
 - 564 [object-key/en] All
 - 565 [object-key/en] Messages
@@ -128,7 +128,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2244 [jsx-text/en] Edit label
 - 2245 [attribute/en] Label name
 - 2251 [jsx-text/en] Cancel
-- ... 352 more
+- ... 353 more
 
 ### src/modules/pos/pages/POSPro.jsx (pos — ar:73 en:106)
 
@@ -3347,18 +3347,18 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/managerPortal/pages/ManagerPortal.jsx (manager-portal — ar:0 en:12)
 
-- 2113 [attribute/en] Open notifications
-- 2163 [attribute/en] Close notifications
-- 2549 [attribute/en] Create task
-- 2764 [attribute/en] No seller data
-- 2917 [attribute/en] Conversion indicators
-- 2917 [attribute/en] Shown only when data exists
-- 2921 [jsx-text/en] Customer-linked orders
-- 2926 [jsx-text/en] Online orders
-- 2931 [jsx-text/en] AI chat conversions
-- 2939 [attribute/en] No conversion data
-- 2943 [attribute/en] Top products
-- 2951 [attribute/en] Hourly trend
+- 2115 [attribute/en] Open notifications
+- 2165 [attribute/en] Close notifications
+- 2551 [attribute/en] Create task
+- 2766 [attribute/en] No seller data
+- 2919 [attribute/en] Conversion indicators
+- 2919 [attribute/en] Shown only when data exists
+- 2923 [jsx-text/en] Customer-linked orders
+- 2928 [jsx-text/en] Online orders
+- 2933 [jsx-text/en] AI chat conversions
+- 2941 [attribute/en] No conversion data
+- 2945 [attribute/en] Top products
+- 2953 [attribute/en] Hourly trend
 
 ### src/components/dashboard/CommandCenterDashboard.jsx (shared — ar:0 en:11)
 
