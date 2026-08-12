@@ -58,6 +58,7 @@ export const RESOURCE_BRANCHES = [
   { branch: "managerPortal", file: "managerPortal" },
   { branch: "employeePortal", file: "employeePortal" },
   { branch: "attendance", file: "attendance" },
+  { branch: "access", file: "access" },
   { branch: "auth", file: "auth" },
   { branch: "marketing", file: "marketing" },
   { branch: "storefront", file: "storefront" },

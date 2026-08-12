@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { AlertTriangle, BadgePlus, CircleX, PencilLine, RefreshCw, ShieldCheck, ShieldAlert, Trash2, UsersRound } from "lucide-react";
@@ -104,6 +105,7 @@ const normalizeUser = (user = {}, roles = []) => {
 };
 
 function UsersPage() {
+  const { t } = useTranslation();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [roleRows, setRoleRows] = useState([]);
@@ -168,7 +170,7 @@ function UsersPage() {
         setRoles([]);
         setSelectedRoleId("");
         setError("Users endpoint unavailable.");
-        toast.error("Users endpoint unavailable.");
+        toast.error(t("access.users.toasts.endpointUnavailable"));
       } finally {
         if (active) setLoading(false);
       }
@@ -218,11 +220,11 @@ function UsersPage() {
     if (!editingUser) return;
     const numericRoleId = Number(editRoleId);
     if (!editName.trim() || !editEmail.trim()) {
-      toast.error("Name and email are required");
+      toast.error(t("access.users.toasts.nameEmailRequired"));
       return;
     }
     if (!Number.isInteger(numericRoleId) || numericRoleId <= 0) {
-      toast.error("Please select a valid role");
+      toast.error(t("access.users.toasts.selectValidRole"));
       return;
     }
 
@@ -253,10 +255,10 @@ function UsersPage() {
         )
       );
       closeEditUser();
-      toast.success("User updated");
+      toast.success(t("access.users.toasts.userUpdated"));
     } catch (err) {
       console.log(err);
-      toast.error("Backend users update unavailable.");
+      toast.error(t("access.users.toasts.updateUnavailable"));
     } finally {
       setActionBusyId(null);
     }
@@ -277,11 +279,11 @@ function UsersPage() {
   const savePassword = async () => {
     if (!passwordUser) return;
     if (!newPassword.trim() || !confirmPassword.trim()) {
-      toast.error("Password fields are required");
+      toast.error(t("access.users.toasts.passwordFieldsRequired"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error(t("access.users.toasts.passwordsMismatch"));
       return;
     }
 
@@ -289,10 +291,10 @@ function UsersPage() {
     try {
       await api.put(`/users/${passwordUser.id}/password`, { password: newPassword });
       closePasswordModal();
-      toast.success("Password updated");
+      toast.success(t("access.users.toasts.passwordUpdated"));
     } catch (err) {
       console.log(err);
-      toast.error("Backend password update unavailable.");
+      toast.error(t("access.users.toasts.passwordUpdateUnavailable"));
     } finally {
       setActionBusyId(null);
     }
@@ -307,10 +309,10 @@ function UsersPage() {
     try {
       await api.delete(`/users/${user.id}`);
       setUsers((currentUsers) => currentUsers.filter((item) => String(item.id) !== String(user.id)));
-      toast.success("User deleted");
+      toast.success(t("access.users.toasts.userDeleted"));
     } catch (err) {
       console.log(err);
-      toast.error("Backend delete unavailable.");
+      toast.error(t("access.users.toasts.deleteUnavailable"));
     } finally {
       setActionBusyId(null);
     }
@@ -318,7 +320,7 @@ function UsersPage() {
 
   const createUser = async () => {
     if (!name.trim() || !email.trim()) {
-      toast.error("Name and email are required");
+      toast.error(t("access.users.toasts.nameEmailRequired"));
       return;
     }
 
@@ -330,7 +332,7 @@ function UsersPage() {
         selectedRole,
         roleOptions,
       });
-      toast.error("Please select a valid role");
+      toast.error(t("access.users.toasts.selectValidRole"));
       return;
     }
 
@@ -355,10 +357,10 @@ function UsersPage() {
       console.log("USERS_CREATE_PAYLOAD", payload);
       await api.post("/users", payload);
       setUsers(next);
-      toast.success("User created");
+      toast.success(t("access.users.toasts.userCreated"));
     } catch (err) {
       console.log(err);
-      toast.error("Backend users endpoint unavailable.");
+      toast.error(t("access.users.toasts.createUnavailable"));
       } finally {
       setName("");
       setEmail("");
@@ -379,7 +381,7 @@ function UsersPage() {
 
     const numericRoleId = Number(newRoleId);
     if (!Number.isInteger(numericRoleId) || numericRoleId <= 0) {
-      toast.error("Please select a valid role");
+      toast.error(t("access.users.toasts.selectValidRole"));
       return;
     }
     const role = roleOptions.find((item) => String(item.id) === newRoleId);
@@ -405,10 +407,10 @@ function UsersPage() {
         })));
         return nextUsers;
       });
-      toast.success("Role updated");
+      toast.success(t("access.users.toasts.roleUpdated"));
     } catch (err) {
       console.log(err);
-      toast.error("Backend role update unavailable.");
+      toast.error(t("access.users.toasts.roleUpdateUnavailable"));
     } finally {
       setSavingId(null);
     }
@@ -416,8 +418,8 @@ function UsersPage() {
 
   return (
     <PermissionsShell
-      title="User-Role Assignment"
-      subtitle="Create users, assign roles, and keep permission inheritance aligned with the role catalog and backend fallback records."
+      title={t("access.users.title")}
+      subtitle={t("access.users.subtitle")}
       actions={
         <>
           <Link to="/settings/roles" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
@@ -427,9 +429,9 @@ function UsersPage() {
         </>
       }
       tabs={[
-        { to: "/settings/roles", label: "Roles" },
-        { to: "/settings/permissions", label: "Permissions" },
-        { to: "/settings/users", label: "Users", end: true },
+        { to: "/settings/roles", label: t("access.tabs.roles") },
+        { to: "/settings/permissions", label: t("access.tabs.permissions") },
+        { to: "/settings/users", label: t("access.tabs.users"), end: true },
       ]}
     >
       {error ? (
@@ -442,12 +444,12 @@ function UsersPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">Create user</h3>
+            <h3 className="m1-section-title text-white">{t("access.users.createUser")}</h3>
             <div className="mt-4 space-y-3">
-              <Field label="Name" value={name} onChange={setName} placeholder="Full name" />
-              <Field label="Email" value={email} onChange={setEmail} placeholder="user@company.com" />
-              <Field label="Password" value={password} onChange={setPassword} placeholder="Initial password" type="password" />
-              <Select label="Role" value={selectedRoleId} onChange={setSelectedRoleId} options={roleOptions} />
+              <Field label={t("access.users.name")} value={name} onChange={setName} placeholder={t("access.users.fullName")} />
+              <Field label={t("access.users.email")} value={email} onChange={setEmail} placeholder="user@company.com" />
+              <Field label={t("access.users.password")} value={password} onChange={setPassword} placeholder={t("access.users.initialPassword")} type="password" />
+              <Select label={t("access.users.role")} value={selectedRoleId} onChange={setSelectedRoleId} options={roleOptions} />
               <Can permission="users.create">
                 <button
                   type="button"
@@ -467,14 +469,14 @@ function UsersPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search users..."
+                placeholder={t("access.users.searchPlaceholder")}
                 className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-1">
-              <Metric label="Total users" value={users.length} icon={<UsersRound className="h-5 w-5" />} />
-              <Metric label="Active" value={users.filter((user) => user.status === "Active").length} icon={<RefreshCw className="h-5 w-5" />} />
+              <Metric label={t("access.users.totalUsers")} value={users.length} icon={<UsersRound className="h-5 w-5" />} />
+              <Metric label={t("access.users.active")} value={users.filter((user) => user.status === "Active").length} icon={<RefreshCw className="h-5 w-5" />} />
             </div>
           </div>
         </div>
@@ -482,8 +484,8 @@ function UsersPage() {
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="m1-section-title text-white">Users</h3>
-              <p className="mt-1 text-sm text-zinc-400">Assign roles from the matrix and preserve compatibility with legacy pages.</p>
+              <h3 className="m1-section-title text-white">{t("access.users.listTitle")}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{t("access.users.listSubtitle")}</p>
             </div>
             <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
               {filteredUsers.length} rows
@@ -494,7 +496,7 @@ function UsersPage() {
             {loading ? (
               <Skeleton />
             ) : filteredUsers.length === 0 ? (
-              <EmptyState label="No users match the search query." />
+              <EmptyState label={t("access.users.noMatch")} />
             ) : (
               filteredUsers.map((user) => (
                 <div key={user.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
@@ -505,7 +507,7 @@ function UsersPage() {
                     </div>
 
                     <div>
-                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Role</div>
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("access.users.role")}</div>
                       <select
                         value={String(user.role_id || "")}
                         onChange={(e) => updateUserRole(user.id, e.target.value)}
@@ -565,11 +567,11 @@ function UsersPage() {
       </div>
 
       {editingUser ? (
-        <Modal title="Edit user" onClose={closeEditUser}>
+        <Modal title={t("access.users.editUser")} onClose={closeEditUser}>
           <div className="space-y-3">
-            <Field label="Name" value={editName} onChange={setEditName} placeholder="Full name" />
-            <Field label="Email" value={editEmail} onChange={setEditEmail} placeholder="user@company.com" />
-            <Select label="Role" value={editRoleId} onChange={setEditRoleId} options={roleOptions} />
+            <Field label={t("access.users.name")} value={editName} onChange={setEditName} placeholder={t("access.users.fullName")} />
+            <Field label={t("access.users.email")} value={editEmail} onChange={setEditEmail} placeholder="user@company.com" />
+            <Select label={t("access.users.role")} value={editRoleId} onChange={setEditRoleId} options={roleOptions} />
           </div>
           <div className="mt-5 flex items-center justify-end gap-2">
             <button type="button" onClick={closeEditUser} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
@@ -588,10 +590,10 @@ function UsersPage() {
       ) : null}
 
       {passwordUser ? (
-        <Modal title="Change password" onClose={closePasswordModal}>
+        <Modal title={t("access.users.changePassword")} onClose={closePasswordModal}>
           <div className="space-y-3">
-            <Field label="New password" value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" />
-            <Field label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm password" type="password" />
+            <Field label={t("access.users.newPassword")} value={newPassword} onChange={setNewPassword} placeholder={t("access.users.newPassword")} type="password" />
+            <Field label={t("access.users.confirmPassword")} value={confirmPassword} onChange={setConfirmPassword} placeholder={t("access.users.confirmPassword")} type="password" />
           </div>
           <div className="mt-5 flex items-center justify-end gap-2">
             <button type="button" onClick={closePasswordModal} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
@@ -613,6 +615,7 @@ function UsersPage() {
 }
 
 function Modal({ title, onClose, children }) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6" role="dialog" aria-modal="true">
       <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
@@ -624,7 +627,7 @@ function Modal({ title, onClose, children }) {
             type="button"
             onClick={onClose}
             className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white"
-            aria-label="Close modal"
+            aria-label={t("access.users.closeModal")}
           >
             <CircleX className="h-5 w-5" />
           </button>

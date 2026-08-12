@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 610
-- Files with debt: 180
+- Files with debt: 174
 - Hardcoded Arabic UI strings: 1883
-- Hardcoded English UI strings: 2311
-- Total hardcoded UI strings: 4194
+- Hardcoded English UI strings: 2213
+- Total hardcoded UI strings: 4096
 - Mixed-language files (both scripts hardcoded): 50
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 98 | 1317 | 1765 | 3082 | 34 |
-| shared | 66 | 200 | 463 | 663 | 11 |
+| main-erp | 94 | 1317 | 1669 | 2986 | 34 |
+| shared | 64 | 200 | 461 | 661 | 11 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
@@ -1314,50 +1314,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1034 [attribute/en] Items at or below reorder thresholds.
 - ... 7 more
 
-### src/modules/permissions/pages/Users.jsx (main-erp — ar:0 en:46)
-
-- 171 [notification/en] Users endpoint unavailable.
-- 221 [notification/en] Name and email are required
-- 225 [notification/en] Please select a valid role
-- 256 [notification/en] User updated
-- 259 [notification/en] Backend users update unavailable.
-- 280 [notification/en] Password fields are required
-- 284 [notification/en] Passwords do not match
-- 292 [notification/en] Password updated
-- 295 [notification/en] Backend password update unavailable.
-- 310 [notification/en] User deleted
-- 313 [notification/en] Backend delete unavailable.
-- 321 [notification/en] Name and email are required
-- 333 [notification/en] Please select a valid role
-- 358 [notification/en] User created
-- 361 [notification/en] Backend users endpoint unavailable.
-- 382 [notification/en] Please select a valid role
-- 408 [notification/en] Role updated
-- 411 [notification/en] Backend role update unavailable.
-- 419 [attribute/en] User-Role Assignment
-- 420 [attribute/en] Create users, assign roles, and keep permission inheritance aligned with the role catalog and backend fallback records.
-- 430 [object-key/en] Roles
-- 431 [object-key/en] Permissions
-- 432 [object-key/en] Users
-- 445 [jsx-text/en] Create user
-- 447 [attribute/en] Full name
-- 447 [attribute/en] Name
-- 448 [attribute/en] Email
-- 449 [attribute/en] Initial password
-- 449 [attribute/en] Password
-- 450 [attribute/en] Role
-- 470 [attribute/en] Search users...
-- 476 [attribute/en] Total users
-- 477 [attribute/en] Active
-- 485 [jsx-text/en] Users
-- 486 [jsx-text/en] Assign roles from the matrix and preserve compatibility with legacy pages.
-- 497 [attribute/en] No users match the search query.
-- 508 [jsx-text/en] Role
-- 568 [attribute/en] Edit user
-- 570 [attribute/en] Full name
-- 570 [attribute/en] Name
-- ... 6 more
-
 ### src/modules/aiSupport/pages/AiSupportConsole.jsx (main-erp — ar:10 en:35)
 
 - 186 [jsx-text/ar] مستوى الثقة
@@ -1944,35 +1900,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 49 [jsx-text/ar] الإيرادات والطلبات خلال آخر 7 أيام
 - 49 [jsx-text/ar] تحديث مباشر
 - 49 [jsx-text/ar] منذ دقائق
-
-### src/modules/permissions/pages/Roles.jsx (main-erp — ar:0 en:26)
-
-- 51 [notification/en] Using local roles fallback
-- 70 [notification/en] Role name is required
-- 87 [notification/en] Role created
-- 93 [notification/en] Backend roles endpoint unavailable. Saved locally.
-- 103 [notification/en] Built-in roles cannot be deleted
-- 115 [notification/en] Role removed
-- 121 [attribute/en] Role Management
-- 122 [attribute/en] Create and manage system roles, browse built-in enterprise roles, and keep custom role definitions in sync with the shared permissions matrix.
-- 132 [object-key/en] Roles
-- 133 [object-key/en] Permissions
-- 134 [object-key/en] Users
-- 147 [jsx-text/en] Create role
-- 150 [attribute/en] Custom role name
-- 150 [attribute/en] Role name
-- 151 [attribute/en] Description
-- 151 [attribute/en] Role description
-- 166 [attribute/en] Search roles...
-- 175 [attribute/en] No roles match the current search.
-- 202 [jsx-text/en] Built in
-- 238 [attribute/en] Role ID
-- 239 [attribute/en] Permissions
-- 240 [attribute/en] Type
-- 244 [jsx-text/en] Assigned permissions
-- 247 [attribute/en] No permissions assigned yet.
-- 259 [jsx-text/en] Preset roles
-- 270 [attribute/en] Select a role to view its summary.
 
 ### src/modules/aiSupport/components/TranscriptMessage.jsx (shared — ar:13 en:12)
 
@@ -2640,22 +2567,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 103 [inline-ternary/ar] isArabic ? "التقارير الأساسية جاهزة الآن" : "Core reports are ready now"
 - 115 [inline-ternary/ar] isArabic ? "فتح التقارير المحاسبية" : "Open accounting reports"
 
-### src/modules/saas/pages/AdminTenants.jsx (main-erp — ar:0 en:13)
-
-- 28 [attribute/en] Super Admin Tenants
-- 29 [attribute/en] Monitor companies, active subscriptions, revenue placeholders, and tenant status management from one panel.
-- 37 [object-key/en] Tenants
-- 38 [object-key/en] Workspace
-- 39 [object-key/en] Billing
-- 40 [object-key/en] Company settings
-- 44 [attribute/en] Tenants
-- 45 [attribute/en] Active
-- 46 [attribute/en] Suspended
-- 47 [attribute/en] Revenue placeholder
-- 53 [jsx-text/en] Companies list
-- 54 [jsx-text/en] Suspend or activate tenants without affecting the existing ERP modules.
-- 60 [attribute/en] No tenants found.
-
 ### src/modules/saas/pages/Billing.jsx (main-erp — ar:0 en:13)
 
 - 21 [attribute/en] Billing
@@ -2817,20 +2728,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 131 [object-key/en] Follow up on saved products
 - 132 [object-key/en] Recommend related products
 - 133 [object-key/en] Re-engage customer
-
-### src/modules/permissions/pages/Permissions.jsx (main-erp — ar:0 en:11)
-
-- 60 [notification/en] Backend unavailable. Permissions are read-only.
-- 98 [notification/en] Permissions saved and verified
-- 110 [attribute/en] Permission Matrix
-- 111 [attribute/en] Admin access stays full by default. Select any role, review the entire module/action matrix, and save back to the backend or local fallback catalog.
-- 121 [object-key/en] Roles
-- 122 [object-key/en] Permissions
-- 123 [object-key/en] Users
-- 137 [jsx-text/en] Roles
-- 138 [jsx-text/en] Choose a role to edit its permission set.
-- 149 [attribute/en] No roles available.
-- 186 [jsx-text/en] Export permissions snapshot
 
 ### src/modules/products/pages/BarcodeLabels.jsx (main-erp — ar:4 en:7)
 
@@ -3421,14 +3318,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/orders/components/AiInboxOrderLink.jsx (shared — ar:0 en:1)
 
 - 45 [jsx-text/en] AI Inbox
-
-### src/modules/permissions/components/PermissionMatrix.jsx (shared — ar:0 en:1)
-
-- 99 [jsx-text/en] Module
-
-### src/modules/permissions/components/PermissionsShell.jsx (shared — ar:0 en:1)
-
-- 8 [jsx-text/en] RBAC & Permissions
 
 ### src/modules/pos/lib/thermalReceiptPrint.jsx (pos — ar:0 en:1)
 

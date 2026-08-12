@@ -2,8 +2,8 @@
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
     "arabic": 1883,
-    "english": 2311,
-    "total": 4194,
+    "english": 2213,
+    "total": 4096,
     "mixedFiles": 50
   },
   "files": {
@@ -522,35 +522,10 @@
       "english": 0,
       "total": 30
     },
-    "src/modules/permissions/components/PermissionMatrix.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
-    "src/modules/permissions/components/PermissionsShell.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
     "src/modules/permissions/lib/rbacStore.js": {
       "arabic": 0,
       "english": 94,
       "total": 94
-    },
-    "src/modules/permissions/pages/Permissions.jsx": {
-      "arabic": 0,
-      "english": 11,
-      "total": 11
-    },
-    "src/modules/permissions/pages/Roles.jsx": {
-      "arabic": 0,
-      "english": 26,
-      "total": 26
-    },
-    "src/modules/permissions/pages/Users.jsx": {
-      "arabic": 0,
-      "english": 46,
-      "total": 46
     },
     "src/modules/pos/components/CartSidebar.jsx": {
       "arabic": 28,
@@ -691,11 +666,6 @@
       "arabic": 0,
       "english": 1,
       "total": 1
-    },
-    "src/modules/saas/pages/AdminTenants.jsx": {
-      "arabic": 0,
-      "english": 13,
-      "total": 13
     },
     "src/modules/saas/pages/Billing.jsx": {
       "arabic": 0,
