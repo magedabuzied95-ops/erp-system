@@ -1000,7 +1000,7 @@ export default function MarketingSettings() {
     <div dir="rtl" className="min-h-full bg-[var(--card)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 md:px-6 lg:px-8">
         <MarketingStudioHeader />
-        <section className="rounded-[var(--radius-card)] border border-amber-400/15 bg-gradient-to-br from-[#1d1b12] via-[#171915] to-[#111411] p-5 shadow-[var(--shadow-card)] md:p-6">
+        <section className="rounded-[var(--radius-card)] border border-amber-400/15 bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="space-y-2">
             <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
               <Settings2 className="h-4 w-4" />
