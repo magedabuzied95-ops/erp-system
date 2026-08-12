@@ -31,7 +31,8 @@
       "attribution": "Attribution",
       "autoReplies": "Auto Replies",
       "templates": "Templates",
-      "settings": "Settings"
+      "settings": "Settings",
+      "socialPublisher": "Social Media Publisher"
     },
     "metrics": {
       "totalPosts": "Total posts",
@@ -249,7 +250,8 @@
     "noPlatforms": "No platforms",
     "untitled": "Untitled operation",
     "image": "Image",
-    "video": "Video"
+    "video": "Video",
+    "loadFailed": "Failed to load publishing history"
   },
   "socialCalendar": {
     "eyebrow": "Social Calendar",
@@ -886,7 +888,33 @@
       "legacyTokenSaved": "Legacy token saved",
       "noTokenSaved": "No token saved",
       "expires": "Expires: {{value}}",
-      "missing": "missing"
+      "missing": "missing",
+      "disabled": "Disabled",
+      "enabled": "Enabled"
+    },
+    "capabilities": {
+      "activeRules": "Active rules",
+      "automationHelp": "Comment-to-DM rules, auto replies, and automation logs.",
+      "expires": "Expires",
+      "facebookMessenger": "Facebook Messenger",
+      "facebookPosts": "Facebook page posts",
+      "igBusinessAccount": "IG Business Account",
+      "instagramDm": "Instagram DMs",
+      "instagramPosts": "Instagram feed posts",
+      "lastSync": "Last sync",
+      "messaging": "Messaging",
+      "messagingTitle": "Meta messaging capabilities",
+      "noFacebookPage": "No Facebook page connected",
+      "noInstagramAccount": "No Instagram business account connected",
+      "page": "Page",
+      "publishing": "Publishing",
+      "publishingTitle": "Meta publishing capabilities",
+      "webhook": "Webhook"
     }
+  },
+  "studio": {
+    "description": "Generate, review, schedule, and publish marketing content from one studio.",
+    "eyebrow": "Marketing studio",
+    "title": "Marketing Studio"
   }
 }

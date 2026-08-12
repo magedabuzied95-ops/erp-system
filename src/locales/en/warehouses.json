@@ -1,34 +1,34 @@
 {
-  "title": "لوحة المخازن",
-  "subtitle": "نظرة عامة على مخزون المخازن، ولقطات مخزون الفروع، وعناصر النقل المؤقتة.",
-  "history": "سجل المخزون",
-  "transferStock": "تحويل المخزون",
+  "title": "Warehouses Dashboard",
+  "subtitle": "Warehouse stock overview, branch stock snapshots, and in-transit items.",
+  "history": "Inventory history",
+  "transferStock": "Transfer stock",
   "tabs": {
-    "inventory": "المخزون",
-    "movements": "الحركات",
-    "adjustments": "التسويات",
-    "transfers": "التحويلات",
-    "warehouses": "المخازن"
+    "inventory": "Inventory",
+    "movements": "Movements",
+    "adjustments": "Adjustments",
+    "transfers": "Transfers",
+    "warehouses": "Warehouses"
   },
   "kpis": {
-    "warehouses": "المخازن",
-    "active": "نشط",
-    "branches": "الفروع",
-    "valuation": "التقييم"
+    "warehouses": "Warehouses",
+    "active": "Active",
+    "branches": "Branches",
+    "valuation": "Valuation"
   },
-  "searchPlaceholder": "ابحث في المخازن...",
+  "searchPlaceholder": "Search warehouses...",
   "empty": {
-    "title": "لا توجد مخازن",
-    "subtitle": "أنشئ مخزنًا من الواجهة الخلفية أو عدّل عبارة البحث."
+    "title": "No warehouses",
+    "subtitle": "Create a warehouse from the backend or adjust the search term."
   },
   "row": {
-    "branch": "الفرع",
-    "inventoryOverview": "نظرة عامة على المخزون: كامل / مختلط / جاهز للتحويل",
-    "id": "معرّف المخزن"
+    "branch": "Branch",
+    "inventoryOverview": "Inventory overview: full / mixed / ready to transfer",
+    "id": "Warehouse ID"
   },
   "buttons": {
-    "transfer": "تحويل"
+    "transfer": "Transfer"
   },
-  "fallbackError": "واجهة المخازن غير متاحة. يتم عرض نظرة عامة بديلة.",
-  "fallbackToast": "جارٍ استخدام بيانات مخازن احتياطية"
+  "fallbackError": "The warehouses endpoint is unavailable. Showing a fallback overview.",
+  "fallbackToast": "Using fallback warehouse data"
 }

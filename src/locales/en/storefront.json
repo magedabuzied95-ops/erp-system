@@ -144,14 +144,48 @@
       "noCardSharing": "No card details shared",
       "copyPaymentDetails": "Copy payment details",
       "openApp": "Open app",
-      "proofPreviewAlt": "Transfer proof preview"
+      "proofPreviewAlt": "Transfer proof preview",
+      "amountHelper": "Transfer the shipping fee, then upload the receipt to complete the review.",
+      "paymentDetails": "Payment details",
+      "directPaymentAvailable": "Direct payment available",
+      "openInstapayLink": "Open InstaPay link",
+      "instantPayHelper": "Open the link in the InstaPay app to pay directly.",
+      "copyShort": "Copy",
+      "noPaymentMethod": "No payment method is available right now"
     },
     "chooseGovernorateFirst": "Choose governorate first",
     "cityAreaPlaceholder": "Choose or search city / area",
     "cityAreaManualPlaceholder": "Write city or area",
     "estimatedShipping": "Estimated shipping",
     "finalCostNote": "The final cost appears on checkout based on governorate.",
-    "finalShippingAtCheckout": "Final shipping at checkout"
+    "finalShippingAtCheckout": "Final shipping at checkout",
+    "chooseZoneFirst": "Choose the zone first",
+    "chooseZone": "Choose zone",
+    "chooseDistrict": "Choose district",
+    "searchLocations": "Search for a zone",
+    "searchZones": "Search zones",
+    "searchDistricts": "Search districts",
+    "loadingGovernorates": "Loading governorates...",
+    "loadingZones": "Loading zones...",
+    "loadingDistricts": "Loading districts...",
+    "zoneSearchHint": "Pick the zone from search",
+    "districtSearchHint": "Pick the district from search",
+    "bostaAddressDetails": "Bosta address details",
+    "requiredForBosta": "Required for Bosta shipping",
+    "city": "City",
+    "area": "Area",
+    "streetAddress": "Street",
+    "streetAddressPlaceholder": "Enter the street name",
+    "buildingNumber": "Building number",
+    "buildingNumberPlaceholder": "Building number",
+    "floorNumber": "Floor",
+    "floorNumberPlaceholder": "Floor",
+    "apartmentNumber": "Apartment number",
+    "apartmentNumberPlaceholder": "Apartment number",
+    "completePurchase": "Complete purchase",
+    "codUnavailableForAddress": "Cash on delivery is not available for this address.",
+    "lineTotal": "Total",
+    "quantity": "Quantity"
   },
   "invoice": {
     "unavailable": "Unavailable",
@@ -210,7 +244,8 @@
       "cod": "Cash on delivery",
       "premium": "Mirror Premium products",
       "todayDeals": "Today deals"
-    }
+    },
+    "search": "Search"
   },
   "nav": {
     "home": "Home",
@@ -315,7 +350,9 @@
     "newSubtitle": "Recently added to stock",
     "productOfWeek": "Product of the week",
     "productOfWeekEmpty": "The featured product will appear here once stock updates.",
-    "featuredDescription": "This week's featured pick comes with clearer photos, visible sizes, and a faster shopping experience."
+    "featuredDescription": "This week's featured pick comes with clearer photos, visible sizes, and a faster shopping experience.",
+    "brandsEyebrow": "Brands",
+    "lastSizes": "Last sizes"
   },
   "visualSearch": {
     "similarProducts": "Similar products",
@@ -392,7 +429,14 @@
     "openForDetails": "Open product for details",
     "checkingLiveStock": "Checking live stock...",
     "notFoundTitle": "Product not found",
-    "notFoundText": "Go back to products and try another choice"
+    "notFoundText": "Go back to products and try another choice",
+    "noGradesAvailable": "No grades available",
+    "sizeGuide": "Size guide",
+    "sortBestSelling": "Best selling",
+    "sortMostViewed": "Most viewed",
+    "sortNewest": "Newest",
+    "sortPriceAsc": "Price: low to high",
+    "sortPriceDesc": "Price: high to low"
   },
   "filters": {
     "gender": "Gender",
@@ -422,7 +466,8 @@
     "showMore": "Show more",
     "showLess": "Show less",
     "clearAll": "Clear all",
-    "resetFilters": "Reset filters"
+    "resetFilters": "Reset filters",
+    "bagType": "Bag type"
   },
   "lastPiece": {
     "title": "Last piece"

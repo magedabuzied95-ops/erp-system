@@ -180,7 +180,16 @@
       "purchaseEdited": "تم تعديل الشراء",
       "purchaseAdjustment": "تسوية الشراء",
       "paymentRecorded": "تم تسجيل الدفع"
-    }
+    },
+    "debugInfo": "التفاصيل",
+    "discountPrice": "سعر الخصم",
+    "discountPriceInvalid": "الصف {{row}}: يجب أن يكون سعر الخصم فارغًا أو صفرًا أو أكبر.",
+    "purchaseCost": "تكلفة الشراء",
+    "purchaseCostInvalid": "الصف {{row}}: يجب أن تكون تكلفة الشراء صفرًا أو أكبر.",
+    "remaining": "المتبقي",
+    "salePrice": "سعر البيع",
+    "salePriceInvalid": "الصف {{row}}: يجب أن يكون سعر البيع صفرًا أو أكبر.",
+    "totalItems": "إجمالي الأصناف"
   },
   "supplierDetails": {
     "title": "تفاصيل المورد",

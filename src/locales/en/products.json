@@ -17,13 +17,38 @@
     "lowStock": "Low stock",
     "inactive": "Inactive",
     "allCategories": "All categories",
-    "allBrands": "All brands"
+    "allBrands": "All brands",
+    "allClassifications": "All",
+    "classifications": "Product filters",
+    "clearClassifications": "Clear",
+    "filters": "Filters",
+    "storefrontVisibilityAll": "Storefront visibility: All",
+    "storefrontVisibilityHidden": "Hidden from storefront",
+    "storefrontVisibilityVisible": "Visible on storefront"
   },
   "bulk": {
     "selected": "selected",
     "delete": "Delete",
     "markActive": "Mark active",
-    "markInactive": "Mark inactive"
+    "markInactive": "Mark inactive",
+    "addToBarcodePrintQueue": "Add to label queue",
+    "addToBarcodePrintQueueDescription": "Choose whether to queue every color or only specific colors. Existing items are skipped unless regeneration is enabled.",
+    "allColors": "All colors",
+    "allColorsCount": "{{count}} colors",
+    "allColorsDescription": "Queue every color group for the selected products.",
+    "clearSelection": "Clear",
+    "colors": "colors",
+    "defaultColor": "Default",
+    "hideFromStorefront": "Hide from storefront",
+    "noColors": "No colors found",
+    "regenerateExisting": "Regenerate existing items",
+    "regenerateExistingDescription": "Create a fresh thermal job for colors already in the queue.",
+    "selectAll": "Select all",
+    "selectedColorsCount": "{{count}} selected colors",
+    "selectedColorsOnly": "Selected colors only",
+    "selectedColorsOnlyDescription": "Pick only the colors you want to add to the queue.",
+    "selectionSummary": "Selection",
+    "showOnStorefront": "Show on storefront"
   },
   "table": {
     "product": "Product",
@@ -39,7 +64,9 @@
     "cost": "Cost",
     "sell": "Sell",
     "sale": "Sale",
-    "varies": "Varies"
+    "varies": "Varies",
+    "hideCost": "Hide cost",
+    "showCost": "Show cost"
   },
   "loading": "Loading products...",
   "empty": {
@@ -113,7 +140,19 @@
     "printBarcode": "Print Barcode",
     "barcodeShop": "Barcode Shop",
     "generateMarketingPost": "Generate Marketing Post",
-    "delete": "Delete"
+    "delete": "Delete",
+    "activateProduct": "Activate product",
+    "addToOffers": "Add to offers",
+    "barcode": "Barcode",
+    "deactivateProduct": "Deactivate product",
+    "editPrices": "Edit prices",
+    "generateFastStory": "Generate fast story",
+    "marketing": "Marketing",
+    "moreActions": "More actions",
+    "prices": "Prices",
+    "removeFromOffers": "Remove from offers",
+    "scheduleStory": "Schedule story",
+    "stock": "Stock"
   },
   "actions": {
     "confirmDelete": "Delete this product and its variants?",
@@ -162,7 +201,15 @@
     "selectGrade": "Select grade",
     "gradePlaceholder": "Vietnam Import / Mirror / Local",
     "selected": "Selected",
-    "productName": "Product name"
+    "productName": "Product name",
+    "bagType": "Bag type",
+    "offerStory": "Add to offers",
+    "offerStoryHelp": "This product appears in the offers list curated manually by the manager.",
+    "originalPriceHelp": "Optional. It is shown struck through only when it is higher than the current selling price.",
+    "originalPricePlaceholder": "Optional: price before discount",
+    "originalPriceStorageHelp": "Optional storefront display only. It does not change the selling price, invoices, or profit.",
+    "selectBagType": "Select bag type",
+    "setOriginalPrice": "Add a price before discount"
   },
   "variantMessages": {
     "loadFailed": "Failed to load variants",
@@ -431,7 +478,8 @@
       "pending": "Pending",
       "failed": "Failed",
       "printed": "Printed"
-    }
+    },
+    "addedToQueueToast": "Added to the label queue"
   },
   "editor": {
     "title": "Edit product",
@@ -575,8 +623,7 @@
     "noImageLinked": "No image linked",
     "unsavedChanges": "Unsaved changes",
     "allChangesSaved": "All changes saved",
-    "noChangesYet": "No changes yet"
-    ,
+    "noChangesYet": "No changes yet",
     "aiDescriptionsGenerated": "AI descriptions generated",
     "multiVersionGenerator": "Multi Version Generator",
     "multiVersionGeneratorHelp": "Generate several copy directions from the same product facts, then apply the one that fits best.",
@@ -661,7 +708,21 @@
     "planningStockOnly": "Planning/setup stock only. Real inventory is still received from purchase invoices.",
     "variantColorGroupsHelp": "Each color gets one image. Every size row under that color becomes one variant.",
     "colorOnlyPreviewHelp": "Each color becomes a single fixed-size variant.",
-    "variantPreviewAfterSave": "The matrix below will be created after the product is saved."
+    "variantPreviewAfterSave": "The matrix below will be created after the product is saved.",
+    "addColorBeforeBulkArticle": "Add a color before applying article codes",
+    "applyArticleAllColors": "Apply article to all colors",
+    "applyArticleThisColor": "Apply article to this color",
+    "articleCodeApplied": "Article code applied",
+    "articleCodePlaceholder": "Example: L122",
+    "bulkArticleHelp": "Existing article codes are protected unless you confirm overwrite. Manual article fields stay editable.",
+    "bulkArticleTools": "Bulk article tools",
+    "confirmOverwriteArticleCodes": "Some variants already have article codes. Overwrite them?",
+    "enterArticleCode": "Enter the article code first",
+    "noArticleCodesUpdated": "No article codes were updated",
+    "noVariantRows": "No size rows to update",
+    "zeroAllColorStock": "Zero stock for all colors",
+    "zeroAllColorStockConfirm": "Set the stock quantity of every size in every color to zero?",
+    "zeroAllColorStockDone": "Stock set to zero for all colors"
   },
   "classifications": {
     "title": "Product Classifications",
@@ -730,8 +791,7 @@
       "optionDeactivated": "Option deactivated",
       "optionDeactivateFailed": "Failed to deactivate option",
       "optionDeleted": "Option deleted",
-      "optionDeleteFailed": "Failed to delete option"
-      ,
+      "optionDeleteFailed": "Failed to delete option",
       "optionAlreadyExists": "This option already exists"
     }
   },
@@ -758,13 +818,27 @@
     "galleryDescription": "Product gallery images available on the product record.",
     "noGallery": "No gallery images available.",
     "uploadImages": "Upload Images",
-    "multipleSupported": "Multiple images supported"
+    "multipleSupported": "Multiple images supported",
+    "moveDown": "Move image down",
+    "moveUp": "Move image up"
   },
   "toasts": {
     "productDuplicated": "Product duplicated successfully",
     "duplicateQuotaFailed": "Could not duplicate the product because temporary storage was full. Cache was cleaned; try again.",
     "duplicateFailed": "Failed to duplicate product",
-    "deleteFailed": "Failed to delete product"
+    "deleteFailed": "Failed to delete product",
+    "addedToOffers": "Added to offers",
+    "offerStoryUpdateFailed": "Failed to update offers",
+    "productActivated": "Product activated",
+    "productDeactivated": "Product deactivated",
+    "productsActivated": "Products activated",
+    "productsDeactivated": "Products deactivated",
+    "removedFromOffers": "Removed from offers",
+    "statusToggleUnavailable": "Draft, archived, and deleted products keep their own status workflow.",
+    "statusUpdateFailed": "Failed to update product status",
+    "storefrontHidden": "Hidden from storefront",
+    "storefrontVisibilityUpdateFailed": "Failed to update storefront visibility",
+    "storefrontVisible": "Shown on storefront"
   },
   "marketing": {
     "noCreatePermission": "You do not have permission to create marketing posts.",
@@ -806,7 +880,14 @@
     "articleCode": "Article Code",
     "price": "Price",
     "history": "History",
-    "defaultPurchaseQty": "Default purchase quantity"
+    "defaultPurchaseQty": "Default purchase quantity",
+    "audience": "Audience",
+    "brand": "Brand",
+    "category": "Category",
+    "color": "Color",
+    "comparePrice": "Compare price",
+    "product": "Product",
+    "unit": "Unit"
   },
   "status": {
     "disabled": "Disabled"
@@ -831,5 +912,44 @@
     "sizeCount": "{{count}} Sizes",
     "imageCount": "{{count}} Images",
     "sizesFor": "Sizes for {{name}}"
+  },
+  "priceEditor": {
+    "applyToAllVariants": "Apply to all variants",
+    "applyToProduct": "Apply to product",
+    "bulkSalePrice": "Bulk sale price",
+    "bulkSellingPrice": "Bulk selling price",
+    "changed": "changed",
+    "changedRows": "changed price rows",
+    "clearDiscounts": "Clear all discount prices",
+    "clearManualOverride": "Clear manual override",
+    "copyFirstVariant": "Copy first variant price to all",
+    "current": "Current",
+    "discountPrice": "Sale price",
+    "empty": "Empty",
+    "enterBulkPrice": "Enter a bulk price first",
+    "eyebrow": "Price update only",
+    "loadFailed": "Failed to load product pricing details",
+    "noChanges": "No price changes",
+    "nonNegative": "must be non-negative",
+    "productPrices": "Product prices",
+    "salePrice": "Selling price",
+    "saved": "Prices updated",
+    "saveFailed": "Failed to update prices",
+    "saving": "Saving...",
+    "variantPrices": "Variant prices"
+  },
+  "statusModal": {
+    "activateDescription": "This product will appear again in the storefront and POS.",
+    "activateTitle": "Activate product?",
+    "deactivateDescription": "Inactive products stay visible in admin but are hidden from the storefront, search, and POS sale results.",
+    "deactivateTitle": "Deactivate product?"
+  },
+  "storefront": {
+    "hidden": "Hidden from storefront",
+    "visible": "Visible on storefront"
+  },
+  "tabs": {
+    "offers": "Offers",
+    "products": "Products"
   }
 }

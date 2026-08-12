@@ -497,7 +497,9 @@
           "refreshing": "Refreshing",
           "fallbackMessage": "Showing local employee analytics fallback data.",
           "active": "Active",
-          "inactive": "Inactive"
+          "inactive": "Inactive",
+          "unavailable": "Unavailable",
+          "unavailableMessage": "Employee analytics are unavailable. No placeholder data is shown."
         },
         "toasts": {
           "fallbackData": "Using employee analytics fallback data",
@@ -506,7 +508,8 @@
           "printFailed": "Unable to print report",
           "ruleNameRequired": "Rule name is required",
           "ruleCreated": "Commission rule created",
-          "ruleCreateFailed": "Unable to create commission rule"
+          "ruleCreateFailed": "Unable to create commission rule",
+          "unavailableData": "Unable to load employee analytics"
         },
         "export": {
           "companyName": "ERP System",
@@ -581,6 +584,13 @@
             "sale": "Sale",
             "item": "Item"
           }
+        },
+        "empty": {
+          "noSalesData": "No sales data"
+        },
+        "labels": {
+          "noShiftAssigned": "No shift assigned",
+          "unlinkedEmployee": "Unlinked employee"
         }
       },
       "payroll": {
@@ -621,7 +631,28 @@
       "eyebrow": "Attendance Center",
       "title": "Attendance Center",
       "subtitle": "Live attendance, QR and GPS check-ins, absences, late arrivals, missing hours, and branch monitoring in one operational view."
-    }
+    },
+    "analytics": "Analytics",
+    "custom": "Custom",
+    "error": "Something went wrong",
+    "hide": "Hide",
+    "last30Days": "30 Days",
+    "last7Days": "7 Days",
+    "mainNavigation": "Main navigation",
+    "openMenu": "Open menu",
+    "reset": "Reset",
+    "retry": "Retry",
+    "send": "Send",
+    "show": "Show",
+    "thisMonth": "This Month",
+    "thisYear": "This Year",
+    "today": "Today",
+    "unableToExportCsv": "Unable to export CSV report",
+    "unableToExportPdf": "Unable to export PDF report",
+    "unableToOpenPrint": "Unable to open print report",
+    "unbranded": "Unbranded",
+    "uncategorized": "Uncategorized",
+    "viewAll": "View all"
   },
   "sidebar": {
     "main": "Main",

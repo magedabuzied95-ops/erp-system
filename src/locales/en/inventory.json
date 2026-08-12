@@ -1,98 +1,99 @@
 {
-  "title": "لوحة المخزون",
-  "subtitle": "سجل حركة المخزون، وبطاقات التقييم، وتنبيهات انخفاض المخزون، ونظرة عامة على المخازن، وعناصر النقل المؤقتة.",
-  "history": "سجل المخزون",
-  "adjustments": "تسويات المخزون",
+  "title": "Inventory Dashboard",
+  "subtitle": "Stock movement history, valuation cards, low stock alerts, warehouse overview, and in-transit items.",
+  "history": "Inventory history",
+  "adjustments": "Inventory adjustments",
   "tabs": {
-    "inventory": "المخزون",
-    "movements": "الحركات",
-    "adjustments": "التسويات",
-    "transfers": "التحويلات",
-    "warehouses": "المخازن"
+    "inventory": "Inventory",
+    "movements": "Movements",
+    "adjustments": "Adjustments",
+    "transfers": "Transfers",
+    "warehouses": "Warehouses",
+    "count": "Stock count"
   },
   "kpis": {
-    "inventoryValue": "قيمة المخزون",
-    "lowStockAlerts": "تنبيهات انخفاض المخزون",
-    "inboundMoves": "حركات واردة",
-    "outboundMoves": "حركات صادرة"
+    "inventoryValue": "Inventory value",
+    "lowStockAlerts": "Low stock alerts",
+    "inboundMoves": "Inbound moves",
+    "outboundMoves": "Outbound moves"
   },
-  "searchPlaceholder": "ابحث برمز الصنف أو المنتج أو اللون أو المقاس...",
+  "searchPlaceholder": "Search by article code, product, colour, or size...",
   "labels": {
-    "default": "افتراضي",
-    "oneSize": "مقاس واحد",
-    "notAvailable": "غير متاح"
+    "default": "Default",
+    "oneSize": "One size",
+    "notAvailable": "Not available"
   },
   "status": {
-    "active": "نشط",
-    "low": "منخفض",
-    "inbound": "وارد",
-    "out": "صادر"
+    "active": "Active",
+    "low": "Low",
+    "inbound": "Inbound",
+    "out": "Outbound"
   },
   "tableHeaders": {
-    "product": "المنتج",
-    "variant": "الاختيار",
+    "product": "Product",
+    "variant": "Variant",
     "sku": "SKU",
-    "stock": "المخزون",
-    "value": "القيمة",
-    "status": "الحالة"
+    "stock": "Stock",
+    "value": "Value",
+    "status": "Status"
   },
   "alerts": {
-    "title": "تنبيهات انخفاض المخزون",
-    "subtitle": "تنبيهات على مستوى الاختيار عندما يصل المخزون إلى 3 أو أقل.",
-    "empty": "لا توجد تنبيهات انخفاض مخزون."
+    "title": "Low stock alerts",
+    "subtitle": "Variant-level alerts when stock reaches 3 or fewer.",
+    "empty": "No low stock alerts."
   },
   "purchaseAlerts": {
-    "title": "تنبيهات الشراء الذكية",
-    "subtitle": "تنبيهات شراء تعتمد على الكراتين فقط، بسبب المقاسات الناقصة أو بلوغ حد الكرتونة.",
+    "title": "Smart purchase alerts",
+    "subtitle": "Carton-based purchase alerts, triggered by missing sizes or by reaching the carton threshold.",
     "filters": {
-      "brand": "العلامة التجارية",
-      "category": "الفئة",
-      "manufacturer": "المصنع",
-      "alertType": "نوع التنبيه",
-      "all": "الكل"
+      "brand": "Brand",
+      "category": "Category",
+      "manufacturer": "Manufacturer",
+      "alertType": "Alert type",
+      "all": "All"
     },
     "groups": {
-      "missing_sizes": "مقاسات ناقصة",
-      "carton_threshold": "بلغ حد الكرتونة"
+      "missing_sizes": "Missing sizes",
+      "carton_threshold": "Carton threshold reached"
     },
     "cards": {
-      "product": "المنتج",
-      "color": "اللون",
-      "alertType": "نوع التنبيه",
-      "reason": "السبب",
-      "missingSizes": "المقاسات الناقصة",
-      "totalStock": "إجمالي المخزون",
-      "cartonSize": "حجم الكرتونة",
-      "suggestedCartons": "الكراتين المقترحة",
-      "viewSuggestions": "عرض الاقتراحات"
+      "product": "Product",
+      "color": "Colour",
+      "alertType": "Alert type",
+      "reason": "Reason",
+      "missingSizes": "Missing sizes",
+      "totalStock": "Total stock",
+      "cartonSize": "Carton size",
+      "suggestedCartons": "Suggested cartons",
+      "viewSuggestions": "View suggestions"
     },
     "actions": {
-      "selectVisible": "تحديد الظاهر",
-      "clearSelection": "إلغاء التحديد",
-      "createDraft": "إنشاء طلب شراء",
-      "creating": "جارٍ الإنشاء...",
-      "selectAlert": "تحديد التنبيه",
-      "deselectAlert": "إلغاء تحديد التنبيه"
+      "selectVisible": "Select visible",
+      "clearSelection": "Clear selection",
+      "createDraft": "Create purchase order",
+      "creating": "Creating...",
+      "selectAlert": "Select alert",
+      "deselectAlert": "Deselect alert"
     },
     "messages": {
-      "draftCreated": "تم إنشاء مسودة الشراء",
-      "draftQueued": "تم تجهيز مسودة الشراء",
-      "draftFailed": "تعذر إنشاء مسودة الشراء"
+      "draftCreated": "Purchase draft created",
+      "draftQueued": "Purchase draft queued",
+      "draftFailed": "Unable to create the purchase draft"
     },
-    "empty": "لا توجد تنبيهات شراء ذكية."
+    "empty": "No smart purchase alerts."
   },
   "actions": {
-    "view": "عرض",
-    "editStock": "تعديل المخزون"
+    "view": "View",
+    "editStock": "Edit stock"
   },
   "empty": {
-    "rowsTitle": "لا توجد صفوف مخزون",
-    "rowsSubtitle": "جرّب بحثًا مختلفًا أو حمّل مخزون الاختيارات المباشر.",
-    "warehouseTitle": "نظرة عامة على المخازن",
-    "timelineTitle": "الخط الزمني للمخزون",
-    "lowStockTitle": "تنبيهات انخفاض المخزون",
-    "lowStockEmpty": "لا توجد تنبيهات انخفاض مخزون."
+    "rowsTitle": "No inventory rows",
+    "rowsSubtitle": "Try a different search or load live variant stock.",
+    "warehouseTitle": "Warehouse overview",
+    "timelineTitle": "Inventory timeline",
+    "lowStockTitle": "Low stock alerts",
+    "lowStockEmpty": "No low stock alerts."
   },
-  "fallbackError": "يتم استخدام بيانات مخزون بديلة لأن واحدة أو أكثر من واجهات المخزون غير متاحة.",
-  "fallbackToast": "جارٍ استخدام بيانات مخزون بديلة"
+  "fallbackError": "Showing fallback inventory data because one or more inventory endpoints are unavailable.",
+  "fallbackToast": "Using fallback inventory data"
 }

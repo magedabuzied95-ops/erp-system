@@ -8,7 +8,8 @@
     "movements": "الحركات",
     "adjustments": "التسويات",
     "transfers": "التحويلات",
-    "warehouses": "المخازن"
+    "warehouses": "المخازن",
+    "count": "الجرد"
   },
   "kpis": {
     "inventoryValue": "قيمة المخزون",

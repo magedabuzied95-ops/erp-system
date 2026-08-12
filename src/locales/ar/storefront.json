@@ -62,7 +62,8 @@
       "cod": "الدفع عند الاستلام",
       "premium": "منتجات Mirror Premium",
       "todayDeals": "خصومات اليوم"
-    }
+    },
+    "search": "بحث"
   },
   "nav": {
     "home": "الصفحة الرئيسية",
@@ -176,7 +177,8 @@
     "productOfWeek": "منتج الأسبوع",
     "productOfWeekEmpty": "المنتج المميز سيظهر هنا أول ما المخزون يتحدث.",
     "featuredDescription": "اختيار الأسبوع المميز يأتي بصور أوضح، مقاسات ظاهرة، وتجربة شراء أسرع.",
-    "brandsEyebrow": "البراندات"
+    "brandsEyebrow": "البراندات",
+    "lastSizes": "آخر المقاسات"
   },
   "visualSearch": {
     "similarProducts": "المنتجات المشابهة",
@@ -253,7 +255,14 @@
     "openForDetails": "افتح المنتج للتفاصيل",
     "checkingLiveStock": "بنراجع المخزون الحقيقي...",
     "notFoundTitle": "المنتج غير موجود",
-    "notFoundText": "ارجع للمنتجات وجرب اختيار تاني"
+    "notFoundText": "ارجع للمنتجات وجرب اختيار تاني",
+    "noGradesAvailable": "لا توجد درجات متاحة",
+    "sizeGuide": "دليل المقاسات",
+    "sortBestSelling": "الأكثر مبيعاً",
+    "sortMostViewed": "الأكثر مشاهدة",
+    "sortNewest": "الأحدث",
+    "sortPriceAsc": "السعر من الأقل للأعلى",
+    "sortPriceDesc": "السعر من الأعلى للأقل"
   },
   "filters": {
     "gender": "الجنس",
@@ -283,7 +292,8 @@
     "showMore": "عرض المزيد",
     "showLess": "عرض أقل",
     "clearAll": "مسح الكل",
-    "resetFilters": "مسح الفلاتر"
+    "resetFilters": "مسح الفلاتر",
+    "bagType": "نوع الشنطة"
   },
   "lastPiece": {
     "title": "آخر قطعة"
@@ -459,7 +469,10 @@
     "estimatedShipping": "الشحن التقديري",
     "finalCostNote": "التكلفة النهائية تظهر في صفحة الدفع حسب المحافظة.",
     "finalShippingAtCheckout": "يُحتسب الشحن النهائي عند الدفع",
-    "completePurchase": "إتمام الشراء"
+    "completePurchase": "إتمام الشراء",
+    "codUnavailableForAddress": "الدفع عند الاستلام غير متاح لهذا العنوان.",
+    "lineTotal": "الإجمالي",
+    "quantity": "الكمية"
   },
   "success": {
     "awaitingVerificationSubtitle": "سنراجع إثبات التحويل ثم نبدأ تجهيز الطلب.",
@@ -658,7 +671,7 @@
     }
   },
   "sizeGuide": {
-    "eyebrow": "Shoe Fit Guide",
+    "eyebrow": "دليل مقاسات الأحذية",
     "title": "دليل المقاسات",
     "subtitle": "القياسات تقريبية وقد تختلف قليلًا حسب شكل القدم، خامة الحذاء، وتصميم كل موديل. لو قدمك عريضة أو بين مقاسين اختار المقاس الأكبر.",
     "centimeterMeasurement": "قياس القدم بالسنتيمتر",

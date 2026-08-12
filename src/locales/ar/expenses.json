@@ -66,5 +66,65 @@
     "pending": "قيد المراجعة",
     "approved": "معتمد",
     "rejected": "مرفوض"
+  },
+  "centerOptions": {
+    "type": {
+      "electricity": "كهرباء",
+      "water": "مياه",
+      "rent": "إيجار",
+      "salaries": "رواتب",
+      "shipping": "شحن",
+      "maintenance": "صيانة",
+      "groceries_supplies": "مستلزمات ومشتريات",
+      "marketing": "تسويق",
+      "supplier_related": "متعلق بالموردين",
+      "employee_advance": "سلفة موظف",
+      "other": "أخرى"
+    },
+    "category": {
+      "electricity": "مرافق - كهرباء",
+      "utilities_electricity": "مرافق - كهرباء",
+      "water": "مرافق - مياه",
+      "utilities_water": "مرافق - مياه",
+      "rent": "إيجار",
+      "salaries": "رواتب",
+      "shipping": "شحن",
+      "maintenance": "صيانة",
+      "groceries_supplies": "مستلزمات ومشتريات",
+      "marketing": "تسويق",
+      "supplier_related": "متعلق بالموردين",
+      "employee_advance": "سلفة موظف",
+      "other": "أخرى"
+    },
+    "payment": {
+      "cash": "نقدي",
+      "card": "بطاقة",
+      "bank_transfer": "تحويل بنكي",
+      "wallet": "محفظة",
+      "instapay": "إنستاباي",
+      "vodafone_cash": "فودافون كاش"
+    },
+    "status": {
+      "draft": "مسودة",
+      "pending_approval": "بانتظار الموافقة",
+      "approved": "معتمد",
+      "rejected": "مرفوض",
+      "paid": "مدفوع",
+      "pending": "قيد الانتظار",
+      "partially_deducted": "مخصوم جزئيًا",
+      "deducted": "مخصوم",
+      "active": "نشط",
+      "inactive": "غير نشط"
+    },
+    "frequency": {
+      "weekly": "أسبوعي",
+      "monthly": "شهري",
+      "quarterly": "ربع سنوي",
+      "yearly": "سنوي"
+    },
+    "boolean": {
+      "true": "نعم",
+      "false": "لا"
+    }
   }
 }

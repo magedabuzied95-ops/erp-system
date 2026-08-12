@@ -98,7 +98,12 @@
     "branch": "Branch",
     "total": "Total",
     "date": "Date",
-    "actions": "Actions"
+    "actions": "Actions",
+    "customerPhone": "Customer phone",
+    "items": "Items",
+    "paidAmount": "Paid amount",
+    "paymentStatus": "Payment status",
+    "seller": "Seller"
   },
   "empty": {
     "title": "No orders found",
@@ -401,6 +406,7 @@
       "Missing tracking number": "Missing tracking number",
       "COD amount mismatch": "COD amount mismatch",
       "One or more items are out of stock": "One or more items are out of stock"
-    }
+    },
+    "currentStatus": "Current status"
   }
 }

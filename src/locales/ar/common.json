@@ -497,7 +497,9 @@
           "refreshing": "جاري التحديث",
           "fallbackMessage": "يتم عرض بيانات تحليلات موظفين احتياطية محلية.",
           "active": "نشط",
-          "inactive": "غير نشط"
+          "inactive": "غير نشط",
+          "unavailable": "غير متاح",
+          "unavailableMessage": "تحليلات الموظفين غير متاحة. لا يتم عرض بيانات بديلة."
         },
         "toasts": {
           "fallbackData": "يتم استخدام بيانات تحليلات موظفين احتياطية",
@@ -506,7 +508,8 @@
           "printFailed": "تعذرت طباعة التقرير",
           "ruleNameRequired": "اسم القاعدة مطلوب",
           "ruleCreated": "تم إنشاء قاعدة العمولة",
-          "ruleCreateFailed": "تعذر إنشاء قاعدة العمولة"
+          "ruleCreateFailed": "تعذر إنشاء قاعدة العمولة",
+          "unavailableData": "تعذر تحميل تحليلات الموظفين"
         },
         "export": {
           "companyName": "نظام ERP",
@@ -581,6 +584,13 @@
             "sale": "بيع",
             "item": "قطعة"
           }
+        },
+        "empty": {
+          "noSalesData": "لا توجد بيانات مبيعات"
+        },
+        "labels": {
+          "noShiftAssigned": "لم يتم تعيين وردية",
+          "unlinkedEmployee": "موظف غير مرتبط"
         }
       },
       "payroll": {
@@ -621,7 +631,28 @@
       "eyebrow": "مركز الحضور",
       "title": "مركز الحضور",
       "subtitle": "متابعة الحضور المباشر وتسجيلات QR وGPS والغياب والتأخير وساعات النقص ومراقبة الفروع من شاشة تشغيل واحدة."
-    }
+    },
+    "analytics": "التحليلات",
+    "custom": "مخصص",
+    "error": "حدث خطأ ما",
+    "hide": "إخفاء",
+    "last30Days": "٣٠ يومًا",
+    "last7Days": "٧ أيام",
+    "mainNavigation": "التنقل الرئيسي",
+    "openMenu": "فتح القائمة",
+    "reset": "مسح",
+    "retry": "إعادة المحاولة",
+    "send": "إرسال",
+    "show": "إظهار",
+    "thisMonth": "هذا الشهر",
+    "thisYear": "هذه السنة",
+    "today": "اليوم",
+    "unableToExportCsv": "تعذر تصدير تقرير CSV",
+    "unableToExportPdf": "تعذر تصدير تقرير PDF",
+    "unableToOpenPrint": "تعذر فتح تقرير الطباعة",
+    "unbranded": "بدون علامة تجارية",
+    "uncategorized": "بدون فئة",
+    "viewAll": "عرض الكل"
   },
   "sidebar": {
     "main": "الرئيسية",

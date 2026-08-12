@@ -48,7 +48,13 @@
     "awaiting_verification": "بانتظار التحقق",
     "cod": "الدفع عند الاستلام",
     "in_transit": "في الطريق",
-    "out_for_delivery": "خارج للتسليم"
+    "out_for_delivery": "خارج للتسليم",
+    "ready_to_ship": "جاهز للشحن",
+    "shipment_created": "تم إنشاء الشحنة",
+    "created": "تم الإنشاء",
+    "picked_up": "تم الاستلام من المتجر",
+    "failed": "فشل",
+    "failed_delivery": "فشل التسليم"
   },
   "kpis": {
     "totalOrders": "إجمالي الطلبات",
@@ -92,7 +98,12 @@
     "branch": "الفرع",
     "total": "الإجمالي",
     "date": "التاريخ",
-    "actions": "الإجراءات"
+    "actions": "الإجراءات",
+    "customerPhone": "هاتف العميل",
+    "items": "الأصناف",
+    "paidAmount": "المبلغ المدفوع",
+    "paymentStatus": "حالة الدفع",
+    "seller": "البائع"
   },
   "empty": {
     "title": "لا توجد طلبات",
@@ -124,7 +135,10 @@
     "close": "إغلاق قائمة الإجراءات",
     "createReturn": "إنشاء مرتجع",
     "copyInvoice": "نسخ الفاتورة",
-    "invoiceCopied": "تم نسخ الفاتورة"
+    "invoiceCopied": "تم نسخ الفاتورة",
+    "copyInvoiceLink": "نسخ رابط الفاتورة",
+    "invoiceLinkCopied": "تم نسخ رابط الفاتورة",
+    "invoiceLinkCopyFailed": "تعذر نسخ رابط الفاتورة"
   },
   "dashboard": {
     "operationsWorkspace": "مساحة تشغيل الطلبات"
@@ -279,7 +293,14 @@
     "deliveryFee": "رسوم التوصيل",
     "createShipment": "إنشاء شحنة",
     "printLabel": "طباعة الملصق",
-    "trackShipment": "تتبع الشحنة"
+    "trackShipment": "تتبع الشحنة",
+    "retryShipment": "إعادة محاولة الشحن",
+    "markShipped": "تعليم كمشحون",
+    "markDelivered": "تعليم كمُسلَّم",
+    "cancelShipment": "إلغاء الشحنة",
+    "shipmentUpdated": "تم تحديث الشحنة",
+    "updateFailed": "تعذر تحديث الشحنة",
+    "timeline": "الخط الزمني للشحنة"
   },
   "details": {
     "title": "تفاصيل الطلب",
@@ -385,6 +406,7 @@
       "Missing tracking number": "رقم التتبع غير موجود",
       "COD amount mismatch": "مبلغ الدفع عند الاستلام غير مطابق",
       "One or more items are out of stock": "منتج واحد أو أكثر غير متوفر"
-    }
+    },
+    "currentStatus": "الحالة الحالية"
   }
 }

@@ -66,7 +66,10 @@
     "noPrice": "No price",
     "quickAdd": "Quick add",
     "outOfStock": "Out of stock",
-    "inStock": "{{count}} in stock"
+    "inStock": "{{count}} in stock",
+    "addToInvoiceArabic": "Add to invoice",
+    "quantity": "Quantity",
+    "selectQuantity": "Choose how many to add"
   },
   "variantSelector": {
     "barcodeShop": "Barcode Shop",
@@ -76,7 +79,10 @@
     "colors": "Colors",
     "sizes": "Sizes",
     "availableSizes": "{{count}} available size(s)",
-    "noAvailableSizes": "No available sizes in stock"
+    "noAvailableSizes": "No available sizes in stock",
+    "inStock": "In stock",
+    "lowStock": "Low stock",
+    "outOfStock": "Out of stock"
   },
   "productGrid": {
     "loading": "Loading products...",
@@ -262,6 +268,8 @@
     "checkoutFailed": "Checkout failed. The order was not created. Please try again.",
     "removedUnavailableItems": "Removed cart items that are no longer available.",
     "checkoutFailedWithMessage": "Checkout failed: {{message}}",
-    "popupBlocked": "Popup blocked"
+    "popupBlocked": "Popup blocked",
+    "printFailed": "Unable to prepare the invoice for printing",
+    "savedOfflineInvoice": "Saved offline invoice. It will sync automatically when the connection returns."
   }
 }

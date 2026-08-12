@@ -180,7 +180,16 @@
       "purchaseEdited": "Purchase edited",
       "purchaseAdjustment": "Purchase adjustment",
       "paymentRecorded": "Payment recorded"
-    }
+    },
+    "debugInfo": "Details",
+    "discountPrice": "Discount price",
+    "discountPriceInvalid": "Row {{row}}: discount price must be empty or 0 or greater.",
+    "purchaseCost": "Purchase cost",
+    "purchaseCostInvalid": "Row {{row}}: purchase cost must be 0 or greater.",
+    "remaining": "Remaining",
+    "salePrice": "Sale price",
+    "salePriceInvalid": "Row {{row}}: sale price must be 0 or greater.",
+    "totalItems": "Total items"
   },
   "supplierDetails": {
     "title": "Supplier Details",

@@ -87,7 +87,7 @@ export default function InventoryIntelligence() {
   return (
     <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
       <div className="space-y-4">
-        <ReportsHeader title={t("inventory.title")} subtitle={t("inventory.subtitle")}>
+        <ReportsHeader title={t("inventoryAnalytics.title")} subtitle={t("inventoryAnalytics.subtitle")}>
           <div className="flex flex-wrap items-center gap-2">
             <PeriodSelector
               filters={filters.filters}
@@ -129,7 +129,7 @@ export default function InventoryIntelligence() {
         ) : summary.status === "loading" ? (
           <OverviewSkeleton />
         ) : summary.status === "error" ? (
-          <SectionCard title={t("inventory.title")} status="error" error={summary.error} onRetry={summary.refresh} />
+          <SectionCard title={t("inventoryAnalytics.title")} status="error" error={summary.error} onRetry={summary.refresh} />
         ) : !summary.data ? (
           <OverviewSkeleton />
         ) : (

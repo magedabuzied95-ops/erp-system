@@ -17,13 +17,38 @@
     "lowStock": "منخفض المخزون",
     "inactive": "غير نشط",
     "allCategories": "كل الأقسام",
-    "allBrands": "كل العلامات التجارية"
+    "allBrands": "كل العلامات التجارية",
+    "allClassifications": "الكل",
+    "classifications": "تصنيفات المنتج",
+    "clearClassifications": "مسح",
+    "filters": "التصفية",
+    "storefrontVisibilityAll": "حالة الظهور على الموقع: الكل",
+    "storefrontVisibilityHidden": "مخفي من الموقع",
+    "storefrontVisibilityVisible": "ظاهر بالموقع"
   },
   "bulk": {
     "selected": "محدد",
     "delete": "حذف",
     "markActive": "تعيين نشط",
-    "markInactive": "تعيين غير نشط"
+    "markInactive": "تعيين غير نشط",
+    "addToBarcodePrintQueue": "إضافة إلى قائمة الملصقات",
+    "addToBarcodePrintQueueDescription": "اختر إضافة كل الألوان أو ألوان محددة فقط. يتم تخطي العناصر الموجودة ما لم تفعّل إعادة الإنشاء.",
+    "allColors": "كل الألوان",
+    "allColorsCount": "{{count}} لون",
+    "allColorsDescription": "أضف كل مجموعات الألوان للمنتجات المحددة.",
+    "clearSelection": "مسح",
+    "colors": "لون",
+    "defaultColor": "افتراضي",
+    "hideFromStorefront": "إخفاء من الموقع",
+    "noColors": "لا توجد ألوان",
+    "regenerateExisting": "إعادة إنشاء العناصر الموجودة",
+    "regenerateExistingDescription": "أنشئ مهمة طباعة حرارية جديدة للألوان الموجودة بالفعل في القائمة.",
+    "selectAll": "تحديد الكل",
+    "selectedColorsCount": "{{count}} لون محدد",
+    "selectedColorsOnly": "الألوان المحددة فقط",
+    "selectedColorsOnlyDescription": "اختر الألوان التي تريد إضافتها للقائمة فقط.",
+    "selectionSummary": "التحديد",
+    "showOnStorefront": "إظهار بالموقع"
   },
   "table": {
     "product": "المنتج",
@@ -39,7 +64,9 @@
     "cost": "التكلفة",
     "sell": "البيع",
     "sale": "السيل",
-    "varies": "متغير"
+    "varies": "متغير",
+    "hideCost": "إخفاء التكلفة",
+    "showCost": "إظهار التكلفة"
   },
   "loading": "جاري تحميل المنتجات...",
   "empty": {
@@ -113,7 +140,19 @@
     "printBarcode": "طباعة الباركود",
     "barcodeShop": "باركود المنتج",
     "generateMarketingPost": "إنشاء منشور تسويقي",
-    "delete": "حذف"
+    "delete": "حذف",
+    "activateProduct": "تفعيل المنتج",
+    "addToOffers": "إضافة للعروض",
+    "barcode": "الباركود",
+    "deactivateProduct": "إلغاء تفعيل المنتج",
+    "editPrices": "تعديل الأسعار",
+    "generateFastStory": "إنشاء قصة سريعة",
+    "marketing": "التسويق",
+    "moreActions": "المزيد من الإجراءات",
+    "prices": "الأسعار",
+    "removeFromOffers": "إزالة من العروض",
+    "scheduleStory": "جدولة القصة",
+    "stock": "المخزون"
   },
   "actions": {
     "confirmDelete": "هل تريد حذف هذا المنتج وخياراته؟",
@@ -162,7 +201,15 @@
     "selectGrade": "اختر الفئة",
     "gradePlaceholder": "مستورد من فيتنام / نسخة طبق الأصل / محلي",
     "selected": "محدد",
-    "productName": "اسم المنتج"
+    "productName": "اسم المنتج",
+    "bagType": "نوع الشنطة",
+    "offerStory": "إضافة إلى العروض",
+    "offerStoryHelp": "يظهر هذا المنتج داخل قائمة العروض التي يحددها المدير يدوياً.",
+    "originalPriceHelp": "اختياري، ويظهر مشطوبًا فقط عندما يكون أكبر من سعر البيع الحالي.",
+    "originalPricePlaceholder": "اختياري: السعر قبل الخصم",
+    "originalPriceStorageHelp": "اختياري للعرض في المتجر ولا يغيّر سعر البيع أو الفواتير أو الأرباح.",
+    "selectBagType": "اختر نوع الشنطة",
+    "setOriginalPrice": "إضافة سعر قبل الخصم"
   },
   "variantMessages": {
     "loadFailed": "فشل تحميل الخيارات",
@@ -431,7 +478,8 @@
       "pending": "قيد التجهيز",
       "failed": "فشل",
       "printed": "طُبع"
-    }
+    },
+    "addedToQueueToast": "تمت الإضافة إلى قائمة الملصقات"
   },
   "editor": {
     "title": "تعديل المنتج",
@@ -660,7 +708,21 @@
     "planningStockOnly": "مخزون تخطيطي فقط. يتم استلام المخزون الحقيقي من فواتير الشراء.",
     "variantColorGroupsHelp": "كل لون يحصل على صورة واحدة. كل صف مقاس تحت اللون يصبح خيارًا.",
     "colorOnlyPreviewHelp": "كل لون يصبح خيارًا واحدًا بمقاس ثابت.",
-    "variantPreviewAfterSave": "سيتم إنشاء المصفوفة أدناه بعد حفظ المنتج."
+    "variantPreviewAfterSave": "سيتم إنشاء المصفوفة أدناه بعد حفظ المنتج.",
+    "addColorBeforeBulkArticle": "أضف لونًا قبل تطبيق أكواد المقال",
+    "applyArticleAllColors": "تطبيق كود المقال على كل الألوان",
+    "applyArticleThisColor": "تطبيق كود المقال على هذا اللون",
+    "articleCodeApplied": "تم تطبيق كود المقال",
+    "articleCodePlaceholder": "مثال: L122",
+    "bulkArticleHelp": "أكواد المقال الموجودة محمية ما لم تؤكد الاستبدال. تظل حقول المقال اليدوية قابلة للتعديل.",
+    "bulkArticleTools": "أدوات أكواد المقال الجماعية",
+    "confirmOverwriteArticleCodes": "بعض المتغيرات تحتوي بالفعل على أكواد مقال. هل تريد استبدالها؟",
+    "enterArticleCode": "أدخل كود المقال أولًا",
+    "noArticleCodesUpdated": "لم يتم تحديث أي أكواد مقال",
+    "noVariantRows": "لا توجد صفوف مقاسات للتحديث",
+    "zeroAllColorStock": "تصفير المخزون لكل الألوان",
+    "zeroAllColorStockConfirm": "هل تريد تصفير كمية المخزون لكل مقاس في كل لون؟",
+    "zeroAllColorStockDone": "تم تصفير المخزون لكل الألوان"
   },
   "classifications": {
     "title": "تصنيفات المنتجات",
@@ -756,13 +818,27 @@
     "galleryDescription": "صور معرض المنتج المتاحة في سجل المنتج.",
     "noGallery": "لا توجد صور معرض متاحة.",
     "uploadImages": "رفع الصور",
-    "multipleSupported": "يدعم عدة صور"
+    "multipleSupported": "يدعم عدة صور",
+    "moveDown": "تحريك الصورة لأسفل",
+    "moveUp": "تحريك الصورة لأعلى"
   },
   "toasts": {
     "productDuplicated": "تم نسخ المنتج بنجاح",
     "duplicateQuotaFailed": "تعذر نسخ المنتج لأن التخزين المؤقت ممتلئ. تم تنظيف الذاكرة المؤقتة؛ حاول مرة أخرى.",
     "duplicateFailed": "فشل نسخ المنتج",
-    "deleteFailed": "فشل حذف المنتج"
+    "deleteFailed": "فشل حذف المنتج",
+    "addedToOffers": "تمت الإضافة إلى العروض",
+    "offerStoryUpdateFailed": "تعذر تحديث العروض",
+    "productActivated": "تم تفعيل المنتج",
+    "productDeactivated": "تم إلغاء تفعيل المنتج",
+    "productsActivated": "تم تفعيل المنتجات",
+    "productsDeactivated": "تم إلغاء تفعيل المنتجات",
+    "removedFromOffers": "تمت الإزالة من العروض",
+    "statusToggleUnavailable": "المنتجات المسودة والمؤرشفة والمحذوفة لها مسار حالة خاص بها.",
+    "statusUpdateFailed": "تعذر تحديث حالة المنتج",
+    "storefrontHidden": "تم الإخفاء من الموقع",
+    "storefrontVisibilityUpdateFailed": "تعذر تحديث حالة الظهور على الموقع",
+    "storefrontVisible": "تم الإظهار بالموقع"
   },
   "marketing": {
     "noCreatePermission": "لا تملك صلاحية إنشاء منشورات تسويقية.",
@@ -802,7 +878,16 @@
     "articleCode": "كود الأرتكل",
     "price": "السعر",
     "history": "السجل",
-    "defaultPurchaseQty": "كمية الشراء الافتراضية"
+    "defaultPurchaseQty": "كمية الشراء الافتراضية",
+    "sellingPrice": "سعر البيع",
+    "originalPrice": "السعر الأصلي",
+    "audience": "الفئة المستهدفة",
+    "brand": "العلامة التجارية",
+    "category": "الفئة",
+    "color": "اللون",
+    "comparePrice": "سعر المقارنة",
+    "product": "المنتج",
+    "unit": "الوحدة"
   },
   "status": {
     "disabled": "معطل"
@@ -827,5 +912,44 @@
     "sizeCount": "{{count}} مقاس",
     "imageCount": "{{count}} صورة",
     "sizesFor": "مقاسات {{name}}"
+  },
+  "priceEditor": {
+    "applyToAllVariants": "تطبيق على كل الاختيارات",
+    "applyToProduct": "تطبيق على المنتج",
+    "bulkSalePrice": "سعر السيل الجماعي",
+    "bulkSellingPrice": "سعر البيع الجماعي",
+    "changed": "تم تغييره",
+    "changedRows": "صفوف أسعار متغيرة",
+    "clearDiscounts": "مسح كل أسعار الخصم",
+    "clearManualOverride": "إلغاء التعديل اليدوي",
+    "copyFirstVariant": "نسخ سعر أول اختيار إلى الكل",
+    "current": "الحالي",
+    "discountPrice": "سعر السيل",
+    "empty": "فارغ",
+    "enterBulkPrice": "أدخل السعر الجماعي أولًا",
+    "eyebrow": "تحديث الأسعار فقط",
+    "loadFailed": "تعذر تحميل تفاصيل أسعار المنتج",
+    "noChanges": "لا توجد تغييرات في الأسعار",
+    "nonNegative": "يجب ألا يكون سالبًا",
+    "productPrices": "أسعار المنتج",
+    "salePrice": "سعر البيع",
+    "saved": "تم تحديث الأسعار",
+    "saveFailed": "تعذر تحديث الأسعار",
+    "saving": "جارٍ الحفظ...",
+    "variantPrices": "أسعار الاختيارات"
+  },
+  "statusModal": {
+    "activateDescription": "سيظهر هذا المنتج مرة أخرى في المتجر ونقاط البيع.",
+    "activateTitle": "تفعيل المنتج؟",
+    "deactivateDescription": "تظل المنتجات غير النشطة مرئية في الإدارة، لكنها تُخفى من المتجر والبحث ونتائج البيع في نقاط البيع.",
+    "deactivateTitle": "إلغاء تفعيل المنتج؟"
+  },
+  "storefront": {
+    "hidden": "مخفي من الموقع",
+    "visible": "ظاهر بالموقع"
+  },
+  "tabs": {
+    "offers": "العروض",
+    "products": "المنتجات"
   }
 }

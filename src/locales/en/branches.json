@@ -11,7 +11,8 @@
   "stats": {
     "total": "Total branches",
     "active": "Active branches",
-    "mapped": "Warehouse mapped"
+    "mapped": "Warehouse mapped",
+    "gpsMissing": "GPS missing"
   },
   "searchPlaceholder": "Search branch, code, phone, manager, address, notes...",
   "status": {
@@ -64,7 +65,9 @@
     "archiveShort": "Delete",
     "downloadQr": "Download QR",
     "printQr": "Print QR",
-    "regenerateQr": "Regenerate QR"
+    "regenerateQr": "Regenerate QR",
+    "copyShortLink": "Copy short link",
+    "regenerateShortCode": "Regenerate short code"
   },
   "confirm": {
     "title": "Delete branch",
@@ -93,6 +96,10 @@
       "scan": "Scan QR",
       "identify": "Enter employee code or phone",
       "action": "Check in or out"
-    }
+    },
+    "shortUrl": "Short URL"
+  },
+  "warnings": {
+    "gpsMissing": "This branch has no GPS coordinates, so QR attendance cannot verify location."
   }
 }

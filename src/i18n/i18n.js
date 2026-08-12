@@ -1,6 +1,8 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
+import { buildResources } from "./localeManifest";
+
 import commonAr from "../locales/ar/common.json";
 import dashboardAr from "../locales/ar/dashboard.json";
 import productsAr from "../locales/ar/products.json";
@@ -125,72 +127,68 @@ export const resolveInitialLanguage = () => {
   return getStoredLanguage() || getBrowserLanguage();
 };
 
-const resources = {
+/**
+ * The branch -> file wiring lives in localeManifest.js so the dictionary parity
+ * guard reads exactly the same tree the runtime does. Assigning branches by
+ * hand here previously allowed a duplicate `inventory` key to silently drop a
+ * whole bundle.
+ */
+const resources = buildResources({
   ar: {
-    translation: {
-      common: commonAr.common || {},
-      sidebar: commonAr.sidebar || {},
-      language: commonAr.language || {},
-      appearance: settingsAr.appearance || {},
-      dashboard: dashboardAr,
-      products: productsAr,
-      pos: posAr,
-      customers: customersAr,
-      orders: ordersAr,
-      inventory: inventoryAr,
-      analytics: analyticsAr,
-      reports: reportsAr,
-      overview: overviewAr,
-      inventory: inventoryAnalyticsAr,
-      salesAnalytics: salesAnalyticsAr,
-      suppliers: suppliersAr,
-      purchases: purchasesAr,
-      accounting: accountingAr,
-      expenses: expensesAr,
-      branches: branchesAr,
-      warehouses: warehousesAr,
-      transfers: transfersAr,
-      settings: settingsAr.settings || {},
-      auth: authAr,
-      marketing: marketingAr,
-      storefront: storefrontAr,
-      print: printAr,
-      sales: salesAr,
-    },
+    common: commonAr,
+    dashboard: dashboardAr,
+    products: productsAr,
+    pos: posAr,
+    customers: customersAr,
+    orders: ordersAr,
+    inventory: inventoryAr,
+    analytics: analyticsAr,
+    reports: reportsAr,
+    overview: overviewAr,
+    inventoryAnalytics: inventoryAnalyticsAr,
+    salesAnalytics: salesAnalyticsAr,
+    suppliers: suppliersAr,
+    purchases: purchasesAr,
+    accounting: accountingAr,
+    expenses: expensesAr,
+    branches: branchesAr,
+    warehouses: warehousesAr,
+    transfers: transfersAr,
+    settings: settingsAr,
+    auth: authAr,
+    marketing: marketingAr,
+    storefront: storefrontAr,
+    print: printAr,
+    sales: salesAr,
   },
   en: {
-    translation: {
-      common: commonEn.common || {},
-      sidebar: commonEn.sidebar || {},
-      language: commonEn.language || {},
-      appearance: settingsEn.appearance || {},
-      dashboard: dashboardEn,
-      products: productsEn,
-      pos: posEn,
-      customers: customersEn,
-      orders: ordersEn,
-      inventory: inventoryEn,
-      analytics: analyticsEn,
-      reports: reportsEn,
-      overview: overviewEn,
-      inventory: inventoryAnalyticsEn,
-      salesAnalytics: salesAnalyticsEn,
-      suppliers: suppliersEn,
-      purchases: purchasesEn,
-      accounting: accountingEn,
-      expenses: expensesEn,
-      branches: branchesEn,
-      warehouses: warehousesEn,
-      transfers: transfersEn,
-      settings: settingsEn.settings || {},
-      auth: authEn,
-      marketing: marketingEn,
-      storefront: storefrontEn,
-      print: printEn,
-      sales: salesEn,
-    },
+    common: commonEn,
+    dashboard: dashboardEn,
+    products: productsEn,
+    pos: posEn,
+    customers: customersEn,
+    orders: ordersEn,
+    inventory: inventoryEn,
+    analytics: analyticsEn,
+    reports: reportsEn,
+    overview: overviewEn,
+    inventoryAnalytics: inventoryAnalyticsEn,
+    salesAnalytics: salesAnalyticsEn,
+    suppliers: suppliersEn,
+    purchases: purchasesEn,
+    accounting: accountingEn,
+    expenses: expensesEn,
+    branches: branchesEn,
+    warehouses: warehousesEn,
+    transfers: transfersEn,
+    settings: settingsEn,
+    auth: authEn,
+    marketing: marketingEn,
+    storefront: storefrontEn,
+    print: printEn,
+    sales: salesEn,
   },
-};
+});
 
 const resolveFontFamily = (language) =>
   normalizeLanguage(language) === "ar"

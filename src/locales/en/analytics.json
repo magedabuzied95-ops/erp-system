@@ -28,7 +28,8 @@
   "status": {
     "bestSeller": "Best seller:",
     "live": "Live data loaded",
-    "fallback": "Fallback active"
+    "fallback": "Fallback active",
+    "unavailable": "Unavailable"
   },
   "sections": {
     "revenueTrend": "Revenue and profit trend",
@@ -103,6 +104,11 @@
     "noReorderSuggestions": "No reorder suggestions at the moment.",
     "noDeadStockIntelligence": "No dead stock intelligence available yet.",
     "stockAtThreshold": "Items at or below reorder thresholds.",
-    "bestSellerForecast": "Forecasted growth: {{value}}%"
+    "bestSellerForecast": "Forecasted growth: {{value}}%",
+    "unavailable": "Analytics endpoints are unavailable. No placeholder data is shown.",
+    "unavailableToast": "Unable to load analytics data"
+  },
+  "empty": {
+    "noSalesData": "No sales data"
   }
 }
