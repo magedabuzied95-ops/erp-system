@@ -1999,7 +1999,7 @@ function LookupGroupCard({ group, busy, selected, onAddModel }) {
             {resolvedImage ? (
               <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-text-muted">
+              <div className="flex h-full w-full items-center justify-center bg-surface-soft text-text-muted">
                 <ClipboardList className="h-6 w-6" />
               </div>
             )}
@@ -2130,7 +2130,7 @@ function MobileGroupedCountCard({ group, disabled, busy, onAddColor, onMatchSyst
     <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-lg shadow-black/10">
       <button type="button" onClick={onToggleExpanded} className="w-full text-start" aria-expanded={expanded}>
         <div className="flex items-start gap-3">
-          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">{resolvedImage ? <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-text-muted"><ClipboardList className="h-6 w-6" /></div>}</div>
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">{resolvedImage ? <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center bg-surface-soft text-text-muted"><ClipboardList className="h-6 w-6" /></div>}</div>
           <div className="min-w-0 flex-1">
             <div className="text-lg font-black leading-snug text-text">{group.product_name || "منتج"} - {group.color || "لون"}</div>
             <div className="mt-1 text-sm text-text-muted">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total}</div>

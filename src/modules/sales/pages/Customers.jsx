@@ -902,7 +902,7 @@ function Customers() {
   }
 
   return (
-    <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-6 py-6 text-text">
+    <div className="m1-customers-page min-h-screen bg-background px-6 py-6 text-text">
       <div className="w-full space-y-6">
         <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -1083,7 +1083,7 @@ function Customers() {
                   safeCustomers.map((customer, index) => (
                     <tr
                       key={customer.id}
-                      className={`transition hover:bg-emerald-400/10 ${ index % 2 === 0 ? "bg-surface" : "bg-surface" }`}
+                      className={`transition hover:bg-surface-hover ${ index % 2 === 0 ? "bg-surface" : "bg-surface" }`}
                     >
                       <td className="px-6 py-5 align-middle text-center">
                         <div className="grid w-full grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2">
@@ -1244,7 +1244,7 @@ function CustomerImportModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" dir="rtl">
       <section className="w-full max-w-5xl overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface text-text shadow-2xl shadow-black/50">
-        <div className="border-b border-border bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_38%),rgba(15,23,42,0.88)] p-6">
+        <div className="border-b border-border bg-surface p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.22em] text-primary">{tt("customers.import.fromLegacy")}</div>
@@ -1628,7 +1628,7 @@ function CustomerStatementDrawer({
   const preferredSizes = Array.isArray(purchasePreferences.sizeBreakdown) ? purchasePreferences.sizeBreakdown : [];
 
   return (
-    <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-4 py-6 text-text sm:px-6" dir="rtl">
+    <div className="m1-customers-page min-h-screen bg-background px-4 py-6 text-text sm:px-6" dir="rtl">
       <main className="mx-auto w-full max-w-[1500px] rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
         <div className="flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -1897,7 +1897,7 @@ function CustomerStatementDrawer({
                     ].filter(Boolean).join(" • ");
                     const showMovementBadge = String(rowMeta.label || "").trim() !== String(rowLabel || "").trim();
                     return (
-                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="align-middle text-text transition odd:bg-surface-soft hover:bg-emerald-400/[0.045]">
+                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="align-middle text-text transition odd:bg-surface-soft hover:bg-surface-hover">
                         <td className="border-b border-l border-border px-5 py-4 text-center">
                           {credit ? (
                             <span className="inline-flex min-w-[105px] justify-center rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 font-black tabular-nums text-emerald-100">

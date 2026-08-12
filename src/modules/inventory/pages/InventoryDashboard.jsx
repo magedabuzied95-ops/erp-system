@@ -465,7 +465,11 @@ function InventoryDashboard() {
         <Kpi label={t("inventory.kpis.outboundMoves")} value={<InlineLtrValue>{kpis.outbound}</InlineLtrValue>} tone="rose" />
       </div>
 
-      <section className="rounded-[var(--radius-card)] border border-amber-400/15 bg-gradient-to-br from-amber-400/10 via-white/[0.03] to-orange-400/10 p-4 shadow-2xl shadow-black/10">
+      {/* Large generic section: neutral surface. It used to carry a full-width
+          amber -> orange gradient wash, which made gold the background of the
+          section instead of an accent. The amber stays where it carries meaning
+          — the icon, the count badge and the low-stock severity cards. */}
+      <section className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2">
