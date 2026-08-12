@@ -2,8 +2,8 @@
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
     "arabic": 1704,
-    "english": 1241,
-    "total": 2945,
+    "english": 1163,
+    "total": 2867,
     "mixedFiles": 39
   },
   "files": {
@@ -327,11 +327,6 @@
       "english": 0,
       "total": 12
     },
-    "src/modules/loyalty/pages/LoyaltyDashboard.jsx": {
-      "arabic": 0,
-      "english": 24,
-      "total": 24
-    },
     "src/modules/loyalty/pages/LoyaltyRules.jsx": {
       "arabic": 0,
       "english": 9,
@@ -532,25 +527,10 @@
       "english": 1,
       "total": 1
     },
-    "src/modules/saas/pages/Billing.jsx": {
-      "arabic": 0,
-      "english": 13,
-      "total": 13
-    },
-    "src/modules/saas/pages/CompanySettings.jsx": {
-      "arabic": 0,
-      "english": 20,
-      "total": 20
-    },
     "src/modules/saas/pages/RegisterCompany.jsx": {
       "arabic": 15,
       "english": 5,
       "total": 20
-    },
-    "src/modules/saas/pages/Workspace.jsx": {
-      "arabic": 0,
-      "english": 21,
-      "total": 21
     },
     "src/modules/sales/pages/CreateOrder.jsx": {
       "arabic": 0,

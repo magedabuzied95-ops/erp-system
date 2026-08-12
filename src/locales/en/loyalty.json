@@ -1,0 +1,38 @@
+{
+  "dashboard": {
+    "eyebrow": "Loyalty",
+    "title": "Customer Loyalty Intelligence",
+    "stats": {
+      "totalCustomers": "Total loyalty customers",
+      "totalCustomersHint": "Customers enrolled in the program",
+      "pointsIssued": "Total points issued",
+      "pointsIssuedHint": "Lifetime earned points",
+      "pointsRedeemed": "Total points redeemed",
+      "pointsRedeemedHint": "Points spent at checkout",
+      "activeRules": "Active rules",
+      "activeRulesHint": "Current point and tier policies"
+    },
+    "top": {
+      "title": "Top Loyalty Customers",
+      "subtitle": "Highest value and point balance customers"
+    },
+    "tiers": {
+      "title": "Tier Distribution"
+    },
+    "history": {
+      "title": "Transaction History",
+      "type": "Type",
+      "customer": "Customer",
+      "points": "Points",
+      "value": "Value",
+      "date": "Date"
+    },
+    "rules": {
+      "title": "Rules Snapshot",
+      "minOrder": "Min order: {{value}}",
+      "redeemValue": "Redeem value: {{value}}",
+      "silver": "Silver: {{value}}",
+      "platinum": "Platinum: {{value}}"
+    }
+  }
+}

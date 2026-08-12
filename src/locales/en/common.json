@@ -682,7 +682,34 @@
     "unbranded": "Unbranded",
     "uncategorized": "Uncategorized",
     "viewAll": "View all",
-    "done": "Done"
+    "done": "Done",
+    "realtimeFeedback": {
+      "events": {
+        "newOrder": "New order",
+        "paymentReceived": "Payment received",
+        "paymentConfirmed": "Payment confirmed",
+        "paymentProofUploaded": "Payment proof uploaded",
+        "barcodeScanned": "Barcode scanned",
+        "productNotFound": "Product not found",
+        "posError": "POS error",
+        "lowStock": "Low stock",
+        "attendanceUpdated": "Attendance updated",
+        "attendanceCheckIn": "Attendance check-in",
+        "attendanceCheckOut": "Attendance check-out",
+        "aiMessage": "AI message",
+        "aiRecommendation": "AI recommendation",
+        "exactProductFound": "Exact product found",
+        "noAiResults": "No AI results",
+        "aiHandoff": "AI handoff",
+        "customerMessage": "Customer message",
+        "notification": "Notification",
+        "error": "Error"
+      },
+      "batch": {
+        "title": "{{count}} new ERP updates",
+        "message": "Open the ERP workspace to review the latest activity."
+      }
+    }
   },
   "sidebar": {
     "main": "Main",

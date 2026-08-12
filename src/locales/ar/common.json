@@ -682,7 +682,34 @@
     "unbranded": "بدون علامة تجارية",
     "uncategorized": "بدون فئة",
     "viewAll": "عرض الكل",
-    "done": "تم"
+    "done": "تم",
+    "realtimeFeedback": {
+      "events": {
+        "newOrder": "طلب جديد",
+        "paymentReceived": "تم استلام الدفع",
+        "paymentConfirmed": "تم تأكيد الدفع",
+        "paymentProofUploaded": "تم رفع إثبات الدفع",
+        "barcodeScanned": "تم مسح الباركود",
+        "productNotFound": "المنتج غير موجود",
+        "posError": "خطأ في نقطة البيع",
+        "lowStock": "مخزون منخفض",
+        "attendanceUpdated": "تم تحديث الحضور",
+        "attendanceCheckIn": "تسجيل حضور",
+        "attendanceCheckOut": "تسجيل انصراف",
+        "aiMessage": "رسالة من الذكاء الاصطناعي",
+        "aiRecommendation": "توصية من الذكاء الاصطناعي",
+        "exactProductFound": "تم العثور على المنتج بالضبط",
+        "noAiResults": "لا توجد نتائج",
+        "aiHandoff": "تحويل من الذكاء الاصطناعي",
+        "customerMessage": "رسالة من عميل",
+        "notification": "إشعار",
+        "error": "خطأ"
+      },
+      "batch": {
+        "title": "{{count}} تحديثات جديدة",
+        "message": "افتح مساحة العمل لمراجعة آخر الأنشطة."
+      }
+    }
   },
   "sidebar": {
     "main": "الرئيسية",

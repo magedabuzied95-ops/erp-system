@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 146
+- Files with debt: 142
 - Hardcoded Arabic UI strings: 1704
-- Hardcoded English UI strings: 1241
-- Total hardcoded UI strings: 2945
+- Hardcoded English UI strings: 1163
+- Total hardcoded UI strings: 2867
 - Mixed-language files (both scripts hardcoded): 39
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 76 | 1148 | 844 | 1992 | 25 |
+| main-erp | 72 | 1148 | 766 | 1914 | 25 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -259,36 +259,36 @@ of scope. The scanner is conservative and can still contain false positives.
 - 210 [object-key/ar] شحن / Shipping
 - 211 [object-key/ar] صيانة / Maintenance
 - 212 [object-key/ar] أخرى / Other
-- 2113 [notification/ar] تم استرجاع جلسة البيع المحفوظة
-- 3030 [notification/ar] لا تملك صلاحية البيع باسم مستخدم آخر
-- 3862 [notification/ar] الحد الأقصى 5 فواتير مفتوحة
-- 3876 [dialog/ar] الفاتورة تحتوي على منتجات. هل تريد إغلاقها؟
-- 4062 [object-key/ar] الجنس
-- 4063 [object-key/ar] نوع المنتج
-- 4064 [object-key/ar] الفئة
-- 4767 [notification/ar] Variant not found / لم يتم العثور على المقاس أو اللون
-- 4773 [notification/ar] Out of stock / غير متوفر بالمخزون
-- 5356 [notification/ar] لا يمكن فتح شفت جديد بدون اتصال
-- 5391 [notification/ar] لا توجد نردية مفتوحة
-- 5395 [notification/ar] لا يمكن إغلاق الشفت بدون اتصال
-- 5450 [notification/ar] اكتب سبب تجاوز اختيار فاتح الفرع قبل قفل الشيفت.
-- 5588 [notification/ar] يجب فتح نردية قبل البيع
-- 5618 [notification/ar] لا تملك صلاحية البيع باسم مستخدم آخر
-- 5623 [notification/ar] يجب تحديد البائع قبل إتمام الفاتورة
-- 5634 [notification/ar] يجب اختيار طريقة الدفع لهذه الفاتورة
-- 5646 [notification/ar] اختر عميلًا أولًا قبل العملية الشخصية.
-- 5650 [notification/ar] هذا العميل غير مسموح له بالعمليات الشخصية.
-- 5654 [notification/ar] اختر نوع العملية الشخصية قبل حفظ الفاتورة.
-- 5659 [notification/ar] اختر عميلًا أولًا قبل البيع الآجل.
-- 5664 [notification/ar] رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.
-- 5688 [notification/ar] أدخل عربونًا أقل من إجمالي الفاتورة، وسيُسجل الباقي آجلًا.
-- 5692 [notification/ar] العملية الشخصية لا تدعم الدفع عبر التيرمنال.
-- 6681 [notification/ar] تعذر إنشاء رابط الفاتورة
-- 7319 [jsx-text/en] Shift report
-- 7335 [jsx-text/en] Print
-- 7337 [jsx-text/en] End of Shift Report #$
-- 7338 [jsx-text/en] Cashier: $
-- 7339 [jsx-text/en] Variance: $
+- 2134 [notification/ar] تم استرجاع جلسة البيع المحفوظة
+- 3051 [notification/ar] لا تملك صلاحية البيع باسم مستخدم آخر
+- 3883 [notification/ar] الحد الأقصى 5 فواتير مفتوحة
+- 3897 [dialog/ar] الفاتورة تحتوي على منتجات. هل تريد إغلاقها؟
+- 4083 [object-key/ar] الجنس
+- 4084 [object-key/ar] نوع المنتج
+- 4085 [object-key/ar] الفئة
+- 4788 [notification/ar] Variant not found / لم يتم العثور على المقاس أو اللون
+- 4794 [notification/ar] Out of stock / غير متوفر بالمخزون
+- 5384 [notification/ar] لا يمكن فتح شفت جديد بدون اتصال
+- 5419 [notification/ar] لا توجد نردية مفتوحة
+- 5423 [notification/ar] لا يمكن إغلاق الشفت بدون اتصال
+- 5478 [notification/ar] اكتب سبب تجاوز اختيار فاتح الفرع قبل قفل الشيفت.
+- 5616 [notification/ar] يجب فتح نردية قبل البيع
+- 5646 [notification/ar] لا تملك صلاحية البيع باسم مستخدم آخر
+- 5651 [notification/ar] يجب تحديد البائع قبل إتمام الفاتورة
+- 5662 [notification/ar] يجب اختيار طريقة الدفع لهذه الفاتورة
+- 5674 [notification/ar] اختر عميلًا أولًا قبل العملية الشخصية.
+- 5678 [notification/ar] هذا العميل غير مسموح له بالعمليات الشخصية.
+- 5682 [notification/ar] اختر نوع العملية الشخصية قبل حفظ الفاتورة.
+- 5687 [notification/ar] اختر عميلًا أولًا قبل البيع الآجل.
+- 5692 [notification/ar] رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.
+- 5716 [notification/ar] أدخل عربونًا أقل من إجمالي الفاتورة، وسيُسجل الباقي آجلًا.
+- 5720 [notification/ar] العملية الشخصية لا تدعم الدفع عبر التيرمنال.
+- 6715 [notification/ar] تعذر إنشاء رابط الفاتورة
+- 7353 [jsx-text/en] Shift report
+- 7369 [jsx-text/en] Print
+- 7371 [jsx-text/en] End of Shift Report #$
+- 7372 [jsx-text/en] Cashier: $
+- 7373 [jsx-text/en] Variance: $
 - ... 69 more
 
 ### src/modules/orders/pages/OrderReturnsPage.jsx (main-erp — ar:96 en:0)
@@ -513,46 +513,46 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/pos/components/RecentOperationsDrawer.jsx (pos — ar:62 en:2)
 
-- 178 [object-key/ar] ملغاة
-- 179 [object-key/ar] مرتجعة
-- 180 [object-key/ar] قيد المراجعة
-- 181 [object-key/ar] مدفوعة
-- 227 [object-key/ar] مرتجع كامل
-- 228 [object-key/ar] مرتجع جزئي
-- 229 [object-key/ar] استبدال
-- 233 [object-key/ar] نقدي
-- 234 [object-key/en] Vodafone Cash
-- 235 [object-key/en] InstaPay
-- 525 [notification/ar] تم تجهيز الفاتورة للطباعة مرة أخرى
-- 584 [notification/ar] لا يمكن عمل مرتجع لهذه الفاتورة
-- 605 [notification/ar] اكتب DELETE أو حذف للتأكيد
-- 617 [notification/ar] تم حذف الفاتورة نهائيًا
-- 661 [attribute/ar] إغلاق
-- 663 [attribute/ar] العمليات الأخيرة
-- 670 [jsx-text/ar] العمليات الأخيرة
-- 671 [jsx-text/ar] عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.
-- 683 [attribute/ar] بحث برقم الفاتورة أو العميل أو الهاتف
-- 687 [attribute/ar] تحديث
-- 701 [attribute/ar] إعادة المحاولة
-- 701 [attribute/ar] حدث خطأ
-- 703 [attribute/ar] لا توجد عمليات
-- 732 [jsx-text/ar] تم عرض
-- 782 [inline-ternary/ar] isRtl ? "الدفع" : "Payment"
-- 783 [inline-ternary/ar] isRtl ? "البائع" : "Seller"
-- 784 [inline-ternary/ar] isRtl ? "التاريخ" : "Date"
-- 823 [attribute/ar] تفاصيل
-- 824 [attribute/ar] طباعة
-- 825 [attribute/ar] مرتجع
-- 826 [attribute/ar] تعديل
-- 828 [attribute/ar] حذف نهائي
-- 842 [jsx-text/ar] حذف نهائي
-- 843 [jsx-text/ar] سيتم حذف الفاتورة نهائيًا ولا يمكن التراجع عن هذه العملية.
-- 844 [jsx-text/ar] سيتم حذف السجلات المرتبطة واسترجاع المخزون إذا لم يكن مسترجعًا مسبقًا.
-- 848 [attribute/ar] الفاتورة
-- 849 [attribute/ar] الإجمالي
-- 852 [jsx-text/ar] اكتب DELETE أو حذف للتأكيد
-- 862 [jsx-text/ar] إلغاء
-- 936 [notification/ar] اختر المنتجات المراد إرجاعها
+- 169 [object-key/ar] ملغاة
+- 170 [object-key/ar] مرتجعة
+- 171 [object-key/ar] قيد المراجعة
+- 172 [object-key/ar] مدفوعة
+- 218 [object-key/ar] مرتجع كامل
+- 219 [object-key/ar] مرتجع جزئي
+- 220 [object-key/ar] استبدال
+- 224 [object-key/ar] نقدي
+- 225 [object-key/en] Vodafone Cash
+- 226 [object-key/en] InstaPay
+- 516 [notification/ar] تم تجهيز الفاتورة للطباعة مرة أخرى
+- 575 [notification/ar] لا يمكن عمل مرتجع لهذه الفاتورة
+- 596 [notification/ar] اكتب DELETE أو حذف للتأكيد
+- 608 [notification/ar] تم حذف الفاتورة نهائيًا
+- 652 [attribute/ar] إغلاق
+- 654 [attribute/ar] العمليات الأخيرة
+- 661 [jsx-text/ar] العمليات الأخيرة
+- 662 [jsx-text/ar] عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.
+- 674 [attribute/ar] بحث برقم الفاتورة أو العميل أو الهاتف
+- 678 [attribute/ar] تحديث
+- 692 [attribute/ar] إعادة المحاولة
+- 692 [attribute/ar] حدث خطأ
+- 694 [attribute/ar] لا توجد عمليات
+- 723 [jsx-text/ar] تم عرض
+- 773 [inline-ternary/ar] isRtl ? "الدفع" : "Payment"
+- 774 [inline-ternary/ar] isRtl ? "البائع" : "Seller"
+- 775 [inline-ternary/ar] isRtl ? "التاريخ" : "Date"
+- 814 [attribute/ar] تفاصيل
+- 815 [attribute/ar] طباعة
+- 816 [attribute/ar] مرتجع
+- 817 [attribute/ar] تعديل
+- 819 [attribute/ar] حذف نهائي
+- 833 [jsx-text/ar] حذف نهائي
+- 834 [jsx-text/ar] سيتم حذف الفاتورة نهائيًا ولا يمكن التراجع عن هذه العملية.
+- 835 [jsx-text/ar] سيتم حذف السجلات المرتبطة واسترجاع المخزون إذا لم يكن مسترجعًا مسبقًا.
+- 839 [attribute/ar] الفاتورة
+- 840 [attribute/ar] الإجمالي
+- 843 [jsx-text/ar] اكتب DELETE أو حذف للتأكيد
+- 853 [jsx-text/ar] إلغاء
+- 927 [notification/ar] اختر المنتجات المراد إرجاعها
 - ... 24 more
 
 ### src/pages/ComponentsPreview.jsx (main-erp — ar:58 en:2)
@@ -1175,33 +1175,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1277 [jsx-text/ar] لا توجد بيانات للاتجاه
 - 1353 [jsx-text/ar] إلغاء
 
-### src/modules/loyalty/pages/LoyaltyDashboard.jsx (main-erp — ar:0 en:24)
-
-- 98 [jsx-text/en] Loyalty
-- 99 [jsx-text/en] Customer Loyalty Intelligence
-- 118 [attribute/en] Customers enrolled in the program
-- 118 [attribute/en] Total loyalty customers
-- 119 [attribute/en] Lifetime earned points
-- 119 [attribute/en] Total points issued
-- 120 [attribute/en] Points spent at checkout
-- 120 [attribute/en] Total points redeemed
-- 121 [attribute/en] Active rules
-- 121 [attribute/en] Current point and tier policies
-- 128 [jsx-text/en] Top Loyalty Customers
-- 129 [jsx-text/en] Highest value and point balance customers
-- 160 [jsx-text/en] Tier Distribution
-- 179 [jsx-text/en] Transaction History
-- 184 [jsx-text/en] Type
-- 185 [jsx-text/en] Customer
-- 186 [jsx-text/en] Points
-- 187 [jsx-text/en] Value
-- 188 [jsx-text/en] Date
-- 207 [jsx-text/en] Rules Snapshot
-- 223 [jsx-text/en] Min order:
-- 224 [jsx-text/en] Redeem value:
-- 225 [jsx-text/en] Silver:
-- 226 [jsx-text/en] Platinum:
-
 ### src/modules/settings/pages/SettingsCenter.jsx (main-erp — ar:17 en:7)
 
 - 79 [object-key/en] Settings Center
@@ -1281,53 +1254,29 @@ of scope. The scanner is conservative and can still contain false positives.
 - 191 [jsx-text/en] Orders
 - 191 [jsx-text/en] Sales
 
-### src/modules/saas/pages/Workspace.jsx (main-erp — ar:0 en:21)
-
-- 21 [attribute/en] Workspace
-- 22 [attribute/en] Switch tenants, inspect the active subscription, and keep the authenticated session aligned with the current workspace.
-- 36 [object-key/en] Workspace
-- 37 [object-key/en] Billing
-- 38 [object-key/en] Company settings
-- 39 [object-key/en] Admin tenants
-- 43 [attribute/en] Tenants
-- 44 [attribute/en] Active
-- 45 [attribute/en] Suspended
-- 46 [attribute/en] Trial
-- 47 [attribute/en] Revenue placeholder
-- 54 [jsx-text/en] Current workspace
-- 55 [jsx-text/en] Tenant-aware session persisted in local storage.
-- 66 [jsx-text/en] Workspace
-- 73 [attribute/en] Subscription
-- 74 [attribute/en] Plan
-- 75 [attribute/en] Expires
-- 76 [attribute/en] Currency
-- 82 [jsx-text/en] Recent workspaces
-- 85 [attribute/en] No workspace history yet.
-- 107 [jsx-text/en] Supported plans
-
 ### src/services/realtimeFeedbackService.js (main-erp — ar:0 en:21)
 
-- 23 [object-key/en] New order
-- 24 [object-key/en] New order
-- 25 [object-key/en] New order
-- 26 [object-key/en] Payment received
-- 27 [object-key/en] Payment confirmed
-- 28 [object-key/en] Payment proof uploaded
-- 29 [object-key/en] Barcode scanned
-- 30 [object-key/en] Product not found
-- 31 [object-key/en] POS error
-- 32 [object-key/en] Low stock
-- 33 [object-key/en] Attendance updated
-- 34 [object-key/en] Attendance check-in
-- 35 [object-key/en] Attendance check-out
-- 36 [object-key/en] AI message
-- 37 [object-key/en] AI recommendation
-- 38 [object-key/en] Exact product found
-- 39 [object-key/en] No AI results
-- 40 [object-key/en] AI handoff
-- 41 [object-key/en] Customer message
-- 42 [object-key/en] Notification
-- 43 [object-key/en] Error
+- 32 [object-key/en] New order
+- 33 [object-key/en] New order
+- 34 [object-key/en] New order
+- 35 [object-key/en] Payment received
+- 36 [object-key/en] Payment confirmed
+- 37 [object-key/en] Payment proof uploaded
+- 38 [object-key/en] Barcode scanned
+- 39 [object-key/en] Product not found
+- 40 [object-key/en] POS error
+- 41 [object-key/en] Low stock
+- 42 [object-key/en] Attendance updated
+- 43 [object-key/en] Attendance check-in
+- 44 [object-key/en] Attendance check-out
+- 45 [object-key/en] AI message
+- 46 [object-key/en] AI recommendation
+- 47 [object-key/en] Exact product found
+- 48 [object-key/en] No AI results
+- 49 [object-key/en] AI handoff
+- 50 [object-key/en] Customer message
+- 51 [object-key/en] Notification
+- 52 [object-key/en] Error
 
 ### src/modules/aiSupport/components/PwaOrderComposer.jsx (shared — ar:19 en:1)
 
@@ -1374,29 +1323,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 212 [inline-ternary/ar] isArabic ? "اللون" : "Color"
 - 214 [inline-ternary/ar] isArabic ? "المخزون" : "Stock"
 - 215 [inline-ternary/ar] isArabic ? "المفضلة" : "Favorites"
-
-### src/modules/saas/pages/CompanySettings.jsx (main-erp — ar:0 en:20)
-
-- 23 [notification/en] Select or create a workspace first
-- 40 [notification/en] Company settings saved locally
-- 45 [attribute/en] Company Settings
-- 46 [attribute/en] Company profile, currency, language placeholder, invoice settings, branch settings, and POS settings.
-- 54 [object-key/en] Workspace
-- 55 [object-key/en] Billing
-- 56 [object-key/en] Company settings
-- 57 [object-key/en] Admin tenants
-- 62 [jsx-text/en] Profile settings
-- 64 [attribute/en] Company name
-- 65 [attribute/en] Currency
-- 66 [attribute/en] Language placeholder
-- 70 [attribute/en] Invoice prefix
-- 71 [attribute/en] POS receipt note
-- 74 [jsx-text/en] Invoice footer
-- 84 [attribute/en] Branch settings
-- 84 [attribute/en] Main, North, Warehouse...
-- 85 [attribute/en] POS settings
-- 85 [attribute/en] Receipt footer / POS note
-- 87 [jsx-text/en] Company logo placeholder
 
 ### src/modules/saas/pages/RegisterCompany.jsx (main-erp — ar:15 en:5)
 
@@ -1647,22 +1573,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 91 [inline-ternary/ar] isArabic ? "التحليلات المحاسبية المتقدمة" : "Advanced accounting analytics"
 - 103 [inline-ternary/ar] isArabic ? "التقارير الأساسية جاهزة الآن" : "Core reports are ready now"
 - 115 [inline-ternary/ar] isArabic ? "فتح التقارير المحاسبية" : "Open accounting reports"
-
-### src/modules/saas/pages/Billing.jsx (main-erp — ar:0 en:13)
-
-- 21 [attribute/en] Billing
-- 22 [attribute/en] Subscription status, expiration date, billing placeholders, and an upgrade flow that works even before the backend billing service exists.
-- 30 [object-key/en] Workspace
-- 31 [object-key/en] Billing
-- 32 [object-key/en] Company settings
-- 33 [object-key/en] Admin tenants
-- 37 [attribute/en] Plan
-- 38 [attribute/en] Status
-- 39 [attribute/en] Expires
-- 40 [attribute/en] Currency
-- 45 [jsx-text/en] Current subscription
-- 47 [jsx-text/en] Subscription
-- 64 [jsx-text/en] Upgrade page
 
 ### src/modules/accounting/lib/accountingNavigation.js (main-erp — ar:12 en:0)
 

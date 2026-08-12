@@ -1,0 +1,62 @@
+{
+  "tabs": {
+    "workspace": "Workspace",
+    "billing": "Billing",
+    "companySettings": "Company settings",
+    "adminTenants": "Admin tenants"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "subtitle": "Switch tenants, inspect the active subscription, and keep the authenticated session aligned with the current workspace.",
+    "registerCompany": "Register company",
+    "metrics": {
+      "tenants": "Tenants",
+      "active": "Active",
+      "suspended": "Suspended",
+      "trial": "Trial",
+      "revenue": "Revenue placeholder"
+    },
+    "current": "Current workspace",
+    "currentHint": "Tenant-aware session persisted in local storage.",
+    "subscription": "Subscription",
+    "plan": "Plan",
+    "expires": "Expires",
+    "currency": "Currency",
+    "recent": "Recent workspaces",
+    "noHistory": "No workspace history yet.",
+    "supportedPlans": "Supported plans"
+  },
+  "billing": {
+    "title": "Billing",
+    "subtitle": "Subscription status, expiration date, billing placeholders, and an upgrade flow.",
+    "metrics": {
+      "plan": "Plan",
+      "status": "Status",
+      "expires": "Expires",
+      "currency": "Currency"
+    },
+    "current": "Current subscription",
+    "subscription": "Subscription",
+    "upgrade": "Upgrade page"
+  },
+  "company": {
+    "title": "Company Settings",
+    "subtitle": "Company profile, currency, language placeholder, invoice settings, branch settings, and POS settings.",
+    "selectWorkspaceFirst": "Select or create a workspace first",
+    "savedLocally": "Company settings saved locally",
+    "profile": "Profile settings",
+    "name": "Company name",
+    "currency": "Currency",
+    "language": "Language placeholder",
+    "invoicePrefix": "Invoice prefix",
+    "posReceiptNote": "POS receipt note",
+    "invoiceFooter": "Invoice footer",
+    "save": "Save company settings",
+    "branchSettings": "Branch settings",
+    "branchPlaceholder": "Main, North, Warehouse...",
+    "posSettings": "POS settings",
+    "posPlaceholder": "Receipt footer / POS note",
+    "logo": "Company logo placeholder",
+    "uploadLogo": "Upload logo placeholder"
+  }
+}

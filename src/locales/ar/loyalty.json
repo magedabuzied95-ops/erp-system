@@ -1,0 +1,38 @@
+{
+  "dashboard": {
+    "eyebrow": "الولاء",
+    "title": "ذكاء ولاء العملاء",
+    "stats": {
+      "totalCustomers": "إجمالي عملاء الولاء",
+      "totalCustomersHint": "العملاء المشتركون في البرنامج",
+      "pointsIssued": "إجمالي النقاط الممنوحة",
+      "pointsIssuedHint": "النقاط المكتسبة مدى الحياة",
+      "pointsRedeemed": "إجمالي النقاط المستبدلة",
+      "pointsRedeemedHint": "النقاط المستخدمة عند الدفع",
+      "activeRules": "القواعد النشطة",
+      "activeRulesHint": "سياسات النقاط والفئات الحالية"
+    },
+    "top": {
+      "title": "أفضل عملاء الولاء",
+      "subtitle": "العملاء الأعلى قيمة ورصيد نقاط"
+    },
+    "tiers": {
+      "title": "توزيع الفئات"
+    },
+    "history": {
+      "title": "سجل المعاملات",
+      "type": "النوع",
+      "customer": "العميل",
+      "points": "النقاط",
+      "value": "القيمة",
+      "date": "التاريخ"
+    },
+    "rules": {
+      "title": "لقطة القواعد",
+      "minOrder": "أقل طلب: {{value}}",
+      "redeemValue": "قيمة الاستبدال: {{value}}",
+      "silver": "فضي: {{value}}",
+      "platinum": "بلاتيني: {{value}}"
+    }
+  }
+}
