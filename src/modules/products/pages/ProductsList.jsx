@@ -3459,7 +3459,7 @@ function ProductsList() {
       ), document.body) : null}
 
       {selectedProduct ? (
-        <div className="rounded-[34px] border border-border bg-surface p-6">
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-6">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-3xl">
               <p className="text-xs uppercase tracking-[0.28em] text-text-muted">{t("products.selected.title")}</p>
@@ -3492,7 +3492,7 @@ function ProductsList() {
       ) : null}
 
       {!loading && !error && rows.length === 0 ? (
-        <div className="rounded-[34px] border border-border bg-surface p-12 text-center">
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-12 text-center">
           <AlertTriangle className="mx-auto text-amber-400" size={40} />
           <h3 className="m1-section-title mt-4 text-text">{t("products.empty.catalogTitle")}</h3>
           <p className="mt-2 text-text-muted">{t("products.empty.catalogDescription")}</p>
@@ -3597,7 +3597,7 @@ function BarcodeQueueBulkModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[100150] flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm" dir="ltr">
-      <div className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-border bg-surface shadow-2xl shadow-black/60">
+      <div className="w-full max-w-4xl overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/60">
         <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">

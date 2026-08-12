@@ -421,7 +421,7 @@ function StockMovements() {
       subtitle="تُجمَّع حسب المنتج حتى تبقى الاختيارات بحسب المقاس واللون واضحة وسهلة البحث والفحص."
       actions={
         <div className="flex flex-wrap gap-2">
-          <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text">
             <Clock3 className="mr-2 inline h-4 w-4" />
             سجل الاختيارات
           </Link>
@@ -443,31 +443,31 @@ function StockMovements() {
         <Metric label="حد الصفوف" value={rowCount} tone="amber" />
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+      <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_180px_180px_180px_180px_auto]">
           <label className="relative block xl:col-span-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="ابحث عن منتج أو SKU أو باركود أو لون أو مقاس أو سبب أو مستخدم..."
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted"
             />
           </label>
 
           <label className="block">
-            <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+            <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">
               <SlidersHorizontal className="h-3.5 w-3.5" />
               نوع الحركة
             </div>
             <select
               value={movementType}
               onChange={(e) => setMovementType(e.target.value)}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
             >
               <option value="">كل الأنواع</option>
               {movementTypes.map((type) => (
-                <option key={type} value={type} className="bg-zinc-950 text-white">
+                <option key={type} value={type} className="bg-surface text-text">
                   {movementTypeLabel(type)}
                 </option>
               ))}
@@ -475,15 +475,15 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">الدرجة</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">الدرجة</div>
             <select
               value={grade}
               onChange={(e) => setGrade(e.target.value)}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
             >
               <option value="">كل الدرجات</option>
               {grades.map((value) => (
-                <option key={value} value={value} className="bg-zinc-950 text-white">
+                <option key={value} value={value} className="bg-surface text-text">
                   {value}
                 </option>
               ))}
@@ -491,15 +491,15 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفئة</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">الفئة</div>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
             >
               <option value="">كل الفئات</option>
               {categories.map((value) => (
-                <option key={value} value={value} className="bg-zinc-950 text-white">
+                <option key={value} value={value} className="bg-surface text-text">
                   {value}
                 </option>
               ))}
@@ -507,14 +507,14 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">عدد الصفوف</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">عدد الصفوف</div>
             <select
               value={String(rowCount)}
               onChange={(e) => setRowCount(Number(e.target.value))}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
             >
               {ROW_COUNT_OPTIONS.map((value) => (
-                <option key={value} value={String(value)} className="bg-zinc-950 text-white">
+                <option key={value} value={String(value)} className="bg-surface text-text">
                   {value}
                 </option>
               ))}
@@ -530,36 +530,36 @@ function StockMovements() {
               setCategory("");
               setRowCount(200);
             }}
-            className="self-end rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="self-end rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
           >
             إعادة ضبط
           </button>
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
-        <div className="flex flex-col gap-2 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/10">
+        <div className="flex flex-col gap-2 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="m1-section-title text-white">سجل الحركات</h3>
-            <p className="mt-1 text-sm text-zinc-400">مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.</p>
+            <h3 className="m1-section-title text-text">سجل الحركات</h3>
+            <p className="mt-1 text-sm text-text-muted">مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.</p>
           </div>
-          <div className="text-sm text-zinc-400">
+          <div className="text-sm text-text-muted">
             {groupedMovements.length} منتج مجمّع · {movements.length} صف
           </div>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-zinc-400">
+          <div className="flex items-center justify-center py-16 text-text-muted">
             <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
             جارٍ تحميل حركات المخزون...
           </div>
         ) : error ? (
           <div className="p-5 text-sm text-red-100">
-            <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5">{error}</div>
+            <div className="rounded-[var(--radius-card)] border border-red-500/20 bg-red-500/10 p-5">{error}</div>
           </div>
         ) : groupedMovements.length === 0 ? (
-          <div className="p-8 text-center text-zinc-400">
-            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">
+          <div className="p-8 text-center text-text-muted">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10">
               لا توجد حركات.
             </div>
           </div>
@@ -569,14 +569,14 @@ function StockMovements() {
               const expanded = expandedGroups.includes(group.key);
               const imageUrl = resolveProductImageUrl(group.product_image_url || "");
               return (
-                <article key={group.key} className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+                <article key={group.key} className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.key)}
-                    className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-white/[0.04] md:grid-cols-[76px_minmax(0,1.8fr)_auto] md:items-center md:px-5"
+                    className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-surface-hover md:grid-cols-[76px_minmax(0,1.8fr)_auto] md:items-center md:px-5"
                     aria-expanded={expanded}
                   >
-                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
+                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
                       {imageUrl ? (
                         <img src={imageUrl} alt={group.product_name} className="h-full w-full object-cover" loading="lazy" />
                       ) : (
@@ -586,14 +586,14 @@ function StockMovements() {
 
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="truncate text-lg font-black text-white">{group.product_name}</h4>
-                        {group.product_grade ? <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">{group.product_grade}</span> : null}
-                        {group.category_name ? <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">{group.category_name}</span> : null}
+                        <h4 className="truncate text-lg font-black text-text">{group.product_name}</h4>
+                        {group.product_grade ? <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{group.product_grade}</span> : null}
+                        {group.category_name ? <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{group.category_name}</span> : null}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-zinc-400">
-                        {group.product_code ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">كود المنتج: {group.product_code}</span> : null}
-                        {group.manufacturer_name ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{group.manufacturer_name}</span> : null}
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{summarizeLocations(group.movements)}</span>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-text-muted">
+                        {group.product_code ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">كود المنتج: {group.product_code}</span> : null}
+                        {group.manufacturer_name ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{group.manufacturer_name}</span> : null}
+                        <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{summarizeLocations(group.movements)}</span>
                       </div>
                     </div>
 
@@ -606,7 +606,7 @@ function StockMovements() {
                       />
                       <Stat label="آخر تاريخ" value={group.lastMovementAt ? formatDateTime(group.lastMovementAt) : "غير متاح"} />
                       <div className="flex items-center justify-end md:justify-center">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-zinc-300">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-text-muted">
                           {expanded ? "طي" : "توسيع"}
                           {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </span>
@@ -615,7 +615,7 @@ function StockMovements() {
                   </button>
 
                   {expanded ? (
-                    <div className="border-t border-white/10 bg-black/10 px-4 py-4 md:px-5">
+                    <div className="border-t border-border bg-black/10 px-4 py-4 md:px-5">
                       <CurrentStockSummary
                         loading={Boolean(productSnapshots[String(group.product_id ?? "")]?.loading)}
                         error={productSnapshots[String(group.product_id ?? "")]?.error || ""}
@@ -624,10 +624,10 @@ function StockMovements() {
 
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">حركات الاختيار</div>
-                          <div className="mt-1 text-sm text-zinc-400">اضغط صف الاختيار لفتح خطه الزمني الكامل.</div>
+                          <div className="text-xs uppercase tracking-[0.18em] text-text-muted">حركات الاختيار</div>
+                          <div className="mt-1 text-sm text-text-muted">اضغط صف الاختيار لفتح خطه الزمني الكامل.</div>
                         </div>
-                        <div className="text-xs font-semibold text-zinc-500">{group.movements.length} صف</div>
+                        <div className="text-xs font-semibold text-text-muted">{group.movements.length} صف</div>
                       </div>
 
                       <div className="grid gap-2">
@@ -641,9 +641,9 @@ function StockMovements() {
                               key={String(movement.id)}
                               type="button"
                               onClick={() => openVariantHistory(movement, group)}
-                              className="grid gap-3 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 py-4 text-left transition hover:border-emerald-400/30 hover:bg-white/[0.06] md:grid-cols-[56px_minmax(0,1.35fr)_auto]"
+                              className="grid gap-3 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-4 text-left transition hover:border-emerald-400/30 hover:bg-surface-hover md:grid-cols-[56px_minmax(0,1.35fr)_auto]"
                             >
-                              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
+                              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
                                 {variantImage ? (
                                   <img src={variantImage} alt={group.product_name} className="h-full w-full object-cover" loading="lazy" />
                                 ) : (
@@ -653,40 +653,40 @@ function StockMovements() {
 
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">{movementTypeLabel(movement.movement_type)}</span>
-                                  <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
+                                  <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{movementTypeLabel(movement.movement_type)}</span>
+                                  <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">
                                     {movement.color || "لا يوجد لون"}
                                   </span>
-                                  <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
+                                  <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">
                                     {movement.size || "لا يوجد مقاس"}
                                   </span>
                                   {movement.variant_article_code ? (
-                                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
+                                    <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">
                                       {movement.variant_article_code}
                                     </span>
                                   ) : null}
                                 </div>
 
-                                <div className="mt-2 grid gap-1 text-xs text-zinc-400 md:grid-cols-2">
+                                <div className="mt-2 grid gap-1 text-xs text-text-muted md:grid-cols-2">
                                   <div>
-                                    <span className="font-black text-zinc-200">السبب:</span> {movement.reason || movement.notes || "غير متاح"}
+                                    <span className="font-black text-text">السبب:</span> {movement.reason || movement.notes || "غير متاح"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">المرجع:</span>{" "}
+                                    <span className="font-black text-text">المرجع:</span>{" "}
                                     {movement.reference_type || "غير متاح"} #{movement.reference_id || "غير متاح"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">المستخدم:</span> {movement.created_by_name || "غير متاح"}
+                                    <span className="font-black text-text">المستخدم:</span> {movement.created_by_name || "غير متاح"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">التاريخ/الوقت:</span> {formatDateTime(movement.created_at)}
+                                    <span className="font-black text-text">التاريخ/الوقت:</span> {formatDateTime(movement.created_at)}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">المخزن/الفرع:</span>{" "}
+                                    <span className="font-black text-text">المخزن/الفرع:</span>{" "}
                                     {[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" · ") || "غير متاح"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">SKU/الباركود:</span>{" "}
+                                    <span className="font-black text-text">SKU/الباركود:</span>{" "}
                                     {[movement.sku || "غير متاح", movement.barcode || "غير متاح"].join(" / ")}
                                   </div>
                                 </div>
@@ -730,11 +730,11 @@ function CurrentStockSummary({ loading, error, rows }) {
   const numberOfActiveSizes = useMemo(() => new Set(rows.filter((row) => toNumber(row.stock ?? 0, 0) > 0).map((row) => normalizeText(row.size)).filter(Boolean)).size, [rows]);
 
   return (
-    <div className="mb-4 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+    <div className="mb-4 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">ملخص الرصيد الحالي</div>
-          <div className="mt-1 text-sm text-zinc-400">الرصيد الحالي للاختيارات مجمّع حسب اللون والمقاس.</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-text-muted">ملخص الرصيد الحالي</div>
+          <div className="mt-1 text-sm text-text-muted">الرصيد الحالي للاختيارات مجمّع حسب اللون والمقاس.</div>
         </div>
         {loading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : null}
       </div>
@@ -745,19 +745,19 @@ function CurrentStockSummary({ loading, error, rows }) {
         <Metric label="عدد المقاسات النشطة" value={numberOfActiveSizes} tone="violet" />
       </div>
 
-      {error ? <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
+      {error ? <div className="mt-3 rounded-[var(--radius-card)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
 
       <div className="mt-4 lg:hidden">
         {rows.length ? (
           <div className="space-y-2">
             {rows.map((row) => (
-              <div key={`${row.color}::${row.size}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div key={`${row.color}::${row.size}`} className="rounded-[var(--radius-card)] border border-border bg-black/20 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-white">{row.color || "غير محدد"}</div>
-                    <div className="mt-1 text-xs text-zinc-400">{row.size || "غير محدد"}</div>
+                    <div className="truncate text-sm font-black text-text">{row.color || "غير محدد"}</div>
+                    <div className="mt-1 text-xs text-text-muted">{row.size || "غير محدد"}</div>
                   </div>
-                  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white tabular-nums">
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-sm font-black text-text tabular-nums">
                     {row.stock}
                   </div>
                 </div>
@@ -765,17 +765,17 @@ function CurrentStockSummary({ loading, error, rows }) {
             ))}
           </div>
         ) : (
-          <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 px-3 py-4 text-sm text-zinc-400">
+          <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-4 text-sm text-text-muted">
             لا توجد لقطة رصيد مباشرة متاحة.
           </div>
         )}
       </div>
 
       <div className="mt-4 hidden lg:block">
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+        <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-black/20">
           <table className="m1-table m1-table--compact min-w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-zinc-500">
+              <tr className="border-b border-border text-xs uppercase tracking-[0.18em] text-text-muted">
                 <th className="px-4 py-3 font-semibold">اللون</th>
                 <th className="px-4 py-3 font-semibold">المقاس</th>
                 <th className="px-4 py-3 font-semibold">الرصيد الحالي</th>
@@ -784,15 +784,15 @@ function CurrentStockSummary({ loading, error, rows }) {
             <tbody>
               {rows.length ? (
                 rows.map((row) => (
-                  <tr key={`${row.color}::${row.size}`} className="border-b border-white/5 last:border-b-0">
-                    <td className="px-4 py-3 font-semibold text-white">{row.color || "غير محدد"}</td>
-                    <td className="px-4 py-3 text-zinc-300">{row.size || "غير محدد"}</td>
+                  <tr key={`${row.color}::${row.size}`} className="border-b border-border last:border-b-0">
+                    <td className="px-4 py-3 font-semibold text-text">{row.color || "غير محدد"}</td>
+                    <td className="px-4 py-3 text-text-muted">{row.size || "غير محدد"}</td>
                     <td className="px-4 py-3 font-black text-emerald-300 tabular-nums">{row.stock}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-zinc-400">
+                  <td colSpan={3} className="px-4 py-6 text-center text-text-muted">
                     لا توجد لقطة رصيد مباشرة متاحة.
                   </td>
                 </tr>
@@ -812,13 +812,13 @@ function Metric({ label, value, tone = "neutral" }) {
     violet: "border-violet-500/20 bg-violet-500/10 text-violet-200",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-200",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-200",
-    neutral: "border-white/10 bg-white/5 text-white",
+    neutral: "border-border bg-surface-soft text-text",
   };
 
   return (
-    <div className={`rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 break-words text-2xl font-black text-white">{value}</div>
+    <div className={`rounded-[var(--radius-card)] border p-4 shadow-xl ${classes[tone]}`}>
+      <div className="text-[11px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <div className="mt-2 break-words text-2xl font-black text-text">{value}</div>
     </div>
   );
 }
@@ -828,13 +828,13 @@ function Stat({ label, value, tone = "neutral" }) {
     emerald: "text-emerald-300",
     rose: "text-rose-300",
     violet: "text-violet-300",
-    neutral: "text-white",
+    neutral: "text-text",
     amber: "text-amber-300",
   };
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">{label}</div>
       <div className={`mt-1 break-words text-sm font-black ${classes[tone]}`}>{value}</div>
     </div>
   );
@@ -846,7 +846,7 @@ function MovementBadge({ type }) {
     PURCHASE_IN: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
     SALE_OUT: "border-rose-500/20 bg-rose-500/10 text-rose-300",
     RETURN_IN: "border-blue-500/20 bg-blue-500/10 text-blue-300",
-    ADJUSTMENT: "border-white/10 bg-white/5 text-white",
+    ADJUSTMENT: "border-border bg-surface-soft text-text",
     TRANSFER_IN: "border-sky-500/20 bg-sky-500/10 text-sky-300",
     TRANSFER_OUT: "border-sky-500/20 bg-sky-500/10 text-sky-300",
     COUNT_ADJUSTMENT: "border-violet-500/20 bg-violet-500/10 text-violet-300",
@@ -855,7 +855,7 @@ function MovementBadge({ type }) {
   };
 
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${palette[value] || "border-white/10 bg-white/5 text-white"}`}>
+    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${palette[value] || "border-border bg-surface-soft text-text"}`}>
       {movementTypeLabel(type)}
     </span>
   );
@@ -880,33 +880,33 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0" onClick={onClose} aria-label="إغلاق سجل الاختيار" />
-      <div className="relative flex h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black sm:rounded-3xl">
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+      <div className="relative flex h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl shadow-black sm:rounded-[var(--radius-card)]">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0">
-            <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">سجل الاختيار</div>
-            <h3 className="m1-section-title mt-1 truncate text-white">{group.product_name || movement.product_name || "سجل الاختيار"}</h3>
-            <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-zinc-400">
-              {movement.color ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.color}</span> : null}
-              {movement.size ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.size}</span> : null}
-              {movement.sku ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">رمز الصنف: {movement.sku}</span> : null}
-              {movement.barcode ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">الباركود: {movement.barcode}</span> : null}
+            <div className="text-xs uppercase tracking-[0.2em] text-text-muted">سجل الاختيار</div>
+            <h3 className="m1-section-title mt-1 truncate text-text">{group.product_name || movement.product_name || "سجل الاختيار"}</h3>
+            <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-text-muted">
+              {movement.color ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{movement.color}</span> : null}
+              {movement.size ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{movement.size}</span> : null}
+              {movement.sku ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">رمز الصنف: {movement.sku}</span> : null}
+              {movement.barcode ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">الباركود: {movement.barcode}</span> : null}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
             إغلاق
           </button>
         </div>
 
         <div className="grid flex-1 gap-4 overflow-hidden p-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
+          <aside className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
             <div className="flex items-start gap-3">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
                 {imageUrl ? <img src={imageUrl} alt={group.product_name || movement.product_name || "صورة المنتج"} className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6" />}
               </div>
               <div className="min-w-0 flex-1">
                 <MovementBadge type={movement.movement_type} />
-                <div className="mt-2 text-sm font-black text-white">{movementTypeLabel(movement.movement_type)}</div>
-                <div className="mt-1 text-xs leading-5 text-zinc-400">{movement.reason || movement.notes || "لم يتم توفير سبب."}</div>
+                <div className="mt-2 text-sm font-black text-text">{movementTypeLabel(movement.movement_type)}</div>
+                <div className="mt-1 text-xs leading-5 text-text-muted">{movement.reason || movement.notes || "لم يتم توفير سبب."}</div>
               </div>
             </div>
 
@@ -921,22 +921,22 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
             </div>
           </aside>
 
-          <section className="flex min-h-0 flex-col rounded-3xl border border-white/10 bg-black/10">
-            <div className="border-b border-white/10 px-4 py-3">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">التسلسل الزمني الكامل للاختيار</div>
-              <div className="mt-1 text-sm text-zinc-400">المشتريات والمبيعات والمرتجعات والتحويلات والجرد والتسويات لهذا الاختيار تحديدًا.</div>
+          <section className="flex min-h-0 flex-col rounded-[var(--radius-card)] border border-border bg-black/10">
+            <div className="border-b border-border px-4 py-3">
+              <div className="text-xs uppercase tracking-[0.18em] text-text-muted">التسلسل الزمني الكامل للاختيار</div>
+              <div className="mt-1 text-sm text-text-muted">المشتريات والمبيعات والمرتجعات والتحويلات والجرد والتسويات لهذا الاختيار تحديدًا.</div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {loading ? (
-                <div className="flex h-full items-center justify-center py-16 text-zinc-400">
+                <div className="flex h-full items-center justify-center py-16 text-text-muted">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
                   جارٍ تحميل سجل الاختيار...
                 </div>
               ) : error ? (
-                <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
+                <div className="rounded-[var(--radius-card)] border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
               ) : movements.length === 0 ? (
-                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10 text-center text-text-muted">
                   لا يوجد سجل حركات لهذا الاختيار.
                 </div>
               ) : (
@@ -945,36 +945,36 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
                     const delta = toNumber(item.quantity_change ?? item.quantity_delta ?? item.quantity ?? 0, 0);
                     const itemImage = resolveProductImageUrl(item.color_image_url || item.variant_image_url || item.product_image_url || item.image_url || "");
                     return (
-                      <div key={String(item.id)} className="grid gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-4 md:grid-cols-[48px_minmax(0,1.4fr)_auto]">
-                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
+                      <div key={String(item.id)} className="grid gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-4 md:grid-cols-[48px_minmax(0,1.4fr)_auto]">
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
                           {itemImage ? <img src={itemImage} alt={item.product_name || "الاختيار"} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5" />}
                         </div>
 
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <MovementBadge type={item.movement_type} />
-                            {item.color ? <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">{item.color}</span> : null}
-                            {item.size ? <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">{item.size}</span> : null}
+                            {item.color ? <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{item.color}</span> : null}
+                            {item.size ? <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{item.size}</span> : null}
                           </div>
-                          <div className="mt-2 grid gap-1 text-xs text-zinc-400 md:grid-cols-2">
+                          <div className="mt-2 grid gap-1 text-xs text-text-muted md:grid-cols-2">
                             <div>
-                              <span className="font-black text-zinc-200">السبب:</span> {item.reason || item.notes || "غير متاح"}
+                              <span className="font-black text-text">السبب:</span> {item.reason || item.notes || "غير متاح"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">المرجع:</span> {item.reference_type || "غير متاح"} #{item.reference_id || "غير متاح"}
+                              <span className="font-black text-text">المرجع:</span> {item.reference_type || "غير متاح"} #{item.reference_id || "غير متاح"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">المستخدم:</span> {item.created_by_name || "غير متاح"}
+                              <span className="font-black text-text">المستخدم:</span> {item.created_by_name || "غير متاح"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">التاريخ/الوقت:</span> {formatDateTime(item.created_at)}
+                              <span className="font-black text-text">التاريخ/الوقت:</span> {formatDateTime(item.created_at)}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">المخزن/الفرع:</span>{" "}
+                              <span className="font-black text-text">المخزن/الفرع:</span>{" "}
                               {[item.warehouse_name, item.branch_name].filter(Boolean).join(" · ") || "غير متاح"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">قبل / بعد:</span>{" "}
+                              <span className="font-black text-text">قبل / بعد:</span>{" "}
                               {Number(item.quantity_before ?? item.before_qty ?? 0)} / {Number(item.quantity_after ?? item.after_qty ?? 0)}
                             </div>
                           </div>
@@ -1001,9 +1001,9 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
 
 function Detail({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-3 py-3">
-      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className="mt-1 break-words text-sm font-black text-white">{value}</div>
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-3">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">{label}</div>
+      <div className="mt-1 break-words text-sm font-black text-text">{value}</div>
     </div>
   );
 }

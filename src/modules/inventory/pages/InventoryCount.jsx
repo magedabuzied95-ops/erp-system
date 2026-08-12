@@ -63,7 +63,7 @@ const SESSION_STATUS_LABELS = {
 };
 
 const statusTone = {
-  draft: "border-white/10 bg-white/5 text-white",
+  draft: "border-border bg-surface-soft text-text",
   in_progress: "border-amber-500/25 bg-amber-500/10 text-amber-100",
   completed: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100",
   cancelled: "border-rose-500/25 bg-rose-500/10 text-rose-100",
@@ -1346,7 +1346,7 @@ function InventoryCountPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             {isDetail ? (
-              <Link to="/inventory/count" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+              <Link to="/inventory/count" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover">
                 <ArrowLeft className="h-4 w-4" />
                 العودة إلى القائمة
               </Link>
@@ -1354,7 +1354,7 @@ function InventoryCountPage() {
             <button
               type="button"
               onClick={() => setScopeModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary"
             >
               <Plus className="h-4 w-4" />
               بدء جرد جديد
@@ -1373,9 +1373,9 @@ function InventoryCountPage() {
         {isDetail ? (
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_360px]">
             <div className="space-y-4">
-              {sessionError ? <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{sessionError}</div> : null}
+              {sessionError ? <div className="rounded-[var(--radius-card)] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{sessionError}</div> : null}
 
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1384,8 +1384,8 @@ function InventoryCountPage() {
                         {SESSION_STATUS_LABELS[session?.status || "draft"] || "مسودة"}
                       </span>
                     </div>
-                    <h1 className="m1-page-title mt-3 text-white">{newSessionForm.title || "جرد جديد"}</h1>
-                    <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-400">
+                    <h1 className="m1-page-title mt-3 text-text">{newSessionForm.title || "جرد جديد"}</h1>
+                    <div className="mt-2 flex flex-wrap gap-3 text-sm text-text-muted">
                       <span>الفرع: {session?.branch_name || selectedBranchName || "غير محدد"}</span>
                       <span>المخزن: {session?.warehouse_name || selectedWarehouseName || "غير محدد"}</span>
                       <span>آخر تحديث: {formatDateTime(session?.updated_at || session?.created_at)}</span>
@@ -1397,7 +1397,7 @@ function InventoryCountPage() {
                       type="button"
                       onClick={saveDraftHandler}
                       disabled={savingDraft || sessionIsLockedForEditing}
-                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover disabled:opacity-40"
                     >
                       {savingDraft ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       حفظ كمسودة
@@ -1421,7 +1421,7 @@ function InventoryCountPage() {
                         session?.status === "rejected" ||
                         (session?.status === "pending_review" && !canReviewInventoryCount)
                       }
-                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:opacity-40"
                     >
                       {approvingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       اعتماد الجرد
@@ -1476,18 +1476,18 @@ function InventoryCountPage() {
                 <MetricCard label="إجمالي الفروق" value={itemSummary.absoluteDiff} tone="amber" />
               </div>
 
-              <section className="mt-3 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
+              <section className="mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <h2 className="m1-section-title text-white">البحث ومسح الباركود</h2>
-                    <div className="mt-2 inline-flex max-w-full rounded-2xl border border-primary/15 bg-primary/10 px-3 py-2 text-[11px] font-bold leading-5 text-primary">
+                    <h2 className="m1-section-title text-text">البحث ومسح الباركود</h2>
+                    <div className="mt-2 inline-flex max-w-full rounded-[var(--radius-card)] border border-primary/15 bg-primary/10 px-3 py-2 text-[11px] font-bold leading-5 text-primary">
                       Inventory counts are submitted for review before final approval.
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setScannerOpen(true)}
-                    className="hidden h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
+                    className="hidden h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
                     aria-label="فتح ماسح الكاميرا"
                     title="فتح ماسح الكاميرا"
                   >
@@ -1499,15 +1499,15 @@ function InventoryCountPage() {
                   <button
                     type="button"
                     onClick={() => setScannerOpen(true)}
-                    className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black shadow-[0_10px_28px_rgba(16,185,129,0.22)] transition hover:bg-primary"
+                    className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary"
                   >
                     <Camera className="h-4 w-4" />
                     امسح الباركود
                   </button>
-                  <div className="hidden items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500 sm:flex">
-                    <span className="h-px w-10 bg-white/10" />
+                  <div className="hidden items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-text-muted sm:flex">
+                    <span className="h-px w-10 bg-surface-soft" />
                     OR
-                    <span className="h-px w-10 bg-white/10" />
+                    <span className="h-px w-10 bg-surface-soft" />
                   </div>
                 </div>
 
@@ -1516,14 +1516,14 @@ function InventoryCountPage() {
                     type="button"
                     onClick={() => setFiltersOpen(true)}
                     aria-expanded={filtersOpen}
-                    className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+                    className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-border bg-surface-soft text-text hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
                     aria-label="الفلتر"
                     title="الفلتر"
                   >
                     <span className="relative inline-flex">
                       <Filter className="h-4 w-4" />
                       {activeFilterCount > 0 ? (
-                        <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-emerald-400 px-1 text-[10px] font-black text-zinc-950">
+                        <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-emerald-400 px-1 text-[10px] font-black text-text">
                           {activeFilterCount > 99 ? "99+" : activeFilterCount}
                         </span>
                       ) : null}
@@ -1531,8 +1531,8 @@ function InventoryCountPage() {
                     <span className="sr-only">الفلتر</span>
                   </button>
 
-                  <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
-                    <Search className="h-4 w-4 shrink-0 text-zinc-500" />
+                  <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-card)] border border-border bg-black/30 px-3">
+                    <Search className="h-4 w-4 shrink-0 text-text-muted" />
                     <input
                       ref={searchInputRef}
                       value={lookupQuery}
@@ -1544,7 +1544,7 @@ function InventoryCountPage() {
                         }
                       }}
                       placeholder="ابحث بالاسم أو الموديل أو الباركود أو الكود"
-                      className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+                      className="w-full bg-transparent text-sm font-semibold text-text outline-none placeholder:text-text-muted"
                     />
                   </label>
 
@@ -1553,7 +1553,7 @@ function InventoryCountPage() {
                     onClick={() => {
                       setScannerOpen(true);
                     }}
-                    className="hidden h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
+                    className="hidden h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
                     aria-label="فتح ماسح الكاميرا"
                     title="فتح ماسح الكاميرا"
                   >
@@ -1569,22 +1569,22 @@ function InventoryCountPage() {
                       setSelectedLookupProductId("");
                       searchInputRef.current?.focus?.();
                     }}
-                    className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 self-start rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 text-xs font-black text-white transition hover:bg-white/[0.08]"
+                    className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 self-start rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-xs font-black text-text transition hover:bg-surface-hover"
                   >
                     + إضافة منتج يدوياً
                   </button>
 
-                  <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 sm:grid-cols-3">
+                  <div className="grid gap-3 rounded-[var(--radius-card)] border border-border bg-black/20 p-3 sm:grid-cols-3">
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Products Counted</div>
-                      <div className="mt-1 text-lg font-black text-white">{itemSummary.groups}</div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Products Counted</div>
+                      <div className="mt-1 text-lg font-black text-text">{itemSummary.groups}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Total Quantity Counted</div>
-                      <div className="mt-1 text-lg font-black text-white">{itemSummary.countedQuantity}</div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Total Quantity Counted</div>
+                      <div className="mt-1 text-lg font-black text-text">{itemSummary.countedQuantity}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Variance Count</div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Variance Count</div>
                       <div className={`mt-1 text-lg font-black ${itemSummary.varianceQuantity > 0 ? "text-rose-200" : itemSummary.varianceQuantity < 0 ? "text-amber-200" : "text-emerald-200"}`}>
                         {itemSummary.varianceQuantity > 0 ? `+${itemSummary.varianceQuantity}` : itemSummary.varianceQuantity < 0 ? itemSummary.varianceQuantity : "0"}
                       </div>
@@ -1592,12 +1592,12 @@ function InventoryCountPage() {
                   </div>
 
                   {session?.status === "in_progress" ? (
-                    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-3 text-sm font-bold text-emerald-50">
+                    <div className="rounded-[var(--radius-card)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-3 text-sm font-bold text-emerald-50">
                       <div className="flex items-center justify-between gap-3">
                         <span>{itemSummary.countedQuantity} units counted</span>
                         <span className="text-emerald-100/80">{countProgressPercent}%</span>
                       </div>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-soft">
                         <div className="h-full rounded-full bg-emerald-400 transition-all duration-300" style={{ width: `${countProgressPercent}%` }} />
                       </div>
                     </div>
@@ -1629,10 +1629,10 @@ function InventoryCountPage() {
                 />
 
                 {selectedLookupGroup ? (
-                  <div className="mt-3 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="mt-3 flex flex-col gap-3 rounded-[var(--radius-card)] border border-emerald-400/20 bg-emerald-500/10 p-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">الموديل المحدد</div>
-                      <div className="mt-1 truncate text-sm font-bold text-white">{selectedLookupGroup.product_name || "منتج"}</div>
+                      <div className="mt-1 truncate text-sm font-bold text-text">{selectedLookupGroup.product_name || "منتج"}</div>
                       <div className="mt-1 text-xs text-emerald-100/80">
                         {selectedLookupGroup.colors?.length || 0} ألوان · {selectedLookupGroup.variants.length} مقاسات
                       </div>
@@ -1641,7 +1641,7 @@ function InventoryCountPage() {
                       type="button"
                       onClick={() => addFullModelToCount(selectedLookupGroup)}
                       disabled={busyGroupKey === selectedLookupGroup.key}
-                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:opacity-40"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:opacity-40"
                     >
                       {busyGroupKey === selectedLookupGroup.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                       إضافة الموديل للجرد
@@ -1651,7 +1651,7 @@ function InventoryCountPage() {
 
                 <div className="mt-4 space-y-3">
                   {filteredLookupGroups.length === 0 && lookupQuery.trim() && !lookupLoading ? (
-                    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center text-zinc-400">
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-8 text-center text-text-muted">
                       لا توجد نتائج مجمعة لهذا البحث.
                     </div>
                   ) : null}
@@ -1669,15 +1669,15 @@ function InventoryCountPage() {
 
                 <div className="mt-5 space-y-3">
                   {sessionLoading ? (
-                    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10 text-center text-text-muted">
                       <Loader2 className="mx-auto h-10 w-10 animate-spin text-emerald-400" />
                       <p className="mt-3">جاري تحميل جلسة الجرد...</p>
                     </div>
                   ) : visibleGroupedItems.length === 0 ? (
-                    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
-                      <ClipboardList className="mx-auto h-12 w-12 text-zinc-500" />
-                      <h3 className="m1-section-title mt-4 text-white">لا توجد أصناف بعد</h3>
-                      <p className="mt-2 text-sm text-zinc-400">ابدأ بالمسح أو البحث ثم أضف اللون إلى الجرد.</p>
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10 text-center text-text-muted">
+                      <ClipboardList className="mx-auto h-12 w-12 text-text-muted" />
+                      <h3 className="m1-section-title mt-4 text-text">لا توجد أصناف بعد</h3>
+                      <p className="mt-2 text-sm text-text-muted">ابدأ بالمسح أو البحث ثم أضف اللون إلى الجرد.</p>
                     </div>
                   ) : (
                     visibleGroupedItems.map((group) => (
@@ -1705,8 +1705,8 @@ function InventoryCountPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-                <h3 className="m1-section-title text-white">بيانات الجلسة</h3>
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
+                <h3 className="m1-section-title text-text">بيانات الجلسة</h3>
                 <div className="mt-3 grid gap-2">
                   <Field label="اسم الجلسة" value={newSessionForm.title} onChange={(value) => setNewSessionForm((current) => ({ ...current, title: value }))} />
                   <SelectField
@@ -1724,31 +1724,31 @@ function InventoryCountPage() {
                     options={[{ value: "", label: "بدون مخزن" }, ...warehouses.map((warehouse) => ({ value: String(warehouse.id), label: warehouse.name }))]}
                   />
                   <label className="block">
-                    <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات الجلسة</div>
+                    <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">ملاحظات الجلسة</div>
                     <textarea
                       value={newSessionForm.notes}
                       onChange={(event) => setNewSessionForm((current) => ({ ...current, notes: event.target.value }))}
                     rows={4}
                     placeholder="ملاحظات عامة حول الجرد أو منطقة العمل"
-                    className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft p-3 text-sm text-text outline-none placeholder:text-text-muted"
                   />
                 </label>
               </div>
-                <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">
+                <div className="mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm text-text-muted">
                   <div className="flex items-center justify-between gap-3">
                     <span>عدد المجموعات</span>
-                    <span className="font-black text-white">{itemSummary.groups}</span>
+                    <span className="font-black text-text">{itemSummary.groups}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <span>إجمالي الفروق</span>
-                    <span className="font-black text-white">{itemSummary.absoluteDiff}</span>
+                    <span className="font-black text-text">{itemSummary.absoluteDiff}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-                <h3 className="m1-section-title text-white">إرشادات</h3>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-300">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
+                <h3 className="m1-section-title text-text">إرشادات</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-text-muted">
                   <li>• استخدم الماسح أو البحث السريع لإضافة قطعة مباشرة عند التطابق الدقيق.</li>
                   <li>• البحث باسم المنتج يعرض كروت مجمعة حسب المنتج واللون فقط.</li>
                   <li>• زر إضافة اللون للجرد يضيف كل المقاسات مرة واحدة بقيم فعلية صفرية.</li>
@@ -1760,7 +1760,7 @@ function InventoryCountPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {sessionsError ? <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{sessionsError}</div> : null}
+            {sessionsError ? <div className="rounded-[var(--radius-card)] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{sessionsError}</div> : null}
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <MetricCard label="إجمالي الجلسات" value={sessionSummary.total} tone="blue" />
@@ -1769,11 +1769,11 @@ function InventoryCountPage() {
               <MetricCard label="مكتملة" value={sessionSummary.completed} tone="rose" />
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="m1-section-title text-white">جلسات الجرد</h2>
-                  <p className="mt-1 text-sm text-zinc-400">راجع الجلسات الحالية وافتح أي جلسة لمتابعة الأصناف أو اعتماد الفروقات.</p>
+                  <h2 className="m1-section-title text-text">جلسات الجرد</h2>
+                  <p className="mt-1 text-sm text-text-muted">راجع الجلسات الحالية وافتح أي جلسة لمتابعة الأصناف أو اعتماد الفروقات.</p>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {[
@@ -1788,7 +1788,7 @@ function InventoryCountPage() {
                       key={item.key}
                       type="button"
                       onClick={() => setSessionStatusFilter(item.key)}
-                      className={`rounded-full border px-3 py-1 text-xs font-bold transition ${ sessionStatusFilter === item.key ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10" }`}
+                      className={`rounded-full border px-3 py-1 text-xs font-bold transition ${ sessionStatusFilter === item.key ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100" : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover" }`}
                     >
                       {item.label}
                     </button>
@@ -1797,7 +1797,7 @@ function InventoryCountPage() {
                 <button
                   type="button"
                   onClick={() => setScopeModalOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary"
                 >
                   <Plus className="h-4 w-4" />
                   بدء جرد جديد
@@ -1806,23 +1806,23 @@ function InventoryCountPage() {
 
               <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_160px]">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
                   <input
                     value={sessionSearch}
                     onChange={(event) => setSessionSearch(event.target.value)}
                     placeholder="ابحث في الجلسات..."
-                    className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                    className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => void loadSessions()}
-                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                 >
                   <RotateCcw className="h-4 w-4" />
                   تحديث
                 </button>
-                <Link to="/inventory" className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+                <Link to="/inventory" className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover">
                   <Warehouse className="h-4 w-4" />
                   المخزون
                 </Link>
@@ -1830,15 +1830,15 @@ function InventoryCountPage() {
 
               <div className="mt-5 space-y-3">
                 {sessionsLoading ? (
-                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10 text-center text-text-muted">
                     <Loader2 className="mx-auto h-10 w-10 animate-spin text-emerald-400" />
                     <p className="mt-3">جاري تحميل جلسات الجرد...</p>
                   </div>
                 ) : filteredSessions.length === 0 ? (
-                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
-                    <ClipboardList className="mx-auto h-12 w-12 text-zinc-500" />
-                    <h3 className="m1-section-title mt-4 text-white">لا توجد جلسات جرد بعد</h3>
-                    <p className="mt-2 text-sm text-zinc-400">ابدأ جردًا جديدًا ثم افتحه للمسح أو الاعتماد.</p>
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10 text-center text-text-muted">
+                    <ClipboardList className="mx-auto h-12 w-12 text-text-muted" />
+                    <h3 className="m1-section-title mt-4 text-text">لا توجد جلسات جرد بعد</h3>
+                    <p className="mt-2 text-sm text-text-muted">ابدأ جردًا جديدًا ثم افتحه للمسح أو الاعتماد.</p>
                   </div>
                 ) : (
                   filteredSessions.map((row) => (
@@ -1853,16 +1853,16 @@ function InventoryCountPage() {
                           navigate(`/inventory/count/${row.id}`);
                         }
                       }}
-                      className="w-full rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-start transition hover:bg-white/10"
+                      className="w-full rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 text-start transition hover:bg-surface-hover"
                     >
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <StatusBadge value={SESSION_STATUS_LABELS[row.status || "draft"] || row.status || "مسودة"} />
-                            <span className="text-xs text-zinc-500">#{row.id}</span>
+                            <span className="text-xs text-text-muted">#{row.id}</span>
                           </div>
-                          <div className="mt-2 text-lg font-bold text-white">{row.title || "جرد جديد"}</div>
-                          <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-400">
+                          <div className="mt-2 text-lg font-bold text-text">{row.title || "جرد جديد"}</div>
+                          <div className="mt-2 flex flex-wrap gap-3 text-sm text-text-muted">
                             <span>الفرع: {row.branch_name || "غير محدد"}</span>
                             <span>المخزن: {row.warehouse_name || "غير محدد"}</span>
                             <span>عدد الأصناف: {row.item_count || 0}</span>
@@ -1880,7 +1880,7 @@ function InventoryCountPage() {
                               event.stopPropagation();
                               navigate(`/inventory/count/${row.id}`);
                             }}
-                            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black/30"
+                            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-black/20 px-3 py-2 text-xs font-semibold text-text transition hover:bg-black/30"
                           >
                             <SquareArrowOutUpRight className="h-4 w-4" />
                             فتح
@@ -1943,9 +1943,9 @@ function MetricCard({ label, value, tone = "blue" }) {
   };
 
   return (
-    <div className={`rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    <div className={`rounded-[var(--radius-card)] border p-4 shadow-xl ${classes[tone]}`}>
+      <div className="text-[11px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <div className="mt-2 text-2xl font-black text-text">{value}</div>
     </div>
   );
 }
@@ -1953,12 +1953,12 @@ function MetricCard({ label, value, tone = "blue" }) {
 function Field({ label, value, onChange, placeholder = "" }) {
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted"
       />
     </label>
   );
@@ -1967,23 +1967,23 @@ function Field({ label, value, onChange, placeholder = "" }) {
 function SelectField({ label, value, onChange, options = [], badge = null, compactAction = false }) {
   return (
     <label className="block">
-      <div className="mb-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+      <div className="mb-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">
         <span>{label}</span>
-        {badge !== null ? <span className="inline-flex min-h-5 items-center justify-center rounded-full bg-white/10 px-2 text-[10px] font-black text-white">{badge}</span> : null}
+        {badge !== null ? <span className="inline-flex min-h-5 items-center justify-center rounded-full bg-surface-soft px-2 text-[10px] font-black text-text">{badge}</span> : null}
       </div>
       <div className="relative">
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className={`w-full appearance-none rounded-[var(--radius-control)] border bg-white/5 py-3 text-sm text-white outline-none ${compactAction ? "cursor-pointer border-emerald-400/25 px-4 pr-12 font-black shadow-sm" : "border-white/10 px-4"}`}
+          className={`w-full appearance-none rounded-[var(--radius-control)] border bg-surface-soft py-3 text-sm text-text outline-none ${compactAction ? "cursor-pointer border-emerald-400/25 px-4 pr-12 font-black shadow-sm" : "border-border px-4"}`}
         >
           {options.map((option) => (
-            <option key={option.value} value={option.value} className="bg-zinc-950 text-white">
+            <option key={option.value} value={option.value} className="bg-surface text-text">
               {option.label}
             </option>
           ))}
         </select>
-        <ChevronLeft className={`pointer-events-none absolute end-4 top-1/2 h-4 w-4 -translate-y-1/2 ${compactAction ? "text-emerald-200" : "text-zinc-500"}`} />
+        <ChevronLeft className={`pointer-events-none absolute end-4 top-1/2 h-4 w-4 -translate-y-1/2 ${compactAction ? "text-emerald-200" : "text-text-muted"}`} />
       </div>
     </label>
   );
@@ -1992,22 +1992,22 @@ function SelectField({ label, value, onChange, options = [], badge = null, compa
 function LookupGroupCard({ group, busy, selected, onAddModel }) {
   const resolvedImage = resolveInventoryImage(group);
   return (
-    <div className={`rounded-[var(--radius-card)] border p-4 ${selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
+    <div className={`rounded-[var(--radius-card)] border p-4 ${selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-border bg-surface-soft"}`}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 gap-3">
-          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
+          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
             {resolvedImage ? (
               <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500">
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-text-muted">
                 <ClipboardList className="h-6 w-6" />
               </div>
             )}
           </div>
           <div className="min-w-0">
-            <div className="text-lg font-bold text-white">{group.product_name || "منتج"}</div>
-            <div className="mt-1 text-sm text-zinc-400">{group.colors?.length ? `${group.colors.length} ألوان` : "لون غير محدد"}</div>
-            <div className="mt-1 text-xs text-zinc-500">عدد المقاسات: {group.variants.length} · السيستم: {group.system_total}</div>
+            <div className="text-lg font-bold text-text">{group.product_name || "منتج"}</div>
+            <div className="mt-1 text-sm text-text-muted">{group.colors?.length ? `${group.colors.length} ألوان` : "لون غير محدد"}</div>
+            <div className="mt-1 text-xs text-text-muted">عدد المقاسات: {group.variants.length} · السيستم: {group.system_total}</div>
           </div>
         </div>
 
@@ -2019,9 +2019,9 @@ function LookupGroupCard({ group, busy, selected, onAddModel }) {
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         {group.variants.map((variant) => (
-          <div key={String(variant.product_variant_id || variant.id)} className="rounded-2xl border border-white/10 bg-zinc-950/70 p-3">
-            <div className="text-sm font-black text-white">{variant.size || "غير محدد"}</div>
-            <div className="mt-1 text-xs text-zinc-400">السيستم: {variant.system_quantity}</div>
+          <div key={String(variant.product_variant_id || variant.id)} className="rounded-[var(--radius-card)] border border-border bg-surface p-3">
+            <div className="text-sm font-black text-text">{variant.size || "غير محدد"}</div>
+            <div className="mt-1 text-xs text-text-muted">السيستم: {variant.system_quantity}</div>
           </div>
         ))}
       </div>
@@ -2066,14 +2066,14 @@ function GroupedCountCard({
   }
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="text-lg font-black text-white">{group.product_name || "منتج"} - {group.color || "لون"}</div>
-          <div className="mt-1 text-sm text-zinc-400">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total} · الفرق: {group.difference_total}</div>
+          <div className="text-lg font-black text-text">{group.product_name || "منتج"} - {group.color || "لون"}</div>
+          <div className="mt-1 text-sm text-text-muted">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total} · الفرق: {group.difference_total}</div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button>
+          <button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface-hover disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button>
           <button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />مطابقة السيستم</button>
           <button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />تصفير</button>
           <button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />حذف اللون</button>
@@ -2096,20 +2096,20 @@ function DesktopGroupedCountRow({ item, disabled, onCountChange, onCountCommit, 
   useEffect(() => {
     setNotes(item.notes || "");
   }, [item.notes]);
-  const diffTone = diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-zinc-300";
+  const diffTone = diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-text-muted";
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
       <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(120px,1fr)_90px_120px_90px_160px_minmax(0,1fr)_44px] xl:items-center">
         <div className="min-w-0">
-          <div className="font-semibold text-white">{item.size || "مقاس غير محدد"}</div>
-          <div className="mt-1 text-xs text-zinc-400">رمز الصنف: {item.variant_sku || "غير متاح"} · الباركود: {item.variant_barcode || "غير متاح"}</div>
+          <div className="font-semibold text-text">{item.size || "مقاس غير محدد"}</div>
+          <div className="mt-1 text-xs text-text-muted">رمز الصنف: {item.variant_sku || "غير متاح"} · الباركود: {item.variant_barcode || "غير متاح"}</div>
         </div>
-        <div><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السيستم</div><div className="mt-1 text-sm font-black text-white">{system}</div></div>
-        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفعلي</div><input type="number" disabled={disabled} value={counted} onChange={(event) => onCountChange(item.id, event.target.value)} onBlur={(event) => onCountCommit(item.id, { counted_quantity: Number(event.target.value || 0) })} className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50" /></label>
-        <div><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفرق</div><div className={`mt-1 text-sm font-black ${diffTone}`}>{diff > 0 ? "+" : ""}{diff}</div></div>
-        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السبب</div><select disabled={disabled} value={item.reason || "أخرى"} onChange={(event) => onReasonCommit(item.id, { reason: event.target.value })} className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-zinc-950 text-white">{reason}</option>))}</select></label>
-        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => onNotesCommit(item.id, { notes: event.target.value })} placeholder="ملاحظات" className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50" /></label>
-        <div className="flex justify-end"><button type="button" disabled={disabled} onClick={() => onCountCommit(item.id, { counted_quantity: counted })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white transition hover:bg-white/10 disabled:opacity-40" title="حفظ"><Save className="h-4 w-4" /></button></div>
+        <div><div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">السيستم</div><div className="mt-1 text-sm font-black text-text">{system}</div></div>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">الفعلي</div><input type="number" disabled={disabled} value={counted} onChange={(event) => onCountChange(item.id, event.target.value)} onBlur={(event) => onCountCommit(item.id, { counted_quantity: Number(event.target.value || 0) })} className="mt-1 w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none disabled:opacity-50" /></label>
+        <div><div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">الفرق</div><div className={`mt-1 text-sm font-black ${diffTone}`}>{diff > 0 ? "+" : ""}{diff}</div></div>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">السبب</div><select disabled={disabled} value={item.reason || "أخرى"} onChange={(event) => onReasonCommit(item.id, { reason: event.target.value })} className="mt-1 w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-surface text-text">{reason}</option>))}</select></label>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">ملاحظات</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => onNotesCommit(item.id, { notes: event.target.value })} placeholder="ملاحظات" className="mt-1 w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted disabled:opacity-50" /></label>
+        <div className="flex justify-end"><button type="button" disabled={disabled} onClick={() => onCountCommit(item.id, { counted_quantity: counted })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text transition hover:bg-surface-hover disabled:opacity-40" title="حفظ"><Save className="h-4 w-4" /></button></div>
       </div>
     </div>
   );
@@ -2127,19 +2127,19 @@ function MobileGroupedCountCard({ group, disabled, busy, onAddColor, onMatchSyst
     nextInput?.select?.();
   };
   return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-lg shadow-black/10">
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-lg shadow-black/10">
       <button type="button" onClick={onToggleExpanded} className="w-full text-start" aria-expanded={expanded}>
         <div className="flex items-start gap-3">
-          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">{resolvedImage ? <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500"><ClipboardList className="h-6 w-6" /></div>}</div>
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">{resolvedImage ? <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-text-muted"><ClipboardList className="h-6 w-6" /></div>}</div>
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-black leading-snug text-white">{group.product_name || "منتج"} - {group.color || "لون"}</div>
-            <div className="mt-1 text-sm text-zinc-400">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total}</div>
+            <div className="text-lg font-black leading-snug text-text">{group.product_name || "منتج"} - {group.color || "لون"}</div>
+            <div className="mt-1 text-sm text-text-muted">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total}</div>
             <div className={`mt-1 text-sm font-black ${group.difference_total > 0 ? "text-rose-300" : group.difference_total < 0 ? "text-amber-300" : "text-emerald-300"}`}>{group.difference_total > 0 ? `زيادة ${group.difference_total}` : group.difference_total < 0 ? `عجز ${Math.abs(group.difference_total)}` : "مطابق"}</div>
           </div>
         </div>
-        <div className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">{expanded ? "إخفاء المقاسات" : "عرض المقاسات"}</div>
+        <div className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">{expanded ? "إخفاء المقاسات" : "عرض المقاسات"}</div>
       </button>
-      {expanded ? <div className="mt-3 space-y-2">{group.variants.map((variant) => (<MemoGroupedCountRow key={String(variant.id)} item={variant} compact disabled={disabled} inputRef={(node) => { if (node) { inputRefs.current.set(String(variant.id), node); } else { inputRefs.current.delete(String(variant.id)); } }} onCountChange={onCountChange} onCountCommit={onCountCommit} onReasonCommit={onReasonCommit} onNotesCommit={onNotesCommit} onAdvance={focusNextSize} />))}<div className="flex flex-wrap gap-2 pt-2"><button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button><button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />مطابقة</button><button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />تصفير</button><button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />حذف اللون</button></div></div> : null}
+      {expanded ? <div className="mt-3 space-y-2">{group.variants.map((variant) => (<MemoGroupedCountRow key={String(variant.id)} item={variant} compact disabled={disabled} inputRef={(node) => { if (node) { inputRefs.current.set(String(variant.id), node); } else { inputRefs.current.delete(String(variant.id)); } }} onCountChange={onCountChange} onCountCommit={onCountCommit} onReasonCommit={onReasonCommit} onNotesCommit={onNotesCommit} onAdvance={focusNextSize} />))}<div className="flex flex-wrap gap-2 pt-2"><button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button><button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface-hover disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />مطابقة</button><button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />تصفير</button><button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />حذف اللون</button></div></div> : null}
     </div>
   );
 }
@@ -2169,9 +2169,9 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
   const handleReasonChange = (reason) => { if (disabled) return; setReasonDraft(reason); void onReasonCommit(item.id, { reason }); };
   const handleNotesBlur = (value) => { if (disabled) return; void onNotesCommit(item.id, { notes: value }); };
   if (compact) {
-    return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_72px_minmax(0,1.35fr)_64px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">المتوقع</div><div className="mt-0.5 text-sm font-black tabular-nums text-white">{system}</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفعلي</div><div className="mt-1 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40" aria-label="إنقاص الكمية">-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-16 shrink-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label="زيادة الكمية">+</button></div></div><div className="min-w-[64px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "مطابق"}</div></div></div></div>);
+    return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-border bg-surface-soft shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_72px_minmax(0,1.35fr)_64px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-text">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-text-muted">مقاس</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-text-muted">المتوقع</div><div className="mt-0.5 text-sm font-black tabular-nums text-text">{system}</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-text-muted">الفعلي</div><div className="mt-1 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-black/30 text-base font-black text-text transition-colors hover:bg-surface-hover disabled:opacity-40" aria-label="إنقاص الكمية">-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-16 shrink-0 rounded-[var(--radius-control)] border border-border bg-surface px-1.5 text-center text-sm font-black text-text outline-none tabular-nums placeholder:text-text-muted disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label="زيادة الكمية">+</button></div></div><div className="min-w-[64px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-text-muted">الفرق</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "مطابق"}</div></div></div></div>);
   }
-  return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-2 py-2 shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[48px] grid-cols-[44px_minmax(0,1fr)_72px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div></div><div className="min-w-0"><div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400"><span className="uppercase tracking-[0.18em]">المتوقع</span><span className="tabular-nums text-white">{system}</span></div><div className="mt-1.5 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40" aria-label="إنقاص الكمية">-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-14 shrink-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label="زيادة الكمية">+</button></div></div><div className="min-w-[72px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "مطابق"}</div></div></div>{hasDetails ? <div className="mt-2"><button type="button" onClick={() => setShowDetails((current) => !current)} className="inline-flex items-center rounded-[var(--radius-control)] border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/10">{showDetails ? "إخفاء التفاصيل" : "تفاصيل إضافية"}</button>{showDetails ? <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-6 text-zinc-400">{item.variant_sku ? <div className="truncate">رمز الصنف: {item.variant_sku}</div> : null}{item.variant_barcode ? <div className="truncate">الباركود: {item.variant_barcode}</div> : null}{item.variant_article_code ? <div className="truncate">رقم الصنف: {item.variant_article_code}</div> : null}{item.product_id ? <div className="truncate">معرّف المنتج: {item.product_id}</div> : null}{item.product_variant_id || item.id ? <div className="truncate">معرّف المتغير: {item.product_variant_id || item.id}</div> : null}<label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">السبب</div><select disabled={disabled} value={reasonDraft} onChange={(event) => handleReasonChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-zinc-950 text-white">{reason}</option>))}</select></label><label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => handleNotesBlur(event.target.value)} placeholder="ملاحظات" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50" /></label></div> : null}</div> : null}</div>);
+  return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-2 shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[48px] grid-cols-[44px_minmax(0,1fr)_72px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-text">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-text-muted">مقاس</div></div><div className="min-w-0"><div className="flex items-center gap-2 text-[10px] font-semibold text-text-muted"><span className="uppercase tracking-[0.18em]">المتوقع</span><span className="tabular-nums text-text">{system}</span></div><div className="mt-1.5 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-black/30 text-base font-black text-text transition-colors hover:bg-surface-hover disabled:opacity-40" aria-label="إنقاص الكمية">-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-14 shrink-0 rounded-[var(--radius-control)] border border-border bg-surface px-1.5 text-center text-sm font-black text-text outline-none tabular-nums placeholder:text-text-muted disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label="زيادة الكمية">+</button></div></div><div className="min-w-[72px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-text-muted">الفرق</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "مطابق"}</div></div></div>{hasDetails ? <div className="mt-2"><button type="button" onClick={() => setShowDetails((current) => !current)} className="inline-flex items-center rounded-[var(--radius-control)] border border-border bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-text transition-colors hover:bg-surface-hover">{showDetails ? "إخفاء التفاصيل" : "تفاصيل إضافية"}</button>{showDetails ? <div className="mt-2 rounded-[var(--radius-card)] border border-border bg-black/20 p-3 text-xs leading-6 text-text-muted">{item.variant_sku ? <div className="truncate">رمز الصنف: {item.variant_sku}</div> : null}{item.variant_barcode ? <div className="truncate">الباركود: {item.variant_barcode}</div> : null}{item.variant_article_code ? <div className="truncate">رقم الصنف: {item.variant_article_code}</div> : null}{item.product_id ? <div className="truncate">معرّف المنتج: {item.product_id}</div> : null}{item.product_variant_id || item.id ? <div className="truncate">معرّف المتغير: {item.product_variant_id || item.id}</div> : null}<label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-text-muted">السبب</div><select disabled={disabled} value={reasonDraft} onChange={(event) => handleReasonChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-surface text-text">{reason}</option>))}</select></label><label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-text-muted">ملاحظات</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => handleNotesBlur(event.target.value)} placeholder="ملاحظات" className="w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted disabled:opacity-50" /></label></div> : null}</div> : null}</div>);
 }
 
 const areRowPropsEqual = (prev, next) =>
@@ -2222,14 +2222,14 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="إغلاق" />
-      <div className="relative w-full max-w-2xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
+      <div className="relative w-full max-w-2xl rounded-t-3xl border border-border bg-surface p-5 shadow-2xl shadow-black sm:rounded-[var(--radius-card)]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">بدء جرد جديد</div>
-            <h3 className="m1-section-title mt-1 text-white">حدد نطاق الجرد</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">اختر فرعًا أو مخزنًا إذا كان متاحًا، ثم ابدأ جلسة الجرد.</p>
+            <h3 className="m1-section-title mt-1 text-text">حدد نطاق الجرد</h3>
+            <p className="mt-2 text-sm leading-6 text-text-muted">اختر فرعًا أو مخزنًا إذا كان متاحًا، ثم ابدأ جلسة الجرد.</p>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">
+          <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-black text-text transition hover:bg-surface-hover" aria-label="رجوع">
             <ArrowRight className="h-4 w-4" />
             <span>رجوع</span>
           </button>
@@ -2238,11 +2238,11 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
           <Field label="اسم الجلسة" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} />
           <SelectField label="الفرع" value={form.branchId} onChange={(value) => setForm((current) => ({ ...current, branchId: value }))} options={[{ value: "", label: "بدون فرع" }, ...branches.map((branch) => ({ value: String(branch.id), label: branch.name }))]} />
           <SelectField label="المخزن" value={form.warehouseId} onChange={(value) => setForm((current) => ({ ...current, warehouseId: value }))} options={[{ value: "", label: "بدون مخزن" }, ...warehouses.map((warehouse) => ({ value: String(warehouse.id), label: warehouse.name }))]} />
-          <label className="block md:col-span-2"><div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} placeholder="ملاحظات عامة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" /></label>
+          <label className="block md:col-span-2"><div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">ملاحظات</div><textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} placeholder="ملاحظات عامة" className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft p-4 text-sm text-text outline-none placeholder:text-text-muted" /></label>
         </div>
         <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">إلغاء</button>
-          <button type="button" onClick={onCreate} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">بدء الجرد</button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover">إلغاء</button>
+          <button type="button" onClick={onCreate} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary">بدء الجرد</button>
         </div>
       </div>
     </div>
@@ -2303,18 +2303,18 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
       <button type="button" className="absolute inset-0" onClick={onClose} aria-label="إغلاق الماسح" />
-      <div className="relative w-full max-w-2xl rounded-3xl border border-white/10 bg-zinc-950 p-4 shadow-2xl shadow-black">
+      <div className="relative w-full max-w-2xl rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">ماسح الباركود</div>
-            <h3 className="m1-section-title mt-1 text-white">امسح الباركود أو رمز QR</h3>
+            <h3 className="m1-section-title mt-1 text-text">امسح الباركود أو رمز QR</h3>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">
+          <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-black text-text transition hover:bg-surface-hover" aria-label="رجوع">
             <ArrowRight className="h-4 w-4" />
             <span>رجوع</span>
           </button>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+        <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-black">
           <BarcodeScanner onScan={onScan} onPermissionDenied={onPermissionDenied} onUnsupported={onUnsupported} onError={onError} className="w-full" scannerClassName="h-[420px] w-full" />
         </div>
       </div>

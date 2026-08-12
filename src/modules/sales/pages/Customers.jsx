@@ -1243,7 +1243,7 @@ function CustomerImportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" dir="rtl">
-      <section className="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-border bg-surface text-text shadow-2xl shadow-black/50">
+      <section className="w-full max-w-5xl overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface text-text shadow-2xl shadow-black/50">
         <div className="border-b border-border bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_38%),rgba(15,23,42,0.88)] p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -1629,7 +1629,7 @@ function CustomerStatementDrawer({
 
   return (
     <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-4 py-6 text-text sm:px-6" dir="rtl">
-      <main className="mx-auto w-full max-w-[1500px] rounded-[2rem] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
+      <main className="mx-auto w-full max-w-[1500px] rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
         <div className="flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{tt("customers.statement.title")}</div>

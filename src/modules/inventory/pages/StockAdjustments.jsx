@@ -612,14 +612,14 @@ function StockAdjustments() {
         <div className="flex flex-wrap gap-2">
           <Link
             to="/inventory/history"
-            className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover"
           >
             <Clock3 className="mr-2 inline h-4 w-4" />
             السجل الكامل
           </Link>
           <Link
             to="/inventory/movements"
-            className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover"
           >
             <History className="mr-2 inline h-4 w-4" />
             الحركات
@@ -636,36 +636,36 @@ function StockAdjustments() {
       ]}
     >
       {!canAdjust ? (
-        <div className="mb-4 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+        <div className="mb-4 rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
           <ShieldAlert className="mr-2 inline h-4 w-4" />
             تسويات المخزون متاحة فقط للمستخدمين الذين لديهم صلاحية تعديل المخزون.
         </div>
       ) : null}
 
       {catalogError ? (
-        <div className="mb-4 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+        <div className="mb-4 rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
           {catalogError}
         </div>
       ) : null}
 
       {warehouseError ? (
-        <div className="mb-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
+        <div className="mb-4 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 text-sm text-text-muted">
           {warehouseError}
         </div>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(380px,0.8fr)]">
         <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
               <label className="relative block flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="ابحث بالاسم أو SKU أو الباركود"
-                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                  className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted"
                 />
               </label>
 
@@ -673,7 +673,7 @@ function StockAdjustments() {
                 <button
                   type="button"
                   onClick={openScanner}
-                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                 >
                   <Camera className="h-4 w-4" />
                   مسح الباركود
@@ -684,7 +684,7 @@ function StockAdjustments() {
                     setSearch("");
                     setSelectedVariantId("");
                   }}
-                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                 >
                   <X className="h-4 w-4" />
                   مسح
@@ -700,37 +700,37 @@ function StockAdjustments() {
                 tone={requiresManagerApproval ? "amber" : "emerald"}
               />
               <label className="block">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">حد الاعتماد القابل للتعديل</div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">حد الاعتماد القابل للتعديل</div>
                 <input
                   type="number"
                   min="1"
                   step="1"
                   value={approvalThreshold}
                   onChange={(event) => setApprovalThreshold(Math.max(1, asNumber(event.target.value, DEFAULT_APPROVAL_THRESHOLD)))}
-                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
                 />
               </label>
             </div>
-            {warehouseLoading ? <div className="mt-3 text-xs text-zinc-500">جارٍ تحميل المخازن...</div> : null}
+            {warehouseLoading ? <div className="mt-3 text-xs text-text-muted">جارٍ تحميل المخازن...</div> : null}
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/10">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h3 className="m1-section-title text-white">نتائج البحث عن المنتجات</h3>
-                <p className="mt-1 text-sm text-zinc-400">ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.</p>
+                <h3 className="m1-section-title text-text">نتائج البحث عن المنتجات</h3>
+                <p className="mt-1 text-sm text-text-muted">ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.</p>
               </div>
-                <div className="text-sm text-zinc-400">{filteredVariants.length} نتيجة</div>
+                <div className="text-sm text-text-muted">{filteredVariants.length} نتيجة</div>
             </div>
 
             {catalogLoading ? (
-              <div className="flex items-center justify-center py-16 text-zinc-400">
+              <div className="flex items-center justify-center py-16 text-text-muted">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
                 جارٍ تحميل المنتجات...
               </div>
             ) : filteredVariants.length === 0 ? (
-              <div className="p-8 text-center text-zinc-400">
-                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">
+              <div className="p-8 text-center text-text-muted">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10">
                   اكتب كلمة بحث واحدة على الأقل للوصول إلى اختيار المنتج، أو امسح الباركود للانتقال مباشرة إلى نتيجة مطابقة.
                 </div>
               </div>
@@ -743,20 +743,20 @@ function StockAdjustments() {
                       key={String(variant.variant_id)}
                       type="button"
                       onClick={() => selectVariant(variant)}
-                      className={`flex w-full items-center gap-4 rounded-[var(--radius-control)] border p-4 text-left transition ${ selected ? "border-primary/30 bg-primary/10 shadow-lg shadow-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10" }`}
+                      className={`flex w-full items-center gap-4 rounded-[var(--radius-control)] border p-4 text-left transition ${ selected ? "border-primary/30 bg-primary/10 shadow-lg shadow-primary/10" : "border-border bg-surface-soft hover:bg-surface-hover" }`}
                     >
                       <ProductThumb imageUrl={variant.image_url} productName={variant.product_name} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-base font-semibold text-white">{variant.product_name}</div>
-                            <div className="mt-1 text-sm text-zinc-400">{getVariantLabel(variant) || "افتراضي / مقاس موحد"}</div>
+                            <div className="truncate text-base font-semibold text-text">{variant.product_name}</div>
+                            <div className="mt-1 text-sm text-text-muted">{getVariantLabel(variant) || "افتراضي / مقاس موحد"}</div>
                           </div>
-                          <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${selected ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-[var(--primary-contrast)]"}`}>
+                          <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${selected ? "bg-primary text-[var(--primary-contrast)]" : "border border-border bg-surface-soft text-[var(--primary-contrast)]"}`}>
                             {selected ? "محدد" : "تحديد"}
                           </div>
                         </div>
-                        <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
+                        <div className="mt-3 grid gap-2 text-xs text-text-muted sm:grid-cols-2">
                           <div>رمز الصنف: {variant.sku || "غير متاح"}</div>
                           <div>الباركود: {variant.barcode || "غير متاح"}</div>
                           <div>الرصيد: {asNumber(variant.stock, 0).toLocaleString()}</div>
@@ -772,16 +772,16 @@ function StockAdjustments() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="m1-section-title text-white">المنتج المحدد</h3>
-                <p className="mt-1 text-sm text-zinc-400">يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.</p>
+                <h3 className="m1-section-title text-text">المنتج المحدد</h3>
+                <p className="mt-1 text-sm text-text-muted">يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.</p>
               </div>
             </div>
 
             {!selectedVariant ? (
-              <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+              <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-6 text-sm text-text-muted">
                 اختر اختيارًا من نتائج البحث لمراجعة الرصيد الحالي وإكمال التسوية.
               </div>
             ) : (
@@ -789,7 +789,7 @@ function StockAdjustments() {
                 <div className="flex gap-4">
                   <ProductThumb imageUrl={selectedVariant.image_url} productName={selectedVariant.product_name} large />
                   <div className="min-w-0 flex-1">
-                    <div className="text-2xl font-black text-white">{selectedVariant.product_name}</div>
+                    <div className="text-2xl font-black text-text">{selectedVariant.product_name}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                         <InfoPill label="اللون" value={selectedVariant.color || "افتراضي"} />
                         <InfoPill label="المقاس" value={selectedVariant.size || "مقاس موحد"} />
@@ -808,7 +808,7 @@ function StockAdjustments() {
                   <button
                     type="button"
                     onClick={openHistory}
-                    className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                   >
                     <History className="h-4 w-4" />
                     عرض سجل المنتج
@@ -816,7 +816,7 @@ function StockAdjustments() {
                   <button
                     type="button"
                     onClick={() => setSearch([selectedVariant.product_name, selectedVariant.sku, selectedVariant.barcode].filter(Boolean).join(" "))}
-                    className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                   >
                     <Search className="h-4 w-4" />
                     بحث من جديد
@@ -826,16 +826,16 @@ function StockAdjustments() {
             )}
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
             <div className="mb-4">
-                <h3 className="m1-section-title text-white">نموذج التسوية</h3>
-                <p className="mt-1 text-sm text-zinc-400">حدد طريقة حركة المخزون ثم أكد التغيير بعد مراجعة الرصيد المستهدف.</p>
+                <h3 className="m1-section-title text-text">نموذج التسوية</h3>
+                <p className="mt-1 text-sm text-text-muted">حدد طريقة حركة المخزون ثم أكد التغيير بعد مراجعة الرصيد المستهدف.</p>
             </div>
 
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="block">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">نوع التسوية</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">نوع التسوية</div>
                   <div className="grid grid-cols-2 gap-2">
                     {ADJUSTMENT_TYPES.map((type) => {
                       const active = adjustmentType === type.value;
@@ -844,7 +844,7 @@ function StockAdjustments() {
                           key={type.value}
                           type="button"
                           onClick={() => setAdjustmentType(type.value)}
-                          className={`rounded-[var(--radius-control)] border px-4 py-3 text-sm font-semibold transition ${ active ? type.tone === "emerald" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200" : "border-rose-400/30 bg-rose-500/10 text-rose-200" : "border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
+                          className={`rounded-[var(--radius-control)] border px-4 py-3 text-sm font-semibold transition ${ active ? type.tone === "emerald" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200" : "border-rose-400/30 bg-rose-500/10 text-rose-200" : "border-border bg-surface-soft text-text hover:bg-surface-hover" }`}
                         >
                           {type.label}
                         </button>
@@ -854,12 +854,12 @@ function StockAdjustments() {
                 </div>
 
                 <label className="block">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">الكمية</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">الكمية</div>
                   <div className="flex items-stretch gap-2">
                     <button
                       type="button"
                       onClick={() => setQuantity((value) => Math.max(1, asNumber(value, 1) - 1))}
-                      className="inline-flex w-12 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                      className="inline-flex w-12 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text transition hover:bg-surface-hover"
                     >
                       <Minus className="h-4 w-4" />
                     </button>
@@ -869,12 +869,12 @@ function StockAdjustments() {
                       step="1"
                       value={quantity}
                       onChange={(event) => setQuantity(Math.max(1, asNumber(event.target.value, 1)))}
-                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                      className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => setQuantity((value) => asNumber(value, 1) + 1)}
-                      className="inline-flex w-12 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                      className="inline-flex w-12 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text transition hover:bg-surface-hover"
                     >
                       <Plus className="h-4 w-4" />
                     </button>
@@ -883,14 +883,14 @@ function StockAdjustments() {
               </div>
 
               <label className="block">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">السبب</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">السبب</div>
                 <select
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
-                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
                 >
                   {REASON_OPTIONS.map((option) => (
-                    <option key={option} value={option} className="bg-zinc-950 text-white">
+                    <option key={option} value={option} className="bg-surface text-text">
                       {option}
                     </option>
                   ))}
@@ -898,17 +898,17 @@ function StockAdjustments() {
               </label>
 
               <label className="block">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات اختيارية</div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">ملاحظات اختيارية</div>
                 <textarea
                   rows={4}
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   placeholder="أضف ملاحظة قصيرة لسجل حركة المخزون"
-                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                  className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft p-4 text-sm text-text outline-none placeholder:text-text-muted"
                 />
               </label>
 
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <DetailCard label="الرصيد قبل" value={asNumber(currentStock, 0).toLocaleString()} />
                   <DetailCard label="التغيير" value={`${signedDelta >= 0 ? "+" : ""}${signedDelta.toLocaleString()}`} tone={signedDelta >= 0 ? "emerald" : "rose"} />
@@ -916,7 +916,7 @@ function StockAdjustments() {
                 </div>
 
                 {requiresManagerApproval ? (
-                  <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+                  <div className="mt-4 rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
                     <ShieldAlert className="mr-2 inline h-4 w-4" />
                     هذه التسوية تتجاوز الحد المحدد وهو {approvalThreshold}. يلزم اعتماد المدير قبل تطبيقها.
                   </div>
@@ -926,7 +926,7 @@ function StockAdjustments() {
                   type="button"
                   onClick={openConfirmation}
                   disabled={!selectedVariant || !canAdjust || catalogLoading}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   تطبيق التسوية
@@ -935,18 +935,18 @@ function StockAdjustments() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/10">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h3 className="m1-section-title text-white">آخر التسويات</h3>
-                <p className="mt-1 text-sm text-zinc-400">أحدث سجلات التسوية المحلية مع سياق المنتج.</p>
+                <h3 className="m1-section-title text-text">آخر التسويات</h3>
+                <p className="mt-1 text-sm text-text-muted">أحدث سجلات التسوية المحلية مع سياق المنتج.</p>
               </div>
-              <div className="text-sm text-zinc-400">{recentAdjustments.length} عنصر</div>
+              <div className="text-sm text-text-muted">{recentAdjustments.length} عنصر</div>
             </div>
 
             <div className="space-y-3 p-4">
               {recentAdjustments.length === 0 ? (
-                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-6 text-sm text-text-muted">
                   لم تُسجَّل أي تسويات بعد.
                 </div>
               ) : (
@@ -954,14 +954,14 @@ function StockAdjustments() {
                   const delta = asNumber(adjustment.quantity_change, 0);
                   const isIncrease = delta >= 0;
                   return (
-                    <div key={String(adjustment.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+                    <div key={String(adjustment.id)} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                       <div className="flex items-start gap-3">
                         <ProductThumb imageUrl={adjustment.image_url} productName={adjustment.product_name} compact />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="truncate font-semibold text-white">{adjustment.product_name}</div>
-                              <div className="mt-1 text-xs text-zinc-500">{[adjustment.color, adjustment.size].filter(Boolean).join(" / ") || "افتراضي"}</div>
+                              <div className="truncate font-semibold text-text">{adjustment.product_name}</div>
+                              <div className="mt-1 text-xs text-text-muted">{[adjustment.color, adjustment.size].filter(Boolean).join(" / ") || "افتراضي"}</div>
                             </div>
                             <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isIncrease ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
                               {isIncrease ? "+" : ""}
@@ -969,14 +969,14 @@ function StockAdjustments() {
                             </div>
                           </div>
 
-                          <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
+                          <div className="mt-3 grid gap-2 text-xs text-text-muted sm:grid-cols-2">
                             <div>النوع: {adjustment.adjustment_type === "decrease" ? "خفض المخزون" : "زيادة المخزون"}</div>
                             <div>المستخدم: {adjustment.user_name || "غير متاح"}</div>
                             <div>الوقت: {formatDateTime(adjustment.created_at)}</div>
                             <div>المخزن: {adjustment.warehouse_name || "غير متاح"}</div>
                           </div>
 
-                          <div className="mt-3 text-sm text-zinc-300">{adjustment.reason || "لم يتم توفير سبب"}</div>
+                          <div className="mt-3 text-sm text-text-muted">{adjustment.reason || "لم يتم توفير سبب"}</div>
                         </div>
                       </div>
                     </div>
@@ -1052,15 +1052,15 @@ function StockAdjustments() {
 
 function PolicyCard({ label, value, tone = "zinc" }) {
   const toneClasses = {
-    zinc: "border-white/10 bg-white/5 text-white",
+    zinc: "border-border bg-surface-soft text-text",
     blue: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-200",
   };
 
   return (
-    <div className={`rounded-2xl border p-4 ${toneClasses[tone] || toneClasses.zinc}`}>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+    <div className={`rounded-[var(--radius-card)] border p-4 ${toneClasses[tone] || toneClasses.zinc}`}>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
       <div className="mt-2 text-sm font-semibold">{value}</div>
     </div>
   );
@@ -1068,14 +1068,14 @@ function PolicyCard({ label, value, tone = "zinc" }) {
 
 function DetailCard({ label, value, tone = "zinc" }) {
   const toneClasses = {
-    zinc: "border-white/10 bg-white/5 text-white",
+    zinc: "border-border bg-surface-soft text-text",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-200",
   };
 
   return (
-    <div className={`rounded-2xl border p-4 ${toneClasses[tone] || toneClasses.zinc}`}>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+    <div className={`rounded-[var(--radius-card)] border p-4 ${toneClasses[tone] || toneClasses.zinc}`}>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
       <div className="mt-2 break-words text-sm font-semibold">{value}</div>
     </div>
   );
@@ -1083,8 +1083,8 @@ function DetailCard({ label, value, tone = "zinc" }) {
 
 function InfoPill({ label, value }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white">
-      <span className="text-zinc-500">{label}:</span>
+    <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-semibold text-text">
+      <span className="text-text-muted">{label}:</span>
       <span>{value}</span>
     </div>
   );
@@ -1093,11 +1093,11 @@ function InfoPill({ label, value }) {
 function ProductThumb({ imageUrl, productName, large = false, compact = false }) {
   const sizeClass = large ? "h-24 w-24" : compact ? "h-14 w-14" : "h-20 w-20";
   return (
-    <div className={`flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5`}>
+    <div className={`flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft`}>
       {imageUrl ? (
         <img src={imageUrl} alt={productName || "Product"} className="h-full w-full object-cover" loading="lazy" />
       ) : (
-        <div className="flex h-full w-full items-center justify-center text-zinc-500">
+        <div className="flex h-full w-full items-center justify-center text-text-muted">
           <ImageOff className={large ? "h-8 w-8" : "h-5 w-5"} />
         </div>
       )}
@@ -1110,21 +1110,21 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
     <div className="fixed inset-0 z-50">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="إغلاق الماسح" />
       <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
-        <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">ماسح الباركود</div>
-              <h3 className="m1-section-title mt-1 text-white">امسح باركود المنتج</h3>
+              <div className="text-xs uppercase tracking-[0.24em] text-text-muted">ماسح الباركود</div>
+              <h3 className="m1-section-title mt-1 text-text">امسح باركود المنتج</h3>
             </div>
-            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
               إغلاق
             </button>
           </div>
           <div className="space-y-4 p-5">
-            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 text-sm text-text-muted">
               سيتم استخدام الكاميرا عند توفرها. إذا كان الجهاز لا يدعم المسح، أدخل رمز الصنف أو الباركود في مربع البحث بدلًا من ذلك.
             </div>
-            <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black">
+            <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-black">
               <BarcodeScanner
                 className="w-full"
                 scannerClassName="min-h-[320px] w-full"
@@ -1135,7 +1135,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
+              <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)]">
                 <CheckCircle2 className="h-4 w-4" />
                 تم
               </button>
@@ -1177,13 +1177,13 @@ function ConfirmationModal({
     <div className="fixed inset-0 z-50">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="إغلاق تأكيد التسوية" />
       <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
-        <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">تأكيد التسوية</div>
-              <h3 className="m1-section-title mt-1 text-white">{productName}</h3>
+              <div className="text-xs uppercase tracking-[0.24em] text-text-muted">تأكيد التسوية</div>
+              <h3 className="m1-section-title mt-1 text-text">{productName}</h3>
             </div>
-            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
               إغلاق
             </button>
           </div>
@@ -1201,32 +1201,32 @@ function ConfirmationModal({
                 <DetailCard label="الرصيد المستهدف" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
               </div>
 
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm text-zinc-400">نوع التسوية</div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white">
+                  <div className="text-sm text-text-muted">نوع التسوية</div>
+                  <div className="rounded-full border border-border bg-surface-soft px-3 py-1 text-sm font-semibold text-text">
                     {adjustmentType === "decrease" ? "خفض المخزون" : "زيادة المخزون"}
                   </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3 text-sm text-zinc-300">
+                <div className="mt-3 flex items-center justify-between gap-3 text-sm text-text-muted">
                   <span>التغيير في الكمية</span>
                   <span className={signedDelta >= 0 ? "text-emerald-200" : "text-rose-200"}>
                     {signedDelta >= 0 ? "+" : ""}
                     {signedDelta.toLocaleString()}
                   </span>
                 </div>
-                <div className="mt-2 text-sm text-zinc-300">
-                  السبب: <span className="font-semibold text-white">{reason || "غير متاح"}</span>
+                <div className="mt-2 text-sm text-text-muted">
+                  السبب: <span className="font-semibold text-text">{reason || "غير متاح"}</span>
                 </div>
                 {notes ? (
-                  <div className="mt-2 text-sm text-zinc-300">
-                    الملاحظات: <span className="font-semibold text-white">{notes}</span>
+                  <div className="mt-2 text-sm text-text-muted">
+                    الملاحظات: <span className="font-semibold text-text">{notes}</span>
                   </div>
                 ) : null}
               </div>
 
               {requiresManagerApproval ? (
-                <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+                <div className="rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
                   <ShieldAlert className="mr-2 inline h-4 w-4" />
               هذا التغيير يتجاوز الحد المحدد وهو {approvalThreshold}. يلزم اعتماد المدير قبل الحفظ.
                   <div className="mt-4 grid gap-3">
@@ -1236,7 +1236,7 @@ function ConfirmationModal({
                         value={approvalName}
                         onChange={(event) => setApprovalName(event.target.value)}
                         placeholder="اسم المدير"
-                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                        className="w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted"
                       />
                     </label>
                     <label className="block">
@@ -1246,36 +1246,36 @@ function ConfirmationModal({
                         value={approvalNotes}
                         onChange={(event) => setApprovalNotes(event.target.value)}
                         placeholder="ملاحظة اعتماد اختيارية"
-                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                        className="w-full rounded-[var(--radius-control)] border border-border bg-surface p-4 text-sm text-text outline-none placeholder:text-text-muted"
                       />
                     </label>
-                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-zinc-950/50 px-4 py-3 text-sm text-white">
+                    <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface px-4 py-3 text-sm text-text">
                       <input
                         type="checkbox"
                         checked={approvalConfirmed}
                         onChange={(event) => setApprovalConfirmed(event.target.checked)}
-                        className="h-4 w-4 rounded border-white/20 bg-transparent text-primary"
+                        className="h-4 w-4 rounded border-border bg-transparent text-primary"
                       />
                       المدير اعتمد هذه التسوية
                     </label>
                   </div>
                 </div>
               ) : (
-                <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-50">
+                <div className="rounded-[var(--radius-card)] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-50">
                   <CheckCircle2 className="mr-2 inline h-4 w-4" />
                   لا يلزم اعتماد إضافي لهذه التسوية.
                 </div>
               )}
 
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
+                <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text">
                   إلغاء
                 </button>
                 <button
                   type="button"
                   onClick={onConfirm}
                   disabled={submitting || (requiresManagerApproval && (!approvalConfirmed || !normalizeText(approvalName)))}
-                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {requiresManagerApproval ? "اعتماد وتطبيق" : "تطبيق التسوية"}
@@ -1293,28 +1293,28 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/70" aria-label="إغلاق سجل المنتج" />
-      <div className="absolute right-0 top-0 h-full w-full max-w-[720px] border-l border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+      <div className="absolute right-0 top-0 h-full w-full max-w-[720px] border-l border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">سجل المنتج</p>
-            <h3 className="m1-section-title mt-1 text-white">{productName}</h3>
-            <p className="mt-1 text-sm text-zinc-400">{[variantLabel, warehouseName].filter(Boolean).join(" / ")}</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-text-muted">سجل المنتج</p>
+            <h3 className="m1-section-title mt-1 text-text">{productName}</h3>
+            <p className="mt-1 text-sm text-text-muted">{[variantLabel, warehouseName].filter(Boolean).join(" / ")}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
             إغلاق
           </button>
         </div>
 
         <div className="space-y-4 overflow-y-auto p-5">
           {loading ? (
-            <div className="flex items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 py-16 text-zinc-400">
+            <div className="flex items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft py-16 text-text-muted">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
               جارٍ تحميل سجل المنتج...
             </div>
           ) : error ? (
-            <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
+            <div className="rounded-[var(--radius-card)] border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
           ) : movements.length === 0 ? (
-            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-8 text-sm text-text-muted">
               لا توجد حركات مخزون لهذا الاختيار.
             </div>
           ) : (
@@ -1323,11 +1323,11 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
               const before = asNumber(movement.quantity_before ?? 0, 0);
               const after = asNumber(movement.quantity_after ?? 0, 0);
               return (
-                <div key={String(movement.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+                <div key={String(movement.id)} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-white">{movement.movement_type || "تسوية"}</div>
-                      <div className="mt-1 text-xs text-zinc-500">{formatDateTime(movement.created_at)}</div>
+                      <div className="font-semibold text-text">{movement.movement_type || "تسوية"}</div>
+                      <div className="mt-1 text-xs text-text-muted">{formatDateTime(movement.created_at)}</div>
                     </div>
                     <div className={`rounded-full px-3 py-1 text-xs font-semibold ${delta >= 0 ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
                       {delta >= 0 ? "+" : ""}
@@ -1335,7 +1335,7 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
+                  <div className="mt-4 grid gap-2 text-sm text-text-muted sm:grid-cols-2">
                     <div>قبل: {before.toLocaleString()}</div>
                     <div>بعد: {after.toLocaleString()}</div>
                     <div>المستخدم: {movement.created_by_name || movement.user_name || "غير متاح"}</div>

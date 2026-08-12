@@ -80,7 +80,7 @@ const statusTone = (status = "") => {
   if (normalized === "pending_review") return "bg-primary/10 text-primary border-primary/20";
   if (normalized === "rejected") return "bg-rose-500/10 text-rose-100 border-rose-400/20";
   if (normalized === "completed") return "bg-emerald-500/10 text-emerald-100 border-emerald-400/20";
-  return "bg-white/5 text-slate-100 border-white/10";
+  return "bg-surface-soft text-text border-border";
 };
 
 export default function InventoryApprovalsPage() {
@@ -257,18 +257,18 @@ export default function InventoryApprovalsPage() {
   if (!token) {
     return (
       <main dir="rtl" className="manager-portal-shell inventory-approvals-page min-h-[100dvh] px-4 py-6">
-        <div className="mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+        <div className="mx-auto max-w-2xl rounded-[var(--radius-card)] border border-border bg-surface-soft p-6 shadow-2xl backdrop-blur">
           <div className="flex items-center gap-3">
             <ClipboardList className="h-8 w-8 text-amber-300" />
             <div>
               <h1 className="m1-page-title">{tt("managerPortal.stockCount.title")}</h1>
-              <p className="mt-1 text-sm text-slate-300">{tt("managerPortal.stockCount.noToken")}</p>
+              <p className="mt-1 text-sm text-text-muted">{tt("managerPortal.stockCount.noToken")}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => navigate(lastPortalUrl || "/")}
-            className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300"
+            className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-text transition hover:bg-amber-300"
           >
             <ArrowLeft className="h-4 w-4" />
             {tt("managerPortal.stockCount.backToPortal")}
@@ -281,12 +281,12 @@ export default function InventoryApprovalsPage() {
   return (
     <main dir="rtl" className="manager-portal-shell inventory-approvals-page min-h-[100dvh] overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4">
       <div className="mx-auto max-w-[96rem] space-y-4">
-        <header className="manager-inventory-panel rounded-[1.5rem] border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur sm:rounded-[2rem] sm:p-5">
+        <header className="manager-inventory-panel rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-2xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="hidden text-xs font-black uppercase tracking-[0.22em] text-slate-400 sm:block">{tt("managerPortal.stockCount.centerTitle")}</div>
+              <div className="hidden text-xs font-black uppercase tracking-[0.22em] text-text-muted sm:block">{tt("managerPortal.stockCount.centerTitle")}</div>
               <h1 className="m1-page-title sm:mt-2">{tt("managerPortal.stockCount.title")}</h1>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-300 sm:mt-2 sm:text-sm sm:leading-6">
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted sm:mt-2 sm:text-sm sm:leading-6">
                 {tt("managerPortal.stockCount.centerSubtitle")}
               </p>
             </div>
@@ -294,7 +294,7 @@ export default function InventoryApprovalsPage() {
               <button
                 type="button"
                 onClick={() => loadApprovals(selectedSessionId)}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-black text-text transition hover:bg-surface-hover"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 {tt("managerPortal.actions.refresh")}
@@ -302,7 +302,7 @@ export default function InventoryApprovalsPage() {
               <button
                 type="button"
                 onClick={() => navigate(`/manager-portal/${encodeURIComponent(token)}`)}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-black text-text transition hover:bg-surface-hover"
               >
                 <ArrowLeft className="h-4 w-4" />
                 {tt("managerPortal.stockCount.backToPortal")}
@@ -319,30 +319,30 @@ export default function InventoryApprovalsPage() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <div className="manager-inventory-panel rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
+          <div className="manager-inventory-panel rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-xl backdrop-blur">
             <form onSubmit={handleSearch} className="mb-4">
-              <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">{tt("managerPortal.actions.search")}</label>
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-text-muted">{tt("managerPortal.actions.search")}</label>
               <div className="flex gap-2">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder={tt("managerPortal.stockCount.searchPlaceholder")}
-                  className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
+                  className="w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 py-3 text-sm font-semibold outline-none placeholder:text-text-muted"
                 />
-                <button type="submit" className="inline-flex items-center justify-center rounded-[var(--radius-control)] bg-amber-400 px-4 text-sm font-black text-black">
+                <button type="submit" className="inline-flex items-center justify-center rounded-[var(--radius-control)] bg-amber-400 px-4 text-sm font-black text-text">
                   <Search className="h-4 w-4" />
                 </button>
               </div>
             </form>
 
-            <div className="flex items-center justify-between text-xs font-bold text-slate-400">
+            <div className="flex items-center justify-between text-xs font-bold text-text-muted">
               <span>{tt("managerPortal.stockCount.shownSessions")}</span>
               <span>{formatNumber(pagination.total || sessions.length || 0)}</span>
             </div>
 
             <div className="mt-3 space-y-3">
               {loading ? (
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-6 text-center text-sm text-text-muted">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   <div className="mt-2">{tt("managerPortal.stockCount.loadingList")}</div>
                 </div>
@@ -352,16 +352,16 @@ export default function InventoryApprovalsPage() {
                     key={session.id}
                     type="button"
                     onClick={() => selectSession(session.id)}
-                    className={`w-full rounded-[var(--radius-control)] border p-4 text-right transition ${ String(selectedSessionId) === String(session.id) ? "border-amber-300/40 bg-amber-400/10" : "border-white/10 bg-white/5 hover:bg-white/10" }`}
+                    className={`w-full rounded-[var(--radius-control)] border p-4 text-right transition ${ String(selectedSessionId) === String(session.id) ? "border-amber-300/40 bg-amber-400/10" : "border-border bg-surface-soft hover:bg-surface-hover" }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-base font-black text-white">{text(session.title, tt("managerPortal.stockCount.sessionLabel"))}</div>
-                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-300">
+                        <div className="truncate text-base font-black text-text">{text(session.title, tt("managerPortal.stockCount.sessionLabel"))}</div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-text-muted">
                           <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {text(session.branch_name, tt("managerPortal.stockCount.unknownBranch"))}</span>
                           <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" /> {text(session.warehouse_name, tt("managerPortal.stockCount.unknownWarehouse"))}</span>
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-400">
+                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-text-muted">
                           <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {text(session.created_by_name, tt("managerPortal.common.unknown"))}</span>
                           <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDateTime(session.created_at)}</span>
                         </div>
@@ -370,22 +370,22 @@ export default function InventoryApprovalsPage() {
                         {session.status === "pending_review" ? tt("managerPortal.stockCount.status.underReview") : session.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : session.status === "completed" ? tt("managerPortal.stockCount.status.completed") : session.status}
                       </span>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-300">
-                      <span className="rounded-full bg-white/5 px-2.5 py-1">الأصناف: {formatNumber(session.item_count || 0)}</span>
-                      <span className="rounded-full bg-white/5 px-2.5 py-1">إجمالي الفروقات: {formatNumber(session.difference_total || 0)}</span>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-text-muted">
+                      <span className="rounded-full bg-surface-soft px-2.5 py-1">الأصناف: {formatNumber(session.item_count || 0)}</span>
+                      <span className="rounded-full bg-surface-soft px-2.5 py-1">إجمالي الفروقات: {formatNumber(session.difference_total || 0)}</span>
                     </div>
                   </button>
                 ))
               ) : (
-                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-slate-300">
-                  <ClipboardList className="mx-auto h-8 w-8 text-slate-500" />
+                <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-8 text-center text-sm text-text-muted">
+                  <ClipboardList className="mx-auto h-8 w-8 text-text-muted" />
                   <div className="mt-3 font-bold">{tt("managerPortal.stockCount.emptyList")}</div>
-                  <div className="mt-1 text-xs text-slate-400">{tt("managerPortal.stockCount.emptyListHint")}</div>
+                  <div className="mt-1 text-xs text-text-muted">{tt("managerPortal.stockCount.emptyListHint")}</div>
                 </div>
               )}
             </div>
             <Pagination
-              className="mt-4 border-t border-white/10 pt-4"
+              className="mt-4 border-t border-border pt-4"
               page={pagination.page || 1}
               pages={pagination.totalPages || 1}
               total={pagination.total || 0}
@@ -397,9 +397,9 @@ export default function InventoryApprovalsPage() {
             />
           </div>
 
-          <div ref={detailRef} className="manager-inventory-panel scroll-mt-3 rounded-[1.5rem] border border-white/10 bg-white/5 p-3 shadow-xl backdrop-blur sm:rounded-[2rem] sm:p-4">
+          <div ref={detailRef} className="manager-inventory-panel scroll-mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-4">
             {selectedLoading ? (
-              <div className="flex min-h-[28rem] items-center justify-center text-slate-300">
+              <div className="flex min-h-[28rem] items-center justify-center text-text-muted">
                 <Loader2 className="h-5 w-5 animate-spin" />
                 <span className="mr-2">{tt("managerPortal.stockCount.loadingDetails")}</span>
               </div>
@@ -407,9 +407,9 @@ export default function InventoryApprovalsPage() {
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{tt("managerPortal.stockCount.sessionDetails")}</div>
-                    <h2 className="m1-section-title mt-1 text-white">{text(selectedSession.title, tt("managerPortal.stockCount.sessionLabel"))}</h2>
-                    <div className="mt-2 flex flex-wrap gap-2 text-sm text-slate-300">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-text-muted">{tt("managerPortal.stockCount.sessionDetails")}</div>
+                    <h2 className="m1-section-title mt-1 text-text">{text(selectedSession.title, tt("managerPortal.stockCount.sessionLabel"))}</h2>
+                    <div className="mt-2 flex flex-wrap gap-2 text-sm text-text-muted">
                       <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {text(selectedSession.branch_name, tt("managerPortal.stockCount.unknownBranch"))}</span>
                       <span className="inline-flex items-center gap-1"><Store className="h-4 w-4" /> {text(selectedSession.warehouse_name, tt("managerPortal.stockCount.unknownWarehouse"))}</span>
                       <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {text(selectedSession.created_by_name, tt("managerPortal.common.unknown"))}</span>
@@ -422,7 +422,7 @@ export default function InventoryApprovalsPage() {
                 </div>
 
                 {selectedSession.status === "rejected" && selectedSession.rejection_reason ? (
-                  <div className="mt-4 rounded-3xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+                  <div className="mt-4 rounded-[var(--radius-card)] border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-50">
                     <div className="font-black">{tt("managerPortal.stockCount.rejectionReason")}</div>
                     <div className="mt-1 leading-6">{selectedSession.rejection_reason}</div>
                   </div>
@@ -444,36 +444,36 @@ export default function InventoryApprovalsPage() {
                     const size = itemSize(item);
                     const imageUrl = itemImage(item);
                     return (
-                      <article key={`mobile-${item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`}`} className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
+                      <article key={`mobile-${item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`}`} className="rounded-[var(--radius-card)] border border-border bg-surface p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 items-start gap-3">
-                            <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5">
-                              {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Package className="h-5 w-5 text-slate-500" />}
+                            <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
+                              {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Package className="h-5 w-5 text-text-muted" />}
                             </div>
                             <div className="min-w-0">
-                              <h3 className="m1-section-title text-white">{text(item.product_name, tt("managerPortal.common.product"))}</h3>
-                              {(color || size) ? <p className="mt-1 text-xs text-slate-400">{[color, size].filter(Boolean).join(" • ")}</p> : null}
-                              {item.variant_sku || item.variant_barcode ? <p className="mt-1 truncate text-[10px] text-slate-500">{item.variant_sku || item.variant_barcode}</p> : null}
+                              <h3 className="m1-section-title text-text">{text(item.product_name, tt("managerPortal.common.product"))}</h3>
+                              {(color || size) ? <p className="mt-1 text-xs text-text-muted">{[color, size].filter(Boolean).join(" • ")}</p> : null}
+                              {item.variant_sku || item.variant_barcode ? <p className="mt-1 truncate text-[10px] text-text-muted">{item.variant_sku || item.variant_barcode}</p> : null}
                             </div>
                           </div>
-                          <span className={`shrink-0 rounded-xl px-2.5 py-1 text-sm font-black ${diff > 0 ? "bg-emerald-500/15 text-emerald-300" : diff < 0 ? "bg-rose-500/15 text-rose-300" : "bg-white/5 text-slate-300"}`}>
+                          <span className={`shrink-0 rounded-[var(--radius-control)] px-2.5 py-1 text-sm font-black ${diff > 0 ? "bg-emerald-500/15 text-emerald-300" : diff < 0 ? "bg-rose-500/15 text-rose-300" : "bg-surface-soft text-text-muted"}`}>
                             {diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}
                           </span>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                          <div className="rounded-xl bg-white/5 p-2"><span className="text-slate-400">{tt("managerPortal.stockCount.system")}</span><strong className="mr-2 text-white">{formatNumber(system)}</strong></div>
-                          <div className="rounded-xl bg-white/5 p-2"><span className="text-slate-400">{tt("managerPortal.stockCount.actual")}</span><strong className="mr-2 text-white">{formatNumber(counted)}</strong></div>
+                          <div className="rounded-[var(--radius-control)] bg-surface-soft p-2"><span className="text-text-muted">{tt("managerPortal.stockCount.system")}</span><strong className="mr-2 text-text">{formatNumber(system)}</strong></div>
+                          <div className="rounded-[var(--radius-control)] bg-surface-soft p-2"><span className="text-text-muted">{tt("managerPortal.stockCount.actual")}</span><strong className="mr-2 text-text">{formatNumber(counted)}</strong></div>
                         </div>
-                        {item.reason || item.notes ? <p className="mt-2 text-xs leading-5 text-slate-300">{[item.reason, item.notes].map((value) => text(value, "")).filter(Boolean).join(" — ")}</p> : null}
+                        {item.reason || item.notes ? <p className="mt-2 text-xs leading-5 text-text-muted">{[item.reason, item.notes].map((value) => text(value, "")).filter(Boolean).join(" — ")}</p> : null}
                       </article>
                     );
-                  }) : <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-400">{tt("managerPortal.stockCount.noItems")}</div>}
+                  }) : <div className="rounded-[var(--radius-card)] border border-dashed border-border p-6 text-center text-sm text-text-muted">{tt("managerPortal.stockCount.noItems")}</div>}
                 </div>
 
-                <div className="mt-4 hidden overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/45 md:block">
+                <div className="mt-4 hidden overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface md:block">
                   <div className="m1-table-container overflow-x-auto">
                     <table className="m1-table m1-table--compact min-w-full text-right text-sm">
-                      <thead className="bg-white/5 text-xs uppercase tracking-[0.18em] text-slate-300">
+                      <thead className="bg-surface-soft text-xs uppercase tracking-[0.18em] text-text-muted">
                         <tr>
                           <th className="px-4 py-3">{tt("managerPortal.stockCount.table.product")}</th>
                           <th className="px-4 py-3">{tt("managerPortal.stockCount.table.color")}</th>
@@ -492,20 +492,20 @@ export default function InventoryApprovalsPage() {
                           const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
                           const imageUrl = itemImage(item);
                           return (
-                            <tr key={item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`} className="border-t border-white/5">
-                              <td className="px-4 py-3 font-semibold text-white"><div className="flex items-center gap-2">{imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 rounded-lg object-cover" loading="lazy" /> : null}<span>{text(item.product_name, tt("managerPortal.common.product"))}</span></div></td>
-                              <td className="px-4 py-3 text-slate-300">{text(item.variant_color || item.color, "-")}</td>
-                              <td className="px-4 py-3 text-slate-300">{text(item.variant_size || item.size, "-")}</td>
-                              <td className="px-4 py-3 font-semibold text-slate-200">{formatNumber(system)}</td>
-                              <td className="px-4 py-3 font-semibold text-slate-200">{formatNumber(counted)}</td>
-                              <td className={`px-4 py-3 font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-slate-300"}`}>{diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}</td>
-                              <td className="px-4 py-3 text-slate-300">{text(item.reason, "-")}</td>
-                              <td className="px-4 py-3 text-slate-300">{text(item.notes, "-")}</td>
+                            <tr key={item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`} className="border-t border-border">
+                              <td className="px-4 py-3 font-semibold text-text"><div className="flex items-center gap-2">{imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 rounded-[var(--radius-control)] object-cover" loading="lazy" /> : null}<span>{text(item.product_name, tt("managerPortal.common.product"))}</span></div></td>
+                              <td className="px-4 py-3 text-text-muted">{text(item.variant_color || item.color, "-")}</td>
+                              <td className="px-4 py-3 text-text-muted">{text(item.variant_size || item.size, "-")}</td>
+                              <td className="px-4 py-3 font-semibold text-text">{formatNumber(system)}</td>
+                              <td className="px-4 py-3 font-semibold text-text">{formatNumber(counted)}</td>
+                              <td className={`px-4 py-3 font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-text-muted"}`}>{diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}</td>
+                              <td className="px-4 py-3 text-text-muted">{text(item.reason, "-")}</td>
+                              <td className="px-4 py-3 text-text-muted">{text(item.notes, "-")}</td>
                             </tr>
                           );
                         }) : (
                           <tr>
-                            <td colSpan={8} className="px-4 py-10 text-center text-slate-400">{tt("managerPortal.stockCount.noItems")}</td>
+                            <td colSpan={8} className="px-4 py-10 text-center text-text-muted">{tt("managerPortal.stockCount.noItems")}</td>
                           </tr>
                         )}
                       </tbody>
@@ -513,13 +513,13 @@ export default function InventoryApprovalsPage() {
                   </div>
                 </div>
 
-                <div className="sticky bottom-2 z-20 mt-4 rounded-2xl border border-white/10 bg-slate-950/90 p-2 shadow-2xl backdrop-blur sm:static sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+                <div className="sticky bottom-2 z-20 mt-4 rounded-[var(--radius-card)] border border-border bg-surface p-2 shadow-2xl backdrop-blur sm:static sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
                   <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
                     <button
                       type="button"
                       onClick={openRejectDialog}
                       disabled={selectedSession.status !== "pending_review"}
-                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500 px-3 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-500 px-3 py-3 text-sm font-black text-text transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
                     >
                       <X className="h-4 w-4" />
                       {tt("managerPortal.actions.reject")}
@@ -528,7 +528,7 @@ export default function InventoryApprovalsPage() {
                       type="button"
                       onClick={() => void handleApprove()}
                       disabled={approving || selectedSession.status !== "pending_review"}
-                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-3 text-sm font-black text-black transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                      className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
                     >
                       {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       موافقة واعتماد
@@ -537,9 +537,9 @@ export default function InventoryApprovalsPage() {
                 </div>
               </>
             ) : (
-              <div className="flex min-h-[28rem] items-center justify-center rounded-[1.75rem] border border-dashed border-white/10 bg-white/5 text-center text-slate-300">
+              <div className="flex min-h-[28rem] items-center justify-center rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft text-center text-text-muted">
                 <div>
-                  <ClipboardList className="mx-auto h-10 w-10 text-slate-500" />
+                  <ClipboardList className="mx-auto h-10 w-10 text-text-muted" />
                   <div className="mt-3 text-lg font-black">{tt("managerPortal.stockCount.pickSession")}</div>
                   <div className="mt-1 text-sm">{tt("managerPortal.stockCount.pickSessionHint")}</div>
                 </div>
@@ -550,15 +550,15 @@ export default function InventoryApprovalsPage() {
       </div>
 
       {rejectOpen ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 px-4">
-          <div className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-slate-950 p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-surface px-4">
+          <div className="w-full max-w-xl rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{tt("managerPortal.stockCount.rejectTitle")}</div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-text-muted">{tt("managerPortal.stockCount.rejectTitle")}</div>
                 <h3 className="m1-section-title mt-1">{tt("managerPortal.stockCount.enterReason")}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-300">{tt("managerPortal.stockCount.reasonHint")}</p>
+                <p className="mt-2 text-sm leading-6 text-text-muted">{tt("managerPortal.stockCount.reasonHint")}</p>
               </div>
-              <button type="button" onClick={() => setRejectOpen(false)} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5">
+              <button type="button" onClick={() => setRejectOpen(false)} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -567,17 +567,17 @@ export default function InventoryApprovalsPage() {
               onChange={(event) => setRejectReason(event.target.value)}
               placeholder={tt("managerPortal.stockCount.reasonPlaceholder")}
               rows={5}
-              className="mt-4 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
+              className="mt-4 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold outline-none placeholder:text-text-muted"
             />
             <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button type="button" onClick={() => setRejectOpen(false)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white">
+              <button type="button" onClick={() => setRejectOpen(false)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-black text-text">
                 {tt("managerPortal.common.cancel")}
               </button>
               <button
                 type="button"
                 onClick={() => void handleReject()}
                 disabled={rejecting}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-rose-500 px-4 py-3 text-sm font-black text-text transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {rejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
                 تأكيد الرفض
@@ -598,7 +598,7 @@ function StatCard({ title, value, icon: Icon, tone = "sky" }) {
     sky: "from-primary/15 to-primary/5 text-primary border-primary/20",
   };
   return (
-    <div data-tone={tone} className={`manager-inventory-stat rounded-2xl border bg-gradient-to-br p-3 shadow-xl backdrop-blur sm:rounded-[1.75rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
+    <div data-tone={tone} className={`manager-inventory-stat rounded-[var(--radius-card)] border bg-gradient-to-br p-3 shadow-xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] font-black leading-4 opacity-70 sm:text-xs sm:uppercase sm:tracking-[0.18em]">{title}</div>
@@ -618,7 +618,7 @@ function InfoStat({ title, value, icon: Icon, tone = "sky" }) {
     sky: "border-primary/20 bg-primary/10 text-primary",
   };
   return (
-    <div data-tone={tone} className={`manager-inventory-stat rounded-2xl border p-3 sm:rounded-[1.5rem] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
+    <div data-tone={tone} className={`manager-inventory-stat rounded-[var(--radius-card)] border p-3 sm:rounded-[var(--radius-card)] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] font-black leading-4 opacity-70 sm:text-xs sm:uppercase sm:tracking-[0.16em]">{title}</div>
