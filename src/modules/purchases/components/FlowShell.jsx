@@ -5,18 +5,24 @@ import { PackageSearch } from "lucide-react";
 
 function FlowShell({ title, subtitle, actions, tabs = [], children, compact = false, shellRef = null, wide = false }) {
   const { t } = useTranslation();
+  // `compact` is a DENSITY variant, not a colour scheme. It used to hardcode a
+  // near-black shell — a raw hex page background, a near-black header card,
+  // white-alpha borders and white/grey text — so the whole /purchases/create
+  // page rendered as a black island in the Light theme whatever mode was
+  // active. Both variants now share one semantic surface ladder and differ
+  // only in spacing, radius and type scale.
   return (
-    <div ref={shellRef} className={compact ? "min-h-screen bg-[#050609] text-white" : "min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_10%,transparent),transparent_32%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-[var(--text)]"}>
+    <div ref={shellRef} className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
       <div className={`mx-auto flex w-full ${wide ? "max-w-none" : "max-w-[1800px]"} flex-col px-3 sm:px-4 lg:px-5 ${compact ? "gap-2 py-2" : "gap-4 py-4"}`}>
-        <div className={`border shadow-2xl ${compact ? "rounded-[var(--radius-card)] border-white/10 bg-zinc-950/90 p-2.5 shadow-black/20" : "rounded-3xl border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow)]"}`}>
+        <div className={`rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] ${compact ? "p-2.5" : "p-4"}`}>
           <div className={`flex flex-col xl:flex-row xl:items-center xl:justify-between ${compact ? "gap-2" : "gap-4"}`}>
             <div>
               <div className="flex items-center gap-2 text-[var(--primary)]">
                 <PackageSearch className={compact ? "h-4 w-4" : "h-5 w-5"} />
-                <span className={`font-semibold uppercase tracking-[0.18em] ${compact ? "text-[10px] text-emerald-300" : "text-xs"}`}>{t("purchases.moduleEyebrow")}</span>
+                <span className={`font-semibold uppercase tracking-[0.18em] ${compact ? "text-[10px]" : "text-xs"}`}>{t("purchases.moduleEyebrow")}</span>
               </div>
-              <h1 className={`m1-page-title ${compact ? "mt-1 text-white" : "mt-2 text-[var(--text)]"}`}>{title}</h1>
-              {subtitle ? <p className={`max-w-3xl ${compact ? "mt-0.5 text-xs text-zinc-400" : "mt-1 text-sm text-[var(--muted)]"}`}>{subtitle}</p> : null}
+              <h1 className={`m1-page-title text-[var(--text)] ${compact ? "mt-1" : "mt-2"}`}>{title}</h1>
+              {subtitle ? <p className={`max-w-3xl text-[var(--muted)] ${compact ? "mt-0.5 text-xs" : "mt-1 text-sm"}`}>{subtitle}</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">{actions}</div>
           </div>
@@ -28,12 +34,10 @@ function FlowShell({ title, subtitle, actions, tabs = [], children, compact = fa
                   to={tab.to}
                   end={tab.end}
                   className={({ isActive }) =>
-                    `${compact ? "rounded-xl px-3 py-1.5 text-xs" : "rounded-2xl px-4 py-2 text-sm"} font-semibold transition ${
+                    `rounded-[var(--radius-control)] ${compact ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold transition ${
                       isActive
-                        ? "bg-[var(--primary)] text-white"
-                        : compact
-                          ? "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-                          : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--surface)]"
+                        ? "border border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-contrast)]"
+                        : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--surface-hover)]"
                     }`
                   }
                 >
