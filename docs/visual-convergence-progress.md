@@ -15,7 +15,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 | 5 | `/create-order` invisible primary CTA | `pre-visual-convergence-cp5-20260813` -> `d541bbc` | `c8210ec` | `c8210ec` verified Light + Dark | build green |
 | 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | `cfdbb72` | `cfdbb72` verified (see note) | build green |
-| 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | see below | see below | build green |
+| 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | **REVERTED** in `8304aed` — see INCIDENT | build green |
 
 ## Method
 
@@ -635,7 +635,56 @@ reference. This is a systemic decision affecting ~90 call sites and is left for
 an explicit ruling rather than an autonomous change. Observed spread:
 22px on 7 settings routes, 30px on accounting, marketing and 3 settings routes.
 
+## INCIDENT — app stopped mounting during checkpoint 7 (UNRESOLVED)
+
+**Status: cp7 source change has been REVERTED on main (`8304aed`). The app was
+still not mounting after the revert, so cp7 was not the cause.**
+
+### Timeline
+
+1. `d64e591` — `/loyalty` audited normally (rendered, 0 offenders, Dark).
+2. `f955760` (cp7) deployed — one-line className swap in
+   `MarketingStudioHeader.jsx` plus docs.
+3. `/dashboard` (a frozen reference) then showed `#root.childElementCount === 0`
+   and zero body text, **reproduced in a fresh tab**.
+4. Reverted the JSX to the exact `d64e591` content -> `8304aed` deployed ->
+   **still does not mount**.
+
+Since the reverted source is byte-identical to a build that rendered minutes
+earlier, **the cause is not in the application source.**
+
+### Evidence gathered
+
+| Check | Result |
+|---|---|
+| All JS chunks for the live build | HTTP 200 |
+| Service worker / Cache Storage | none registered, no cache keys |
+| JS errors / unhandled rejections | none captured |
+| `api/health` from the page | **200** |
+| `api/auth/me` with the stored token from the page | **200** |
+| `api.m1store-egy.com` + frontend from an independent shell | 200 |
+| `/runtime-config.json` | returns `index.html` (`Content-Disposition: filename="index.html"`) instead of JSON — but this was **already true while the app was rendering**, so it is a red herring, not the cause |
+
+### What is NOT yet established
+
+Whether this is **user-facing** or an artefact of this automated browser session.
+The page executes injected JS (fetch and timers work) yet React never mounts,
+which is not a normal outage signature. It was **not** verified from an
+independent browser or by a human.
+
+**Do not resume deploying until this is settled.** Next diagnostic steps:
+open the site in an ordinary browser profile; if it renders, the incident is
+confined to the automation session and cp7 can simply be re-applied. If it does
+not render, investigate the SPA bootstrap (why `#root` stays empty with a
+healthy API and no thrown error) before any further visual work.
+
 ## RESUME MARKER
+
+**BLOCKED ON THE INCIDENT ABOVE.** Confirm whether the app mounts in an
+ordinary browser before resuming. If it does, re-apply the cp7 one-line change
+(m1-page-title + text-[var(--text)] in MarketingStudioHeader.jsx:39) and verify
+the five consumer routes in Light + Dark. Then continue Phase 3.
+
 
 **Phase 1 (ID-bound routes) is complete except two records that do not exist /
 one route that does not render:**
