@@ -10,11 +10,11 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 207
-- Hardcoded Arabic UI strings: 2042
-- Hardcoded English UI strings: 2647
-- Total hardcoded UI strings: 4689
-- Mixed-language files (both scripts hardcoded): 56
+- Files with debt: 206
+- Hardcoded Arabic UI strings: 2009
+- Hardcoded English UI strings: 2635
+- Total hardcoded UI strings: 4644
+- Mixed-language files (both scripts hardcoded): 55
 
 ### By surface
 
@@ -24,7 +24,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | shared | 70 | 199 | 467 | 666 | 11 |
 | employee-portal | 24 | 198 | 158 | 356 | 4 |
 | pos | 5 | 182 | 128 | 310 | 3 |
-| manager-portal | 2 | 35 | 12 | 47 | 1 |
+| manager-portal | 1 | 2 | 0 | 2 | 0 |
 
 ## Mixed-language files (ranked by density)
 
@@ -52,7 +52,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 41 | 8 | 49 |
 | src/modules/aiSupport/pages/AiSupportConsole.jsx | main-erp | 10 | 35 | 45 |
-| src/modules/managerPortal/pages/ManagerPortal.jsx | manager-portal | 33 | 12 | 45 |
 | src/modules/marketing/pages/SocialMediaPublisher.jsx | main-erp | 10 | 30 | 40 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 27 | 13 | 40 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
@@ -1495,50 +1494,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 856 [attribute/en] Pending aliases
 - 860 [attribute/en] Fallback / no-answer questions
 - 860 [attribute/en] No fallback questions logged.
-- ... 5 more
-
-### src/modules/managerPortal/pages/ManagerPortal.jsx (manager-portal — ar:33 en:12)
-
-- 323 [jsx-text/ar] باع
-- 328 [jsx-text/ar] وصل إلى
-- 472 [jsx-text/ar] يوم
-- 473 [jsx-text/ar] يوم
-- 474 [jsx-text/ar] يوم
-- 1924 [jsx-text/ar] الموظف:
-- 1925 [jsx-text/ar] الفرع:
-- 1926 [jsx-text/ar] الإنشاء:
-- 1927 [jsx-text/ar] الاستحقاق:
-- 1928 [jsx-text/ar] البدء/الإنهاء:
-- 1929 [jsx-text/ar] المرفقات:
-- 2115 [attribute/en] Open notifications
-- 2165 [attribute/en] Close notifications
-- 2371 [jsx-text/ar] فاتورة
-- 2531 [jsx-text/ar] الحضور:
-- 2532 [jsx-text/ar] الوردية:
-- 2533 [jsx-text/ar] الفواتير:
-- 2534 [jsx-text/ar] آخر نشاط:
-- 2535 [jsx-text/ar] إجمالي السلف:
-- 2538 [jsx-text/ar] العمولة المتوقعة
-- 2539 [jsx-text/ar] المهام المفتوحة
-- 2551 [attribute/en] Create task
-- 2745 [jsx-text/ar] الإيراد:
-- 2746 [jsx-text/ar] الفواتير:
-- 2761 [jsx-text/ar] الإيراد:
-- 2762 [jsx-text/ar] الطلبات:
-- 2766 [attribute/en] No seller data
-- 2780 [jsx-text/ar] الإيراد:
-- 2781 [jsx-text/ar] الكمية:
-- 2796 [jsx-text/ar] الإيراد:
-- 2797 [jsx-text/ar] الكمية:
-- 2835 [jsx-text/ar] أمس:
-- 2919 [attribute/en] Conversion indicators
-- 2919 [attribute/en] Shown only when data exists
-- 2923 [jsx-text/en] Customer-linked orders
-- 2928 [jsx-text/en] Online orders
-- 2933 [jsx-text/en] AI chat conversions
-- 2941 [attribute/en] No conversion data
-- 2945 [attribute/en] Top products
-- 2953 [attribute/en] Hourly trend
 - ... 5 more
 
 ### src/modules/marketing/pages/AiLeadCenter.jsx (main-erp — ar:0 en:45)

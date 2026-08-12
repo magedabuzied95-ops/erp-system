@@ -320,12 +320,12 @@ const renderInsightBody = (item = {}) => {
   if (type.includes("sales") || type.includes("best")) {
     const name = productName || String(item.body || "").split(" leads with ")[0] || tt("managerPortal.common.product");
     const count = units || String(item.body || "").match(/(\d+)\s+units/)?.[1] || 0;
-    return <>{tt("managerPortal.insights.bestSellerLabel")} <InlineName>{name}</InlineName> باع {formatNumber(count)} قطعة خلال آخر ٣٠ يوم.</>;
+    return <>{tt("managerPortal.insights.bestSellerLabel")} <InlineName>{name}</InlineName> {tt("managerPortal.chrome.soldUnits30d", { count: formatNumber(count) })}</>;
   }
   if (type.includes("inventory") || type.includes("reorder")) {
     const name = productName || String(item.body || "").split(" is at ")[0] || tt("managerPortal.common.product");
     const count = stock || String(item.body || "").match(/(\d+)\s+units/)?.[1] || 0;
-    return <>{tt("managerPortal.insights.reorderNeededLabel")} <InlineName>{name}</InlineName> وصل إلى {formatNumber(count)} قطعة.</>;
+    return <>{tt("managerPortal.insights.reorderNeededLabel")} <InlineName>{name}</InlineName> {tt("managerPortal.chrome.reachedUnits", { count: formatNumber(count) })}</>;
   }
   if (type.includes("branch")) {
     const name = branchName || String(item.body || "").split(" is the ")[0] || tt("managerPortal.common.branch");
@@ -469,9 +469,9 @@ const MobileSalesChart = ({ points = [], valueKey = "revenue", formatValue = for
         </div>
       </div>
       <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-slate-500">
-        <span>يوم {compactDayNumber(first)}</span>
-        <span>يوم {compactDayNumber(middle)}</span>
-        <span>يوم {compactDayNumber(last)}</span>
+        <span>{tt("managerPortal.labels.day")} {compactDayNumber(first)}</span>
+        <span>{tt("managerPortal.labels.day")} {compactDayNumber(middle)}</span>
+        <span>{tt("managerPortal.labels.day")} {compactDayNumber(last)}</span>
       </div>
     </div>
   );
@@ -1921,12 +1921,12 @@ export default function ManagerPortal() {
           {task.branch_name ? <StatusPill tone="slate" value={portalText(task.branch_name)} /> : null}
         </div>
         <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:grid-cols-2">
-          <div>الموظف: {task.assignee_name || task.employee_name || "-"}</div>
-          <div>الفرع: {task.branch_name || "-"}</div>
-          <div>الإنشاء: {formatDateTime(task.created_at)}</div>
-          <div>الاستحقاق: {formatDateTime(task.due_at)}</div>
-          <div>البدء/الإنهاء: {formatDateTime(task.started_at)} / {formatDateTime(task.completed_at)}</div>
-          <div>المرفقات: {formatNumber(task.attachments_count || 0)}</div>
+          <div>{tt("managerPortal.labels.employee")}: {task.assignee_name || task.employee_name || "-"}</div>
+          <div>{tt("managerPortal.labels.branch")}: {task.branch_name || "-"}</div>
+          <div>{tt("managerPortal.labels.created")}: {formatDateTime(task.created_at)}</div>
+          <div>{tt("managerPortal.labels.due")}: {formatDateTime(task.due_at)}</div>
+          <div>{tt("managerPortal.labels.startEnd")}: {formatDateTime(task.started_at)} / {formatDateTime(task.completed_at)}</div>
+          <div>{tt("managerPortal.labels.attachments")}: {formatNumber(task.attachments_count || 0)}</div>
         </div>
         {proofUrl ? (
           <div className="mt-3 overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
@@ -2112,7 +2112,7 @@ export default function ManagerPortal() {
                       ref={notificationButtonRef}
                       type="button"
                       data-testid="manager-notifications-button"
-                      aria-label="Open notifications"
+                      aria-label={tt("managerPortal.chrome.openNotifications")}
                       aria-expanded={notificationsOpen}
                       onClick={() => setNotificationsOpen((current) => !current)}
                       className="relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-[linear-gradient(180deg,#0f172a,#111827)] text-white transition hover:border-slate-500 hover:bg-[linear-gradient(180deg,#111827,#1e293b)]"
@@ -2162,7 +2162,7 @@ export default function ManagerPortal() {
             <div className="fixed inset-0 z-[70]">
               <button
                 type="button"
-                aria-label="Close notifications"
+                aria-label={tt("managerPortal.chrome.closeNotifications")}
                 onClick={() => setNotificationsOpen(false)}
                 className="absolute inset-0 bg-slate-950/55"
               />
@@ -2368,7 +2368,7 @@ export default function ManagerPortal() {
                           <article key={`today-invoice-${invoice.id}`} className="rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right shadow-sm">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="text-sm font-black text-white">فاتورة {portalText(invoice.invoice_number || invoice.id || "")}</div>
+                                <div className="text-sm font-black text-white">{tt("managerPortal.invoice.label")} {portalText(invoice.invoice_number || invoice.id || "")}</div>
                                 <div className="mt-1 text-xs font-semibold text-slate-400">{portalText(invoice.customer_name || tt("managerPortal.invoices.walkInCustomer"))} · {formatDateTime(invoice.created_at)}</div>
                               </div>
                               <div className="shrink-0 text-left">
@@ -2528,15 +2528,15 @@ export default function ManagerPortal() {
                       <StatusPill tone="amber" value={`المبيعات ${formatCurrency(employee.sales_today || 0)}`} />
                     </div>
                     <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:grid-cols-2">
-                      <div>الحضور: {formatTime(employee.check_in_time)} - {formatTime(employee.check_out_time)}</div>
-                      <div>الوردية: {Number(employee.shift_duration_hours || 0).toFixed(2)} ساعة</div>
-                      <div>الفواتير: {formatNumber(employee.invoices_count || 0)}</div>
-                      <div>آخر نشاط: {formatDateTime(employee.last_activity)}</div>
-                      <div>إجمالي السلف: {formatCurrency(employee.total_advances || 0)}</div>
+                      <div>{tt("managerPortal.labels.attendance")}: {formatTime(employee.check_in_time)} - {formatTime(employee.check_out_time)}</div>
+                      <div>{tt("managerPortal.labels.shift")}: {Number(employee.shift_duration_hours || 0).toFixed(2)} ساعة</div>
+                      <div>{tt("managerPortal.labels.invoices")}: {formatNumber(employee.invoices_count || 0)}</div>
+                      <div>{tt("managerPortal.labels.lastActivity")}: {formatDateTime(employee.last_activity)}</div>
+                      <div>{tt("managerPortal.labels.totalAdvances")}: {formatCurrency(employee.total_advances || 0)}</div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">العمولة المتوقعة {employee.expected_commission == null ? tt("managerPortal.common.unavailableFeminine") : formatCurrency(employee.expected_commission || 0)}</Badge>
-                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">المهام المفتوحة {formatNumber(employee.open_tasks || 0)}</Badge>
+                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{tt("managerPortal.labels.expectedCommission")} {employee.expected_commission == null ? tt("managerPortal.common.unavailableFeminine") : formatCurrency(employee.expected_commission || 0)}</Badge>
+                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{tt("managerPortal.stats.openTasks")} {formatNumber(employee.open_tasks || 0)}</Badge>
                     </div>
                   </Card>
                 )
@@ -2548,7 +2548,7 @@ export default function ManagerPortal() {
 
           {activeTab === "tasks" ? (
             <div className="manager-portal-tab manager-portal-tab--tasks space-y-4">
-              <Card title={tt("managerPortal.tasks.create")} subtitle="Create task" icon={Plus} tone="gold">
+              <Card title={tt("managerPortal.tasks.create")} subtitle={tt("managerPortal.chrome.createTask")} icon={Plus} tone="gold">
                 <div className="grid gap-2 md:grid-cols-2">
                   <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder={tt("managerPortal.tasks.titleField")} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
                   <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
@@ -2742,8 +2742,8 @@ export default function ManagerPortal() {
                         <div className="text-lg font-black"><InlineName>{portalText(salesLeaders.top_seller.seller_name || tt("managerPortal.sales.unknownSeller"))}</InlineName></div>
                       </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
-                        <div>الإيراد: {formatCurrency(salesLeaders.top_seller.revenue || 0)}</div>
-                        <div>الفواتير: {formatNumber(salesLeaders.top_seller.orders_count || 0)}</div>
+                        <div>{tt("managerPortal.labels.revenue")}: {formatCurrency(salesLeaders.top_seller.revenue || 0)}</div>
+                        <div>{tt("managerPortal.labels.invoices")}: {formatNumber(salesLeaders.top_seller.orders_count || 0)}</div>
                       </div>
                     </div>
                   ) : (
@@ -2758,12 +2758,12 @@ export default function ManagerPortal() {
                         <div className="text-lg font-black"><InlineName>{portalText(salesLeaders.worst_seller.seller_name || tt("managerPortal.sales.unnamedSeller"))}</InlineName></div>
                       </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
-                        <div>الإيراد: {formatCurrency(salesLeaders.worst_seller.revenue || 0)}</div>
-                        <div>الطلبات: {formatNumber(salesLeaders.worst_seller.orders_count || 0)}</div>
+                        <div>{tt("managerPortal.labels.revenue")}: {formatCurrency(salesLeaders.worst_seller.revenue || 0)}</div>
+                        <div>{tt("managerPortal.labels.orders")}: {formatNumber(salesLeaders.worst_seller.orders_count || 0)}</div>
                       </div>
                     </div>
                   ) : (
-                    <EmptyState title="No seller data" body="Add linked seller data to surface the lowest performer." />
+                    <EmptyState title={tt("managerPortal.chrome.noSellerData")} body={tt("managerPortal.chrome.noSellerDataBody")} />
                   )}
                 </Card>
               </div>
@@ -2777,8 +2777,8 @@ export default function ManagerPortal() {
                         <div className="text-lg font-black"><InlineName>{portalText(bestCategory.name || "Uncategorized")}</InlineName></div>
                       </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
-                        <div>الإيراد: {formatCurrency(bestCategory.revenue || 0)}</div>
-                        <div>الكمية: {formatNumber(bestCategory.quantity || 0)}</div>
+                        <div>{tt("managerPortal.labels.revenue")}: {formatCurrency(bestCategory.revenue || 0)}</div>
+                        <div>{tt("managerPortal.labels.quantity")}: {formatNumber(bestCategory.quantity || 0)}</div>
                       </div>
                     </div>
                   ) : (
@@ -2793,8 +2793,8 @@ export default function ManagerPortal() {
                         <div className="text-lg font-black"><InlineName>{portalText(bestBrand.name || "Unbranded")}</InlineName></div>
                       </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
-                        <div>الإيراد: {formatCurrency(bestBrand.revenue || 0)}</div>
-                        <div>الكمية: {formatNumber(bestBrand.quantity || 0)}</div>
+                        <div>{tt("managerPortal.labels.revenue")}: {formatCurrency(bestBrand.revenue || 0)}</div>
+                        <div>{tt("managerPortal.labels.quantity")}: {formatNumber(bestBrand.quantity || 0)}</div>
                       </div>
                     </div>
                   ) : (
@@ -2832,7 +2832,7 @@ export default function ManagerPortal() {
                         <div key={item.label} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
                           <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
                           <div className="mt-2 text-lg font-black text-slate-950">{item.today}</div>
-                          <div className="mt-1 text-xs font-bold text-slate-500">أمس: {item.yesterday}</div>
+                          <div className="mt-1 text-xs font-bold text-slate-500">{tt("managerPortal.labels.yesterday")}: {item.yesterday}</div>
                           <div className={`mt-2 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-black ${positive ? "border-emerald-200 bg-white text-emerald-700" : "border-rose-200 bg-white text-rose-700"}`}>
                             {positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                             {delta >= 0 ? "+" : ""}
@@ -2850,7 +2850,7 @@ export default function ManagerPortal() {
                       <div className="text-xs font-black text-slate-500">{tt("managerPortal.common.today")}</div>
                       <div className="mt-2 text-3xl font-black text-slate-950">{formatCurrency(salesComparison.today_average_invoice || sales?.overview?.today?.averageOrderValue || 0)}</div>
                       <div className="mt-1 text-sm font-semibold text-slate-600">
-                        أمس: {formatCurrency(salesComparison.yesterday_average_invoice || 0)}
+                        {tt("managerPortal.labels.yesterday")}: {formatCurrency(salesComparison.yesterday_average_invoice || 0)}
                       </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -2916,21 +2916,21 @@ export default function ManagerPortal() {
                 )}
               </Card>
 
-              <Card title="Conversion indicators" subtitle="Shown only when data exists" icon={Megaphone}>
+              <Card title={tt("managerPortal.conversions.title")} subtitle={tt("managerPortal.conversions.subtitle")} icon={Megaphone}>
                 {hasConversionIndicators ? (
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Customer-linked orders</div>
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{tt("managerPortal.conversions.customerLinkedOrders")}</div>
                       <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.customer_linked_orders || 0)}</div>
                       <div className="mt-1 text-sm font-bold text-slate-500">{formatPercent(conversionIndicators.customer_link_rate || 0)} of orders</div>
                     </div>
                     <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Online orders</div>
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{tt("managerPortal.conversions.onlineOrders")}</div>
                       <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.online_orders || 0)}</div>
                       <div className="mt-1 text-sm font-bold text-slate-500">{formatPercent(conversionIndicators.online_order_share || 0)} of orders</div>
                     </div>
                     <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">AI chat conversions</div>
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{tt("managerPortal.conversions.aiChatConversions")}</div>
                       <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.ai_confirmed_orders || 0)}</div>
                       <div className="mt-1 text-sm font-bold text-slate-500">
                         {formatNumber(conversionIndicators.ai_sessions || 0)} sessions · {formatPercent(conversionIndicators.ai_conversion_rate || 0)}
@@ -2938,11 +2938,11 @@ export default function ManagerPortal() {
                     </div>
                   </div>
                 ) : (
-                  <EmptyState title="No conversion data" body="Conversion metrics will appear when the system has enough order and conversation data." />
+                  <EmptyState title={tt("managerPortal.conversions.empty")} body={tt("managerPortal.conversions.emptyBody")} />
                 )}
               </Card>
 
-              <Card title={portalText("Top products")} subtitle="Top products" icon={Package}>
+              <Card title={tt("managerPortal.conversions.topProducts")} subtitle={tt("managerPortal.conversions.topProducts")} icon={Package}>
                 {topProducts.length ? topProducts.map((item) => (
                   <div key={item.name} className="flex items-center justify-between rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
                     <span><InlineName>{portalText(item.name)}</InlineName></span>
@@ -2950,7 +2950,7 @@ export default function ManagerPortal() {
                   </div>
                 )) : <EmptyState title={tt("managerPortal.sales.noSoldProducts")} body={tt("managerPortal.sales.noSoldProductsHint")} />}
               </Card>
-              <Card title={portalText("Hourly trend")} subtitle="Hourly trend" icon={Clock3}>
+              <Card title={tt("managerPortal.conversions.hourlyTrend")} subtitle={tt("managerPortal.conversions.hourlyTrend")} icon={Clock3}>
                 {Array.isArray(sales?.hourly) && sales.hourly.length ? (
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
                     {sales.hourly.map((item) => (
@@ -3043,8 +3043,8 @@ export default function ManagerPortal() {
 
                     <div className="rounded-[1.3rem] border border-slate-200 bg-white p-3 text-sm font-semibold leading-6 text-slate-800 shadow-sm">
                       <div className="text-xs font-black text-slate-600">{tt("managerPortal.chat.quickSummary")}</div>
-                      <div className="mt-2 text-slate-700">آخر نشاط: {formatDateTime(selectedChatLastActivity)}</div>
-                      <div className="text-slate-700">المحادثة غير المقروءة: {formatNumber(selectedChatUnread)}</div>
+                      <div className="mt-2 text-slate-700">{tt("managerPortal.labels.lastActivity")}: {formatDateTime(selectedChatLastActivity)}</div>
+                      <div className="text-slate-700">{tt("managerPortal.labels.unreadConversation")}: {formatNumber(selectedChatUnread)}</div>
                     </div>
                   </div>
                 ) : (
@@ -3087,9 +3087,9 @@ export default function ManagerPortal() {
               <Card title={tt("managerPortal.settings.branchData")} subtitle={tt("managerPortal.settings.branchInfo")} icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
                 <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                     <div className="font-black text-slate-950 dark:text-white">{portalText(me?.branch_name || "All branches")}</div>
-                    <div>النطاق: {portalText(me?.branch_scope || "all")}</div>
-                    <div>التنبيهات الحية: {formatNumber(notifications.length || 0)}</div>
-                    <div>غير المقروء: {formatNumber(unreadCount || notificationsUnread)}</div>
+                    <div>{tt("managerPortal.labels.scope")}: {portalText(me?.branch_scope || "all")}</div>
+                    <div>{tt("managerPortal.labels.liveAlerts")}: {formatNumber(notifications.length || 0)}</div>
+                    <div>{tt("managerPortal.labels.unread")}: {formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
                 </Card>
               </div>
