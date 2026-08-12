@@ -1493,5 +1493,34 @@
       "captured": "مأخوذ من بيانات المحادثة الحالية",
       "pending": "قيد الانتظار"
     }
+  },
+  "postEditor": {
+    "story": {
+      "slidesTitle": "شرائح القصة",
+      "slide": "شريحة {{number}}"
+    },
+    "channel": {
+      "comingSoon": "قريبًا",
+      "platformComingSoon": "{{platform}} - قريبًا",
+      "connectLater": "اربط {{platform}} لاحقًا"
+    },
+    "caption": {
+      "tone": "النبرة",
+      "generate": "توليد",
+      "regenerateHook": "إعادة توليد الجذب",
+      "regenerateCta": "إعادة توليد الدعوة لاتخاذ إجراء",
+      "regenerateHashtags": "إعادة توليد الهاشتاجات"
+    },
+    "firstComment": {
+      "title": "التعليق الأول المقترح",
+      "samePublisher": "نفس تعليق البابلشر",
+      "placeholder": "سيتم توليد التعليق من بيانات المنتج"
+    },
+    "fields": {
+      "productUrl": "رابط المنتج",
+      "price": "السعر",
+      "color": "اللون",
+      "size": "المقاس"
+    }
   }
 }

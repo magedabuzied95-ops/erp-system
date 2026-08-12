@@ -1493,5 +1493,34 @@
       "captured": "Captured from existing conversation data",
       "pending": "Pending"
     }
+  },
+  "postEditor": {
+    "story": {
+      "slidesTitle": "Story slides",
+      "slide": "Slide {{number}}"
+    },
+    "channel": {
+      "comingSoon": "Coming Soon",
+      "platformComingSoon": "{{platform}} - Coming Soon",
+      "connectLater": "Connect {{platform}} later"
+    },
+    "caption": {
+      "tone": "Tone",
+      "generate": "Generate",
+      "regenerateHook": "Regenerate Hook",
+      "regenerateCta": "Regenerate CTA",
+      "regenerateHashtags": "Regenerate Hashtags"
+    },
+    "firstComment": {
+      "title": "Suggested first comment",
+      "samePublisher": "Same as the publisher comment",
+      "placeholder": "The comment will be generated from the product data"
+    },
+    "fields": {
+      "productUrl": "Product URL",
+      "price": "Price",
+      "color": "Colour",
+      "size": "Size"
+    }
   }
 }
