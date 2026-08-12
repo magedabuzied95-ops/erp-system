@@ -100,6 +100,15 @@
     "price": "Price",
     "favorite": "Favorite"
   },
+    "treasury": {
+      "adjustment": "Treasury adjustment",
+      "recharge": "Recharge treasury account",
+      "rechargeOrAdjustment": "Recharge / adjustment",
+      "rechargeAmount": "Recharge amount",
+      "auditNote": "Audit note",
+      "enterPositiveAmount": "Enter a positive recharge amount",
+      "adjustmentRecorded": "Treasury adjustment recorded"
+    },
   "posPro": {
     "toasts": {
       "cartItemsRemoved": "Some cart items are no longer available and were removed.",
@@ -170,6 +179,8 @@
     }
   },
   "cart": {
+    "createOrder": "Create order",
+    "clearPaymentAmount": "Clear payment amount",
     "invoiceTab": "Invoice {{index}}",
     "newInvoice": "Invoice",
     "editInvoice": "Edit the invoice",

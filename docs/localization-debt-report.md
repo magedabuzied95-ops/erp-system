@@ -12,8 +12,8 @@ of scope. The scanner is conservative and can still contain false positives.
 - Source files scanned: 608
 - Files with debt: 188
 - Hardcoded Arabic UI strings: 1992
-- Hardcoded English UI strings: 2429
-- Total hardcoded UI strings: 4421
+- Hardcoded English UI strings: 2419
+- Total hardcoded UI strings: 4411
 - Mixed-language files (both scripts hardcoded): 52
 
 ### By surface
@@ -22,7 +22,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 106 | 1428 | 1873 | 3301 | 36 |
 | shared | 66 | 199 | 463 | 662 | 11 |
-| pos | 5 | 182 | 52 | 234 | 3 |
+| pos | 5 | 182 | 42 | 224 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
 ## Mixed-language files (ranked by density)
@@ -51,11 +51,11 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/pages/AiSupportConsole.jsx | main-erp | 10 | 35 | 45 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 39 | 5 | 44 |
 | src/modules/marketing/pages/SocialMediaPublisher.jsx | main-erp | 10 | 30 | 40 |
-| src/modules/pos/components/CartSidebar.jsx | pos | 27 | 13 | 40 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
 | src/modules/orders/pages/OrdersDashboard.jsx | main-erp | 30 | 7 | 37 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
+| src/modules/pos/components/CartSidebar.jsx | pos | 27 | 3 | 30 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 23 | 4 | 27 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
 | src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 13 | 12 | 25 |
@@ -1579,49 +1579,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1793 [jsx-text/ar] نسبة الخصم
 - 1799 [jsx-text/ar] صور الألوان المتاحة
 
-### src/modules/pos/components/CartSidebar.jsx (pos — ar:27 en:13)
-
-- 374 [attribute/en] Create order
-- 1587 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
-- 1748 [jsx-text/ar] فاتورة بيع
-- 1750 [jsx-text/ar] التاريخ
-- 1751 [jsx-text/ar] البائع
-- 1752 [jsx-text/ar] العميل
-- 1753 [jsx-text/ar] الدفع
-- 1758 [jsx-text/ar] الإجمالي
-- 1758 [jsx-text/ar] السعر
-- 1758 [jsx-text/ar] الصنف
-- 1771 [jsx-text/ar] لا توجد منتجات
-- 1776 [jsx-text/ar] الإجمالي الفرعي
-- 1777 [jsx-text/ar] إجمالي الكمية
-- 1778 [jsx-text/ar] خصم المنتجات
-- 1779 [jsx-text/ar] خصم الفاتورة
-- 1780 [jsx-text/ar] خصم الكوبون
-- 1781 [jsx-text/ar] خصم الولاء
-- 1782 [jsx-text/ar] الضريبة
-- 1783 [jsx-text/ar] رسوم الخدمة
-- 1784 [jsx-text/ar] الإجمالي
-- 1785 [jsx-text/ar] المدفوع
-- 1786 [jsx-text/ar] الباقي
-- 1787 [jsx-text/ar] المتبقي
-- 1791 [jsx-text/ar] العنوان
-- 1792 [jsx-text/ar] خدمة العملاء
-- 1793 [jsx-text/ar] الموقع الإلكتروني الرسمي
-- 1795 [jsx-text/ar] سياسة الاستبدال والاسترجاع
-- 1797 [jsx-text/ar] شكرًا لزيارتكم
-- 2564 [attribute/en] Vodafone Cash
-- 2571 [attribute/en] InstaPay
-- 2646 [attribute/en] INV-123
-- 2898 [attribute/en] Clear payment amount
-- 2970 [notification/en] Enter a positive recharge amount
-- 2981 [notification/en] Treasury adjustment recorded
-- 3010 [attribute/en] Recharge treasury account
-- 3011 [attribute/en] Recharge / adjustment
-- 3043 [jsx-text/en] Treasury adjustment
-- 3050 [attribute/en] Close
-- 3063 [attribute/en] Recharge amount
-- 3069 [attribute/en] Audit note
-
 ### src/modules/reports/pages/Reports.jsx (main-erp — ar:9 en:31)
 
 - 56 [object-key/en] AI Insights
@@ -1851,6 +1808,39 @@ of scope. The scanner is conservative and can still contain false positives.
 - 298 [jsx-text/en] Mark Ready
 - 299 [jsx-text/en] Export CSV
 - 334 [jsx-text/en] No shipments match the current filters.
+
+### src/modules/pos/components/CartSidebar.jsx (pos — ar:27 en:3)
+
+- 1587 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
+- 1748 [jsx-text/ar] فاتورة بيع
+- 1750 [jsx-text/ar] التاريخ
+- 1751 [jsx-text/ar] البائع
+- 1752 [jsx-text/ar] العميل
+- 1753 [jsx-text/ar] الدفع
+- 1758 [jsx-text/ar] الإجمالي
+- 1758 [jsx-text/ar] السعر
+- 1758 [jsx-text/ar] الصنف
+- 1771 [jsx-text/ar] لا توجد منتجات
+- 1776 [jsx-text/ar] الإجمالي الفرعي
+- 1777 [jsx-text/ar] إجمالي الكمية
+- 1778 [jsx-text/ar] خصم المنتجات
+- 1779 [jsx-text/ar] خصم الفاتورة
+- 1780 [jsx-text/ar] خصم الكوبون
+- 1781 [jsx-text/ar] خصم الولاء
+- 1782 [jsx-text/ar] الضريبة
+- 1783 [jsx-text/ar] رسوم الخدمة
+- 1784 [jsx-text/ar] الإجمالي
+- 1785 [jsx-text/ar] المدفوع
+- 1786 [jsx-text/ar] الباقي
+- 1787 [jsx-text/ar] المتبقي
+- 1791 [jsx-text/ar] العنوان
+- 1792 [jsx-text/ar] خدمة العملاء
+- 1793 [jsx-text/ar] الموقع الإلكتروني الرسمي
+- 1795 [jsx-text/ar] سياسة الاستبدال والاسترجاع
+- 1797 [jsx-text/ar] شكرًا لزيارتكم
+- 2564 [attribute/en] Vodafone Cash
+- 2571 [attribute/en] InstaPay
+- 2646 [attribute/en] INV-123
 
 ### src/modules/aiSupport/pages/AiSupportKnowledgeBase.jsx (main-erp — ar:29 en:0)
 

@@ -100,6 +100,15 @@
     "price": "السعر",
     "favorite": "مفضّل"
   },
+    "treasury": {
+      "adjustment": "تسوية الخزنة",
+      "recharge": "شحن حساب الخزنة",
+      "rechargeOrAdjustment": "شحن / تسوية",
+      "rechargeAmount": "مبلغ الشحن",
+      "auditNote": "ملاحظة المراجعة",
+      "enterPositiveAmount": "أدخل مبلغ شحن موجب",
+      "adjustmentRecorded": "تم تسجيل تسوية الخزنة"
+    },
   "posPro": {
     "toasts": {
       "cartItemsRemoved": "بعض منتجات السلة لم تعد متاحة وتمت إزالتها.",
@@ -170,6 +179,8 @@
     }
   },
   "cart": {
+    "createOrder": "إنشاء الطلب",
+    "clearPaymentAmount": "مسح المبلغ",
     "invoiceTab": "فاتورة {{index}}",
     "newInvoice": "فاتورة",
     "editInvoice": "تعديل الفاتورة",

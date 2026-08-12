@@ -371,7 +371,7 @@ function CartSidebar({
   paymobTerminalLoading = false,
   checkoutLoading,
   offlineSyncPendingCount = 0,
-  checkoutLabel = "Create order",
+  checkoutLabel = "",
   canUsePaymobTerminal = false,
   onItemDiscountChange,
   onItemPriceChange,
@@ -1065,7 +1065,7 @@ function CartSidebar({
             }
             className="pos-checkout-primary inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {checkoutLoading ? posLabel("cart.savingInvoice", "Saving the invoice...") : `${checkoutLabel} • ${formatCurrency(totalAmount)}`}
+            {checkoutLoading ? posLabel("cart.savingInvoice", "Saving the invoice...") : `${checkoutLabel || posLabel("cart.createOrder", "Create order")} • ${formatCurrency(totalAmount)}`}
           </button>
           <button
             type="button"
@@ -2886,6 +2886,7 @@ function PaymentMetric({ label, value, tone = "white" }) {
 }
 
 function BreakdownRow({ label, value, onClear }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-xs">
       <span className="min-w-0 truncate font-bold text-zinc-200">{label}</span>
@@ -2895,7 +2896,7 @@ function BreakdownRow({ label, value, onClear }) {
           type="button"
           onClick={onClear}
           className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
-          aria-label="Clear payment amount"
+          aria-label={t("pos.cart.clearPaymentAmount")}
         >
           <X className="h-3 w-3" />
         </button>
@@ -2915,6 +2916,7 @@ function BreakdownTotalRow({ label, value, tone = "white" }) {
 }
 
 function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
+  const { t } = useTranslation();
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustNotes, setAdjustNotes] = useState("");
@@ -2967,7 +2969,7 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
   const submitAdjustment = async (event) => {
     event.preventDefault();
     if (!account.id || Number(adjustAmount) <= 0) {
-      toast.error("Enter a positive recharge amount");
+      toast.error(t("pos.treasury.enterPositiveAmount"));
       return;
     }
     try {
@@ -2978,7 +2980,7 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
         amount: adjustAmount,
         notes: adjustNotes || `POS recharge for ${accountName}`,
       });
-      toast.success("Treasury adjustment recorded");
+      toast.success(t("pos.treasury.adjustmentRecorded"));
       setAdjustAmount("");
       setAdjustNotes("");
       setAdjustOpen(false);
@@ -3007,8 +3009,8 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
               setAdjustOpen(true);
             }}
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/8 text-white transition hover:bg-white/15"
-            aria-label="Recharge treasury account"
-            title="Recharge / adjustment"
+            aria-label={t("pos.treasury.recharge")}
+            title={t("pos.treasury.rechargeOrAdjustment")}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -3040,14 +3042,14 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
           <form onSubmit={submitAdjustment} className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950 p-4 shadow-2xl shadow-black/50">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Treasury adjustment</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("pos.treasury.adjustment")}</div>
                 <div className="mt-1 truncate text-sm font-black text-white">{accountName}</div>
               </div>
               <button
                 type="button"
                 onClick={() => setAdjustOpen(false)}
                 className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
-                aria-label="Close"
+                aria-label={t("pos.common.close")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -3060,13 +3062,13 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
                 step="0.01"
                 value={adjustAmount}
                 onChange={(event) => setAdjustAmount(event.target.value)}
-                placeholder="Recharge amount"
+                placeholder={t("pos.treasury.rechargeAmount")}
               />
               <input
                 className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-300/60"
                 value={adjustNotes}
                 onChange={(event) => setAdjustNotes(event.target.value)}
-                placeholder="Audit note"
+                placeholder={t("pos.treasury.auditNote")}
               />
               <button
                 type="submit"
