@@ -238,23 +238,24 @@ export const buildReplyCorrectionContextSource = (corrections = [], query = "") 
   asArray(corrections)
     .slice(0, 3)
     .map((item, index) => {
-      const question = text(item.customer_question);
       const wrongAnswer = text(item.ai_wrong_answer);
       const correctAnswer = text(item.employee_correct_answer);
       const correctionType = normalizeCorrectionType(item.correction_type);
-      const productLabel = Number.isFinite(Number(item.product_id)) && Number(item.product_id) > 0 ? `Product ${item.product_id}` : "No product";
+      // Phase 11.2 — present corrections EXPLICITLY as STYLE EXAMPLES (tone/brevity/phrasing), never as factual
+      // answer memory. The model may imitate wording; it must NEVER reuse the example's stock/price/size/
+      // product/order/shipping/policy specifics — those come ONLY from the VERIFIED FACTS for the CURRENT
+      // product (the grounding gate re-asserts them last). This keeps style transfer safe and facts authoritative.
       return {
-        id: `reply_correction_${item.id || index + 1}`,
-        title: `Employee correction ${index + 1}`,
+        id: `reply_style_example_${item.id || index + 1}`,
+        title: `STYLE EXAMPLE ${index + 1} (imitate tone/phrasing ONLY — not facts)`,
         content: [
-          `Query: ${text(query) || "n/a"}`,
-          `Correction type: ${correctionType}`,
-          `Conversation: ${text(item.conversation_id)}`,
-          `Message: ${text(item.message_id)}`,
-          `Product: ${productLabel}`,
-          `Customer question: ${question}`,
-          `AI wrong answer: ${wrongAnswer}`,
-          `Employee correct answer: ${correctAnswer}`,
+          "This shows HOW an employee prefers to phrase a reply. Imitate ONLY the tone, brevity, greeting/closing,",
+          "emoji use, and general phrasing. NEVER copy the specific stock count, price, size availability, product",
+          "identity, order/shipping/policy details from this example — always use the VERIFIED FACTS for the",
+          "current product instead.",
+          `Intent/type: ${correctionType}`,
+          `Employee's preferred phrasing (style to imitate): ${correctAnswer}`,
+          `Earlier AI phrasing the employee replaced (style to avoid): ${wrongAnswer}`,
         ].join("\n"),
       };
     });
