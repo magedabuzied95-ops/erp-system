@@ -172,5 +172,90 @@
       "suggested": "Suggested replies:",
       "suggestionCount": "{{count}} suggestions"
     }
+  },
+  "aiSettings": {
+    "eyebrow": "AI Brain",
+    "title": "AI Settings",
+    "subtitle": "Control automatic replies, tone, safety defaults, and debugging visibility for the Meta AI Inbox.",
+    "masterNote": "Global settings are the master control. A channel can only auto-reply when global mode and channel mode both allow fully automatic replies.",
+    "save": "Save",
+    "mode": {
+      "title": "Auto Reply Mode",
+      "subtitle": "Global behavior. Fully automatic only sends when the channel setting also allows it.",
+      "off": "Off",
+      "offDesc": "AI will not reply automatically.",
+      "suggestOnly": "Suggest only",
+      "suggestOnlyDesc": "AI drafts replies for staff.",
+      "fullyAutomatic": "Fully automatic",
+      "fullyAutomaticDesc": "AI can send replies automatically."
+    },
+    "tone": {
+      "title": "Tone",
+      "subtitle": "Lightweight instruction used by the AI reply layer.",
+      "casual": "Casual Egyptian",
+      "casualDesc": "Friendly Egyptian Arabic, short and helpful.",
+      "professional": "Professional",
+      "professionalDesc": "Clear, respectful Arabic for service conversations.",
+      "luxury": "Luxury seller",
+      "luxuryDesc": "Premium seller tone, confident and polished."
+    },
+    "shoeCover": {
+      "title": "AI Shoe Cover Generation",
+      "subtitle": "Runtime toggle for new AI shoe cover jobs. Existing processing jobs are allowed to finish.",
+      "note": "When this is off, new AI shoe cover jobs are not created. Product saves, AI Product Data, and AI Thermal Artwork keep working normally."
+    },
+    "playground": {
+      "title": "AI Test Playground",
+      "subtitle": "Simulate an AI reply without sending anything to Meta or changing memory.",
+      "channel": "Channel",
+      "webChat": "Web chat",
+      "platform": "Platform",
+      "productId": "Optional Product ID",
+      "productIdPlaceholder": "Example: 123",
+      "customerMessage": "Customer message",
+      "testReply": "Test reply",
+      "facebookMessenger": "Facebook Messenger",
+      "instagramDm": "Instagram DM"
+    },
+    "result": {
+      "intent": "Intent",
+      "effectiveMode": "Effective mode",
+      "effectiveTone": "Effective tone",
+      "wouldAutoSend": "Would auto-send",
+      "yes": "Yes",
+      "noSuggestOnly": "No, suggest only",
+      "safetyReason": "Safety guard reason",
+      "productContext": "Product context",
+      "unnamedProduct": "Unnamed product",
+      "price": "Price:",
+      "priceUnavailable": "Not available",
+      "stock": "Stock:",
+      "inStock": "In stock",
+      "outOfStock": "Out of stock",
+      "sizes": "Sizes:",
+      "na": "n/a",
+      "productUrl": "Product URL",
+      "imageUrl": "Image URL",
+      "noProductContext": "No product context found.",
+      "memoryFallback": "Memory fallback",
+      "lastProduct": "Last product:",
+      "lastSize": "Last size:",
+      "lastIntent": "Last intent:",
+      "noMemoryFallback": "No memory fallback used.",
+      "finalReply": "Final reply preview"
+    },
+    "safety": {
+      "title": "Safety",
+      "subtitle": "Defaults stay on to prevent bad commerce claims.",
+      "noFakeStock": "Never invent stock",
+      "noFakePrice": "Never invent prices",
+      "escalateAngry": "Escalate angry customers"
+    },
+    "debug": {
+      "title": "Debug Options",
+      "subtitle": "Visibility tools for the live AI Inbox console.",
+      "showLogs": "Show live AI logs",
+      "showMemory": "Show conversation memory debug"
+    }
   }
 }

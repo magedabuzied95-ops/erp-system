@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 611
 - Files with debt: 150
-- Hardcoded Arabic UI strings: 1749
-- Hardcoded English UI strings: 1493
-- Total hardcoded UI strings: 3242
-- Mixed-language files (both scripts hardcoded): 42
+- Hardcoded Arabic UI strings: 1743
+- Hardcoded English UI strings: 1445
+- Total hardcoded UI strings: 3188
+- Mixed-language files (both scripts hardcoded): 41
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 80 | 1193 | 1096 | 2289 | 28 |
+| main-erp | 80 | 1187 | 1048 | 2235 | 27 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -39,7 +39,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 62 | 2 | 64 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
-| src/modules/aiSupport/pages/AiSettings.jsx | main-erp | 7 | 48 | 55 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 44 | 8 | 52 |
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
 | src/modules/aiSupport/pages/AiSupportConsole.jsx | main-erp | 10 | 35 | 45 |
@@ -689,50 +688,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 86 [jsx-text/ar] الطلب INV-2840
 - 86 [jsx-text/ar] تحديث مباشر
 - ... 18 more
-
-### src/modules/aiSupport/pages/AiSettings.jsx (main-erp — ar:7 en:48)
-
-- 96 [object-key/ar] بكام؟
-- 171 [jsx-text/en] AI Brain
-- 172 [jsx-text/en] AI Settings
-- 187 [attribute/en] Auto Reply Mode
-- 187 [attribute/en] Global behavior. Fully automatic only sends when the channel setting also allows it.
-- 189 [attribute/en] AI will not reply automatically.
-- 189 [attribute/en] Off
-- 190 [attribute/en] Suggest only
-- 191 [attribute/en] AI can send replies automatically.
-- 191 [attribute/en] Fully automatic
-- 195 [attribute/en] Lightweight instruction used by the AI reply layer.
-- 195 [attribute/en] Tone
-- 197 [attribute/en] Casual Egyptian
-- 197 [attribute/en] Friendly Egyptian Arabic, short and helpful.
-- 198 [attribute/en] Professional
-- 199 [attribute/en] Luxury seller
-- 199 [attribute/en] Premium seller tone, confident and polished.
-- 203 [attribute/en] AI Shoe Cover Generation
-- 206 [attribute/en] AI Shoe Cover Generation
-- 216 [attribute/en] AI Test Playground
-- 216 [attribute/en] Simulate an AI reply without sending anything to Meta or changing memory.
-- 220 [jsx-text/ar] القناة
-- 222 [jsx-text/en] Facebook Messenger
-- 223 [jsx-text/en] Instagram DM
-- 225 [jsx-text/en] Web chat
-- 229 [jsx-text/en] Platform
-- 233 [jsx-text/en] Optional Product ID
-- 234 [attribute/en] Example: 123
-- 239 [jsx-text/ar] رسالة العميل
-- 252 [jsx-text/en] Intent
-- 253 [jsx-text/en] Effective mode
-- 254 [jsx-text/en] Effective tone
-- 255 [jsx-text/en] Would auto-send
-- 256 [jsx-text/en] Safety guard reason
-- 260 [jsx-text/en] Product context
-- 264 [jsx-text/ar] السعر:
-- 265 [jsx-text/ar] المخزون:
-- 266 [jsx-text/en] Sizes:
-- 267 [attribute/en] Product URL
-- 268 [attribute/en] Image URL
-- ... 15 more
 
 ### src/modules/purchases/pages/PurchaseOrder.jsx (main-erp — ar:44 en:8)
 
@@ -2609,6 +2564,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/aiSupport/decision/strategies/AutomationStrategy.ts (main-erp — ar:0 en:1)
 
 - 11 [object-key/en] Human review
+
+### src/modules/aiSupport/pages/AiSettings.jsx (main-erp — ar:1 en:0)
+
+- 98 [object-key/ar] بكام؟
 
 ### src/modules/marketing/pages/MarketingSettings.jsx (main-erp — ar:0 en:1)
 
