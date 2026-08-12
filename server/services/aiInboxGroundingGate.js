@@ -374,6 +374,29 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // Build grounded product cards from compatible catalog products only (never incompatible ones).
     const groundedCards = (decision.cards || []).map((p) => ({ id: p.id, product_id: p.id, name: p.name, product_type: p.product_type, grounded: true }));
     const detectedIntent = CANONICAL_LABELS[requestedIntent] || "PRODUCT_AVAILABILITY";
+
+    // Phase 11.2 — SEND-READY CARD vs DISAMBIGUATION (identity only; image/price/url enriched downstream from
+    // the canonical services). Grounding is authoritative: a card may be auto-attached ONLY when EXACTLY ONE
+    // catalog product resolved. When the term matched >1 distinct product (e.g. "Jordan 4" → 208 + 39), we do
+    // NOT silently attach one — we surface choices for the employee to pick. Never attach remembered/popular.
+    const distinctProductIds = [...new Set(compatibleProducts.map((p) => p.id))];
+    const productAmbiguous = distinctProductIds.length > 1;
+    const ev = variantGrounding?.exactVariant || null;
+    let sendReadyCard = null;
+    let cardChoices = [];
+    if (productAmbiguous) {
+      cardChoices = compatibleProducts.slice(0, 6).map((p) => ({ product_id: p.id, id: p.id, name: p.name, product_type: p.product_type, grounded: true }));
+    } else if (compatibleProducts.length === 1 && ["available", "unavailable", "soft_match"].includes(decision.action)) {
+      const p = compatibleProducts[0];
+      sendReadyCard = {
+        product_id: p.id, id: p.id, name: p.name, product_type: p.product_type, grounded: true,
+        variant_id: ev?.variantId || null,
+        size: ev?.displaySize || entities.size || null,
+        color: ev?.color || entities.colorLabel || entities.color || null,
+        in_stock: decision.action === "available" || decision.action === "soft_match",
+        action: decision.action,
+      };
+    }
     return {
       changed: true,
       entities,
@@ -382,6 +405,9 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       answer: decision.answer,
       confidence: decision.confidence,
       suggested_products: groundedCards,
+      send_ready_card: sendReadyCard,
+      card_choices: cardChoices,
+      product_ambiguous: productAmbiguous,
       grounding: {
         requested: { productType: entities.productType, productTerm: entities.productTerm, color: entities.color || null, size: entities.size || null, brandModel: Boolean(brandModelProducts) },
         resolved: (decision.action === "available" || decision.action === "unavailable")
