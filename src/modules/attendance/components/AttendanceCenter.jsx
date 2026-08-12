@@ -328,7 +328,7 @@ function KpiCard({ label, value, icon: Icon, tone = "emerald", hint }) {
     blue: "bg-primary/10 text-primary",
   }[tone] || "bg-[var(--surface)] text-[var(--muted)]";
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-black text-[var(--muted)]">{label}</div>
@@ -368,7 +368,7 @@ function ManualTimeInput({ hour, minute, period, onChange, isArabic, periodDefau
       <NativeSelect value={minute} onChange={(event) => onChange({ minute: event.target.value })} aria-label={isArabic ? "الدقيقة" : "Minute"}>
         {minutes.map((value) => <option key={value} value={value}>{value}</option>)}
       </NativeSelect>
-      <div className="flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
+      <div className="flex rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-1">
         {["AM", "PM"].map((value) => (
           <button
             key={value}
@@ -472,7 +472,7 @@ function HrSettingsPanel({ settings, isArabic, saving, onChange, onSave }) {
   };
 
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+    <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">
@@ -502,7 +502,7 @@ function HrSettingsPanel({ settings, isArabic, saving, onChange, onSave }) {
         <Field label={isArabic ? "الإجازات المدفوعة شهريًا" : "Monthly paid leave days"}>
           <NativeInput type="number" min="0" value={values.monthly_paid_leave_days ?? 3} onChange={(event) => onChange("monthly_paid_leave_days", Number(event.target.value || 0))} />
         </Field>
-        <label className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-black text-[var(--text)] xl:col-span-2">
+        <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-black text-[var(--text)] xl:col-span-2">
           <input
             type="checkbox"
             checked={values.require_next_opening_on_pos_close !== false}
@@ -798,7 +798,7 @@ export default function AttendanceCenter() {
         </div>
       </section>
 
-      <section className="sticky top-0 z-20 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm">
+      <section className="sticky top-0 z-20 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm">
         <div className="mb-3 flex items-center gap-2 text-sm font-black text-[var(--text)]"><Filter className="h-4 w-4" />{text.filters}</div>
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-7">
           <Field label={text.search}><div className="relative"><Search className="pointer-events-none absolute start-3 top-3 h-4 w-4 text-[var(--muted)]" /><NativeInput value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} className="w-full ps-9" /></div></Field>
@@ -856,7 +856,7 @@ export default function AttendanceCenter() {
       {selectedRow ? <DetailsDrawer row={selectedRow} text={text} onClose={() => setSelectedRow(null)} /> : null}
       {manualOpen ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={() => !manualSaving && setManualOpen(false)}>
-          <form onSubmit={handleManualAttendanceSubmit} onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl">
+          <form onSubmit={handleManualAttendanceSubmit} onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-2xl rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">{isArabic ? "تصحيح إداري" : "Admin correction"}</div>
@@ -865,7 +865,7 @@ export default function AttendanceCenter() {
               </div>
               <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-full border border-[var(--border)] text-[var(--muted)]"><XCircle className="h-5 w-5" /></button>
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1.5">
+            <div className="mt-5 grid grid-cols-3 gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-1.5">
               {[
                 ["check_in", isArabic ? "الحضور فقط" : "Check-in only"],
                 ["check_out", isArabic ? "الانصراف فقط" : "Checkout only"],
@@ -970,7 +970,7 @@ function OpeningSchedulePanel({ rows = [], isArabic, onGenerate, canGenerate }) 
           {rows.map((row) => {
             const workDate = safeDate(row.work_date);
             return (
-              <article key={row.id || `${row.employee_id}-${row.work_date}-${row.branch_id}`} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+              <article key={row.id || `${row.employee_id}-${row.work_date}-${row.branch_id}`} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-base font-black text-[var(--text)]">{row.employee_name || row.full_name || (isArabic ? "موظف غير محدد" : "Unassigned employee")}</p>
@@ -988,7 +988,7 @@ function OpeningSchedulePanel({ rows = [], isArabic, onGenerate, canGenerate }) 
           })}
         </div>
       ) : (
-        <div className="mt-4 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-bold text-[var(--muted)]">{empty}</div>
+        <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-bold text-[var(--muted)]">{empty}</div>
       )}
     </section>
   );
@@ -996,7 +996,7 @@ function OpeningSchedulePanel({ rows = [], isArabic, onGenerate, canGenerate }) 
 
 function ChartPanel({ title, data, xKey = "date", type = "line", lines = [], bars = [] }) {
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+    <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
       <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
       <div className="mt-4 h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -1065,7 +1065,7 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
   return (
     <section className="space-y-3">
       {groupedRows.length ? groupedRows.map(([date, dateRows]) => (
-        <div key={date} className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+        <div key={date} className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
           <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
             <div className="inline-flex items-center gap-2 font-black text-[var(--text)]" dir="ltr"><CalendarDays className="h-4 w-4 text-[var(--primary)]" />{formatDayFirstDate(date) || date}</div>
             <span className="rounded-full bg-[var(--card)] px-3 py-1 text-xs font-black text-[var(--muted)]">{dateRows.length} {isArabic ? "موظف" : "employees"}</span>
@@ -1077,8 +1077,8 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
             </table>
           </div>
         </div>
-      )) : <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-[var(--muted)]">{text.noRows}</div>}
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+      )) : <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-8 text-center text-[var(--muted)]">{text.noRows}</div>}
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
         <h3 className="m1-section-title mb-3 text-[var(--text)]">{isArabic ? "إجماليات النتائج الحالية" : "Current results totals"}</h3>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {[
@@ -1089,7 +1089,7 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
             [isArabic ? "ساعات النقص" : "Missing hours", totals.missingHours.toFixed(2)],
             [isArabic ? "الساعات الإضافية" : "Overtime", totals.overtimeHours.toFixed(2)],
             [isArabic ? "تأثير الرواتب" : "Payroll impact", formatMoney(totals.payrollImpact)],
-          ].map(([label, value]) => <div key={label} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3"><div className="text-xs font-black text-[var(--muted)]">{label}</div><div className="mt-1 text-lg font-black text-[var(--text)]" dir="ltr">{value}</div></div>)}
+          ].map(([label, value]) => <div key={label} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3"><div className="text-xs font-black text-[var(--muted)]">{label}</div><div className="mt-1 text-lg font-black text-[var(--text)]" dir="ltr">{value}</div></div>)}
         </div>
       </div>
     </section>
@@ -1106,7 +1106,7 @@ function LiveAttendance({ rows, text }) {
   return (
     <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {rows.length ? rows.map((row) => (
-        <div key={row.id} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+        <div key={row.id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-black text-[var(--text)]">{row.employee_name}</div>
@@ -1150,7 +1150,7 @@ function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
       {visibleRows.length ? (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {visibleRows.map((row) => (
-            <article key={row.id} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+            <article key={row.id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-black text-[var(--text)]">{row.employee_name || row.employee_code || `#${row.employee_id}`}</p>
@@ -1172,7 +1172,7 @@ function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
           ))}
         </div>
       ) : (
-        <div className="mt-4 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-bold text-[var(--muted)]">
+        <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-bold text-[var(--muted)]">
           {isArabic ? "لا توجد طلبات أوفر تايم حاليًا." : "No overtime requests yet."}
         </div>
       )}
@@ -1182,7 +1182,7 @@ function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
 
 function PayrollImpact({ rows, text, onSelect }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+    <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
       <div className="overflow-auto">
         <table className="m1-table m1-table--compact min-w-[1360px] w-full text-sm">
           <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]">
@@ -1239,7 +1239,7 @@ function ReportsView({ payload, rows, text, onExport }) {
 
 function SimpleTable({ headers, rows, empty }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+    <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
       <div className="overflow-auto">
         <table className="m1-table m1-table--compact min-w-[900px] w-full text-sm">
           <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]"><tr>{headers.map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr></thead>
@@ -1262,7 +1262,7 @@ function DetailsDrawer({ row, text, onClose }) {
         </div>
         <div className="mt-5 grid gap-3">
           {Object.entries(row).map(([key, value]) => (
-            <div key={key} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+            <div key={key} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
               <div className="text-xs font-black uppercase text-[var(--muted)]">{key}</div>
               <div className="mt-1 break-words text-sm font-semibold text-[var(--text)]" dir={typeof value === "number" ? "ltr" : undefined}>{String(value ?? "-")}</div>
             </div>

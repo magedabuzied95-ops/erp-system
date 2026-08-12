@@ -32,7 +32,7 @@ export default function MetricTooltip({ title, definition, formula, extra, align
         <span
           id={id}
           role="tooltip"
-          className={`absolute top-6 z-30 w-64 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-start shadow-[var(--shadow-overlay)] ${ align === "end" ? "end-0" : "start-0" }`}
+          className={`absolute top-6 z-30 w-64 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-start shadow-[var(--shadow-overlay)] ${ align === "end" ? "end-0" : "start-0" }`}
         >
           <span className="block text-[13px] font-bold text-[var(--text)]">{title}</span>
           {definition ? (

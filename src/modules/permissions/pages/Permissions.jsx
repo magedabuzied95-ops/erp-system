@@ -111,7 +111,7 @@ function PermissionsPage() {
       subtitle="Admin access stays full by default. Select any role, review the entire module/action matrix, and save back to the backend or local fallback catalog."
       actions={
         <>
-          <Link to="/settings/roles" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/settings/roles" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <ShieldCheck className="h-4 w-4" />
             Role management
           </Link>
@@ -137,7 +137,7 @@ function PermissionsPage() {
               <h3 className="m1-section-title text-white">Roles</h3>
               <p className="mt-1 text-sm text-zinc-400">Choose a role to edit its permission set.</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
               {roles.length} roles
             </div>
           </div>
@@ -203,14 +203,14 @@ function Skeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className="h-20 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+        <div key={index} className="h-20 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />
       ))}
     </div>
   );
 }
 
 function EmptyState({ label }) {
-  return <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
 }
 
 export default PermissionsPage;

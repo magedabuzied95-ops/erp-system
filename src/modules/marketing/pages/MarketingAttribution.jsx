@@ -160,7 +160,7 @@ export default function MarketingAttribution() {
           <MarketingMetricCard label={t("marketing.analytics.attribution.metrics.conversionRate")} value={loading ? "-" : formatPercent(summary.conversion_rate)} tone="rose" icon={<RefreshCw className="h-5 w-5" />} />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="grid gap-4 md:grid-cols-3">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.platform")}</span>
@@ -208,7 +208,7 @@ export default function MarketingAttribution() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <h2 className="m1-section-title text-white">{t("marketing.analytics.funnel.title")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -225,7 +225,7 @@ export default function MarketingAttribution() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <h2 className="m1-section-title text-white">{t("marketing.analytics.salesOverTime")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -242,7 +242,7 @@ export default function MarketingAttribution() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <h2 className="m1-section-title text-white">{t("marketing.analytics.platformComparison")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -258,7 +258,7 @@ export default function MarketingAttribution() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <h2 className="m1-section-title text-white">{t("marketing.analytics.storyVsPost")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -275,7 +275,7 @@ export default function MarketingAttribution() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <div className="mb-4">
               <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
               <p className="text-sm text-slate-400">{t("marketing.analytics.attribution.bestPerformers")}</p>
@@ -322,11 +322,11 @@ export default function MarketingAttribution() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
               <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.topCampaigns")}</h2>
               <div className="mt-4 space-y-3">
                 {topCampaigns.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.attribution.noCampaigns")}</div>
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.attribution.noCampaigns")}</div>
                 ) : (
                   topCampaigns.slice(0, 6).map((campaign) => (
                     <div key={`${campaign.platform}-${campaign.campaign}`} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
@@ -342,11 +342,11 @@ export default function MarketingAttribution() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
               <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.revenuePerPlatform")}</h2>
               <div className="mt-4 space-y-3">
                 {platformComparison.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.noPlatformComparison")}</div>
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.noPlatformComparison")}</div>
                 ) : (
                   platformComparison.map((row, index) => (
                     <div key={row.platform || index} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">

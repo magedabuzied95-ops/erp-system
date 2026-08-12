@@ -4995,7 +4995,7 @@ function Field({ label, value, onChange, type = "text" }) {
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 text-lg font-black text-white">{value}</div>
     </div>

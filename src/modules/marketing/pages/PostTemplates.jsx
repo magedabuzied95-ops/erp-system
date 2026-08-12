@@ -170,7 +170,7 @@ export default function PostTemplates() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">Template Library</div>
@@ -192,7 +192,7 @@ export default function PostTemplates() {
                   <div className="absolute inset-0 bg-slate-950/70" />
                   <div className="relative flex h-full min-h-[220px] flex-col">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/10 text-white">
                         <Icon className="h-5 w-5" />
                       </div>
                       <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-100">
@@ -216,7 +216,7 @@ export default function PostTemplates() {
 
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Saved templates</div>
@@ -225,9 +225,9 @@ export default function PostTemplates() {
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {loading ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.templates.loading")}</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.templates.loading")}</div>
             ) : templates.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.templates.empty")}</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.templates.empty")}</div>
             ) : (
               templates.map((template) => (
                 <div key={String(template.id)} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">

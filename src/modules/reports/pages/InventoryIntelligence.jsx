@@ -113,7 +113,7 @@ export default function InventoryIntelligence() {
         </ReportsHeader>
 
         {/* The one sentence that stops every ratio on this page being misread. */}
-        <p className="flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-[12px] leading-5 text-[var(--text-secondary)] 2xl:text-[13px]">
+        <p className="flex items-start gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-[12px] leading-5 text-[var(--text-secondary)] 2xl:text-[13px]">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" />
           <span>
             <strong className="font-bold text-[var(--text)]">{t("inventory.timeSemantics.stock")}</strong>
@@ -282,7 +282,7 @@ function DeadCandidates({ rows, showValue, language, t }) {
   return (
     <ul className="space-y-1.5">
       {rows.slice(0, 8).map((row) => (
-        <li key={row.productId} className="rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2">
+        <li key={row.productId} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2">
           <span className="flex items-baseline justify-between gap-3">
             <span className="truncate text-[13px] font-semibold text-[var(--text)] 2xl:text-[14px]" title={row.productName}>
               {row.productName}
@@ -322,7 +322,7 @@ function ActiveFilters({ filters, t, language }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {chips.map((chip) => (
-        <span key={chip.key} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5 text-[12px]">
+        <span key={chip.key} className="inline-flex items-center gap-1.5 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5 text-[12px]">
           <span className="text-[var(--text-tertiary)]">{chip.label}:</span>
           <span className="font-semibold text-[var(--text)]">{chip.value}</span>
           <button type="button" onClick={chip.clear} aria-label={t("inventory.filters.clear")} className="text-[var(--text-tertiary)] transition hover:text-[var(--danger)]">

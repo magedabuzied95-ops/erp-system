@@ -23,7 +23,7 @@ export const RealtimeAlertsCard = memo(function RealtimeAlertsCard({ alerts = []
         {alerts.length ? alerts.map((alert) => {
           const content = <AlertContent alert={alert} />;
           return alert.href ? <Link key={alert.id} to={alert.href} className="block">{content}</Link> : <div key={alert.id}>{content}</div>;
-        }) : <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{isArabic ? "لا توجد تنبيهات تشغيلية حرجة حاليًا." : "No critical operational alerts right now."}</div>}
+        }) : <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{isArabic ? "لا توجد تنبيهات تشغيلية حرجة حاليًا." : "No critical operational alerts right now."}</div>}
       </div>
     </section>
   );
@@ -31,7 +31,7 @@ export const RealtimeAlertsCard = memo(function RealtimeAlertsCard({ alerts = []
 
 function AlertContent({ alert }) {
   return (
-    <div className={`rounded-xl border px-3 py-2 transition hover:bg-white/[0.07] ${tone[alert.priority] || tone.normal}`}>
+    <div className={`rounded-[var(--radius-card)] border px-3 py-2 transition hover:bg-white/[0.07] ${tone[alert.priority] || tone.normal}`}>
       <div className="truncate text-xs font-black text-white">{alert.title}</div>
       <div className="mt-1 line-clamp-2 text-xs text-zinc-400">{alert.description}</div>
     </div>

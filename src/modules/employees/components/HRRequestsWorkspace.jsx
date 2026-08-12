@@ -105,7 +105,7 @@ export default function HRRequestsWorkspace() {
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-black text-[var(--muted)]">
+            <label className="flex min-h-11 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-black text-[var(--muted)]">
               <input type="checkbox" checked={autoCreateAdvance} onChange={(event) => setAutoCreateAdvance(event.target.checked)} />
               {isArabic ? "إنشاء سلفة عند الموافقة" : "Create advance on approval"}
             </label>
@@ -146,7 +146,7 @@ export default function HRRequestsWorkspace() {
               const status = String(request.status || "pending").toLowerCase();
               const canReview = status === "pending";
               return (
-                <article key={request.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                <article key={request.id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                   <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(220px,0.7fr)] xl:items-start">
                     <div className="min-w-0 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
@@ -210,7 +210,7 @@ export default function HRRequestsWorkspace() {
             })}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--muted)]">
+          <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--muted)]">
             {portalRequestsLoading
               ? (isArabic ? "جاري تحميل الطلبات..." : "Loading requests...")
               : (isArabic ? "لا توجد طلبات في هذا القسم." : "No requests in this section.")}

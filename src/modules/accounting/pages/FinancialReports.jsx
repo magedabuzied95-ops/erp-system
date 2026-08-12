@@ -150,7 +150,7 @@ function FinancialReports() {
         subtitle={shellSubtitle}
         actions={
           <>
-            <div className="flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+            <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
               {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CalendarRange className="h-4 w-4" />}
               {isArabic ? "تحديث مباشر حسب الفلاتر" : "Live from current filters"}
             </div>
@@ -197,7 +197,7 @@ function FinancialReports() {
           { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
         ]}
       >
-        <section className="theme-card rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)]">
+        <section className="theme-card rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)]">
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-[1fr_1fr_1fr_auto]">
             <FilterField
               label={isArabic ? "من تاريخ" : "From date"}
@@ -233,7 +233,7 @@ function FinancialReports() {
           </div>
         </section>
 
-        <section className="grid gap-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl shadow-[var(--shadow)] md:grid-cols-2 xl:grid-cols-7">
+        <section className="grid gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl shadow-[var(--shadow)] md:grid-cols-2 xl:grid-cols-7">
           {REPORT_TABS.map((tab) => {
             const Icon = tab.icon;
             const [title] = txtForTab(tab.key, isArabic);
@@ -257,7 +257,7 @@ function FinancialReports() {
           })}
         </section>
 
-        <section className="theme-card rounded-3xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-xl shadow-[var(--shadow)]">
+        <section className="theme-card rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-xl shadow-[var(--shadow)]">
           <div className="flex flex-col gap-2 border-b border-[var(--border)] pb-4">
             <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--primary)]/70">
               {isArabic ? "التبويب الحالي" : "Current report"}
@@ -649,7 +649,7 @@ function LoadingBlock({ rows = 1 }) {
   return (
     <div className="space-y-4">
       {Array.from({ length: rows }).map((_, index) => (
-        <div key={index} className="h-40 animate-pulse rounded-3xl border border-[var(--border)] bg-[var(--surface)]" />
+        <div key={index} className="h-40 animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]" />
       ))}
     </div>
   );
@@ -674,7 +674,7 @@ function NotesList({ notes = [], isArabic }) {
 
 function MiniTableCard({ title, rows, columns, isArabic }) {
   return (
-    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
       <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
       <div className="mt-4">
         <SimpleTable rows={rows} columns={columns} isArabic={isArabic} compact />
@@ -685,7 +685,7 @@ function MiniTableCard({ title, rows, columns, isArabic }) {
 
 function DataTable({ title, rows, columns, isArabic }) {
   return (
-    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
       <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
       <div className="mt-4">
         <SimpleTable rows={rows} columns={columns} isArabic={isArabic} />
@@ -698,7 +698,7 @@ function SimpleTable({ rows = [], columns = [], isArabic, compact = false }) {
   const normalizedRows = Array.isArray(rows) ? rows : [];
   if (!normalizedRows.length) {
     return (
-      <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+      <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-sm text-[var(--muted)]">
         {isArabic ? "لا توجد بيانات للفلاتر الحالية." : "No data for the current filters."}
       </div>
     );

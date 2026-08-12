@@ -182,7 +182,7 @@ function PaymentMethodMappings() {
             <h3 className="m1-section-title text-white">{t("accounting.paymentMappings.mappingsTitle")}</h3>
             <p className="mt-1 text-sm text-zinc-500">{t("accounting.paymentMappings.mappingsSubtitle")}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-zinc-200">{t("accounting.paymentMappings.rulesCount", { count: mappings.length })}</div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-zinc-200">{t("accounting.paymentMappings.rulesCount", { count: mappings.length })}</div>
         </div>
         <div className="m1-table-container overflow-x-auto">
           <table className="m1-table m1-table--compact min-w-[920px] w-full text-left text-sm">
@@ -246,11 +246,11 @@ function PaymentMethodMappings() {
               </select>
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-zinc-200">
+              <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-zinc-200">
                 <input type="checkbox" checked={!form.branch_id && form.is_default} disabled={Boolean(form.branch_id)} onChange={(event) => setForm((current) => ({ ...current, is_default: event.target.checked }))} />
                 {t("accounting.paymentMappings.labels.tenantDefault")}
               </label>
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-zinc-200">
+              <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-zinc-200">
                 <input type="checkbox" checked={form.is_active} onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))} />
                 {t("accounting.common.labels.active")}
               </label>

@@ -958,7 +958,7 @@ function OrderDetails() {
       actions={
         <Link
           to="/orders"
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-10 items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
         >
           <ArrowLeft className="h-4 w-4" />
           {t("common.back")}
@@ -1092,7 +1092,7 @@ function OrderDetails() {
                 {order.landmark ? <Info label={t("orders.details.landmark")} value={order.landmark} /> : null}
                 {order.delivery_notes ? <Info label={t("orders.details.deliveryNotes")} value={order.delivery_notes} /> : null}
               </div>
-              <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.drawer.address")}</div>
                 <div className="mt-2 whitespace-pre-wrap break-words text-base font-semibold leading-7 text-white" dir="auto">
                   {order.customer_address || t("orders.fallback.notAvailable")}
@@ -1140,7 +1140,7 @@ function OrderDetails() {
             <h3 className="m1-section-title text-white">{t("orders.drawer.items")}</h3>
             <div className="mt-4 space-y-3">
               {previewItems.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
                   {t("orders.details.noLineItems")}
                 </div>
               ) : (
@@ -1158,10 +1158,10 @@ function OrderDetails() {
                     });
                   }
                   return (
-                    <div key={String(item.id || index)} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div key={String(item.id || index)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex min-w-0 gap-3">
-                          <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                          <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5">
                             <img
                               src={imageUrl}
                               alt={item.product_name || item.name || t("orders.fallback.item")}
@@ -1372,7 +1372,7 @@ function OrderDetails() {
                 <span>{paymentSummaryStatus}</span>
               </div>
             </div>
-            <div className="mt-4 inline-flex rounded-xl border border-white/10 bg-white/5 p-1 text-xs font-semibold text-zinc-300">
+            <div className="mt-4 inline-flex rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-1 text-xs font-semibold text-zinc-300">
               <button
                 type="button"
                 onClick={() => setPdfFormat("a4")}
@@ -1388,7 +1388,7 @@ function OrderDetails() {
                 {t("orders.details.thermalPdf")}
               </button>
             </div>
-            <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-white/[0.035]">
+            <div className="mt-4 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035]">
               <FinancialRow label={t("orders.details.subtotal")} value={formatCurrency(financials.subtotal)} />
               <FinancialRow label={t("orders.details.discount")} value={formatCurrency(financials.discount)} />
               {requiresShipping ? <FinancialRow label={t("orders.drawer.shipping")} value={formatCurrency(financials.shipping)} badge={financials.shippingPaidSeparately ? t("orders.statusLabels.paid") : ""} /> : null}
@@ -1465,7 +1465,7 @@ function OrderDetails() {
               ) : null}
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
+            <div className="mt-4 flex flex-wrap gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-1">
               {[
                 ["shipment", t("orders.shipping.shipment")],
                 ["courier", t("orders.shipping.courier")],
@@ -1728,7 +1728,7 @@ function OrderDetails() {
                 </button>
               ) : null}
               {hasCreatedShipment && !shipmentDelivered ? (
-                <details className="rounded-xl border border-white/10 bg-white/[0.03]">
+                <details className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
                   <summary className="cursor-pointer list-none px-4 py-3 text-center text-xs font-semibold text-zinc-400">إجراءات إضافية</summary>
                   <div className="grid gap-2 border-t border-white/10 p-3 sm:grid-cols-2">
                     <button type="button" onClick={() => handleShipmentAction("retry")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">{t("orders.shipping.retryShipment", "إعادة المحاولة")}</button>
@@ -1742,7 +1742,7 @@ function OrderDetails() {
               <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">{t("orders.shipping.timeline", "Shipment timeline")}</summary>
               <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">
                 {(Array.isArray(order.shipment_timeline) && order.shipment_timeline.length ? order.shipment_timeline : [{ status: shipping.shipment_status || shipping.shipping_status || "pending", action: "current", at: order.updated_at || order.created_at }]).slice().reverse().map((event, index) => (
-                  <div key={`${event.status || "shipment"}-${event.at || index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                  <div key={`${event.status || "shipment"}-${event.at || index}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] px-3 py-2">
                     <div>
                       <StatusBadge value={event.status || "pending"} />
                       <div className="mt-0.5 text-xs text-zinc-500">{event.action || "shipment"} · {event.provider || shipping.provider || "in_store_delivery"}</div>
@@ -1789,7 +1789,7 @@ function OrderDetails() {
           </div>
           <div className="max-h-[64vh] space-y-2 overflow-auto pr-1">
             {timeline.map((event, index) => (
-              <div key={`${event.label}-${index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div key={`${event.label}-${index}`} className="flex gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
                 <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
                 <div className="min-w-0">
                   <div className="font-semibold text-white">{event.label}</div>
@@ -1838,7 +1838,7 @@ function Info({ label, value, badge = "" }) {
     ? "border-amber-400/25 bg-amber-400/10 text-amber-200"
     : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
         {badge ? <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${badgeClassName}`}>{badge}</span> : null}

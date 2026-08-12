@@ -321,11 +321,11 @@ function JournalEntries() {
             </div>
             <div className="flex flex-wrap gap-2">
               <FilterChip value={referenceType} onChange={setReferenceType} options={movementTypes()} />
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
+              <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.from")}</span>
                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-sm outline-none" />
               </label>
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
+              <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.to")}</span>
                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent text-sm outline-none" />
               </label>
@@ -345,7 +345,7 @@ function JournalEntries() {
             </div>
           </div>
 
-          <label className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
+          <label className="mt-4 flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
             <Search className="h-4 w-4 text-zinc-500" />
             <input
               value={search}
@@ -555,7 +555,7 @@ function JournalEntries() {
           ) : null}
 
           {previewResult.items.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد نتائج معاينة حتى الآن.</div>
+            <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد نتائج معاينة حتى الآن.</div>
           ) : (
             <div className="m1-table-container mt-5 overflow-x-auto">
               <table className="m1-table m1-table--compact min-w-[1120px] w-full text-right text-sm" dir="rtl">
@@ -621,7 +621,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
         </div>
 
         {loading ? (
-          <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{t("accounting.journal.states.loadingDetail")}</div>
+          <div className="mt-6 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{t("accounting.journal.states.loadingDetail")}</div>
         ) : (
           <>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -630,7 +630,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
               <DetailStat label={t("accounting.common.labels.reference")} value={`${translateReferenceType(entry.reference_type || "manual")} #${entry.reference_id || "-"}`} tone="cyan" />
             </div>
 
-            <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
               <div className="grid gap-2 text-sm text-zinc-400 sm:grid-cols-2">
                 <div>
                   <span className="text-zinc-500">{t("accounting.common.labels.createdAt")}:</span> {formatDateTime(entry.created_at)}
@@ -695,7 +695,7 @@ function Field({ label, children, className = "" }) {
 
 function FilterChip({ value, onChange, options }) {
   return (
-    <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
+    <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
       <Filter className="h-4 w-4 text-zinc-500" />
       <select value={value} onChange={(e) => onChange(e.target.value)} className="bg-transparent text-sm outline-none">
         {options.map((option) => (

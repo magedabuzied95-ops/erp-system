@@ -254,12 +254,12 @@ function CashRegisters() {
               <Info label={t("accounting.cashDrawer.labels.events")} value={currentShift.event_count || events.length} />
             </div>
           ) : (
-            <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+            <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
               {t("accounting.cashDrawer.empty.noOpenShift")}
             </div>
           )}
 
-          <form onSubmit={submitMovement} className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <form onSubmit={submitMovement} className="mt-6 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
             <h4 className="font-black text-white">{t("accounting.cashDrawer.manualMovement")}</h4>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field label={t("accounting.common.labels.type")}>
@@ -288,7 +288,7 @@ function CashRegisters() {
           </div>
           <div className="mt-4 max-h-[460px] space-y-3 overflow-auto pr-1">
             {events.length ? events.map((event) => (
-              <div key={event.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div key={event.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-black text-white">{translateEventType(event.event_type)}</div>
@@ -301,7 +301,7 @@ function CashRegisters() {
                 </div>
               </div>
             )) : (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{t("accounting.cashDrawer.empty.noEvents")}</div>
+              <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{t("accounting.cashDrawer.empty.noEvents")}</div>
             )}
           </div>
         </div>
@@ -393,7 +393,7 @@ function CashRegisters() {
       {closeModal ? (
         <Modal title={t("accounting.cashDrawer.modals.closeTitle")} onClose={() => setCloseModal(false)}>
           <form onSubmit={closeShift} className="space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
               <Info label={t("accounting.cashDrawer.metrics.expectedCash")} value={formatCurrency(currentShift?.expected_cash || 0)} strong />
               <Info label={t("accounting.cashDrawer.labels.differencePreview")} value={formatCurrency(closeDifference)} strong />
             </div>

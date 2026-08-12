@@ -77,7 +77,7 @@ function Revenues() {
       title={t("accounting.revenues.title")}
       subtitle={t("accounting.revenues.subtitle")}
       actions={
-        <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+        <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <ReceiptText className="h-4 w-4" />
           {t("accounting.tabs.reports")}
         </Link>
@@ -132,7 +132,7 @@ function Revenues() {
                 <Empty label={t("accounting.revenues.empty.noEntries")} />
               ) : (
                 incomeEntries.map((entry) => (
-                  <div key={entry.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div key={entry.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-semibold text-white">{entry.title}</div>
@@ -181,7 +181,7 @@ function Select({ label, value, onChange, options }) {
 
 function Row({ label, value }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-sm font-semibold text-white">{label}</div>
       <div className="text-sm font-black text-white">{value}</div>
     </div>
@@ -189,7 +189,7 @@ function Row({ label, value }) {
 }
 
 function Empty({ label }) {
-  return <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
 }
 
 export default Revenues;

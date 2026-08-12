@@ -612,14 +612,14 @@ function StockAdjustments() {
         <div className="flex flex-wrap gap-2">
           <Link
             to="/inventory/history"
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <Clock3 className="mr-2 inline h-4 w-4" />
             السجل الكامل
           </Link>
           <Link
             to="/inventory/movements"
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <History className="mr-2 inline h-4 w-4" />
             الحركات
@@ -650,7 +650,7 @@ function StockAdjustments() {
       ) : null}
 
       {warehouseError ? (
-        <div className="mb-4 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
+        <div className="mb-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
           {warehouseError}
         </div>
       ) : null}
@@ -730,7 +730,7 @@ function StockAdjustments() {
               </div>
             ) : filteredVariants.length === 0 ? (
               <div className="p-8 text-center text-zinc-400">
-                <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">
                   اكتب كلمة بحث واحدة على الأقل للوصول إلى اختيار المنتج، أو امسح الباركود للانتقال مباشرة إلى نتيجة مطابقة.
                 </div>
               </div>
@@ -781,7 +781,7 @@ function StockAdjustments() {
             </div>
 
             {!selectedVariant ? (
-              <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+              <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
                 اختر اختيارًا من نتائج البحث لمراجعة الرصيد الحالي وإكمال التسوية.
               </div>
             ) : (
@@ -908,7 +908,7 @@ function StockAdjustments() {
                 />
               </label>
 
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <DetailCard label="الرصيد قبل" value={asNumber(currentStock, 0).toLocaleString()} />
                   <DetailCard label="التغيير" value={`${signedDelta >= 0 ? "+" : ""}${signedDelta.toLocaleString()}`} tone={signedDelta >= 0 ? "emerald" : "rose"} />
@@ -946,7 +946,7 @@ function StockAdjustments() {
 
             <div className="space-y-3 p-4">
               {recentAdjustments.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
                   لم تُسجَّل أي تسويات بعد.
                 </div>
               ) : (
@@ -954,7 +954,7 @@ function StockAdjustments() {
                   const delta = asNumber(adjustment.quantity_change, 0);
                   const isIncrease = delta >= 0;
                   return (
-                    <div key={String(adjustment.id)} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                    <div key={String(adjustment.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                       <div className="flex items-start gap-3">
                         <ProductThumb imageUrl={adjustment.image_url} productName={adjustment.product_name} compact />
                         <div className="min-w-0 flex-1">
@@ -1093,7 +1093,7 @@ function InfoPill({ label, value }) {
 function ProductThumb({ imageUrl, productName, large = false, compact = false }) {
   const sizeClass = large ? "h-24 w-24" : compact ? "h-14 w-14" : "h-20 w-20";
   return (
-    <div className={`flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5`}>
+    <div className={`flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5`}>
       {imageUrl ? (
         <img src={imageUrl} alt={productName || "Product"} className="h-full w-full object-cover" loading="lazy" />
       ) : (
@@ -1121,7 +1121,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
             </button>
           </div>
           <div className="space-y-4 p-5">
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
               سيتم استخدام الكاميرا عند توفرها. إذا كان الجهاز لا يدعم المسح، أدخل رمز الصنف أو الباركود في مربع البحث بدلًا من ذلك.
             </div>
             <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black">
@@ -1201,7 +1201,7 @@ function ConfirmationModal({
                 <DetailCard label="الرصيد المستهدف" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm text-zinc-400">نوع التسوية</div>
                   <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white">
@@ -1307,14 +1307,14 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
 
         <div className="space-y-4 overflow-y-auto p-5">
           {loading ? (
-            <div className="flex items-center justify-center rounded-3xl border border-white/10 bg-white/5 py-16 text-zinc-400">
+            <div className="flex items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 py-16 text-zinc-400">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
               جارٍ تحميل سجل المنتج...
             </div>
           ) : error ? (
             <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
           ) : movements.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">
               لا توجد حركات مخزون لهذا الاختيار.
             </div>
           ) : (
@@ -1323,7 +1323,7 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
               const before = asNumber(movement.quantity_before ?? 0, 0);
               const after = asNumber(movement.quantity_after ?? 0, 0);
               return (
-                <div key={String(movement.id)} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div key={String(movement.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold text-white">{movement.movement_type || "تسوية"}</div>

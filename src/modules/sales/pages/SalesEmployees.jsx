@@ -1246,7 +1246,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             options={branchOptions.length ? branchOptions : [{ value: "", label: t("sales.noBranches", "لا توجد فروع متاحة") }]}
             isRtl={isRtl}
           />
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
             {selectedBranchName ? (
             <span>{t("sales.branchContext", "عرض إعدادات الموظفين والتقارير والرواتب للفرع {{branch}}.", { branch: selectedBranchName })}</span>
             ) : (
@@ -1257,7 +1257,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       </section>
 
       {tabs.length > 1 ? (
-        <div className="mb-4 flex overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-1" dir={direction}>
+        <div className="mb-4 flex overflow-x-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-1" dir={direction}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -1285,11 +1285,11 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               <button onClick={saveSettings} className="theme-button-soft h-[42px] px-4 text-sm">{t("sales.staff.saveSettings", "Save settings")}</button>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-bold">
+              <label className="flex items-center justify-between rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-bold">
                 {t("sales.staff.allowWithoutSalesperson", "Allow sale without salesperson")}
                 <input type="checkbox" checked={settings.allow_sale_without_salesperson} onChange={(e) => setSettings((prev) => ({ ...prev, allow_sale_without_salesperson: e.target.checked }))} />
               </label>
-              <label className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+              <label className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                 <span className={mutedLabelClass}>{t("sales.staff.legacyFixedDefault", "Legacy fixed commission default")}</span>
                 <select value={settings.fixed_commission_mode} onChange={(e) => setSettings((prev) => ({ ...prev, fixed_commission_mode: e.target.value }))} className="mt-2 w-full bg-transparent font-bold outline-none">
                   <option value="fixed_per_item">{t("sales.staff.fixedPerItem", "Fixed amount per item")}</option>
@@ -1308,7 +1308,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               <div className="text-xs font-bold text-[var(--muted)]">{t("sales.staff.employeesCount", "{{count}} employees", { count: employees.length })}</div>
             </div>
             {employees.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
+              <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
                 {t("sales.staff.empty", "لا يوجد موظفون لهذا الفرع.")}
               </div>
             ) : (
@@ -1348,7 +1348,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             </div>
             <button type="button" disabled className="theme-button-soft h-[42px] px-4 text-sm opacity-60">{t("sales.reports.exportCsv", "Export CSV")}</button>
           </div>
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 p-3">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]/70 p-3">
             <div className="mb-2.5 flex flex-wrap gap-1.5">
               {[
                 ["current", t("sales.reports.currentMonth", "Current month")],
@@ -1483,7 +1483,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 isRtl={isRtl}
               />
               {!loading && penaltyEmployeeOptions.length === 0 ? (
-                <div className="md:col-span-2 xl:col-span-4 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-bold text-[var(--muted)]">
+                <div className="md:col-span-2 xl:col-span-4 rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-bold text-[var(--muted)]">
                   {t("sales.penalties.noEmployeesInBranch", "لا يوجد موظفون في هذا الفرع")}
                 </div>
               ) : null}
@@ -1506,7 +1506,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               <PayrollField type="date" label={t("sales.penalties.payrollPeriodEnd", "Payroll period end")} value={penaltyForm.payroll_period_end} onChange={(value) => updatePenaltyForm("payroll_period_end", value)} isRtl={isRtl} />
             </div>
 
-            <label className="mt-3 flex min-h-11 items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-bold">
+            <label className="mt-3 flex min-h-11 items-center justify-between rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-bold">
               <span>{t("sales.penalties.deductFromPayroll", "Deduct from payroll")}</span>
               <input type="checkbox" checked={penaltyForm.deduct_from_payroll} onChange={(event) => updatePenaltyForm("deduct_from_payroll", event.target.checked)} />
             </label>
@@ -1518,11 +1518,11 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.penalties.listSubtitle", "تُدرج العقوبات المعتمدة القابلة للخصم من الراتب ضمن معاينة الرواتب للفترات المتداخلة.")}</p>
             </div>
             {penaltiesLoading ? (
-              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
+              <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
                 {t("sales.penalties.loading", "Loading penalties...")}
               </div>
             ) : penalties.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
+              <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
                 {t("sales.penalties.empty", "No penalties found for this employee.")}
               </div>
             ) : (
@@ -1588,16 +1588,16 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 isRtl={isRtl}
               />
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                   <span className={mutedLabelClass}>{t("sales.drawer.branch", "الفرع")}</span>
                   <div className="mt-2 font-black">{selectedBranchName || t("sales.reports.noBranchSelected", "لم يتم اختيار فرع")}</div>
                 </div>
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                   <span className={mutedLabelClass}>{t("sales.drawer.employeeCode", "Employee code")}</span>
                   <div className="mt-2 font-bold">{form.code || "-"}</div>
                 </div>
                 <Field label={t("sales.drawer.posAlias", "POS alias")} value={form.pos_alias || ""} maxLength={10} placeholder="OM" onChange={(value) => setForm((prev) => ({ ...prev, pos_alias: value.slice(0, 10) }))} isRtl={isRtl} />
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                   <span className={mutedLabelClass}>{t("sales.drawer.aliasPreview", "Alias preview")}</span>
                   <div className="mt-2 inline-flex min-h-9 min-w-14 items-center justify-center rounded-2xl border border-[var(--primary)]/30 bg-[var(--primary-soft)] px-3 text-sm font-black text-[var(--primary)]" dir="auto">
                     {form.pos_alias?.trim() || form.name || "OM"}
@@ -1606,7 +1606,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                <label className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                   <span className={mutedLabelClass}>{t("sales.drawer.commissionMode", "Commission mode")}</span>
                   <select
                     value={form.commission_mode || normalizeCommissionMode(form)}
@@ -1622,12 +1622,12 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 <Field type="number" label={commissionValueLabel(form.commission_mode || normalizeCommissionMode(form), t)} value={form.commission_value} onChange={(value) => setForm((prev) => ({ ...prev, commission_value: value }))} isRtl={isRtl} />
               </div>
 
-              <label className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-bold">
+              <label className="flex items-center justify-between rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-bold">
                 {t("sales.drawer.activeForPos", "Active for POS sales")}
                 <input type="checkbox" checked={Boolean(form.active_for_pos || form.is_sales_active)} onChange={(e) => setForm((prev) => ({ ...prev, active_for_pos: e.target.checked, is_sales_active: e.target.checked }))} />
               </label>
 
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+              <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                 <div className={mutedLabelClass}>{t("sales.drawer.productsWithoutCommission", "Products without commission")}</div>
                 <div className="mt-3 flex items-center gap-2 rounded-xl border border-[var(--border)] bg-black/10 px-3 py-2">
                   <Search className="h-4 w-4 text-[var(--muted)]" />
@@ -1651,7 +1651,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+              <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                 <div className={mutedLabelClass}>{t("sales.drawer.categoriesWithoutCommission", "Categories without commission")}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {categories.map((category) => {
@@ -1696,7 +1696,7 @@ function labelClass(isRtl, size = "text-xs") {
 
 function Field({ label, value, onChange, type = "text", maxLength, placeholder = "", isRtl = false }) {
   return (
-    <label className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+    <label className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
       <span className={labelClass(isRtl)}>{label}</span>
       <input dir={isRtl ? "rtl" : "ltr"} type={type} value={value} maxLength={maxLength} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full bg-transparent text-start font-bold outline-none placeholder:text-[var(--muted)]" />
     </label>
@@ -1705,7 +1705,7 @@ function Field({ label, value, onChange, type = "text", maxLength, placeholder =
 
 function Select({ label, value, onChange, options = [], isRtl = false }) {
   return (
-    <label className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+    <label className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
       <span className={labelClass(isRtl)}>{label}</span>
       <select dir={isRtl ? "rtl" : "ltr"} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full bg-transparent text-start font-bold outline-none">
         {options.map((option) => (
@@ -1771,7 +1771,7 @@ function PayrollSelect({ label, value, onChange, options = [], isRtl = false }) 
 
 function Metric({ label, value, emphasis = false, isRtl = false }) {
   return (
-    <div className={`flex h-full min-h-[92px] flex-col justify-between rounded-xl border p-4 ${emphasis ? "border-[var(--primary)]/35 bg-[var(--primary-soft)]/30" : "border-[var(--border)] bg-[var(--surface)]/80"}`}>
+    <div className={`flex h-full min-h-[92px] flex-col justify-between rounded-[var(--radius-card)] border p-4 ${emphasis ? "border-[var(--primary)]/35 bg-[var(--primary-soft)]/30" : "border-[var(--border)] bg-[var(--surface)]/80"}`}>
       <div className={labelClass(isRtl, "text-[10px]")}>{label}</div>
       <div dir="ltr" className={`mt-2 inline-flex max-w-full min-w-0 items-baseline whitespace-nowrap text-start font-black leading-7 tabular-nums [unicode-bidi:isolate] ${emphasis ? "text-lg text-[var(--text)]" : "text-base text-[var(--text)]"}`}>{value}</div>
     </div>
@@ -2008,7 +2008,7 @@ function PayrollFinancialSummary({
                 ))}
               </div>
             ) : (
-              <div className="flex min-h-[210px] flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-6 text-center">
+              <div className="flex min-h-[210px] flex-col items-center justify-center rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-6 text-center">
                 <Calculator className="h-10 w-10 text-[var(--primary)]" />
                 <div className="mt-3 text-lg font-black text-[var(--text)]">{t("sales.payroll.noPayrollForEmployee", "لا يوجد راتب محسوب لهذا الموظف.")}</div>
                 <div className="mt-1 text-sm font-bold text-[var(--muted)]">{t("sales.payroll.pickEmployeeHint", "اختر موظف والشهر ثم احسب الراتب.")}</div>
@@ -2042,13 +2042,13 @@ function PayrollFinancialSummary({
         </div>
       </section>
 
-      <details className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-sm">
+      <details className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black leading-7 text-[var(--text)]">
           <span>{t("sales.payroll.moreDetails", "تفاصيل إضافية")}</span>
         </summary>
 
         <div className="mt-2 space-y-2">
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 p-3">
+          <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]/70 p-3">
             <div className="flex items-center justify-between gap-3">
               <h4 className="text-sm font-black text-[var(--text)]">{t("sales.payroll.historyTitle", "سجل الراتب")}</h4>
               <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--muted)]">{historyRows.length}</span>
@@ -2056,7 +2056,7 @@ function PayrollFinancialSummary({
             <div className="mt-2 space-y-2">
               {historyLoading ? <div className="text-xs font-bold text-[var(--muted)]">{t("sales.payroll.loadingHistory", "جاري تحميل السجل...")}</div> : null}
               {historyRows.length ? historyRows.map((row) => (
-                <div key={row.period} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+                <div key={row.period} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm font-black text-[var(--text)]">{row.label}</div>
@@ -2067,34 +2067,34 @@ function PayrollFinancialSummary({
                     </span>
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-2 text-xs font-bold">
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-2">
+                    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]/70 p-2">
                       <div className="text-[10px] text-[var(--muted)]">{t("sales.payroll.baseSalary", "الراتب الأساسي")}</div>
                       <div className="mt-1 tabular-nums" dir="ltr">{formatPayrollMoney(numberValue(row.payroll?.base_salary))}</div>
                     </div>
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-2">
+                    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]/70 p-2">
                       <div className="text-[10px] text-[var(--muted)]">{t("sales.payroll.totalDeductions", "الخصومات")}</div>
                       <div className="mt-1 tabular-nums" dir="ltr">{formatDeductions(numberValue(row.payroll?.deductions))}</div>
                     </div>
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-2">
+                    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]/70 p-2">
                       <div className="text-[10px] text-[var(--muted)]">{t("sales.payroll.netSalary", "صافي الراتب")}</div>
                       <div className="mt-1 tabular-nums font-black" dir="ltr">{formatPayrollMoney(numberValue(row.payroll?.net_pay ?? row.payroll?.final_salary))}</div>
                     </div>
                   </div>
                 </div>
               )) : (
-                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-center text-sm font-semibold text-[var(--muted)]">{t("sales.payroll.noHistory", "لا يوجد سجل رواتب حتى الآن.")}</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-center text-sm font-semibold text-[var(--muted)]">{t("sales.payroll.noHistory", "لا يوجد سجل رواتب حتى الآن.")}</div>
               )}
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 p-3">
+          <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]/70 p-3">
             <div className="flex items-center justify-between gap-3">
               <h4 className="text-sm font-black text-[var(--text)]">{t("sales.payroll.attendanceSnapshot", "تفاصيل الحضور")}</h4>
               <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--muted)]">{attendanceRows.length}</span>
             </div>
             <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {attendanceRows.map((item) => (
-                <div key={item.label} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+                <div key={item.label} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
                   <div className="text-[11px] font-black text-[var(--muted)]">{item.label}</div>
                   <div className="mt-1 text-lg font-black tabular-nums text-[var(--text)]" dir="ltr">{item.value}</div>
                 </div>
@@ -2102,7 +2102,7 @@ function PayrollFinancialSummary({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 p-3">
+          <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]/70 p-3">
             <div className="flex items-center justify-between gap-3">
               <h4 className="text-sm font-black text-[var(--text)]">{t("sales.payroll.linkedAdvances", "السلف المرتبطة")}</h4>
               <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--muted)]">{advanceRows.length}</span>
@@ -2112,7 +2112,7 @@ function PayrollFinancialSummary({
                 const deductionStatus = String(advance.deduction_status || advance.status || "").toLowerCase();
                 const settled = deductionStatus.includes("settled") || deductionStatus.includes("deducted") || deductionStatus.includes("paid");
                 return (
-                  <div key={advance.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+                  <div key={advance.id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-black text-[var(--text)]" dir="auto">{advance.deduction_month || t("sales.payroll.unassignedMonth", "غير محدد")}</div>
@@ -2135,7 +2135,7 @@ function PayrollFinancialSummary({
                   </div>
                 );
               }) : (
-                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-center text-sm font-semibold text-[var(--muted)]">{t("sales.payroll.noAdvancesLinked", "لا توجد سلف مرتبطة بهذه الفترة.")}</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-center text-sm font-semibold text-[var(--muted)]">{t("sales.payroll.noAdvancesLinked", "لا توجد سلف مرتبطة بهذه الفترة.")}</div>
               )}
             </div>
           </section>
@@ -2231,7 +2231,7 @@ function PayrollBreakdownCard({ label, value, tone = "neutral", icon: Icon, deta
 function PayrollAdvancesActivity({ advances, isRtl, t }) {
   if (!advances.length) {
     return (
-      <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--muted)]">
+      <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--muted)]">
         {t("sales.payroll.noAdvances", "No active advances for this payroll period.")}
       </div>
     );

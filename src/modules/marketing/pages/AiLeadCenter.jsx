@@ -531,7 +531,7 @@ export default function AiLeadCenter() {
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center text-sm text-slate-400">Loading AI leads...</div>
             ) : filteredLeads.length === 0 ? (
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-300">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] text-slate-300">
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div className="text-lg font-black text-white">No leads match the current filters.</div>
@@ -643,7 +643,7 @@ export default function AiLeadCenter() {
                     </div>
                     <div className="mt-3 space-y-2">
                       {selectedLead.timeline.map((item) => (
-                        <div key={item.key} className="flex items-start gap-3 rounded-2xl border border-white/5 bg-white/[0.03] px-3 py-2">
+                        <div key={item.key} className="flex items-start gap-3 rounded-[var(--radius-card)] border border-white/5 bg-white/[0.03] px-3 py-2">
                           <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-sm">
                             {item.icon}
                           </div>

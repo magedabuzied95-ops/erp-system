@@ -195,7 +195,7 @@ function Manufacturers() {
             <Field label={t("products.manufacturers.email")} value={form.email} onChange={(value) => handleChange("email", value)} placeholder={t("products.manufacturers.emailPlaceholder")} />
             <Field label={t("products.manufacturers.address")} value={form.address} onChange={(value) => handleChange("address", value)} placeholder={t("products.manufacturers.addressPlaceholder")} />
             <Field label={t("products.manufacturers.country")} value={form.country} onChange={(value) => handleChange("country", value)} placeholder={t("products.manufacturers.countryPlaceholder")} />
-            <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-300">
+            <label className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/8 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-300">
               {t("products.statusLabels.active")}
               <input
                 type="checkbox"

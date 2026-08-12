@@ -40,7 +40,7 @@ export default function InventoryBreakdown({ data, dimension, showValue, quality
       </div>
 
       {unusable ? (
-        <p className="mb-3 flex items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-[11px] leading-4 text-[var(--text-secondary)]">
+        <p className="mb-3 flex items-start gap-1.5 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-[11px] leading-4 text-[var(--text-secondary)]">
           <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" />
           {t("inventory.breakdown.unusableHint")}
         </p>

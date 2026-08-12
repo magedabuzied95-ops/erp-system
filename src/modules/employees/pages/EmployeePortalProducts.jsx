@@ -860,7 +860,7 @@ function EmployeePortalCameraScannerModal({
             </div>
             </div>
           ) : null}
-          <div className="mt-3 rounded-3xl border border-white/10 bg-white/[0.04] p-3">
+          <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">الإدخال اليدوي</div>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
@@ -1806,7 +1806,7 @@ export default function EmployeePortalProducts() {
       <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top bg-zinc-950 px-4 py-6 text-right text-white">
         <div className="mx-auto max-w-xl">
           <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} tone="dark" />
-          <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)]">
+          <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)]">
             <div className="flex items-center gap-2 text-amber-300">
               <Store className="h-5 w-5" />
               <h1 className="m1-page-title">Employee Portal Products</h1>

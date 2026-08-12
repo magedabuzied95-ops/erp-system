@@ -128,7 +128,7 @@ function Units() {
               </thead>
               <tbody>
                 {visibleItems.map((item) => (
-                  <tr key={item.id} className="rounded-3xl border border-white/8 bg-white/5">
+                  <tr key={item.id} className="rounded-[var(--radius-card)] border border-white/8 bg-white/5">
                     <td className="px-4 py-4 font-semibold text-white">{item.name}</td>
                     <td className="px-4 py-4 text-zinc-300">{item.symbol}</td>
                     <td className="px-4 py-4">

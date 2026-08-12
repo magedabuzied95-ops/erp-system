@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 
 const DefaultFallback = ({ message = "Content unavailable" }) => (
-  <div className="flex h-full min-h-20 w-full items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] p-4 text-center text-sm font-semibold text-[var(--muted)]">
+  <div className="flex h-full min-h-20 w-full items-center justify-center rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--card)] p-4 text-center text-sm font-semibold text-[var(--muted)]">
     {message}
   </div>
 );

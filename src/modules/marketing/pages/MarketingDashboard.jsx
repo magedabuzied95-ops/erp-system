@@ -100,7 +100,7 @@ export default function MarketingDashboard() {
           <MarketingMetricCard label={t("marketing.dashboard.metrics.drafts")} value={loading ? "-" : metrics.draft_posts ?? 0} tone="slate" icon={<Pencil className="h-5 w-5" />} />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{t("marketing.dashboard.recent.title")}</h2>

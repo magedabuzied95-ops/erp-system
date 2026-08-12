@@ -56,7 +56,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
 
   if (!role) {
     return (
-      <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
+      <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
         Select a role to edit its permissions.
       </div>
     );
@@ -93,7 +93,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
       <div className="overflow-x-auto">
         <div className="min-w-[980px] space-y-2">
           <div
-            className="grid gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-zinc-500"
+            className="grid gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-zinc-500"
             style={{ gridTemplateColumns: `180px repeat(${headerActions.length}, minmax(110px, 1fr))` }}
           >
             <div>Module</div>
@@ -108,7 +108,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
               className="grid gap-2"
               style={{ gridTemplateColumns: `180px repeat(${headerActions.length}, minmax(110px, 1fr))` }}
             >
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white">
                 {row.label}
               </div>
               {headerActions.map((action) => {
@@ -118,7 +118,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
                   return (
                     <div
                       key={`${row.module}.${action}`}
-                      className="flex items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-600"
+                      className="flex items-center justify-center rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-600"
                     >
                       -
                     </div>

@@ -244,7 +244,7 @@ export default function PortalChatMessageList({
           );
         })
       ) : (
-        <div className="rounded-3xl border border-dashed border-white/15 bg-white/5 px-4 py-8 text-center text-sm font-bold text-slate-300">
+        <div className="rounded-[var(--radius-card)] border border-dashed border-white/15 bg-white/5 px-4 py-8 text-center text-sm font-bold text-slate-300">
           <MessageCircle className="mx-auto h-8 w-8" />
           <div className="mt-2">{labels.empty || "لا توجد رسائل حتى الآن"}</div>
         </div>

@@ -535,7 +535,7 @@ function Branches() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_10%,transparent),transparent_32%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-4 lg:px-6">
-        <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="flex items-center gap-2 text-[var(--primary)]">
@@ -569,7 +569,7 @@ function Branches() {
           <Kpi label={t("branches.stats.gpsMissing")} value={stats.gpsMissing} tone={stats.gpsMissing > 0 ? "amber" : "zinc"} icon={<AlertTriangle className="h-5 w-5" />} />
         </section>
 
-        <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
@@ -580,7 +580,7 @@ function Branches() {
                 className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] py-3 pl-11 pr-4 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               />
             </div>
-            <div className="flex rounded-2xl border border-[var(--border)] bg-[var(--card)] p-1">
+            <div className="flex rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-1">
               {[
                 ["All", t("branches.status.all")],
                 ["Active", t("branches.status.active")],
@@ -613,7 +613,7 @@ function Branches() {
                 <div className="p-10 text-center text-sm font-semibold text-[var(--muted)]">{t("branches.empty.loading")}</div>
               ) : filteredBranches.length === 0 ? (
                 <div className="m-4 rounded-3xl border border-[var(--border)] bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_16%,transparent),transparent_55%),var(--surface)] p-10 text-center shadow-xl shadow-[var(--shadow)]">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--card)] text-[var(--primary)]">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] text-[var(--primary)]">
                     <Building2 className="h-8 w-8" />
                   </div>
                   <h3 className="m1-section-title mt-4 text-[var(--text)]">{t("branches.empty.title")}</h3>
@@ -646,7 +646,7 @@ function Branches() {
 
       {modalOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 backdrop-blur-sm lg:items-center">
-          <div className="w-full max-w-3xl rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-black/50">
+          <div className="w-full max-w-3xl rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-black/50">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">
@@ -743,7 +743,7 @@ function Branches() {
 
       {viewBranch ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-4 backdrop-blur-sm sm:px-4 lg:items-center lg:py-6">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-black/50 sm:p-5">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-black/50 sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">{t("branches.view")}</div>
@@ -783,7 +783,7 @@ function Branches() {
             </div>
 
             {hasBranchGpsCoordinates(viewBranch) ? (
-              <div className="mt-5 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--card)]">
+              <div className="mt-5 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
                 <iframe
                   title="Branch map preview"
                   className="h-44 w-full border-0"
@@ -806,7 +806,7 @@ function Branches() {
                     <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted)]">{t("branches.qr.subtitle")}</p>
                   </div>
                   {qrInfo?.company_logo_url ? (
-                    <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white p-2">
+                    <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-white p-2">
                       <SafeImage
                         src={qrInfo?.company_logo_url}
                         alt={qrInfo?.company_name || "Company logo"}
@@ -881,14 +881,14 @@ function Branches() {
                 <div className="min-w-0 space-y-4">
                   <div className="grid gap-2 sm:grid-cols-3">
                     {[t("branches.qr.steps.scan"), t("branches.qr.steps.identify"), t("branches.qr.steps.action")].map((label, index) => (
-                      <div key={label} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                      <div key={label} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-black text-white">{index + 1}</div>
                         <div className="mt-2 text-sm font-black leading-snug text-[var(--text)]">{label}</div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                  <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
                     <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("branches.qr.shortUrl")}</div>
                     <div className="mt-2 break-all text-sm font-semibold leading-6 text-[var(--text)]">
                       {qrInfo?.shortUrl || qrInfo?.short_public_attendance_url || qrInfo?.shortPublicAttendanceUrl || qrInfo?.publicUrl || t("branches.row.notSet")}
@@ -962,7 +962,7 @@ function Branches() {
 
       {deleteTarget ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 backdrop-blur-sm lg:items-center">
-          <div className="w-full max-w-lg rounded-3xl border border-red-500/20 bg-[var(--surface)] p-5 shadow-2xl shadow-black/50">
+          <div className="w-full max-w-lg rounded-[var(--radius-card)] border border-red-500/20 bg-[var(--surface)] p-5 shadow-2xl shadow-black/50">
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-200">
                 <AlertTriangle className="h-5 w-5" />
@@ -1136,7 +1136,7 @@ function Field({ label, value, onChange, required = false, type = "text", textar
 
 function Detail({ label, value, className = "" }) {
   return (
-    <div className={`rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 ${className}`}>
+    <div className={`rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4 ${className}`}>
       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
       <div className="mt-2 whitespace-pre-wrap text-sm font-semibold text-[var(--text)]">{value}</div>
     </div>

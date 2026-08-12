@@ -73,7 +73,7 @@ function PostMediaPreview({ post, className = "" }) {
   if (!mediaUrl || failed) {
     return (
       <div className={`flex flex-col items-center justify-center gap-2 bg-[#181916] text-center text-slate-500 ${className}`}>
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+        <span className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
           <ImageIcon className="h-6 w-6" />
         </span>
         <span className="px-3 text-xs font-semibold">No post image</span>
@@ -345,7 +345,7 @@ export default function MarketingCampaignAnalyticsPanel({
           <div className="mt-4 space-y-3">
             {timelineItems.length ? (
               timelineItems.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                <div key={item.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
                       {item.dayLabel} · {item.time}
@@ -377,7 +377,7 @@ export default function MarketingCampaignAnalyticsPanel({
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">No activity yet.</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">No activity yet.</div>
             )}
           </div>
         </div>
@@ -397,7 +397,7 @@ export default function MarketingCampaignAnalyticsPanel({
         </div>
 
         {visiblePosts.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">No history yet.</div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">No history yet.</div>
         ) : (
           <>
             <div className="space-y-3 md:hidden">
@@ -421,22 +421,22 @@ export default function MarketingCampaignAnalyticsPanel({
                       </span>
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                         <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Caption Preview</div>
                         <div className="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-100">{post.caption || "No caption yet"}</div>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                         <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Comment Preview</div>
                         <div className="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-100">{String(post.first_comment || "").trim() || "-"}</div>
                         <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${firstCommentStatus.toneClass}`}>
                           {String(post.first_comment || "").trim() && firstCommentStatus.label === "Published ✓" ? "✓ First Comment" : firstCommentStatus.label}
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                         <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Published</div>
                         <div className="mt-2 text-sm font-semibold text-white">{publishedAtLabel}</div>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                         <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Actions</div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <HistoryActionButton onClick={() => setSelectedPost(post)}>
@@ -651,19 +651,19 @@ export default function MarketingCampaignAnalyticsPanel({
             <div className="max-h-[78vh] overflow-y-auto p-4 md:p-6">
               <PostMediaPreview post={selectedPost} className="mb-4 h-72 w-full rounded-3xl md:h-96" />
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
                   <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Platform</div>
                   <div className="mt-2 text-sm font-semibold text-white">{getPrimaryPlatformLabel(selectedPost)}</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
                   <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Status</div>
                   <div className="mt-2 text-sm font-semibold text-white">{String(selectedPost.status || "draft")}</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
                   <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Caption</div>
                   <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white">{selectedPost.caption || "No caption yet"}</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
                   <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">First Comment</div>
                   <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white">{String(selectedPost.first_comment || "").trim() || "-"}</div>
                 </div>

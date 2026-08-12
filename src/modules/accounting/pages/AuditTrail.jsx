@@ -253,7 +253,7 @@ function JsonModal({ payload, onClose }) {
 function State({ icon, title, text }) {
   return (
     <div className="flex items-start gap-3 p-6 text-zinc-300">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-amber-200">{icon}</div>
+      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-amber-200">{icon}</div>
       <div>
         <div className="font-black text-white">{title}</div>
         <div className="mt-1 text-sm text-zinc-400">{text}</div>

@@ -201,7 +201,7 @@ function SkeletonList() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/70">
+        <div key={index} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/70">
           <div className="flex gap-3">
             <div className="h-11 w-11 animate-pulse rounded-2xl bg-slate-200 dark:bg-white/10" />
             <div className="flex-1 space-y-3">
@@ -368,7 +368,7 @@ export default function NotificationBell() {
                   })}
                 </div>
               ) : (
-                <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-white/10 dark:bg-slate-950/60">
+                <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-[var(--radius-card)] border border-dashed border-slate-300 bg-white p-8 text-center dark:border-white/10 dark:bg-slate-950/60">
                   <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
                     <Inbox className="h-8 w-8" />
                   </div>

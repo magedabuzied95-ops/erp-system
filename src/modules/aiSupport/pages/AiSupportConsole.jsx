@@ -213,7 +213,7 @@ function Pill({ children, tone = "slate" }) {
 
 function JsonBlock({ value }) {
   if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
-    return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">لم يُعدّه المسار.</div>;
+    return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">لم يُعدّه المسار.</div>;
   }
   return (
     <pre className="max-h-72 overflow-auto rounded-2xl border border-white/10 bg-slate-950/80 p-4 text-xs leading-5 text-slate-200">
@@ -224,7 +224,7 @@ function JsonBlock({ value }) {
 
 function ProductCard({ product }) {
   return (
-    <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-3">
       <div className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/70">
         {product.image_url ? (
           <img src={product.image_url} alt="" className="h-full w-full object-cover" />
@@ -259,7 +259,7 @@ function HistoryRow({ item }) {
           {item.detected_intent ? <Pill>{item.detected_intent}</Pill> : null}
         </div>
       </div>
-      <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300">{item.ai_answer || "No answer logged."}</p>
+      <p className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300">{item.ai_answer || "No answer logged."}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {asArray(item.sources_used).length ? asArray(item.sources_used).map((source) => <Pill key={source} tone="cyan">{source}</Pill>) : <Pill>no sources</Pill>}
         {item.fallback_reason ? <Pill tone="amber">{item.fallback_reason}</Pill> : null}
@@ -285,13 +285,13 @@ function InsightList({ title, items, labelKey = "label", empty = "No data yet." 
             item.product_id ||
             "-";
           return (
-            <div key={`${title}-${label}-${index}`} className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+            <div key={`${title}-${label}-${index}`} className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] px-3 py-2">
               <span className="min-w-0 truncate text-sm font-bold text-slate-100">{label}</span>
               <span className="shrink-0 rounded-full bg-white/10 px-2 py-1 text-xs font-black text-primary">{item.count ?? item.usage_count ?? 0}</span>
             </div>
           );
         }) : (
-          <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-slate-500">{empty}</div>
+          <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-slate-500">{empty}</div>
         )}
       </div>
     </div>
@@ -536,7 +536,7 @@ export default function AiSupportConsole() {
       <div className="relative isolate">
         <div className="absolute inset-x-0 top-0 -z-10 h-80 bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(16,185,129,0.16),transparent_28%)]" />
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-          <section className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-2xl shadow-black/30 backdrop-blur-2xl">
+          <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5 shadow-2xl shadow-black/30 backdrop-blur-2xl">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-amber-100">
@@ -584,7 +584,7 @@ export default function AiSupportConsole() {
 
           <section className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
             <div className="space-y-6">
-              <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <MessageSquareText className="h-4 w-4" />
                   سؤال يشبه سؤال العميل
@@ -611,7 +611,7 @@ export default function AiSupportConsole() {
                 </button>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <Sparkles className="h-4 w-4" />
                   Quick tests
@@ -639,7 +639,7 @@ export default function AiSupportConsole() {
                 </div>
               ) : null}
 
-              <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                     <Bot className="h-4 w-4" />
@@ -659,13 +659,13 @@ export default function AiSupportConsole() {
                     </div>
                     <ConfidenceBar value={response.confidence} />
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
                         <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Sources used</div>
                         <div className="flex flex-wrap gap-2">
                           {sourcesUsed.length ? sourcesUsed.map((source) => <Pill key={source} tone="cyan">{source}</Pill>) : <Pill>none</Pill>}
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
                         <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Suggested actions</div>
                         <div className="flex flex-wrap gap-2">
                           {suggestedActions.length ? suggestedActions.map((action) => <Pill key={action} tone="emerald">{action}</Pill>) : <Pill>none</Pill>}
@@ -674,7 +674,7 @@ export default function AiSupportConsole() {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
                     <Bot className="mx-auto h-10 w-10 text-slate-500" />
                     <div className="mt-3 text-sm font-black text-white">No test run yet</div>
                     <p className="mt-1 text-sm text-slate-500">Run a quick test or type a custom question.</p>
@@ -682,7 +682,7 @@ export default function AiSupportConsole() {
                 )}
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <PackageSearch className="h-4 w-4" />
                   Suggested products
@@ -691,26 +691,26 @@ export default function AiSupportConsole() {
                   {suggestedProducts.length ? suggestedProducts.map((product) => (
                     <ProductCard key={`${product.id}-${product.sku}`} product={product} />
                   )) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">No products returned.</div>
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">No products returned.</div>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <AlertTriangle className="h-4 w-4" />
                   Admin debug
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
                     <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">النية المكتشفة</div>
                     <div className="mt-2 text-sm font-black text-white">{debugPayload.detected_intent || "-"}</div>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
                     <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Context sources</div>
                     <div className="mt-2 text-sm font-black text-white">{debugPayload.context_source_count ?? "-"}</div>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
                     <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Fallback reason</div>
                     <div className="mt-2 text-sm font-black text-white">{debugPayload.fallback_reason || "-"}</div>
                   </div>
@@ -739,7 +739,7 @@ export default function AiSupportConsole() {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+          <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
@@ -765,7 +765,7 @@ export default function AiSupportConsole() {
 
             <div className="mt-5 grid gap-3">
               {orderDraftsLoading && !orderDrafts.length ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">Loading AI order drafts...</div>
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">Loading AI order drafts...</div>
               ) : orderDrafts.length ? orderDrafts.map((draft) => {
                 const items = asArray(draft.items);
                 const metadata = draft.ai_agent_metadata || {};
@@ -789,7 +789,7 @@ export default function AiSupportConsole() {
                           <span><b className="text-white">Total:</b> {draft.total_amount || draft.total || firstItem.total_amount || 0}</span>
                           <span><b className="text-white">Conversation:</b> {draft.ai_agent_conversation_id || "n/a"}</span>
                         </div>
-                        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs leading-5 text-slate-400">
+                        <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-3 text-xs leading-5 text-slate-400">
                           {metadata.original_customer_message || metadata.transcript || "No transcript saved."}
                         </div>
                       </div>
@@ -813,12 +813,12 @@ export default function AiSupportConsole() {
                   </div>
                 );
               }) : (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">No AI order drafts yet.</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">No AI order drafts yet.</div>
               )}
             </div>
           </section>
 
-          <section className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+          <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
@@ -861,7 +861,7 @@ export default function AiSupportConsole() {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+          <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
@@ -916,11 +916,11 @@ export default function AiSupportConsole() {
 
             <div className="mt-5 space-y-3">
               {historyLoading && history.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">Loading history...</div>
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">Loading history...</div>
               ) : history.length ? history.map((item) => (
                 <HistoryRow key={item.id} item={item} />
               )) : (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">No AI support test history yet.</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">No AI support test history yet.</div>
               )}
             </div>
           </section>

@@ -21,7 +21,7 @@ function Billing() {
       title="Billing"
       subtitle="Subscription status, expiration date, billing placeholders, and an upgrade flow that works even before the backend billing service exists."
       actions={
-        <Link to="/workspace" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+        <Link to="/workspace" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <CheckCircle2 className="h-4 w-4" />
           Workspace
         </Link>
@@ -64,7 +64,7 @@ function Billing() {
           <h3 className="m1-section-title text-white">Upgrade page</h3>
           <div className="mt-4 space-y-3">
             {PLANS.map((plan) => (
-              <div key={plan.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div key={plan.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold text-white">{plan.name}</div>
@@ -78,7 +78,7 @@ function Billing() {
               </div>
             ))}
           </div>
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">
+          <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">
             Billing gateway placeholder. Connect your processor here when the backend is available.
           </div>
           <button type="button" className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
@@ -93,7 +93,7 @@ function Billing() {
 
 function Metric({ label, value, icon }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>

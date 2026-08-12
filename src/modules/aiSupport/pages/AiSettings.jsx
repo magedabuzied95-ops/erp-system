@@ -35,7 +35,7 @@ const mergeSettings = (value = {}) => ({
 
 function Section({ icon: Icon, title, subtitle, children }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
+    <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
       <div className="mb-4 flex items-start gap-3">
         <div className="rounded-xl border border-primary/15 bg-primary/10 p-2 text-primary"><Icon className="h-5 w-5" /></div>
         <div>
@@ -165,7 +165,7 @@ export default function AiSettings() {
   return (
     <div dir="ltr" className="min-h-full bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.13),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.055] p-5">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />AI Brain</div>

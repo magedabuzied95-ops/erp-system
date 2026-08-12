@@ -19,7 +19,7 @@ function AnalyticsKpiCard({ label, value, delta, trend = "up", icon: Icon }) {
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">{label}</p>
           <div className="mt-3 text-3xl font-black tracking-tight text-[var(--text)]">{formatValue(value)}</div>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--primary)]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] text-[var(--primary)]">
           {Icon ? <Icon className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
         </div>
       </div>

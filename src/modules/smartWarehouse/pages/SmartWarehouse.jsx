@@ -289,7 +289,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
   const variants = productData?.variants || [];
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
         <div className="grid gap-3">
           <Select label="Branch" value={form.branch_id} onChange={(value) => setForm((current) => ({ ...current, branch_id: value }))} rows={branches} />
           <Select label="Warehouse" value={form.warehouse_id} onChange={(value) => setForm((current) => ({ ...current, warehouse_id: value }))} rows={warehouses} />
@@ -311,7 +311,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
           />
         </div>
         {selectedSection ? (
-          <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <div className="mt-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             <div className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Active section</div>
             <div className="mt-1 text-xl font-black text-[var(--text)]">{selectedSection.code}</div>
             <div className="mt-2 h-2 rounded-full" style={{ background: selectedSection.color || "#2563eb" }} />
@@ -319,7 +319,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
         ) : null}
       </div>
 
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
         {!productData ? (
           <EmptyState icon={QrCode} title="Scan a master model QR" text="The model QR opens the product, all colors, all sizes, warehouse locations, and a fast counting grid." />
         ) : (
@@ -345,7 +345,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
 
             <div className="mt-4 overflow-x-auto">
               <div className="min-w-[720px] space-y-2">
-                <div className="grid grid-cols-[1fr_1fr_120px_170px_120px] rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                <div className="grid grid-cols-[1fr_1fr_120px_170px_120px] rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
                   <div>Color</div>
                   <div>Size</div>
                   <div>Expected</div>
@@ -357,13 +357,13 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
                   const actual = Number(actuals[variant.id] || 0);
                   const diff = actual - expected;
                   return (
-                    <div key={variant.id} className="grid grid-cols-[1fr_1fr_120px_170px_120px] items-center rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3">
+                    <div key={variant.id} className="grid grid-cols-[1fr_1fr_120px_170px_120px] items-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-4 py-3">
                       <div className="font-semibold text-[var(--text)]">{variant.color || "Default"}</div>
                       <div className="font-semibold text-[var(--text)]">{variant.size || "One Size"}</div>
                       <div>{expected}</div>
                       <div className="flex items-center gap-2">
                         <IconButton label="Decrease" onClick={() => changeActual(variant.id, -1)} icon={Minus} />
-                        <div className="flex h-11 w-14 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-lg font-black">{actual}</div>
+                        <div className="flex h-11 w-14 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] text-lg font-black">{actual}</div>
                         <IconButton label="Increase" onClick={() => changeActual(variant.id, 1)} icon={Plus} />
                       </div>
                       <div className={diff === 0 ? "font-black text-emerald-400" : diff > 0 ? "font-black text-primary" : "font-black text-rose-400"}>{diff}</div>
@@ -382,7 +382,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
 function SectionsPanel({ form, setForm, branches, warehouses, sections, draft, setDraft, saveSection }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
         <Select label="Branch" value={form.branch_id} onChange={(value) => setForm((current) => ({ ...current, branch_id: value }))} rows={branches} />
         <div className="mt-3">
           <Select label="Warehouse" value={form.warehouse_id} onChange={(value) => setForm((current) => ({ ...current, warehouse_id: value }))} rows={warehouses} />
@@ -398,7 +398,7 @@ function SectionsPanel({ form, setForm, branches, warehouses, sections, draft, s
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {sections.map((section) => (
-          <div key={section.id} className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div key={section.id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-black text-[var(--text)]">{section.code}</div>
@@ -425,13 +425,13 @@ function SectionsPanel({ form, setForm, branches, warehouses, sections, draft, s
 function MasterQrPanel({ productId, setProductId, generatedQr, generateQr }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
         <TextInput label="Product ID" value={productId} onChange={setProductId} placeholder="Product database id" />
         <button type="button" onClick={generateQr} className="mt-4 w-full rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-3 text-sm font-black text-white">
           Generate Master QR
         </button>
       </div>
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5">
         {!generatedQr ? (
           <EmptyState icon={QrCode} title="No QR generated yet" text="Generate one model-level QR per product and place it on product cards, bins, or warehouse labels." />
         ) : (
@@ -486,7 +486,7 @@ function ReportsPanel({ reports }) {
       <DataList title="Dead Stock" rows={reports.deadStock} render={(row) => <ReportRow row={row} value={row.last_sold_at ? new Date(row.last_sold_at).toLocaleDateString() : "Never sold"} />} />
       <DataList title="Smart Alerts" rows={reports.alerts} render={(row) => <ReportRow row={row} value={row.alert_type} />} />
       <DataList title="Transfer Recommendations" rows={reports.transfers} render={(row) => <ReportRow row={row} value={`${row.source_stock || 0} > ${row.target_stock || 0}`} />} />
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 xl:col-span-2">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 xl:col-span-2">
         <h3 className="m1-section-title text-[var(--text)]">Warehouse Heatmap</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {reports.heatmap.map((section) => (
@@ -513,11 +513,11 @@ function ReportRow({ row, value }) {
 
 function DataList({ title, rows, render }) {
   return (
-    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
       <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
       <div className="mt-4 space-y-3">
         {rows?.length ? rows.map((row, index) => (
-          <div key={row.id || row.variant_id || index} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <div key={row.id || row.variant_id || index} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             {render(row)}
           </div>
         )) : <EmptyState icon={Boxes} title="No records" text="Data will appear here after inventory activity is recorded." compact />}
@@ -583,7 +583,7 @@ function Badge({ children }) {
 
 function EmptyState({ icon: Icon = AlertTriangle, title, text, compact = false }) {
   return (
-    <div className={`rounded-3xl border border-dashed border-[var(--border)] bg-[var(--card)] text-center ${compact ? "p-5" : "p-10"}`}>
+    <div className={`rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--card)] text-center ${compact ? "p-5" : "p-10"}`}>
       <Icon className="mx-auto h-10 w-10 text-[var(--muted)]" />
       <h3 className="m1-section-title mt-3 text-[var(--text)]">{title}</h3>
       <p className="mt-2 text-sm text-[var(--muted)]">{text}</p>
@@ -595,7 +595,7 @@ function Skeleton() {
   return (
     <div className="grid gap-3 md:grid-cols-3">
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="h-24 animate-pulse rounded-3xl border border-[var(--border)] bg-[var(--surface)]" />
+        <div key={index} className="h-24 animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]" />
       ))}
     </div>
   );

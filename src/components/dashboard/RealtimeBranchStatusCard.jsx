@@ -15,7 +15,7 @@ export const RealtimeBranchStatusCard = memo(function RealtimeBranchStatusCard({
             <span className="truncate text-xs font-black text-white">{branch.branch || branch.name}</span>
             <span className="text-xs font-black text-emerald-100">{Number(branch.sales || 0).toLocaleString()} · {Number(branch.orders || 0)} {isArabic ? "طلب" : "orders"}</span>
           </div>
-        )) : <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{isArabic ? "وضع الفرع الواحد مفعل أو لا يوجد نشاط فروع بعد." : "Single branch mode or no branch activity yet."}</div>}
+        )) : <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{isArabic ? "وضع الفرع الواحد مفعل أو لا يوجد نشاط فروع بعد." : "Single branch mode or no branch activity yet."}</div>}
       </div>
     </section>
   );

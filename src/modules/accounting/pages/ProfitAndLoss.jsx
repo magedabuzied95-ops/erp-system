@@ -127,10 +127,10 @@ function ProfitAndLoss() {
           <h3 className="m1-section-title text-white">{t("accounting.reports.cards.expensesByCategory")}</h3>
           <div className="mt-4 space-y-3">
             {expenses.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{t("accounting.profitLoss.empty.noExpenseRows")}</div>
+              <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{t("accounting.profitLoss.empty.noExpenseRows")}</div>
             ) : (
               expenses.map((item) => (
-                <div key={item.category} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div key={item.category} className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                   <div className="font-semibold text-white">{item.category || t("accounting.reports.fallbacks.uncategorized")}</div>
                   <div className="font-black text-white">{formatCurrency(item.amount)}</div>
                 </div>
@@ -147,7 +147,7 @@ function StateBanner({ icon, title, text, action }) {
   return (
     <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 text-white shadow-xl shadow-black/10 md:flex-row md:items-center md:justify-between">
       <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-primary">{icon}</div>
+        <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-primary">{icon}</div>
         <div>
           <div className="font-black">{title}</div>
           <div className="mt-1 text-sm text-zinc-400">{text}</div>

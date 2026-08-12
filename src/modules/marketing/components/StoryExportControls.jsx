@@ -162,7 +162,7 @@ export default function StoryExportControls({ campaign, templateId, currentIndex
         ) : history.length ? (
           <div className="mt-3 space-y-2">
             {history.slice(0, 4).map((item) => (
-              <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
+              <div key={item.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-black text-white">{item.export_type}</span>
                   <span>{t("marketing.story.export.fileCount", { count: item.file_count })}</span>

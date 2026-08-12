@@ -200,7 +200,7 @@ function PurchaseDetails() {
   if (loading) {
     return (
       <FlowShell title={t("purchases.details.title")} subtitle={t("purchases.details.loadingSubtitle")}>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-zinc-300">{t("purchases.details.loading")}</div>
+        <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-zinc-300">{t("purchases.details.loading")}</div>
       </FlowShell>
     );
   }
@@ -242,7 +242,7 @@ function PurchaseDetails() {
       <FlowShell
         title={t("purchases.details.editPurchaseTitle")}
         subtitle={t("purchases.details.purchaseTitle", { invoice: purchase.invoice_number })}
-        actions={<Link to="/purchases" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">{t("purchases.details.back")}</Link>}
+        actions={<Link to="/purchases" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">{t("purchases.details.back")}</Link>}
         tabs={[
           { to: "/purchases", label: t("purchases.tabs.purchases"), end: true },
           { to: "/purchases/create", label: t("purchases.tabs.createPo") },
@@ -280,7 +280,7 @@ function PurchaseDetails() {
     <FlowShell
       title={t("purchases.details.purchaseTitle", { invoice: purchase.invoice_number })}
       subtitle={t("purchases.details.subtitle")}
-      actions={<Link to="/purchases" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">{t("purchases.details.back")}</Link>}
+      actions={<Link to="/purchases" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">{t("purchases.details.back")}</Link>}
       tabs={[
         { to: "/purchases", label: t("purchases.tabs.purchases"), end: true },
         { to: "/purchases/create", label: t("purchases.tabs.createPo") },
@@ -335,7 +335,7 @@ function PurchaseDetails() {
           </div>
           <div className="mt-5 space-y-3">
             {timeline.map((item) => (
-              <div key={`${item.label}-${item.at}`} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+              <div key={`${item.label}-${item.at}`} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
                 <div className="font-black text-white">{item.label}</div>
                 <div className="mt-1 text-xs text-zinc-500">{formatDateTime(item.at)}</div>
                 <div className="mt-1 text-sm text-zinc-300">{item.detail}</div>
@@ -390,7 +390,7 @@ function PurchaseDetails() {
           <h2 className="m1-section-title text-white">{t("purchases.details.attachments")}</h2>
           <div className="mt-3 space-y-2">
             {attachments.length ? attachments.map((file, index) => (
-              <div key={`${file.name}-${index}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-200">
+              <div key={`${file.name}-${index}`} className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm text-zinc-200">
                 <FileText className="h-4 w-4" />
                 {file.name || t("purchases.details.attachmentNumber", { number: index + 1 })}
               </div>
@@ -472,7 +472,7 @@ function SummaryCard({ label, value, tone = "zinc" }) {
 
 function Info({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-xs uppercase tracking-[0.14em] text-zinc-500">{label}</div>
       <div className="mt-2 font-black text-white">{value}</div>
     </div>
@@ -821,7 +821,7 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
             const variants = variantsForItem(item);
             const selectedProduct = productById(item.product_id);
             return (
-            <div key={item.id || item.line_id || index} className="relative rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
+            <div key={item.id || item.line_id || index} className="relative rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] px-2.5 py-2">
               <button type="button" onClick={() => removeLine(index)} title={t("purchases.details.remove")} className="absolute right-2 top-2 inline-flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-rose-400/25 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -1008,7 +1008,7 @@ function AdjustmentModal({ purchase, onClose, onSave }) {
             const selectedProduct = productById(line.product_id);
             const variants = Array.isArray(selectedProduct?.variants) ? selectedProduct.variants : [];
             return (
-              <div key={index} className="grid gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 md:grid-cols-[1.2fr_1fr_7rem_8rem_8rem_auto]">
+              <div key={index} className="grid gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 md:grid-cols-[1.2fr_1fr_7rem_8rem_8rem_auto]">
                 <label>
                   <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.details.product")}</div>
                   <select value={line.product_id} onChange={(event) => updateLine(index, { product_id: event.target.value, variant_id: "" })} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white outline-none">
@@ -1093,7 +1093,7 @@ function CompactField({ label, value, onChange, type = "text", disabled = false 
 
 function SummaryMetric({ label, value }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 lg:min-w-28">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-2.5 py-1.5 lg:min-w-28">
       <div className="truncate text-[0.62rem] font-bold uppercase tracking-[0.08em] text-zinc-500">{label}</div>
       <div className="truncate text-sm font-black text-white">{value}</div>
     </div>

@@ -701,7 +701,7 @@ function StaffTasks() {
       ) : null}
 
       {panelOpen ? (
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-[var(--text)]">{form.id ? tr("editOperationalTask") : tr("createOperationalTask")}</h2>
@@ -720,16 +720,16 @@ function StaffTasks() {
             <select value={form.priority} onChange={(e) => setForm((v) => ({ ...v, priority: e.target.value }))} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
               {["low", "medium", "high", "critical"].map((item) => <option key={item} value={item}>{priorityLabel(item, language)}</option>)}
             </select>
-            <div className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--muted)]">
+            <div className="flex h-11 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--muted)]">
               {form.template_kind === "daily" ? taskLabel(language, "dailyTask") : taskLabel(language, "weeklyTask")}
             </div>
             {form.template_kind === "daily" ? (
-              <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]">
+              <label className="flex h-11 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]">
                 <input type="checkbox" checked={form.is_opening_day_task} onChange={(e) => setForm((v) => ({ ...v, is_opening_day_task: e.target.checked }))} />
                 {taskLabel(language, "openingDayTask")}
               </label>
             ) : (
-              <div className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--muted)]">
+              <div className="flex h-11 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--muted)]">
                 {taskLabel(language, "automaticDistribution")}
               </div>
             )}
@@ -745,7 +745,7 @@ function StaffTasks() {
       ) : null}
 
       {portalSettings ? (
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-3">
               <Settings2 className="mt-1 h-5 w-5 text-[var(--primary)]" />
@@ -755,7 +755,7 @@ function StaffTasks() {
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)]">
+              <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)]">
                 <input
                   type="checkbox"
                   checked={portalSettings.require_checkin_to_view_tasks !== false}
@@ -765,7 +765,7 @@ function StaffTasks() {
                 />
                 {tr("requireCheckIn")}
               </label>
-              <label className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)]">
+              <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)]">
                 <input
                   type="checkbox"
                   checked={portalSettings.auto_redirect_after_checkin !== false}
@@ -784,7 +784,7 @@ function StaffTasks() {
         {metricItems.map((item) => {
           const Icon = item.icon;
           return (
-            <div key={item.key} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+            <div key={item.key} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-[var(--muted)]">{tr(item.labelKey)}</span>
                 <Icon className="h-5 w-5 text-[var(--primary)]" />
@@ -795,7 +795,7 @@ function StaffTasks() {
         })}
       </div>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+      <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
         <div className="flex flex-col gap-4 lg:flex-row">
           <div className="min-w-0 flex-1">
             <div className="mb-3 flex items-center justify-between">
@@ -806,7 +806,7 @@ function StaffTasks() {
               {dailyTemplates.length ? dailyTemplates.map((template) => (
                 <div
                   key={template.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start"
+                  className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start"
                 >
                   <button
                     type="button"
@@ -838,7 +838,7 @@ function StaffTasks() {
                     ) : null}
                   </div>
                 </div>
-              )) : <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-semibold text-[var(--muted)]">{tr("noTasksMatch")}</div>}
+              )) : <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-semibold text-[var(--muted)]">{tr("noTasksMatch")}</div>}
             </div>
           </div>
 
@@ -851,7 +851,7 @@ function StaffTasks() {
               {weeklyTemplates.length ? weeklyTemplates.map((template) => (
                 <div
                   key={template.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start"
+                  className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start"
                 >
                   <button
                     type="button"
@@ -883,24 +883,24 @@ function StaffTasks() {
                     ) : null}
                   </div>
                 </div>
-              )) : <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-semibold text-[var(--muted)]">{tr("noTasksMatch")}</div>}
+              )) : <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-semibold text-[var(--muted)]">{tr("noTasksMatch")}</div>}
             </div>
           </div>
         </div>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_22rem]">
-        <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+        <section className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
           <div className="grid gap-3 border-b border-[var(--border)] p-4 md:grid-cols-3 xl:grid-cols-6">
             {kanbanStatuses.map((key) => (
-              <div key={key} className="min-h-24 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+              <div key={key} className="min-h-24 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="m1-section-title truncate uppercase text-[var(--muted)]">{statusLabel(key, language)}</h3>
                   <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-black text-[var(--primary)]">{kanbanGroups[key]?.length || 0}</span>
                 </div>
                 <div className="mt-3 space-y-2">
                   {(kanbanGroups[key] || []).slice(0, 3).map((task) => (
-                    <div key={task.id} className="truncate rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-xs font-bold text-[var(--text)]">
+                    <div key={task.id} className="truncate rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-xs font-bold text-[var(--text)]">
                       <span dir="auto">{localizedTaskText(task, "title", language)}</span>
                     </div>
                   ))}
@@ -930,7 +930,7 @@ function StaffTasks() {
                 <option value="">{tr("allPriorities")}</option>
                 {["low", "medium", "high", "critical"].map((item) => <option key={item} value={item}>{priorityLabel(item, language)}</option>)}
               </select>
-              <label className="flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]">
+              <label className="flex h-10 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]">
                 <input type="checkbox" checked={todayOnly} onChange={(event) => setTodayOnly(event.target.checked)} />
                 {tr("today")}
               </label>
@@ -957,14 +957,14 @@ function StaffTasks() {
         </section>
 
         <aside className="space-y-5">
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             <div className="mb-4 flex items-center gap-2">
               <UserCheck className="h-5 w-5 text-[var(--primary)]" />
               <h2 className="m1-section-title text-[var(--text)]">{tr("performance")}</h2>
             </div>
             <div className="space-y-3">
               {byEmployee.slice(0, 8).map((employee) => (
-                <div key={employee.employee_id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                <div key={employee.employee_id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{employee.employee_name}</div>
@@ -988,7 +988,7 @@ function StaffTasks() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             <h2 className="m1-section-title text-[var(--text)]">{tr("auditTrail")}</h2>
             <div className="mt-4 space-y-3">
               {history.slice(0, 10).map((item) => (

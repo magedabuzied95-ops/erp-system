@@ -79,7 +79,7 @@ export default function PortalChatComposer({
             </div>
           ) : null}
           {disabled && labels.disabledNotice ? (
-            <div className="mb-2 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-200">
+            <div className="mb-2 rounded-[var(--radius-card)] border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-200">
               {labels.disabledNotice}
             </div>
           ) : null}

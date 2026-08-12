@@ -94,7 +94,7 @@ export default function AiStudioWorkflows() {
 
   return (
     <div dir="ltr" className="space-y-4 p-4 text-white md:p-6">
-      <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><Workflow className="h-4 w-4" />AI Studio</div>
@@ -118,7 +118,7 @@ export default function AiStudioWorkflows() {
 
       {/* Automation status + tenant kill switch */}
       {automation ? (
-        <section className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 ${automation.active ? "border-emerald-300/30 bg-emerald-400/[0.06]" : "border-white/10 bg-white/[0.03]"}`}>
+        <section className={`flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border px-4 py-3 ${automation.active ? "border-emerald-300/30 bg-emerald-400/[0.06]" : "border-white/10 bg-white/[0.03]"}`}>
           <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${automation.active ? "bg-emerald-400/15 text-emerald-100" : "bg-slate-500/15 text-slate-300"}`}>
             <Zap className="h-3.5 w-3.5" /> Automation {automation.active ? "ON" : "OFF"}
           </span>
@@ -141,7 +141,7 @@ export default function AiStudioWorkflows() {
 
       {msg ? <div className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-[12px] font-bold text-primary">{msg}</div> : null}
 
-      <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+      <section className="overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-2 text-[11px]">
           <span className="font-black uppercase tracking-wide text-slate-500">{rows.length} workflow{rows.length === 1 ? "" : "s"}</span>
           <label className="inline-flex cursor-pointer items-center gap-1.5 text-slate-400">

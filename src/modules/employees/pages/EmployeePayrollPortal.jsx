@@ -1134,7 +1134,7 @@ function TimelineItem({ item, text, language }) {
       ? "bg-emerald-50 text-emerald-700"
       : "bg-red-50 text-red-700";
   return (
-    <div className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
       <div className={`mt-1 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}>
         {renderTransactionIcon(type, "h-4 w-4")}
       </div>
@@ -1227,7 +1227,7 @@ function EmployeeStatsCards({ cards = [] }) {
         };
 
         return (
-          <div key={label} className="relative min-h-[84px] overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+          <div key={label} className="relative min-h-[84px] overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
             <span className={`absolute inset-y-3 right-0 w-1 rounded-l-full ${accentClasses.stripe}`} aria-hidden="true" />
             <div className="flex items-start justify-between gap-2">
               <div className="text-[10px] font-black leading-4 text-slate-500">{label}</div>
@@ -1315,7 +1315,7 @@ function AttendancePanel({
             {text.checkOut}
           </button>
         ) : (
-          <div className="min-h-12 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
+          <div className="min-h-12 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
             {ui("notCheckedIn")}
           </div>
         )}
@@ -3323,7 +3323,7 @@ export default function EmployeePayrollPortal() {
 
         {!portal && loading ? (
           <div className="mt-4 grid gap-3">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
               <div className="animate-pulse space-y-3">
                 <div className="h-4 w-28 rounded-full bg-slate-200" />
                 <div className="h-7 w-44 rounded-2xl bg-slate-200" />
@@ -3334,7 +3334,7 @@ export default function EmployeePayrollPortal() {
                 </div>
               </div>
             </div>
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
               <div className="animate-pulse space-y-3">
                 <div className="h-4 w-24 rounded-full bg-slate-200" />
                 <div className="h-16 rounded-2xl bg-slate-100" />
@@ -3343,7 +3343,7 @@ export default function EmployeePayrollPortal() {
             </div>
           </div>
         ) : !portal ? (
-          <div className="mt-4 rounded-3xl border border-red-200 bg-white p-5 text-sm font-bold leading-6 text-red-800 shadow-sm">
+          <div className="mt-4 rounded-[var(--radius-card)] border border-red-200 bg-white p-5 text-sm font-bold leading-6 text-red-800 shadow-sm">
             <AlertTriangle className="h-6 w-6" />
             <div className="mt-3">{error || text.invalidLink || labels.en.invalidLink}</div>
           </div>
@@ -3399,7 +3399,7 @@ export default function EmployeePayrollPortal() {
                 data-testid="employee-inventory-link"
                 onPointerEnter={() => { void import("./EmployeePortalInventory"); }}
                 onFocus={() => { void import("./EmployeePortalInventory"); }}
-                className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 <ClipboardList className="h-4 w-4" />
                 <span>الجرد</span>
@@ -3588,7 +3588,7 @@ export default function EmployeePayrollPortal() {
               </button>
             ) : null}
 
-            {activeTab === "notifications" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "notifications" ? <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="m1-section-title text-slate-950">
@@ -3616,7 +3616,7 @@ export default function EmployeePayrollPortal() {
             </div> : null}
 
             {activeTab === "notifications" ? (
-              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="m1-section-title">{ui("notificationsTab")}</h3>
                   <button
@@ -3670,7 +3670,7 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {activeTab === "display-refill" ? (
-              <div className="rounded-3xl border border-amber-200 bg-white p-3.5 shadow-sm">
+              <div className="rounded-[var(--radius-card)] border border-amber-200 bg-white p-3.5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="m1-section-title text-slate-950">نواقص العرض</h3>
@@ -3694,7 +3694,7 @@ export default function EmployeePayrollPortal() {
                       return (
                         <article key={alert.id} className="rounded-2xl border border-amber-200 bg-amber-50/70 p-2.5 shadow-sm">
                           <div className="flex items-start gap-2.5">
-                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-amber-100 bg-white">
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-amber-100 bg-white">
                               {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-amber-700"><AlertTriangle className="h-5 w-5" /></div>}
                             </div>
                             <div className="min-w-0 flex-1">
@@ -3759,7 +3759,7 @@ export default function EmployeePayrollPortal() {
                         return (
                           <article key={alert.id} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-2.5 opacity-90">
                             <div className="flex items-start gap-2.5">
-                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white">
                                 {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover grayscale" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><CheckCheck className="h-5 w-5" /></div>}
                               </div>
                               <div className="min-w-0 flex-1">
@@ -3834,7 +3834,7 @@ export default function EmployeePayrollPortal() {
               />
             ) : null}
 
-            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${EMPLOYEE_PORTAL_SALARY_ENABLED ? "grid-cols-7" : "grid-cols-6"} gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
+            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${EMPLOYEE_PORTAL_SALARY_ENABLED ? "grid-cols-7" : "grid-cols-6"} gap-1 rounded-[var(--radius-card)] border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
@@ -3850,7 +3850,7 @@ export default function EmployeePayrollPortal() {
 
             {EMPLOYEE_PORTAL_SALARY_ENABLED && activeTab === "salary" ? (
               <div className="grid gap-3">
-                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="m1-section-title text-slate-950">{ui("payrollSummary")}</h3>
@@ -3906,7 +3906,7 @@ export default function EmployeePayrollPortal() {
                   </button>
                 </div>
 
-                <details className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <details className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
                     <span>{ui("payrollHistory")}</span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">{walletTransactions.length}</span>
@@ -3929,7 +3929,7 @@ export default function EmployeePayrollPortal() {
                   </div>
                 </details>
 
-                <details className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <details className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
                     <span>{ui("attendanceSnapshot")}</span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">{attendanceRows.length}</span>
@@ -3962,7 +3962,7 @@ export default function EmployeePayrollPortal() {
                   </div>
                 </details>
 
-                <details className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <details className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
                     <span>{ui("technicalValidationChecklist")}</span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">5</span>
@@ -3988,7 +3988,7 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            {activeTab === "performance" ? <div className="rounded-3xl border border-emerald-200 bg-white p-4 shadow-sm">
+            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-emerald-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="m1-section-title">{text.performance}</h3>
@@ -4021,7 +4021,7 @@ export default function EmployeePayrollPortal() {
               </div>
             </div> : null}
 
-            {activeTab === "performance" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="m1-section-title">{text.leaderboard}</h3>
               <div className="mt-3 grid gap-2">
                 {optionalLoading && leaderboardLazy ? (
@@ -4062,7 +4062,7 @@ export default function EmployeePayrollPortal() {
                   language={language}
                 />
 
-                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                   <h3 className="m1-section-title">{text.attendanceSummary}</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
                     <div className="rounded-2xl bg-slate-50 p-3">
@@ -4094,7 +4094,7 @@ export default function EmployeePayrollPortal() {
               </>
             ) : null}
 
-            {activeTab === "attendance" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "attendance" ? <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="m1-section-title">{text.attendanceTimeline}</h3>
                 <CalendarDays className="h-5 w-5 text-slate-400" />
@@ -4122,7 +4122,7 @@ export default function EmployeePayrollPortal() {
             </div> : null}
 
             {activeTab === "tasks" ? (
-              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                 <h3 className="m1-section-title">{text.tasks}</h3>
                 {!tasks.length ? (
                   <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-6 text-center">
@@ -4152,7 +4152,7 @@ export default function EmployeePayrollPortal() {
                                 <img
                                   src={task.variant_image_url || task.product_image_url}
                                   alt={task.product_name || "منتج"}
-                                  className="h-16 w-16 shrink-0 rounded-2xl border border-slate-200 bg-white object-cover"
+                                  className="h-16 w-16 shrink-0 rounded-[var(--radius-card)] border border-slate-200 bg-white object-cover"
                                   loading="lazy"
                                 />
                               ) : null}
@@ -4209,7 +4209,7 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            {activeTab === "requests" ? <form onSubmit={submitRequest} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "requests" ? <form onSubmit={submitRequest} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="m1-section-title">{text.requests}</h3>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {[

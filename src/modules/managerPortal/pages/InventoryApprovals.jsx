@@ -332,7 +332,7 @@ export default function InventoryApprovalsPage() {
 
             <div className="mt-3 space-y-3">
               {loading ? (
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   <div className="mt-2">جاري تحميل الجردات...</div>
                 </div>
@@ -367,7 +367,7 @@ export default function InventoryApprovalsPage() {
                   </button>
                 ))
               ) : (
-                <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-slate-300">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-slate-300">
                   <ClipboardList className="mx-auto h-8 w-8 text-slate-500" />
                   <div className="mt-3 font-bold">لا توجد جلسات قيد المراجعة الآن</div>
                   <div className="mt-1 text-xs text-slate-400">ستظهر هنا الجردات التي أرسلها أمين المخزن للمراجعة.</div>
@@ -437,7 +437,7 @@ export default function InventoryApprovalsPage() {
                       <article key={`mobile-${item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`}`} className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 items-start gap-3">
-                            <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                            <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5">
                               {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Package className="h-5 w-5 text-slate-500" />}
                             </div>
                             <div className="min-w-0">

@@ -10,7 +10,7 @@ function AiInsightCard({ title, insight, tone = "cyan" }) {
   return (
     <div className={`theme-card rounded-[24px] border p-5 shadow-[0_16px_60px_var(--shadow)] ${tones[tone] || tones.cyan}`}>
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]">
           <BrainCircuit className="h-5 w-5" />
         </div>
         <div>

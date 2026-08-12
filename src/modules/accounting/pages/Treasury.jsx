@@ -184,7 +184,7 @@ export default function Treasury() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">أرصدة الحسابات</h2>
@@ -217,7 +217,7 @@ export default function Treasury() {
         </section>
 
         <aside className="space-y-4">
-          <form onSubmit={submitTransfer} className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <form onSubmit={submitTransfer} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <div className="flex items-center gap-2 text-lg font-black text-white"><Repeat2 className="h-5 w-5 text-emerald-200" /> تحويل نقدية</div>
             <div className="mt-4 grid gap-3">
               <Select value={transfer.from_account_id} onChange={(value) => setTransfer((current) => ({ ...current, from_account_id: value }))} accounts={accounts} placeholder="من حساب" />
@@ -228,7 +228,7 @@ export default function Treasury() {
             </div>
           </form>
 
-          <form onSubmit={submitAdjustment} className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <form onSubmit={submitAdjustment} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <div className="flex items-center gap-2 text-lg font-black text-white"><SlidersHorizontal className="h-5 w-5 text-violet-200" /> تسوية يدوية</div>
             <div className="mt-4 grid gap-3">
               <Select value={adjustment.account_id} onChange={(value) => setAdjustment((current) => ({ ...current, account_id: value }))} accounts={accounts} placeholder="الحساب" />
@@ -244,7 +244,7 @@ export default function Treasury() {
         </aside>
       </div>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h2 className="m1-section-title text-white">حركات النقدية</h2>

@@ -306,7 +306,7 @@ function ActiveFilters({ filters, t, language }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {chips.map((chip) => (
-        <span key={chip.key} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5 text-[12px]">
+        <span key={chip.key} className="inline-flex items-center gap-1.5 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5 text-[12px]">
           <span className="text-[var(--text-tertiary)]">{chip.label}:</span>
           <span className="font-semibold text-[var(--text)]">{chip.value}</span>
           <button type="button" onClick={chip.clear} aria-label={t("salesAnalytics.filters.clear")} className="text-[var(--text-tertiary)] transition hover:text-[var(--danger)]">

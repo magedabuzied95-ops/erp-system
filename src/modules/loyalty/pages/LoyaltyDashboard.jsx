@@ -14,7 +14,7 @@ const tierStyles = {
 };
 
 const StatCard = ({ label, value, icon: Icon, hint }) => (
-  <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-lg shadow-black/20">
+  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-5 shadow-lg shadow-black/20">
     <div className="flex items-start justify-between gap-4">
       <div>
         <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{label}</p>
@@ -102,7 +102,7 @@ function LoyaltyDashboard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link to="/loyalty/rules" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
+          <Link to="/loyalty/rules" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
             Manage Rules
           </Link>
           <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-bold text-slate-950">
@@ -136,7 +136,7 @@ function LoyaltyDashboard() {
               <Link
                 key={customer.id}
                 to={`/loyalty/customers/${customer.id}`}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-primary/30 hover:bg-primary/5"
+                className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-primary/30 hover:bg-primary/5"
               >
                 <div>
                   <p className="font-semibold text-white">{customer.name}</p>
@@ -160,7 +160,7 @@ function LoyaltyDashboard() {
           <h2 className="m1-section-title">Tier Distribution</h2>
           <div className="mt-5 space-y-3">
             {Object.entries(tierCounts).map(([tier, count]) => (
-              <div key={tier} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <div key={tier} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-white">{tier}</span>
                   <span className="text-sm text-zinc-400">{count}</span>
@@ -207,7 +207,7 @@ function LoyaltyDashboard() {
           <h2 className="m1-section-title">Rules Snapshot</h2>
           <div className="mt-5 space-y-3">
             {rules.map((rule) => (
-              <div key={rule.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div key={rule.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-semibold text-white">{rule.name}</p>

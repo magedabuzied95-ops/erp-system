@@ -138,7 +138,7 @@ export default function AiSupportKnowledgeBase() {
 
   return (
     <div className="space-y-6" dir="rtl">
-      <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl shadow-[var(--shadow)]">
+      <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl shadow-[var(--shadow)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">
@@ -176,7 +176,7 @@ export default function AiSupportKnowledgeBase() {
       {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-300">{error}</div> : null}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
           {loading ? (
             <div className="grid min-h-80 place-items-center text-[var(--muted)]">
               <Loader2 className="h-8 w-8 animate-spin" />
@@ -210,7 +210,7 @@ export default function AiSupportKnowledgeBase() {
         </div>
 
         <aside className="space-y-4">
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
             <div className="flex items-center gap-2 text-sm font-black text-[var(--text)]">
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
               نطاق الاستخدام
@@ -219,7 +219,7 @@ export default function AiSupportKnowledgeBase() {
               تحفظ هذه البيانات داخل `website_settings.settings` لهذا المستأجر فقط، وتظهر في `source_previews` داخل وحدة دعم الذكاء الاصطناعي.
             </p>
           </div>
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
             <div className="text-sm font-black text-[var(--text)]">التحقق</div>
             <div className="mt-3 grid gap-2 text-sm font-bold text-[var(--muted)]">
               <div>الهاتف: {phoneValid ? "صحيح" : "غير صحيح"}</div>

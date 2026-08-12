@@ -158,7 +158,7 @@ export default function OverviewTrendChart({ trend = [], granularity = "day", sh
               return (
                 <div
                   dir={isArabic ? "rtl" : "ltr"}
-                  className="min-w-[190px] rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-3 text-start shadow-[var(--shadow-overlay)]"
+                  className="min-w-[190px] rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-3 text-start shadow-[var(--shadow-overlay)]"
                 >
                   <div className="border-b border-[var(--border)] pb-1.5 text-[13px] font-bold text-[var(--text)]">
                     {point.label}

@@ -273,7 +273,7 @@ function FinancialAccounts() {
           <p className="mt-1 text-sm text-zinc-500">{selectedAccount ? selectedAccount.name : t("accounting.financialAccounts.history.selectAccount")}</p>
           <div className="mt-4 max-h-[560px] space-y-3 overflow-auto pr-1">
             {entries.length ? entries.map((entry) => (
-              <div key={entry.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div key={entry.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-black text-white">{labelForType(entry.entry_type)}</div>
@@ -287,7 +287,7 @@ function FinancialAccounts() {
                 </div>
               </div>
             )) : (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+              <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
                 {t("accounting.financialAccounts.empty.noTransactions")}
               </div>
             )}

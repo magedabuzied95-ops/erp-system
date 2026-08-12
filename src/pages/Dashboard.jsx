@@ -928,7 +928,7 @@ function SessionTimer() {
   const minutes = Math.floor(seconds / 60);
   const remainder = seconds % 60;
   return (
-    <span className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.055] px-3 text-zinc-200 shadow-lg shadow-black/10 backdrop-blur-xl">
+    <span className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-card)] border border-white/[0.08] bg-white/[0.055] px-3 text-zinc-200 shadow-lg shadow-black/10 backdrop-blur-xl">
       <TimerReset className="h-3.5 w-3.5 text-emerald-200" />
       {String(minutes).padStart(2, "0")}:{String(remainder).padStart(2, "0")}
     </span>
@@ -939,7 +939,7 @@ function QuickAction({ to, icon: Icon, label, primary = false }) {
   return (
     <Link
       to={to}
-      className={`group inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${ primary ? "border-amber-700 bg-amber-700 text-white hover:border-amber-800 hover:bg-amber-800" : "border-white/[0.07] bg-white/[0.045] text-zinc-300 hover:border-white/15 hover:bg-white/[0.075] hover:text-white" }`}
+      className={`group inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-card)] border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${ primary ? "border-amber-700 bg-amber-700 text-white hover:border-amber-800 hover:bg-amber-800" : "border-white/[0.07] bg-white/[0.045] text-zinc-300 hover:border-white/15 hover:bg-white/[0.075] hover:text-white" }`}
     >
       <Icon className={`h-3.5 w-3.5 ${primary ? "text-white" : "text-zinc-500 transition group-hover:text-amber-700"}`} />
       <span className="whitespace-nowrap">{label}</span>
@@ -965,7 +965,7 @@ function GettingStarted() {
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {items.map(({ to, label, icon: Icon }) => (
-            <Link key={label} to={to} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-zinc-950/70 px-3 text-xs font-black text-zinc-100 transition hover:bg-white/10">
+            <Link key={label} to={to} className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/70 px-3 text-xs font-black text-zinc-100 transition hover:bg-white/10">
               <Icon className="h-4 w-4 text-emerald-300" />
               {label}
             </Link>
@@ -978,7 +978,7 @@ function GettingStarted() {
 
 function TodayCard({ label, value, pulse = false }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.035] px-3.5 py-2.5 shadow-lg shadow-black/10 backdrop-blur-xl">
+    <div className="rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.035] px-3.5 py-2.5 shadow-lg shadow-black/10 backdrop-blur-xl">
       <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
         {pulse ? <LivePulse tone="emerald" /> : null}
         {label}
@@ -1039,7 +1039,7 @@ function WidgetManager({ widgets, hidden, onToggle }) {
   const { i18n } = useTranslation();
   const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.06] bg-white/[0.035] p-2 shadow-xl shadow-black/10 backdrop-blur-xl">
+    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.035] p-2 shadow-xl shadow-black/10 backdrop-blur-xl">
       <span className="inline-flex h-9 items-center gap-2 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
         <LayoutGrid className="h-3.5 w-3.5" />
         {copy.widgets}
@@ -1204,7 +1204,7 @@ function PosLiveMonitor({ posLive }) {
         <MetricTile label={copy.currentCartCounts} value={number(posLive?.currentCartCounts)} icon={ShoppingCart} />
         <MetricTile label={copy.averageCheckout} value={`${number(posLive?.averageCheckoutTimeSeconds)}s`} icon={LineChartIcon} />
       </div>
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.035] p-3 shadow-inner shadow-white/[0.02]">
+      <div className="rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.035] p-3 shadow-inner shadow-white/[0.02]">
         <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{copy.paymentMethods}</div>
         {rows.length ? <ResponsiveContainer width="100%" height={220}>
           <PieChart>
@@ -1285,7 +1285,7 @@ function MiniList({ title, rows, getLabel, getValue, icon: Icon }) {
   const { i18n } = useTranslation();
   const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 shadow-inner shadow-white/[0.02]">
+    <div className="rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.03] p-3 shadow-inner shadow-white/[0.02]">
       <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-500"><Icon className="h-4 w-4" />{title}</div>
       <div className="space-y-2">
         {(rows || []).slice(0, 6).map((row, index) => (
@@ -1302,7 +1302,7 @@ function MiniList({ title, rows, getLabel, getValue, icon: Icon }) {
 
 function MetricTile({ label, value, icon: Icon }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-white/[0.05]">
+    <div className="rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.03] p-3 shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-white/[0.05]">
       <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500"><Icon className="h-4 w-4" />{label}</div>
       <div className="mt-2 text-2xl font-black text-white">{value}</div>
     </div>
@@ -1353,7 +1353,7 @@ function NotificationLine({ label, value, tone = "emerald", pulse = false }) {
 function PremiumEmpty({ icon: Icon, title, message, compact = false }) {
   return (
     <div className={`rounded-xl border border-dashed border-white/[0.08] bg-[radial-gradient(circle_at_center,rgba(52,211,153,0.08),rgba(255,255,255,0.02)_48%,transparent)] text-center ${compact ? "px-3 py-4" : "px-5 py-8"}`}>
-      <div className={`mx-auto flex items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-zinc-400 shadow-lg shadow-emerald-950/10 ${compact ? "h-9 w-9" : "h-12 w-12"}`}>
+      <div className={`mx-auto flex items-center justify-center rounded-[var(--radius-card)] border border-white/[0.08] bg-white/[0.04] text-zinc-400 shadow-lg shadow-emerald-950/10 ${compact ? "h-9 w-9" : "h-12 w-12"}`}>
         <Icon className={compact ? "h-4 w-4" : "h-6 w-6"} />
       </div>
       <div className="mt-3 text-sm font-black text-white">{title}</div>

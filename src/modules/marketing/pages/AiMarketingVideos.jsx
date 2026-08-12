@@ -712,7 +712,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                 ["Has price", readinessChecks.has_price],
                 ["Has audio suggestion", readinessChecks.has_audio_suggestion],
               ].map(([label, passed]) => (
-                <div key={label} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                <div key={label} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-3 py-2">
                   <span className="text-xs font-black text-slate-300">{label}</span>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black ${passed ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"}`}>
                     {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
@@ -728,7 +728,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
               <Badge tone="cyan">{formatSeconds(playbackDuration)}ثانية / وضع تلقائي</Badge>
             </div>
             <div className="relative mt-4 h-20 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-2">
-              <div className="absolute inset-x-2 top-2 flex h-8 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
+              <div className="absolute inset-x-2 top-2 flex h-8 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
                 {scenes.map((scene, sceneIndex) => (
                   <button
                     key={scene.id || sceneIndex}
@@ -800,7 +800,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             <div className="text-sm font-black text-white">خط زمني للنصوص / التعليقات</div>
             <div className="mt-3 grid gap-2">
               {captionsTimeline.map((caption, index) => (
-                <div key={`${caption.start_second}-${index}`} className="grid grid-cols-[70px_minmax(0,1fr)] gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                <div key={`${caption.start_second}-${index}`} className="grid grid-cols-[70px_minmax(0,1fr)] gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
                   <div className="text-xs font-black text-primary">{formatSeconds(caption.start_second || 0)}s</div>
                   <div className="text-xs font-semibold leading-5 text-slate-300">{caption.text}</div>
                 </div>
@@ -876,7 +876,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
 
 function Info({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
       <div className="mt-1 break-words text-sm font-black text-white">{value || "غير متاح"}</div>
     </div>

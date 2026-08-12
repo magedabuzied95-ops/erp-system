@@ -2899,7 +2899,7 @@ function CreateProduct() {
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-4 rounded-2xl border border-dashed border-border bg-surface-soft px-4 py-5 text-center text-xs font-semibold text-text-muted">
+                    <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-4 py-5 text-center text-xs font-semibold text-text-muted">
                       No gallery images yet.
                     </div>
                   )}
@@ -3296,17 +3296,17 @@ function CreateProduct() {
               />
 
               <div className="mt-5 space-y-4">
-                <label className="flex items-center justify-between rounded-2xl border border-border bg-surface-soft px-4 py-3">
+                <label className="flex items-center justify-between rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3">
                   <span className="text-sm font-semibold text-text">{t("products.editor.activeProduct")}</span>
                   <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
                 </label>
 
-                <label className="flex items-center justify-between rounded-2xl border border-border bg-surface-soft px-4 py-3">
+                <label className="flex items-center justify-between rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3">
                   <span className="text-sm font-semibold text-text">{t("products.editor.trackStock")}</span>
                   <input type="checkbox" checked={trackStock} onChange={(e) => setTrackStock(e.target.checked)} />
                 </label>
 
-                <div className={`${isSimpleMode ? "hidden" : ""} rounded-2xl border border-border bg-surface-soft p-4`} style={{ display: "none" }}>
+                <div className={`${isSimpleMode ? "hidden" : ""} rounded-[var(--radius-card)] border border-border bg-surface-soft p-4`} style={{ display: "none" }}>
                   <button
                     type="button"
                     onClick={() => setAdvancedOpen((current) => !current)}
@@ -3321,9 +3321,9 @@ function CreateProduct() {
 
                   {advancedOpen ? (
                     <div className="mt-4 space-y-4">
-                      <div className="rounded-2xl border border-border bg-surface-soft p-4">
+                      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                         <p className="text-sm font-semibold text-text">{t("products.editor.barcodePreview")}</p>
-                        <div className="mt-3 rounded-2xl border border-border bg-surface-soft px-4 py-4">
+                        <div className="mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-4">
                           <p className="text-xs uppercase tracking-[0.3em] text-text-muted">SKU</p>
                           <p className="mt-2 text-xl font-black text-text">{skuPrefix || uniqueSmartSkuPrefix || generateSku(name).split("-")[0]}</p>
                           <div className="mt-4 h-14 rounded-2xl bg-surface-soft p-3">
@@ -3343,14 +3343,14 @@ function CreateProduct() {
                       </div>
 
                       {variantMatrix.length > 0 ? (
-                        <div className="rounded-2xl border border-border bg-surface-soft p-4">
+                        <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                           <p className="text-sm font-semibold text-text">{t("products.editor.variantMatrix")}</p>
                           <p className="mt-2 text-sm text-text-muted">
                             {isColorOnlyMode
                               ? t("products.editor.generateFixedSizePerColor")
                               : t("products.editor.generateColorSizeCombinations")}
                           </p>
-                          <div className="mt-4 rounded-2xl border border-border bg-surface-soft p-4">
+                          <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                             <p className="text-xs uppercase tracking-[0.28em] text-text-muted">{t("products.editor.combinations")}</p>
                             <p className="mt-2 text-2xl font-black text-text">{variantMatrix.length}</p>
                           </div>
@@ -3572,7 +3572,7 @@ function CreateProduct() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center rounded-xl border border-border bg-surface-soft p-1" aria-label="ترتيب اللون">
+                          <div className="flex items-center rounded-[var(--radius-card)] border border-border bg-surface-soft p-1" aria-label="ترتيب اللون">
                             <button
                               type="button"
                               onClick={(event) => {
@@ -4104,14 +4104,14 @@ function CreateProduct() {
 
               <div className="mt-5 space-y-3">
                 {variantMatrix.length === 0 ? (
-                  <div className="rounded-2xl border border-border bg-surface-soft p-5 text-sm text-text-muted">
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5 text-sm text-text-muted">
                     {isColorOnlyMode
                       ? t("products.editor.addColorToPreview", "أضف اسم لون لمعاينة المتغيرات ثابتة المقاس.")
                       : t("products.editor.addColorAndSizeToPreview", "أضف اسم لون وصفًا واحدًا على الأقل للمقاسات لتوليد التركيبات.")}
                   </div>
                 ) : (
                   variantMatrix.slice(0, 8).map((variant, index) => (
-                    <div key={`${variant.previewKey}-${index}`} className="rounded-2xl border border-border bg-surface-soft p-4">
+                    <div key={`${variant.previewKey}-${index}`} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="font-semibold text-text">

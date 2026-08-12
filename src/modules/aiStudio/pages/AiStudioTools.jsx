@@ -25,7 +25,7 @@ export default function AiStudioTools() {
 
   return (
     <div dir="ltr" className="space-y-4 p-4 text-white md:p-6">
-      <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><Wrench className="h-4 w-4" />AI Studio</div>
@@ -38,7 +38,7 @@ export default function AiStudioTools() {
       </section>
 
       {loading ? (
-        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
+        <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
       ) : (
         GROUPS.map(({ key, label, icon: Icon, tone, note }) => (
           <section key={key}>
@@ -49,7 +49,7 @@ export default function AiStudioTools() {
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {(grouped[key] || []).map((t) => (
-                <div key={t.id} className={`rounded-2xl border bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)] ${tone.split(" ").find((c) => c.startsWith("border-"))}`}>
+                <div key={t.id} className={`rounded-[var(--radius-card)] border bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)] ${tone.split(" ").find((c) => c.startsWith("border-"))}`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-black text-white">{t.name}</span>
                     <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-black text-slate-300">{t.riskLevel}</span>
@@ -62,7 +62,7 @@ export default function AiStudioTools() {
                   </div>
                 </div>
               ))}
-              {(grouped[key] || []).length === 0 ? <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-[12px] text-slate-500">None.</div> : null}
+              {(grouped[key] || []).length === 0 ? <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4 text-[12px] text-slate-500">None.</div> : null}
             </div>
           </section>
         ))

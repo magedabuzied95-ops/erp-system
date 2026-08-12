@@ -45,7 +45,7 @@ function CompanySettings() {
       title="Company Settings"
       subtitle="Company profile, currency, language placeholder, invoice settings, branch settings, and POS settings."
       actions={
-        <Link to="/workspace" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+        <Link to="/workspace" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <Building2 className="h-4 w-4" />
           Workspace
         </Link>
@@ -85,7 +85,7 @@ function CompanySettings() {
           <Section title="POS settings" icon={<ShipWheel className="h-4 w-4" />} value={posReceipt} onChange={setPosReceipt} placeholder="Receipt footer / POS note" />
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
             <h3 className="m1-section-title text-white">Company logo placeholder</h3>
-            <div className="mt-4 flex h-44 items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/5 text-zinc-500">
+            <div className="mt-4 flex h-44 items-center justify-center rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 text-zinc-500">
               Upload logo placeholder
             </div>
           </div>

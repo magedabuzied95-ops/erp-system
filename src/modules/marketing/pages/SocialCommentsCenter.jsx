@@ -776,7 +776,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   return (
     <div dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] px-2 py-2 text-white md:px-3 md:py-3">
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-[1800px] flex-col gap-2 overflow-hidden">
-        <div className="flex items-start justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
+        <div className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
           <div className="min-w-0">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">Marketing / Social Comments</div>
             <div className="mt-1 text-xl font-black text-white">Social Comments Center</div>
@@ -825,51 +825,51 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
             ) : null}
 
             <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Fast list avg ms</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.fast_list_avg_ms ?? 0}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Fast list p95 ms</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.fast_list_p95_ms ?? 0}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Cache hit rate</div>
                 <div className="mt-1 text-lg font-black text-primary">{Math.round((Number(performanceSummary?.cache_hit_rate || 0) * 100))}%</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Slow fast-list</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.slow_fast_list_count ?? 0}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Queue length</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.queue_length ?? 0}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Active jobs</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.active_jobs ?? 0}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Job avg ms</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.job_avg_ms ?? 0}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Socket emits</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.socket_emit_count ?? 0}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Rendered rows</div>
                 <div className="mt-1 text-lg font-black text-primary">{items.length}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Socket patches</div>
                 <div className="mt-1 text-lg font-black text-primary">{socketPatchCount}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Cache hits</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.fast_list_cache_hits ?? 0}</div>
               </div>
-              <div className="rounded-2xl border border-primary bg-white px-3 py-2">
+              <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Cache misses</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.fast_list_cache_misses ?? 0}</div>
               </div>
@@ -879,7 +879,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
 
         <div className="min-h-0 flex-1 overflow-hidden">
           {loading && !items.length ? (
-            <div className="flex h-full min-h-[420px] flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.055] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+            <div className="flex h-full min-h-[420px] flex-col gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
               <div className="h-5 w-40 rounded bg-slate-200/80" />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, index) => (

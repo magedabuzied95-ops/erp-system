@@ -1338,7 +1338,7 @@ function CustomerImportModal({
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">معاينة الاستيراد</div>
@@ -1450,7 +1450,7 @@ function CustomerProfileDrawer({
           </div>
         </div>
 
-        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <Filter className="h-4 w-4" />
             فلاتر حركة المحفظة
@@ -1482,7 +1482,7 @@ function CustomerProfileDrawer({
           </div>
         </section>
 
-        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <PlusCircle className="h-4 w-4" />
             تعديل يدوي للمحفظة
@@ -1628,7 +1628,7 @@ function CustomerStatementDrawer({
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">كشف حساب العميل</div>
             <h2 className="m1-section-title mt-2">{customerName}</h2>
             <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2 xl:grid-cols-4">
-              <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2">
                 <Phone className="h-4 w-4 text-zinc-500" />
                 {customerPhone}
               </span>
@@ -1640,7 +1640,7 @@ function CustomerStatementDrawer({
                 <Sparkles className="h-4 w-4 text-primary" />
                 {loyaltyPoints.toLocaleString("ar-EG-u-nu-latn")}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2">
                 <CalendarDays className="h-4 w-4 text-zinc-500" />
                 {formatDateTime(lastUpdated)}
               </span>
@@ -1679,7 +1679,7 @@ function CustomerStatementDrawer({
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الرصيد الافتتاحي</div>
             <div className="mt-2 text-xl font-black text-white">{formatMoney(openingBalance)} ج.م</div>
           </div>
@@ -1783,7 +1783,7 @@ function CustomerStatementDrawer({
           </div>
         ) : null}
 
-        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <Filter className="h-4 w-4" />
             فلترة كشف الحساب
@@ -1814,7 +1814,7 @@ function CustomerStatementDrawer({
           </div>
         </section>
 
-        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <section className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
             <PlusCircle className="h-4 w-4" />
             تسوية إدارية يدوية
@@ -1830,7 +1830,7 @@ function CustomerStatementDrawer({
           </form>
         </section>
 
-        <section className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]">
+        <section className="mt-5 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
           <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-lg font-black text-white">حركات كشف الحساب</div>
@@ -1975,7 +1975,7 @@ function CustomerStatementDrawer({
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-200/70">إجمالي المبالغ المستحقة</div>
             <div className="mt-2 text-2xl font-black text-rose-100">{formatMoney(totals.credit)}</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">المتبقي على العميل</div>
             <div className="mt-2 text-2xl font-black text-primary">{formatMoney(finalBalance)}</div>
             <div className="mt-1 text-xs font-semibold text-zinc-500">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>

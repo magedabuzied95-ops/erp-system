@@ -20,7 +20,7 @@ export const TopSellingNowCard = memo(function TopSellingNowCard({ products = []
             <span className="min-w-0 truncate text-xs font-black text-white">{product.name || product.product_name || copy.product}</span>
             <span className="shrink-0 text-xs font-black text-amber-100">{Number(product.quantity || product.sold || 0).toLocaleString()} · {formatCurrency(product.revenue || 0)}</span>
           </div>
-        )) : <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{copy.empty}</div>}
+        )) : <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{copy.empty}</div>}
       </div>
     </section>
   );

@@ -481,7 +481,7 @@ function ScannerModal({ onClose, onScan }) {
               overlayFrameHeight={140}
             />
           </div>
-          <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.04] p-3 text-white">
+          <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 text-white">
             <button
               type="button"
               onClick={() => manualInputRef.current?.focus()}
@@ -1432,7 +1432,7 @@ export default function EmployeePortalInventory() {
           className="px-0"
         />
 
-        <section className="rounded-2xl border border-white/70 bg-white/95 p-2.5 shadow-xl shadow-slate-200/50 backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-2xl">
+        <section className="rounded-[var(--radius-card)] border border-white/70 bg-white/95 p-2.5 shadow-xl shadow-slate-200/50 backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-2xl">
           <div className="inventory-wrap flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="hidden items-center gap-2 text-emerald-700 sm:flex">
@@ -1497,7 +1497,7 @@ export default function EmployeePortalInventory() {
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{visibleSessions.length}</span>
             </div>
-            <label className="inventory-wrap mt-3 block rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <label className="inventory-wrap mt-3 block rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
               <div className="flex items-center gap-2 text-xs font-black text-slate-400">
                 <Search className="h-4 w-4" />
                 بحث
@@ -1548,7 +1548,7 @@ export default function EmployeePortalInventory() {
             </div>
           </aside>
 
-          <main className="inventory-wrap rounded-2xl border border-white/70 bg-white/95 p-2.5 shadow-xl shadow-slate-200/50 backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-2xl">
+          <main className="inventory-wrap rounded-[var(--radius-card)] border border-white/70 bg-white/95 p-2.5 shadow-xl shadow-slate-200/50 backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-2xl">
             {!session && sessionLoading ? (
               <div className="flex min-h-[420px] items-center justify-center gap-2 text-sm font-black text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1633,7 +1633,7 @@ export default function EmployeePortalInventory() {
                   </div>
                 ) : null}
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
+                <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
                   <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-black text-slate-600">
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">المنتجات: {groupedItems.length}</span>
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">الكمية: {countedTotal}</span>
@@ -1652,7 +1652,7 @@ export default function EmployeePortalInventory() {
                 </div>
 
                 <div className="grid min-w-0 gap-2 lg:grid-cols-[1fr_1fr]">
-                  <label className="inventory-wrap block rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+                  <label className="inventory-wrap block rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
                     <div className="text-xs font-black text-slate-400">اسم الجرد</div>
                     <input
                       value={titleDraft}
@@ -1661,7 +1661,7 @@ export default function EmployeePortalInventory() {
                       className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
                     />
                   </label>
-                  <label className="inventory-wrap block rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+                  <label className="inventory-wrap block rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
                     <div className="text-xs font-black text-slate-400">ملاحظات</div>
                     <input
                       value={notesDraft}
@@ -1723,7 +1723,7 @@ export default function EmployeePortalInventory() {
                   {lookupGroups.length ? (
                     <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
                       {lookupGroups.map((group) => (
-                        <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-white p-3">
+                        <div key={group.key} className="inventory-wrap rounded-[var(--radius-card)] border border-slate-200 bg-white p-3">
                           <div className="flex min-w-0 items-start gap-3">
                             <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
                               <InventoryImage src={resolveCardImage(group)} alt={group.product_name || "منتج"} />
@@ -1818,7 +1818,7 @@ export default function EmployeePortalInventory() {
                             const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
                             const saving = itemSavingId === variantId;
                             return (
-                              <div key={variantId} className="inventory-item min-w-0 rounded-2xl border border-white/80 bg-white p-3">
+                              <div key={variantId} className="inventory-item min-w-0 rounded-[var(--radius-card)] border border-white/80 bg-white p-3">
                                 <div className="flex min-w-0 items-start gap-3">
                                   <div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
                                     <InventoryImage src={resolveCardImage(variant)} alt={`${group.product_name || "منتج"} ${variant.color || ""}`} />
@@ -2002,7 +2002,7 @@ function BranchInventoryDrawer({
             جرد جديد
           </button>
 
-          <label className="mt-4 block rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <label className="mt-4 block rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-black text-slate-400">
               <Search className="h-4 w-4" />
               بحث

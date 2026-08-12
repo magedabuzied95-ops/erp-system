@@ -228,7 +228,7 @@ function RolesPage() {
                   <h3 className="m1-section-title mt-2 text-white">{selectedRole.name}</h3>
                   <p className="mt-1 text-sm text-zinc-400">{selectedRole.description || "No description provided."}</p>
                 </div>
-                <Link to="/settings/permissions" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+                <Link to="/settings/permissions" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
                   <Eye className="h-4 w-4" />
                   Edit matrix
                 </Link>
@@ -240,7 +240,7 @@ function RolesPage() {
                 <InfoCard label="Type" value={selectedRole.builtIn ? "Built in" : "Custom"} />
               </div>
 
-              <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Assigned permissions</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(selectedRole.permissions || []).length === 0 ? (
@@ -255,7 +255,7 @@ function RolesPage() {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Preset roles</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {DEFAULT_ROLES.map((role) => (
@@ -291,7 +291,7 @@ function Field({ label, value, onChange, placeholder }) {
 
 function InfoCard({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-2 break-all text-sm font-black text-white">{value}</div>
     </div>
@@ -302,7 +302,7 @@ function Skeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className="h-20 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+        <div key={index} className="h-20 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />
       ))}
     </div>
   );

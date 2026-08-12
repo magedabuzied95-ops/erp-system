@@ -61,7 +61,7 @@ export default function SectionNav({ sections = [] }) {
   return (
     <nav
       aria-label={t("salesAnalytics.nav.label")}
-      className="-mx-1 hidden overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-1 py-1 lg:block"
+      className="-mx-1 hidden overflow-x-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] px-1 py-1 lg:block"
     >
       <ul className="flex items-center gap-0.5">
         {sections.map((section) => (

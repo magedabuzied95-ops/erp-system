@@ -157,7 +157,7 @@ function Accounts() {
       subtitle="أساس محاسبي أولي مبني على دليل الحسابات مع الإبقاء على دفتر الأستاذ الحالي"
       actions={
         <>
-          <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <Landmark className="h-4 w-4" />
             {t("accounting.reports.title")}
           </Link>
@@ -232,7 +232,7 @@ function Accounts() {
                 <p className="mt-1 text-sm text-zinc-400">الحسابات الافتراضية تُنشأ مرة واحدة فقط لكل مستأجر بدون تكرار.</p>
               </div>
               <div className="flex gap-2">
-                <label className="flex min-w-[260px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
+                <label className="flex min-w-[260px] items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
                   <Search className="h-4 w-4 text-zinc-500" />
                   <input
                     value={accountSearch}
@@ -249,9 +249,9 @@ function Accounts() {
             </div>
 
             {accountsLoading ? (
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-8 text-sm text-zinc-400">جارٍ تحميل الحسابات...</div>
+              <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-8 text-sm text-zinc-400">جارٍ تحميل الحسابات...</div>
             ) : filteredAccounts.length === 0 ? (
-              <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حسابات مطابقة للبحث.</div>
+              <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حسابات مطابقة للبحث.</div>
             ) : (
               <div className="m1-table-container mt-5 overflow-x-auto">
                 <table className="m1-table m1-table--compact min-w-[860px] w-full text-right text-sm" dir="rtl">
@@ -346,7 +346,7 @@ function Accounts() {
             </div>
 
             {rows.length === 0 ? (
-              <div className="m-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حركات ضمن الفلاتر الحالية.</div>
+              <div className="m-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حركات ضمن الفلاتر الحالية.</div>
             ) : (
               <div className="m1-table-container overflow-x-auto">
                 <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
@@ -409,7 +409,7 @@ function StateBanner({ icon, title, text, action }) {
   return (
     <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 text-white shadow-xl shadow-black/10 md:flex-row md:items-center md:justify-between">
       <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-primary">{icon}</div>
+        <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-primary">{icon}</div>
         <div>
           <div className="font-black">{title}</div>
           <div className="mt-1 text-sm text-zinc-400">{text}</div>

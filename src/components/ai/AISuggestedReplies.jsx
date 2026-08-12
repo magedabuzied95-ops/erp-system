@@ -66,7 +66,7 @@ export default function AISuggestedReplies({
       : "";
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-slate-400">

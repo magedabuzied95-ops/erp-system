@@ -62,7 +62,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
           <div
             role="dialog"
             aria-label={t("overview.period.label")}
-            className="absolute top-12 z-40 w-[min(92vw,340px)] rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 shadow-[var(--shadow-overlay)] start-0"
+            className="absolute top-12 z-40 w-[min(92vw,340px)] rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)] p-3 shadow-[var(--shadow-overlay)] start-0"
           >
             <div className="grid grid-cols-2 gap-1.5">
               {PERIOD_PRESETS.filter((preset) => preset !== "custom").map((preset) => {
@@ -131,7 +131,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
         ) : null}
       </div>
 
-      <label className="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3">
+      <label className="inline-flex h-10 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-3">
         <span className="text-[11px] font-semibold text-[var(--text-tertiary)]">{t("overview.compare.label")}</span>
         <select
           value={filters.compare}

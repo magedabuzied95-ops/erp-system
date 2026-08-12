@@ -18,7 +18,7 @@ export default function AccountingShell({ title, subtitle, actions, children }) 
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
 
-      <nav aria-label={isArabic ? "أقسام الحسابات" : "Accounting sections"} className="sticky top-2 z-20 overflow-x-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)]/95 p-2 shadow-2xl shadow-[var(--shadow)] backdrop-blur">
+      <nav aria-label={isArabic ? "أقسام الحسابات" : "Accounting sections"} className="sticky top-2 z-20 overflow-x-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]/95 p-2 shadow-2xl shadow-[var(--shadow)] backdrop-blur">
         <div className="flex min-w-max gap-2">
         {effectiveTabs.map((tab) => (
           <NavLink

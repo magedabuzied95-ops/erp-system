@@ -129,7 +129,7 @@ export default function Campaigns() {
 
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="m1-table-container overflow-x-auto">
             <table className="m1-table m1-table--compact min-w-full">
               <thead>

@@ -178,7 +178,7 @@ const resolveMetaSetupCompletion = ({ status = {}, health = {}, capabilities = {
 
 function SkeletonBlock() {
   return (
-    <div className="animate-pulse rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+    <div className="animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
       <div className="h-4 w-32 rounded bg-white/10" />
       <div className="mt-3 h-3 w-full rounded bg-white/10" />
       <div className="mt-2 h-3 w-2/3 rounded bg-white/10" />
@@ -224,7 +224,7 @@ function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks
       {checks.length ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {checks.map((check) => (
-            <div key={check.label} className="flex min-h-10 items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-slate-300">
+            <div key={check.label} className="flex min-h-10 items-center gap-2.5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-slate-300">
               <CheckCircle2 className={`h-4 w-4 shrink-0 ${check.ok ? "text-emerald-300" : "text-amber-300"}`} />
               <span>{check.label}</span>
             </div>
@@ -1017,7 +1017,7 @@ export default function MarketingSettings() {
               ["webhook", "Webhook"],
               ["automation", "الردود الآلية"],
             ].map(([section, label]) => (
-              <a key={section} href={`#marketing-settings-${section}`} className="inline-flex min-h-10 items-center rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-200 transition hover:border-amber-400/25 hover:bg-amber-400/10 hover:text-amber-100">
+              <a key={section} href={`#marketing-settings-${section}`} className="inline-flex min-h-10 items-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-200 transition hover:border-amber-400/25 hover:bg-amber-400/10 hover:text-amber-100">
                 {label}
               </a>
             ))}
@@ -1412,19 +1412,19 @@ export default function MarketingSettings() {
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
+            <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
               <input type="checkbox" checked={Boolean(form.is_connected)} onChange={(event) => setForm((current) => ({ ...current, is_connected: event.target.checked }))} />
               {t("marketing.settings.status.connected")}
             </label>
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
               <ShieldCheck className="h-4 w-4 text-emerald-300" />
               {form.page_access_token_set ? t("marketing.settings.status.pageTokenSaved") : form.access_token_set ? t("marketing.settings.status.legacyTokenSaved") : t("marketing.settings.status.noTokenSaved")}
             </div>
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
               <KeyRound className="h-4 w-4 text-primary" />
               {loading ? t("marketing.common.loading") : form.is_connected ? t("marketing.settings.status.connected") : t("marketing.settings.status.disconnected")}
             </div>
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+            <div className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
               <Clock className="h-4 w-4 text-amber-300" />
               {t("marketing.settings.status.expires", { value: formatDateTime(form.token_expires_at) })}
             </div>
@@ -1685,7 +1685,7 @@ export default function MarketingSettings() {
                   ["humanEscalation", "قواعد التصعيد البشري"],
                   ["smartLeadDetection", "اكتشاف العملاء المحتملين الذكي"],
                 ].map(([key, label]) => (
-                  <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-200">
+                  <label key={key} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-200">
                     <span>{label}</span>
                     <input type="checkbox" checked={Boolean(aiSettings[key])} onChange={(event) => setAiSettings((current) => ({ ...current, [key]: event.target.checked }))} />
                   </label>
@@ -1700,7 +1700,7 @@ export default function MarketingSettings() {
                   ["Sent replies", successfulRuleCount],
                   ["الردود الفاشلة", failedRuleCount],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                     <div className="text-[11px] text-slate-500">{label}</div>
                     <div className="mt-1 text-lg font-black text-white">{value}</div>
                   </div>

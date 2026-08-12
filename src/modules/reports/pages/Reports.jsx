@@ -589,7 +589,7 @@ function AiInsightsCenter({ insights, loading }) {
           {items.slice(0, 6).map((item, index) => <InsightCard key={`${item.title}-${index}`} insight={item} />)}
         </div>
       ) : (
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-sm font-semibold text-zinc-300">
+        <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-6 text-sm font-semibold text-zinc-300">
           No major anomalies detected for the selected filters. Expand the date range for richer insights.
         </div>
       )}
@@ -668,7 +668,7 @@ function IntelligenceList({ title, icon: Icon, rows, render }) {
       </div>
       <div className="space-y-2">
         {rows.length ? rows.map((row, index) => (
-          <div key={row.id || row.title || index} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+          <div key={row.id || row.title || index} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
             {render(row)}
           </div>
         )) : (
@@ -778,7 +778,7 @@ function ReportTable({ columns, rows, sort, setSort, loading }) {
     return <div className="mt-4 h-80 animate-pulse rounded-2xl bg-white/[0.06]" />;
   }
   if (!rows.length) {
-    return <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm font-semibold text-zinc-400">No report rows match the current filters.</div>;
+    return <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm font-semibold text-zinc-400">No report rows match the current filters.</div>;
   }
   return (
     <div className="m1-table-container m1-table-container--plain mt-4 overflow-x-auto rounded-2xl border border-white/10">

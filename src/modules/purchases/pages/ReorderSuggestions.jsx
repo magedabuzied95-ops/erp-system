@@ -206,7 +206,7 @@ function ReorderSuggestions() {
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center">
               <Boxes className="mx-auto h-10 w-10 text-zinc-500" />
               <h3 className="m1-section-title mt-3 text-white">{t("purchases.reorder.emptyTitle")}</h3>
               <p className="mt-1 text-sm font-bold text-zinc-400">{t("purchases.reorder.emptyDescription")}</p>
@@ -241,7 +241,7 @@ function SummaryStrip({ kpis, locale }) {
         </div>
         <div className="grid gap-1.5 sm:grid-cols-3">
           {kpis.fastest.length ? kpis.fastest.map((item) => (
-            <div key={item.suggestion_id || `${item.product_id}-${item.color}`} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+            <div key={item.suggestion_id || `${item.product_id}-${item.color}`} className="min-w-0 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-3 py-2">
               <div className="truncate text-xs font-black text-white">{item.product_name}</div>
               <div className="mt-1 text-[11px] font-bold text-zinc-400">{t("purchases.reorder.dailyVelocity", { daily: formatNumber(item.average_daily_sales, 2, locale), percent: formatNumber(item.sell_through_percent, 1, locale) })}</div>
             </div>
@@ -289,9 +289,9 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
   const suggestedQty = Number(item.suggested_qty || 0);
 
   return (
-    <article className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3 transition duration-200 hover:border-white/20 hover:bg-white/[0.055] lg:grid-cols-[220px_minmax(0,1fr)_220px]">
+    <article className="grid gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-3 transition duration-200 hover:border-white/20 hover:bg-white/[0.055] lg:grid-cols-[220px_minmax(0,1fr)_220px]">
       <div className="flex min-w-0 items-center gap-3">
-        <img src={imageFor(item.image_url)} alt="" className="h-16 w-16 shrink-0 rounded-xl border border-white/10 bg-white/5 object-contain p-1" loading="lazy" />
+        <img src={imageFor(item.image_url)} alt="" className="h-16 w-16 shrink-0 rounded-[var(--radius-card)] border border-white/10 bg-white/5 object-contain p-1" loading="lazy" />
         <div className="min-w-0">
           <h3 className="m1-section-title truncate text-white">{item.product_name}</h3>
           <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold text-zinc-400">

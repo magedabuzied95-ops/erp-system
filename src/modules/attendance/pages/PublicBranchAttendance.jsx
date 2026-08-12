@@ -214,7 +214,7 @@ export default function PublicBranchAttendance() {
   return (
     <main className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 py-5">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/70">
+        <section className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/70">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white">
               <Clock className="h-5 w-5" />
@@ -230,7 +230,7 @@ export default function PublicBranchAttendance() {
           </div>
 
           {branchHasCoordinates ? (
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="mt-4 overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white">
               <iframe
                 title="Branch map preview"
                 className="h-36 w-full border-0"
@@ -240,7 +240,7 @@ export default function PublicBranchAttendance() {
             </div>
           ) : null}
 
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="mt-4 rounded-[var(--radius-card)] border border-slate-200 bg-white p-4">
             <div className="flex items-start gap-3">
               {locationStatus === "loading" ? <Loader2 className="mt-0.5 h-5 w-5 animate-spin text-slate-500" /> : null}
               {locationStatus === "success" ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" /> : null}
@@ -312,7 +312,7 @@ export default function PublicBranchAttendance() {
               </div>
 
               {attendanceState ? (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-white/70 p-3 text-sm font-bold text-slate-700">
+                <div className="mt-4 rounded-[var(--radius-card)] border border-emerald-200 bg-white/70 p-3 text-sm font-bold text-slate-700">
                   {deviceBlocked ? employee?.device_approval_message || "Device approval is required before check-in." : null}
                   {!deviceBlocked && attendanceCompleted ? "Attendance completed" : null}
                   {!deviceBlocked && !attendanceCompleted && allowedAction === "check_out" ? "Checked in. Check out is available." : null}
@@ -356,7 +356,7 @@ export default function PublicBranchAttendance() {
           ) : null}
 
           {serverGps ? (
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700">
+            <div className="mt-4 rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700">
               Server GPS result: {serverGps.verification_result || "-"}
               {serverGps.distance_meters !== null && serverGps.distance_meters !== undefined ? `, distance ${formatMeters(serverGps.distance_meters)}` : ""}
             </div>

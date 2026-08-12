@@ -12,7 +12,7 @@ export default function PermissionsShell({ title, subtitle, actions, tabs = [], 
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl shadow-[var(--shadow)]">
+      <div className="flex flex-wrap gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl shadow-[var(--shadow)]">
         {tabs.map((tab) => (
           <NavLink
             key={tab.to}

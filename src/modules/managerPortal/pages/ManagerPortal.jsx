@@ -546,13 +546,13 @@ const Badge = ({ children, className = "" }) => (
 );
 
 const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false, tone = "gold" }) => (
-  <section data-tone={tone} className={`manager-portal-card overflow-hidden rounded-3xl border border-border bg-surface shadow-[var(--shadow-card)] ${compact ? "p-3" : "p-4"} ${className}`}>
+  <section data-tone={tone} className={`manager-portal-card overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)] ${compact ? "p-3" : "p-4"} ${className}`}>
     <div className="flex items-start justify-between gap-2">
       <div>
         <div className="text-[11px] font-black leading-5 tracking-normal text-text-muted">{subtitle}</div>
         <h2 className="m1-section-title mt-1 text-text">{title}</h2>
       </div>
-      {Icon ? <div className="manager-portal-card-icon rounded-2xl border border-border bg-surface-soft p-2 text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
+      {Icon ? <div className="manager-portal-card-icon rounded-[var(--radius-card)] border border-border bg-surface-soft p-2 text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
     </div>
     {action ? <div className="mt-3">{action}</div> : null}
     <div className={`manager-portal-card-body mt-3 ${bodyClassName}`}>{children}</div>
@@ -571,7 +571,7 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
     blue: "border-t-primary",
   };
   return (
-    <div data-tone={tone} className={`manager-portal-mini-metric kpi-card-readable h-full min-h-[112px] rounded-3xl border border-border border-t-4 bg-surface p-3 shadow-[var(--shadow-card)] ${tones[tone] || tones.slate}`}>
+    <div data-tone={tone} className={`manager-portal-mini-metric kpi-card-readable h-full min-h-[112px] rounded-[var(--radius-card)] border border-border border-t-4 bg-surface p-3 shadow-[var(--shadow-card)] ${tones[tone] || tones.slate}`}>
       <div className="flex h-full items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-black leading-5 text-text-muted">{label}</div>
@@ -580,7 +580,7 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
           <div className="manager-portal-mini-metric-value mt-1 text-[1.9rem] font-black leading-none tracking-tight text-text sm:text-[2.05rem]">{value || formatNumber(0)}</div>
           {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-text-muted">{sub}</div> : null}
         </div>
-        {Icon ? <div className="manager-portal-mini-metric-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface-soft text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
+        {Icon ? <div className="manager-portal-mini-metric-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
       </div>
     </div>
   );
@@ -597,7 +597,7 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
   const valueText = "text-text";
   if (emphasis) {
     return (
-      <div data-tone={tone} className="manager-portal-compact-stat manager-portal-compact-stat--emphasis h-full min-h-[112px] rounded-2xl border border-[color-mix(in_srgb,var(--primary)_48%,var(--border))] bg-surface p-3 text-text shadow-[var(--shadow-card)]">
+      <div data-tone={tone} className="manager-portal-compact-stat manager-portal-compact-stat--emphasis h-full min-h-[112px] rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--primary)_48%,var(--border))] bg-surface p-3 text-text shadow-[var(--shadow-card)]">
         <div className="flex h-full items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className={`text-[10px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
@@ -652,7 +652,7 @@ const StatusPill = ({ value, tone = "slate" }) => {
 };
 
 const EmptyState = ({ title, body, compact = false }) => (
-  <div className={`manager-portal-empty rounded-2xl border border-dashed border-border bg-surface text-right font-semibold leading-6 text-text-muted shadow-[var(--shadow-card)] ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
+  <div className={`manager-portal-empty rounded-[var(--radius-card)] border border-dashed border-border bg-surface text-right font-semibold leading-6 text-text-muted shadow-[var(--shadow-card)] ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
     <div className="font-black leading-6 text-text">{title}</div>
     <div className="mt-1 leading-6">{body}</div>
   </div>
@@ -1851,7 +1851,7 @@ export default function ManagerPortal() {
           </div>
 
           {expanded ? (
-            <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-700 shadow-sm">
+            <div className="space-y-2 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-700 shadow-sm">
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-slate-50 px-2.5 py-2">
                   <div className="font-black text-slate-500">الإنشاء</div>
@@ -1914,7 +1914,7 @@ export default function ManagerPortal() {
           <div>المرفقات: {formatNumber(task.attachments_count || 0)}</div>
         </div>
         {proofUrl ? (
-          <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="mt-3 overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
             {["image", "photo", "img"].some((type) => String(task.latest_attachment_type || "").toLowerCase().includes(type)) ? (
               <a href={proofUrl} target="_blank" rel="noreferrer" className="block">
                 <img src={proofUrl} alt={portalText(taskProofLabel(task) || task.title || "Task proof")} className="h-44 w-full object-cover" />
@@ -2120,9 +2120,9 @@ export default function ManagerPortal() {
           )) : null}
 
           {showInstallCard ? (
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm">
+            <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 text-slate-950 shadow-sm">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-slate-200 bg-white text-slate-700 shadow-sm">
                   <Smartphone className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -2183,11 +2183,11 @@ export default function ManagerPortal() {
                   </div>
 
                   <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5">
                       <div className="text-[11px] font-black text-slate-500">غير مقروء</div>
                       <div className="mt-1 text-xl font-black text-slate-950">{formatNumber(unreadCount || notificationsUnread)}</div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5">
                       <div className="text-[11px] font-black text-slate-500">الإجمالي</div>
                       <div className="mt-1 text-xl font-black text-slate-950">{formatNumber(managerNotifications.length || 0)}</div>
                     </div>
@@ -2244,7 +2244,7 @@ export default function ManagerPortal() {
                         return (
                           <article
                             key={item.id}
-                            className={`overflow-hidden rounded-3xl border p-4 shadow-sm transition ${ unread ? "border-primary bg-[linear-gradient(180deg,#ffffff,#f8fafc)] ring-1 ring-primary dark:border-primary/20 dark:bg-white/[0.03] dark:ring-primary/10" : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] dark:border-white/10 dark:bg-white/[0.02]" }`}
+                            className={`overflow-hidden rounded-[var(--radius-card)] border p-4 shadow-sm transition ${ unread ? "border-primary bg-[linear-gradient(180deg,#ffffff,#f8fafc)] ring-1 ring-primary dark:border-primary/20 dark:bg-white/[0.03] dark:ring-primary/10" : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] dark:border-white/10 dark:bg-white/[0.02]" }`}
                           >
                             <button
                               type="button"
@@ -2364,7 +2364,7 @@ export default function ManagerPortal() {
                             <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
                               {(invoice.items || []).map((item) => (
                                 <div key={item.id || `${invoice.id}-${item.product_id}-${item.variant_id}`} className="flex items-center gap-2">
-                                  {item.image_url ? <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-xl border border-slate-700 bg-white object-cover" loading="lazy" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900"><Package className="h-5 w-5 text-slate-400" /></div>}
+                                  {item.image_url ? <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-[var(--radius-card)] border border-slate-700 bg-white object-cover" loading="lazy" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900"><Package className="h-5 w-5 text-slate-400" /></div>}
                                   <div className="min-w-0 flex-1">
                                     <div className="truncate text-xs font-black text-white">{portalText(item.product_name || "منتج")}</div>
                                     <div className="mt-0.5 truncate text-[11px] font-bold text-slate-400">{[portalText(item.color || ""), portalText(item.size || ""), `${formatNumber(item.quantity || 0)} قطعة`].filter(Boolean).join(" · ")}</div>
@@ -2387,7 +2387,7 @@ export default function ManagerPortal() {
                 {paymentBreakdown.length ? (
                   <div className="space-y-2">
                     {paymentBreakdown.map((row) => (
-                      <div key={row.method} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800">
+                      <div key={row.method} className="flex items-center justify-between rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800">
                         <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{paymentMethodLabel(row.method)}</span>
                         <span className="inline-flex items-center gap-2 text-slate-950"><span className="font-black">{formatCurrency(row.total || 0)}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{formatNumber(row.count || 0)} عملية</span></span>
                       </div>
@@ -2402,7 +2402,7 @@ export default function ManagerPortal() {
                 <Card title="رؤى الذكاء الاصطناعي" subtitle="التحليلات الذكية" icon={Bot}>
                   <div className="grid gap-2 md:grid-cols-2">
                     {mobileAlertBuckets.aiInsights.map((item, index) => (
-                      <div key={`${item.title || item.body || index}`} className="rounded-2xl border border-slate-200 bg-white p-3 text-sm font-semibold leading-6 text-slate-800">
+                      <div key={`${item.title || item.body || index}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 text-sm font-semibold leading-6 text-slate-800">
                         <div className="text-xs font-black text-slate-600">{insightTitleLabel(item.type, item.title)}</div>
                         <div className="mt-1">{renderInsightBody(item)}</div>
                       </div>
@@ -2412,7 +2412,7 @@ export default function ManagerPortal() {
               ) : null}
 
               {mobileAlertBuckets.aiInsights.length || mobileAlertBuckets.lowStock.length || mobileAlertBuckets.refillAlerts.length || mobileAlertBuckets.leads.length || mobileAlertBuckets.operationalEvents.length ? null : (
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-500 shadow-sm">
+                <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-500 shadow-sm">
                   لا توجد تنبيهات إضافية حالياً
                 </div>
               )}
@@ -2487,19 +2487,19 @@ export default function ManagerPortal() {
                     </div>
 
                     <div className="mt-2 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right">
                         <div className="text-[10px] font-black text-slate-500">الفواتير</div>
                         <div className="mt-0.5 text-sm font-black text-slate-950">{formatNumber(employee.invoices_count || 0)}</div>
                       </div>
-                      <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right">
                         <div className="text-[10px] font-black text-slate-500">الوردية</div>
                         <div className="mt-0.5 text-sm font-black text-slate-950">{Number(employee.shift_duration_hours || 0).toFixed(1)} س</div>
                       </div>
-                      <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right">
                         <div className="text-[10px] font-black text-slate-500">آخر نشاط</div>
                         <div className="mt-0.5 truncate text-sm font-black text-slate-950">{formatTime(employee.last_activity)}</div>
                       </div>
-                      <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right">
                         <div className="text-[10px] font-black text-slate-500">إجمالي السلف</div>
                         <div className="mt-0.5 truncate text-sm font-black text-slate-950">{formatCurrency(employee.total_advances || 0)}</div>
                       </div>
@@ -2707,7 +2707,7 @@ export default function ManagerPortal() {
                     </div>
                   </>
                 ) : (
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-500 shadow-sm">لا توجد بيانات مبيعات حديثة</div>
+                  <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-500 shadow-sm">لا توجد بيانات مبيعات حديثة</div>
                 )}
               </div>
             ) : (
@@ -2721,7 +2721,7 @@ export default function ManagerPortal() {
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card title="أفضل بائع" subtitle="آخر ٣٠ يوم" icon={Trophy}>
                   {salesLeaders.top_seller ? (
-                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                    <div className="space-y-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
                       <div className="flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                         <div className="text-lg font-black"><InlineName>{portalText(salesLeaders.top_seller.seller_name || "بائع غير محدد")}</InlineName></div>
@@ -2737,7 +2737,7 @@ export default function ManagerPortal() {
                 </Card>
                 <Card title="أقل بائع أداءً" subtitle="آخر 30 يومًا" icon={Medal}>
                   {salesLeaders.worst_seller ? (
-                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                    <div className="space-y-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
                       <div className="flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
                         <div className="text-lg font-black"><InlineName>{portalText(salesLeaders.worst_seller.seller_name || "بائع غير معروف")}</InlineName></div>
@@ -2756,7 +2756,7 @@ export default function ManagerPortal() {
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card title="أفضل تصنيف" subtitle="آخر ٣٠ يوم" icon={Package}>
                   {bestCategory ? (
-                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                    <div className="space-y-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
                       <div className="flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full bg-primary" />
                         <div className="text-lg font-black"><InlineName>{portalText(bestCategory.name || "Uncategorized")}</InlineName></div>
@@ -2772,7 +2772,7 @@ export default function ManagerPortal() {
                 </Card>
                 <Card title="أفضل علامة" subtitle="آخر ٣٠ يوم" icon={Store}>
                   {bestBrand ? (
-                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                    <div className="space-y-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
                       <div className="flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
                         <div className="text-lg font-black"><InlineName>{portalText(bestBrand.name || "Unbranded")}</InlineName></div>
@@ -2814,7 +2814,7 @@ export default function ManagerPortal() {
                       const delta = Number(item.delta || 0);
                       const positive = delta >= 0;
                       return (
-                        <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                        <div key={item.label} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
                           <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
                           <div className="mt-2 text-lg font-black text-slate-950">{item.today}</div>
                           <div className="mt-1 text-xs font-bold text-slate-500">أمس: {item.yesterday}</div>
@@ -2831,7 +2831,7 @@ export default function ManagerPortal() {
 
                 <Card title="متوسط الفاتورة" subtitle="قيمة الفاتورة" icon={ClipboardList}>
                   <div className="space-y-3">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
                       <div className="text-xs font-black text-slate-500">اليوم</div>
                       <div className="mt-2 text-3xl font-black text-slate-950">{formatCurrency(salesComparison.today_average_invoice || sales?.overview?.today?.averageOrderValue || 0)}</div>
                       <div className="mt-1 text-sm font-semibold text-slate-600">
@@ -2839,11 +2839,11 @@ export default function ManagerPortal() {
                       </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 shadow-sm">
                         <div className="text-xs font-black text-slate-500">فواتير اليوم</div>
                         <div className="mt-1 text-lg font-black text-slate-950">{formatNumber(salesComparison.today_orders || sales?.overview?.today?.orders || 0)}</div>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 shadow-sm">
                         <div className="text-xs font-black text-slate-500">النمو</div>
                         <div className={`mt-1 inline-flex items-center gap-1 text-lg font-black ${Number(salesComparison.average_invoice_growth || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                           {Number(salesComparison.average_invoice_growth || 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
@@ -2860,21 +2860,21 @@ export default function ManagerPortal() {
                 {trend7d.length ? (
                   <div className="space-y-4">
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 shadow-sm">
                         <div className="text-xs font-black text-slate-500">إيراد الشهر</div>
                         <div className="mt-1 text-xl font-black text-slate-950">{formatCurrency(trend7d.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</div>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 shadow-sm">
                         <div className="text-xs font-black text-slate-500">فواتير الشهر</div>
                         <div className="mt-1 text-xl font-black text-slate-950">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))}</div>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 shadow-sm">
                         <div className="text-xs font-black text-slate-500">أفضل يوم</div>
                         <div className="mt-1 text-xl font-black text-slate-950">
                           {formatShortDay(trend7d.reduce((best, item) => (Number(item.revenue || 0) > Number(best?.revenue || 0) ? item : best), trend7d[0] || {}).day)}
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 shadow-sm">
                         <div className="text-xs font-black text-slate-500">أعلى إيراد</div>
                         <div className="mt-1 text-xl font-black text-slate-950">{formatCurrency(Math.max(...trend7d.map((item) => Number(item.revenue || 0)), 0))}</div>
                       </div>
@@ -2884,7 +2884,7 @@ export default function ManagerPortal() {
                         const maxRevenue = Math.max(...trend7d.map((row) => Number(row.revenue || 0)), 1);
                         const height = Math.max(12, Math.round((Number(item.revenue || 0) / maxRevenue) * 100));
                         return (
-                          <div key={item.day} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                          <div key={item.day} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
                             <div className="flex h-28 items-end">
                               <div className="w-full rounded-t-xl bg-gradient-to-t from-slate-950 to-primary" style={{ height: `${height}%` }} />
                             </div>
@@ -2904,17 +2904,17 @@ export default function ManagerPortal() {
               <Card title="Conversion indicators" subtitle="Shown only when data exists" icon={Megaphone}>
                 {hasConversionIndicators ? (
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                       <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Customer-linked orders</div>
                       <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.customer_linked_orders || 0)}</div>
                       <div className="mt-1 text-sm font-bold text-slate-500">{formatPercent(conversionIndicators.customer_link_rate || 0)} of orders</div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                       <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Online orders</div>
                       <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.online_orders || 0)}</div>
                       <div className="mt-1 text-sm font-bold text-slate-500">{formatPercent(conversionIndicators.online_order_share || 0)} of orders</div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
                       <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">AI chat conversions</div>
                       <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.ai_confirmed_orders || 0)}</div>
                       <div className="mt-1 text-sm font-bold text-slate-500">
@@ -2929,7 +2929,7 @@ export default function ManagerPortal() {
 
               <Card title={portalText("Top products")} subtitle="Top products" icon={Package}>
                 {topProducts.length ? topProducts.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
+                  <div key={item.name} className="flex items-center justify-between rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
                     <span><InlineName>{portalText(item.name)}</InlineName></span>
                     <span className="font-black text-slate-950">{formatNumber(item.quantity || 0)} · {formatCurrency(item.revenue || 0)}</span>
                   </div>
@@ -2939,7 +2939,7 @@ export default function ManagerPortal() {
                 {Array.isArray(sales?.hourly) && sales.hourly.length ? (
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
                     {sales.hourly.map((item) => (
-                      <div key={item.hour} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
+                      <div key={item.hour} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
                         <div className="text-xs font-black text-slate-500">{String(item.hour).padStart(2, "0")}:00</div>
                         <div className="mt-1 font-black text-slate-950">{formatCurrency(item.sales || 0)}</div>
                       </div>
@@ -3090,7 +3090,7 @@ export default function ManagerPortal() {
               <Card title="إعدادات التنبيه" subtitle="إعدادات الإشعارات" icon={Bell}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.entries(settings).map(([category, config]) => (
-                    <div key={category} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div key={category} className="space-y-2 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-black text-slate-900">{portalText(category)}</div>
                         <StatusPill tone="slate" value={portalText(category)} />
@@ -3133,10 +3133,10 @@ export default function ManagerPortal() {
                     </Badge>
                   </div>
                   {pushState.endpointHost ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 shadow-sm" dir="ltr">{pushState.endpointHost}</div>
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 shadow-sm" dir="ltr">{pushState.endpointHost}</div>
                   ) : null}
                   {isIosDevice() && !standalone ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold leading-6 text-slate-700 shadow-sm">
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 text-sm font-bold leading-6 text-slate-700 shadow-sm">
                       على iPhone يجب فتح بوابة المدير من التطبيق المثبت بعد إضافة الشاشة الرئيسية لتفعيل إشعارات الويب الفورية.
                     </div>
                   ) : null}
@@ -3164,7 +3164,7 @@ export default function ManagerPortal() {
                     <div className="text-xs font-black text-slate-300">إشعارات غير مقروءة</div>
                     <div className="mt-1 text-3xl font-black text-white">{formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+                  <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
                     <div className="text-xs font-black text-slate-500">صلاحيات</div>
                     <div className="mt-1 text-sm font-semibold leading-6 text-slate-700">{(me?.permissions || []).length ? `${formatNumber(me.permissions.length)} صلاحية` : "لا توجد صلاحيات ظاهرة"}</div>
                   </div>
@@ -3181,7 +3181,7 @@ export default function ManagerPortal() {
                 {visibleAiInsights.map((insight, index) => {
                   const importance = insightActionabilityScore(insight);
                   return (
-                    <div key={`${insight.title || index}`} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
+                    <div key={`${insight.title || index}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-xs font-black text-slate-600">{insightTitleLabel(insight.type, insight.title)}</div>
@@ -3215,7 +3215,7 @@ export default function ManagerPortal() {
                   const product = leadPrimaryProduct(lead);
                   const lastInteraction = leadLastInteractionAt(lead);
                   return (
-                    <div key={leadIdentity(lead)} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
+                    <div key={leadIdentity(lead)} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-black text-slate-950">{leadName(lead)}</div>
@@ -3253,7 +3253,7 @@ export default function ManagerPortal() {
             <Card title="المخزون المنخفض" subtitle="المخزون المنخفض" icon={Package} compact bodyClassName="space-y-2">
               <div className="space-y-1.5">
                 {visibleLowStock.map((item) => (
-                  <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
+                  <div key={`${item.id}-${item.name}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
                     <div className="line-clamp-2 font-black leading-5 text-slate-950"><InlineName className="line-clamp-2 align-bottom">{portalText(item.name || "-")}</InlineName></div>
                     <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
                   </div>
@@ -3325,7 +3325,7 @@ export default function ManagerPortal() {
                       ["الكاشير", invoiceSheet.invoice.cashier_name || invoiceSheet.invoice.seller_name || "-"],
                       ["الفرع", invoiceSheet.invoice.branch_name || "-"],
                     ].map(([label, value]) => (
-                      <div key={label} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm">
+                      <div key={label} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm">
                         <div className="text-xs font-black text-slate-500">{label}</div>
                         <div className="mt-1 font-black text-slate-950">{value}</div>
                       </div>
@@ -3334,7 +3334,7 @@ export default function ManagerPortal() {
 
                   <Card title="الدفع" subtitle="طريقة الدفع / التقسيم" icon={ArrowLeftRight} compact>
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm">
+                      <div className="flex items-center justify-between rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm">
                         <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{paymentMethodLabel(invoiceSheet.invoice.payment_method)}</span>
                         <span className="text-slate-950">{portalText(invoiceSheet.invoice.payment_status || "")}</span>
                       </div>
@@ -3346,14 +3346,14 @@ export default function ManagerPortal() {
                           ["إثبات الدفع", invoiceSheet.invoice.transfer_proof_status || "-"],
                           ["الخزينة / الحساب", invoiceSheet.invoice.treasury_name || "-"],
                         ].map(([label, value]) => (
-                          <div key={label} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold shadow-sm">
+                          <div key={label} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-xs font-bold shadow-sm">
                             <div className="text-slate-500">{label}</div>
                             <div className="mt-1 text-slate-950">{value}</div>
                           </div>
                         ))}
                       </div>
                       {Array.isArray(invoiceSheet.invoice.payment_breakdown) && invoiceSheet.invoice.payment_breakdown.length ? invoiceSheet.invoice.payment_breakdown.map((row, index) => (
-                        <div key={`${row.method || row.payment_method || index}`} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold shadow-sm">
+                        <div key={`${row.method || row.payment_method || index}`} className="flex items-center justify-between rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-sm font-bold shadow-sm">
                           <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-slate-900" />{paymentMethodLabel(row.method || row.payment_method)}</span>
                           <span className="text-slate-950">{formatCurrency(row.amount || row.total || 0)}</span>
                         </div>
@@ -3364,7 +3364,7 @@ export default function ManagerPortal() {
                   <Card title="المنتجات" subtitle="قائمة المنتجات" icon={Package} compact>
                     <div className="space-y-2">
                       {(invoiceSheet.invoice.items || []).length ? invoiceSheet.invoice.items.map((item) => (
-                        <div key={item.id || `${item.product_name}-${item.variant_id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm shadow-sm">
+                        <div key={item.id || `${item.product_name}-${item.variant_id}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 text-sm shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             {item.image_url ? (
                               <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-14 w-14 shrink-0 rounded-2xl border border-slate-200 object-cover" loading="lazy" />
@@ -3399,7 +3399,7 @@ export default function ManagerPortal() {
                         ["الربح", formatCurrency(invoiceSheet.invoice.profit || 0)],
                       ] : []),
                     ].map(([label, value]) => (
-                      <div key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold shadow-sm">
+                      <div key={label} className="flex items-center justify-between rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold shadow-sm">
                         <span className="text-slate-500">{label}</span>
                         <span className="text-slate-950">{value}</span>
                       </div>

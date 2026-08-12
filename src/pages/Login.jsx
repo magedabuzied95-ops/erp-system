@@ -20,7 +20,7 @@ function BrandBadge({ name, logoUrl }) {
       .join("") || "MONE";
 
   return (
-    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-lg font-black text-[var(--text)]">
+    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] text-lg font-black text-[var(--text)]">
       {logoUrl && !failed ? (
         <img
           src={logoUrl}

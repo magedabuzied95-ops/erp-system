@@ -105,7 +105,7 @@ const quickFilters = [
 
 function EmptyState({ text = "No follow-ups need action right now." }) {
   return (
-    <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
+    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
       {text}
     </div>
   );
@@ -167,7 +167,7 @@ function FollowupCard({
   const isClosedConversation = lower(row.conversation?.status) === "closed";
 
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_16px_44px_rgba(0,0,0,0.18)] transition hover:border-white/20">
+    <article className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-3 shadow-[0_16px_44px_rgba(0,0,0,0.18)] transition hover:border-white/20">
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -264,7 +264,7 @@ function FollowupCard({
               <ChevronDown className="h-4 w-4 text-slate-400" />
             </summary>
             <div className="mt-3 grid gap-3">
-              <div className="rounded-xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300" dir="auto">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300" dir="auto">
                 {detailsText || "No additional details available."}
               </div>
               <textarea
@@ -494,7 +494,7 @@ export default function AiFollowups() {
   return (
     <div dir="ltr" className="min-h-full bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
       <div className="mx-auto flex max-w-[96rem] flex-col gap-4">
-        <section className="rounded-3xl border border-white/10 bg-white/[0.055] p-4 md:p-5">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-4 md:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary">
@@ -538,7 +538,7 @@ export default function AiFollowups() {
           <KpiCard label="Resolved" value={stats.resolved} tone="emerald" />
         </section>
 
-        <section className="flex flex-wrap gap-2 rounded-3xl border border-white/10 bg-white/[0.035] p-2.5">
+        <section className="flex flex-wrap gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-2.5">
           {statusTabs.map((tab) => (
             <button
               key={tab.key}

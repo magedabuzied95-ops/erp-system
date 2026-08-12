@@ -28,7 +28,7 @@ function AdminTenants() {
       title="Super Admin Tenants"
       subtitle="Monitor companies, active subscriptions, revenue placeholders, and tenant status management from one panel."
       actions={
-        <Link to="/workspace" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+        <Link to="/workspace" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <Building2 className="h-4 w-4" />
           Workspace
         </Link>
@@ -60,7 +60,7 @@ function AdminTenants() {
             <Empty label="No tenants found." />
           ) : (
             tenants.map((tenant) => (
-              <div key={tenant.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div key={tenant.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="grid gap-3 xl:grid-cols-[1.4fr_1fr_0.9fr_0.7fr] xl:items-center">
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-primary">
@@ -101,7 +101,7 @@ function AdminTenants() {
 
 function Metric({ label, value, icon }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
@@ -114,7 +114,7 @@ function Metric({ label, value, icon }) {
 }
 
 function Empty({ label }) {
-  return <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
 }
 
 export default AdminTenants;

@@ -36,7 +36,7 @@ export const LiveSalesTicker = memo(function LiveSalesTicker({ sales = [], forma
         {sales.length ? sales.map((sale) => {
           const meta = [sale.customer, sale.branch, sale.paymentStatus].filter(Boolean).join(" · ");
           const content = (
-            <div className={`grid grid-cols-[2rem_minmax(0,1fr)_auto] gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 transition hover:bg-white/[0.065] ${Number(sale.highlightUntil || 0) > Date.now() ? "ring-1 ring-emerald-200/20" : ""}`}>
+            <div className={`grid grid-cols-[2rem_minmax(0,1fr)_auto] gap-3 rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 transition hover:bg-white/[0.065] ${Number(sale.highlightUntil || 0) > Date.now() ? "ring-1 ring-emerald-200/20" : ""}`}>
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-200">
                 <ReceiptText className="h-4 w-4" />
               </span>
@@ -52,7 +52,7 @@ export const LiveSalesTicker = memo(function LiveSalesTicker({ sales = [], forma
           );
           return sale.href ? <Link key={`${sale.id}-${sale.timestamp}`} to={sale.href} className="block">{content}</Link> : <div key={`${sale.id}-${sale.timestamp}`}>{content}</div>;
         }) : (
-          <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.025] p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.025] p-6 text-center text-sm text-zinc-500">
             {copy.empty}
           </div>
         )}

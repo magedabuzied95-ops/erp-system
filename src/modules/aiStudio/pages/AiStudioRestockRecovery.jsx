@@ -103,7 +103,7 @@ export default function AiStudioRestockRecovery() {
 
   return (
     <div dir="ltr" className="space-y-4 p-4 text-white md:p-6">
-      <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><PackageCheck className="h-4 w-4" />AI Studio</div>
@@ -157,17 +157,17 @@ export default function AiStudioRestockRecovery() {
 
       {view === "notifications" ? (
         <>
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[12px] text-slate-300">
+          <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-[12px] text-slate-300">
             <b className="text-white">Human-approved customer messaging.</b> Drafts are generated from verified facts only. <b>No message is sent until a human clicks Approve &amp; Send</b>, and only when messaging mode is <b>Approval + Send</b>. {messagingMode !== "approval_send" ? <span className="text-amber-200">Sending is currently disabled ({messagingMode === "off" ? "Off" : "Preview only"}).</span> : <span className="text-rose-200">Approval + Send is ON — approving a draft contacts the customer.</span>}
           </section>
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[["Pending approval", notifCounts.pending_approval, "text-amber-200"], ["Sent", notifCounts.sent, "text-emerald-200"], ["Rejected", notifCounts.rejected, "text-slate-300"], ["Failed", notifCounts.failed, "text-rose-200"]].map(([label, val, tone]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3"><div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div><div className={`mt-1 text-2xl font-black ${tone}`}>{Number(val || 0)}</div></div>
+              <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-3"><div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div><div className={`mt-1 text-2xl font-black ${tone}`}>{Number(val || 0)}</div></div>
             ))}
           </section>
           <section className="grid grid-cols-3 gap-3">
             {[["Delivered", deliveryCounts.delivered, CheckCheck, "text-primary"], ["Read", deliveryCounts.read, Eye, "text-emerald-200"], ["Delivery failed", deliveryCounts.delivery_failed, AlertTriangle, "text-rose-200"]].map(([label, val, Icon, tone]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5"><div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500"><Icon className="h-3 w-3" />{label}</div><div className={`mt-1 text-xl font-black ${tone}`}>{Number(val || 0)}</div></div>
+              <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2.5"><div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500"><Icon className="h-3 w-3" />{label}</div><div className={`mt-1 text-xl font-black ${tone}`}>{Number(val || 0)}</div></div>
             ))}
           </section>
           <div className="text-[10px] text-slate-500">Delivery lifecycle is reconciled from real provider receipts. WhatsApp reports Sent → Delivered → Read; Messenger/Instagram report Delivered only (read receipts are watermark-only and not shown). Late/out-of-order receipts never move a message backwards.</div>
@@ -178,13 +178,13 @@ export default function AiStudioRestockRecovery() {
               const f = n.facts || {};
               const sent = n.status === "sent";
               return (
-                <div key={n.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div key={n.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Restock notification</div>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${sent ? "bg-emerald-400/20 text-emerald-100" : n.status === "rejected" ? "bg-slate-500/20 text-slate-300" : n.status === "failed" ? "bg-rose-500/20 text-rose-100" : "bg-amber-400/20 text-amber-100"}`}>{n.status.replace("_", " ")}</span>
                   </div>
                   <div className="mt-2 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[12px]">
+                    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.02] p-3 text-[12px]">
                       <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Facts</div>
                       <div className="mt-1 space-y-0.5 text-slate-300">
                         <div>Customer: <b className="text-white">{n.customer_name || n.phone || "—"}</b></div>
@@ -194,7 +194,7 @@ export default function AiStudioRestockRecovery() {
                         <div>Channel: {n.channel || "—"} · <span className="text-emerald-300">explicit restock intent</span></div>
                       </div>
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[12px]">
+                    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.02] p-3 text-[12px]">
                       <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Draft {sent ? "(sent)" : "— not sent yet"}</div>
                       {editId === n.id ? (
                         <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={4} dir="rtl" className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/60 px-2.5 py-2 text-[12px] text-white focus:border-primary/40 focus:outline-none" />
@@ -251,13 +251,13 @@ export default function AiStudioRestockRecovery() {
         <>
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {[["Waiting", intentCounts.waiting, "text-slate-200"], ["Exact variant", intentCounts.waiting_exact_variant, "text-emerald-200"], ["Recovery created", intentCounts.recovery_created, "text-primary"], ["Customer notified", intentCounts.customer_notified, "text-violet-200"], ["Cancelled", intentCounts.cancelled, "text-amber-200"]].map(([label, val, tone]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
+              <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
                 <div className={`mt-1 text-2xl font-black ${tone}`}>{Number(val || 0)}</div>
               </div>
             ))}
           </section>
-          <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+          <section className="overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
             {loading ? (
               <div className="flex items-center gap-2 p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
             ) : intents.length === 0 ? (
@@ -300,7 +300,7 @@ export default function AiStudioRestockRecovery() {
       {/* Counts (real data) */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {[["Total", counts.total, "text-slate-200"], ["Follow-ups created", counts.followups_created, "text-emerald-200"], ["Skipped (dupe)", counts.skipped_duplicate, "text-amber-200"], ["Skipped (no stock)", counts.skipped_no_stock, "text-amber-200"], ["Failed", counts.failed, "text-rose-200"]].map(([label, val, tone]) => (
-          <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
+          <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-3">
             <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
             <div className={`mt-1 text-2xl font-black ${tone}`}>{Number(val || 0)}</div>
           </div>
@@ -308,7 +308,7 @@ export default function AiStudioRestockRecovery() {
       </section>
 
       {/* Recovery table */}
-      <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+      <section className="overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
         {loading ? (
           <div className="flex items-center gap-2 p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
         ) : recoveries.length === 0 ? (

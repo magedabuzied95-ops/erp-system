@@ -985,7 +985,7 @@ function SettingsCenterContent({ debugMode = false }) {
     const dirty = dirtyKeys.includes(item.key);
     const matched = normalizedSearch && searchMatches.some((match) => match.key === item.key);
     return (
-      <article id={`setting-${item.key}`} key={item.key} className={`rounded-2xl border p-4 transition ${dirty ? "border-amber-200 bg-amber-50/70 dark:border-amber-400/30 dark:bg-amber-500/10" : matched ? "border-sky-200 bg-sky-50/70 dark:border-blue-400/30 dark:bg-blue-500/10" : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900/82"} ${compact ? "" : "shadow-sm dark:shadow-none"}`}>
+      <article id={`setting-${item.key}`} key={item.key} className={`rounded-[var(--radius-card)] border p-4 transition ${dirty ? "border-amber-200 bg-amber-50/70 dark:border-amber-400/30 dark:bg-amber-500/10" : matched ? "border-sky-200 bg-sky-50/70 dark:border-blue-400/30 dark:bg-blue-500/10" : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900/82"} ${compact ? "" : "shadow-sm dark:shadow-none"}`}>
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1411,7 +1411,7 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
             className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
+            <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
               <Upload className="h-3.5 w-3.5" />
               {uploading ? "Uploading..." : "Upload image"}
               <input type="file" accept={accept} className="hidden" onChange={handleFileUpload} />
@@ -1485,15 +1485,15 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
         <div className={`rounded-2xl p-4 ${fieldSurface}`}>
           <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedText}`}>Fallbacks</div>
           <div className="mt-3 space-y-3 text-sm leading-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+            <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
               <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Name fallback</div>
               <div className="mt-1 font-bold text-slate-950 dark:text-white">MONE</div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+            <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
               <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Logo fallback</div>
               <div className="mt-1 font-bold text-slate-950 dark:text-white">Initials placeholder</div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+            <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
               <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Safety</div>
               <div className="mt-1 text-slate-600 dark:text-slate-300">Only PNG, JPG, and WEBP files are accepted through the existing upload endpoint. Empty values keep the current fallback.</div>
             </div>
@@ -2062,7 +2062,7 @@ function BostaIntegrationPanel({ copy }) {
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {statusItems.map(([label, ok, detail]) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]">
+              <div key={label} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]">
                 <div className="flex items-center gap-2">
                   <span className={`grid h-7 w-7 place-items-center rounded-full ${ok ? "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300" : "bg-amber-500/12 text-amber-600 dark:text-amber-300"}`}>
                     {ok ? <Check className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
@@ -2268,7 +2268,7 @@ function TesterInput({ label, value, onChange, options }) {
 
 function TesterMetric({ label, value }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
       <div className={`text-[11px] font-black uppercase ${mutedText}`}>{label}</div>
       <div className={`mt-1 text-sm font-black ${headingText}`}>{value}</div>
     </div>
@@ -2919,7 +2919,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
           <div className="flex flex-wrap gap-2 xl:justify-end">
             <button type="button" onClick={importEgypt} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950"><MapPin className="h-4 w-4" />Import Egypt locations</button>
             <button type="button" onClick={exportLocations} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"><Download className="h-4 w-4" />Export</button>
-            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">
+            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">
               <Upload className="h-4 w-4" />Import Bosta locations CSV
               <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importLocations(event.target.files?.[0])} />
             </label>
@@ -2939,7 +2939,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
         <button type="button" onClick={addLocation} className="mt-3 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-4 text-xs font-black text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />Add location</button>
       </div>
 
-      <div className="overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
+      <div className="overflow-auto rounded-[var(--radius-card)] border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
         <table className="m1-table m1-table--compact min-w-[1320px] w-full text-sm">
           <thead className="sticky top-0 bg-slate-50 text-[11px] font-black uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
             <tr>{["Governorate", "City / Markaz", "District", "Zone", "Provider", "Provider IDs", "Active", ""].map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr>
@@ -3222,7 +3222,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
     const tableMinWidth = tableDensity === "ultra" ? "min-w-[1040px]" : tableDensity === "compact" ? "min-w-[1120px]" : "min-w-[1180px]";
     const tableHeight = fullScreenMode ? "h-[calc(100vh-9.5rem)]" : "max-h-[42rem]";
     return (
-      <div className={`${tableHeight} overflow-auto rounded-2xl border ${fullScreenMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70"}`}>
+      <div className={`${tableHeight} overflow-auto rounded-[var(--radius-card)] border ${fullScreenMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70"}`}>
         <table className={`m1-table m1-table--compact ${tableMinWidth} w-full ${tableDensity === "ultra" ? "text-xs" : "text-sm"}`}>
           <thead className={`sticky top-0 z-10 text-[11px] font-black uppercase ${fullScreenMode ? "bg-slate-900 text-slate-300" : "bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400"}`}>
             <tr>
@@ -3283,7 +3283,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
           <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
             <button type="button" onClick={addAllGovernorates} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"><Plus className="h-4 w-4" />{copy.allGovernorates}</button>
             <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]"><Download className="h-3.5 w-3.5" />{copy.export}</button>
-            <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]">
+            <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]">
               <Upload className="h-3.5 w-3.5" />
               {copy.import}
               <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
@@ -3369,7 +3369,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
       </div>
       {isFullScreen ? (
         <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-950 p-3 text-white md:p-4" role="dialog" aria-modal="true" aria-label="Shipping Zones Fullscreen">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-2xl backdrop-blur">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] px-4 py-3 shadow-2xl backdrop-blur">
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-400 text-slate-950"><PanelLeftClose className="h-5 w-5" /></span>
               <div>
@@ -3389,7 +3389,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
                 {copy.freezeColumns}
               </label>
               <button type="button" onClick={exportZones} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10"><Download className="h-3.5 w-3.5" />{copy.export}</button>
-              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10">
+              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10">
                 <Upload className="h-3.5 w-3.5" />
                 {copy.import}
                 <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
@@ -3552,7 +3552,7 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         <input type="hidden" value={zone.provider_city_id || ""} readOnly />
         <input type="hidden" value={zone.provider_district_id || ""} readOnly />
         <input type="hidden" value={zone.provider_zone_id || ""} readOnly />
-        <details className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+        <details className="sm:col-span-2 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
           <summary className={`cursor-pointer text-xs font-black uppercase ${mutedText}`}>Provider mapping IDs</summary>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <input value={zone.provider_city_id || ""} onChange={(event) => onPatch({ provider_city_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider_city_id" />

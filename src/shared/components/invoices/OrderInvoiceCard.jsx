@@ -252,7 +252,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
             <>
               <div className="flex flex-col items-center text-center sm:flex-row sm:items-center sm:gap-5 sm:text-start">
                 {data.store?.logoUrl ? (
-                  <div className={`grid h-20 w-20 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.5rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
+                  <div className={`grid h-20 w-20 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.5rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-[var(--radius-card)] border-stone-200"}`}>
                     <img
                       src={data.store?.logoUrl}
                       alt={data.store?.name || "M1 Store"}
@@ -286,7 +286,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
             <>
               <div className="flex items-start gap-3">
                 {data.store?.logoUrl ? (
-                  <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.35rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
+                  <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.35rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-[var(--radius-card)] border-stone-200"}`}>
                     <img
                       src={data.store?.logoUrl}
                       alt={data.store?.name || "M1 Store"}
@@ -328,7 +328,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
       </div>
 
       <div className={`${luxury ? "px-5 pb-6 sm:px-6" : "px-5 pb-5"}`}>
-        <div className={`overflow-hidden rounded-2xl border ${luxury ? "border-slate-200/90 bg-white/72 shadow-[0_18px_55px_rgba(15,23,42,0.08)] print:border-slate-200 print:bg-white print:shadow-none" : "border-stone-200"}`}>
+        <div className={`overflow-hidden rounded-[var(--radius-card)] border ${luxury ? "border-slate-200/90 bg-white/72 shadow-[0_18px_55px_rgba(15,23,42,0.08)] print:border-slate-200 print:bg-white print:shadow-none" : "border-stone-200"}`}>
           <div className={`grid grid-cols-[minmax(0,1.7fr)_0.7fr_0.75fr_0.8fr] px-4 py-3 text-xs font-black sm:grid-cols-[minmax(0,1.8fr)_0.8fr_0.75fr_0.8fr_0.9fr] ${luxury ? "bg-slate-100/80 tracking-[0.08em] text-slate-500 print:bg-slate-50" : "bg-stone-50 text-stone-500"}`}>
             <div>{copy.product}</div>
             <div className="hidden sm:block">{`${copy.color} / ${copy.size}`}</div>
@@ -399,7 +399,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
 function Meta({ icon: Icon, label, value, unavailable, luxury = false, badge = false, inline = false }) {
   const tone = getStatusTone(value);
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${luxury ? "border-slate-200/90 bg-white/70 shadow-[0_12px_32px_rgba(15,23,42,0.05)] print:bg-slate-50 print:shadow-none" : "border-stone-200 bg-stone-50"}`}>
+    <div className={`rounded-[var(--radius-card)] border px-4 py-3 ${luxury ? "border-slate-200/90 bg-white/70 shadow-[0_12px_32px_rgba(15,23,42,0.05)] print:bg-slate-50 print:shadow-none" : "border-stone-200 bg-stone-50"}`}>
       {!inline ? (
         <div className={`flex items-center gap-2 text-xs font-black ${luxury ? "uppercase tracking-[0.14em] text-slate-400" : "text-stone-500"}`}>
           {Icon ? <Icon className="h-4 w-4" /> : null}

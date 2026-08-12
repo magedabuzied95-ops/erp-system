@@ -30,7 +30,7 @@ function CategoryNode({ item, level = 0, onDelete, items = [], t }) {
 
   return (
     <div
-      className="rounded-3xl border border-white/8 bg-white/5 p-5"
+      className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-5"
       style={{ marginInlineStart: level * 18 }}
     >
       <div className="flex items-start justify-between gap-4">
@@ -169,7 +169,7 @@ function Categories() {
                 <option value="inactive">{t("products.statusLabels.inactive")}</option>
               </select>
 
-              <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white">
+              <label className="inline-flex cursor-pointer items-center justify-center rounded-[var(--radius-card)] border border-white/8 bg-white/5 px-4 py-3 text-white">
                 <Upload size={18} />
                 <input type="file" hidden accept="image/*" onChange={handleUpload} />
               </label>

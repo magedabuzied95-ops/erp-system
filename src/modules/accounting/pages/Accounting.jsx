@@ -72,13 +72,13 @@ function Accounting() {
       subtitle={t("accounting.subtitle")}
       actions={
         <>
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
+          <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {dashboard ? t("accounting.liveData") : t("accounting.awaitingData")}
           </div>
           <Link
             to="/accounting/journal-entries"
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <BookOpenText className="h-4 w-4" />
             {t("accounting.journalEntries")}
@@ -186,25 +186,25 @@ function Accounting() {
             {t("accounting.quickLinks")}
           </div>
           <div className="mt-4 space-y-3">
-            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/journal-entries">
+            <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/journal-entries">
               {t("accounting.links.journal")}
             </Link>
-            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/general-ledger">
+            <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/general-ledger">
               دفتر الأستاذ
             </Link>
-            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/trial-balance">
+            <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/trial-balance">
               ميزان المراجعة
             </Link>
-            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/reports">
+            <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/reports">
               التقارير التنفيذية
             </Link>
-            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/cost-fix">
+            <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/cost-fix">
               {t("accounting.links.costFix")}
             </Link>
-            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/financial-accounts">
+            <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/financial-accounts">
               {t("accounting.links.financialAccounts")}
             </Link>
-            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/audit-trail">
+            <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/audit-trail">
               {t("accounting.links.auditTrail")}
             </Link>
           </div>
@@ -216,7 +216,7 @@ function Accounting() {
 
 function InfoTile({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-2 text-2xl font-black text-white">{value}</div>
     </div>

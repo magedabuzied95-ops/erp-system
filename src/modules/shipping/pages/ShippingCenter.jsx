@@ -112,20 +112,20 @@ function ShipmentDrawer({ order, onClose }) {
               ["COD Amount", fmtMoney(order.cod_amount)],
               ["Order Total", fmtMoney(order.order_total)],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
                 <div className="mt-1 break-words text-sm font-black text-slate-100">{value || "-"}</div>
               </div>
             ))}
           </div>
-          <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-2 flex items-center gap-2 text-sm font-black"><MapPin className="h-4 w-4 text-emerald-300" /> Address</div>
             <p className="text-sm font-semibold leading-6 text-slate-300">{address || "-"}</p>
             {order.shipping_label_url ? (
               <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20">Print Label</button>
             ) : null}
           </section>
-          <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-black"><Clock3 className="h-4 w-4 text-primary" /> Shipping Timeline</div>
             <div className="space-y-3">
               {timeline.length ? timeline.map((event, index) => (
@@ -136,7 +136,7 @@ function ShipmentDrawer({ order, onClose }) {
               )) : <p className="text-sm font-bold text-slate-500">No timeline events yet.</p>}
             </div>
           </section>
-          <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-black"><Layers3 className="h-4 w-4 text-violet-300" /> Webhook Events</div>
             <div className="space-y-3">
               {events.length ? events.map((event) => (
@@ -251,7 +251,7 @@ export default function ShippingCenter() {
   return (
     <main className="min-h-screen bg-[#050816] p-4 text-white md:p-6">
       <div className="mx-auto max-w-[96rem] space-y-5">
-        <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 lg:flex-row lg:items-center lg:justify-between">
+        <header className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">Operations</div>
             <h1 className="m1-page-title mt-2">Shipping Center</h1>
@@ -269,14 +269,14 @@ export default function ShippingCenter() {
         </section>
 
         <section className="grid gap-3 lg:grid-cols-5">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Delivery Success Rate</div><div className="mt-2 text-2xl font-black text-emerald-200">{analytics.delivery_success_rate || 0}%</div></div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Return Rate</div><div className="mt-2 text-2xl font-black text-orange-200">{analytics.return_rate || 0}%</div></div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Average Delivery Time</div><div className="mt-2 text-2xl font-black text-primary">{Number(analytics.average_delivery_hours || 0).toFixed(1)}h</div></div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Orders Per Provider</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_provider || []).map((row) => `${PROVIDER_LABELS[row.provider] || row.provider}: ${row.orders}`).join(" · ") || "-"}</div></div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Orders Per City</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_city || []).slice(0, 3).map((row) => `${row.city}: ${row.orders}`).join(" · ") || "-"}</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Delivery Success Rate</div><div className="mt-2 text-2xl font-black text-emerald-200">{analytics.delivery_success_rate || 0}%</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Return Rate</div><div className="mt-2 text-2xl font-black text-orange-200">{analytics.return_rate || 0}%</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Average Delivery Time</div><div className="mt-2 text-2xl font-black text-primary">{Number(analytics.average_delivery_hours || 0).toFixed(1)}h</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Orders Per Provider</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_provider || []).map((row) => `${PROVIDER_LABELS[row.provider] || row.provider}: ${row.orders}`).join(" · ") || "-"}</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Orders Per City</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_city || []).slice(0, 3).map((row) => `${row.city}: ${row.orders}`).join(" · ") || "-"}</div></div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
           <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
               <div className="relative md:col-span-2">

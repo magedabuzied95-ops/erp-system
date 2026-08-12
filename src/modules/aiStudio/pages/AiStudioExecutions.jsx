@@ -32,7 +32,7 @@ export default function AiStudioExecutions() {
 
   return (
     <div dir="ltr" className="space-y-4 p-4 text-white md:p-6">
-      <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><Activity className="h-4 w-4" />AI Studio</div>
@@ -45,7 +45,7 @@ export default function AiStudioExecutions() {
       </section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
           {loading ? (
             <div className="flex items-center gap-2 p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
           ) : runs.length === 0 ? (
@@ -68,7 +68,7 @@ export default function AiStudioExecutions() {
           )}
         </section>
 
-        <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
           {!selected ? (
             <div className="p-8 text-center text-sm text-slate-500">Select a run to inspect its steps.</div>
           ) : !detail ? (

@@ -115,7 +115,7 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
         ) : null}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
         <div className="text-[10px] font-bold text-zinc-500">{isArabic ? "رابط بوابة الموظف" : "Employee portal URL"}</div>
         <div className="mt-2 break-all text-sm font-semibold text-white" dir="ltr">
           {effectivePortalUrl || (isArabic ? "لم يتم إنشاء رابط بوابة الموظف بعد. اضغط إعادة إنشاء الرابط." : "No employee portal link yet. Generate one below.")}

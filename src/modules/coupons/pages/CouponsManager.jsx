@@ -300,7 +300,7 @@ export default function CouponsManager() {
 
       <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
         {statCards.map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/10 backdrop-blur-xl">
+          <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/10 backdrop-blur-xl">
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
             <div className="mt-2 truncate text-2xl font-black text-white">{loading || couponsLoading ? "..." : value ?? 0}</div>
           </div>
@@ -499,7 +499,7 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
           <Field label={cText("fields.startsAt", "يبدأ في")} type="datetime-local" value={form.starts_at} onChange={(value) => update("starts_at", value)} />
           <Field label={cText("fields.expiresAt", "ينتهي في")} type="datetime-local" value={form.expires_at} onChange={(value) => update("expires_at", value)} />
           <Select label={cText("fields.channel", "القناة")} value={form.channel} onChange={(value) => update("channel", value)} options={[["offline", cText("channels.offline", "غير متصل")], ["website", cText("channels.website", "الموقع")], ["pos", cText("channels.pos", "نقاط البيع")], ["all", cText("channels.all", "الكل")]]} />
-          <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
+          <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
             <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => update("is_active", e.target.checked)} />
             {cText("fields.activeCampaign", "الحملة نشطة")}
           </label>
@@ -534,5 +534,5 @@ function Select({ label, value, onChange, options }) {
 }
 
 function EmptyState({ label }) {
-  return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.035] p-8 text-center text-sm font-semibold text-zinc-400">{label}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.035] p-8 text-center text-sm font-semibold text-zinc-400">{label}</div>;
 }

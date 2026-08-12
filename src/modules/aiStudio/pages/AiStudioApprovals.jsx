@@ -36,7 +36,7 @@ export default function AiStudioApprovals() {
 
   return (
     <div dir="ltr" className="space-y-4 p-4 text-white md:p-6">
-      <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><ShieldCheck className="h-4 w-4" />AI Studio</div>
@@ -57,12 +57,12 @@ export default function AiStudioApprovals() {
 
       <section className="space-y-3">
         {loading ? (
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
+          <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No {statusFilter === "all" ? "" : statusFilter} approvals.</div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No {statusFilter === "all" ? "" : statusFilter} approvals.</div>
         ) : (
           rows.map((a) => (
-            <div key={a.id} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+            <div key={a.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">

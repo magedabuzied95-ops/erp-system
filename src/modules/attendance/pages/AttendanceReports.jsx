@@ -78,7 +78,7 @@ const exportCsv = (rows = [], fileName = "attendance-reports.csv") => {
 
 function StatCard({ label, value, hint }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{label}</div>
       <div className="mt-2 text-2xl font-black text-white">{value}</div>
       {hint ? <div className="mt-2 text-sm text-slate-400">{hint}</div> : null}
@@ -88,7 +88,7 @@ function StatCard({ label, value, hint }) {
 
 function MiniPanel({ title, icon: Icon, children }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+    <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
       <div className="mb-4 flex items-center gap-2">
         {Icon ? <Icon className="h-5 w-5 text-primary" /> : null}
         <h2 className="m1-section-title text-white">{title}</h2>
@@ -180,7 +180,7 @@ export default function AttendanceReports() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-300">
             <Filter className="h-4 w-4" />
             Filters
@@ -234,7 +234,7 @@ export default function AttendanceReports() {
           <StatCard label="Pending overtime" value={loading ? "-" : formatMinutes(overtimeSummary.pendingMinutes)} hint={`${overtimeSummary.pending || 0} waiting approvals`} />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">Monthly totals</h2>
@@ -243,9 +243,9 @@ export default function AttendanceReports() {
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {loading ? (
-              <div className="col-span-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading monthly totals...</div>
+              <div className="col-span-full rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading monthly totals...</div>
             ) : monthlyTotals.length === 0 ? (
-              <div className="col-span-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No totals available for this range.</div>
+              <div className="col-span-full rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No totals available for this range.</div>
             ) : (
               monthlyTotals.map((item) => (
                 <StatCard
@@ -262,9 +262,9 @@ export default function AttendanceReports() {
         <div className="grid gap-5 xl:grid-cols-2">
           <MiniPanel title="Opening assignments" icon={CalendarClock}>
             {loading ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading opening assignments...</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading opening assignments...</div>
             ) : openingAssignments.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No opening assignments in this range.</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No opening assignments in this range.</div>
             ) : (
               <div className="space-y-3">
                 {openingAssignments.slice(0, 8).map((item) => (
@@ -284,9 +284,9 @@ export default function AttendanceReports() {
 
           <MiniPanel title="Overtime approvals" icon={TimerReset}>
             {loading ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading overtime approvals...</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading overtime approvals...</div>
             ) : overtimeApprovals.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No overtime approval requests in this range.</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No overtime approval requests in this range.</div>
             ) : (
               <div className="space-y-3">
                 {overtimeApprovals.slice(0, 8).map((item) => (
@@ -307,7 +307,7 @@ export default function AttendanceReports() {
           </MiniPanel>
         </div>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">Attendance table</h2>

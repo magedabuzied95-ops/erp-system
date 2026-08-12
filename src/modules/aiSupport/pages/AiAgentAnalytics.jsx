@@ -53,7 +53,7 @@ function KpiCard({ icon: Icon, label, value, tone = "cyan" }) {
     violet: "text-violet-200",
   }[tone] || "text-slate-200";
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4">
       <Icon className={`h-5 w-5 ${toneClass}`} />
       <div className="mt-3 text-2xl font-black text-white">{value}</div>
       <div className="mt-1 text-sm text-slate-400">{label}</div>
@@ -63,7 +63,7 @@ function KpiCard({ icon: Icon, label, value, tone = "cyan" }) {
 
 function Panel({ icon: Icon, title, children }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+    <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4">
       <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-primary">
         <Icon className="h-4 w-4" />
         {title}
@@ -243,7 +243,7 @@ export default function AiAgentAnalytics() {
   return (
     <div dir="ltr" className="min-h-full bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
       <div className="mx-auto flex max-w-[96rem] flex-col gap-5">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.055] p-5">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><BarChart3 className="h-4 w-4" />AI Agent Analytics</div>

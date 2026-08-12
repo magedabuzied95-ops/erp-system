@@ -836,7 +836,7 @@ function MainLayout() {
                               <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${nestedOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                                 <div className="min-h-0 overflow-hidden">
                                   {nestedSection.title === "System Settings" && !sidebarCompact ? (
-                                    <div className="mx-1 mb-1 rounded-lg border border-[var(--border)]/70 bg-[var(--surface)]/70 px-2 py-1.5">
+                                    <div className="mx-1 mb-1 rounded-[var(--radius-card)] border border-[var(--border)]/70 bg-[var(--surface)]/70 px-2 py-1.5">
                                       <div className="flex min-w-0 items-center gap-2">
                                         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--primary-soft)] text-[var(--primary)]">
                                           <User className="h-3.5 w-3.5" />
@@ -864,7 +864,7 @@ function MainLayout() {
                 </div>
               );
             }) : (
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 text-sm font-semibold text-[var(--muted)]">
+              <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 text-sm font-semibold text-[var(--muted)]">
                 {t("sidebar.noMatchingModules", isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found")}
               </div>
             )}

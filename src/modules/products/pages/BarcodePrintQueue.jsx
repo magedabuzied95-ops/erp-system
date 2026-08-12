@@ -162,7 +162,7 @@ export default function BarcodePrintQueue() {
             </p>
           </div>
 
-          <label className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
+          <label className="inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
             <input
               type="checkbox"
               checked={showPrinted}

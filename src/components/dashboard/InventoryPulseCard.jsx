@@ -28,7 +28,7 @@ export const InventoryPulseCard = memo(function InventoryPulseCard({ lowStock = 
             <span className="shrink-0 text-xs font-black text-amber-100">{Number(item.stock || 0)} / {Number(item.threshold || item.low_stock_alert || 0)}</span>
           </div>
         ))}
-        {!rows.length ? <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{copy.empty}</div> : null}
+        {!rows.length ? <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{copy.empty}</div> : null}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Tiny label={copy.fastMovers} value={(inventory.fastMovingProducts || []).length} />

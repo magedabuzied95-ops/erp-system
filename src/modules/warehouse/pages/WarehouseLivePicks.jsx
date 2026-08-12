@@ -563,7 +563,7 @@ function EmptyState() {
 function AlertRow({ item, active = false, faded = false }) {
   return (
     <div className={`flex items-center gap-3 rounded-[1.3rem] border p-3 ${active ? "border-emerald-300/30 bg-emerald-400/10 shadow-[0_0_0_1px_rgba(34,197,94,0.1)]" : "border-white/10 bg-black/20"} ${faded ? "opacity-90" : ""}`}>
-      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:h-18 sm:w-18">
+      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 sm:h-18 sm:w-18">
         {item.productImage ? (
           <img src={item.productImage} alt={item.productName || "product"} className="h-full w-full object-cover" loading="lazy" />
         ) : (

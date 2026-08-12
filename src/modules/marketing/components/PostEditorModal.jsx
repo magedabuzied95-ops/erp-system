@@ -1180,7 +1180,7 @@ export default function PostEditorModal({
 
   return (
     <div className="fixed inset-0 z-[1500] flex items-stretch justify-center overflow-hidden bg-black/75 p-0 backdrop-blur-md transition-opacity duration-200 md:items-center md:p-4">
-      <div className="flex h-[100dvh] w-full max-w-[1480px] animate-[fadeIn_180ms_ease-out] flex-col overflow-hidden rounded-none border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/50 ring-1 ring-[var(--primary)]/20 md:h-auto md:max-h-[96vh] md:rounded-[30px]">
+      <div className="flex h-[100dvh] w-full max-w-[1480px] animate-[fadeIn_180ms_ease-out] flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/50 ring-1 ring-[var(--primary)]/20 md:h-auto md:max-h-[96vh] md:rounded-[30px]">
         <div className="flex flex-col gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
@@ -1233,7 +1233,7 @@ export default function PostEditorModal({
               </label>
             </div>
 
-            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-soft)] p-4 shadow-[var(--shadow-card)]">
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] p-4 shadow-[var(--shadow-card)]">
               <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <label className="space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Tone</span>
@@ -1286,7 +1286,7 @@ export default function PostEditorModal({
               </div>
             </div>
 
-            <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="space-y-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
                 <ImageIcon className="h-4 w-4 text-[var(--primary)]" />
                 {t("marketing.social.media.title")}
@@ -1353,19 +1353,19 @@ export default function PostEditorModal({
                   placeholder="https://..."
                 />
               </label>
-              <div className="grid grid-cols-3 gap-2 rounded-3xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="grid grid-cols-3 gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                 <MetaPill label="Price" value={form.price} />
                 <MetaPill label="Color" value={form.color_name} />
                 <MetaPill label="Size" value={form.size_name} />
               </div>
             </div>
 
-            <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="space-y-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
                 <Hash className="h-4 w-4 text-[var(--primary)]" />
                 {t("marketing.social.hashtags")}
               </div>
-              <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2">
+              <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2">
                 {hashtags.map((tag) => (
                   <button
                     key={tag}
@@ -1397,7 +1397,7 @@ export default function PostEditorModal({
           </div>
 
           <div className="order-2 min-w-0 space-y-4 border-b border-[var(--border)] bg-[var(--surface-soft)] p-4 md:p-5 lg:border-b-0 lg:border-r">
-            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-1">
+            <div className="flex gap-2 overflow-x-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-1">
               {visiblePreviewTabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -1447,7 +1447,7 @@ export default function PostEditorModal({
               <StatCard icon={BarChart3} label={t("marketing.social.stats.engagementScore")} value={`${stats.engagement}/100`} tone="rose" />
             </div>
 
-            <div className="space-y-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
                 <CalendarClock className="h-4 w-4 text-[var(--primary)]" />
                 {t("marketing.calendar.schedule")}
@@ -1506,13 +1506,13 @@ export default function PostEditorModal({
               </div>
             ) : null}
 
-            <div className="space-y-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
               <div className="flex items-center gap-2 text-sm font-black text-white">
                 <Zap className="h-4 w-4 text-amber-300" />
                 {t("marketing.ai.smartSuggestions")}
               </div>
               {["bestForFacebook", "highEngagementWording", "useFewerHashtags", "addDiscountCta"].map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200">
+                <div key={item} className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200">
                   <span className="h-2 w-2 rounded-full bg-[var(--primary)]" />
                   {t(`marketing.ai.suggestions.${item}`)}
                 </div>

@@ -105,7 +105,7 @@ export default function ProductRankings({ rankings, active, onChange, showProfit
 function Thumbnail({ url, name }) {
   if (!url) {
     return (
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-soft)]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)]">
         <Package className="h-4 w-4 text-[var(--text-tertiary)]" aria-hidden="true" />
       </span>
     );

@@ -236,7 +236,7 @@ const ProductArticleBadges = ({ row = {}, limit = 3 }) => {
         </span>
       ))}
       {remainingCount ? (
-        <span className="inline-flex items-center rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-black leading-4 text-zinc-400">
+        <span className="inline-flex items-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-black leading-4 text-zinc-400">
           +{remainingCount}
         </span>
       ) : null}
@@ -1041,7 +1041,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
 
   if (!src) {
     return (
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
         <Package2 size={20} />
       </div>
     );
@@ -1056,7 +1056,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
         loading="lazy"
         onMouseEnter={showColorPreviews}
         onMouseLeave={hideColorPreviews}
-        className="h-14 w-14 shrink-0 cursor-zoom-in rounded-2xl border border-white/10 bg-white/5 object-cover"
+        className="h-14 w-14 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-white/10 bg-white/5 object-cover"
       />
       {previewPosition && typeof document !== "undefined" ? createPortal(
         <div
@@ -1077,7 +1077,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
                 <img
                   src={preview.imageUrl}
                   alt={`${row?.name || "Product"} - ${preview.color}`}
-                  className="h-16 w-full rounded-xl border border-white/10 bg-white object-contain"
+                  className="h-16 w-full rounded-[var(--radius-card)] border border-white/10 bg-white object-contain"
                 />
                 <p className="mt-1 truncate text-center text-[10px] font-bold text-zinc-300" title={preview.color}>{preview.color}</p>
                 <p className={`mt-0.5 text-center text-[10px] font-black ${preview.stock <= 0 ? "text-red-300" : preview.stock <= 2 ? "text-amber-300" : "text-emerald-300"}`}>
@@ -1180,7 +1180,7 @@ function PriceEditorModal({ product, onClose, onSave }) {
         <div className="max-h-[70vh] overflow-y-auto p-5">
           {error ? <div className="mb-4 rounded-2xl border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
           {form.variants.length ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
               <div className="mb-3 text-sm font-black text-white">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
               <div className="space-y-2">
                 {form.variants.map((variant, index) => (
@@ -1577,7 +1577,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {error ? <div className="mb-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
-          <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+          <div className="mb-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
             <div className={`grid gap-2 md:items-end ${canEditPurchasePrice ? "md:grid-cols-[1fr_1fr_1fr_auto_auto_auto]" : "md:grid-cols-[1fr_1fr_auto_auto_auto]"}`}>
               {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء الجماعي" value={bulkPurchasePrice} onBlur={normalizeFormInputs} onChange={setBulkPurchasePrice} placeholder={t("products.priceEditor.empty", "Empty")} /> : null}
               <AdvancedPriceField label={t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price")} value={bulkSellingPrice} onBlur={normalizeFormInputs} onChange={setBulkSellingPrice} placeholder={t("products.priceEditor.empty", "Empty")} />
@@ -1594,7 +1594,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
             </div>
           </div>
           {isSimpleProduct ? (
-            <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="text-sm font-black text-white">{t("products.priceEditor.productPrices", "Product prices")}</div>
                 <div className="text-xs font-semibold text-zinc-500">{productPriceChanged ? t("products.priceEditor.changed", "changed") : t("products.priceEditor.noChanges", "No price changes")}</div>
@@ -1607,7 +1607,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
             </div>
           ) : null}
           {form.variants.length ? (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+            <div className="mt-3 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
               <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
                 <div className="text-sm font-black text-white">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
                 <div className="text-xs font-semibold text-zinc-500">{changedVariantIds.size} {t("products.priceEditor.changed", "changed")}</div>
@@ -1626,7 +1626,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                     <section key={group.key} className={`overflow-hidden rounded-2xl border ${group.changed ? "border-emerald-300/35 bg-emerald-400/[0.05]" : "border-white/10 bg-black/15"}`}>
                       <div className={`grid items-center gap-2 p-2 ${canEditPurchasePrice ? "md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(130px,180px))_auto]" : "md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]"}`}>
                         <button type="button" onClick={() => toggleColorGroup(group.key)} className="flex min-w-0 items-center gap-3 rounded-[var(--radius-control)] p-1 text-start outline-none hover:bg-white/5">
-                          {group.image ? <img src={group.image} alt={group.label} className="h-14 w-14 shrink-0 rounded-xl border border-white/10 bg-white object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-zinc-500"><Package2 size={20} /></span>}
+                          {group.image ? <img src={group.image} alt={group.label} className="h-14 w-14 shrink-0 rounded-[var(--radius-card)] border border-white/10 bg-white object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500"><Package2 size={20} /></span>}
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-black text-white">{group.label}</span>
                             <span className="mt-1 block text-xs font-semibold text-zinc-500">{group.variants.length} مقاس</span>
@@ -2821,7 +2821,7 @@ function ProductsList() {
       }
     >
       <div className="m1-products-catalog w-full min-w-0 max-w-none rounded-2xl border border-white/8 bg-zinc-950/80 p-3 sm:p-5 xl:p-6">
-        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-1">
+        <div className="mb-4 flex items-center gap-2 rounded-[var(--radius-card)] border border-white/8 bg-white/[0.03] p-1">
           <button
             type="button"
             onClick={() => {
@@ -3070,11 +3070,11 @@ function ProductsList() {
         <div className="relative mt-6 w-full min-w-0 max-w-none overflow-visible">
           <div className="grid gap-3 lg:hidden">
             {loading ? (
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-6 text-center text-sm font-semibold text-zinc-400">
+              <div className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-6 text-center text-sm font-semibold text-zinc-400">
                 {t("products.loading")}
               </div>
             ) : visibleRows.length === 0 ? (
-              <div className="rounded-3xl border border-white/8 bg-white/5 p-6 text-center">
+              <div className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-6 text-center">
                 <Package2 className="mx-auto text-zinc-500" size={36} />
                 <h3 className="m1-section-title mt-3 text-white">{t("products.empty.title")}</h3>
                 <p className="mt-2 text-sm text-zinc-400">{t("products.empty.description")}</p>
@@ -3173,7 +3173,7 @@ function ProductsList() {
                 ) : visibleRows.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-4 py-12 text-center">
-                      <div className="w-full rounded-3xl border border-white/8 bg-white/5 p-8">
+                      <div className="w-full rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-8">
                         <Package2 className="mx-auto text-zinc-500" size={42} />
                         <h3 className="m1-section-title mt-4 text-white">{t("products.empty.title")}</h3>
                         <p className="mt-2 text-sm text-zinc-400">
@@ -3217,7 +3217,7 @@ function ProductsList() {
                     return (
                       <tr
                         key={row.id}
-                        className={`group/product-row relative rounded-3xl border border-white/8 bg-white/5 text-center ${openActionId === row.id ? "z-[100]" : "z-0"}`}
+                        className={`group/product-row relative rounded-[var(--radius-card)] border border-white/8 bg-white/5 text-center ${openActionId === row.id ? "z-[100]" : "z-0"}`}
                       >
                         <td className="px-4 py-4 align-middle">
                           <input
@@ -3482,7 +3482,7 @@ function ProductsList() {
               [t("products.selected.brand"), selectedProduct.brand || t("products.records.unbranded")],
               [t("products.selected.category"), selectedProduct.category || t("products.records.uncategorized")],
             ].filter(([, value]) => value).map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div key={label} className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-4">
                 <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{label}</p>
                 <p className="mt-2 text-lg font-semibold text-white">{value}</p>
               </div>
@@ -3625,7 +3625,7 @@ function BarcodeQueueBulkModal({
 
         <div className="grid gap-6 px-6 py-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="space-y-4">
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
               <input
                 type="radio"
                 name="barcode-queue-mode"
@@ -3641,7 +3641,7 @@ function BarcodeQueueBulkModal({
               </span>
             </label>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
               <input
                 type="radio"
                 name="barcode-queue-mode"
@@ -3657,7 +3657,7 @@ function BarcodeQueueBulkModal({
               </span>
             </label>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
               <input
                 type="checkbox"
                 checked={regenerateExisting}
@@ -3676,7 +3676,7 @@ function BarcodeQueueBulkModal({
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="m1-section-title uppercase tracking-[0.18em] text-zinc-400">
                   {t("products.bulk.selectionSummary", "Selection")}
@@ -3786,7 +3786,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
   const category = isMeaningfulCategory(row.category) ? String(row.category).trim() : "";
 
   return (
-    <article className="rounded-2xl border border-white/8 bg-white/[0.045] p-3 shadow-xl shadow-black/10">
+    <article className="rounded-[var(--radius-card)] border border-white/8 bg-white/[0.045] p-3 shadow-xl shadow-black/10">
       <div className="flex items-start gap-3">
         <input
           type="checkbox"

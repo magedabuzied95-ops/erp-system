@@ -100,7 +100,7 @@ function CustomerLoyaltyProfile() {
           </div>
         </div>
         <div className="flex gap-3">
-          <Link to="/loyalty" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">
+          <Link to="/loyalty" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">
             Back to dashboard
           </Link>
           <Link to="/loyalty/rules" className="rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-slate-950">
@@ -116,7 +116,7 @@ function CustomerLoyaltyProfile() {
           ["Points earned", Number(loyalty?.total_points_earned || 0).toLocaleString(), ReceiptText],
           ["إجمالي الإنفاق", Number(loyalty?.lifetime_spent || 0).toLocaleString(), ReceiptText],
         ].map(([label, value, Icon]) => (
-          <div key={label} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+          <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{label}</p>

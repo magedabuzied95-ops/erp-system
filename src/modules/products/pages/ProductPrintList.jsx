@@ -212,7 +212,7 @@ export default function ProductPrintList() {
             return (
               <article key={product.id} className="rounded-[30px] border border-white/10 bg-zinc-950/80 p-4 sm:p-5">
                 <div className="grid gap-4 lg:grid-cols-[120px_minmax(0,1fr)_auto] lg:items-center">
-                  <div className="h-28 overflow-hidden rounded-2xl border border-white/10 bg-white">
+                  <div className="h-28 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white">
                     {imageFor(product) ? <img src={resolveProductImageUrl(imageFor(product))} alt={product.name || ""} className="h-full w-full object-contain" /> : null}
                   </div>
                   <div className="min-w-0">

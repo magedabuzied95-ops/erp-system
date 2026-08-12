@@ -434,7 +434,7 @@ function WebsiteSettings() {
 
   return (
     <div className="space-y-5 pb-24" dir={isArabic ? "rtl" : "ltr"}>
-      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
+      <header className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">
@@ -449,7 +449,7 @@ function WebsiteSettings() {
             {copy.openStorefront}
           </a>
         </div>
-        <div className="mt-5 inline-flex rounded-xl border border-[var(--border)] bg-[var(--card)] p-1">
+        <div className="mt-5 inline-flex rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-1">
           {[
             ["shipping", copy.shipping],
             ["overview", copy.overview],
@@ -473,7 +473,7 @@ function WebsiteSettings() {
             <SummaryCard icon={ShieldCheck} label={copy.proofZones} value={summary.proof} />
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl shadow-[var(--shadow)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] shadow-xl shadow-[var(--shadow)]">
             <div className="border-b border-[var(--border)] p-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
@@ -510,13 +510,13 @@ function WebsiteSettings() {
                   <option value="">{copy.allGovs}</option>
                   {governorates.map((governorate) => <option key={governorate} value={governorate}>{governorate}</option>)}
                 </select>
-                <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3">
+                <label className="flex h-11 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-3">
                   <span className="text-xs font-black text-[var(--muted)]">{copy.defaultPrice}</span>
                   <input type="number" min="0" value={defaultShippingPrice} onChange={(event) => { setDefaultShippingPrice(event.target.value); setDirty(true); }} className="min-w-0 flex-1 bg-transparent text-sm font-black text-[var(--text)] outline-none" />
                 </label>
               </div>
 
-              <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--card)] p-3">
+              <div className="mt-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3">
                 <div className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-[var(--muted)]">{copy.quickCreate}</div>
                 <div className="grid gap-2 lg:grid-cols-[210px_1fr_1fr_1fr_110px_110px]">
                   <select value={quickMode} onChange={(event) => setQuickMode(event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-bold text-[var(--text)]">
@@ -621,11 +621,11 @@ function OverviewTab({ copy, pricing, markPricing }) {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => <SettingCard key={card.title} {...card} />)}
       </div>
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
+      <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
         <h2 className="m1-section-title text-[var(--text)]">{copy.pricingTitle}</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">{copy.pricingText}</p>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
-          <label className="flex min-h-24 items-center justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <label className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             <span>
               <span className="block text-sm font-black text-[var(--text)]">Enable fake compare price</span>
               <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">Show generated old prices on storefront cards and product pages.</span>
@@ -633,7 +633,7 @@ function OverviewTab({ copy, pricing, markPricing }) {
             <input type="checkbox" checked={Boolean(pricing.enable_fake_compare_price)} onChange={(event) => markPricing({ enable_fake_compare_price: event.target.checked })} className="h-5 w-5 accent-[var(--primary)]" />
           </label>
           <Field label="Fake compare percent" type="number" value={pricing.fake_compare_percent} onChange={(value) => markPricing({ fake_compare_percent: value })} />
-          <label className="block rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <label className="block rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             <span className="block text-sm font-black text-[var(--text)]">Rounding mode</span>
             <select value={pricing.fake_compare_rounding_mode} onChange={(event) => markPricing({ fake_compare_rounding_mode: event.target.value })} className="mt-3 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)] outline-none">
               <option value="none">none</option>
@@ -661,7 +661,7 @@ function OverviewTab({ copy, pricing, markPricing }) {
 
 function Field({ label, value, onChange, type = "text" }) {
   return (
-    <label className="block rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+    <label className="block rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
       <span className="block text-sm font-black text-[var(--text)]">{label}</span>
       <input type={type} value={value || ""} onChange={(event) => onChange(event.target.value)} className="mt-3 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)] outline-none" />
     </label>
@@ -670,13 +670,13 @@ function Field({ label, value, onChange, type = "text" }) {
 
 function SummaryCard({ icon: Icon, label, value }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)]">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)]">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.14em] text-[var(--muted)]">{label}</div>
           <div className="mt-2 text-2xl font-black text-[var(--text)]">{value}</div>
         </div>
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 text-[var(--primary)]">
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 text-[var(--primary)]">
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -710,7 +710,7 @@ function SettingCard({ title, value, description, icon: Icon, tone }) {
     amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
   };
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--muted)]">{title}</div>
@@ -727,7 +727,7 @@ function SettingCard({ title, value, description, icon: Icon, tone }) {
 
 function StateCard({ text, tone = "muted" }) {
   return (
-    <div className={`rounded-2xl border p-6 text-center text-sm font-black ${tone === "error" ? "border-rose-400/20 bg-rose-500/10 text-rose-200" : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"}`}>
+    <div className={`rounded-[var(--radius-card)] border p-6 text-center text-sm font-black ${tone === "error" ? "border-rose-400/20 bg-rose-500/10 text-rose-200" : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"}`}>
       {tone === "error" ? <Upload className="mx-auto mb-2 h-5 w-5" /> : null}
       {text}
     </div>

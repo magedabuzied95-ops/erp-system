@@ -30,7 +30,7 @@ const ChipEditor = ({ label, placeholder, value, onChange, addLabel }) => {
   const [text, setText] = useState("");
 
   return (
-    <div className="rounded-3xl border border-white/8 bg-white/5 p-5">
+    <div className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-5">
       <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{label}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {value.map((item) => (
@@ -278,7 +278,7 @@ function Variants() {
             </div>
           </div>
 
-          <div className="mt-6 rounded-3xl border border-white/8 bg-white/5 p-5">
+          <div className="mt-6 rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-5">
             <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{t("products.variantPage.matrixRows")}</p>
             <p className="mt-2 text-3xl font-black text-white">{matrix.length}</p>
           </div>
@@ -317,7 +317,7 @@ function Variants() {
                 </thead>
                 <tbody>
                   {matrix.map((item, index) => (
-                    <tr key={`${item.key}-${index}`} className="rounded-3xl border border-white/8 bg-white/5">
+                    <tr key={`${item.key}-${index}`} className="rounded-[var(--radius-card)] border border-white/8 bg-white/5">
                       <td className="px-4 py-4 font-semibold text-white">{item.color}</td>
                       <td className="px-4 py-4 font-semibold text-white">{item.size}</td>
                       <td className="px-4 py-4">
@@ -372,7 +372,7 @@ function Variants() {
               </table>
             </div>
           ) : (
-              <div className="mt-6 rounded-3xl border border-white/8 bg-white/5 p-8 text-center text-zinc-400">
+              <div className="mt-6 rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-8 text-center text-zinc-400">
               {t("products.variantPage.empty")}
             </div>
           )}

@@ -26,7 +26,7 @@ function Workspace() {
             <Building2 className="h-4 w-4" />
             Register company
           </Link>
-          <Link to="/billing" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/billing" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <CreditCard className="h-4 w-4" />
             Billing
           </Link>
@@ -103,7 +103,7 @@ function Workspace() {
             )}
           </div>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
             <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Supported plans</div>
             <div className="mt-3 flex flex-wrap gap-2">
               {PLANS.map((plan) => (
@@ -121,7 +121,7 @@ function Workspace() {
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-2 text-2xl font-black text-white">{value}</div>
     </div>
@@ -138,7 +138,7 @@ function Small({ label, value }) {
 }
 
 function Empty({ label }) {
-  return <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
 }
 
 export default Workspace;

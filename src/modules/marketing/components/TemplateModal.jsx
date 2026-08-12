@@ -56,7 +56,7 @@ export default function TemplateModal({ open, template, onClose, onSave, saving 
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.hashtags")}</span>
             <input value={form.hashtags} onChange={(event) => setForm((current) => ({ ...current, hashtags: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
           </label>
-          <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
+          <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
             <input type="checkbox" checked={Boolean(form.is_default)} onChange={(event) => setForm((current) => ({ ...current, is_default: event.target.checked }))} />
             {t("marketing.templates.default")}
           </label>

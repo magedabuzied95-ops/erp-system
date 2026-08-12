@@ -176,7 +176,7 @@ export default function StaffQrAttendance() {
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.7fr)]">
-          <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-300">
               <Camera className="h-4 w-4" />
               Camera scanner
@@ -185,7 +185,7 @@ export default function StaffQrAttendance() {
               {isScanning ? (
                 <div id={scannerId} className="overflow-hidden rounded-2xl" />
               ) : (
-                <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/5 px-6 py-10 text-center">
+                <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 px-6 py-10 text-center">
                   <CircleCheckBig className="h-12 w-12 text-emerald-300" />
                   <div className="mt-4 text-xl font-black text-white">
                     {isCheckout ? "Check out recorded" : "Check in recorded"}
@@ -208,7 +208,7 @@ export default function StaffQrAttendance() {
 
           <aside className="flex flex-col gap-4">
             {record ? (
-              <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+              <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-300">
                   <CircleCheckBig className="h-4 w-4 text-emerald-300" />
                   Latest result
@@ -231,7 +231,7 @@ export default function StaffQrAttendance() {
               </section>
             ) : null}
 
-            <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+            <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-300">
                 <MapPin className="h-4 w-4" />
                 Validation rules

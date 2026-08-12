@@ -44,7 +44,7 @@ function InputField({ name, spec, value, onChange, stepOptions }) {
   };
 
   return (
-    <div className="rounded-xl border border-white/8 bg-white/[0.025] p-2.5">
+    <div className="rounded-[var(--radius-card)] border border-white/8 bg-white/[0.025] p-2.5">
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-bold text-slate-200">{humanizeField(name)}{spec?.required ? <span className="text-rose-300"> *</span> : null}</span>
         <div className="flex overflow-hidden rounded-md border border-white/10 text-[9px] font-black uppercase">
@@ -299,7 +299,7 @@ export default function NodeConfigPanel({ node, registry, capabilities, errors =
           <Section title="Advanced" icon={Code2}>
             <button type="button" onClick={() => setAdvOpen((v) => !v)} className="text-[11px] font-bold text-slate-400 hover:text-slate-200">{advOpen ? "Hide" : "Show"} technical details</button>
             {advOpen ? (
-              <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
+              <div className="space-y-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.02] p-2.5">
                 <div className="text-[10px] text-slate-500">Node ID: <span className="font-mono text-slate-300">{node.id}</span></div>
                 {tool ? <div className="text-[10px] text-slate-500">Tool ID: <span className="font-mono text-slate-300">{tool.id}</span></div> : null}
                 {!jsonOpen ? (

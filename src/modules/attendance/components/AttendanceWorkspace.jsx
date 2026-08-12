@@ -1532,7 +1532,7 @@ function AttendanceWorkspace({
             </div>
 
             <div className="mt-4 grid gap-3">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center justify-between text-sm text-zinc-300">
                   <span>{tr("fields.totalEmployees")}</span>
                   <span className="font-semibold text-white">{dashboardSummary.present + dashboardSummary.absent}</span>
@@ -1542,7 +1542,7 @@ function AttendanceWorkspace({
                   <span className="font-semibold text-white">{dashboardSummary.workedHours}</span>
                 </div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className={isArabic ? "text-xs font-bold text-zinc-500" : "text-xs uppercase tracking-[0.2em] text-zinc-500"}>{tr("fields.today")}</div>
                 <div className="mt-2 text-lg font-black text-white">{filters.date}</div>
                 <div className="mt-2 text-sm text-zinc-400">{tr("dashboard.posLinkHint")}</div>
@@ -1749,7 +1749,7 @@ function AttendanceWorkspace({
                 <div className="mt-4 grid gap-3">
                   <div className="rounded-[28px] border border-white/10 bg-white/5 p-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-lg shadow-black/10">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 shadow-lg shadow-black/10">
                         {employeePhotoPreviewUrl ? (
                           <img src={employeePhotoPreviewUrl} alt={employeeForm.full_name || "Employee photo"} className="h-full w-full object-cover" />
                         ) : (
@@ -1817,7 +1817,7 @@ function AttendanceWorkspace({
                     />
                   ) : null}
                   {!branchesLoading && !activeBranches.length ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-sm font-semibold text-zinc-400">
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-4 text-sm font-semibold text-zinc-400">
                       {tr("options.noBranches")}
                     </div>
                   ) : null}
@@ -1939,7 +1939,7 @@ function AttendanceWorkspace({
                         ["late_deduction_enabled", isArabic ? "احتساب خصم التأخير" : "Apply late deduction"],
                         ["early_leave_deduction_enabled", isArabic ? "احتساب خصم الانصراف المبكر" : "Apply early-leave deduction"],
                       ].map(([key, label]) => (
-                        <label key={key} className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200">
+                        <label key={key} className="flex cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200">
                           <span>{label}</span>
                           <input
                             type="checkbox"
@@ -2310,12 +2310,12 @@ function AttendanceWorkspace({
             <h2 className="m1-section-title text-white">{tr("reports.branchReport")}</h2>
             <div className="mt-4 space-y-3">
               {(branchReport?.branches || []).length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-zinc-400">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center text-zinc-400">
                   {tr("empty.noBranchAttendance")}
                 </div>
               ) : (
                 branchReport.branches.map((row) => (
-                  <div key={String(row.branch_id || row.branch_name)} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                  <div key={String(row.branch_id || row.branch_name)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-semibold text-white">{row.branch_name}</div>
@@ -2502,7 +2502,7 @@ function AttendanceWorkspace({
               </div>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
               <div className="text-sm font-bold text-white">{deleteTarget.full_name || tr("fields.employee")}</div>
               <div className="mt-1 text-xs font-semibold text-zinc-400">{deleteTarget.employee_code || fallback}</div>
             </div>
@@ -2550,12 +2550,12 @@ function AttendanceWorkspace({
               </div>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
               <div className="text-sm font-bold text-white">{attendanceResetTarget.full_name || tr("fields.employee")}</div>
               <div className="mt-1 text-xs font-semibold text-zinc-400">{attendanceResetTarget.employee_code || fallback}</div>
             </div>
 
-            <label className="mt-4 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm font-semibold text-zinc-200">
+            <label className="mt-4 flex items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 text-sm font-semibold text-zinc-200">
               <input
                 type="checkbox"
                 checked={attendanceResetOptions.clearDeviceLocks}
@@ -2609,7 +2609,7 @@ function AttendanceWorkspace({
               </div>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
               <div className="text-sm font-bold text-white">{deviceBindingResetTarget.detailLabel}</div>
               <div className="mt-1 text-xs font-semibold text-zinc-400">{deviceBindingResetTarget.detailValue}</div>
             </div>

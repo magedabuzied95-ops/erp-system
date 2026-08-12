@@ -95,11 +95,11 @@ function StockTransfers() {
       subtitle="إدارة تحويلات المخزون بين المخازن، ومراجعة السجل المحلي، وحفظ تفاصيل التحويل عندما تكون واجهة الخلفية غير مكتملة."
       actions={
         <div className="flex flex-wrap gap-2">
-          <Link to="/inventory/history" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <Clock3 className="mr-2 inline h-4 w-4" />
             سجل الاختيارات
           </Link>
-          <Link to="/warehouses" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/warehouses" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             لوحة المخازن
           </Link>
         </div>
@@ -153,12 +153,12 @@ function StockTransfers() {
             <h3 className="m1-section-title text-white">سجل التحويلات</h3>
             <div className="mt-4 space-y-3">
               {loading ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">جارٍ تحميل المخازن...</div>
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">جارٍ تحميل المخازن...</div>
               ) : transfers.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">لا توجد تحويلات محفوظة محليًا.</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">لا توجد تحويلات محفوظة محليًا.</div>
               ) : (
                 transfers.map((transfer) => (
-                  <div key={String(transfer.id)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div key={String(transfer.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-semibold text-white">الاختيار {transfer.variant_id}</div>

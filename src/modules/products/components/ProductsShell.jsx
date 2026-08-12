@@ -40,7 +40,7 @@ export default function ProductsShell({
 
   return (
     <div className="m1-products-page w-full min-w-0 max-w-none space-y-4 overflow-x-hidden sm:space-y-6">
-      <div className="m1-products-heading rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[0_22px_70px_var(--shadow)] sm:rounded-[28px] sm:p-5 xl:p-6">
+      <div className="m1-products-heading rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[0_22px_70px_var(--shadow)] sm:rounded-[28px] sm:p-5 xl:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--primary)] sm:text-xs sm:tracking-[0.24em]">

@@ -84,7 +84,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
     const saving = String(savingId) === stateKey;
     const colorKey = `${product.color_group_key || product.variant_id || product.color || "color"}:${product.display_stage_key || product.size || "size"}`;
     const imageUrl = resolveProductImageUrl(product.image_url || product.product_image_url || product.image);
-    return <article key={`${product.product_id}:${colorKey}`} className="grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+    return <article key={`${product.product_id}:${colorKey}`} className="grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
       <div className="h-[74px] w-[74px] overflow-hidden rounded-xl bg-slate-100">{imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover" /> : <PackageCheck className="m-5 h-8 w-8 text-slate-300" />}</div>
       <div className="min-w-0"><h5 className="line-clamp-2 text-sm font-black leading-5 text-slate-950" dir="auto">{product.name}</h5><div className="mt-1 flex flex-wrap gap-1 text-[11px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">اللون: {product.color || "-"}</span><span className="rounded-full bg-primary-subtle px-2 py-1 text-primary">أصغر مقاس: {product.size || "-"}</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">الكمية: {product.stock || 0}</span></div><button type="button" onClick={() => onMarkDisplayed?.(product)} disabled={saving} className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-600 px-3 text-xs font-black text-white transition hover:bg-emerald-700 disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}معروض</button></div>
     </article>;
@@ -103,13 +103,13 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </button>
         </div>
-        <div className="mt-4 flex items-end justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+        <div className="mt-4 flex items-end justify-between rounded-[var(--radius-card)] border border-white/10 bg-white/10 px-4 py-3">
           <span className="text-xs font-bold text-slate-300">إجمالي الموديلات غير المعروضة</span>
           <strong className="text-3xl font-black tabular-nums text-emerald-300" dir="ltr">{Number(data.total || 0)}</strong>
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+      <section className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
         <div className="grid grid-cols-4 gap-1.5">
           {PRODUCT_TABS.map((tab) => {
             const count = Number(data.product_group_counts?.[tab.key] || 0);
@@ -131,7 +131,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
       </section>
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-sm font-bold text-red-800">{error}</div> : null}
-      {loading && !sections.length ? <div className="flex min-h-40 items-center justify-center rounded-3xl border border-slate-200 bg-white"><Loader2 className="h-6 w-6 animate-spin text-emerald-600" /></div> : null}
+      {loading && !sections.length ? <div className="flex min-h-40 items-center justify-center rounded-[var(--radius-card)] border border-slate-200 bg-white"><Loader2 className="h-6 w-6 animate-spin text-emerald-600" /></div> : null}
       {!loading && !sections.length ? <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-10 text-center"><Check className="mx-auto h-9 w-9 text-emerald-600" /><div className="mt-2 text-base font-black text-emerald-950">كل الموديلات الموجودة بالمخزن معروضة</div></div> : null}
 
       {audienceKey === "kids" ? <div className="grid gap-3">
@@ -142,7 +142,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
               <div><h3 className="m1-section-title">{stage.label}</h3><p className="mt-0.5 text-[11px] font-bold text-violet-200">مقاسات العرض من {stage.range}</p></div>
               <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">{stageProducts.length}</span>
             </header>
-            {stageProducts.length ? <div className="grid gap-2 sm:grid-cols-2">{stageProducts.map(renderProductCard)}</div> : <div className="rounded-2xl border border-dashed border-violet-200 bg-white px-3 py-6 text-center text-xs font-bold text-slate-500">لا توجد مقاسات متاحة في هذه المرحلة</div>}
+            {stageProducts.length ? <div className="grid gap-2 sm:grid-cols-2">{stageProducts.map(renderProductCard)}</div> : <div className="rounded-[var(--radius-card)] border border-dashed border-violet-200 bg-white px-3 py-6 text-center text-xs font-bold text-slate-500">لا توجد مقاسات متاحة في هذه المرحلة</div>}
           </section>;
         })}
       </div> : expandedSelectedProducts.length ? <section className="grid gap-2 sm:grid-cols-2">{expandedSelectedProducts.map(renderProductCard)}</section> : null}

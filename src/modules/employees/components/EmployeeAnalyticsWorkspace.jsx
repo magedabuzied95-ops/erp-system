@@ -299,7 +299,7 @@ export default function EmployeeAnalyticsWorkspace() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center rounded-[32px] border border-white/10 bg-zinc-950/80">
-        <div className="inline-flex items-center gap-3 rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-zinc-200">
+        <div className="inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-5 py-4 text-zinc-200">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
           {t("common.employeeHub.analytics.loading")}
         </div>
@@ -508,7 +508,7 @@ export default function EmployeeAnalyticsWorkspace() {
                 <h2 className="m1-section-title mt-2 text-white">{t("common.employeeHub.analytics.commissions.configurableRules")}</h2>
               </div>
             </div>
-            <div className="mb-5 grid gap-3 rounded-3xl border border-white/10 bg-white/[0.04] p-4 xl:grid-cols-4">
+            <div className="mb-5 grid gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 xl:grid-cols-4">
               <input
                 value={ruleDraft.name}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, name: event.target.value }))}
@@ -575,7 +575,7 @@ export default function EmployeeAnalyticsWorkspace() {
             </div>
             <div className="grid gap-3 xl:grid-cols-2">
               {rules.map((rule) => (
-                <div key={String(rule.id)} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <div key={String(rule.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-base font-bold text-white">{rule.name}</div>
@@ -638,7 +638,7 @@ export default function EmployeeAnalyticsWorkspace() {
 
           <div className="grid gap-6 xl:grid-cols-2">
             {topPerformers.map((row, index) => (
-              <div key={String(row.employee_id || row.employee_name)} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+              <div key={String(row.employee_id || row.employee_name)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center justify-between">
                   <div className="text-white font-bold">{index + 1}. {displayEmployeeName(row.employee_name)}</div>
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(row.total_sales, 100000) === "emerald" ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
@@ -663,7 +663,7 @@ export default function EmployeeAnalyticsWorkspace() {
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             {shiftPerformance.map((row) => (
-              <div key={String(row.shift_id || row.shift_name)} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+              <div key={String(row.shift_id || row.shift_name)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
                 <div className="text-white font-bold">{displayShiftName(row.shift_name)}</div>
                 <div className="mt-3 grid grid-cols-3 gap-3 text-sm text-zinc-300">
                   <div>{t("common.employeeHub.analytics.table.sales")}<br /><span className="font-semibold text-white">{formatCurrency(row.total_sales)}</span></div>
@@ -674,7 +674,7 @@ export default function EmployeeAnalyticsWorkspace() {
             ))}
           </div>
 
-          <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="mt-6 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={shiftPerformance}>
@@ -692,7 +692,7 @@ export default function EmployeeAnalyticsWorkspace() {
             </div>
           </div>
 
-          <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="mt-6 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className={isRtl ? "mb-3 text-xs font-bold text-primary" : "mb-3 text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.sections.branchPerformance")}</div>
             <div className="overflow-hidden rounded-3xl border border-white/10">
               <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>

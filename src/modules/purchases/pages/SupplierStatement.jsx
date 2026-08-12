@@ -114,7 +114,7 @@ function SupplierStatement() {
               <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
                 <Link
                   to="/suppliers"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   العودة للموردين
@@ -130,7 +130,7 @@ function SupplierStatement() {
             <StatCard label="الرصيد المستحق" value={formatCurrency(finalBalance)} icon={<Wallet className="h-4 w-4" />} tone="amber" />
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-zinc-300">
                 <span><span className="text-zinc-500">{isArabic ? "المورد" : "Supplier"}:</span> {supplier.name || "-"}</span>
                 <span><span className="text-zinc-500">{isArabic ? "الكود" : "Code"}:</span> {supplier.supplier_code || "-"}</span>
@@ -209,7 +209,7 @@ function StatCard({ label, value, icon, tone = "zinc" }) {
 
 function Info({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 text-sm font-semibold text-white">{value}</div>
     </div>
@@ -218,7 +218,7 @@ function Info({ label, value }) {
 
 function Row({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 font-semibold text-white">{value}</div>
     </div>

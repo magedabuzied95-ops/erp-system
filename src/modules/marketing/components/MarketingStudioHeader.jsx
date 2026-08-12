@@ -29,7 +29,7 @@ export default function MarketingStudioHeader({
   const { t } = useTranslation();
 
   return (
-    <section className={`${size === "large" ? "rounded-[2rem] px-6 py-5 sm:px-7 sm:py-6" : "rounded-3xl px-5 py-4 sm:px-6 sm:py-5"} border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)]`}>
+    <section className={`${size === "large" ? "rounded-[2rem] px-6 py-5 sm:px-7 sm:py-6" : "rounded-[var(--radius-card)] px-5 py-4 sm:px-6 sm:py-5"} border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)]`}>
       <div className="flex flex-col gap-2">
         <div className="max-w-3xl">
           <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[var(--primary-soft)] px-3 py-1.5 text-sm font-semibold text-[var(--primary)]">

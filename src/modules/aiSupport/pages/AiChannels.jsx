@@ -207,7 +207,7 @@ function KpiCard({ icon: Icon, label, value, tone = "cyan" }) {
   }[tone] || "text-slate-200 bg-white/5 border-white/10";
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-xl shadow-black/10">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4 shadow-xl shadow-black/10">
       <div className={`inline-flex rounded-xl border p-2 ${toneClass}`}>
         <Icon className="h-4 w-4" />
       </div>
@@ -251,7 +251,7 @@ function BarList({ rows, empty }) {
 }
 
 function SkeletonBlock() {
-  return <div className="h-28 animate-pulse rounded-2xl border border-white/10 bg-white/[0.04]" />;
+  return <div className="h-28 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]" />;
 }
 
 export default function AiChannels() {
@@ -533,7 +533,7 @@ export default function AiChannels() {
   return (
     <div dir={dir} className="min-h-full bg-[linear-gradient(180deg,#020617,#0f172a)] px-4 py-6 text-white sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[96rem] flex-col gap-5">
-        <section className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5 shadow-2xl shadow-black/20">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
@@ -689,7 +689,7 @@ export default function AiChannels() {
           {channelCards.map((channel) => {
             const Icon = channel.icon;
             return (
-              <article key={channel.key} className={`rounded-3xl border p-5 shadow-xl transition ${ channel.connected ? "border-emerald-300/25 bg-emerald-400/[0.055] shadow-emerald-950/20" : "border-white/10 bg-white/[0.045] shadow-black/10" }`}>
+              <article key={channel.key} className={`rounded-[var(--radius-card)] border p-5 shadow-xl transition ${ channel.connected ? "border-emerald-300/25 bg-emerald-400/[0.055] shadow-emerald-950/20" : "border-white/10 bg-white/[0.045] shadow-black/10" }`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className={`rounded-2xl border p-3 ${ channel.tone === "emerald" ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : channel.tone === "pink" ? "border-pink-300/20 bg-pink-400/10 text-pink-100" : channel.tone === "blue" ? "border-primary/20 bg-primary/10 text-primary" : "border-primary/20 bg-primary/10 text-primary" }`}>
                     <Icon className="h-5 w-5" />
@@ -747,7 +747,7 @@ export default function AiChannels() {
                           {channel.metaChannel?.profile_picture_url || channel.metaConfig?.profile_picture_url ? (
                             <img src={channel.metaChannel?.profile_picture_url || channel.metaConfig?.profile_picture_url} alt="" className="h-10 w-10 rounded-2xl object-cover" />
                           ) : (
-                            <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-sm font-black text-slate-200">
+                            <span className="grid h-10 w-10 place-items-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] text-sm font-black text-slate-200">
                               {(channel.key === "facebook" ? "f" : "ig").toUpperCase()}
                             </span>
                           )}
@@ -844,7 +844,7 @@ export default function AiChannels() {
                     </Link>
                   )}
                   <div className="grid grid-cols-2 gap-2">
-                    <Link to="/admin/ai-inbox" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                    <Link to="/admin/ai-inbox" className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                       <ExternalLink className="h-3.5 w-3.5" />
                       {tr("actions.viewInbox", "عرض الصندوق")}
                     </Link>
@@ -859,7 +859,7 @@ export default function AiChannels() {
                       {tr("actions.test", "Test channel")}
                     </button>
                     ) : (
-                    <Link to="/admin/ai-agent-settings" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                    <Link to="/admin/ai-agent-settings" className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                       <TestTube2 className="h-3.5 w-3.5" />
                       {tr("actions.test", "Test channel")}
                     </Link>
@@ -888,7 +888,7 @@ export default function AiChannels() {
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.35fr_0.95fr]">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/10">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-primary">
@@ -955,7 +955,7 @@ export default function AiChannels() {
             ) : null}
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/10">
             <div className="mb-4 inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-primary">
               <BarChart3 className="h-4 w-4" />
               {tr("analytics.title", "ملخص تحليلات الذكاء الاصطناعي")}

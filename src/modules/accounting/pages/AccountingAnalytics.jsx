@@ -56,7 +56,7 @@ export default function AccountingAnalytics() {
           { to: "/accounting/analytics", label: isArabic ? "التحليلات المتقدمة" : "Advanced analytics" },
         ]}
       >
-        <section className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl shadow-[var(--shadow)]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] shadow-2xl shadow-[var(--shadow)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
             <div className="flex items-center gap-3">
               <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)]">
@@ -97,7 +97,7 @@ export default function AccountingAnalytics() {
 
           {!loading && (!session?.enabled || error) ? (
             <div className="grid min-h-[520px] place-items-center p-6">
-              <div className="max-w-xl rounded-3xl border border-[var(--border)] bg-[var(--card)] p-8 text-center">
+              <div className="max-w-xl rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-8 text-center">
                 <BarChart3 className="mx-auto h-12 w-12 text-[var(--primary)]" />
                 <h3 className="m1-section-title mt-4 text-[var(--text)]">
                   {isArabic ? "التقارير الأساسية جاهزة الآن" : "Core reports are ready now"}

@@ -184,7 +184,7 @@ export default function PublicProduct() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 px-4 py-12 text-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] p-12">
+        <div className="mx-auto flex max-w-5xl items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-12">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       </div>
@@ -251,11 +251,11 @@ export default function PublicProduct() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5">
           <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Variants</div>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {variants.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">No variants available.</div>
+              <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">No variants available.</div>
             ) : (
               variants.map((variant) => (
                 <div key={String(variant.id)} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">

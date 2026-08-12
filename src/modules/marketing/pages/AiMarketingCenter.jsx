@@ -1662,7 +1662,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
 
 function Info({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
       <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
       <div className="mt-1 font-bold capitalize text-white">{value || "n/a"}</div>
     </div>

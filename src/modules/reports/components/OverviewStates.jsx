@@ -13,17 +13,17 @@ export function OverviewSkeleton() {
     <div className="space-y-5" aria-busy="true" aria-live="polite">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((index) => (
-          <div key={index} className="h-[132px] animate-pulse rounded-2xl border border-[var(--border)] bg-[var(--card)]" />
+          <div key={index} className="h-[132px] animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]" />
         ))}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((index) => (
-          <div key={index} className="h-[104px] animate-pulse rounded-2xl border border-[var(--border)] bg-[var(--card)]" />
+          <div key={index} className="h-[104px] animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]" />
         ))}
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="h-[340px] animate-pulse rounded-2xl border border-[var(--border)] bg-[var(--card)]" />
-        <div className="h-[340px] animate-pulse rounded-2xl border border-[var(--border)] bg-[var(--card)]" />
+        <div className="h-[340px] animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]" />
+        <div className="h-[340px] animate-pulse rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]" />
       </div>
     </div>
   );
@@ -32,7 +32,7 @@ export function OverviewSkeleton() {
 export function OverviewEmpty() {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] px-6 py-14 text-center">
+    <div className="flex flex-col items-center justify-center rounded-[var(--radius-card)] border border-dashed border-[var(--border)] bg-[var(--card)] px-6 py-14 text-center">
       <Inbox className="h-8 w-8 text-[var(--text-tertiary)]" aria-hidden="true" />
       <h2 className="m1-section-title mt-3 text-[15px] text-[var(--text)]">{t("overview.states.emptyTitle")}</h2>
       <p className="mt-1.5 max-w-sm text-[13px] leading-5 text-[var(--text-secondary)]">{t("overview.states.emptyBody")}</p>
@@ -71,7 +71,7 @@ export function OverviewError({ error, onRetry }) {
 export function OverviewForbidden() {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-14 text-center">
+    <div className="flex flex-col items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-6 py-14 text-center">
       <Lock className="h-8 w-8 text-[var(--text-tertiary)]" aria-hidden="true" />
       <h2 className="m1-section-title mt-3 text-[15px] text-[var(--text)]">{t("overview.states.restricted")}</h2>
     </div>
@@ -115,7 +115,7 @@ export function OverviewWarnings({ warnings = [] }) {
   return (
     <section
       aria-label={t("overview.warnings.title")}
-      className={`rounded-xl border ${ severe ? "border-[var(--warning)]/35 bg-[var(--warning-soft)]" : "border-[var(--border)] bg-[var(--surface-soft)]" }`}
+      className={`rounded-[var(--radius-card)] border ${ severe ? "border-[var(--warning)]/35 bg-[var(--warning-soft)]" : "border-[var(--border)] bg-[var(--surface-soft)]" }`}
     >
       <button
         type="button"

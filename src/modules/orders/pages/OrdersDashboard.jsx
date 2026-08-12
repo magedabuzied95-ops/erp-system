@@ -1160,7 +1160,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") openOrder(order);
                 }}
-                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
+                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-[var(--radius-card)] border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
                 dir={tableDir}
               >
                 <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
@@ -1305,7 +1305,7 @@ function VerificationQueue({ t, orders, updateShippingPayment, openOrder }) {
         const proofInvalid = Boolean(rawProof) && isInvalidShippingProofUrl(rawProof);
         return (
           <div key={order.id} className="grid gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-3 shadow-xl shadow-amber-950/10 md:grid-cols-[7rem_minmax(0,1fr)]">
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+            <div className="overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5">
               {proofInvalid ? <div className="grid h-28 place-items-center px-3 text-center text-xs font-semibold text-rose-200">{t("orders.payment.invalidProof")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="h-28 w-full object-cover" /> : <div className="grid h-28 place-items-center text-xs font-semibold text-zinc-500">{t("orders.payment.noProof")}</div>}
             </div>
             <div className="min-w-0">
@@ -1353,7 +1353,7 @@ function FulfillmentBoard({ t, orders, openOrder }) {
   return (
     <div className="mt-3 grid gap-3 xl:grid-cols-4">
       {grouped.map((column) => (
-        <div key={column.key} className="min-h-48 rounded-2xl border border-white/10 bg-white/5 p-3">
+        <div key={column.key} className="min-h-48 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
           <div className="flex items-center justify-between gap-2">
             <h3 className="m1-section-title text-white">{column.label}</h3>
             <span className="rounded-full bg-black/20 px-2 py-0.5 text-xs font-black text-zinc-200">{column.orders.length}</span>
@@ -1440,7 +1440,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
 
           <Section title={t("orders.drawer.items")}>
             {previewItems.length ? previewItems.map((item) => (
-              <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
                 {item.imageUrl ? (
                   <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-10 w-10 shrink-0 rounded-lg border border-white/10 object-cover" />
                 ) : null}
@@ -1457,11 +1457,11 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
           </Section>
 
           <Section title={t("orders.payment.proof")}>
-            {proofInvalid ? <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100">{t("orders.payment.invalidProofUrl")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="max-h-64 w-full rounded-xl border border-white/10 object-cover" /> : <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-400">{t("orders.payment.noProofUploaded")}</div>}
+            {proofInvalid ? <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100">{t("orders.payment.invalidProofUrl")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="max-h-64 w-full rounded-xl border border-white/10 object-cover" /> : <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm text-zinc-400">{t("orders.payment.noProofUploaded")}</div>}
           </Section>
 
           <Section title={t("orders.drawer.notes")}>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
           </Section>
         </div>
         <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-3">
@@ -1531,7 +1531,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
 
         <Section title={t("orders.drawer.items")}>
           {previewItems.length ? previewItems.map((item) => (
-            <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-2.5">
+            <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2.5">
               {item.imageUrl ? (
                 <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-9 w-9 shrink-0 rounded-lg border border-white/10 object-cover" />
               ) : null}
@@ -1552,7 +1552,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
         </Section>
 
         <Section title={t("orders.drawer.notes")}>
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
         </Section>
       </div>
       <footer className="grid gap-2 border-t border-white/10 p-3">
@@ -1807,7 +1807,7 @@ function Timeline({ items }) {
 
 function InfoTile({ icon: Icon, label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
       <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-zinc-500">
         <Icon className="h-3.5 w-3.5" />
         {label}
@@ -1828,7 +1828,7 @@ function Section({ title, children }) {
 
 function EmptyState({ icon: Icon, title, text: body, compact = false }) {
   return (
-    <div className={`rounded-2xl border border-dashed border-white/10 bg-white/5 text-center ${compact ? "p-4" : "mt-3 p-10"}`}>
+    <div className={`rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 text-center ${compact ? "p-4" : "mt-3 p-10"}`}>
       <Icon className="mx-auto h-10 w-10 text-zinc-500" />
       <h3 className="m1-section-title mt-3 text-white">{title}</h3>
       <p className="mt-1 text-sm text-zinc-400">{body}</p>
@@ -1993,7 +1993,7 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
             {form.items.length ? (
               <div className="space-y-2">
                 {form.items.map((item, index) => (
-                  <div key={item.id || `${item.product_id}-${item.variant_id}-${index}`} className="grid gap-2 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[minmax(0,1fr)_6rem_7rem]">
+                  <div key={item.id || `${item.product_id}-${item.variant_id}-${index}`} className="grid gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 md:grid-cols-[minmax(0,1fr)_6rem_7rem]">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black">{item.product_name || t("orders.fallback.item")}</div>
                       <div className="mt-1 truncate text-xs text-zinc-400">{[item.color, item.size, item.sku].filter(Boolean).join(" / ") || item.variant_name || t("orders.fallback.variant")}</div>
@@ -2139,7 +2139,7 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
 
 function ConfirmMetric({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
       <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className="mt-1 break-words text-sm font-black text-white"><CurrencyText value={value} /></div>
     </div>
@@ -2169,7 +2169,7 @@ function EditSelect({ label, value, onChange, options, labels = {}, t }) {
 function TableSkeleton() {
   return (
     <div className="mt-3 space-y-2">
-      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/5" />)}
+      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />)}
     </div>
   );
 }

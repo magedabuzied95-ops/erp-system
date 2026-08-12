@@ -478,7 +478,7 @@ function OrderReturnsPage() {
 
 function PageHeader({ onCreate }) {
   return (
-    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">Orders module</div>
@@ -488,7 +488,7 @@ function PageHeader({ onCreate }) {
         <div className="flex flex-wrap gap-2">
           <Link
             to="/orders"
-            className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
           >
             <ArrowRight className="h-4 w-4" />
             العودة إلى الطلبات
@@ -646,7 +646,7 @@ function SupplierReturnsPanel({
                 </div>
                 <div className="mt-1.5 space-y-1.5">
                   {items.map((item) => (
-                    <div key={item.id} className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} items-center rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs text-zinc-300`}>
+                    <div key={item.id} className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} items-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs text-zinc-300`}>
                       <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">تم التسليم</button> : <span className="text-zinc-500">—</span>}</div>
                       <div className="truncate font-bold text-white">{item.supplier_name}</div>
                       <div><div className="font-bold text-white">{item.product_name}</div><div className="text-[10px] text-zinc-500">{[item.color, item.size].filter(Boolean).join(" / ")}</div></div>
@@ -696,7 +696,7 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
             </div>
             <div className="mt-2 space-y-1.5">
               {group.items.slice(0, 4).map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-xs text-zinc-300">
+                <div key={item.id} className="flex items-center justify-between gap-2 rounded-[var(--radius-card)] border border-white/5 bg-white/[0.03] p-2 text-xs text-zinc-300">
                   <div className="min-w-0">
                     <div className="truncate">{item.product_name}{[item.color, item.size].filter(Boolean).length ? ` — ${[item.color, item.size].filter(Boolean).join(" / ")}` : ""}</div>
                     <div className="mt-1 text-[10px] text-zinc-500">{item.return_number || item.invoice_number || ""} · × {item.quantity}</div>
@@ -717,7 +717,7 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
 
 function MiniStat({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200">
       {label}: <span className="text-white">{value}</span>
     </div>
   );
@@ -787,7 +787,7 @@ function FilterSelect({ label, value, onChange, options, allLabel }) {
 function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
   if (loading) {
     return (
-      <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
+      <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
         جاري تحميل بيانات المرتجعات...
       </div>
     );
@@ -821,7 +821,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
 
           <div className="mt-1.5 space-y-1.5">
             {records.map((record) => (
-              <div key={record.id} className="grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] items-center rounded-xl border border-white/10 bg-zinc-950/75 px-3 py-2 shadow-xl transition hover:border-primary/30 hover:bg-white/[0.03]" dir={dir}>
+              <div key={record.id} className="grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] items-center rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/75 px-3 py-2 shadow-xl transition hover:border-primary/30 hover:bg-white/[0.03]" dir={dir}>
                 <div className="flex flex-wrap items-center justify-center gap-1.5 px-1 text-center">
                   <RowAction icon={Eye} label="عرض التفاصيل" onClick={() => onView(record)} />
                   <RowAction icon={Pencil} label="تعديل المرتجع" onClick={() => onEdit(record)} disabled={!record.allowEdit} />
@@ -950,7 +950,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
             </Field>
 
             <Field label="العميل">
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">{customerLabel}</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">{customerLabel}</div>
             </Field>
 
             <Field label={t("orders.returns.returnStatus")}>
@@ -1029,7 +1029,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
             </Field>
           </div>
 
-          <section className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="m1-section-title text-white">{t("orders.returns.returnedItems")}</h3>
               <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-200">
@@ -1191,7 +1191,7 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
           <DrawerSection title="المنتجات المرتجعة">
             <div className="space-y-2">
               {record.items.length ? record.items.map((item) => (
-                <div key={item.key} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div key={item.key} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-white">{item.name}</div>
@@ -1228,7 +1228,7 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
           </DrawerSection>
 
           <DrawerSection title="الملاحظات / السبب">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">
               {record.reason || "لا توجد ملاحظات إضافية."}
             </div>
           </DrawerSection>
@@ -1289,7 +1289,7 @@ function InfoGrid({ items }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {items.map(([label, value]) => (
-        <div key={label} className="rounded-xl border border-white/10 bg-white/5 p-3">
+        <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
           <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
           <div className="mt-1 text-sm font-semibold text-white">{value}</div>
         </div>
@@ -1299,7 +1299,7 @@ function InfoGrid({ items }) {
 }
 
 function EmptyDrawerText({ text: value }) {
-  return <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-400">{value}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm text-zinc-400">{value}</div>;
 }
 
 function CellHeader({ children }) {
@@ -1380,7 +1380,7 @@ function MobileAction({ icon: Icon, label, onClick, disabled = false, danger = f
 
 function InfoPill({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-2">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2">
       <div className="text-[10px] text-zinc-500">{label}</div>
       <div className="mt-1 font-bold text-white">{value}</div>
     </div>

@@ -949,7 +949,7 @@ function ProductDetails() {
                                   <td className="px-4 py-3">
                                     <Link
                                       to={`/inventory/variant/${variant.variant_id || variant.id}/history?productId=${product.id}`}
-                                      className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                                      className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
                                     >
                                       <Clock3 className="h-4 w-4" />
                                       {t("products.fields.history", "السجل")}
@@ -991,7 +991,7 @@ function ProductDetails() {
               </div>
               <Link
                 to={`/inventory/history?productId=${encodeURIComponent(product.id)}`}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 {t("products.stock.fullHistory", "السجل الكامل")}
               </Link>
@@ -1074,7 +1074,7 @@ function ProductDetails() {
                           <td className="px-4 py-3 text-zinc-300">{movement.created_by_name || t("products.records.notAvailable", "n/a")}</td>
                           <td className="px-4 py-3">
                             {movement.undone_at ? (
-                              <span className="inline-flex items-center rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-400">
+                              <span className="inline-flex items-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-400">
                                 {t("products.stock.undone", "Undone")}
                               </span>
                             ) : undoAllowed ? (
@@ -1146,7 +1146,7 @@ function ActionButton({ icon: Icon, label, onClick }) {
 
 function InfoCard({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-4">
       <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{label}</p>
       <p className="mt-2 text-lg font-semibold text-white">{value}</p>
     </div>
@@ -1155,7 +1155,7 @@ function InfoCard({ label, value }) {
 
 function DetailCard({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-4">
       <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">{label}</p>
       <p className="mt-2 break-all text-sm font-semibold text-white">{value}</p>
     </div>

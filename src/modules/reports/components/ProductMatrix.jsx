@@ -75,7 +75,7 @@ export default function ProductMatrix({ matrix, showProfit, onSelectProduct }) {
           return (
             <div
               key={quadrant.key}
-              className={`flex min-w-0 flex-col rounded-xl border border-s-[3px] border-[var(--border)] ${quadrant.edge} bg-[var(--surface-soft)] p-3.5 2xl:p-4`}
+              className={`flex min-w-0 flex-col rounded-[var(--radius-card)] border border-s-[3px] border-[var(--border)] ${quadrant.edge} bg-[var(--surface-soft)] p-3.5 2xl:p-4`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">

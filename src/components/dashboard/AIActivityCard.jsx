@@ -42,7 +42,7 @@ function Metric({ label, value }) {
 }
 
 function Empty({ text }) {
-  return <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{text}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-zinc-500">{text}</div>;
 }
 
 export default AIActivityCard;

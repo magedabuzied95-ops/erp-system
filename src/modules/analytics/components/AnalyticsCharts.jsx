@@ -94,7 +94,7 @@ export default function AnalyticsCharts({ data, Panel, t }) {
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {data.channelSeries.map((item, index) => (
-            <div key={item.name} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div key={item.name} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="h-3 w-3 rounded-full" style={{ backgroundColor: channelColors[index % channelColors.length] }} />

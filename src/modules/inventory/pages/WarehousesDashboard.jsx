@@ -164,7 +164,7 @@ function WarehousesDashboard() {
       subtitle={t("warehouses.subtitle")}
       actions={
         <div className="flex flex-wrap gap-2">
-          <Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+          <Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
             <Clock3 className="h-4 w-4" />
             {t("warehouses.history")}
           </Link>
@@ -210,16 +210,16 @@ function WarehousesDashboard() {
 
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {loading ? (
-            Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-3xl border border-white/10 bg-white/5" />)
+            Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />)
           ) : filtered.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center">
               <Warehouse className="mx-auto h-12 w-12 text-zinc-500" />
               <h3 className="m1-section-title mt-4 text-white">{t("warehouses.empty.title")}</h3>
               <p className="mt-2 text-sm text-zinc-400">{t("warehouses.empty.subtitle")}</p>
             </div>
           ) : (
             filtered.map((warehouse) => (
-              <div key={String(warehouse.id)} className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/10">
+              <div key={String(warehouse.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/10">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold text-white">{warehouse.name}</div>
@@ -246,7 +246,7 @@ function WarehousesDashboard() {
                       <Trash2 className="h-4 w-4" />
                       حذف
                     </button>
-                    <Link to="/stock-transfers" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+                    <Link to="/stock-transfers" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
                       <ArrowRightLeft className="h-4 w-4" />
                       {t("warehouses.buttons.transfer")}
                     </Link>
@@ -421,7 +421,7 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
           <MiniStat label="النشطة" value={activeTransferReferences} />
         </div>
 
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-zinc-300">
+        <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 text-sm text-zinc-300">
           <div className="flex items-center justify-between gap-3">
             <span>معرّف المخزن</span>
             <span className="font-black text-white">{warehouse.id}</span>

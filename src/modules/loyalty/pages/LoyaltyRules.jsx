@@ -137,7 +137,7 @@ function LoyaltyRules() {
                 </p>
               </button>
             ))}
-            {!loading && rules.length === 0 ? <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-zinc-400">No rules found.</div> : null}
+            {!loading && rules.length === 0 ? <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-zinc-400">No rules found.</div> : null}
           </div>
         </div>
 
@@ -170,7 +170,7 @@ function LoyaltyRules() {
             ))}
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3">
             <div>
               <p className="font-semibold text-white">Active</p>
               <p className="text-xs text-zinc-500">Inactive rules do not apply to new orders</p>

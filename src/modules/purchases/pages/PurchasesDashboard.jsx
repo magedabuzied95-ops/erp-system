@@ -448,7 +448,7 @@ function PurchasesDashboard() {
               {loading ? (
                 <TableSkeleton />
               ) : visiblePurchases.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center">
                   <PackageSearch className="mx-auto h-12 w-12 text-zinc-500" />
                   <h3 className="m1-section-title mt-4 text-white">{t("purchases.empty.title")}</h3>
                   <p className="mt-2 text-sm text-zinc-400">{t("purchases.empty.description")}</p>
@@ -695,7 +695,7 @@ function TableSkeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 6 }).map((_, index) => (
-        <div key={index} className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+        <div key={index} className="h-16 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />
       ))}
     </div>
   );

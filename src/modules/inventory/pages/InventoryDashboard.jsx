@@ -432,7 +432,7 @@ function InventoryDashboard() {
       subtitle={t("inventory.subtitle")}
       actions={
         <>
-          <Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+          <Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
             <Clock3 className="h-4 w-4" />
             {t("inventory.history")}
           </Link>
@@ -592,7 +592,7 @@ function InventoryDashboard() {
                     return (
                       <div
                         key={String(alert.scope_key)}
-                        className={`relative rounded-2xl border p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition ${ selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]" }`}
+                        className={`relative rounded-[var(--radius-card)] border p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition ${ selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]" }`}
                       >
                         <button
                           type="button"
@@ -666,7 +666,7 @@ function InventoryDashboard() {
                   })}
                 </div>
               ) : (
-                <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
+                <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
                   {t("inventory.purchaseAlerts.empty")}
                 </div>
               )}
@@ -689,7 +689,7 @@ function InventoryDashboard() {
 
           <div className="mt-4 overflow-x-auto">
             <div className="min-w-[980px]">
-              <div className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right text-xs uppercase tracking-[0.18em] text-zinc-500">
+              <div className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-right text-xs uppercase tracking-[0.18em] text-zinc-500">
                 <div>{t("inventory.tableHeaders.product")}</div>
                 <div>{t("inventory.tableHeaders.variant")}</div>
                 <div>{t("inventory.tableHeaders.sku")}</div>
@@ -702,11 +702,11 @@ function InventoryDashboard() {
                 {loading ? (
                   <div className="space-y-2">
                     {Array.from({ length: 6 }).map((_, index) => (
-                      <div key={index} className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+                      <div key={index} className="h-16 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />
                     ))}
                   </div>
                 ) : filtered.length === 0 ? (
-                  <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center">
                     <ShoppingBag className="mx-auto h-12 w-12 text-zinc-500" />
                     <h3 className="m1-section-title mt-4 text-white">{t("inventory.empty.rowsTitle")}</h3>
                     <p className="mt-2 text-sm text-zinc-400">{t("inventory.empty.rowsSubtitle")}</p>
@@ -726,7 +726,7 @@ function InventoryDashboard() {
                         <div className="truncate text-sm text-zinc-300"><InlineLtrValue>{formatCurrency(Number(variant.stock || 0) * Number(variant.price || 0))}</InlineLtrValue></div>
                         <StatusBadge value={low ? formatInventoryStatusLabel(t("inventory.status.low")) : formatInventoryStatusLabel(t("inventory.status.active"))} />
                         <div className="flex justify-end">
-                          <Link to={`/inventory/variant/${variant.id}/history`} className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-white">
+                          <Link to={`/inventory/variant/${variant.id}/history`} className="inline-flex items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2 text-white">
                             <Clock3 className="h-4 w-4" />
                           </Link>
                         </div>
@@ -744,7 +744,7 @@ function InventoryDashboard() {
             <h3 className="m1-section-title text-white">{t("inventory.empty.warehouseTitle")}</h3>
             <div className="mt-4 space-y-3">
               {warehouses.map((warehouse) => (
-                <div key={String(warehouse.id)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div key={String(warehouse.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold text-white">{warehouse.name}</div>
@@ -761,7 +761,7 @@ function InventoryDashboard() {
             <h3 className="m1-section-title text-white">{t("inventory.empty.timelineTitle")}</h3>
             <div className="mt-4 space-y-3">
               {[...movements].slice(0, 5).map((movement, index) => (
-                <div key={`${movement.id || index}`} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div key={`${movement.id || index}`} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold text-white">{movement.product_name || movement.variant_name || t("inventory.tabs.movements")}</div>
@@ -797,7 +797,7 @@ function InventoryDashboard() {
                     className={`rounded-3xl border p-4 shadow-[0_18px_38px_rgba(15,23,42,0.18)] ${cardClassName}`}
                   >
                     <div className="flex gap-4">
-                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white shadow-inner">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white shadow-inner">
                         {card.image_url ? (
                           <img
                             src={card.image_url}
@@ -910,7 +910,7 @@ function InventoryDashboard() {
                     className="rounded-2xl border border-rose-400/25 bg-rose-500/10 p-3 shadow-[0_18px_38px_rgba(127,29,29,0.18)]"
                   >
                     <div className="flex gap-3">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white shadow-inner">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white shadow-inner">
                         {imageUrl ? (
                           <img
                             src={imageUrl}
@@ -973,7 +973,7 @@ function InventoryDashboard() {
                 );
               })}
               {lowStockAlerts.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">{t("inventory.alerts.empty")}</div>
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">{t("inventory.alerts.empty")}</div>
               ) : null}
             </div>
           </div>

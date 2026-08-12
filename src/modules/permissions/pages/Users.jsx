@@ -420,7 +420,7 @@ function UsersPage() {
       subtitle="Create users, assign roles, and keep permission inheritance aligned with the role catalog and backend fallback records."
       actions={
         <>
-          <Link to="/settings/roles" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/settings/roles" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <ShieldCheck className="h-4 w-4" />
             Roles
           </Link>
@@ -485,7 +485,7 @@ function UsersPage() {
               <h3 className="m1-section-title text-white">Users</h3>
               <p className="mt-1 text-sm text-zinc-400">Assign roles from the matrix and preserve compatibility with legacy pages.</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
               {filteredUsers.length} rows
             </div>
           </div>
@@ -497,7 +497,7 @@ function UsersPage() {
               <EmptyState label="No users match the search query." />
             ) : (
               filteredUsers.map((user) => (
-                <div key={user.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div key={user.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                   <div className="grid gap-3 xl:grid-cols-[1.3fr_1fr_0.8fr_auto] xl:items-center">
                     <div>
                       <div className="font-semibold text-white">{user.name}</div>
@@ -667,7 +667,7 @@ function Select({ label, value, onChange, options }) {
 
 function Metric({ label, value, icon }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
@@ -683,14 +683,14 @@ function Skeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className="h-20 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+        <div key={index} className="h-20 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />
       ))}
     </div>
   );
 }
 
 function EmptyState({ label }) {
-  return <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{label}</div>;
 }
 
 export default UsersPage;

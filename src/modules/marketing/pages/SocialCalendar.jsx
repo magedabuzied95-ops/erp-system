@@ -57,7 +57,7 @@ const badgeToneClass = {
 };
 
 const ContentCard = ({ icon: Icon, tone, title, description, meta }) => (
-  <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-lg shadow-black/20 transition hover:border-white/20 hover:bg-white/[0.06]">
+  <article className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-lg shadow-black/20 transition hover:border-white/20 hover:bg-white/[0.06]">
     <div className="flex items-start justify-between gap-3">
       <div className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border ${tone} shrink-0`}>
         <Icon className="h-5 w-5" />
@@ -321,7 +321,7 @@ export default function SocialCalendar() {
                     <div className="mt-3 space-y-2">
                       {events.length ? (
                         events.map((event) => (
-                          <div key={`${date.toISOString()}-${event.label}`} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                          <div key={`${date.toISOString()}-${event.label}`} className="flex items-center justify-between rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-3 py-2">
                             <span className="text-sm font-semibold text-slate-100">{event.label}</span>
                             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] ${badgeToneClass[event.tone]}`}>
                               {event.tone}
@@ -357,7 +357,7 @@ export default function SocialCalendar() {
             <div className="rounded-[1.75rem] border border-white/10 bg-black/20 p-4">
               <div className="grid gap-3 md:grid-cols-2">
                 {draftSteps.map((step, index) => (
-                  <div key={step.title} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                  <div key={step.title} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-sm font-black text-primary">
                         {pad2(index + 1)}
@@ -376,7 +376,7 @@ export default function SocialCalendar() {
                 {t("marketing.socialCalendar.draft.canvasLabel")}
               </div>
               <div className="mt-4 space-y-3">
-                <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-sm font-black text-white">{t("marketing.socialCalendar.draft.canvas.title")}</div>
                   <div className="mt-1 text-sm text-slate-400">{t("marketing.socialCalendar.draft.canvas.subtitle")}</div>
                 </div>
@@ -439,7 +439,7 @@ export default function SocialCalendar() {
             {scheduledPosts.map((post) => (
               <article key={`${post.time}-${post.title}`} className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-black/20 p-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04]">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
                     <Clock3 className="h-5 w-5 text-primary" />
                   </div>
                   <div>

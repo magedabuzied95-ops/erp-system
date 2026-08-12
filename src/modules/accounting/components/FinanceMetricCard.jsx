@@ -16,7 +16,7 @@ export default function FinanceMetricCard({ label, value, hint, tone = "zinc", i
           <div className="mt-2 text-2xl font-black text-[var(--text)]">{value}</div>
           {hint ? <div className="mt-1 text-xs text-[var(--muted)]">{hint}</div> : null}
         </div>
-        {icon ? <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--text)]">{icon}</div> : null}
+        {icon ? <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--text)]">{icon}</div> : null}
       </div>
     </div>
   );

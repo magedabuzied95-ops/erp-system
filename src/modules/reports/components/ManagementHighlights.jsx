@@ -35,7 +35,7 @@ export default function ManagementHighlights({ highlights = [], namespace = "ove
         return (
           <li
             key={highlight.code}
-            className="relative flex items-start gap-2.5 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] p-3"
+            className="relative flex items-start gap-2.5 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3"
           >
             <span className={`absolute inset-y-0 start-0 w-[3px] ${severity.bar}`} aria-hidden="true" />
             <Icon className={`mt-px h-4 w-4 shrink-0 ${severity.tone}`} aria-hidden="true" />

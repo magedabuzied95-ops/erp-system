@@ -71,7 +71,7 @@ export default function KpiTile({ metric, kpi, level = 2, coverage = null }) {
 
   return (
     <div
-      className={`flex min-w-0 flex-col justify-between rounded-2xl border bg-[var(--card)] ${paddingClass} ${ level === 1 ? "border-[var(--border-strong)] shadow-[var(--shadow-card)]" : "border-[var(--border)]" }`}
+      className={`flex min-w-0 flex-col justify-between rounded-[var(--radius-card)] border bg-[var(--card)] ${paddingClass} ${ level === 1 ? "border-[var(--border-strong)] shadow-[var(--shadow-card)]" : "border-[var(--border)]" }`}
     >
       <div className="flex items-start justify-between gap-2">
         <span

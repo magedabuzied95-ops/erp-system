@@ -27,7 +27,7 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
         </div>
 
         {run ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 text-[11px]">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-2.5 text-[11px]">
             <div className="flex items-center justify-between">
               <span className="text-slate-500">Run #{run.id}</span>
               <span className={`font-black uppercase ${STATUS_TONE(run.status)}`}>{run.status}</span>
@@ -55,7 +55,7 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
             <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Steps</div>
             <div className="mt-1 space-y-1">
               {steps.map((s) => (
-                <div key={s.seq} className="rounded-lg border border-white/10 bg-white/[0.02]">
+                <div key={s.seq} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.02]">
                   <button type="button" onClick={() => { setExpanded(expanded === s.seq ? null : s.seq); onFocusNode?.(s.node_id); }} className="flex w-full items-center gap-2 px-2 py-1.5 text-left">
                     <ChevronRight className={`h-3 w-3 shrink-0 text-slate-500 transition ${expanded === s.seq ? "rotate-90" : ""}`} />
                     <span className="text-[10px] font-black text-slate-500">{s.seq}</span>

@@ -55,7 +55,7 @@ export default function InventoryTable({
 
   return (
     <div className="min-w-0">
-      <label className="mb-3 flex h-10 max-w-sm items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 transition focus-within:border-[var(--primary)]">
+      <label className="mb-3 flex h-10 max-w-sm items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] px-3 transition focus-within:border-[var(--primary)]">
         <Search className="h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" />
         <input
           value={draft}
@@ -192,7 +192,7 @@ function PageButton({ disabled, onClick, label, children }) {
 function Thumb({ url }) {
   if (!url) {
     return (
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-soft)]">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)]">
         <Package className="h-4 w-4 text-[var(--text-tertiary)]" aria-hidden="true" />
       </span>
     );

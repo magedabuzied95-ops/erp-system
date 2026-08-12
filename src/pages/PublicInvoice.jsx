@@ -200,7 +200,7 @@ export default function PublicInvoice() {
     return (
       <div className="public-invoice-shell min-h-screen text-white">
         <div className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-4">
-          <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.06] px-5 py-4 text-sm text-slate-300 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] px-5 py-4 text-sm text-slate-300 shadow-2xl shadow-black/30 backdrop-blur-xl">
             <Loader2 className="h-4 w-4 animate-spin" />
             {invoicePrintLabel("loading", "جاري تحميل الفاتورة...")}
           </div>
@@ -235,7 +235,7 @@ export default function PublicInvoice() {
         <div className="mb-5 flex flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between">
           <Link
             to="/"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-slate-100 shadow-sm shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/10 active:translate-y-0 sm:justify-start"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-slate-100 shadow-sm shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/10 active:translate-y-0 sm:justify-start"
           >
             <ArrowLeft className="h-4 w-4" />
             {invoicePrintLabel("back", "عودة")}
@@ -299,7 +299,7 @@ export default function PublicInvoice() {
           </div>
         ) : null}
 
-        <footer className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-xs font-bold text-slate-300 shadow-lg shadow-black/20 backdrop-blur-xl print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
+        <footer className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-xs font-bold text-slate-300 shadow-lg shadow-black/20 backdrop-blur-xl print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-4" dir="ltr">
             <a href={M1_STORE_WEBSITE_HREF} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-emerald-300">
               <Globe className="h-3.5 w-3.5 text-emerald-400" />

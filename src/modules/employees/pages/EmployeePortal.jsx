@@ -90,7 +90,7 @@ const urlBase64ToUint8Array = (base64String = "") => {
 
 function EmptyState({ children }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface px-4 py-5 text-sm font-bold leading-6 text-text-muted shadow-sm">
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface px-4 py-5 text-sm font-bold leading-6 text-text-muted shadow-sm">
       {children}
     </div>
   );
@@ -105,7 +105,7 @@ function EmptyState({ children }) {
 function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
   return (
     <section className="mt-4 rounded-3xl border border-white/10 bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
-      <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/10 p-4 backdrop-blur">
         <h2 className="m1-section-title">ثبّت بوابة الموظف على الموبايل</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-white/70">افتح التاسكات بسرعة واستقبل التنبيهات أثناء الشيفت.</p>
         {ios && !canInstall ? (
@@ -154,7 +154,7 @@ function NotificationCard({ state, hint, onEnable }) {
         ? "المتصفح لا يدعم تنبيهات التاسكات."
         : "استقبل تنبيه عند تحديث مهام الشيفت.");
   return (
-    <section className="mt-4 rounded-2xl border border-border bg-surface p-4 text-right shadow-sm">
+    <section className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-right shadow-sm">
       <div className="text-sm font-black text-text">تفعيل تنبيهات التاسكات</div>
       <p className="mt-1 text-sm font-semibold leading-6 text-text-muted">{message}</p>
       {state !== "granted" && state !== "unsupported" ? (
@@ -177,7 +177,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
   const notes = localizedTaskText(task, "notes") || description;
 
   return (
-    <article className={`rounded-2xl border bg-surface p-3 shadow-sm ${isCompleted ? "border-emerald-100" : isOverdue ? "border-orange-200 bg-orange-50" : "border-border"}`}>
+    <article className={`rounded-[var(--radius-card)] border bg-surface p-3 shadow-sm ${isCompleted ? "border-emerald-100" : isOverdue ? "border-orange-200 bg-orange-50" : "border-border"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -472,7 +472,7 @@ export default function EmployeePortal() {
   if (error) {
     return (
       <main dir="rtl" className="min-h-[100dvh] bg-background px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-text">
-        <section className="mx-auto max-w-md rounded-3xl border border-amber-200 bg-surface p-5 text-right shadow-sm">
+        <section className="mx-auto max-w-md rounded-[var(--radius-card)] border border-amber-200 bg-surface p-5 text-right shadow-sm">
           <AlertTriangle className="h-8 w-8 text-amber-600" />
           <h1 className="m1-page-title mt-4">بوابة الموظف غير متاحة</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-text-muted">{error}</p>

@@ -75,7 +75,7 @@ export default function MetaReviewerInbox() {
 
   return (
     <main className="min-h-screen bg-[var(--bg)] p-3 text-[var(--text)] md:p-6" dir="ltr">
-      <section className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] md:grid-cols-[320px_1fr]">
+      <section className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] md:grid-cols-[320px_1fr]">
         <aside className="border-b border-[var(--border)] p-4 md:border-b-0 md:border-r">
           <header className="mb-4 flex items-center justify-between">
             <div><p className="text-xs text-[var(--muted)]">META REVIEW</p><h1 className="m1-page-title">AI Inbox</h1></div>

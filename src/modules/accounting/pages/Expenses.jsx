@@ -825,7 +825,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
                 </label>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03]">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
                 <button
                   type="button"
                   onClick={() => setAdvancedExpenseOpen((open) => !open)}
@@ -860,7 +860,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
                       <h4 className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">{quickExpenseCopy.approvals}</h4>
                       <div className="grid gap-3 md:grid-cols-2">
                         <Select label={copy.status} value={expenseForm.status} onChange={(value) => setExpenseForm((p) => ({ ...p, status: value }))} options={STATUSES.map((item) => ({ value: item, label: statusLabel(t, language, item) }))} />
-                        <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm font-semibold text-zinc-500">{quickExpenseCopy.recurring}</div>
+                        <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm font-semibold text-zinc-500">{quickExpenseCopy.recurring}</div>
                       </div>
                     </div>
                   </div>
@@ -876,7 +876,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
             </div>
           </Panel>
           <Panel title={copy.attachmentPreview}>
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-zinc-400">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-zinc-400">
               <Paperclip className="mb-3 h-6 w-6 text-emerald-200" />
               {expenseForm.attachment_name || "سيظهر اسم الفاتورة أو الصورة أو PDF هنا بعد اختيار ملف."}
             </div>
@@ -946,7 +946,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
               <Select label={copy.payment} value={recurringForm.payment_method} onChange={(value) => setRecurringForm((p) => ({ ...p, payment_method: value }))} options={PAYMENT_METHODS.map((item) => ({ value: item, label: paymentLabel(t, language, item) }))} />
               <Select label={copy.frequency} value={recurringForm.frequency} onChange={(value) => setRecurringForm((p) => ({ ...p, frequency: value }))} options={FREQUENCIES.map((item) => ({ value: item, label: frequencyLabel(t, language, item) }))} />
               <Field label={copy.nextDue} type="date" value={recurringForm.next_due_date} onChange={(value) => setRecurringForm((p) => ({ ...p, next_due_date: value }))} />
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm font-semibold text-white">
+              <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-3 py-3 text-sm font-semibold text-white">
                 <input type="checkbox" checked={recurringForm.auto_create} onChange={(event) => setRecurringForm((p) => ({ ...p, auto_create: event.target.checked }))} />
                 {copy.autoCreate}
               </label>
@@ -1251,12 +1251,12 @@ function BreakdownCard({ title, rows, t, language, copy }) {
     <Panel title={title}>
       <div className="space-y-2">
         {rows.map((row, index) => (
-          <div key={`${row.label || row.month}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+          <div key={`${row.label || row.month}-${index}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-3 py-2">
             <span className="min-w-0 truncate text-sm font-semibold text-zinc-200">{row.month || categoryLabel(t, language, row.label || "other")}</span>
             <span className="shrink-0 text-sm font-black text-white"><CurrencyText value={formatCurrency(row.value || 0)} /></span>
           </div>
         ))}
-        {!rows.length ? <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-zinc-500">{copy.noData}</div> : null}
+        {!rows.length ? <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-zinc-500">{copy.noData}</div> : null}
       </div>
     </Panel>
   );
@@ -1273,7 +1273,7 @@ function TrendCard({ rows }) {
             <div className="text-[10px] font-bold text-zinc-500">{row.month}</div>
           </div>
         ))}
-        {!rows.length ? <div className="w-full rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-zinc-500">لا توجد بيانات للاتجاه</div> : null}
+        {!rows.length ? <div className="w-full rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-zinc-500">لا توجد بيانات للاتجاه</div> : null}
       </div>
     </Panel>
   );
@@ -1301,7 +1301,7 @@ function CompactTable({ rows, columns, empty, moneyColumns = [], t, language }) 
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className="mt-2 text-xl font-black text-white"><CurrencyText value={formatCurrency(value || 0)} /></div>
     </div>

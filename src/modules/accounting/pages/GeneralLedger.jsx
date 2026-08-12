@@ -189,11 +189,11 @@ function GeneralLedger() {
         </div>
 
         {loading ? (
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-8 text-sm text-zinc-400">جارٍ تحميل الحركات...</div>
+          <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-8 text-sm text-zinc-400">جارٍ تحميل الحركات...</div>
         ) : !filters.account_id ? (
-          <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">اختر حسابًا لعرض دفتر الأستاذ العام.</div>
+          <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">اختر حسابًا لعرض دفتر الأستاذ العام.</div>
         ) : payload.rows.length === 0 ? (
-          <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حركات ضمن الفلاتر الحالية.</div>
+          <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد حركات ضمن الفلاتر الحالية.</div>
         ) : (
           <div className="m1-table-container mt-5 overflow-x-auto">
             <table className="m1-table m1-table--compact min-w-[1080px] w-full text-right text-sm" dir="rtl">

@@ -1110,13 +1110,13 @@ function ChartsSkeleton() {
         {[0, 1].map((item) => (
           <div key={item} className="h-[420px] rounded-[34px] border border-white/10 bg-zinc-950/90 p-6">
             <div className="h-4 w-32 rounded-full bg-white/10" />
-            <div className="mt-8 h-[300px] animate-pulse rounded-3xl border border-white/5 bg-white/[0.04]" />
+            <div className="mt-8 h-[300px] animate-pulse rounded-[var(--radius-card)] border border-white/5 bg-white/[0.04]" />
           </div>
         ))}
       </div>
       <div className="h-[420px] rounded-[34px] border border-white/10 bg-zinc-950/90 p-6">
         <div className="h-4 w-32 rounded-full bg-white/10" />
-        <div className="mt-8 h-[300px] animate-pulse rounded-3xl border border-white/5 bg-white/[0.04]" />
+        <div className="mt-8 h-[300px] animate-pulse rounded-[var(--radius-card)] border border-white/5 bg-white/[0.04]" />
       </div>
     </>
   );
@@ -1124,7 +1124,7 @@ function ChartsSkeleton() {
 
 function SummaryChip({ label, value, icon: Icon }) {
   return (
-    <div className="inline-flex items-center gap-3 rounded-3xl border border-white/10 bg-white/5 px-4 py-3">
+    <div className="inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3">
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 text-primary">
         {Icon ? <Icon className="h-5 w-5" /> : null}
       </div>
@@ -1180,7 +1180,7 @@ function RiskCard({ title, value, description, icon: Icon }) {
           <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">{title}</p>
           <div className="mt-3 text-2xl font-black text-white">{value}</div>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-primary">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-primary">
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -1197,7 +1197,7 @@ function MiniInsight({ icon: Icon, title, value }) {
           <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{title}</div>
           <div className="mt-3 text-xl font-black text-white">{value}</div>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-primary">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-primary">
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -1207,7 +1207,7 @@ function MiniInsight({ icon: Icon, title, value }) {
 
 function InfoCard({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 text-sm font-semibold text-white">{value}</div>
     </div>

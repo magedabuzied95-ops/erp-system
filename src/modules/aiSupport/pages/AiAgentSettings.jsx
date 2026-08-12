@@ -98,7 +98,7 @@ function Toggle({ label, checked, onChange, hint = "" }) {
 
 function Section({ icon: Icon, title, children }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+    <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4">
       <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-primary">
         <Icon className="h-4 w-4" />
         {title}
@@ -178,7 +178,7 @@ export default function AiAgentSettings() {
   return (
     <div dir="ltr" className="min-h-full bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
       <div className="mx-auto flex max-w-6xl flex-col gap-5">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.055] p-5">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />AI Agent Control Center</div>

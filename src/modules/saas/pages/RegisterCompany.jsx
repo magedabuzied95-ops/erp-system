@@ -87,7 +87,7 @@ function RegisterCompany() {
       title="تسجيل شركة"
       subtitle="أنشئ مساحة عمل للشركة وحساب المالك وبداية الاشتراك. إذا تعذر الاتصال بالخادم، سيتم حفظ المساحة محليًا وتسجيل الدخول عليها."
       actions={
-        <Link to="/login" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+        <Link to="/login" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           تسجيل الدخول
         </Link>
       }
@@ -173,7 +173,7 @@ function Field({ label, value, onChange, placeholder }) {
 
 function Card({ icon, title, text }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="flex items-start gap-3">
         <div className="rounded-2xl border border-white/10 bg-black/20 p-2 text-primary">{icon}</div>
         <div>

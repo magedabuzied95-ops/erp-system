@@ -347,7 +347,7 @@ function ProductClassifications() {
                 />
               ))}
               {!loading && !selectedGroupOptions.length ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-center text-sm font-bold text-zinc-500">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.02] p-5 text-center text-sm font-bold text-zinc-500">
                   {t("products.classifications.emptyOptions")}
                 </div>
               ) : null}

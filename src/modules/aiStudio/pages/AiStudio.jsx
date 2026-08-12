@@ -52,7 +52,7 @@ function InboundAssistedRepliesCard() {
   const w = stats?.last7d || {};
   const d = stats?.last24h || {};
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4">
+    <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" /><h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">Inbound Assisted Replies</h2></div>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${capable ? "bg-emerald-400/15 text-emerald-100" : "bg-slate-500/20 text-slate-300"}`}>{capable ? "Capability enabled" : "Capability off (server flag)"}</span>
@@ -157,7 +157,7 @@ const canSeeModule = (module, user) => {
 function MetricCard({ icon: Icon, label, value, hint, tone = "cyan" }) {
   const toneRing = tone === "amber" ? "text-amber-200" : tone === "rose" ? "text-rose-200" : tone === "emerald" ? "text-emerald-200" : "text-primary";
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</span>
         {Icon ? <Icon className={`h-4 w-4 ${toneRing}`} /> : null}
@@ -255,7 +255,7 @@ export default function AiStudio() {
   return (
     <div dir="ltr" className="space-y-5 p-4 text-white md:p-6">
       {/* Header */}
-      <section className="rounded-3xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary">
@@ -310,7 +310,7 @@ export default function AiStudio() {
                 <Link
                   key={module.to + module.label}
                   to={module.to}
-                  className="group flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition hover:border-primary/40 hover:bg-white/[0.06]"
+                  className="group flex items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition hover:border-primary/40 hover:bg-white/[0.06]"
                 >
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-slate-950/60 text-primary">
                     <Icon className="h-5 w-5" />

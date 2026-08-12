@@ -111,7 +111,7 @@ function LoadingState() {
   return (
     <div className="space-y-2" aria-label="Loading activity">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="h-20 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.04] motion-reduce:animate-none" />
+        <div key={index} className="h-20 animate-pulse rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.04] motion-reduce:animate-none" />
       ))}
     </div>
   );
@@ -119,8 +119,8 @@ function LoadingState() {
 
 function EmptyState({ paused }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.025] px-5 py-8 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-zinc-400">
+    <div className="rounded-[var(--radius-card)] border border-dashed border-white/[0.08] bg-white/[0.025] px-5 py-8 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] border border-white/[0.08] bg-white/[0.04] text-zinc-400">
         {paused ? <Pause className="h-5 w-5" /> : <RefreshCcw className="h-5 w-5" />}
       </div>
       <div className="mt-3 text-sm font-black text-white">{paused ? "Feed paused" : "No activity yet"}</div>

@@ -416,7 +416,7 @@ function SuppliersDashboard() {
 
         <div className="mt-4 overflow-x-auto">
           <div className="min-w-[1280px]">
-            <div className="grid grid-cols-[12%_18%_12%_12%_12%_10%_10%_8%_6%] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500">
+            <div className="grid grid-cols-[12%_18%_12%_12%_12%_10%_10%_8%_6%] rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500">
               <div>{t("purchases.suppliersDashboard.code")}</div>
               <div>{t("purchases.suppliersDashboard.supplier")}</div>
               <div>{t("purchases.suppliersDashboard.contact")}</div>
@@ -430,7 +430,7 @@ function SuppliersDashboard() {
 
             <div className="mt-2 space-y-2 overflow-visible">
               {loading ? (
-                Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/5" />)
+                Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />)
               ) : visible.length === 0 ? (
                 <EmptyState onCreate={openCreateModal} />
               ) : (
@@ -606,7 +606,7 @@ function SupplierActionsMenu({ supplier, position, menuRef, zIndex, onClose, onV
 function EmptyState({ onCreate }) {
   const { t } = useTranslation();
   return (
-    <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
+    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center">
       <ShieldCheck className="mx-auto h-12 w-12 text-zinc-500" />
       <h3 className="m1-section-title mt-4 text-white">{t("purchases.suppliersDashboard.emptyTitle")}</h3>
       <p className="mt-2 text-sm text-zinc-400">{t("purchases.suppliersDashboard.emptyDescription")}</p>
@@ -647,7 +647,7 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
             <Field label={t("purchases.supplierDetails.email")} value={form.email} onChange={(value) => setField("email", value)} />
             <Field label={t("purchases.suppliersDashboard.taxNumber")} value={form.tax_number} onChange={(value) => setField("tax_number", value)} />
             <Field label={t("purchases.supplierDetails.openingBalance")} type="number" value={form.opening_balance} onChange={(value) => setField("opening_balance", Number(value || 0))} />
-            <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <label className="flex items-center justify-between rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3">
               <span className="text-sm font-semibold text-white">{t("purchases.statusLabels.active")}</span>
               <button type="button" onClick={() => setField("status", form.status === "active" ? "inactive" : "active")} className={`h-[var(--control-height-sm)] w-12 rounded-full p-1 transition ${form.status === "active" ? "bg-emerald-500" : "bg-zinc-700"}`}>
                 <span className={`block h-5 w-5 rounded-full bg-white transition ${form.status === "active" ? "translate-x-5" : ""}`} />
@@ -713,13 +713,13 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
           </div>
         </div>
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          {loading ? <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{t("purchases.suppliersDashboard.refreshingProfile")}</div> : null}
+          {loading ? <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{t("purchases.suppliersDashboard.refreshingProfile")}</div> : null}
           <div className="grid gap-3 sm:grid-cols-3">
             <MiniStat label={t("purchases.suppliersDashboard.currentBalance")} value={formatCurrency(supplier.current_balance || supplier.balance || 0)} icon={<Wallet className="h-4 w-4" />} />
             <MiniStat label={t("purchases.suppliersDashboard.totalPurchases")} value={formatCurrency(supplier.total_purchases || supplier.totalPurchases || 0)} icon={<Building2 className="h-4 w-4" />} />
             <MiniStat label={t("purchases.suppliersDashboard.orders")} value={supplier.purchase_count || supplier.purchaseCount || history.length || 0} icon={<FilePlus2 className="h-4 w-4" />} />
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
             <h3 className="m1-section-title text-white">{t("purchases.suppliersDashboard.supplierInfo")}</h3>
             <div className="mt-4 grid gap-3 text-sm text-zinc-300">
               <Info icon={<Phone className="h-4 w-4" />} label={t("purchases.supplierDetails.phone")} value={supplier.phone || t("purchases.supplierDetails.notAvailable")} />
@@ -729,7 +729,7 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
               <Info icon={<ShieldCheck className="h-4 w-4" />} label={t("purchases.suppliersDashboard.taxNumber")} value={supplier.tax_number || t("purchases.supplierDetails.notAvailable")} />
             </div>
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
             <h3 className="m1-section-title text-white">{t("purchases.suppliersDashboard.lastOrders")}</h3>
             <div className="mt-3 space-y-2">
               {history.length ? history.map((purchase) => (
@@ -746,7 +746,7 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
               )) : <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-sm text-zinc-400">{t("purchases.suppliersDashboard.noPurchaseHistoryYet")}</div>}
             </div>
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
             <h3 className="m1-section-title text-white">{t("purchases.supplierDetails.notes")}</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-300">{supplier.notes || t("purchases.suppliersDashboard.noNotesRecorded")}</p>
           </div>
@@ -758,7 +758,7 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
 
 function MiniStat({ label, value, icon }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
       <div className="flex items-center gap-2 text-xs text-zinc-500">{icon}{label}</div>
       <div className="mt-2 text-lg font-black text-white">{value}</div>
     </div>

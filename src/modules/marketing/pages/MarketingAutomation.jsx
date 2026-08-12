@@ -334,15 +334,15 @@ export default function MarketingAutomation() {
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.automation.subtitle")}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.05] px-4 py-3">
                 <div className="text-xl font-black">{rules.length}</div>
                 <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.rules")}</div>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.05] px-4 py-3">
                 <div className="text-xl font-black">{conversations.length}</div>
                 <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.leads")}</div>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.05] px-4 py-3">
                 <div className="text-xl font-black">{events.length}</div>
                 <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.comments")}</div>
               </div>
@@ -351,7 +351,7 @@ export default function MarketingAutomation() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_420px]">
-          <aside className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
+          <aside className="space-y-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="m1-section-title">{t("marketing.automation.rules")}</h2>
@@ -391,7 +391,7 @@ export default function MarketingAutomation() {
             </div>
           </aside>
 
-          <main className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
+          <main className="space-y-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="m1-section-title">{t("marketing.automation.ruleEditor")}</h2>
@@ -492,7 +492,7 @@ export default function MarketingAutomation() {
           </main>
 
           <aside className="space-y-3">
-            <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
+            <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="m1-section-title">{t("marketing.automation.webhook.title")}</h2>
@@ -554,7 +554,7 @@ export default function MarketingAutomation() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
+            <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="m1-section-title">{t("marketing.automation.preview.title")}</h2>
@@ -568,7 +568,7 @@ export default function MarketingAutomation() {
 
               <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/70 p-3">
                 <div className="flex gap-3">
-                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5">
                     {previewContext.product_image ? <img src={previewContext.product_image} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-500"><ImageIcon className="h-6 w-6" /></div>}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -594,7 +594,7 @@ export default function MarketingAutomation() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
+            <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h2 className="m1-section-title">{t("marketing.automation.intent.title")}</h2>
@@ -609,7 +609,7 @@ export default function MarketingAutomation() {
                   [t("marketing.automation.intent.availability"), intents.availability],
                   [t("marketing.automation.intent.variant"), intents.variant],
                 ].map(([label, active]) => (
-                  <div key={label} className={`rounded-xl border px-2 py-2 ${active ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{label}</div>
+                  <div key={label} className={`rounded-[var(--radius-card)] border px-2 py-2 ${active ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{label}</div>
                 ))}
               </div>
               <button type="button" onClick={simulateComment} disabled={simulating} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary disabled:opacity-60">
@@ -621,7 +621,7 @@ export default function MarketingAutomation() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="m1-section-title">{t("marketing.automation.marketingLeads")}</h2>
               {loadingActivity ? <Clock3 className="h-4 w-4 animate-pulse text-slate-400" /> : null}
@@ -641,7 +641,7 @@ export default function MarketingAutomation() {
                         </div>
                         <div className="mt-1 flex items-center gap-2 text-xs text-slate-400"><PlatformIcon platform={lead.platform} /> {lead.status || t("marketing.automation.status.new")} / {relativeTime(lead.updated_at)}</div>
                       </div>
-                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5">
                         {productImage ? <img src={productImage} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-500"><ImageIcon className="h-4 w-4" /></div>}
                       </div>
                     </div>
@@ -657,7 +657,7 @@ export default function MarketingAutomation() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="m1-section-title">{t("marketing.automation.recentComments")}</h2>
               <button type="button" onClick={loadActivity} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">{t("marketing.automation.reload")}</button>

@@ -87,7 +87,7 @@ function PublisherPlatformCard({ platform }) {
   const disabled = Boolean(platform.disabled);
   return (
     <div
-      className={`rounded-3xl border p-4 shadow-lg shadow-black/10 ${ disabled ? "cursor-not-allowed border-white/10 bg-white/[0.03] opacity-70" : "border-white/10 bg-white/[0.05]" }`}
+      className={`rounded-[var(--radius-card)] border p-4 shadow-lg shadow-black/10 ${ disabled ? "cursor-not-allowed border-white/10 bg-white/[0.03] opacity-70" : "border-white/10 bg-white/[0.05]" }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -145,15 +145,15 @@ function HistoryRow({ item, t }) {
           </div>
 
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2.5">
               <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.socialHistory.mediaType")}</div>
               <div className="mt-1 text-sm font-semibold text-slate-100">{mediaType}</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2.5">
               <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.socialHistory.scheduledAt")}</div>
               <div className="mt-1 text-sm font-semibold text-slate-100">{scheduledAt || t("marketing.socialHistory.notAvailable")}</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2.5">
               <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{t("marketing.socialHistory.publishedAt")}</div>
               <div className="mt-1 text-sm font-semibold text-slate-100">{publishedAt || t("marketing.socialHistory.notAvailable")}</div>
             </div>
@@ -260,7 +260,7 @@ export default function SocialPosts() {
 
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           {loading ? (
             <div className="grid min-h-[220px] place-items-center rounded-3xl border border-dashed border-white/10 bg-black/20 p-8 text-center">
               <div className="space-y-3">

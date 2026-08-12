@@ -2270,7 +2270,7 @@ function PurchaseOrder() {
             <PackagePlus className="h-4 w-4" />
             {t("purchases.create.newProduct")}
           </button>
-          <Link to="/purchases" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10">
+          <Link to="/purchases" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10">
             {t("purchases.create.backToDashboard")}
           </Link>
         </div>
@@ -2467,7 +2467,7 @@ function PurchaseOrder() {
             </button>
           ) : null}
 
-          <section className={`min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur transition-all duration-300 ${productPanelExpanded ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+          <section className={`min-w-0 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur transition-all duration-300 ${productPanelExpanded ? "flex min-h-0 flex-1 flex-col" : ""}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.productCards")}</div>
@@ -2506,7 +2506,7 @@ function PurchaseOrder() {
             {productsLoading ? (
               <CardSkeleton />
             ) : groupedCards.length === 0 ? (
-              <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
+              <div className="mt-3 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center">
                 <PackagePlus className="mx-auto h-12 w-12 text-zinc-500" />
                 <h3 className="m1-section-title mt-4 text-white">
                   {search.trim()
@@ -2618,7 +2618,7 @@ function ProductCard({ group, purchaseQtyLabel, purchaseQtySelected = false, onC
   const articleCode = firstText(group.article_code, ...variants.map((variant) => variant.article_code));
 
   return (
-    <div className={`group overflow-hidden rounded-xl border bg-white/[0.04] transition hover:bg-white/[0.07] ${purchaseQtySelected ? "border-amber-400 ring-2 ring-amber-400/20" : matchedLabel ? "border-emerald-300/60 ring-2 ring-emerald-400/10" : "border-white/10 hover:border-emerald-400/30"}`}>
+    <div className={`group overflow-hidden rounded-[var(--radius-card)] border bg-white/[0.04] transition hover:bg-white/[0.07] ${purchaseQtySelected ? "border-amber-400 ring-2 ring-amber-400/20" : matchedLabel ? "border-emerald-300/60 ring-2 ring-emerald-400/10" : "border-white/10 hover:border-emerald-400/30"}`}>
       <button type="button" onClick={onClick} className="block w-full text-left">
         <div className="aspect-[5/3] bg-zinc-900">
           <ProductImage src={group.image_url || first.image_url} name={group.product_name} className="h-full w-full object-cover" />
@@ -2927,7 +2927,7 @@ function PurchaseCart({
 
       <div className="min-h-[15rem] max-h-[46vh] flex-none space-y-2 overflow-y-auto overscroll-contain border-b border-white/10 bg-black/20 p-2.5 [scrollbar-gutter:stable] xl:min-h-[12rem] xl:max-h-none xl:flex-1">
         {items.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
+          <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
             {t("purchases.create.emptyCartHelper")}
           </div>
         ) : (
@@ -2942,7 +2942,7 @@ function PurchaseCart({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Summary label={t("purchases.details.subtotal")} value={formatCurrency(subtotal)} />
           <Summary label={t("purchases.create.expenses")} value={formatCurrency(expenses)} />
-          <label className="rounded-xl border border-white/10 bg-white/5 p-2.5">
+          <label className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2.5">
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.orderDiscount")}</div>
             <input type="number" min="0" value={discount} onChange={(event) => onDiscount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-white outline-none" />
           </label>
@@ -2951,7 +2951,7 @@ function PurchaseCart({
           <span className="text-sm font-black">{labels.grandTotal}</span>
           <span className="text-xl font-black">{formatCurrency(total)}</span>
         </div>
-        <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+        <div className="mt-2 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
           <button
             type="button"
             onClick={() => setPaymentDetailsOpen((open) => !open)}
@@ -2994,7 +2994,7 @@ function PurchaseCart({
                   emptyLabel={isArabic ? "اختر الحساب" : "Choose an account"}
                 />
                 {supplierPaymentStatus === "partial" ? (
-                  <label className="block rounded-xl border border-white/10 bg-white/5 p-2.5">
+                  <label className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2.5">
                     <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{labels.paidAmount}</div>
                     <input type="number" min="0" max={total} value={supplierPaidAmount} onChange={(event) => onSupplierPaidAmount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-white outline-none" />
                   </label>
@@ -3051,7 +3051,7 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
   };
 
   return (
-    <div className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-lg shadow-black/10 transition hover:border-white/20 hover:bg-white/[0.065]">
+    <div className="relative rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 shadow-lg shadow-black/10 transition hover:border-white/20 hover:bg-white/[0.065]">
       <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/25 text-zinc-300 transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
         <Trash2 className="h-3.5 w-3.5" />
       </button>
@@ -3084,7 +3084,7 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
           )}
         </label>
 
-        <label className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5">
+        <label className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-2.5 py-1.5">
           <div className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.quantity}</div>
           <div className="flex h-5 items-center">
             <button type="button" onClick={() => onQty(item.line_id, -1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 hover:bg-white/5 hover:text-white"><Minus className="h-3 w-3" /></button>
@@ -3295,7 +3295,7 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
                 <tr key={String(row.line_id)} className="text-zinc-300">
                   <td className="px-3 py-2 font-semibold text-white">
                     <div className="flex min-w-32 items-center gap-2">
-                      <ProductImage src={row.variant?.variant_image_url || row.variant?.color_image_url || row.variant?.image_url} name={`${row.color} ${row.size}`} className="h-10 w-10 shrink-0 rounded-lg border border-white/10 bg-white object-contain" />
+                      <ProductImage src={row.variant?.variant_image_url || row.variant?.color_image_url || row.variant?.image_url} name={`${row.color} ${row.size}`} className="h-10 w-10 shrink-0 rounded-[var(--radius-card)] border border-white/10 bg-white object-contain" />
                       <span className="whitespace-nowrap">{row.color} / {row.size}</span>
                     </div>
                   </td>
@@ -3428,7 +3428,7 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
                         <ProductImage
                           src={product.group?.image_url || firstVariant.variant_image_url || firstVariant.color_image_url || firstVariant.image_url}
                           name={product.group?.product_name}
-                          className="h-12 w-12 shrink-0 rounded-xl border border-white/10 bg-white object-contain"
+                          className="h-12 w-12 shrink-0 rounded-[var(--radius-card)] border border-white/10 bg-white object-contain"
                         />
                         <div className="min-w-0">
                           <div className="max-w-52 truncate text-sm font-black">{product.group?.product_name || "Product"}</div>
@@ -3622,7 +3622,7 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
             {rows.map((row) => {
               const key = String(row.product_id || row.product_name || "");
               return (
-                <div key={key} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div key={key} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1.35fr)]">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-white">{row.product_name}</div>
@@ -3989,7 +3989,7 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
           const expanded = expandedColors.has(section.key);
           const sectionVariant = section.variants.find((variant) => variant.image_url) || section.variants[0] || {};
           return (
-            <div key={section.key} className="rounded-2xl border border-white/10 bg-white/5">
+            <div key={section.key} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5">
               <button type="button" onClick={() => setExpandedColors((prev) => {
                 const next = new Set(prev);
                 if (next.has(section.key)) next.delete(section.key);
@@ -4019,7 +4019,7 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
                           <div className="truncate text-base font-black text-white">{variant.size || t("purchases.create.oneSize")}</div>
                           <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.create.size")}</div>
                         </div>
-                        <div className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-bold text-zinc-300">
+                        <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-bold text-zinc-300">
                           {t("purchases.create.stockWithValue", { stock: variant.stock })}
                         </div>
                       </div>
@@ -4094,7 +4094,7 @@ function Field({ label, value, onChange, type = "text", placeholder }) {
 
 function Summary({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2.5">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 text-sm font-semibold text-white">{value}</div>
     </div>
@@ -4104,7 +4104,7 @@ function Summary({ label, value }) {
 function CardSkeleton() {
   return (
     <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-80 animate-pulse rounded-2xl border border-white/10 bg-white/5" />)}
+      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-80 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />)}
     </div>
   );
 }

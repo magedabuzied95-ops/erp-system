@@ -107,7 +107,7 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
           </section>
         ) : null}
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
           {!showCustom ? (
             <button type="button" onClick={() => setShowCustom(true)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 px-3 text-xs font-black text-white hover:bg-white/10">
               <Plus size={14} /> مقاس آخر

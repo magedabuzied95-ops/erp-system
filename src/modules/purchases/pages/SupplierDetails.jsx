@@ -93,7 +93,7 @@ function SupplierDetails() {
       actions={
         <Link
           to="/suppliers"
-          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
         >
           <ArrowLeft className="h-4 w-4" />
           {t("purchases.supplierDetails.back")}
@@ -138,12 +138,12 @@ function SupplierDetails() {
             <h3 className="m1-section-title text-white">{t("purchases.supplierDetails.purchaseHistory")}</h3>
             <div className="mt-4 space-y-3">
               {purchases.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
                   {t("purchases.supplierDetails.noPurchaseHistory")}
                 </div>
               ) : (
                 purchases.map((purchase) => (
-                  <div key={String(purchase.id)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div key={String(purchase.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-semibold text-white">{purchase.invoice_number}</div>
@@ -163,7 +163,7 @@ function SupplierDetails() {
             <h3 className="m1-section-title text-white">{t("purchases.supplierDetails.transactionsHistory")}</h3>
             <div className="mt-4 space-y-3">
               {[...ledger].map((entry) => (
-                <div key={String(entry.id)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div key={String(entry.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="font-semibold text-white">{entry.invoice}</div>
@@ -208,7 +208,7 @@ function SupplierDetails() {
 
 function Info({ label, value, icon }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
         {icon}
         {label}
@@ -220,7 +220,7 @@ function Info({ label, value, icon }) {
 
 function ContactRow({ label, value, emptyLabel }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 font-semibold text-white">{value || emptyLabel}</div>
     </div>

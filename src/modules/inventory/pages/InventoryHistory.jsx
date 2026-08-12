@@ -125,7 +125,7 @@ function InventoryHistory() {
         <>
           <Link
             to="/inventory"
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <Clock3 className="h-4 w-4" />
             لوحة المخزون
@@ -219,7 +219,7 @@ function InventoryHistory() {
           </div>
         ) : movements.length === 0 ? (
           <div className="p-8 text-center text-zinc-400">
-            <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">لا توجد حركات مسجلة.</div>
+            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">لا توجد حركات مسجلة.</div>
           </div>
         ) : (
           <div className="m1-table-container overflow-x-auto">
@@ -244,7 +244,7 @@ function InventoryHistory() {
                     <tr
                       key={String(movement.id)}
                       onClick={() => setActiveMovement(movement)}
-                      className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 transition hover:bg-white/10"
+                      className="cursor-pointer rounded-[var(--radius-card)] border border-white/10 bg-white/5 transition hover:bg-white/10"
                     >
                       <td className="px-3 py-4 text-sm text-zinc-300">{formatDateTime(movement.created_at)}</td>
                       <td className="px-3 py-4">
@@ -382,7 +382,7 @@ function TimelineDrawer({ movement, onClose }) {
 
 function Detail({ label, value }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 text-sm font-semibold text-white">{value}</div>
     </div>

@@ -730,7 +730,7 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}, options = {}
     .trim();
 };
 const renderAccountCardValue = (label, value) => (
-  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white">
+  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white">
     <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</div>
     <div className="mt-1 font-semibold">{value}</div>
   </div>
@@ -1636,7 +1636,7 @@ export default function SocialMediaPublisher() {
             </div>
           </div>
           <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{previewTitle}</p>
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-300">
+          <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-300">
             <div className="flex items-center gap-4">
               <span className="font-semibold text-white">1.2K likes</span>
               <span>84 comments</span>
@@ -1665,7 +1665,7 @@ export default function SocialMediaPublisher() {
         {error ? <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
         <div className="grid gap-5">
-          <section className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25">
+          <section className="min-w-0 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-2 text-amber-100">
                 <Upload className="h-5 w-5" />
@@ -1723,7 +1723,7 @@ export default function SocialMediaPublisher() {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
-                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+                  <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
                     <input
                       type="checkbox"
                       checked={includeLocation}
@@ -1732,7 +1732,7 @@ export default function SocialMediaPublisher() {
                     />
                     <span>إضافة الموقع</span>
                   </label>
-                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+                  <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
                     <input
                       type="checkbox"
                       checked={includeShipping}
@@ -1761,11 +1761,11 @@ export default function SocialMediaPublisher() {
                           {selectedCatalogProductDiscount ? <span className={`${sharedBadgeClass} border-emerald-300/20 bg-emerald-300/15 text-emerald-100`}>{selectedCatalogProductDiscount}</span> : null}
                         </div>
                         <div className="grid gap-2 text-xs text-emerald-100/85 sm:grid-cols-2 xl:grid-cols-3">
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">اسم المنتج</div>
                             <div className="mt-1 line-clamp-2 text-sm font-semibold text-white">{selectedCatalogProduct.name || "Selected product"}</div>
                           </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">السعر الحالي</div>
                             <div className="mt-1 text-sm font-semibold text-white">
                               {Number(selectedCatalogProduct.current_price || selectedCatalogProduct.price || 0) > 0
@@ -1773,7 +1773,7 @@ export default function SocialMediaPublisher() {
                                 : "Price not available"}
                             </div>
                           </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">المخزون</div>
                             <div className="mt-1 text-sm font-semibold text-white">
                               {Number(selectedCatalogProductAvailability.stock || selectedCatalogProduct.stock_quantity || 0) > 0
@@ -1781,21 +1781,21 @@ export default function SocialMediaPublisher() {
                                 : "Out of stock"}
                             </div>
                           </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">عدد المقاسات</div>
                             <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductAvailability.sizes.length}</div>
                           </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">عدد الألوان</div>
                             <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductAvailability.colors.length}</div>
                           </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">نسبة الخصم</div>
                             <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductDiscount || "—"}</div>
                           </div>
                         </div>
                         {selectedCatalogMediaItems.length > 1 ? (
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">صور الألوان المتاحة</div>
                             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5 xl:grid-cols-6">
                               {selectedCatalogMediaItems.map((item) => {
@@ -2110,7 +2110,7 @@ export default function SocialMediaPublisher() {
                         ))}
                       </select>
                     ) : (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
                         Facebook Page
                       </div>
                     )}
@@ -2139,7 +2139,7 @@ export default function SocialMediaPublisher() {
                         ))}
                       </select>
                     ) : (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
                         Instagram Business Account
                       </div>
                     )}
@@ -2196,7 +2196,7 @@ export default function SocialMediaPublisher() {
 
                 <div className="space-y-2">
                   <span className="text-sm font-semibold text-slate-200">TikTok</span>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
+                  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
                     {t("marketing.socialPublisher.connectTikTokLater")}
                   </div>
                 </div>
@@ -2291,11 +2291,11 @@ export default function SocialMediaPublisher() {
                     <div className="space-y-3 rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
                       <div className="text-sm font-black text-white">Publishing Account</div>
                       <div className="space-y-3 text-sm">
-                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                           <span className="text-slate-400">Facebook</span>
                           <span className="font-semibold text-white">{selectedFacebookPageLabel}</span>
                         </div>
-                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                           <span className="text-slate-400">Instagram</span>
                           <span className="font-semibold text-white">{selectedInstagramAccountLabel}</span>
                         </div>
@@ -2511,7 +2511,7 @@ export default function SocialMediaPublisher() {
                 </div>
 
                 <div className="border-b border-white/5 px-4 py-4 md:px-6">
-                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3">
                     <Search className="h-4 w-4 text-slate-400" />
                     <input
                       ref={productCatalogSearchRef}
@@ -2525,11 +2525,11 @@ export default function SocialMediaPublisher() {
 
                 <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6">
                   {productCatalogLoading ? (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
+                    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
                       Loading products...
                     </div>
                   ) : productCatalogResults.length === 0 ? (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
+                    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
                       No products found.
                     </div>
                   ) : (

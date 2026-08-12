@@ -421,7 +421,7 @@ function StockMovements() {
       subtitle="تُجمَّع حسب المنتج حتى تبقى الاختيارات بحسب المقاس واللون واضحة وسهلة البحث والفحص."
       actions={
         <div className="flex flex-wrap gap-2">
-          <Link to="/inventory/history" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <Clock3 className="mr-2 inline h-4 w-4" />
             سجل الاختيارات
           </Link>
@@ -559,7 +559,7 @@ function StockMovements() {
           </div>
         ) : groupedMovements.length === 0 ? (
           <div className="p-8 text-center text-zinc-400">
-            <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10">
               لا توجد حركات.
             </div>
           </div>
@@ -576,7 +576,7 @@ function StockMovements() {
                     className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-white/[0.04] md:grid-cols-[76px_minmax(0,1.8fr)_auto] md:items-center md:px-5"
                     aria-expanded={expanded}
                   >
-                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
+                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
                       {imageUrl ? (
                         <img src={imageUrl} alt={group.product_name} className="h-full w-full object-cover" loading="lazy" />
                       ) : (
@@ -643,7 +643,7 @@ function StockMovements() {
                               onClick={() => openVariantHistory(movement, group)}
                               className="grid gap-3 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 py-4 text-left transition hover:border-emerald-400/30 hover:bg-white/[0.06] md:grid-cols-[56px_minmax(0,1.35fr)_auto]"
                             >
-                              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
+                              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
                                 {variantImage ? (
                                   <img src={variantImage} alt={group.product_name} className="h-full w-full object-cover" loading="lazy" />
                                 ) : (
@@ -757,7 +757,7 @@ function CurrentStockSummary({ loading, error, rows }) {
                     <div className="truncate text-sm font-black text-white">{row.color || "غير محدد"}</div>
                     <div className="mt-1 text-xs text-zinc-400">{row.size || "غير محدد"}</div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white tabular-nums">
+                  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white tabular-nums">
                     {row.stock}
                   </div>
                 </div>
@@ -765,7 +765,7 @@ function CurrentStockSummary({ loading, error, rows }) {
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-3 py-4 text-sm text-zinc-400">
+          <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 px-3 py-4 text-sm text-zinc-400">
             لا توجد لقطة رصيد مباشرة متاحة.
           </div>
         )}
@@ -833,7 +833,7 @@ function Stat({ label, value, tone = "neutral" }) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2">
       <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className={`mt-1 break-words text-sm font-black ${classes[tone]}`}>{value}</div>
     </div>
@@ -898,9 +898,9 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
         </div>
 
         <div className="grid flex-1 gap-4 overflow-hidden p-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+          <aside className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-start gap-3">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
                 {imageUrl ? <img src={imageUrl} alt={group.product_name || movement.product_name || "صورة المنتج"} className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6" />}
               </div>
               <div className="min-w-0 flex-1">
@@ -936,7 +936,7 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
               ) : error ? (
                 <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
               ) : movements.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
                   لا يوجد سجل حركات لهذا الاختيار.
                 </div>
               ) : (
@@ -945,8 +945,8 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
                     const delta = toNumber(item.quantity_change ?? item.quantity_delta ?? item.quantity ?? 0, 0);
                     const itemImage = resolveProductImageUrl(item.color_image_url || item.variant_image_url || item.product_image_url || item.image_url || "");
                     return (
-                      <div key={String(item.id)} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 md:grid-cols-[48px_minmax(0,1.4fr)_auto]">
-                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
+                      <div key={String(item.id)} className="grid gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-4 md:grid-cols-[48px_minmax(0,1.4fr)_auto]">
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
                           {itemImage ? <img src={itemImage} alt={item.product_name || "الاختيار"} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5" />}
                         </div>
 
@@ -1001,7 +1001,7 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
 
 function Detail({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-3 py-3">
       <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className="mt-1 break-words text-sm font-black text-white">{value}</div>
     </div>

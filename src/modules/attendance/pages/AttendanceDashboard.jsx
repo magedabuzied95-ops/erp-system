@@ -41,7 +41,7 @@ const toneClass = {
 
 function MetricCard({ label, value, hint, tone = "slate", icon }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/10 backdrop-blur">
+    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/10 backdrop-blur">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{label}</div>
@@ -146,7 +146,7 @@ export default function AttendanceDashboard() {
           <MetricCard label="خارج نطاق GPS اليوم" value={loading ? "-" : summary.outsideGpsToday ?? 0} hint="التحقق من GPS خارج النطاق" tone="slate" icon={<MapPinOff className="h-5 w-5" />} />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">جدول الموظفين المباشر</h2>
