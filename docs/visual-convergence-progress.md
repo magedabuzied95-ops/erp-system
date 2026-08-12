@@ -17,6 +17,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 6 | Loyalty module fixed-dark surfaces (3 files / 3 routes) | `pre-visual-convergence-cp6-20260813` -> `fbacc5b` | `cfdbb72` | `cfdbb72` verified (see note) | build green |
 | 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | REVERTED in `8304aed` (automation-session failure, not a real outage) | build green |
 | 7b | Re-apply of cp7 after the incident was cleared | `pre-visual-convergence-cp7b-20260813` -> `21ba628` | `c950a77` | `c950a77` verified Light + Dark (5 routes) | build green |
+| 8 | `/analytics` fixed-dark dashboard (1 file / 1 route) | `pre-visual-convergence-cp8-20260813` -> `8909fc4` | `907cf92` | `907cf92` verified Light + Dark | build green |
 
 ## Method
 
@@ -606,6 +607,46 @@ Title colour resolves to `--text` in both themes (`rgb(27,25,21)` Light,
 
 Typography debt from the ruling is now **cleared**: 0 routes remain oversized.
 
+## Phase 3 — PARTIAL_PASS completion (in progress)
+
+Running only the **missing** state per route, per the matrix. Light pass for the
+routes that had been measured in Dark only.
+
+| Route | Missing state run | Offenders | Result |
+|---|---|---|---|
+| `/notifications` | Light | 0 | **PASS** (both themes) |
+| `/users` | Light | 0 | **PASS** (both themes) |
+| `/analytics` | Light | **1 dark gradient** | **FIXED (cp8)** |
+
+### 8. `/analytics` — fixed-dark dashboard in Light (checkpoint 8)
+
+**Found by the Phase 3 Light pass** — the route had been recorded as "0
+offenders" in Dark during session 3. This is the **second** time a Dark-only row
+concealed a Light-specific defect, after the loyalty module.
+
+**Measured in Light:** a **1937 x 504** hero painting
+`linear-gradient(oklch(0.141 …) → oklch(0.208 …))` — near-black — plus
+`zinc-950` panels and `zinc-950/80` controls throughout. The whole dashboard was
+authored fixed-dark (123 off-system occurrences in 1238 lines).
+
+**Owner:** `src/modules/analytics/pages/AnalyticsDashboard.jsx`. Converged onto
+the standard ladder; residual off-system chrome **0**.
+
+**Two rules added to the shared transform** (kept for reuse): dark *named*
+gradient stops (`bg-gradient-to-* from/via/to zinc|slate|neutral|gray|stone
+800-950`) collapse to `--card`, and the **alpha** form of those named dark
+surfaces (`bg-zinc-950/80`) maps to `--surface`.
+
+**Also corrected:** the alert cards used `text-white/85` and
+`text-rose|amber|emerald-100` over translucent `/10` tints — dark-theme-only
+values that render as near-invisible text on a light surface. Now `--text` and
+the 500-level tints, matching checkpoints 3 and 4.
+
+**Production verified (`907cf92`):** Light — 0 offenders, 0 dark gradients, hero
+`rgb(255,255,255)` = `--card` with `background-image: none`, shell
+`rgb(234,231,224)`. Dark — 0 offenders, hero `rgb(35,34,32)` = `--card`, shell
+`rgb(19,18,17)`. State **FIXED_VERIFIED (light + dark, RTL)**.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
@@ -720,42 +761,32 @@ healthy API and no thrown error) before any further visual work.
 
 ## RESUME MARKER
 
-**BLOCKED ON THE INCIDENT ABOVE.** Confirm whether the app mounts in an
-ordinary browser before resuming. If it does, re-apply the cp7 one-line change
-(m1-page-title + text-[var(--text)] in MarketingStudioHeader.jsx:39) and verify
-the five consumer routes in Light + Dark. Then continue Phase 3.
+**Phase 2 is COMPLETE** — typography debt cleared, all five header consumers
+verified at 22px in Light + Dark, frozen references unchanged.
 
+**Phase 3 is IN PROGRESS.** Continue the Light pass for the remaining Dark-only
+routes, in this order:
 
-**Phase 1 (ID-bound routes) is complete except two records that do not exist /
-one route that does not render:**
+`/branches`, `/employees`, `/employees/analytics`, `/employees/attendance`,
+`/employees/employees`, `/employees/reports`, `/inventory/adjustments`,
+`/inventory/history`, `/inventory/movements`, `/inventory/count`,
+`/ai-studio` + its 5 subroutes, `/products/brands`, `/products/categories`,
+`/products/manufacturers`, `/products/units`, `/products/variants`,
+`/reports`, `/reports/overview`, `/reports/sales`, `/reports/inventory`,
+and the session-4 routes (barcode pages, `/operations/shipping`,
+`/website/settings`, `/orders/returns`, `/pos`, `/staff/tasks`, `/admin/*`).
 
-- `/inventory/count/:id` and `/inventory/variant/:id/history` — **PENDING**, no
-  record ID obtainable read-only (all four candidate list endpoints 404). Next
-  attempt: harvest via in-app SPA navigation into `/inventory/count` and read a
-  rendered session row, rather than a cold direct load.
-- `/ai-studio/workflows/:id/edit` — **BLOCKED_NO_RENDER** (proof recorded above).
+Then the Dark pass for the 13 accounting routes and the session-1 routes, which
+are Light-only. Then Phase 4 (`/products/labels` -> PASS_BOUNDED) and Phase 5
+(frozen-reference sweep).
 
-Also re-measure `/loyalty` in Dark on cfdbb72 (one call) to close checkpoint 6.
+**Treat every single-theme row as genuinely unverified.** Two Light-specific
+defects (loyalty, `/analytics`) have now been caught this way, both invisible to
+a Dark-only sweep.
 
-**Next: Phase 2 — typography convergence** against the approved 22px ruling.
-Trace and converge the page-title owner on exactly these three routes:
-
-1. `/marketing/analytics` — 44px
-2. `/marketing/social-calendar` — 37px
-3. `/marketing/social-media-publisher` — 37px
-
-`/marketing/automation` already measures 22px and must NOT be touched.
-Do NOT globally replace `.m1-display` — it has legitimate hero/display consumers.
-Verify after: title computes 22px, hierarchy intact, no spacing regression,
-Light + Dark, RTL + LTR.
-
-Then Phase 3 (PARTIAL_PASS completion — run only the missing states per route),
-Phase 4 (`/products/labels` bounded verification -> PASS_BOUNDED), Phase 5
-(final frozen-reference sweep).
-
-**Phase 3 priority warning:** the loyalty module proved that a single-theme
-sweep hides real defects — `/loyalty` measured 0 offenders in Dark and 5 in
-Light. Treat every Dark-only or Light-only row as genuinely unverified.
+Unchanged records: `/ai-studio/workflows/:id/edit` BLOCKED_FUNCTIONAL;
+`/inventory/count/:id` and `/inventory/variant/:id/history`
+PENDING_NO_READONLY_ID; `/products/labels` bounded verification.
 
 ### Remaining queue (PENDING)
 
