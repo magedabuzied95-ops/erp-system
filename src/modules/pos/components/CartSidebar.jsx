@@ -2,6 +2,7 @@
 import { createPortal } from "react-dom";
 import { memo } from "react";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n/i18n";
 import toast from "react-hot-toast";
 import {
@@ -409,6 +410,9 @@ function CartSidebar({
   onAddInvoiceTab,
   onCloseInvoiceTab,
 }) {
+  // memo() component: without its own subscription the cart chrome keeps the
+  // previous language after an AR<->EN switch until an unrelated prop changes.
+  useTranslation();
   const renderCountRef = useRef(0);
   const [discountLoyaltyOpen, setDiscountLoyaltyOpen] = useState(false);
   const [invoiceDiscountOpen, setInvoiceDiscountOpen] = useState(false);
