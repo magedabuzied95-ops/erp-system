@@ -76,6 +76,173 @@ const looksLikeProse = (value) => {
 /** 1-indexed line number of a character offset. */
 const lineAt = (text, index) => text.slice(0, index).split("\n").length;
 
+/* ------------------------------------------------------------------ *
+ * Minimal source-aware skipper.
+ *
+ * Brace matching that just counts `{` and `}` is wrong in this codebase: a
+ * single JSX file is full of braces inside strings, template literals and
+ * `${...}` interpolation. An earlier attempt at the bilingual-ternary shape
+ * used naive counting, misaligned, and was reverted rather than shipped.
+ * These helpers step over strings, templates (recursively, through nested
+ * interpolation) and comments so the brace depth is real.
+ * ------------------------------------------------------------------ */
+
+/** Index just past the closing quote of the string starting at `i`. */
+const skipString = (text, i) => {
+  const quote = text[i];
+  i += 1;
+  while (i < text.length) {
+    if (text[i] === "\\") { i += 2; continue; }
+    if (text[i] === quote) return i + 1;
+    i += 1;
+  }
+  return i;
+};
+
+/** Index just past the closing backtick, descending into every `${...}`. */
+const skipTemplate = (text, i) => {
+  i += 1;
+  while (i < text.length) {
+    if (text[i] === "\\") { i += 2; continue; }
+    if (text[i] === "`") return i + 1;
+    if (text[i] === "$" && text[i + 1] === "{") { i = skipBraces(text, i + 1); continue; }
+    i += 1;
+  }
+  return i;
+};
+
+/** Index just past the `}` matching the `{` at `i`. */
+function skipBraces(text, i) {
+  let depth = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '"' || c === "'") { i = skipString(text, i); continue; }
+    if (c === "`") { i = skipTemplate(text, i); continue; }
+    if (c === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i += 1;
+      continue;
+    }
+    if (c === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      i = end < 0 ? text.length : end + 2;
+      continue;
+    }
+    if (c === "{") depth += 1;
+    else if (c === "}") { depth -= 1; if (depth === 0) return i + 1; }
+    i += 1;
+  }
+  return i;
+}
+
+/** Top-level keys of the object literal spanning [start, end). */
+const objectKeys = (text, start, end) => {
+  const keys = new Set();
+  let i = start + 1;
+  let depth = 0;
+  while (i < end - 1) {
+    const c = text[i];
+    if (c === '"' || c === "'") {
+      const close = skipString(text, i);
+      if (depth === 0) {
+        const raw = text.slice(i + 1, close - 1);
+        let j = close;
+        while (j < end && /\s/.test(text[j])) j += 1;
+        if (text[j] === ":") keys.add(raw);
+      }
+      i = close;
+      continue;
+    }
+    if (c === "`") { i = skipTemplate(text, i); continue; }
+    if (c === "{" || c === "[" || c === "(") { depth += 1; i += 1; continue; }
+    if (c === "}" || c === "]" || c === ")") { depth -= 1; i += 1; continue; }
+    if (depth === 0 && /[A-Za-z_$]/.test(c)) {
+      let j = i;
+      while (j < end && /[\w$]/.test(text[j])) j += 1;
+      const word = text.slice(i, j);
+      let k = j;
+      while (k < end && /\s/.test(text[k])) k += 1;
+      if (text[k] === ":") keys.add(word);
+      i = j;
+      continue;
+    }
+    i += 1;
+  }
+  return keys;
+};
+
+/**
+ * Arabic test that also sees `مر...` escapes. POSPro (and other files
+ * that have been through a codemod) store their Arabic escaped, so a raw
+ * character-class test reports the branch as English and the pair is missed.
+ */
+const containsArabic = (source) =>
+  ARABIC.test(source) ||
+  ARABIC.test(source.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16))));
+
+/** Does the expression governing this ternary select on language? */
+const LANGUAGE_CONDITION =
+  /\b(isArabic|isAr|isRtl|isRTL|lang|language|locale|currentLanguage|dir)\b|["']ar["']/;
+
+/**
+ * Line ranges of the ENGLISH branch of a bilingual copy ternary:
+ *
+ *   const copy = (language) => isAr
+ *     ? { title: "...عربى", subtitle: "..." }
+ *     : { title: "English",  subtitle: "..." };
+ *
+ * Requires ALL of:
+ *   - the condition selects on language,
+ *   - both branches are object literals,
+ *   - exactly one branch carries Arabic,
+ *   - the branches are demonstrably PARALLEL - at least two shared top-level
+ *     keys and >= 60% key overlap.
+ * Anything less is left as debt.
+ */
+export const bilingualTernaryRanges = (text) => {
+  const ranges = [];
+  // Candidates are located with a regex rather than by walking every character:
+  // a char walk has to guess whether a quote opens a string, and JSX prose is
+  // full of apostrophes ("don't"), which swallowed whole regions. The
+  // source-aware matcher is still used for the structural part below, where it
+  // starts at a real `{` in code.
+  const CANDIDATE = /\?\s*\{/g;
+  let match;
+  while ((match = CANDIDATE.exec(text))) {
+    const i = match.index;
+    if (text[i + 1] === "." || text[i + 1] === "?") continue; // ?. and ??
+
+    const a = text.indexOf("{", i);
+    const aEnd = skipBraces(text, a);
+
+    let mid = aEnd;
+    while (mid < text.length && /\s/.test(text[mid])) mid += 1;
+    if (text[mid] !== ":") continue;
+    let b = mid + 1;
+    while (b < text.length && /\s/.test(text[b])) b += 1;
+    if (text[b] !== "{") continue;
+    const bEnd = skipBraces(text, b);
+
+    if (!LANGUAGE_CONDITION.test(text.slice(Math.max(0, i - 160), i))) continue;
+
+    const aSrc = text.slice(a, aEnd);
+    const bSrc = text.slice(b, bEnd);
+    const aAr = containsArabic(aSrc);
+    const bAr = containsArabic(bSrc);
+    if (aAr === bAr) continue;
+
+    const aKeys = objectKeys(text, a, aEnd);
+    const bKeys = objectKeys(text, b, bEnd);
+    const shared = [...aKeys].filter((k) => bKeys.has(k)).length;
+    const widest = Math.max(aKeys.size, bKeys.size);
+    if (shared < 2 || !widest || shared / widest < 0.6) continue;
+
+    const [from, to] = aAr ? [b, bEnd] : [a, aEnd];
+    ranges.push([lineAt(text, from), lineAt(text, to)]);
+    CANDIDATE.lastIndex = bEnd;
+  }
+  return ranges;
+};
+
 /**
  * Line ranges of the `en:` half of a WORKING BILINGUAL sibling table:
  *
@@ -239,7 +406,7 @@ export function scanEnglish() {
     // Reclassify per HIT before the file-level bucketing below: a file can hold
     // a working bilingual table, a dev-only panel AND genuine broken chrome.
     const text = fs.readFileSync(file, "utf8");
-    const bilingualRanges = bilingualEnglishRanges(text);
+    const bilingualRanges = [...bilingualEnglishRanges(text), ...bilingualTernaryRanges(text)];
     const devRanges = devGatedRanges(text);
     const printRanges = printDocumentRanges(text);
     if (bilingualRanges.length || devRanges.length || printRanges.length) {
