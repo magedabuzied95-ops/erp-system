@@ -3564,7 +3564,7 @@ function ProductEdit() {
           </button>
         </div>
       ) : (
-        <div className="space-y-6 pb-28 lg:pb-24">
+        <div className="space-y-4 pb-28 lg:pb-24">
           <ProductActionBar
             mode="edit"
             saving={saving}
@@ -3937,9 +3937,9 @@ function ProductEdit() {
             />
           </section>
           <section className={`m1-product-section ${SECTION_CARD_CLASSES} p-6`}>
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
               <div className="flex-1">
-                <label className="flex min-h-[260px] cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft text-center">
+                <label className="flex min-h-[200px] cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft text-center">
                   {coverImage ? (
                     <img src={resolveAssetUrl(coverImage)} alt="Product cover" className="h-full max-h-[320px] w-full object-contain p-4" />
                   ) : (
@@ -4021,7 +4021,7 @@ function ProductEdit() {
 
               <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface-soft p-5 xl:w-[460px]">
                 <p className="text-sm font-semibold text-text-muted">{t("products.editor.productGallery", "Product gallery")}</p>
-                <label className="mt-4 flex min-h-[120px] cursor-pointer items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-raised text-center">
+                <label className="mt-4 flex min-h-[160px] cursor-pointer items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-raised text-center">
                   <div>
                     <ImagePlus className="mx-auto text-text-muted" size={30} />
                     <p className="mt-3 text-sm font-semibold text-text">{t("products.editor.addGalleryImages", "Add gallery images")}</p>
@@ -4054,7 +4054,7 @@ function ProductEdit() {
             </div>
 
             {aiProductData ? (
-              <div className="mt-5 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
+              <div className="mt-4 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-black text-text">{t("products.editor.aiProductSuggestions", "AI product suggestions")}</p>
@@ -4095,7 +4095,7 @@ function ProductEdit() {
                             <button
                               type="button"
                               onClick={() => applyAiProductSuggestion(field)}
-                              className="shrink-0 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-bold text-text hover:border-primary/30 hover:text-primary"
+                              className="shrink-0 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-0.5 text-[10px] font-bold text-text hover:border-primary/30 hover:text-primary"
                             >
                               Apply
                             </button>
@@ -4347,17 +4347,17 @@ function ProductEdit() {
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <h3 className="m1-section-title truncate text-text">{group.color || `Color group ${groupIndex + 1}`}</h3>
                         {getGroupManufacturerSummary(group) ? (
-                          <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">
+                          <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                             المصنع: {getGroupManufacturerSummary(group)}
                           </span>
                         ) : null}
                         {getGroupArticleSummary(group) ? (
-                          <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-black tracking-[0.08em] text-amber-200" dir="ltr">
+                          <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black tracking-[0.08em] text-amber-200" dir="ltr">
                             ART {getGroupArticleSummary(group)}
                           </span>
                         ) : null}
                         {group.audience ? (
-                          <span className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2.5 py-1 text-[11px] font-bold text-violet-100">
+                          <span className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2 py-0.5 text-[10px] font-bold text-violet-100">
                             {String(group.audience).split(",").map((value) => value === "men" ? "رجالي" : value === "women" ? "حريمي" : "أطفال").join(" + ")}
                           </span>
                         ) : null}

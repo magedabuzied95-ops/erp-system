@@ -75,10 +75,10 @@ function ProductForm({
   }, []);
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,.95fr)_minmax(440px,1.35fr)_minmax(280px,.9fr)] xl:gap-x-0 xl:gap-y-5 xl:items-stretch">
-      <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5 xl:col-start-1 xl:row-start-1 xl:rounded-e-none">
+    <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,.95fr)_minmax(440px,1.35fr)_minmax(280px,.9fr)] xl:gap-x-0 xl:gap-y-5 xl:items-stretch">
+      <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 xl:col-start-1 xl:row-start-1 xl:rounded-e-none">
 
-        <div className="mb-5 flex items-center justify-between gap-3 border-b border-border pb-4">
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-border pb-4">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-text-muted">01 · بيانات البيع</p>
             <h3 className="m1-section-title mt-1 text-text">العلامة والوحدة</h3>
@@ -183,8 +183,8 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5 xl:col-start-2 xl:row-start-1 xl:rounded-none xl:border-x-0">
-        <div className="mb-5 border-b border-border pb-4">
+      <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 xl:col-start-2 xl:row-start-1 xl:rounded-none xl:border-x-0">
+        <div className="mb-4 border-b border-border pb-4">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">02 · التصنيف الذكي</p>
             <h3 className="m1-section-title mt-1 text-text">{t("products.form.smartPosFilters")}</h3>
             <p className="mt-1 text-xs leading-5 text-text-muted">{t("products.form.smartPosHelp")}</p>
@@ -248,8 +248,8 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5 xl:col-start-3 xl:row-start-1 xl:rounded-s-none">
-        <div className="mb-5 border-b border-border pb-4">
+      <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 xl:col-start-3 xl:row-start-1 xl:rounded-s-none">
+        <div className="mb-4 border-b border-border pb-4">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-300">03 · التسعير التسويقي</p>
           <h3 className="m1-section-title mt-1 text-text">{t("products.fields.originalPrice", "السعر قبل الخصم")}</h3>
           <p className="mt-1 text-xs leading-5 text-text-muted">{t("products.form.originalPriceHelp", "اختياري، ويظهر مشطوبًا فقط عندما يكون أكبر من سعر البيع الحالي.")}</p>

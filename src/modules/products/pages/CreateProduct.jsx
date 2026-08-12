@@ -2588,7 +2588,7 @@ function CreateProduct() {
   );
 
   const aiVisionPanel = aiProductData ? (
-    <div className="mt-5 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
+    <div className="mt-4 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-black text-text">{t("products.editor.aiVisionResults", "AI Vision results")}</p>
@@ -2636,7 +2636,7 @@ function CreateProduct() {
         </Link>
       }
     >
-      <form id="create-product-form" onSubmit={handleSubmit} className="m1-product-form w-full min-w-0 max-w-none space-y-6 overflow-x-hidden pb-28 lg:pb-24">
+      <form id="create-product-form" onSubmit={handleSubmit} className="m1-product-form w-full min-w-0 max-w-none space-y-4 overflow-x-hidden pb-28 lg:pb-24">
         <ProductActionBar
           mode="create"
           saving={saving}
@@ -2644,17 +2644,37 @@ function CreateProduct() {
           hasUnsavedChanges={hasUnsavedChanges}
           formId="create-product-form"
         />
-        <div className="flex w-full min-w-0 max-w-none flex-col gap-5 px-4 sm:px-6 lg:px-8">
-          <section className="rounded-[var(--radius-card)] border border-border bg-surface-raised p-4 shadow-[var(--shadow-card)]">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h1 className="m1-page-title text-text">{t("products.editor.createTitle", "إنشاء منتج")}</h1>
-                <p className="mt-1 max-w-3xl text-sm leading-6 text-text-muted">
-                  {t("products.editor.createWorkflowDescription")}
-                </p>
-              </div>
+        <div className="flex w-full min-w-0 max-w-none flex-col gap-4 px-4 sm:px-6 lg:px-8">
+          {/* One bar instead of three stacked layers. The page title is already
+              rendered by ProductsShell directly above, so repeating it here only
+              pushed the form down; the workflow description, the section
+              jump-nav and the page actions now share this single sticky bar.
 
-              <div className="flex flex-wrap gap-2">
+              The description is a quiet meta line rather than a heading block —
+              same surface, no extra card, one truncated line. <nav> wraps only
+              the jump links so the description is not announced as navigation.
+              Both actions are carried over verbatim, so the submit contract
+              (three native submits, each guarded while saving) is intact. */}
+          <div className="sticky top-[58px] z-30 -mx-1 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-2 backdrop-blur md:top-[64px]">
+            <p className="truncate px-1 pb-1.5 text-[11px] leading-4 text-text-muted">
+              {t("products.editor.createWorkflowDescription")}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
+              <nav className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
+                {pageNavSections.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => scrollToSection(section.id)}
+                    className="h-[var(--control-height-md)] shrink-0 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+                  >
+                    {section.title}
+                  </button>
+                ))}
+              </nav>
+
+              <div className="flex shrink-0 flex-wrap gap-2">
                 <Link
                   to="/products"
                   onClick={confirmLeaveIfDirty}
@@ -2672,24 +2692,9 @@ function CreateProduct() {
                 </button>
               </div>
             </div>
-          </section>
+          </div>
 
-          <nav className="sticky top-[58px] z-30 -mx-1 md:top-[64px] overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-2 backdrop-blur">
-            <div className="flex min-w-max gap-2">
-              {pageNavSections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => scrollToSection(section.id)}
-                  className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
-                >
-                  {section.title}
-                </button>
-              ))}
-            </div>
-          </nav>
-
-          <div className="space-y-6">
+          <div className="space-y-4">
             <SectionCard id="basic-info">
               <SectionHeader
                 icon={Sparkles}
@@ -2698,7 +2703,7 @@ function CreateProduct() {
                 tone="emerald"
               />
 
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <label className="text-sm font-semibold text-text">{t("products.form.productName", "Product name")}</label>
                   <input
@@ -2776,7 +2781,7 @@ function CreateProduct() {
             />
 
               {isColorOnlyMode ? (
-                <div className="mt-5 rounded-[var(--radius-card)] border border-primary/15 bg-primary/10 p-4">
+                <div className="mt-4 rounded-[var(--radius-card)] border border-primary/15 bg-primary/10 p-4">
                   <label className="text-sm font-semibold text-primary">{t("products.editor.fixedSize", "Fixed size")}</label>
                   <input
                     value={fixedSizeLabel}
@@ -2797,9 +2802,9 @@ function CreateProduct() {
                 tone="blue"
               />
 
-              <div className="mt-5 grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <div>
-                  <label className="flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-soft p-6 text-center hover:border-primary/60">
+                  <label className="flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-soft p-6 text-center hover:border-primary/60">
                     {coverImage ? (
                       <img src={coverImage} alt="cover" className="h-full max-h-[220px] w-full rounded-[var(--radius-card)] object-cover" />
                     ) : (
@@ -2875,7 +2880,7 @@ function CreateProduct() {
 
                 <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5">
                   <p className="text-sm font-semibold text-text">{t("products.editor.galleryUpload", "Gallery upload")}</p>
-                  <label className="mt-4 flex min-h-[220px] cursor-pointer items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-soft text-center">
+                  <label className="mt-4 flex min-h-[160px] cursor-pointer items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-soft text-center">
                     <div>
                       <ImagePlus className="mx-auto text-text-muted" size={38} />
                       <p className="mt-4 text-sm font-semibold text-text">{t("products.editor.addMultipleGalleryImages", "Add multiple gallery images")}</p>
@@ -2917,7 +2922,7 @@ function CreateProduct() {
                 tone="sky"
               />
 
-              <div className="mt-5 overflow-x-auto">
+              <div className="mt-4 overflow-x-auto">
                 <div className="flex min-w-max gap-2">
                   {productContentTabs.map((tab) => (
                     <button
@@ -2956,7 +2961,7 @@ function CreateProduct() {
                 tone="amber"
               />
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-4">
                 <div className="hidden rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 transition duration-200 hover:border-border hover:bg-surface-soft ">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text">{t("products.editor.identifiers", "Identifiers")}</p>
@@ -3187,7 +3192,7 @@ function CreateProduct() {
                   </div>
 
               {false && aiProductData ? (
-                <div className="mt-5 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
+                <div className="mt-4 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-black text-text">{t("products.editor.aiProductSuggestions", "AI product suggestions")}</p>
@@ -3228,7 +3233,7 @@ function CreateProduct() {
                               <button
                                 type="button"
                                 onClick={() => applyAiProductSuggestion(field)}
-                                className="shrink-0 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-bold text-text hover:border-primary/30 hover:text-primary"
+                                className="shrink-0 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-0.5 text-[10px] font-bold text-text hover:border-primary/30 hover:text-primary"
                               >
                                 Apply
                               </button>
@@ -3296,7 +3301,7 @@ function CreateProduct() {
                 tone="violet"
               />
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-4">
                 <label className="flex items-center justify-between rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3">
                   <span className="text-sm font-semibold text-text">{t("products.editor.activeProduct")}</span>
                   <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
@@ -3450,7 +3455,7 @@ function CreateProduct() {
             </SectionCard>
 
             <SectionCard hidden={isSimpleMode}>
-              <div className="sticky top-3 z-20 -mx-1 mb-5 rounded-[var(--radius-card)] border border-border bg-surface-soft/95 p-3 shadow-[var(--shadow-overlay)] backdrop-blur">
+              <div className="sticky top-3 z-20 -mx-1 mb-4 rounded-[var(--radius-card)] border border-border bg-surface-soft/95 p-3 shadow-[var(--shadow-overlay)] backdrop-blur">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <SectionHeader
                     icon={Layers3}
@@ -3546,17 +3551,17 @@ function CreateProduct() {
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                             <h3 className="m1-section-title truncate text-text">{group.color || `Color group ${groupIndex + 1}`}</h3>
                             {getGroupManufacturerSummary(group) ? (
-                              <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">
+                              <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                                 المصنع: {getGroupManufacturerSummary(group)}
                               </span>
                             ) : null}
                             {getGroupArticleSummary(group) ? (
-                              <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-black tracking-[0.08em] text-amber-200" dir="ltr">
+                              <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black tracking-[0.08em] text-amber-200" dir="ltr">
                                 ART {getGroupArticleSummary(group)}
                               </span>
                             ) : null}
                             {group.audience ? (
-                              <span className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2.5 py-1 text-[11px] font-bold text-violet-100">
+                              <span className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2 py-0.5 text-[10px] font-bold text-violet-100">
                                 {String(group.audience).split(",").map((value) => value === "men" ? "رجالي" : value === "women" ? "حريمي" : "أطفال").join(" + ")}
                               </span>
                             ) : null}
@@ -4103,7 +4108,7 @@ function CreateProduct() {
                 </div>
               ) : null}
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-4 space-y-3">
                 {variantMatrix.length === 0 ? (
                   <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 text-sm text-text-muted">
                     {isColorOnlyMode
